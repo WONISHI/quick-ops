@@ -9,15 +9,35 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onCommand:scope-search.search"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "scope-search.helloWorld",
-        "title": "Hello World"
+        "command": "scope-search.search",
+        "title": "🔍 自定义搜索",
+        "category": "Scope Search"
+      },
+      {
+        "command": "scope-search.resetHighlight",
+        "title": "重置搜索",
+        "category": "Scope Search"
       }
-    ]
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "scope-search.search",
+          "group": "navigation"
+        },
+        {
+          "command": "scope-search.resetHighlight",
+          "group": "navigation"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "pnpm run package",
@@ -43,5 +63,8 @@
     "webpack-cli": "^6.0.1",
     "@vscode/test-cli": "^0.0.11",
     "@vscode/test-electron": "^2.5.2"
+  },
+  "volta": {
+    "node": "22.12.0"
   }
 }

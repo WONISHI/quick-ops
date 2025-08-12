@@ -1,26 +1,81 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+let decorationType: vscode.TextEditorDecorationType;
+
 export function activate(context: vscode.ExtensionContext) {
+  decorationType = vscode.window.createTextEditorDecorationType({
+    backgroundColor: "rgba(255, 255, 0, 0.3)",
+    borderRadius: "2px",
+  });
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "scope-search" is now active!');
+  const searchCommand = vscode.commands.registerCommand("scope-search.search", async () => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      vscode.window.showWarningMessage("没有激活的编辑器");
+      return;
+    }
+    const selection = editor.selection;
+    if (selection.isEmpty) {
+      vscode.window.showWarningMessage("请先选中文本");
+      return;
+    }
+    const text = editor.document.getText(selection);
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('scope-search.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from scope-search!');
-	});
+    const result = await vscode.window.showInputBox({
+      prompt: "请输入正则表达式（无需加 //，默认全局匹配）",
+      placeHolder: "例如 foo|bar",
+      validateInput: (input) => (input.trim() === "" ? "输入不能为空" : null),
+    });
+    if (result === undefined) {
+      vscode.window.showInformationMessage("用户取消输入");
+      return;
+    }
 
-	context.subscriptions.push(disposable);
+    let regex: RegExp;
+    try {
+      regex = new RegExp(result, "g");
+    } catch {
+      vscode.window.showErrorMessage("无效的正则表达式");
+      return;
+    }
+
+    const startOffset = editor.document.offsetAt(selection.start);
+    const decorationsArray: vscode.DecorationOptions[] = [];
+
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const matchStart = startOffset + match.index;
+      const matchEnd = matchStart + match[0].length;
+      const startPos = editor.document.positionAt(matchStart);
+      const endPos = editor.document.positionAt(matchEnd);
+      decorationsArray.push({
+        range: new vscode.Range(startPos, endPos),
+        hoverMessage: `匹配关键字: **${match[0]}**`,
+      });
+      // 防止死循环，空匹配时跳过
+      if (match.index === regex.lastIndex) {
+        regex.lastIndex++;
+      }
+    }
+
+    editor.setDecorations(decorationType, decorationsArray);
+
+    vscode.window.showInformationMessage(`匹配到 ${decorationsArray.length} 处，输入的正则：${result}`);
+  });
+
+  const resetCommand = vscode.commands.registerCommand("scope-search.resetHighlight", () => {
+    const editor = vscode.window.activeTextEditor;
+    if (editor) {
+      editor.setDecorations(decorationType, []);
+      vscode.window.showInformationMessage("已清除搜索高亮");
+    }
+  });
+
+  context.subscriptions.push(searchCommand, resetCommand);
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {}
+export function deactivate() {
+  if (decorationType) {
+    decorationType.dispose();
+  }
+}
