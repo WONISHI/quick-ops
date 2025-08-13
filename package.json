@@ -17,7 +17,7 @@
     "commands": [
       {
         "command": "scope-search.search",
-        "title": "🔍 自定义搜索",
+        "title": "自定义搜索",
         "category": "Scope Search"
       },
       {
@@ -65,6 +65,6 @@
     "@vscode/test-electron": "^2.5.2"
   },
   "volta": {
-    "node": "22.12.0"
+    "node": "22.18.0"
   }
 }
