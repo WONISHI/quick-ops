@@ -1,71 +1,40 @@
-# scope-search README
+# Scope Search
 
-This is the README for your extension "scope-search". After writing up a brief description, we recommend including the following sections.
+Scope Search 是一个 VS Code 扩展，用于在指定范围内进行代码搜索，让你能够快速、高效地定位目标代码段。
 
-## Features
+## ✨ 功能特性
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- **范围限定搜索**：只在选定的文件夹、文件或代码块中搜索。
+- **精确匹配**：支持精确匹配、正则匹配和大小写敏感模式。
+- **高亮显示**：搜索结果高亮显示，方便快速定位。
+- **快捷键支持**：可通过快捷键快速触发搜索。
 
-For example if there is an image subfolder under your extension project workspace:
+## 📦 安装
 
-\!\[feature X\]\(images/feature-x.png\)
+1. 从 VSIX 文件安装  
+   - 在 VS Code 中打开命令面板（`Ctrl+Shift+P`）  
+   - 输入 `Extensions: Install from VSIX...` 并选择 `.vsix` 文件
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+2. 或从 VS Code Marketplace 搜索 **Scope Search** 安装（发布后可用）
 
-## Requirements
+## ⚙️ 使用方法
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+1. 选中你想搜索的范围（文件、目录或选中代码段）。
+2. 打开命令面板（`Ctrl+Shift+P`），输入并选择 **Scope Search: Search in scope**。
+3. 输入关键词，查看高亮显示的搜索结果。
 
-## Extension Settings
+## 🔧 配置项
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+| 配置项 | 类型 | 默认值 | 描述 |
+| --- | --- | --- | --- |
+| `scopeSearch.caseSensitive` | `boolean` | `false` | 是否区分大小写 |
+| `scopeSearch.useRegex` | `boolean` | `false` | 是否使用正则表达式 |
 
-For example:
+## 📝 更新日志
 
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+### 0.0.1
+- 初始化版本，支持基本的范围搜索功能。
 
 ---
 
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+**Enjoy fast and precise searching!**
