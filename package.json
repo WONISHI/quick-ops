@@ -6,7 +6,7 @@
   "engines": {
     "vscode": "^1.54.0"
   },
-  "publisher": "scope-search", 
+  "publisher": "scope-search",
   "categories": [
     "Other"
   ],
@@ -16,7 +16,8 @@
     "url": "https://github.com/WONISHI/scope-search.git"
   },
   "activationEvents": [
-    "onCommand:scope-search.search"
+    "onCommand:scope-search.search",
+    "onCommand:actions.find"
   ],
   "main": "./dist/extension.js",
   "contributes": {
