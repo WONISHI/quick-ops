@@ -16,9 +16,14 @@
     "url": "https://github.com/WONISHI/scope-search.git"
   },
   "activationEvents": [
-    "onCommand:scope-search.search",
     "onCommand:actions.find",
-    "workspaceContains:.logrc"
+    "workspaceContains:.logrc",
+    "onLanguage:javascript",
+    "onLanguage:typescript",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescriptreact",
+    "onLanguage:vue",
+    "onLanguage:html"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -61,7 +66,14 @@
           "group": "navigation"
         }
       ]
-    }
+    },
+    "keybindings": [
+      {
+        "key": "ctrl+f",
+        "command": "scope-search.resetBeforeFind",
+        "when": "editorTextFocus"
+      }
+    ]
   },
   "scripts": {
     "build": "npx vsce package",
