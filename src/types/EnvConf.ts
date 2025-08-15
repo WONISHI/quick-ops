@@ -1,3 +1,4 @@
+import type { OptionType } from 'dayjs';
 type Placeholder = '[time]' | '[line]' | '[uuid]';
 
 // 工具类型：数组转联合
@@ -24,8 +25,11 @@ type LogEnhancerConfig =
   | `${RandomizedPlaceholders}-${CustomSegment}`
   | `${RandomizedPlaceholders}-${CustomSegment}-${CustomSegment}`;
 
+type ConsoleKeys = keyof Console;
 
 export interface EnvConf {
-  logEnhancerConfig: LogEnhancerConfig;
+  logEnhancerConfig: Record<ConsoleKeys, LogEnhancerConfig>;
+  unitTime: Record<ConsoleKeys, OptionType>;
+  uuidLen: Record<ConsoleKeys, number>;
   [key: string]: any; // 允许其他任意配置项
 }
