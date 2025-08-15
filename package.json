@@ -17,7 +17,8 @@
   },
   "activationEvents": [
     "onCommand:scope-search.search",
-    "onCommand:actions.find"
+    "onCommand:actions.find",
+    "workspaceContains:.logrc"
   ],
   "main": "./dist/extension.js",
   "contributes": {

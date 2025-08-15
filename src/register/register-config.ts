@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
-import { readLogrcConfig } from '../utils/readLogrcConfig';
+import { registerLogrcConfig, onDidChangeLogrcConfig } from '../utils/readLogrcConfig';
 
 export function registerConfig(context: vscode.ExtensionContext) {
-  const config = readLogrcConfig();
+  registerLogrcConfig(context);
+  onDidChangeLogrcConfig((cfg) => {
+    console.log('配置变更了:', cfg);
+  });
 }

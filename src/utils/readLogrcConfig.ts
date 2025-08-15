@@ -2,52 +2,79 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 
-/**
- * 读取当前工作区或插件自带的 .logrc 配置
- * @returns 解析后的配置对象 | null
- */
-export function readLogrcConfig<T = any>() {
-  const pkgPath = path.resolve(__dirname, '../../package.json');
-  console.log('pkgPath',pkgPath);
- if (!fs.existsSync(pkgPath)) {
-    vscode.window.showErrorMessage('找不到 package.json 文件');
-    return null;
-  }
+let currentConfig: any = null;
+let watcher: vscode.FileSystemWatcher | null = null;
+
+// 创建事件发射器
+const _onDidChangeConfig = new vscode.EventEmitter<any>();
+export const onDidChangeLogrcConfig = _onDidChangeConfig.event;
+
+export function registerLogrcConfig<T = any>(context: vscode.ExtensionContext) {
+  const pkgPath = path.join(context.extensionPath, 'package.json');
+  if (!fs.existsSync(pkgPath)) return;
+
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-  console.log('pkg:', pkg);
+  const id = `${pkg.publisher}.${pkg.name}`;
 
-//   const workspaceFolders = vscode.workspace.workspaceFolders;
-//   const extensionPath = vscode.extensions.getExtension('你的发布者ID.你的插件名')?.extensionPath;
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  const rootPath = workspaceFolders && workspaceFolders.length > 0 ? workspaceFolders[0].uri.fsPath : null;
+  const extensionPath = vscode.extensions.getExtension(id)?.extensionPath;
 
-//   let configPath: string | null = null;
+  const loadConfig = () => {
+    let configPath: string | null = null;
+    let isProjectConfig = false;
 
-//   // 1. 优先读取项目根目录下的 .logrc
-//   if (workspaceFolders && workspaceFolders.length > 0) {
-//     const rootPath = workspaceFolders[0].uri.fsPath;
-//     const projectConfig = path.join(rootPath, '.logrc');
-//     if (fs.existsSync(projectConfig)) {
-//       configPath = projectConfig;
-//     }
-//   }
+    if (rootPath) {
+      const projectConfig = path.join(rootPath, '.logrc');
+      if (fs.existsSync(projectConfig)) {
+        configPath = projectConfig;
+        isProjectConfig = true;
+      }
+    }
 
-//   // 2. 如果项目里没有，读取插件自带的 .logrc
-//   if (!configPath && extensionPath) {
-//     const defaultConfig = path.join(extensionPath, 'config', '.logrc');
-//     if (fs.existsSync(defaultConfig)) {
-//       configPath = defaultConfig;
-//     }
-//   }
+    // 项目没有 .logrc，使用插件默认配置（只在初始化）
+    if (!configPath && extensionPath) {
+      const pluginConfig = path.join(extensionPath, '.logrc');
+      if (fs.existsSync(pluginConfig)) {
+        configPath = pluginConfig;
+        isProjectConfig = false;
+      }
+    }
 
-//   if (!configPath) {
-//     vscode.window.showWarningMessage('.logrc 文件不存在（项目 & 插件都没有）');
-//     return null;
-//   }
+    if (!configPath) {
+      currentConfig = null;
+      _onDidChangeConfig.fire(currentConfig);
+      return;
+    }
 
-//   try {
-//     const content = fs.readFileSync(configPath, 'utf-8').trim();
-//     return JSON.parse(content) as T;
-//   } catch (err) {
-//     vscode.window.showErrorMessage(`读取或解析 .logrc 文件失败: ${err}`);
-//     return null;
-//   }
+    try {
+      const content = fs.readFileSync(configPath, 'utf-8').trim();
+      currentConfig = JSON.parse(content) as T;
+      _onDidChangeConfig.fire(currentConfig); // 🔹触发事件
+      console.log('读取配置:', currentConfig);
+
+      // 只监听项目 .logrc
+      if (isProjectConfig && !watcher && rootPath) {
+        watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(rootPath, '.logrc'));
+        watcher.onDidChange(loadConfig);
+        watcher.onDidCreate(loadConfig);
+        watcher.onDidDelete(() => {
+          currentConfig = null;
+          _onDidChangeConfig.fire(currentConfig);
+        });
+        context.subscriptions.push(watcher);
+      }
+    } catch (err) {
+      currentConfig = null;
+      _onDidChangeConfig.fire(currentConfig);
+      vscode.window.showErrorMessage(`读取或解析 .logrc 文件失败: ${err}`);
+    }
+  };
+
+  // 初始加载
+  loadConfig();
+};
+
+export function getLogrcConfig<T = any>() {
+  return currentConfig as T | null;
 }
