@@ -42,11 +42,27 @@
         {
           "command": "scope-search.resetHighlight",
           "group": "navigation"
+        },
+        {
+          "command": "extension.revealCurrentFile",
+          "title": "定位到当前文件",
+          "icon": {
+            "light": "media/locate.svg",
+            "dark": "media/locate.svg"
+          }
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "extension.revealCurrentFile",
+          "when": "resourceLangId != ''",
+          "group": "navigation"
         }
       ]
     }
   },
   "scripts": {
+    "build": "npx vsce package",
     "vscode:prepublish": "pnpm run package",
     "compile": "webpack",
     "watch": "webpack --watch",
@@ -67,6 +83,9 @@
     "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^3.6.0",
     "eslint": "^9.32.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.6.2",
     "ts-loader": "^9.5.2",
     "typescript": "^5.9.2",
     "webpack": "^5.101.0",
