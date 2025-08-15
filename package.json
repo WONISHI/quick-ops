@@ -31,6 +31,15 @@
         "command": "scope-search.resetHighlight",
         "title": "重置搜索",
         "category": "Scope Search"
+      },
+      {
+        "command": "extension.revealCurrentFile",
+        "title": "定位到当前文件",
+        "category": "Scope Search",
+        "icon": {
+          "light": "./src/assets/svg/position-dark.svg",
+          "dark": "./src/assets/svg/position-light.svg"
+        }
       }
     ],
     "menus": {
@@ -42,14 +51,6 @@
         {
           "command": "scope-search.resetHighlight",
           "group": "navigation"
-        },
-        {
-          "command": "extension.revealCurrentFile",
-          "title": "定位到当前文件",
-          "icon": {
-            "light": "media/locate.svg",
-            "dark": "media/locate.svg"
-          }
         }
       ],
       "editor/title": [
