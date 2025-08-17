@@ -16,6 +16,7 @@ const cngGen = (position: any) => {
   format = format.replace(/'\$0'/, '');
   cng.detail = `当前的console格式是${moduleConfig.format}`;
   cng.filterText = 'cng';
+  cng.commitCharacters = ['\t'];
   cng.insertText = format;
   cng.checkFn = (dp) => {
     return true;
@@ -23,7 +24,7 @@ const cngGen = (position: any) => {
   cng.command = {
     command: 'scope-search.onCompletionSelected',
     title: '触发补全事件',
-    arguments: [cng.insertText],
+    arguments: [moduleConfig.line, moduleConfig.character],
   };
   return cng;
 };

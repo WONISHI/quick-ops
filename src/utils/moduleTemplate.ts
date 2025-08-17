@@ -9,11 +9,13 @@ export const moduleConfig: {
   key: keyof Console | undefined;
   format: LogEnhancerConfig | undefined;
   character: number;
+  line: number;
 } = {
   envConf: undefined,
   key: undefined,
   format: undefined,
   character: 0,
+  line: 0,
 };
 
 export function parseModuleTemplate(type: keyof Console): string[] {
@@ -34,6 +36,13 @@ export function parseModuleTemplate(type: keyof Console): string[] {
 export function parseSnippet(codes: string[]) {
   if (!codes || !codes.length) return null;
   const module: any[] = [];
+  const editor = vscode.window.activeTextEditor;
+  if (editor) {
+    const cursorPosition = editor.selection.active;
+    moduleConfig.character = cursorPosition.character;
+    const lineNumber = cursorPosition.line;
+    moduleConfig.line = lineNumber;
+  }
   codes.map((code) => {
     switch (code) {
       case 'uuid':
@@ -42,13 +51,7 @@ export function parseSnippet(codes: string[]) {
         module.push(uuid);
         break;
       case 'line':
-        const editor = vscode.window.activeTextEditor;
-        if (editor) {
-          const cursorPosition = editor.selection.active;
-          moduleConfig.character = cursorPosition.character;
-          const lineNumber = cursorPosition.line;
-          module.push(`第${lineNumber + 1}行`);
-        }
+        module.push(`第${moduleConfig.line + 1}行`);
         break;
       case 'icon':
         module.push('🚀🚀🚀');
