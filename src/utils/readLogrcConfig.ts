@@ -69,9 +69,3 @@ export function registerLogrcConfig<T = any>(context: vscode.ExtensionContext) {
   if (rootPath) createWatcher(rootPath);
 };
 
-/**
- * 获取最新的 .logrc 配置
- */
-export function getLogrcConfig<T = any>() {
-  return currentConfig as T | null;
-}

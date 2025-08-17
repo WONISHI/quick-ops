@@ -4,6 +4,7 @@ import * as path from 'path';
 import { registerLogrcConfig, onDidChangeLogrcConfig } from '../utils/readLogrcConfig';
 import mergeClone from '../utils/mergeClone';
 import type { EnvConf, EnvConfProps } from '../types/EnvConf';
+import {setEnvConf} from "../global-object/envconfig"
 
 export function registerConfig(context: vscode.ExtensionContext) {
   let configContext = null;
@@ -20,10 +21,12 @@ export function registerConfig(context: vscode.ExtensionContext) {
       if (fs.existsSync(pluginConfig)) {
         const document = await vscode.workspace.openTextDocument(pluginConfig);
         configContext = JSON.parse(document.getText()) as Partial<EnvConf>;
+        setEnvConf([configContext, configContext])
         resolve([configContext, configContext]);
       }
     }
     onDidChangeLogrcConfig((cfg: Partial<EnvConf>) => {
+      setEnvConf([mergeClone(configContext!, cfg), configContext!])
       resolve([mergeClone(configContext!, cfg), configContext!]);
     });
   });

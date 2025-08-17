@@ -1,21 +1,30 @@
 import { CompletionItem } from 'vscode';
 import { properties } from '../global-object/properties';
 import { getLabel } from '../utils/getLable';
+import { moduleConfig, parseModuleTemplate, parseSnippet, getVisualColumn } from '../utils/moduleTemplate';
 
 class ModuleCompletionItem extends CompletionItem {
   checkFn: ((dp: typeof properties) => boolean) | null | undefined;
 }
 
 const cngGen = (position: any) => {
-  console.log('cngGen position', position[0], position[1]);
+  const codes = parseModuleTemplate('log');
+  const module = parseSnippet(codes);
   const cng = new ModuleCompletionItem(getLabel('cng'));
-  cng.detail = '自定义console';
+  let format = `console.log(${module!.map((item) => `'${item}'`).join(',')});`;
+  getVisualColumn(format);
+  format = format.replace(/'\$0'/, '');
+  cng.detail = `当前的console格式是${moduleConfig.format}`;
   cng.filterText = 'cng';
-  cng.insertText = `console.log('hello world');`;
+  cng.insertText = format;
   cng.checkFn = (dp) => {
     return true;
   };
-//   console.log('cng', cng);
+  cng.command = {
+    command: 'scope-search.onCompletionSelected',
+    title: '触发补全事件',
+    arguments: [cng.insertText],
+  };
   return cng;
 };
 

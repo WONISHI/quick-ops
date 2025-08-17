@@ -20,7 +20,7 @@ type RandomizedPlaceholders = Perm3<Placeholder>;
 type CustomSegment = `[${string}]`;
 
 // 最终类型
-type LogEnhancerConfig =
+export type LogEnhancerConfig =
   | RandomizedPlaceholders
   | `${RandomizedPlaceholders}-${CustomSegment}`
   | `${RandomizedPlaceholders}-${CustomSegment}-${CustomSegment}`;
