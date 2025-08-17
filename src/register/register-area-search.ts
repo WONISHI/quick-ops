@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
+import type { EnvConfProps } from '../types/EnvConf';
 
 export let decorationType: vscode.TextEditorDecorationType = vscode.window.createTextEditorDecorationType({
   backgroundColor: 'rgba(255, 255, 0, 0.3)',
   borderRadius: '2px',
 });
 
-export const registerAreaSearch = (context: vscode.ExtensionContext) => {
+export const registerAreaSearch = (context: vscode.ExtensionContext,configs:EnvConfProps) => {
   // 监听搜索打开前清除高亮（通过命令拦截）
   const resetBeforeFindCommand = vscode.commands.registerCommand('scope-search.resetBeforeFind', () => {
     resetHighlight();

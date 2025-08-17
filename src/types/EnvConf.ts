@@ -33,3 +33,5 @@ export interface EnvConf {
   uuidLen: Record<ConsoleKeys, number>;
   [key: string]: any; // 允许其他任意配置项
 }
+
+export type EnvConfProps = [Partial<EnvConf> | null, Partial<EnvConf> | null];

@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { registerLogrcConfig, onDidChangeLogrcConfig } from '../utils/readLogrcConfig';
 import mergeClone from '../utils/mergeClone';
-import type { EnvConf } from '../types/EnvConf';
+import type { EnvConf, EnvConfProps } from '../types/EnvConf';
 
 export function registerConfig(context: vscode.ExtensionContext) {
   let configContext = null;
@@ -14,17 +14,17 @@ export function registerConfig(context: vscode.ExtensionContext) {
   const extensionPath = vscode.extensions.getExtension(id)?.extensionPath;
 
   registerLogrcConfig(context);
-  return new Promise<Partial<EnvConf>>(async (resolve) => {
+  return new Promise<EnvConfProps>(async (resolve) => {
     if (extensionPath) {
       const pluginConfig = path.join(extensionPath, '.logrc');
       if (fs.existsSync(pluginConfig)) {
         const document = await vscode.workspace.openTextDocument(pluginConfig);
         configContext = JSON.parse(document.getText()) as Partial<EnvConf>;
-        resolve(configContext);
+        resolve([configContext, configContext]);
       }
     }
     onDidChangeLogrcConfig((cfg: Partial<EnvConf>) => {
-      resolve(mergeClone(configContext!, cfg));
+      resolve([mergeClone(configContext!, cfg), configContext!]);
     });
   });
 }

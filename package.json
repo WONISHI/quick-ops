@@ -1,22 +1,24 @@
 {
   "name": "scope-search",
-  "displayName": "scope-search",
-  "description": "area-search",
+  "displayName": "Scope Search",
+  "description": "Custom area search for VS Code",
   "version": "0.0.2",
   "engines": {
     "vscode": "^1.54.0"
   },
-  "publisher": "scope-search",
+  "publisher": "weizhifeng",
   "categories": [
     "Other"
   ],
-  "icon": "./scope-search-logo.png",
+  "icon": "scope-search-logo.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/WONISHI/scope-search.git"
   },
   "activationEvents": [
-    "onCommand:actions.find",
+    "onCommand:scope-search.search",
+    "onCommand:scope-search.resetHighlight",
+    "onCommand:extension.revealCurrentFile",
     "workspaceContains:.logrc",
     "onLanguage:javascript",
     "onLanguage:typescript",
@@ -43,8 +45,8 @@
         "title": "定位到当前文件",
         "category": "Scope Search",
         "icon": {
-          "light": "./src/assets/svg/position-dark.svg",
-          "dark": "./src/assets/svg/position-light.svg"
+          "light": "src/assets/svg/position-dark.svg",
+          "dark": "src/assets/svg/position-light.svg"
         }
       }
     ],
@@ -70,7 +72,7 @@
     "keybindings": [
       {
         "key": "ctrl+f",
-        "command": "scope-search.resetBeforeFind",
+        "command": "scope-search.search",
         "when": "editorTextFocus"
       }
     ]
@@ -78,8 +80,8 @@
   "scripts": {
     "build": "npx vsce package",
     "vscode:prepublish": "pnpm run package",
-    "compile": "webpack",
-    "watch": "webpack --watch",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
     "package": "webpack --mode production --devtool hidden-source-map",
     "compile-tests": "tsc -p . --outDir out",
     "watch-tests": "tsc -p . -w --outDir out",
@@ -109,6 +111,7 @@
     "node": "22.18.0"
   },
   "dependencies": {
-    "dayjs": "^1.11.13"
+    "dayjs": "^1.11.13",
+    "vscode-languageclient": "^9.0.1"
   }
 }
