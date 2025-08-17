@@ -1,24 +1,22 @@
 {
   "name": "scope-search",
-  "displayName": "Scope Search",
-  "description": "Custom area search for VS Code",
+  "displayName": "scope-search",
+  "description": "area-search",
   "version": "0.0.2",
   "engines": {
     "vscode": "^1.54.0"
   },
-  "publisher": "weizhifeng",
+  "publisher": "scope-search",
   "categories": [
     "Other"
   ],
-  "icon": "scope-search-logo.png",
+  "icon": "./scope-search-logo.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/WONISHI/scope-search.git"
   },
   "activationEvents": [
-    "onCommand:scope-search.search",
-    "onCommand:scope-search.resetHighlight",
-    "onCommand:extension.revealCurrentFile",
+    "onCommand:actions.find",
     "workspaceContains:.logrc",
     "onLanguage:javascript",
     "onLanguage:typescript",
@@ -45,8 +43,8 @@
         "title": "定位到当前文件",
         "category": "Scope Search",
         "icon": {
-          "light": "src/assets/svg/position-dark.svg",
-          "dark": "src/assets/svg/position-light.svg"
+          "light": "./src/assets/svg/position-dark.svg",
+          "dark": "./src/assets/svg/position-light.svg"
         }
       }
     ],
@@ -72,7 +70,7 @@
     "keybindings": [
       {
         "key": "ctrl+f",
-        "command": "scope-search.search",
+        "command": "scope-search.resetBeforeFind",
         "when": "editorTextFocus"
       }
     ]
