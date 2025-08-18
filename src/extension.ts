@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
+import type { EnvConfProps } from './types/EnvConf';
+import { properties, initProperties } from './global-object/properties';
 import { registerConfig } from './register/register-config';
 import { decorationType, registerAreaSearch } from './register/register-area-search';
 import { registerCompletion } from './register/register-completion';
 import { registerExtension } from './register/register-extension';
-import type { EnvConfProps } from './types/EnvConf';
-import { properties, initProperties } from './global-object/properties';
+import { registerTop } from './register/register-top';
 
 export function activate(context: vscode.ExtensionContext) {
   initProperties(vscode.window.activeTextEditor?.document!);
@@ -40,12 +40,14 @@ export function activate(context: vscode.ExtensionContext) {
 
   vscode.workspace.onDidChangeTextDocument((e) => {
     properties.content = e.document.getText();
+    properties.fileType = e.document.languageId;
   });
 
   registerConfig(context)?.then((res: EnvConfProps) => {
     registerAreaSearch(context, res);
     registerCompletion(context, res);
     registerExtension(context, res);
+    registerTop(context);
   });
 }
 
@@ -57,5 +59,3 @@ export async function deactivate() {
     decorationType.dispose();
   }
 }
-
-

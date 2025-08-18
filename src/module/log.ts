@@ -21,6 +21,8 @@ const cngGen = (position: any) => {
   cng.commitCharacters = ['\t'];
   cng.insertText = format;
   cng.checkFn = (dp) => {
+    if (dp.fileType === 'javascript') return true;
+    if (dp.fileType === 'vue' && dp.content.trim().includes('export default')) return true;
     return true;
   };
   cng.command = {

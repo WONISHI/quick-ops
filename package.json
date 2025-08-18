@@ -46,6 +46,14 @@
           "light": "./src/assets/svg/position-dark.svg",
           "dark": "./src/assets/svg/position-light.svg"
         }
+      },
+      {
+        "command": "myExtension.scrollToTop",
+        "title": "回到顶部"
+      },
+      {
+        "command": "myExtension.scrollToBottom",
+        "title": "回到底部"
       }
     ],
     "menus": {
@@ -64,6 +72,16 @@
           "command": "extension.revealCurrentFile",
           "when": "resourceLangId != ''",
           "group": "navigation"
+        },
+        {
+          "command": "myExtension.scrollToTop",
+          "group": "navigation",
+          "when": "editorTextFocus"
+        },
+        {
+          "command": "myExtension.scrollToBottom",
+          "group": "navigation",
+          "when": "editorTextFocus"
         }
       ]
     },
