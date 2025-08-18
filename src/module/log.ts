@@ -8,6 +8,8 @@ class ModuleCompletionItem extends CompletionItem {
 }
 
 const cngGen = (position: any) => {
+  moduleConfig.line = position.line;
+  moduleConfig.character = position.character;
   const codes = parseModuleTemplate('log');
   const module = parseSnippet(codes);
   const cng = new ModuleCompletionItem(getLabel('cng'));

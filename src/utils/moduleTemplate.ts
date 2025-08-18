@@ -2,7 +2,6 @@ import { getEnvConf } from '../global-object/envconfig';
 import type { EnvConf, LogEnhancerConfig } from '../types/EnvConf';
 import { generateUUID } from './index';
 import { properties } from '../global-object/properties';
-import * as vscode from 'vscode';
 
 export const moduleConfig: {
   envConf: EnvConf | undefined;
@@ -36,13 +35,6 @@ export function parseModuleTemplate(type: keyof Console): string[] {
 export function parseSnippet(codes: string[]) {
   if (!codes || !codes.length) return null;
   const module: any[] = [];
-  const editor = vscode.window.activeTextEditor;
-  if (editor) {
-    const cursorPosition = editor.selection.active;
-    moduleConfig.character = cursorPosition.character;
-    const lineNumber = cursorPosition.line;
-    moduleConfig.line = lineNumber;
-  }
   codes.map((code) => {
     switch (code) {
       case 'uuid':
@@ -69,7 +61,6 @@ export function parseSnippet(codes: string[]) {
 }
 
 export function getVisualColumn(text: string, tabSize = 4): number {
-  let character = moduleConfig.character;
   let currentText = '';
   const regex = /^(.*)(?=,\s*'\$0')/;
   const match = text.match(regex);
@@ -77,8 +68,8 @@ export function getVisualColumn(text: string, tabSize = 4): number {
     currentText = match[0];
   }
   let col = 0;
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
+  for (let i = 0; i < currentText.length; i++) {
+    const code = currentText.charCodeAt(i);
     if (code === 9) {
       // \t
       const add = tabSize - (col % tabSize);

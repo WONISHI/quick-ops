@@ -10,18 +10,10 @@
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",
-      "args": [
-        "--extensionDevelopmentPath=${workspaceFolder}"
-      ],
-      "runtimeArgs": [
-        "-r",
-        "ts-node/register"
-      ],
-      "outFiles": [
-        "${workspaceFolder}/src/**/*.ts"
-      ]
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
+      "runtimeArgs": ["-r", "ts-node/register"],
+      "outFiles": ["${workspaceFolder}/src/**/*.ts"],
+      "preLaunchTask": "npm: watch" // 这里绑定 tasks.json 里的任务
     }
   ]
 }
-
-

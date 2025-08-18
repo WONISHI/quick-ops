@@ -24,11 +24,7 @@ export function getVisualColumn(text: string, character: number): number {
 export function moveCursor(line: number, character: number) {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return;
-
-  const lineText = editor.document.lineAt(line).text;
-  const safeChar = Math.min(character, lineText.length);
-
-  const position = new vscode.Position(line, safeChar);
+  const position = new vscode.Position(line, character);
   editor.selection = new vscode.Selection(position, position);
-  editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+  editor.revealRange(new vscode.Range(position, position));
 }

@@ -36,11 +36,6 @@ export function registerCompletion(context: vscode.ExtensionContext, configs: En
       }
       return [...provideCompletionsList];
     },
-    // @ts-ignore
-    resolveCompletionItem(item, token) {
-      moveCursor(moduleConfig.line, moduleConfig.character);
-      console.log(item, token, 999);
-    },
   });
 
   context.subscriptions.push(provider, disposable);
