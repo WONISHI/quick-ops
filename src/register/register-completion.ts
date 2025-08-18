@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { EnvConfProps } from '../types/EnvConf';
 import { properties } from '../global-object/properties';
-import provideCompletions from '../module/log';
+import provideCompletions from '../module/log/log';
 import { moveCursor } from '../utils/index';
 
 const LANGUAGES = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
@@ -20,17 +20,18 @@ export function registerCompletion(context: vscode.ExtensionContext, configs: En
     provideCompletionItems(document, position) {
       const moduleName = properties.fileName.split(properties.fileType)[0].split('.')[0];
       const provideCompletionsList: vscode.CompletionItem[] = [];
-      for (let item of provideCompletions) {
-        const configItem = item(position);
-        if (typeof configItem.insertText === 'string') {
-          configItem.insertText = new vscode.SnippetString(configItem.insertText.replace(/\{module-name/g, moduleName));
+      const configItem = provideCompletions(position);
+      for (let i = 0; i < configItem.length; i++) {
+        const item = configItem[i];
+        if (typeof item.insertText === 'string') {
+          item.insertText = new vscode.SnippetString(item.insertText.replace(/\{module-name/g, moduleName));
         }
-        if (configItem.checkFn) {
-          if (configItem.checkFn(properties)) {
-            provideCompletionsList.push(configItem);
+        if (item.checkFn) {
+          if (item.checkFn(properties)) {
+            provideCompletionsList.push(item);
           }
         } else {
-          provideCompletionsList.push(configItem);
+          provideCompletionsList.push(item);
         }
       }
       return [...provideCompletionsList];
