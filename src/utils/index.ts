@@ -1,4 +1,7 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs';
+
 export function generateUUID(length: number = 32): string {
   const chars = '0123456789abcdef'; // 十六进制字符
   let uuid = '';
@@ -37,13 +40,63 @@ export function scrollToTop() {
 }
 
 export function scrollToBottom() {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) return;
-    const lastLineIndex = editor.document.lineCount - 1;
-    const lastLine = new vscode.Position(lastLineIndex, 0);
-    editor.selection = new vscode.Selection(lastLine, lastLine);
-    editor.revealRange(
-        new vscode.Range(lastLine, lastLine),
-        vscode.TextEditorRevealType.InCenter
-    );
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+  const lastLineIndex = editor.document.lineCount - 1;
+  const lastLine = new vscode.Position(lastLineIndex, 0);
+  editor.selection = new vscode.Selection(lastLine, lastLine);
+  editor.revealRange(new vscode.Range(lastLine, lastLine), vscode.TextEditorRevealType.InCenter);
+}
+
+export function isDirLikePath(pathStr: string): boolean {
+  return /(['"])(?:\.\.\/|\.\/)\1$/.test(pathStr.trim());
+}
+
+export function resolveImportDir(
+  currentFilePath: string,
+  relativeImportPath: string,
+): { files: string[]; dirs: string[] } {
+  const currentDir = path.dirname(currentFilePath);
+  let cleanImportPath = relativeImportPath.replace(/^['"]|['"]$/g, "");
+  if (
+    cleanImportPath === "./" ||
+    cleanImportPath === "../" ||
+    /\/$/.test(cleanImportPath)
+  ) {
+  } else {
+    const statPath = path.resolve(currentDir, cleanImportPath);
+    if (fs.existsSync(statPath) && fs.statSync(statPath).isDirectory()) {
+      cleanImportPath += "/";
+    }
+  }
+  const targetPath = path.resolve(currentDir, cleanImportPath);
+  if (!fs.existsSync(targetPath)) {
+    return { files: [], dirs: [] };
+  }
+  console.log(targetPath);
+  const entries = fs.readdirSync(targetPath, { withFileTypes: true });
+  const files: string[] = [];
+  const dirs: string[] = [];
+  for (const entry of entries) {
+    if (entry.isFile()) {
+      files.push(entry.name);
+    } else if (entry.isDirectory()) {
+      dirs.push(entry.name);
+    }
+  }
+  return { files, dirs };
+}
+
+export async function readDirFiles(relativePath: string) {
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders) return [];
+  const baseUri = workspaceFolders[0].uri; // 默认第一个工作区
+  const targetUri = vscode.Uri.joinPath(baseUri, relativePath);
+  try {
+    const files = await vscode.workspace.fs.readDirectory(targetUri);
+    return files.filter(([name, type]) => type === vscode.FileType.File).map(([name]) => name);
+  } catch (e) {
+    vscode.window.showErrorMessage(`读取目录失败: ${e}`);
+    return [];
+  }
 }

@@ -6,6 +6,7 @@ import { decorationType, registerAreaSearch } from './register/register-area-sea
 import { registerCompletion } from './register/register-completion';
 import { registerExtension } from './register/register-extension';
 import { registerTop } from './register/register-top';
+import { registerExport } from './register/register-export';
 
 export function activate(context: vscode.ExtensionContext) {
   initProperties(vscode.window.activeTextEditor?.document!);
@@ -22,8 +23,10 @@ export function activate(context: vscode.ExtensionContext) {
     registerCompletion(context, res);
     // 定位文件
     registerExtension(context, res);
-    // 回到顶部
+    // 回到顶部或者底部
     registerTop(context);
+    // 导入补全
+    registerExport(context);
   });
 }
 
