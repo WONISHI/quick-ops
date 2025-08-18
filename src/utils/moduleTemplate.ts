@@ -2,6 +2,7 @@ import { getEnvConf } from '../global-object/envconfig';
 import type { EnvConf, LogEnhancerConfig } from '../types/EnvConf';
 import { generateUUID } from './index';
 import { properties } from '../global-object/properties';
+import * as vscode from 'vscode';
 
 export const moduleConfig: {
   envConf: EnvConf | undefined;
@@ -49,7 +50,7 @@ export function parseSnippet(codes: string[]) {
         module.push('🚀🚀🚀');
         break;
       case 'name':
-        module.push(properties.fileName);
+        module.push(`${properties.fileName}文件`);
         break;
       case '$0':
         module.push(code);
@@ -71,17 +72,15 @@ export function getVisualColumn(text: string, tabSize = 4): number {
   for (let i = 0; i < currentText.length; i++) {
     const code = currentText.charCodeAt(i);
     if (code === 9) {
-      // \t
       const add = tabSize - (col % tabSize);
       col += add;
     } else if (code >= 0xd800 && code <= 0xdbff) {
-      // 高位代理项，emoji 等，占 1 列
-      col += 1;
-      i++; // 跳过低位代理项
+      col += 2;
+      i++;
     } else {
       col += 1;
     }
   }
-  moduleConfig.character += col * 1;
-  return col; // 已经是 1-based 了; // VS Code 状态栏列号是 1-based
+  moduleConfig.character += col;
+  return col;
 }

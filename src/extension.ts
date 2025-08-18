@@ -6,9 +6,6 @@ import { registerCompletion } from './register/register-completion';
 import { registerExtension } from './register/register-extension';
 import type { EnvConfProps } from './types/EnvConf';
 import { properties, initProperties } from './global-object/properties';
-import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind } from 'vscode-languageclient/node';
-
-let client: LanguageClient | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
   initProperties(vscode.window.activeTextEditor?.document!);
@@ -53,9 +50,9 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 export async function deactivate() {
-  if (client && client.state === 2) { // 2 = Running
-    await client.stop();
-  }
+  // if (client && client.state === 2) { // 2 = Running
+  //   await client.stop();
+  // }
   if (decorationType) {
     decorationType.dispose();
   }
