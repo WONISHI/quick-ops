@@ -49,11 +49,19 @@
       },
       {
         "command": "myExtension.scrollToTop",
-        "title": "回到顶部"
+        "title": "回到顶部",
+        "icon": {
+          "light": "./src/assets/svg/top-dark.svg",
+          "dark": "./src/assets/svg/top-light.svg"
+        }
       },
       {
         "command": "myExtension.scrollToBottom",
-        "title": "回到底部"
+        "title": "回到底部",
+        "icon": {
+          "light": "./src/assets/svg/bottom-dark.svg",
+          "dark": "./src/assets/svg/bottom-light.svg"
+        }
       }
     ],
     "menus": {

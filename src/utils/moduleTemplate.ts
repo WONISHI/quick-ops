@@ -2,7 +2,7 @@ import { getEnvConf } from '../global-object/envconfig';
 import type { EnvConf, LogEnhancerConfig } from '../types/EnvConf';
 import { generateUUID } from './index';
 import { properties } from '../global-object/properties';
-import * as vscode from 'vscode';
+import dayjs from 'dayjs';
 
 export const moduleConfig: {
   envConf: EnvConf | undefined;
@@ -55,6 +55,7 @@ export function parseSnippet(codes: string[]) {
       case '$0':
         module.push(code);
       case 'time':
+        module.push(`${dayjs().format(moduleConfig.envConf!.unitTime[moduleConfig.key!] as string)}`);
         break;
     }
   });
