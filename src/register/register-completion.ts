@@ -3,7 +3,6 @@ import type { EnvConfProps } from '../types/EnvConf';
 import { properties } from '../global-object/properties';
 import provideCompletions from '../module/log';
 import { moveCursor } from '../utils/index';
-import { moduleConfig } from '../utils/moduleTemplate';
 
 const LANGUAGES = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
 
