@@ -1,8 +1,8 @@
-let envConf:any[] = [];
-export function setEnvConf(config:any[]) {
+let envConf: any[] = [];
+export function setEnvConf(config: any[]) {
   envConf = config;
 }
 
-export function getEnvConf(){
-    return envConf
+export function getEnvConf() {
+  return envConf;
 }

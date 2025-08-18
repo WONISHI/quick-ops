@@ -52,37 +52,43 @@ export function isDirLikePath(pathStr: string): boolean {
   return /(['"])(?:\.\.\/|\.\/)\1$/.test(pathStr.trim());
 }
 
-export function resolveImportDir(
-  currentFilePath: string,
-  relativeImportPath: string,
-): { files: string[]; dirs: string[] } {
+export function resolveImportDir(currentFilePath: string, relativeImportPath: string): any {
   const currentDir = path.dirname(currentFilePath);
+  // 取消引号
   let cleanImportPath = relativeImportPath.replace(/^['"]|['"]$/g, '');
   if (cleanImportPath === './' || cleanImportPath === '../' || /\/$/.test(cleanImportPath)) {
   } else {
     const statPath = path.resolve(currentDir, cleanImportPath);
-    console.log('statPath', statPath);
     if (fs.existsSync(statPath) && fs.statSync(statPath).isDirectory()) {
       cleanImportPath += '/';
     }
   }
   const targetPath = path.resolve(currentDir, cleanImportPath);
-  // if (!fs.existsSync(targetPath)) {
-  //   return { files: [], dirs: [] };
+  const uri = vscode.Uri.file(targetPath);
+  vscode.workspace.fs.stat(uri).then(
+    (stat) => {
+      if (stat.type & vscode.FileType.Directory) {
+        console.log('这是文件夹');
+      } else if (stat.type & vscode.FileType.File) {
+        console.log('这是文件');
+      }
+    },
+    (err) => {
+      console.error('路径不存在或访问失败', err);
+    },
+  );
+  // const entries = fs.readdirSync(targetPath, { withFileTypes: true });
+  // console.log(entries);
+  // const files: string[] = [];
+  // const dirs: string[] = [];
+  // for (const entry of entries) {
+  //   if (entry.isFile()) {
+  //     files.push(entry.name);
+  //   } else if (entry.isDirectory()) {
+  //     dirs.push(entry.name);
+  //   }
   // }
-  console.log(targetPath);
-  const entries = fs.readdirSync(targetPath, { withFileTypes: true });
-  console.log(entries);
-  const files: string[] = [];
-  const dirs: string[] = [];
-  for (const entry of entries) {
-    if (entry.isFile()) {
-      files.push(entry.name);
-    } else if (entry.isDirectory()) {
-      dirs.push(entry.name);
-    }
-  }
-  return { files, dirs };
+  // return { files, dirs };
 }
 
 export async function readDirFiles(relativePath: string) {

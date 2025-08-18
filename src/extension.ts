@@ -32,6 +32,8 @@ export function activate(context: vscode.ExtensionContext) {
     // 7.合起文件夹
 
     // 9.其他代码补全以及自定义补全
+
+    // 10.复制树结构
   });
 }
 
