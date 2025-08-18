@@ -57,24 +57,22 @@ export function resolveImportDir(
   relativeImportPath: string,
 ): { files: string[]; dirs: string[] } {
   const currentDir = path.dirname(currentFilePath);
-  let cleanImportPath = relativeImportPath.replace(/^['"]|['"]$/g, "");
-  if (
-    cleanImportPath === "./" ||
-    cleanImportPath === "../" ||
-    /\/$/.test(cleanImportPath)
-  ) {
+  let cleanImportPath = relativeImportPath.replace(/^['"]|['"]$/g, '');
+  if (cleanImportPath === './' || cleanImportPath === '../' || /\/$/.test(cleanImportPath)) {
   } else {
     const statPath = path.resolve(currentDir, cleanImportPath);
+    console.log('statPath', statPath);
     if (fs.existsSync(statPath) && fs.statSync(statPath).isDirectory()) {
-      cleanImportPath += "/";
+      cleanImportPath += '/';
     }
   }
   const targetPath = path.resolve(currentDir, cleanImportPath);
-  if (!fs.existsSync(targetPath)) {
-    return { files: [], dirs: [] };
-  }
+  // if (!fs.existsSync(targetPath)) {
+  //   return { files: [], dirs: [] };
+  // }
   console.log(targetPath);
   const entries = fs.readdirSync(targetPath, { withFileTypes: true });
+  console.log(entries);
   const files: string[] = [];
   const dirs: string[] = [];
   for (const entry of entries) {

@@ -15,18 +15,23 @@ export function activate(context: vscode.ExtensionContext) {
     properties.fileType = e.document.languageId;
   });
 
-  // 注册全局配置
+  // 5.注册全局配置，√
   registerConfig(context)?.then((res: EnvConfProps) => {
-    // 局部搜索
+    // 1.局部搜索
     registerAreaSearch(context, res);
-    // 代码补全
+    // 3.代码补全
     registerCompletion(context, res);
-    // 定位文件
+    // 4.定位文件，√
     registerExtension(context, res);
-    // 回到顶部或者底部
+    // 6.回到顶部或者底部，√
     registerTop(context);
-    // 导入补全
+    // 8.导入补全
     registerExport(context);
+    // 2.tab切换
+
+    // 7.合起文件夹
+
+    // 9.其他代码补全以及自定义补全
   });
 }
 
