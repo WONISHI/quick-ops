@@ -60,37 +60,26 @@ export function registerExport(context: vscode.ExtensionContext) {
     {
       async provideCompletionItems(document, position) {
         const lineText = document.lineAt(position).text;
-        console.log(isDirLikePath(lineText));
         if (isDirLikePath(lineText)) {
-          const data = await resolveImportDir(properties.fullPath, lineText);
-          console.log('data', data);
-        }
-        // 判断是否在 import {} from 'xxx'
-        const importMatch = lineText.match(/import\s+{([^}]*)}\s+from\s+['"]([^'"]+)['"]/);
-        if (!importMatch) return;
-
-        const [, , importPath] = importMatch;
-        const absPath = path.resolve(path.dirname(document.uri.fsPath), importPath);
-        let files: string[] = [];
-        if (fs.existsSync(absPath) && fs.lstatSync(absPath).isDirectory()) {
-          files = fs.readdirSync(absPath).filter((f) => f.endsWith('.ts') || f.endsWith('.tsx'));
-        }
-        const items: vscode.CompletionItem[] = [];
-        for (const file of files) {
-          const filePath = path.join(absPath, file);
-          const content = fs.readFileSync(filePath, 'utf-8');
-          const exportInfo = parseExports(content);
-          exportInfo.namedExports.forEach((name) => {
-            const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Variable);
-            items.push(item);
-          });
-          if (exportInfo.defaultExport) {
-            const item = new vscode.CompletionItem(path.basename(file, '.ts'), vscode.CompletionItemKind.Class);
-            item.detail = 'default export';
+          const entries = await resolveImportDir(properties.fullPath, lineText);
+          const items: vscode.CompletionItem[] = [];
+          for (const entry of entries.flat(Infinity)) {
+            const item = new vscode.CompletionItem(entry.name);
+            item.command = {
+              command: 'scope-search.onProvideSelected',
+              title: '触发补全事件',
+            };
+            if (entry.isDirectory()) {
+              item.kind = vscode.CompletionItemKind.Folder;
+              item.insertText = entry.name + '/';
+            } else {
+              item.kind = vscode.CompletionItemKind.File;
+              
+            }
             items.push(item);
           }
+          return items;
         }
-        return items;
       },
     },
     '/',

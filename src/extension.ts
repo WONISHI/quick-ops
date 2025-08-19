@@ -34,6 +34,12 @@ export function activate(context: vscode.ExtensionContext) {
     // 9.其他代码补全以及自定义补全
 
     // 10.复制树结构
+
+    // 11.css片段
+
+    // 12.给.logrc文件添加logo
+
+    // 13.todo标注
   });
 }
 
