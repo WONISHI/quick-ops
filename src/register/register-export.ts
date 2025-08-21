@@ -1,8 +1,6 @@
-import * as ts from 'typescript';
-import * as fs from 'fs';
 import * as vscode from 'vscode';
 import { properties } from '../global-object/properties';
-import { resolveImportDir, getAbsolutePath } from '../utils/index';
+import { resolveImportDir, getAbsolutePath, joinPaths, removeSurroundingQuotes, replaceCurrentPath } from '../utils/index';
 import { parseExports, type ExportResult } from '../utils/parse';
 
 const LANGUAGES = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
@@ -68,15 +66,18 @@ export function registerExport(context: vscode.ExtensionContext) {
       await vscode.commands.executeCommand('editor.action.triggerSuggest');
     } else {
       const filePath = getAbsolutePath(contextItem.fileEntry.parentPath, contextItem.fileEntry.name);
+      const importPathString = joinPaths(removeSurroundingQuotes(contextItem.lineText), contextItem.fileEntry.name);
       const exportNames: ExportResult = parseExports(filePath);
       const importStatement = generateImport(filePath, exportNames);
+      console.log(importPathString);
+      replaceCurrentPath(importStatement);
       // 文件选择逻辑
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) return;
-      const selection = editor.selection;
-      const range = selection.isEmpty ? new vscode.Range(selection.start, selection.end.translate(0, 0)) : selection;
-      console.log(range, contextItem);
-      await editor.insertSnippet(new vscode.SnippetString(importStatement), range);
+      // const editor = vscode.window.activeTextEditor;
+      // if (!editor) return;
+      // const selection = editor.selection;
+      // const range = selection.isEmpty ? new vscode.Range(selection.start, selection.end.translate(0, 0)) : selection;
+      // console.log(range, contextItem);
+      // await editor.insertSnippet(new vscode.SnippetString(importStatement), range);
     }
   });
   context.subscriptions.push(provider, disposable);

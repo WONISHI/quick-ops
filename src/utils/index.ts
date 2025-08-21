@@ -56,10 +56,30 @@ export function getAbsolutePath(baseAbsolutePath: string, relativePath: string):
   return path.resolve(baseAbsolutePath, relativePath);
 }
 
+export function joinPaths(...paths: string[]): string {
+  return paths
+    .filter(Boolean) // 去掉空字符串
+    .map((p, index) => {
+      let segment = p;
+      // 去掉前面多余的 /
+      if (index > 0) {
+        segment = segment.replace(/^\/+/, '');
+      }
+      // 去掉末尾多余的 /
+      segment = segment.replace(/\/+$/, '');
+      return segment;
+    })
+    .join('/');
+}
+
+export function removeSurroundingQuotes(str: string) {
+  return str.replace(/^['"]|['"]$/g, '');
+}
+
 export async function resolveImportDir(currentFilePath: string, relativeImportPath: string) {
   const currentDir = path.dirname(currentFilePath);
   // 取消引号
-  let cleanImportPath = relativeImportPath.replace(/^['"]|['"]$/g, '');
+  let cleanImportPath = removeSurroundingQuotes(relativeImportPath);
   if (cleanImportPath === './' || cleanImportPath === '../' || /\/$/.test(cleanImportPath)) {
   } else {
     const statPath = getAbsolutePath(currentDir, cleanImportPath);
