@@ -1,57 +1,22 @@
 import * as ts from 'typescript';
 import * as fs from 'fs';
-import * as path from 'path';
 import * as vscode from 'vscode';
 import { properties } from '../global-object/properties';
-import { isDirLikePath, resolveImportDir } from '../utils/index';
+import { resolveImportDir, getAbsolutePath } from '../utils/index';
+import { parseExports, type ExportResult } from '../utils/parse';
 
 const LANGUAGES = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
 
-export function parseExports(filePath: string) {
-  const code = fs.readFileSync(filePath, 'utf-8');
-  const sourceFile = ts.createSourceFile(
-    filePath,
-    code,
-    ts.ScriptTarget.ESNext,
-    true,
-    ts.ScriptKind.TSX, // 根据文件类型选择 JSX 或 TSX
-  );
-  const namedExports: string[] = [];
-  let defaultExport: string | null = null;
-  sourceFile.forEachChild((node) => {
-    if (ts.isExportAssignment(node) && !node.isExportEquals) {
-      // export default ...
-      defaultExport = 'default'; // 可以让用户自定义变量名
-    }
-    if (ts.isExportDeclaration(node) && node.exportClause && ts.isNamedExports(node.exportClause)) {
-      node.exportClause.elements.forEach((el) => {
-        namedExports.push(el.name.getText());
-      });
-    }
-    if (ts.isVariableStatement(node) && node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) {
-      node.declarationList.declarations.forEach((d) => {
-        namedExports.push(d.name.getText());
-      });
-    }
-    if (ts.isFunctionDeclaration(node) && node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) {
-      if (node.name) namedExports.push(node.name.getText());
-    }
-    if (ts.isClassDeclaration(node) && node.modifiers?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword)) {
-      if (node.name) namedExports.push(node.name.getText());
-    }
-  });
-  return { namedExports, defaultExport };
+function setProviderParams({ item, entry, lineText, isDirectory }: any) {
+  return [{ fileEntry: { ...item, ...entry }, isDirectory: isDirectory, lineText: lineText }];
 }
 
-function generateImport(relativePath: string, exportInfo: { namedExports: string[]; defaultExport: string | null }) {
-  if (exportInfo.defaultExport && exportInfo.namedExports.length === 0) {
-    return `import ${exportInfo.defaultExport} from '${relativePath}';`;
-  } else if (!exportInfo.defaultExport && exportInfo.namedExports.length > 0) {
-    return `import { ${exportInfo.namedExports.join(', ')} } from '${relativePath}';`;
-  } else if (exportInfo.defaultExport && exportInfo.namedExports.length > 0) {
-    return `import ${exportInfo.defaultExport}, { ${exportInfo.namedExports.join(', ')} } from '${relativePath}';`;
+function generateImport(relativePath: string, exportInfo: ExportResult) {
+  if (exportInfo.defaultExport.length) {
+    return 'import ${1} from ' + relativePath + ';';
+  } else {
+    return 'import { ${1} } from ' + relativePath + ';';
   }
-  return '';
 }
 
 function createPathCompletionProvider(languages: vscode.DocumentSelector, _init: boolean = true) {
@@ -70,14 +35,14 @@ function createPathCompletionProvider(languages: vscode.DocumentSelector, _init:
             item.command = {
               command: 'scope-search.onProvideSelected',
               title: '触发补全事件',
-              arguments: [{ fileEntry: { ...item, ...entry }, isDirectory: true }],
+              arguments: setProviderParams({ item, entry, isDirectory: true, lineText }),
             };
           } else {
             item.kind = vscode.CompletionItemKind.File;
             item.command = {
               command: 'scope-search.onProvideSelected',
               title: '触发补全事件',
-              arguments: [{ fileEntry: { ...item, ...entry }, isDirectory: false }],
+              arguments: setProviderParams({ item, entry, isDirectory: false, lineText }),
             };
           }
           items.push(item);
@@ -102,10 +67,16 @@ export function registerExport(context: vscode.ExtensionContext) {
       // 立刻触发补全，显示该目录下内容
       await vscode.commands.executeCommand('editor.action.triggerSuggest');
     } else {
+      const filePath = getAbsolutePath(contextItem.fileEntry.parentPath, contextItem.fileEntry.name);
+      const exportNames: ExportResult = parseExports(filePath);
+      const importStatement = generateImport(filePath, exportNames);
       // 文件选择逻辑
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
-      await editor.insertSnippet(new vscode.SnippetString(contextItem.fileEntry.insertText), editor.selection.active);
+      const selection = editor.selection;
+      const range = selection.isEmpty ? new vscode.Range(selection.start, selection.end.translate(0, 0)) : selection;
+      console.log(range, contextItem);
+      await editor.insertSnippet(new vscode.SnippetString(importStatement), range);
     }
   });
   context.subscriptions.push(provider, disposable);

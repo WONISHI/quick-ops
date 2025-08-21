@@ -103,3 +103,34 @@ export function matchKeyword(keywords: string[], current: string): boolean {
   }
   return false;
 }
+
+export async function replaceCurrentPath(importStatement: string) {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+  const document = editor.document;
+  const cursorPos = editor.selection.active;
+  const lineText = document.lineAt(cursorPos.line).text;
+  // 找到光标所在的引号范围
+  let start = -1;
+  let end = -1;
+  const quoteChars = [`'`, `"`];
+  for (let i = 0; i < lineText.length; i++) {
+    if (quoteChars.includes(lineText[i])) {
+      if (i < cursorPos.character) {
+        start = i;
+      } else if (i > cursorPos.character && start !== -1) {
+        end = i;
+        break;
+      }
+    }
+  }
+  // 如果没找到匹配的引号就返回
+  if (start === -1 || end === -1) return;
+  const range = new vscode.Range(
+    new vscode.Position(cursorPos.line, start + 1), // 去掉引号
+    new vscode.Position(cursorPos.line, end),
+  );
+  editor.edit((editBuilder) => {
+    editBuilder.replace(range, importStatement);
+  });
+}
