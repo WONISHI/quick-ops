@@ -54,19 +54,14 @@ function generateImport(relativePath: string, exportInfo: { namedExports: string
   return '';
 }
 
-export function registerExport(context: vscode.ExtensionContext) {
-  // 全局 provider
-  const provider = vscode.languages.registerCompletionItemProvider(
-    LANGUAGES,
+function createPathCompletionProvider(languages: vscode.DocumentSelector, _init: boolean = true) {
+  return vscode.languages.registerCompletionItemProvider(
+    languages,
     {
       async provideCompletionItems(document, position) {
         const lineText = document.lineAt(position).text;
-        if (!isDirLikePath(lineText)) return;
-
-        // 获取当前光标前路径
         const entries = await resolveImportDir(properties.fullPath, lineText);
         const items: vscode.CompletionItem[] = [];
-
         for (const entry of entries.flat(Infinity)) {
           const item = new vscode.CompletionItem(entry.name);
           if (entry.isDirectory()) {
@@ -92,7 +87,11 @@ export function registerExport(context: vscode.ExtensionContext) {
     },
     '/', // 触发字符
   );
+}
 
+export function registerExport(context: vscode.ExtensionContext) {
+  // 全局 provider
+  const provider = createPathCompletionProvider(LANGUAGES, true);
   // 处理选中补全事件
   const disposable = vscode.commands.registerCommand('scope-search.onProvideSelected', async (contextItem) => {
     if (!contextItem) return;
@@ -100,12 +99,6 @@ export function registerExport(context: vscode.ExtensionContext) {
       // 插入目录名 + /
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
-
-      // await editor.insertSnippet(
-      //   new vscode.SnippetString(contextItem.fileEntry.insertText),
-      //   editor.selection.active
-      // );
-
       // 立刻触发补全，显示该目录下内容
       await vscode.commands.executeCommand('editor.action.triggerSuggest');
     } else {
@@ -115,6 +108,5 @@ export function registerExport(context: vscode.ExtensionContext) {
       await editor.insertSnippet(new vscode.SnippetString(contextItem.fileEntry.insertText), editor.selection.active);
     }
   });
-
   context.subscriptions.push(provider, disposable);
 }
