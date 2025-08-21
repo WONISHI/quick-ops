@@ -52,18 +52,22 @@ export function isDirLikePath(pathStr: string): boolean {
   return /(['"])(?:\.\.\/|\.\/)\1$/.test(pathStr.trim());
 }
 
+export function getAbsolutePath(baseAbsolutePath: string, relativePath: string): string {
+  return path.resolve(baseAbsolutePath, relativePath);
+}
+
 export async function resolveImportDir(currentFilePath: string, relativeImportPath: string) {
   const currentDir = path.dirname(currentFilePath);
   // 取消引号
   let cleanImportPath = relativeImportPath.replace(/^['"]|['"]$/g, '');
   if (cleanImportPath === './' || cleanImportPath === '../' || /\/$/.test(cleanImportPath)) {
   } else {
-    const statPath = path.resolve(currentDir, cleanImportPath);
+    const statPath = getAbsolutePath(currentDir, cleanImportPath);
     if (fs.existsSync(statPath) && fs.statSync(statPath).isDirectory()) {
       cleanImportPath += '/';
     }
   }
-  const targetPath = path.isAbsolute(cleanImportPath) ? cleanImportPath : path.resolve(currentDir, cleanImportPath);
+  const targetPath = path.isAbsolute(cleanImportPath) ? cleanImportPath : getAbsolutePath(currentDir, cleanImportPath);
   return new Promise<any[]>(async (resolve, reject) => {
     try {
       const stat = await fs.promises.stat(targetPath);
@@ -87,16 +91,15 @@ export async function resolveImportDir(currentFilePath: string, relativeImportPa
   });
 }
 
-export async function readDirFiles(relativePath: string) {
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-  if (!workspaceFolders) return [];
-  const baseUri = workspaceFolders[0].uri; // 默认第一个工作区
-  const targetUri = vscode.Uri.joinPath(baseUri, relativePath);
-  try {
-    const files = await vscode.workspace.fs.readDirectory(targetUri);
-    return files.filter(([name, type]) => type === vscode.FileType.File).map(([name]) => name);
-  } catch (e) {
-    vscode.window.showErrorMessage(`读取目录失败: ${e}`);
-    return [];
+export function matchKeyword(keywords: string[], current: string): boolean {
+  for (const k of keywords) {
+    if (
+      current === k || // 完全相等
+      current.startsWith(k) || // current 比 keywords 长
+      k.startsWith(current) // keywords 比 current 长
+    ) {
+      return true;
+    }
   }
+  return false;
 }

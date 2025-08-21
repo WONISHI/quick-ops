@@ -55,42 +55,66 @@ function generateImport(relativePath: string, exportInfo: { namedExports: string
 }
 
 export function registerExport(context: vscode.ExtensionContext) {
+  // 全局 provider
   const provider = vscode.languages.registerCompletionItemProvider(
     LANGUAGES,
     {
       async provideCompletionItems(document, position) {
         const lineText = document.lineAt(position).text;
-        if (isDirLikePath(lineText)) {
-          const entries = await resolveImportDir(properties.fullPath, lineText);
-          const items: vscode.CompletionItem[] = [];
-          for (const entry of entries.flat(Infinity)) {
-            const item = new vscode.CompletionItem(entry.name);
+        if (!isDirLikePath(lineText)) return;
+
+        // 获取当前光标前路径
+        const entries = await resolveImportDir(properties.fullPath, lineText);
+        const items: vscode.CompletionItem[] = [];
+
+        for (const entry of entries.flat(Infinity)) {
+          const item = new vscode.CompletionItem(entry.name);
+          if (entry.isDirectory()) {
+            item.kind = vscode.CompletionItemKind.Folder;
+            item.insertText = entry.name + '/';
             item.command = {
               command: 'scope-search.onProvideSelected',
               title: '触发补全事件',
+              arguments: [{ fileEntry: { ...item, ...entry }, isDirectory: true }],
             };
-            if (entry.isDirectory()) {
-              item.kind = vscode.CompletionItemKind.Folder;
-              item.insertText = entry.name + '/';
-            } else {
-              item.kind = vscode.CompletionItemKind.File;
-              
-            }
-            items.push(item);
+          } else {
+            item.kind = vscode.CompletionItemKind.File;
+            item.command = {
+              command: 'scope-search.onProvideSelected',
+              title: '触发补全事件',
+              arguments: [{ fileEntry: { ...item, ...entry }, isDirectory: false }],
+            };
           }
-          return items;
+          items.push(item);
         }
+        return items;
       },
     },
-    '/',
+    '/', // 触发字符
   );
-  context.subscriptions.push(provider);
-  //   const exportInfo = parseExports(filePath);
-  //   const importStatement = generateImport('../src/components/alert/alert.ts', exportInfo);
 
-  //   // 如果有 {}，光标放到大括号内
-  //   const hasBraces = importStatement.includes('{');
-  //   const snippet = hasBraces ? importStatement.replace('{', '{$1') : importStatement;
+  // 处理选中补全事件
+  const disposable = vscode.commands.registerCommand('scope-search.onProvideSelected', async (contextItem) => {
+    if (!contextItem) return;
+    if (contextItem.isDirectory) {
+      // 插入目录名 + /
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
 
-  //   editor.insertSnippet(new vscode.SnippetString(snippet));
+      // await editor.insertSnippet(
+      //   new vscode.SnippetString(contextItem.fileEntry.insertText),
+      //   editor.selection.active
+      // );
+
+      // 立刻触发补全，显示该目录下内容
+      await vscode.commands.executeCommand('editor.action.triggerSuggest');
+    } else {
+      // 文件选择逻辑
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
+      await editor.insertSnippet(new vscode.SnippetString(contextItem.fileEntry.insertText), editor.selection.active);
+    }
+  });
+
+  context.subscriptions.push(provider, disposable);
 }

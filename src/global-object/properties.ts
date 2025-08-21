@@ -11,9 +11,9 @@ export const properties: Properties = {
 
 // 设置当前文件配置
 export const initProperties = (document: TextDocument) => {
-  const fullPath = document.uri.fsPath;
-  console.log('full', fullPath);
-  properties.fullPath = fullPath;
+  const filePath = document.uri.fsPath;
+  const fullPath = document.uri.path;
+  properties.fullPath = filePath;
   properties.fileName = fullPath.split('/').pop() || '';
   properties.fileType = fullPath.split('.').pop() || '';
   properties.content = document.getText();

@@ -54,6 +54,7 @@ export function parseSnippet(codes: string[]) {
         break;
       case '$0':
         module.push(code);
+        break;
       case 'time':
         module.push(`${dayjs().format(moduleConfig.envConf!.unitTime[moduleConfig.key!] as string)}`);
         break;

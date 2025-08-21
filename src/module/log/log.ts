@@ -23,6 +23,7 @@ const cngGen = (position: any) => {
     cng.commitCharacters = snippet.commitCharacters;
     cng.insertText = format;
     cng.checkFn = (dp) => {
+      console.log(position, 'top');
       if (dp.fileType === 'javascript') return true;
       if (dp.fileType === 'vue' && dp.content.trim().includes('export default')) return true;
       return true;
