@@ -1,26 +1,30 @@
 import * as vscode from 'vscode';
 import { properties } from '../global-object/properties';
 import { setExportGlobalVariables, exportGlobalVariables, type ExportGlobalVariables } from '../global-object/export-global';
-import { resolveImportDir, getAbsolutePath, joinPaths, removeSurroundingQuotes, replaceCurrentPath, isCursorInsideBraces } from '../utils/index';
+import { resolveImportDir, getAbsolutePath, joinPaths, removeSurroundingQuotes, replaceCurrentPath } from '../utils/index';
 import { parseExports, type ExportResult } from '../utils/parse';
 
-const LANGUAGES = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
+const LANGUAGES: vscode.DocumentSelector = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
 
+// 全局保存当前导出信息
+let currentExport: ExportGlobalVariables | null = null;
+
+// 设置 Provider 参数
 function setProviderParams({ item, entry, lineText, isDirectory }: any) {
-  return [{ fileEntry: { ...item, ...entry }, isDirectory: isDirectory, lineText: lineText }];
+  return [{ fileEntry: { ...item, ...entry }, isDirectory, lineText }];
 }
 
-// 后期到底是插入单引号还是双引号需要判断
+// 生成 import 语句
 function generateImport(relativePath: string, exportInfo: ExportResult) {
   if (exportInfo.defaultExport.length) {
-    return 'import ${1} from ' + "'" + relativePath + "'" + ';';
+    return `import \${1} from '${relativePath}';`;
   } else {
-    return 'import { ${1} } from ' + "'" + relativePath + "'" + ';';
+    return `import { \${1} } from '${relativePath}';`;
   }
 }
 
-// 创建路径补全提供者
-function createPathCompletionProvider(languages: vscode.DocumentSelector, _init: boolean = true) {
+// 路径补全 Provider
+function createPathCompletionProvider(languages: vscode.DocumentSelector) {
   return vscode.languages.registerCompletionItemProvider(
     languages,
     {
@@ -28,6 +32,7 @@ function createPathCompletionProvider(languages: vscode.DocumentSelector, _init:
         const lineText = document.lineAt(position).text;
         const entries = await resolveImportDir(properties.fullPath, lineText);
         const items: vscode.CompletionItem[] = [];
+
         for (const entry of entries.flat(Infinity)) {
           const item = new vscode.CompletionItem(entry.name);
           if (entry.isDirectory()) {
@@ -35,19 +40,20 @@ function createPathCompletionProvider(languages: vscode.DocumentSelector, _init:
             item.insertText = entry.name + '/';
             item.command = {
               command: 'scope-search.onProvideSelected',
-              title: '触发补全事件',
+              title: '触发路径补全',
               arguments: setProviderParams({ item, entry, isDirectory: true, lineText }),
             };
           } else {
             item.kind = vscode.CompletionItemKind.File;
             item.command = {
               command: 'scope-search.onProvideSelected',
-              title: '触发补全事件',
+              title: '触发路径补全',
               arguments: setProviderParams({ item, entry, isDirectory: false, lineText }),
             };
           }
           items.push(item);
         }
+
         return items;
       },
     },
@@ -55,71 +61,90 @@ function createPathCompletionProvider(languages: vscode.DocumentSelector, _init:
   );
 }
 
-function createFunctionCompletionProvider(languages: vscode.DocumentSelector, FunctionCompletionItems: ExportResult) {
+// 函数补全 Provider
+function createFunctionCompletionProvider(languages: vscode.DocumentSelector) {
   return vscode.languages.registerCompletionItemProvider(
     languages,
     {
-      async provideCompletionItems(document, position) {
-        console.log(isCursorInsideBraces());
+      provideCompletionItems() {
+        if (!currentExport) return [];
         const items: vscode.CompletionItem[] = [];
-        if (isCursorInsideBraces()) {
-          for (const exp of FunctionCompletionItems.namedExports) {
-            const item = new vscode.CompletionItem(exp);
-            item.command = {
-              command: 'scope-search.onFunctionProvideSelected',
-              title: '触发补全函数',
-              arguments: [exportGlobalVariables, item],
-            };
-            items.push(item);
-          }
-          return items;
-        } else {
-          return [];
+        for (const name of currentExport.namedExports) {
+          const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Function);
+          item.detail = `自定义nameExports`;
+          item.sortText = '0000'; // 排到最上面
+          item.preselect = true;
+          item.insertText = new vscode.SnippetString(`${name}$0`);
+          items.push(item);
         }
+        if (currentExport.defaultExport.length) {
+          const def = currentExport.defaultExport[0];
+          const defItem = new vscode.CompletionItem(def, vscode.CompletionItemKind.Variable);
+          defItem.detail = `自定义defaultExport`;
+          defItem.sortText = '0000'; // 排到最上面
+          defItem.preselect = true;
+          defItem.insertText = new vscode.SnippetString(`${def}$0`);
+          items.push(defItem);
+        }
+        return items;
+      },
+      resolveCompletionItem(item: vscode.CompletionItem) {
+        // 点击 item 时绑定命令
+        item.command = {
+          command: 'scope-search.onFunctionProvideSelected',
+          title: '触发函数补全',
+          arguments: [item.label],
+        };
+        return item;
       },
     },
     '{',
     ' ',
-    ',',
+    ',', // 触发字符
   );
 }
 
+// 注册 Export 功能
 export function registerExport(context: vscode.ExtensionContext) {
-  // 全局 provider
-  const provider = createPathCompletionProvider(LANGUAGES, true);
-  // 处理选中补全事件
-  const disposable = vscode.commands.registerCommand('scope-search.onProvideSelected', async (contextItem) => {
+  // 2️⃣ 注册路径选择命令
+  const disposablePath = vscode.commands.registerCommand('scope-search.onProvideSelected', async (contextItem: any) => {
     if (!contextItem) return;
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return;
+
     if (contextItem.isDirectory) {
-      // 插入目录名 + /
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) return;
-      // 立刻触发补全，显示该目录下内容
       await vscode.commands.executeCommand('editor.action.triggerSuggest');
-    } else {
-      const filePath = getAbsolutePath(contextItem.fileEntry.parentPath, contextItem.fileEntry.name);
-      const importPathString = joinPaths(removeSurroundingQuotes(contextItem.lineText), contextItem.fileEntry.name);
-      const exportNames: ExportResult = parseExports(filePath);
-      const importStatement = generateImport(importPathString, exportNames);
-      await replaceCurrentPath(importStatement);
-      const functionProvider = await createFunctionCompletionProvider(LANGUAGES, exportNames);
-
-      setExportGlobalVariables({
-        isDefaultName: exportNames.defaultExport.length > 0,
-        isName: exportNames.namedExports.length > 0,
-        ...exportNames,
-      });
-      const disposableFunction = vscode.commands.registerCommand('scope-search.onFunctionProvideSelected', async (contextItem: ExportGlobalVariables, context) => {
-        console.log('触发了', context);
-        if (contextItem.selectExports.length !== contextItem.namedExports.length + contextItem.defaultExport.length) {
-          await vscode.commands.executeCommand('editor.action.triggerSuggest');
-        }
-      });
-      context.subscriptions.push(functionProvider, disposableFunction);
-      await vscode.commands.executeCommand('editor.action.triggerSuggest');
-
-      
+      return;
     }
+
+    const filePath = getAbsolutePath(contextItem.fileEntry.parentPath, contextItem.fileEntry.name);
+    const importPathString = joinPaths(removeSurroundingQuotes(contextItem.lineText), contextItem.fileEntry.name);
+    const exportNames: ExportResult = parseExports(filePath);
+    const importStatement = generateImport(importPathString, exportNames);
+
+    // 替换文本
+    await replaceCurrentPath(importStatement);
+
+    // 更新全局变量
+    setExportGlobalVariables({
+      isDefaultName: exportNames.defaultExport.length > 0,
+      isName: exportNames.namedExports.length > 0,
+      ...exportNames,
+    });
+    currentExport = exportGlobalVariables;
+
+    // 等待编辑器渲染，再触发函数补全
+    await new Promise((r) => setTimeout(r, 100));
+    await vscode.commands.executeCommand('editor.action.triggerSuggest');
   });
-  context.subscriptions.push(provider, disposable);
+
+  // 3️⃣ 注册函数补全点击命令（只注册一次）
+  const disposableFunc = vscode.commands.registerCommand('scope-search.onFunctionProvideSelected', async (name: string) => {
+    if (!currentExport) return;
+    console.log('触发了', name, currentExport);
+  });
+  // 1️⃣ 注册 Provider
+  const pathProvider = createPathCompletionProvider(LANGUAGES);
+  const funcProvider = createFunctionCompletionProvider(LANGUAGES);
+  context.subscriptions.push(pathProvider, funcProvider, disposablePath, disposableFunc);
 }
