@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { properties } from '../global-object/properties';
 import { setExportGlobalVariables, exportGlobalVariables, type ExportGlobalVariables } from '../global-object/export-global';
-import { resolveImportDir, getAbsolutePath, joinPaths, removeSurroundingQuotes, replaceCurrentPath } from '../utils/index';
+import { resolveImportDir, getAbsolutePath, joinPaths, removeSurroundingQuotes, replaceCurrentPath, isCursorInsideBraces } from '../utils/index';
 import { parseExports, type ExportResult } from '../utils/parse';
 
 const LANGUAGES: vscode.DocumentSelector = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
@@ -69,22 +69,27 @@ function createFunctionCompletionProvider(languages: vscode.DocumentSelector) {
       provideCompletionItems() {
         if (!currentExport) return [];
         const items: vscode.CompletionItem[] = [];
-        for (const name of currentExport.namedExports) {
-          const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Function);
-          item.detail = `自定义nameExports`;
-          item.sortText = '0000'; // 排到最上面
-          item.preselect = true;
-          item.insertText = new vscode.SnippetString(`${name}$0`);
-          items.push(item);
-        }
-        if (currentExport.defaultExport.length) {
-          const def = currentExport.defaultExport[0];
-          const defItem = new vscode.CompletionItem(def, vscode.CompletionItemKind.Variable);
-          defItem.detail = `自定义defaultExport`;
-          defItem.sortText = '0000'; // 排到最上面
-          defItem.preselect = true;
-          defItem.insertText = new vscode.SnippetString(`${def}$0`);
-          items.push(defItem);
+        if (isCursorInsideBraces()) {
+          const NamedExports = exportGlobalVariables.filterNamedExports();
+          if (NamedExports.length) {
+            for (const name of NamedExports) {
+              const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Function);
+              item.sortText = '0000'; // 排到最上面
+              item.preselect = true;
+              item.insertText = new vscode.SnippetString(`${name}$0`);
+              items.push(item);
+            }
+          }
+        } else {
+          const defaultExport = exportGlobalVariables.filterDefaultExports();
+          if (defaultExport.length) {
+            const def = defaultExport[0];
+            const defItem = new vscode.CompletionItem(def, vscode.CompletionItemKind.Variable);
+            defItem.sortText = '0000'; // 排到最上面
+            defItem.preselect = true;
+            defItem.insertText = new vscode.SnippetString(`${def}$0`);
+            items.push(defItem);
+          }
         }
         return items;
       },
@@ -141,7 +146,13 @@ export function registerExport(context: vscode.ExtensionContext) {
   // 3️⃣ 注册函数补全点击命令（只注册一次）
   const disposableFunc = vscode.commands.registerCommand('scope-search.onFunctionProvideSelected', async (name: string) => {
     if (!currentExport) return;
-    console.log('触发了', name, currentExport);
+    if (currentExport.namedExports.includes(name)) {
+      setExportGlobalVariables({
+        selectExports: [...exportGlobalVariables.selectExports, name],
+      });
+      // 触发函数补全
+      await vscode.commands.executeCommand('editor.action.triggerSuggest');
+    }
   });
   // 1️⃣ 注册 Provider
   const pathProvider = createPathCompletionProvider(LANGUAGES);

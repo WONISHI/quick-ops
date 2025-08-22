@@ -5,6 +5,8 @@ export interface ExportGlobalVariables extends ExportResult {
   isDefaultName: boolean;
   isName: boolean;
   selectExports: ExportItem;
+  filterDefaultExports: () => ExportItem;
+  filterNamedExports: () => ExportItem;
 }
 
 export const exportGlobalVariables: ExportGlobalVariables = {
@@ -15,6 +17,14 @@ export const exportGlobalVariables: ExportGlobalVariables = {
   namedExports: [],
   defaultExport: [],
   selectExports: [],
+  filterDefaultExports: function () {
+    let { defaultExport, selectExports } = this;
+    return defaultExport.filter((fn) => !selectExports.includes(fn));
+  },
+  filterNamedExports: function () {
+    let { namedExports, selectExports } = this;
+    return namedExports.filter((fn) => !selectExports.includes(fn));
+  }
 };
 
 export function setExportGlobalVariables(variables: Partial<ExportGlobalVariables>) {
