@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import type { EnvConfProps } from './types/EnvConf';
+import type { FileType } from './types/utils';
 import { properties, initProperties } from './global-object/properties';
 import { registerConfig } from './register/register-config';
 import { decorationType, registerAreaSearch } from './register/register-area-search';
@@ -12,7 +13,7 @@ export function activate(context: vscode.ExtensionContext) {
   initProperties(vscode.window.activeTextEditor?.document!);
   vscode.workspace.onDidChangeTextDocument((e) => {
     properties.content = e.document.getText();
-    properties.fileType = e.document.languageId;
+    properties.fileType = e.document.languageId as FileType;
   });
 
   // 5.注册全局配置，√

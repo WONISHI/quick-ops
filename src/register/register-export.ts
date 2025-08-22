@@ -113,9 +113,8 @@ function createFunctionCompletionProvider(languages: vscode.DocumentSelector) {
 
 // 注册 Export 功能
 export function registerExport(context: vscode.ExtensionContext) {
-  // 2️⃣ 注册路径选择命令
+  //  注册路径选择命令
   const disposablePath = vscode.commands.registerCommand('scope-search.onProvideSelected', async (contextItem: any) => {
-    console.log(contextItem,'contextItem');
     if (!contextItem) return;
     const editor = vscode.window.activeTextEditor;
     if (!editor) return;
@@ -144,7 +143,7 @@ export function registerExport(context: vscode.ExtensionContext) {
     }
   });
 
-  // 3️⃣ 注册函数补全点击命令（只注册一次）
+  //  注册函数补全点击命令（只注册一次）
   const disposableFunc = vscode.commands.registerCommand('scope-search.onFunctionProvideSelected', async (name: string) => {
     if (!currentExport) return;
     if (currentExport.namedExports.includes(name)) {
@@ -155,7 +154,7 @@ export function registerExport(context: vscode.ExtensionContext) {
       // await vscode.commands.executeCommand('editor.action.triggerSuggest');
     }
   });
-  // 1️⃣ 注册 Provider
+  //  注册 Provider
   const pathProvider = createPathCompletionProvider(LANGUAGES);
   const funcProvider = createFunctionCompletionProvider(LANGUAGES);
   context.subscriptions.push(pathProvider, funcProvider, disposablePath, disposableFunc);
