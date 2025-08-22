@@ -3,8 +3,10 @@ import { properties } from '../global-object/properties';
 import { setExportGlobalVariables, exportGlobalVariables, type ExportGlobalVariables } from '../global-object/export-global';
 import { resolveImportDir, getAbsolutePath, joinPaths, removeSurroundingQuotes, replaceCurrentPath, isCursorInsideBraces } from '../utils/index';
 import { parseExports, type ExportResult } from '../utils/parse';
+import type { FileType } from '../types/utils';
 
 const LANGUAGES: vscode.DocumentSelector = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
+const defaultExportFileType: FileType[] = ['vue', 'jsx', 'tsx', 'css', 'less', 'scss'];
 
 // 全局保存当前导出信息
 let currentExport: ExportGlobalVariables | null = null;
@@ -125,22 +127,20 @@ export function registerExport(context: vscode.ExtensionContext) {
     const filePath = getAbsolutePath(contextItem.fileEntry.parentPath, contextItem.fileEntry.name);
     const importPathString = joinPaths(removeSurroundingQuotes(contextItem.lineText), contextItem.fileEntry.name);
     const exportNames: ExportResult = parseExports(filePath);
-    const importStatement = generateImport(importPathString, exportNames);
-
     // 替换文本
-    await replaceCurrentPath(importStatement);
-
-    // 更新全局变量
-    setExportGlobalVariables({
-      isDefaultName: exportNames.defaultExport.length > 0,
-      isName: exportNames.namedExports.length > 0,
-      ...exportNames,
-    });
-    currentExport = exportGlobalVariables;
-
-    // 等待编辑器渲染，再触发函数补全
-    await new Promise((r) => setTimeout(r, 100));
-    await vscode.commands.executeCommand('editor.action.triggerSuggest');
+    const importStatement = generateImport(importPathString, exportNames);
+    if (!defaultExportFileType.includes(properties.fileType as FileType)) {
+      await replaceCurrentPath(importStatement);
+      // 更新全局变量
+      setExportGlobalVariables({
+        isDefaultName: exportNames.defaultExport.length > 0,
+        isName: exportNames.namedExports.length > 0,
+        ...exportNames,
+      });
+      currentExport = exportGlobalVariables;
+      await new Promise((r) => setTimeout(r, 100));
+      await vscode.commands.executeCommand('editor.action.triggerSuggest');
+    }
   });
 
   // 3️⃣ 注册函数补全点击命令（只注册一次）
@@ -150,8 +150,8 @@ export function registerExport(context: vscode.ExtensionContext) {
       setExportGlobalVariables({
         selectExports: [...exportGlobalVariables.selectExports, name],
       });
-      // 触发函数补全
-      await vscode.commands.executeCommand('editor.action.triggerSuggest');
+      // 触发函数补全(不自动触发输入引号才触发)
+      // await vscode.commands.executeCommand('editor.action.triggerSuggest');
     }
   });
   // 1️⃣ 注册 Provider
