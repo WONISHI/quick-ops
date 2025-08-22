@@ -4,14 +4,16 @@ import { generateUUID } from './index';
 import { properties } from '../global-object/properties';
 import dayjs from 'dayjs';
 
+const envConf: Partial<EnvConf> | undefined = getEnvConf() ?? undefined;
+
 export const moduleConfig: {
-  envConf: EnvConf | undefined;
+  envConf: Partial<EnvConf> | undefined | null;
   key: keyof Console | undefined;
   format: LogEnhancerConfig | undefined;
   character: number;
   line: number;
 } = {
-  envConf: undefined,
+  envConf: envConf as Partial<EnvConf> | undefined,
   key: undefined,
   format: undefined,
   character: 0,
@@ -20,7 +22,7 @@ export const moduleConfig: {
 
 export function parseModuleTemplate(type: keyof Console): string[] {
   const [currentEnvConf, defaultEnvConf] = getEnvConf();
-  const template = currentEnvConf.logEnhancerConfig[type] || defaultEnvConf.logEnhancerConfig[type];
+  const template = (currentEnvConf as EnvConf).logEnhancerConfig[type] || (defaultEnvConf as EnvConf).logEnhancerConfig[type];
   moduleConfig.envConf = currentEnvConf || defaultEnvConf;
   moduleConfig.key = type;
   moduleConfig.format = template;
@@ -56,7 +58,7 @@ export function parseSnippet(codes: string[]) {
         module.push(code);
         break;
       case 'time':
-        module.push(`${dayjs().format(moduleConfig.envConf!.unitTime[moduleConfig.key!] as string)}`);
+        module.push(`${dayjs().format(moduleConfig.envConf!.unitTime![moduleConfig.key!] as string)}`);
         break;
     }
   });

@@ -1,9 +1,11 @@
 import type { ExportResult, ExportItem } from '../utils/parse';
+import type { FileType } from '../types/utils';
 
 export interface ExportGlobalVariables extends ExportResult {
   activeLine: number;
   isDefaultName: boolean;
   isName: boolean;
+  fileType: FileType | undefined;
   selectExports: ExportItem;
   filterDefaultExports: () => ExportItem;
   filterNamedExports: () => ExportItem;
@@ -17,6 +19,7 @@ export const exportGlobalVariables: ExportGlobalVariables = {
   namedExports: [],
   defaultExport: [],
   selectExports: [],
+  fileType: undefined,
   filterDefaultExports: function () {
     let { defaultExport, selectExports } = this;
     return defaultExport.filter((fn) => !selectExports.includes(fn));

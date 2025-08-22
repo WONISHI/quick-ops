@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
 import type { EnvConfProps } from '../types/EnvConf';
+import type { FileType } from '../types/utils';
 import { properties } from '../global-object/properties';
 import provideCompletions from '../module/log/log';
 import { moveCursor, matchKeyword } from '../utils/index';
 import { LogSnippetString } from '../module/log/constants';
 
-const LANGUAGES = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
+const LANGUAGES: vscode.DocumentSelector = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
 // 获取触发字段
 const isTarggetLogs = LogSnippetString.map((item) => item.label);
 
@@ -20,7 +21,7 @@ export function registerCompletion(context: vscode.ExtensionContext, configs: En
     provideCompletionItems(document, position) {
       const lineText = document.lineAt(position).text.trim();
       if (matchKeyword(isTarggetLogs, String(lineText))) {
-        const moduleName = properties.fileName.split(properties.fileType)[0].split('.')[0];
+        const moduleName = properties.fileName.split(properties.fileType as FileType)[0].split('.')[0];
         const provideCompletionsList: vscode.CompletionItem[] = [];
         const configItem = provideCompletions(position);
         for (let i = 0; i < configItem.length; i++) {

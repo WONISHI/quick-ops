@@ -36,7 +36,7 @@ function createPathCompletionProvider(languages: vscode.DocumentSelector) {
         const items: vscode.CompletionItem[] = [];
 
         for (const entry of entries.flat(Infinity)) {
-          const item = new vscode.CompletionItem(entry.name);
+          const item: vscode.CompletionItem = new vscode.CompletionItem(entry.name);
           if (entry.isDirectory()) {
             item.kind = vscode.CompletionItemKind.Folder;
             item.insertText = entry.name + '/';
@@ -115,6 +115,7 @@ function createFunctionCompletionProvider(languages: vscode.DocumentSelector) {
 export function registerExport(context: vscode.ExtensionContext) {
   // 2️⃣ 注册路径选择命令
   const disposablePath = vscode.commands.registerCommand('scope-search.onProvideSelected', async (contextItem: any) => {
+    console.log(contextItem,'contextItem');
     if (!contextItem) return;
     const editor = vscode.window.activeTextEditor;
     if (!editor) return;
