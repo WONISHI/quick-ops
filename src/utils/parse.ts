@@ -2,9 +2,11 @@ import fs from 'fs';
 import { parse } from '@babel/parser';
 import traverse from '@babel/traverse';
 
+export type ExportItem = string[];
+
 export interface ExportResult {
-  namedExports: string[];
-  defaultExport: string[]; // 如果是匿名默认导出，用 'defaultExport' 标识
+  namedExports: ExportItem;
+  defaultExport: ExportItem; // 如果是匿名默认导出，用 'defaultExport' 标识
 }
 
 export function parseExports(filePath: string): ExportResult {

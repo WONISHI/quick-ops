@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { properties } from '../global-object/properties';
-import { setExportGlobalVariables } from '../global-object/export-global';
-import { resolveImportDir, getAbsolutePath, joinPaths, removeSurroundingQuotes, replaceCurrentPath } from '../utils/index';
+import { setExportGlobalVariables, exportGlobalVariables, type ExportGlobalVariables } from '../global-object/export-global';
+import { resolveImportDir, getAbsolutePath, joinPaths, removeSurroundingQuotes, replaceCurrentPath, isCursorInsideBraces } from '../utils/index';
 import { parseExports, type ExportResult } from '../utils/parse';
 
 const LANGUAGES = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
@@ -60,12 +60,22 @@ function createFunctionCompletionProvider(languages: vscode.DocumentSelector, Fu
     languages,
     {
       async provideCompletionItems(document, position) {
+        console.log(isCursorInsideBraces());
         const items: vscode.CompletionItem[] = [];
-        for (const exp of FunctionCompletionItems.namedExports) {
-          const item = new vscode.CompletionItem(exp, vscode.CompletionItemKind.Function);
-          items.push(item);
+        if (isCursorInsideBraces()) {
+          for (const exp of FunctionCompletionItems.namedExports) {
+            const item = new vscode.CompletionItem(exp);
+            item.command = {
+              command: 'scope-search.onFunctionProvideSelected',
+              title: '触发补全函数',
+              arguments: [exportGlobalVariables, item],
+            };
+            items.push(item);
+          }
+          return items;
+        } else {
+          return [];
         }
-        return items;
       },
     },
     '{',
@@ -93,13 +103,22 @@ export function registerExport(context: vscode.ExtensionContext) {
       const importStatement = generateImport(importPathString, exportNames);
       await replaceCurrentPath(importStatement);
       const functionProvider = await createFunctionCompletionProvider(LANGUAGES, exportNames);
-      context.subscriptions.push(functionProvider);
+
       setExportGlobalVariables({
         isDefaultName: exportNames.defaultExport.length > 0,
         isName: exportNames.namedExports.length > 0,
-        ...exportNames
+        ...exportNames,
       });
+      const disposableFunction = vscode.commands.registerCommand('scope-search.onFunctionProvideSelected', async (contextItem: ExportGlobalVariables, context) => {
+        console.log('触发了', context);
+        if (contextItem.selectExports.length !== contextItem.namedExports.length + contextItem.defaultExport.length) {
+          await vscode.commands.executeCommand('editor.action.triggerSuggest');
+        }
+      });
+      context.subscriptions.push(functionProvider, disposableFunction);
       await vscode.commands.executeCommand('editor.action.triggerSuggest');
+
+      
     }
   });
   context.subscriptions.push(provider, disposable);
