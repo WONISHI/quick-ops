@@ -130,6 +130,7 @@ export async function replaceCurrentPath(importStatement: string) {
   const document = editor.document;
   const cursorPos = editor.selection.active;
   const lineText = document.lineAt(cursorPos.line).text;
+
   // 找到光标所在的引号范围
   let start = -1;
   let end = -1;
@@ -138,19 +139,18 @@ export async function replaceCurrentPath(importStatement: string) {
     if (quoteChars.includes(lineText[i])) {
       if (i < cursorPos.character) {
         start = i;
-      } else if (i > cursorPos.character && start !== -1) {
+      } else if (quoteChars.includes(lineText[i]) && start !== i) {
         end = i;
         break;
       }
     }
   }
-  // 如果没找到匹配的引号就返回
   if (start === -1 || end === -1) return;
+
   const range = new vscode.Range(
-    new vscode.Position(cursorPos.line, start + 1), // 去掉引号
-    new vscode.Position(cursorPos.line, end),
+    new vscode.Position(cursorPos.line, start),
+    new vscode.Position(cursorPos.line, end + 1),
   );
-  editor.edit((editBuilder) => {
-    editBuilder.replace(range, importStatement);
-  });
+  const snippet = new vscode.SnippetString(importStatement);
+  await editor.insertSnippet(snippet, range);
 }

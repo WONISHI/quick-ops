@@ -11,9 +11,9 @@ function setProviderParams({ item, entry, lineText, isDirectory }: any) {
 
 function generateImport(relativePath: string, exportInfo: ExportResult) {
   if (exportInfo.defaultExport.length) {
-    return 'import ${1} from ' + relativePath + ';';
+    return 'import ${1} from ' + '\'' + relativePath + '\'' + ';';
   } else {
-    return 'import { ${1} } from ' + relativePath + ';';
+    return 'import { ${1} } from ' + '\'' + relativePath + '\'' + ';';
   }
 }
 
@@ -68,7 +68,7 @@ export function registerExport(context: vscode.ExtensionContext) {
       const filePath = getAbsolutePath(contextItem.fileEntry.parentPath, contextItem.fileEntry.name);
       const importPathString = joinPaths(removeSurroundingQuotes(contextItem.lineText), contextItem.fileEntry.name);
       const exportNames: ExportResult = parseExports(filePath);
-      const importStatement = generateImport(filePath, exportNames);
+      const importStatement = generateImport(importPathString, exportNames);
       console.log(importPathString);
       replaceCurrentPath(importStatement);
       // 文件选择逻辑
