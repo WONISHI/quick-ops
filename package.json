@@ -1,16 +1,16 @@
 {
   "name": "quick-ops",
-  "displayName": "scope-search",
-  "description": "area-search",
+  "displayName": "quickOps",
+  "description": "quick-ops",
   "version": "0.0.2",
   "engines": {
     "vscode": "^1.54.0"
   },
-  "publisher": "scope-search",
+  "publisher": "wzf",
   "categories": [
     "Other"
   ],
-  "icon": "./scope-search-logo.png",
+  "icon": "./icon.png",
   "repository": {
     "type": "git",
     "url": "https://github.com/WONISHI/scope-search.git"
