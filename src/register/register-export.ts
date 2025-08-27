@@ -2,12 +2,14 @@ import * as vscode from 'vscode';
 import { properties } from '../global-object/properties';
 import { setExportGlobalVariables, exportGlobalVariables, type ExportGlobalVariables } from '../global-object/export-global';
 import { resolveImportDir, getAbsolutePath, joinPaths, removeSurroundingQuotes, replaceCurrentPath, isCursorInsideBraces } from '../utils/index';
-import { parseExports, type ExportResult } from '../utils/parse';
-import type { FileType } from '../types/utils';
+import { parseExports, parseVueComponentName, type ExportResult } from '../utils/parse';
+import type { FileType, ExportNameType } from '../types/utils';
+import { isObject } from '../utils/is';
 
 const LANGUAGES: vscode.DocumentSelector = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
 const defaultExportFileType: FileType[] = ['vue', 'jsx', 'tsx'];
 const varsExportFileType: FileType[] = ['css', 'less', 'scss'];
+const defaultExportName = ['vue'];
 let exportFileType: FileType;
 
 // 全局保存当前导出信息
@@ -19,11 +21,14 @@ function setProviderParams({ item, entry, lineText, isDirectory }: any) {
 }
 
 // 生成 import 语句
-function generateImport(relativePath: string, exportInfo?: ExportResult) {
+function generateImport(relativePath: string, exportInfo?: ExportNameType) {
   if (varsExportFileType.includes(exportFileType)) {
     return `import '${relativePath}';`;
   } else {
-    if (exportInfo?.defaultExport.length || defaultExportFileType.includes(exportFileType)) {
+    if (defaultExportFileType.includes(exportFileType) || (isObject(exportInfo) && exportInfo?.defaultExport.length)) {
+      if (defaultExportName.includes(exportFileType) && exportInfo) {
+        return `import ${exportInfo} from '${relativePath}';`;
+      }
       return `import \${1} from '${relativePath}';`;
     } else {
       return `import { \${1} } from '${relativePath}';`;
@@ -127,7 +132,7 @@ export function registerExport(context: vscode.ExtensionContext) {
     setExportGlobalVariables({ fileType: contextItem.fileEntry.name.split('.').pop() as FileType });
     exportFileType = exportGlobalVariables.fileType as FileType;
     const isExportDefault = !defaultExportFileType.includes(exportFileType) && !varsExportFileType.includes(exportFileType);
-    let exportNames: ExportResult;
+    let exportNames: ExportResult | string;
 
     if (contextItem.isDirectory) {
       await vscode.commands.executeCommand('editor.action.triggerSuggest');
@@ -138,6 +143,8 @@ export function registerExport(context: vscode.ExtensionContext) {
     const importPathString = joinPaths(removeSurroundingQuotes(contextItem.lineText), contextItem.fileEntry.name);
     if (isExportDefault) {
       exportNames = parseExports(filePath);
+    } else {
+      exportNames = parseVueComponentName(filePath)!;
     }
 
     // 替换文本
@@ -147,11 +154,14 @@ export function registerExport(context: vscode.ExtensionContext) {
 
     if (!defaultExportFileType.includes(exportFileType) && !varsExportFileType.includes(exportFileType)) {
       // 更新全局变量
-      setExportGlobalVariables({
-        isDefaultName: exportNames!.defaultExport.length > 0,
-        isName: exportNames!.namedExports.length > 0,
-        ...exportNames!,
-      });
+      if (isObject(exportNames)) {
+        setExportGlobalVariables({
+          isDefaultName: !!exportNames!.defaultExport.length,
+          isName: !!exportNames!.namedExports.length,
+          ...exportNames!,
+        });
+      }
+
       currentExport = exportGlobalVariables;
       setTimeout(() => vscode.commands.executeCommand('editor.action.triggerSuggest'), 50);
     }

@@ -1,5 +1,6 @@
 import fs from 'fs';
-import { parse } from '@babel/parser';
+import { parse as vueParse } from '@vue/compiler-sfc';
+import { parse as babelParse } from '@babel/parser';
 import traverse from '@babel/traverse';
 
 export type ExportItem = string[];
@@ -12,7 +13,7 @@ export interface ExportResult {
 export function parseExports(filePath: string): ExportResult {
   const code = fs.readFileSync(filePath, 'utf-8');
 
-  const ast = parse(code, {
+  const ast = babelParse(code, {
     sourceType: 'module',
     plugins: ['typescript', 'jsx'], // 支持 TS 和 JSX
   });
@@ -62,4 +63,31 @@ export function parseExports(filePath: string): ExportResult {
   });
 
   return result;
+}
+
+export function parseVueComponentName(filePath: string): string | null {
+  const source = fs.readFileSync(filePath, 'utf-8');
+  const { descriptor } = vueParse(source);
+  const script = descriptor.script || descriptor.scriptSetup;
+  if (!script) return null;
+  const ast = babelParse(script.content, {
+    sourceType: 'module',
+    plugins: ['typescript'],
+  });
+
+  let name: string | null = null;
+  traverse(ast, {
+    ExportDefaultDeclaration(path) {
+      const declaration = path.node.declaration;
+      if (declaration.type === 'ObjectExpression') {
+        const nameProp = declaration.properties.find((p) => p.type === 'ObjectProperty' && p.key.type === 'Identifier' && p.key.name === 'name');
+        if (nameProp && nameProp.type === 'ObjectProperty') {
+          if (nameProp.value.type === 'StringLiteral') {
+            name = nameProp.value.value;
+          }
+        }
+      }
+    },
+  });
+  return name;
 }

@@ -138,6 +138,7 @@
   "dependencies": {
     "@babel/parser": "^7.28.3",
     "@babel/traverse": "^7.28.3",
+    "@vue/compiler-sfc": "^3.5.20",
     "dayjs": "^1.11.13",
     "vscode-languageclient": "^9.0.1"
   }
