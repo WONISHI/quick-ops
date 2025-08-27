@@ -1,6 +1,6 @@
 
 
-<img src="E:\scope-search\icon.png" style="zoom:33%;" />
+<img src="./icon.png" style="zoom:33%;" />
 
 # quickOps
 
