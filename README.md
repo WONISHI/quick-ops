@@ -1,6 +1,6 @@
 
 
-<img src="./icon.png" style="zoom:33%;" />
+<img src="./icon.png" style="width:104px;height:104px;" />
 
 # quickOps
 
