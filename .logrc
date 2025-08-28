@@ -73,5 +73,7 @@
     "profileEnd": 12,
     "timeStamp": 12,
     "context": 12
-  }
+  },
+  rootPath:'./src/',
+  
 }
