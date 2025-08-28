@@ -19,8 +19,8 @@ export function activate(context: vscode.ExtensionContext) {
 
   // 5.注册全局配置，√
   registerConfig(context)?.then((res: EnvConfProps) => {
-    // // 1.局部搜索
-    // registerAreaSearch(context, res);
+    // 1.局部搜索
+    registerAreaSearch(context, res);
     // 3.代码补全 √
     registerCompletion(context, res);
     // 4.定位文件，√

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { properties } from '../global-object/properties';
 import { setExportGlobalVariables, exportGlobalVariables, type ExportGlobalVariables } from '../global-object/export-global';
-import { resolveImportDir, getAbsolutePath, joinPaths, removeSurroundingQuotes, replaceCurrentPath, isCursorInsideBraces } from '../utils/index';
+import { resolveImportDir, getAbsolutePath, joinPaths, removeSurroundingQuotes, replaceCurrentPath, isCursorInsideBraces, getCurrentImports } from '../utils/index';
 import { parseExports, parseVueComponentName, type ExportResult } from '../utils/parse';
 import type { FileType, ExportNameType } from '../types/utils';
 import { isObject } from '../utils/is';
@@ -79,9 +79,11 @@ function createFunctionCompletionProvider(languages: vscode.DocumentSelector) {
   return vscode.languages.registerCompletionItemProvider(
     languages,
     {
-      provideCompletionItems() {
+      provideCompletionItems(document) {
         if (!currentExport) return [];
         const items: vscode.CompletionItem[] = [];
+        const currentNames = getCurrentImports(document);
+        setExportGlobalVariables({ selectExports: currentNames });
         if (isCursorInsideBraces()) {
           const NamedExports = exportGlobalVariables.filterNamedExports();
           if (NamedExports.length) {

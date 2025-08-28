@@ -232,3 +232,16 @@ export function isCursorInsideBraces(): boolean {
 
   return stack > 0;
 }
+
+
+export function getCurrentImports(document: vscode.TextDocument): string[] {
+  const text = document.getText();
+  const regex = /import\s+{([^}]+)}\s+from\s+['"].+['"]/g;
+  const imports: string[] = [];
+  let match;
+  while ((match = regex.exec(text))) {
+    const names = match[1].split(',').map(s => s.trim());
+    imports.push(...names);
+  }
+  return imports;
+}

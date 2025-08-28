@@ -74,6 +74,5 @@
     "timeStamp": 12,
     "context": 12
   },
-  rootPath:'./src/',
-  
+  "rootPath": "./src/"
 }
