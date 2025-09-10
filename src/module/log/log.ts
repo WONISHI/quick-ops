@@ -15,7 +15,7 @@ const cngGen = (position: any) => {
   return LogSnippetString.reduce<ModuleCompletionItem[]>((prev, snippet, index) => {
     const module = parseSnippet(codes);
     const cng = new ModuleCompletionItem(getLabel(snippet.label));
-    let format = `console.log(${module!.map((item) => `'${item}'`).join(',')});`;
+    let format = `console.log(${module!.map((item) => `'${item}'`).join(', ')});`;
     getVisualColumn(format);
     format = format.replace(/'\$0'/, '');
     cng.detail = `当前的console格式是${moduleConfig.format}`;

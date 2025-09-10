@@ -2,11 +2,11 @@
   "name": "quick-ops",
   "displayName": "quickOps",
   "description": "quick-ops",
-  "version": "0.0.3-beta",
+  "version": "0.0.4",
   "engines": {
     "vscode": "^1.54.0"
   },
-  "publisher": "wzf",
+  "publisher": "quick-ops",
   "categories": [
     "Other"
   ],
@@ -28,16 +28,6 @@
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
-      {
-        "command": "scope-search.search",
-        "title": "自定义搜索",
-        "category": "Scope Search"
-      },
-      {
-        "command": "scope-search.resetHighlight",
-        "title": "重置搜索",
-        "category": "Scope Search"
-      },
       {
         "command": "extension.revealCurrentFile",
         "title": "定位到当前文件",
