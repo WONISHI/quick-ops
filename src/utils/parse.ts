@@ -23,7 +23,7 @@ export function parseExports(filePath: string): ExportResult {
     defaultExport: [],
   };
 
-  traverse(ast, {
+  traverse(ast.program, {
     ExportNamedDeclaration(path) {
       const { node } = path;
 
@@ -76,7 +76,7 @@ export function parseVueComponentName(filePath: string): string | null {
   });
 
   let name: string | null = null;
-  traverse(ast, {
+  traverse(ast.program, {
     ExportDefaultDeclaration(path) {
       const declaration = path.node.declaration;
       if (declaration.type === 'ObjectExpression') {

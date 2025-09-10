@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { isAlias } from './verify';
 
 export function generateUUID(length: number = 32): string {
   const chars = '0123456789abcdef'; // 十六进制字符
@@ -35,7 +36,7 @@ export function moveCursor(line: number, character: number) {
 /**
  * 滚动到顶部
  * @export
- * @returns 
+ * @returns
  */
 export function scrollToTop() {
   const editor = vscode.window.activeTextEditor;
@@ -47,7 +48,7 @@ export function scrollToTop() {
 /**
  * 滚动到底部
  * @export
- * @returns 
+ * @returns
  */
 export function scrollToBottom() {
   const editor = vscode.window.activeTextEditor;
@@ -65,9 +66,9 @@ export function isDirLikePath(pathStr: string): boolean {
 /**
  * 获取绝对路径
  * @export
- * @param {string} baseAbsolutePath 
- * @param {string} relativePath 
- * @returns {string} 
+ * @param {string} baseAbsolutePath
+ * @param {string} relativePath
+ * @returns {string}
  */
 export function getAbsolutePath(baseAbsolutePath: string, relativePath: string): string {
   return path.resolve(baseAbsolutePath, relativePath);
@@ -76,9 +77,9 @@ export function getAbsolutePath(baseAbsolutePath: string, relativePath: string):
 /*
  * 相对地址拼接
  * @export
- * @param {...string[]} paths 
- * @returns {string} 
-* */
+ * @param {...string[]} paths
+ * @returns {string}
+ * */
 export function joinPaths(...paths: string[]): string {
   return paths
     .filter(Boolean) // 去掉空字符串
@@ -98,8 +99,8 @@ export function joinPaths(...paths: string[]): string {
 /**
  * 替换单引号和多引号
  * @export
- * @param {string} str 
- * @returns 
+ * @param {string} str
+ * @returns
  */
 
 export function removeSurroundingQuotes(str: string) {
@@ -107,12 +108,12 @@ export function removeSurroundingQuotes(str: string) {
 }
 
 /**
- * 
+ *
  * 查找绝对路径下对应的相对路径下的目录或文件
  * @export
  * @param {string} currentFilePath 绝对路径
  * @param {string} relativeImportPath 相对路径
- * @returns 
+ * @returns
  */
 
 export async function resolveImportDir(currentFilePath: string, relativeImportPath: string) {
@@ -153,9 +154,9 @@ export async function resolveImportDir(currentFilePath: string, relativeImportPa
 /**
  * * 匹配关键词
  * @export
- * @param {string[]} keywords 
- * @param {string} current 
- * @returns {boolean} 
+ * @param {string[]} keywords
+ * @param {string} current
+ * @returns {boolean}
  */
 
 export function matchKeyword(keywords: string[], current: string): boolean {
@@ -175,7 +176,7 @@ export function matchKeyword(keywords: string[], current: string): boolean {
  * 替换导入路径，换成置顶的模版
  * @export
  * @param {string} importStatement 替换的导入路径
- * @returns 
+ * @returns
  */
 export async function replaceCurrentPath(importStatement: string) {
   const editor = vscode.window.activeTextEditor;
@@ -200,17 +201,13 @@ export async function replaceCurrentPath(importStatement: string) {
   }
   if (start === -1 || end === -1) return;
 
-  const range = new vscode.Range(
-    new vscode.Position(cursorPos.line, start),
-    new vscode.Position(cursorPos.line, end + 1),
-  );
+  const range = new vscode.Range(new vscode.Position(cursorPos.line, start), new vscode.Position(cursorPos.line, end + 1));
   const snippet = new vscode.SnippetString(importStatement);
   await editor.insertSnippet(snippet, range);
 }
 
-
 /**
- * 判断光标是否在大括号里面 
+ * 判断光标是否在大括号里面
  */
 export function isCursorInsideBraces(): boolean {
   const editor = vscode.window.activeTextEditor;
@@ -233,14 +230,13 @@ export function isCursorInsideBraces(): boolean {
   return stack > 0;
 }
 
-
 export function getCurrentImports(document: vscode.TextDocument): string[] {
   const text = document.getText();
   const regex = /import\s+{([^}]+)}\s+from\s+['"].+['"]/g;
   const imports: string[] = [];
   let match;
   while ((match = regex.exec(text))) {
-    const names = match[1].split(',').map(s => s.trim());
+    const names = match[1].split(',').map((s) => s.trim());
     imports.push(...names);
   }
   return imports;

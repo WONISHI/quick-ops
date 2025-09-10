@@ -74,5 +74,9 @@
     "timeStamp": 12,
     "context": 12
   },
-  "rootPath": "./src/"
+  "alias": {
+    "path":{
+      "@/": "./src/"
+    }
+  }
 }
