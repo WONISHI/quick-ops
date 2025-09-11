@@ -2,7 +2,7 @@
   "name": "quick-ops",
   "displayName": "quickOps",
   "description": "quick-ops",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "engines": {
     "vscode": "^1.54.0"
   },
@@ -31,26 +31,26 @@
       {
         "command": "extension.revealCurrentFile",
         "title": "定位到当前文件",
-        "category": "Scope Search",
+        "category": "quickOps",
         "icon": {
-          "light": "./src/assets/svg/position-dark.svg",
-          "dark": "./src/assets/svg/position-light.svg"
+          "light": "resources/svg/position-dark.svg",
+          "dark": "resources/svg/position-light.svg"
         }
       },
       {
         "command": "myExtension.scrollToTop",
         "title": "回到顶部",
         "icon": {
-          "light": "./src/assets/svg/top-dark.svg",
-          "dark": "./src/assets/svg/top-light.svg"
+          "light": "resources/svg/top-dark.svg",
+          "dark": "resources/svg/top-light.svg"
         }
       },
       {
         "command": "myExtension.scrollToBottom",
         "title": "回到底部",
         "icon": {
-          "light": "./src/assets/svg/bottom-dark.svg",
-          "dark": "./src/assets/svg/bottom-light.svg"
+          "light": "resources/svg/bottom-dark.svg",
+          "dark": "resources/svg/bottom-light.svg"
         }
       }
     ],
@@ -82,14 +82,7 @@
           "when": "editorTextFocus"
         }
       ]
-    },
-    "keybindings": [
-      {
-        "key": "ctrl+f",
-        "command": "scope-search.resetBeforeFind",
-        "when": "editorTextFocus"
-      }
-    ]
+    }
   },
   "scripts": {
     "build": "npx vsce package",
