@@ -2,7 +2,7 @@
   "name": "quick-ops",
   "displayName": "quickOps",
   "description": "quick-ops",
-  "version": "0.0.5",
+  "version": "0.0.8",
   "engines": {
     "vscode": "^1.54.0"
   },
@@ -16,6 +16,7 @@
     "url": "https://github.com/WONISHI/scope-search.git"
   },
   "activationEvents": [
+    "onStartupFinished",
     "onCommand:actions.find",
     "workspaceContains:.logrc",
     "onLanguage:javascript",
@@ -55,16 +56,6 @@
       }
     ],
     "menus": {
-      "editor/context": [
-        {
-          "command": "scope-search.search",
-          "group": "navigation"
-        },
-        {
-          "command": "scope-search.resetHighlight",
-          "group": "navigation"
-        }
-      ],
       "editor/title": [
         {
           "command": "extension.revealCurrentFile",

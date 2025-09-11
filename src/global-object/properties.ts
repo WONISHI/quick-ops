@@ -1,13 +1,16 @@
 import { TextDocument, window } from 'vscode';
 import type { Properties } from '../types/Properties';
 import type { FileType } from '../types/utils';
-
+import mergeClone from '@/utils/mergeClone';
 // 全局对象，用于存储当前文件的相关属性
 export const properties: Properties = {
   fullPath: '',
   fileName: '',
   fileType: undefined,
   content: '',
+  configResult: false,
+  pluginConfig: null,
+  ignore: ['.logrc'],
 };
 
 // 设置当前文件配置
@@ -18,6 +21,11 @@ export const initProperties = (document: TextDocument) => {
   properties.fileName = fullPath.split('/').pop() || '';
   properties.fileType = fullPath.split('.').pop() as FileType;
   properties.content = document.getText();
+};
+
+// 合并配置项
+export const MergeProperties = (property: any) => {
+  mergeClone(properties, property);
 };
 
 export const channel = window.createOutputChannel('scope-search-console');

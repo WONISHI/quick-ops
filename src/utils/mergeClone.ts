@@ -1,43 +1,32 @@
-type Primitive = string | number | boolean | symbol | null | undefined;
+import { isObject } from '@/utils/is';
+export type PlainObject = Record<string, any>;
 
-type MergeClone<T, U> = {
-  [K in keyof T | keyof U]: K extends keyof U
-    ? K extends keyof T
-      ? T[K] extends object
-        ? U[K] extends object
-          ? MergeClone<T[K], U[K]>
-          : U[K]
-        : U[K]
-      : U[K]
-    : K extends keyof T
-    ? T[K]
-    : never;
-};
+/**
+ * 深合并 source 到 target 上（就地修改 target）
+ * 数组会拼接而不是覆盖
+ */
+export default function mergeClone<T extends PlainObject, U extends PlainObject>(target: T, source: U): T & U {
+  for (const key in source) {
+    if (source.hasOwnProperty(key)) {
+      const sourceValue = source[key];
+      const targetValue = target[key];
 
-export default function mergeClone<T extends object, U extends object>(obj1: T, obj2: U): MergeClone<T, U> {
-  const result: any = { ...obj1 };
-
-  for (const key in obj2) {
-    if (obj2.hasOwnProperty(key)) {
-      const val1 = (obj1 as any)[key];
-      const val2 = (obj2 as any)[key];
-
-      if (
-        val1 &&
-        typeof val1 === 'object' &&
-        val1 !== null &&
-        !Array.isArray(val1) &&
-        val2 &&
-        typeof val2 === 'object' &&
-        val2 !== null &&
-        !Array.isArray(val2)
-      ) {
-        result[key] = mergeClone(val1, val2);
+      if (Array.isArray(sourceValue)) {
+        if (Array.isArray(targetValue)) {
+          // 使用类型断言，告诉 TS 我们保证拼接类型安全
+          (target[key] as any) = (targetValue as any[]).concat(sourceValue as any[]);
+        } else {
+          (target[key] as any) = [...sourceValue];
+        }
+      } else if (isObject(sourceValue)) {
+        if (!isObject(targetValue)) {
+          (target[key] as any) = {};
+        }
+        mergeClone(target[key] as any, sourceValue);
       } else {
-        result[key] = val2;
+        (target[key] as any) = sourceValue;
       }
     }
   }
-
-  return result as MergeClone<T, U>;
+  return target as T & U;
 }

@@ -1,33 +1,70 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { registerLogrcConfig, onDidChangeLogrcConfig } from '../utils/readLogrcConfig';
-import mergeClone from '../utils/mergeClone';
-import type { EnvConf, EnvConfProps } from '../types/EnvConf';
 import { setEnvConf } from '../global-object/envconfig';
+import { MergeProperties, properties } from '../global-object/properties';
 
-export function registerConfig(context: vscode.ExtensionContext) {
-  let configContext = null;
-  const pkgPath = path.join(context.extensionPath, 'package.json');
-  if (!fs.existsSync(pkgPath)) return;
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-  const id = `${pkg.publisher}.${pkg.name}`;
-  const extensionPath = vscode.extensions.getExtension(id)?.extensionPath;
+export async function registerConfig(context: vscode.ExtensionContext) {
+  // 显示当前工作区信息
+  const workspaceFolders = vscode.workspace.workspaceFolders;
 
-  registerLogrcConfig(context);
-  return new Promise<EnvConfProps>(async (resolve) => {
-    if (extensionPath) {
-      const pluginConfig = path.join(extensionPath, '.logrc');
-      if (fs.existsSync(pluginConfig)) {
-        const document = await vscode.workspace.openTextDocument(pluginConfig);
-        configContext = JSON.parse(document.getText()) as Partial<EnvConf>;
-        setEnvConf([configContext, configContext]);
-        resolve([configContext, configContext]);
+  // 1️⃣ 读取插件自身的配置文件
+  const pluginConfigPath = path.join(context.extensionPath, '.logrc');
+  if (fs.existsSync(pluginConfigPath)) {
+    try {
+      const content = JSON.parse(fs.readFileSync(pluginConfigPath, 'utf8'));
+      setEnvConf(content);
+      MergeProperties({ pluginConfig: content });
+    } catch (err) {
+      vscode.window.showErrorMessage(`读取插件自身 .logrc 出错: ${err}`);
+    }
+  }
+
+  if (!workspaceFolders) {
+    initPlugins();
+    return;
+  }
+
+  // 2️⃣ 读取每个工作区的配置文件
+  for (const folder of workspaceFolders) {
+    const projectConfigPath = path.join(folder.uri.fsPath, '.logrc');
+    if (fs.existsSync(projectConfigPath)) {
+      try {
+        const content = JSON.parse(fs.readFileSync(projectConfigPath, 'utf8'));
+        setEnvConf(content);
+        MergeProperties({ workspaceConfig: content, configResult: true });
+        initPlugins();
+      } catch (err) {
+        vscode.window.showErrorMessage(`读取工作区 .logrc 出错: ${err}`);
       }
     }
-    onDidChangeLogrcConfig((cfg: Partial<EnvConf>) => {
-      setEnvConf([mergeClone(configContext!, cfg), configContext!]);
-      resolve([mergeClone(configContext!, cfg), configContext!]);
+    // 3️⃣ 监听配置文件变化
+    const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, '.logrc'));
+    watcher.onDidChange((uri) => loadConfig(uri));
+    watcher.onDidCreate((uri) => loadConfig(uri));
+    watcher.onDidDelete(() => {
+      MergeProperties({ workspaceConfig: null, configResult: false });
+      initPlugins();
+      vscode.window.showWarningMessage('.logrc 已删除');
     });
-  });
+    context.subscriptions.push(watcher);
+  }
+  async function loadConfig(uri: vscode.Uri) {
+    try {
+      const document = await vscode.workspace.openTextDocument(uri);
+      const content = JSON.parse(document.getText());
+      setEnvConf(content);
+      MergeProperties({ workspaceConfig: content, configResult: true });
+      initPlugins();
+    } catch (err) {
+      vscode.window.showErrorMessage(`加载 .logrc 出错: ${err}`);
+    }
+  }
 }
+
+function initPlugins() {
+  setIgnoredFiles();
+}
+
+// 设置忽略文件
+function setIgnoredFiles() {}

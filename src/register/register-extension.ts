@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import type { EnvConfProps } from '../types/EnvConf';
-export function registerExtension(context: vscode.ExtensionContext, configs: EnvConfProps) {
+export function registerExtension(context: vscode.ExtensionContext) {
   const disposable = vscode.commands.registerCommand('extension.revealCurrentFile', () => {
     const activeEditor = vscode.window.activeTextEditor;
     if (!activeEditor) {
