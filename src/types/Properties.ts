@@ -13,4 +13,6 @@ export interface Properties {
   pluginConfig: Partial<EnvConf> | null;
   // 项目配置的配置项
   workspaceConfig?: Partial<EnvConf> | null;
+  // 合并后的配置项
+  settings?: Partial<EnvConf> | null;
 }

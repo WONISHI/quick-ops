@@ -6,27 +6,23 @@ export type PlainObject = Record<string, any>;
  * 数组会拼接而不是覆盖
  */
 export default function mergeClone<T extends PlainObject, U extends PlainObject>(target: T, source: U): T & U {
+  // 先克隆一份 target，避免修改原始对象
+  const result: PlainObject = Array.isArray(target) ? [...target] : { ...target };
+
   for (const key in source) {
-    if (source.hasOwnProperty(key)) {
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
       const sourceValue = source[key];
-      const targetValue = target[key];
+      const targetValue = result[key];
 
       if (Array.isArray(sourceValue)) {
-        if (Array.isArray(targetValue)) {
-          // 使用类型断言，告诉 TS 我们保证拼接类型安全
-          (target[key] as any) = (targetValue as any[]).concat(sourceValue as any[]);
-        } else {
-          (target[key] as any) = [...sourceValue];
-        }
+        result[key] = Array.isArray(targetValue) ? (targetValue as any[]).concat(sourceValue) : [...sourceValue];
       } else if (isObject(sourceValue)) {
-        if (!isObject(targetValue)) {
-          (target[key] as any) = {};
-        }
-        mergeClone(target[key] as any, sourceValue);
+        result[key] = isObject(targetValue) ? mergeClone(targetValue, sourceValue) : mergeClone({}, sourceValue);
       } else {
-        (target[key] as any) = sourceValue;
+        result[key] = sourceValue;
       }
     }
   }
-  return target as T & U;
+
+  return result as T & U;
 }
