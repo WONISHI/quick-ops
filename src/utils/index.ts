@@ -230,6 +230,11 @@ export function isCursorInsideBraces(): boolean {
   return stack > 0;
 }
 
+/**
+ * 解析import导入哪些函数
+ * @param document 语句
+ * @returns
+ */
 export function getCurrentImports(document: vscode.TextDocument): string[] {
   const text = document.getText();
   const regex = /import\s+{([^}]+)}\s+from\s+['"].+['"]/g;
@@ -240,4 +245,18 @@ export function getCurrentImports(document: vscode.TextDocument): string[] {
     imports.push(...names);
   }
   return imports;
+}
+
+/**
+ * 解析ignore文件
+ * @export
+ * @param {string} gitignoreContent ignore文件内容
+ * @returns
+ */
+
+export function ignoreArray(gitignoreContent: string) {
+  return gitignoreContent
+    .split(/\r?\n/) // 按行分割
+    .map((line) => line.trim()) // 去掉前后空格
+    .filter((line) => line && !line.startsWith('#')); // 去掉空行和注释
 }

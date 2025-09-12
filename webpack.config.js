@@ -4,7 +4,7 @@
 
 const path = require('path');
 const webpack = require('webpack');
-
+const TerserPlugin = require('terser-webpack-plugin');
 //@ts-check
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
 

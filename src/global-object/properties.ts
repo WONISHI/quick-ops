@@ -26,7 +26,9 @@ export const initProperties = (document: TextDocument) => {
 // 合并配置项
 export const MergeProperties = (property: any) => {
   Object.assign(properties, property);
-  properties.settings = mergeClone(properties.pluginConfig!, properties.workspaceConfig!);
+  if (property.workspaceConfig && Reflect.ownKeys(property.workspaceConfig).length) {
+    properties.settings = mergeClone(properties.pluginConfig!, properties.workspaceConfig!);
+  }
 };
 
 export const channel = window.createOutputChannel('scope-search-console');
