@@ -5,6 +5,7 @@ import mergeClone from '@/utils/mergeClone';
 // 全局对象，用于存储当前文件的相关属性
 export const properties: Properties = {
   fullPath: '',
+  filePath: '',
   fileName: '',
   fileType: undefined,
   content: '',
@@ -18,6 +19,7 @@ export const initProperties = (document: TextDocument) => {
   const filePath = document.uri.fsPath;
   const fullPath = document.uri.path;
   properties.fullPath = filePath;
+  properties.filePath = fullPath;
   properties.fileName = fullPath.split('/').pop() || '';
   properties.fileType = fullPath.split('.').pop() as FileType;
   properties.content = document.getText();
