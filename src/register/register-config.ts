@@ -1,12 +1,14 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ignoreArray } from '@/utils/index';
+import { exec } from 'child_process';
+import { ignoreArray, ignoreFilesLocally } from '@/utils/index';
 import { setEnvConf } from '@/global-object/envconfig';
 import { MergeProperties, properties } from '@/global-object/properties';
 
 const CONFIG_FILES = ['.prettierrc', '.gitignore', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'] as const;
 type ConfigFile = (typeof CONFIG_FILES)[number];
+
 // 通用的配置读取
 async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
   try {
@@ -16,6 +18,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
     if (basename.endsWith('.json') || /^\.[^.]+rc(\.json)?$/i.test(basename)) {
       const content = JSON.parse(text);
       if (basename === '.logrc') {
+        MergeProperties({ ignorePluginConfig: [undefined, true].includes(content.excludedConfigFiles) });
         MergeProperties({ workspaceConfig: content, configResult: true });
       }
     }
@@ -105,5 +108,5 @@ function initPlugins(config: ConfigFile) {
 // 设置忽略文件
 function setIgnoredFiles() {
   if (properties.ignorePluginConfig) return;
-  console.log(properties);
+  ignoreFilesLocally(properties.ignore);
 }

@@ -260,3 +260,23 @@ export function ignoreArray(gitignoreContent: string) {
     .map((line) => line.trim()) // 去掉前后空格
     .filter((line) => line && !line.startsWith('#')); // 去掉空行和注释
 }
+
+/**
+ * 
+ * 取消文件的跟踪
+ * @export
+ * @param {string[]} files 
+ * @returns 
+ */
+
+export function ignoreFilesLocally(files: string[]) {
+  const workspacePath = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+  if (!workspacePath) return;
+  const excludeFile = path.join(workspacePath, ".git/info/exclude");
+  let content = "";
+  if (fs.existsSync(excludeFile)) content = fs.readFileSync(excludeFile, "utf-8");
+  const newContent = files
+    .filter(f => !content.includes(f))
+    .join("\n");
+  if (newContent) fs.appendFileSync(excludeFile, "\n" + newContent);
+}

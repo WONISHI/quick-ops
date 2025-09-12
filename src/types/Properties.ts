@@ -7,7 +7,7 @@ export interface Properties {
   content: any;
   // 项目是否携带配置文件
   configResult: boolean;
-  // gitignore是否忽略插件的配置文件
+  // gitignore是否忽略插件的配置文件或者说是否需要设置忽略文件
   ignorePluginConfig?:boolean;
   // 自身忽略文件
   ignore: string[];

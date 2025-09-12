@@ -115,6 +115,7 @@
     "@babel/traverse": "^7.28.3",
     "@vue/compiler-sfc": "^3.5.20",
     "dayjs": "^1.11.13",
+    "ignore": "^7.0.5",
     "terser-webpack-plugin": "^5.3.14",
     "vscode-languageclient": "^9.0.1"
   }
