@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { exec } from 'child_process';
+import { resolveResult } from '@/utils/promiseResolve';
 import { ignoreArray, ignoreFilesLocally } from '@/utils/index';
-import { setEnvConf } from '@/global-object/envconfig';
 import { MergeProperties, properties } from '@/global-object/properties';
 
 const CONFIG_FILES = ['.prettierrc', '.gitignore', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'] as const;
@@ -80,7 +79,6 @@ export async function registerConfig(context: vscode.ExtensionContext) {
   if (fs.existsSync(pluginConfigPath)) {
     try {
       const content = JSON.parse(fs.readFileSync(pluginConfigPath, 'utf8'));
-      setEnvConf(content);
       MergeProperties({ pluginConfig: content });
     } catch (err) {
       vscode.window.showErrorMessage(`读取插件自身 .logrc 出错: ${err}`);
@@ -100,6 +98,8 @@ function initPlugins(config: ConfigFile) {
   switch (config) {
     case '.gitignore':
       return setIgnoredFiles();
+    case '.logrc':
+      return setLogrc();
     default:
       return;
   }
@@ -109,4 +109,9 @@ function initPlugins(config: ConfigFile) {
 function setIgnoredFiles() {
   if (properties.ignorePluginConfig) return;
   ignoreFilesLocally(properties.ignore);
+}
+
+// 设置
+function setLogrc() {
+  resolveResult(true);
 }

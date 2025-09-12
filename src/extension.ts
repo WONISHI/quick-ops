@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
-import type { EnvConfProps } from './types/EnvConf';
-import type { FileType } from './types/utils';
-import { properties, initProperties } from './global-object/properties';
-import { registerConfig } from './register/register-config';
+import type { EnvConfProps } from '@/types/EnvConf';
+import type { FileType } from '@/types/utils';
+import { waitForResult } from '@/utils/promiseResolve';
+import { properties, initProperties } from '@/global-object/properties';
+import { registerConfig } from '@/register/register-config';
 import { decorationType, registerAreaSearch } from './register/register-area-search';
 import { registerCompletion } from './register/register-completion';
 import { registerExtension } from './register/register-extension';
@@ -11,13 +12,17 @@ import { registerExport } from './register/register-export';
 import { registerLogrcDecoration } from './register/register-logrc-decoration';
 
 export function activate(context: vscode.ExtensionContext) {
-  vscode.window.showInformationMessage('插件已激活！');
   initProperties(vscode.window.activeTextEditor?.document!);
   vscode.workspace.onDidChangeTextDocument((e) => {
     properties.content = e.document.getText();
     properties.fileType = e.document.languageId as FileType;
   });
   registerConfig(context);
+  waitForResult().then((res) => {
+    vscode.window.showInformationMessage('插件已激活！');
+    // console代码补全
+    registerCompletion(context);
+  });
 }
 
 export async function deactivate() {

@@ -1,10 +1,9 @@
-import { getEnvConf } from '../global-object/envconfig';
 import type { EnvConf, LogEnhancerConfig } from '../types/EnvConf';
 import { generateUUID } from './index';
 import { properties } from '../global-object/properties';
 import dayjs from 'dayjs';
 
-const envConf: Partial<EnvConf> | undefined = getEnvConf() ?? undefined;
+const envConf: Partial<EnvConf> | undefined = properties.pluginConfig ?? undefined;
 
 export const moduleConfig: {
   envConf: Partial<EnvConf> | undefined | null;
@@ -21,7 +20,8 @@ export const moduleConfig: {
 };
 
 export function parseModuleTemplate(type: keyof Console): string[] {
-  const [currentEnvConf, defaultEnvConf] = getEnvConf();
+  const defaultEnvConf = properties.pluginConfig;
+  const currentEnvConf = properties.settings;
   const template = (currentEnvConf as EnvConf).logEnhancerConfig[type] || (defaultEnvConf as EnvConf).logEnhancerConfig[type];
   moduleConfig.envConf = currentEnvConf || defaultEnvConf;
   moduleConfig.key = type;

@@ -1,6 +1,6 @@
 import { TextDocument, window } from 'vscode';
-import type { Properties } from '../types/Properties';
-import type { FileType } from '../types/utils';
+import type { Properties } from '@/types/Properties';
+import type { FileType } from '@/types/utils';
 import mergeClone from '@/utils/mergeClone';
 // 全局对象，用于存储当前文件的相关属性
 export const properties: Properties = {
