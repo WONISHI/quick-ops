@@ -115,3 +115,8 @@ function setIgnoredFiles() {
 function setLogrc() {
   resolveResult(true);
 }
+
+
+function createProject(){
+  
+}
