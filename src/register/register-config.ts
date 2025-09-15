@@ -123,8 +123,7 @@ export async function registerConfig(context: vscode.ExtensionContext) {
   context.subscriptions.push(disposable);
 
   // 显示当前工作区信息
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-
+  const workspaceFolders = vscode.workspace.workspaceFolders?.[0];
   // 读取插件自身的配置文件
   const pluginConfigPath = path.join(context.extensionPath, '.logrc');
   if (fs.existsSync(pluginConfigPath)) {
@@ -135,8 +134,8 @@ export async function registerConfig(context: vscode.ExtensionContext) {
       NotificationService.error(`读取插件自身 .logrc 出错: ${err}`);
     }
   }
-
-  if (!workspaceFolders) {
+  const configPath = path.join(workspaceFolders!.uri.fsPath, '.logrc');
+  if (!fs.existsSync(configPath)) {
     initPlugins('.logrc');
     return;
   }
