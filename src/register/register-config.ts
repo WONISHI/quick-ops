@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { resolveResult } from '@/utils/promiseResolve';
-import { ignoreArray, ignoreFilesLocally } from '@/utils/index';
-import { MergeProperties, properties } from '@/global-object/properties';
+import { resolveResult } from '../utils/promiseResolve';
+import { ignoreArray, ignoreFilesLocally } from '../utils/index';
+import { MergeProperties, properties } from '../global-object/properties';
 
 const CONFIG_FILES = ['.prettierrc', '.gitignore', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'] as const;
 type ConfigFile = (typeof CONFIG_FILES)[number];
@@ -14,6 +14,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
     const document = await vscode.workspace.openTextDocument(uri);
     const text = document.getText();
     const basename = path.basename(uri.fsPath);
+    console.log(`读取配置文件: ${text}`);
     if (basename.endsWith('.json') || /^\.[^.]+rc(\.json)?$/i.test(basename)) {
       const content = JSON.parse(text);
       if (basename === '.logrc') {

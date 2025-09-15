@@ -1,14 +1,14 @@
 import * as vscode from 'vscode';
-import type { EnvConfProps } from '@/types/EnvConf';
-import type { FileType } from '@/types/utils';
-import { waitForResult } from '@/utils/promiseResolve';
-import { properties, initProperties } from '@/global-object/properties';
-import { registerConfig } from '@/register/register-config';
-import { registerCompletion } from '@/register/register-completion';
-import { registerExtension } from '@/register/register-extension';
-import { registerTop } from '@/register/register-top';
-import { registerExport } from '@/register/register-export';
-import { registerLogrcDecoration } from '@/register/register-logrc-decoration';
+import type { EnvConfProps } from './types/EnvConf';
+import type { FileType } from './types/utils';
+import { waitForResult } from './utils/promiseResolve';
+import { properties, initProperties } from './global-object/properties';
+import { registerConfig } from './register/register-config';
+import { registerCompletion } from './register/register-completion';
+import { registerExtension } from './register/register-extension';
+import { registerTop } from './register/register-top';
+import { registerExport } from './register/register-export';
+import { registerLogrcDecoration } from './register/register-logrc-decoration';
 
 export function activate(context: vscode.ExtensionContext) {
   // 监听文件打开

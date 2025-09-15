@@ -1,4 +1,4 @@
-import { isObject } from '@/utils/is';
+import { isObject } from './is';
 export type PlainObject = Record<string, any>;
 
 /**

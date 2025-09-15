@@ -1,7 +1,7 @@
 import type { EnvConf, LogEnhancerConfig } from '../types/EnvConf';
-import { generateUUID } from '@/utils/index';
-import formattedPath from '@/utils/formattedPath';
-import { properties } from '@/global-object/properties';
+import { generateUUID } from './index';
+import formattedPath from './formattedPath';
+import { properties } from '../global-object/properties';
 import dayjs from 'dayjs';
 
 const envConf: Partial<EnvConf> | undefined = properties.pluginConfig ?? undefined;
@@ -55,12 +55,14 @@ export function parseSnippet(codes: string[]): any[] | null {
     .map((code) => {
       if (regexName.test(code)) {
         const ids = code.split('/');
+        console.log('ids', ids);
         let i = 0;
         let logName = '';
         while (i < ids.length) {
-          logName = formattedPath(ids[i]);
+          logName = formattedPath(ids[i]).toString();
           i++;
         }
+        console.log('logName', logName);
         return logName.replace('name', `${properties.fileName}文件`);
       }
       const target = handlers[code];
