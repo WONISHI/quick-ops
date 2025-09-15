@@ -2,6 +2,15 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 
+export function delayExecutor(callback: () => void, timeout: number = 3000) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      callback();
+      resolve(true);
+    }, timeout);
+  });
+}
+
 export function generateUUID(length: number = 32): string {
   const chars = '0123456789abcdef'; // 十六进制字符
   let uuid = '';
@@ -261,23 +270,21 @@ export function ignoreArray(gitignoreContent: string) {
 }
 
 /**
- * 
+ *
  * 取消文件的跟踪
  * @export
- * @param {string[]} files 
- * @returns 
+ * @param {string[]} files
+ * @returns
  */
 
 export function ignoreFilesLocally(files: string[]) {
   const workspacePath = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
   if (!workspacePath) return;
-  const excludeFile = path.join(workspacePath, ".git/info/exclude");
-  let content = "";
-  if (fs.existsSync(excludeFile)) content = fs.readFileSync(excludeFile, "utf-8");
-  const newContent = files
-    .filter(f => !content.includes(f))
-    .join("\n");
-  if (newContent) fs.appendFileSync(excludeFile, "\n" + newContent);
+  const excludeFile = path.join(workspacePath, '.git/info/exclude');
+  let content = '';
+  if (fs.existsSync(excludeFile)) content = fs.readFileSync(excludeFile, 'utf-8');
+  const newContent = files.filter((f) => !content.includes(f)).join('\n');
+  if (newContent) fs.appendFileSync(excludeFile, '\n' + newContent);
 }
 
 /**
@@ -286,11 +293,11 @@ export function ignoreFilesLocally(files: string[]) {
 export function unignoreFilesLocally(files: string[]) {
   const workspacePath = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
   if (!workspacePath) return;
-  const excludeFile = path.join(workspacePath, ".git/info/exclude");
+  const excludeFile = path.join(workspacePath, '.git/info/exclude');
   if (!fs.existsSync(excludeFile)) return;
-  let content = fs.readFileSync(excludeFile, "utf-8");
+  let content = fs.readFileSync(excludeFile, 'utf-8');
   const lines = content.split(/\r?\n/);
   // 过滤掉需要取消忽略的文件
-  const newLines = lines.filter(line => !files.includes(line.trim()));
-  fs.writeFileSync(excludeFile, newLines.join("\n"));
+  const newLines = lines.filter((line) => !files.includes(line.trim()));
+  fs.writeFileSync(excludeFile, newLines.join('\n'));
 }

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import NotificationService from '../utils/notificationService';
 import { resolveResult } from '../utils/promiseResolve';
 import { ignoreArray, ignoreFilesLocally, unignoreFilesLocally } from '../utils/index';
 import { MergeProperties, properties } from '../global-object/properties';
@@ -36,7 +37,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
     }
     return basename;
   } catch (err) {
-    vscode.window.showErrorMessage(`读取配置文件出错: ${uri.fsPath}, ${err}`);
+    NotificationService.error(`读取配置文件出错: ${uri.fsPath}, ${err}`);
     return null;
   }
 }
@@ -84,7 +85,7 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
       // watcher.onDidChange((uri) => handleConfig(uri));
       watcher.onDidCreate((uri) => handleConfig(uri, context));
       watcher.onDidDelete((uri) => {
-        vscode.window.showWarningMessage(`${file} 已删除`);
+        NotificationService.warn(`${file} 已删除`);
         MergeProperties({ workspaceConfig: {}, configResult: false });
         handleConfig(uri, context);
       });
@@ -98,23 +99,25 @@ export async function registerConfig(context: vscode.ExtensionContext) {
   let disposable = vscode.commands.registerCommand('extension.createLogrcFile', async () => {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
-      vscode.window.showWarningMessage('请先打开一个工作区。');
+      NotificationService.warn('请先打开一个工作区。');
       return;
     }
 
     const logrcPath = path.join(workspaceFolder.uri.fsPath, '.logrc');
-    const fileContent = '{"excludedConfigFiles": false}'; // 或者一个空 JSON 对象
+    // 读取插件自身的配置文件
+    const pluginConfigPath = path.join(context.extensionPath, '/src/module/template/logrc.template.json');
+    const fileContent = fs.readFileSync(pluginConfigPath, 'utf8'); // 或者一个空 JSON 对象
 
     try {
       // 1. 写入文件内容
       const fileUri = vscode.Uri.file(logrcPath);
       await vscode.workspace.fs.writeFile(fileUri, Buffer.from(fileContent));
-      vscode.window.showInformationMessage('.logrc 文件已创建！');
+      NotificationService.info('.logrc 文件已创建！');
       // 2. 打开并显示这个文件
       const document = await vscode.workspace.openTextDocument(fileUri);
       await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
     } catch (error) {
-      vscode.window.showErrorMessage(`创建文件失败: ${error}`);
+      NotificationService.error(`创建文件失败: ${error}`);
     }
   });
   context.subscriptions.push(disposable);
@@ -129,7 +132,7 @@ export async function registerConfig(context: vscode.ExtensionContext) {
       const content = JSON.parse(fs.readFileSync(pluginConfigPath, 'utf8'));
       MergeProperties({ pluginConfig: content });
     } catch (err) {
-      vscode.window.showErrorMessage(`读取插件自身 .logrc 出错: ${err}`);
+      NotificationService.error(`读取插件自身 .logrc 出错: ${err}`);
     }
   }
 
@@ -157,10 +160,10 @@ function initPlugins(config: ConfigFile) {
 // 设置忽略文件
 function setIgnoredFiles() {
   if (properties.ignorePluginConfig) {
-    vscode.window.showInformationMessage('检测到 .gitignore 配置了 .logrc，插件将忽略对 .logrc 的跟踪');
+    NotificationService.info('检测到 .gitignore 配置了 .logrc，插件将忽略对 .logrc 的跟踪');
     ignoreFilesLocally(properties.ignore);
   } else {
-    vscode.window.showInformationMessage('检测到未忽略 .logrc，插件将跟踪对 .logrc 的更改');
+    NotificationService.info('检测到未忽略 .logrc，插件将跟踪对 .logrc 的更改');
     unignoreFilesLocally(properties.ignore);
   }
 }
