@@ -301,3 +301,26 @@ export function unignoreFilesLocally(files: string[]) {
   const newLines = lines.filter((line) => !files.includes(line.trim()));
   fs.writeFileSync(excludeFile, newLines.join('\n'));
 }
+
+/**
+ * 获取选中内容之前的字符数（多行累加）
+ */
+export function getSelectedCharsCount(): number {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return 0;
+  const document = editor.document;
+  const selection = editor.selection;
+  let count = 0;
+  // 从起始行到光标所在行
+  for (let lineNum = 0; lineNum <= selection.start.line; lineNum++) {
+    const lineText = document.lineAt(lineNum).text;
+    if (lineNum === selection.start.line) {
+      // 当前行只统计从行首到选区起点的字符
+      count += selection.start.character;
+    } else {
+      // 其他行统计整行字符 + 换行符
+      count += lineText.length + 1; // 1 代表换行符
+    }
+  }
+  return count;
+}

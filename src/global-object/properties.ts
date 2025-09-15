@@ -11,19 +11,23 @@ export const properties: Properties = {
   content: '',
   configResult: false,
   pluginConfig: null,
+  supportsLessSyntax: false,
+  supportsScssSyntax: false,
   ignore: ['.logrc'],
 };
 
 // 设置当前文件配置
 export const initProperties = (document: TextDocument) => {
   // 没有任何文件打开就跳过
-  if(!document) return;
+  if (!document) return;
   const filePath = document.uri.fsPath;
   const fullPath = document.uri.path;
   properties.fullPath = filePath;
   properties.filePath = fullPath;
   properties.fileName = fullPath.split('/').pop() || '';
   properties.fileType = fullPath.split('.').pop() as FileType;
+  properties.supportsLessSyntax = properties.fileType.toLocaleLowerCase() === 'less';
+  properties.supportsScssSyntax = properties.fileType.toLocaleLowerCase() === 'scss';
   properties.content = document.getText();
 };
 
@@ -34,5 +38,3 @@ export const MergeProperties = (property: any) => {
     properties.settings = mergeClone(properties.pluginConfig!, properties.workspaceConfig!);
   }
 };
-
-export const channel = window.createOutputChannel('scope-search-console');

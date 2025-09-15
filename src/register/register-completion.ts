@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import type { EnvConfProps } from '../types/EnvConf';
 import type { FileType } from '../types/utils';
 import { properties } from '../global-object/properties';
 import provideCompletions from '../module/log/log';

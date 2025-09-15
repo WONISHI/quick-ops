@@ -8,6 +8,8 @@ import { registerCompletion } from './register/register-completion';
 import { registerExtension } from './register/register-extension';
 import { registerTop } from './register/register-top';
 import { registerExport } from './register/register-export';
+import { registerWorkspaceFolders } from './register/register-workspace-folders';
+import { registerSelectionCommand } from './register/register-selection-command';
 import { registerLogrcDecoration } from './register/register-logrc-decoration';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -18,6 +20,9 @@ export function activate(context: vscode.ExtensionContext) {
     properties.fileType = e.document.languageId as FileType;
   });
   // 初始化读取文件配置
+  // 没有logrc文件的时候创建logrc
+  // 取消git校验
+  // 配置文件智能提示
   registerConfig(context);
 
   // 初始化其他功能
@@ -32,6 +37,19 @@ export function activate(context: vscode.ExtensionContext) {
     registerTop(context);
     // 智能导出
     registerExport(context);
+    // 合起文件夹
+    registerWorkspaceFolders(context);
+    // 注册选中触发
+    registerSelectionCommand(context);
+    // 折叠
+    // 取消警告
+    // 标签补全
+    // 导出项目依赖关系
+    // 指针跳转（行数跳转）
+    // TODO
+    // mock数据
+    // 高效清理node module
+    // try插入
   });
 }
 

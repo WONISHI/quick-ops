@@ -6,6 +6,10 @@ export interface Properties {
   fileName: string;
   fileType: FileType | undefined;
   content: any;
+  // 是否支持less语法
+  supportsLessSyntax: boolean;
+  // 是否支持scss语法
+  supportsScssSyntax: boolean;
   // 项目是否携带配置文件
   configResult: boolean;
   // gitignore是否忽略插件的配置文件或者说是否需要设置忽略文件
