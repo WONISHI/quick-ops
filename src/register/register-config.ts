@@ -23,7 +23,6 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
       const content = JSON.parse(text);
       if (basename === '.logrc') {
         MergeProperties({ ignorePluginConfig: [undefined, true].includes(content.excludedConfigFiles) });
-        console.log('ignorePluginConfig', properties.ignorePluginConfig);
         MergeProperties({ workspaceConfig: content, configResult: true });
       }
     }
@@ -51,6 +50,19 @@ async function handleConfig(uri: vscode.Uri) {
   }
 }
 
+// 专门注册 onDidSaveTextDocument 监听器
+function registerSaveWatcher(context: vscode.ExtensionContext) {
+  // 这个监听器只需要注册一次
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument((document) => {
+      const basename = path.basename(document.uri.fsPath);
+      if (CONFIG_FILES.includes(basename as ConfigFile)) {
+        handleConfig(document.uri);
+      }
+    }),
+  );
+}
+
 function registerConfigWatchers(context: vscode.ExtensionContext) {
   const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
   for (const folder of workspaceFolders) {
@@ -64,23 +76,12 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
       const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, file));
 
       // watcher.onDidChange((uri) => handleConfig(uri));
-      // 监听保存
-      context.subscriptions.push(
-        vscode.workspace.onDidSaveTextDocument((document) => {
-          console.log('保存了', document.uri.fsPath);
-          const basename = path.basename(document.uri.fsPath);
-          if (CONFIG_FILES.includes(basename as ConfigFile)) {
-            handleConfig(document.uri);
-          }
-        }),
-      );
       watcher.onDidCreate((uri) => handleConfig(uri));
       watcher.onDidDelete(() => {
         MergeProperties({ workspaceConfig: null, configResult: false });
         // initPlugins();
         vscode.window.showWarningMessage(`${file} 已删除`);
       });
-
       context.subscriptions.push(watcher);
     }
   }
@@ -105,9 +106,10 @@ export async function registerConfig(context: vscode.ExtensionContext) {
     initPlugins('.logrc');
     return;
   }
-
   // 读取每个工作区的配置文件
   registerConfigWatchers(context);
+  // 分开调用，逻辑更清晰
+  registerSaveWatcher(context);
 }
 
 function initPlugins(config: ConfigFile) {
@@ -127,8 +129,8 @@ function setIgnoredFiles() {
     vscode.window.showInformationMessage('检测到 .gitignore 配置了 .logrc，插件将忽略对 .logrc 的跟踪');
     ignoreFilesLocally(properties.ignore);
   } else {
-    unignoreFilesLocally(properties.ignore);
     vscode.window.showInformationMessage('检测到未忽略 .logrc，插件将跟踪对 .logrc 的更改');
+    unignoreFilesLocally(properties.ignore);
   }
 }
 
