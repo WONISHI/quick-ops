@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { resolveResult } from '../utils/promiseResolve';
-import { ignoreArray, ignoreFilesLocally } from '../utils/index';
+import { ignoreArray, ignoreFilesLocally, unignoreFilesLocally } from '../utils/index';
 import { MergeProperties, properties } from '../global-object/properties';
 
 const CONFIG_FILES = ['.prettierrc', '.gitignore', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'] as const;
@@ -14,11 +14,16 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
     const document = await vscode.workspace.openTextDocument(uri);
     const text = document.getText();
     const basename = path.basename(uri.fsPath);
-    console.log(`读取配置文件: ${text}`);
+    if (text.trim().length === 0) {
+      MergeProperties({ workspaceConfig: {}, configResult: true });
+      return basename;
+    }
+    console.log('读取配置文件', text);
     if (basename.endsWith('.json') || /^\.[^.]+rc(\.json)?$/i.test(basename)) {
       const content = JSON.parse(text);
       if (basename === '.logrc') {
         MergeProperties({ ignorePluginConfig: [undefined, true].includes(content.excludedConfigFiles) });
+        console.log('ignorePluginConfig', properties.ignorePluginConfig);
         MergeProperties({ workspaceConfig: content, configResult: true });
       }
     }
@@ -58,7 +63,17 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
       // 监听变化
       const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, file));
 
-      watcher.onDidChange((uri) => handleConfig(uri));
+      // watcher.onDidChange((uri) => handleConfig(uri));
+      // 监听保存
+      context.subscriptions.push(
+        vscode.workspace.onDidSaveTextDocument((document) => {
+          console.log('保存了', document.uri.fsPath);
+          const basename = path.basename(document.uri.fsPath);
+          if (CONFIG_FILES.includes(basename as ConfigFile)) {
+            handleConfig(document.uri);
+          }
+        }),
+      );
       watcher.onDidCreate((uri) => handleConfig(uri));
       watcher.onDidDelete(() => {
         MergeProperties({ workspaceConfig: null, configResult: false });
@@ -108,16 +123,19 @@ function initPlugins(config: ConfigFile) {
 
 // 设置忽略文件
 function setIgnoredFiles() {
-  if (properties.ignorePluginConfig) return;
-  ignoreFilesLocally(properties.ignore);
+  if (properties.ignorePluginConfig) {
+    vscode.window.showInformationMessage('检测到 .gitignore 配置了 .logrc，插件将忽略对 .logrc 的跟踪');
+    ignoreFilesLocally(properties.ignore);
+  } else {
+    unignoreFilesLocally(properties.ignore);
+    vscode.window.showInformationMessage('检测到未忽略 .logrc，插件将跟踪对 .logrc 的更改');
+  }
 }
 
 // 设置
 function setLogrc() {
+  setIgnoredFiles();
   resolveResult(true);
 }
 
-
-function createProject(){
-  
-}
+function createProject() {}

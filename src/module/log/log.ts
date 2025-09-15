@@ -14,7 +14,6 @@ const cngGen = (position: any) => {
   const codes = parseModuleTemplate('log');
   return LogSnippetString.reduce<ModuleCompletionItem[]>((prev, snippet, index) => {
     const module = parseSnippet(codes);
-    console.log('module', module);
     const cng = new ModuleCompletionItem(getLabel(snippet.label));
     let format = `console.log(${module!.map(item => `'${item}'`).join(', ')});`;
     getVisualColumn(format);

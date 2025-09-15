@@ -279,3 +279,18 @@ export function ignoreFilesLocally(files: string[]) {
     .join("\n");
   if (newContent) fs.appendFileSync(excludeFile, "\n" + newContent);
 }
+
+/**
+ * 取消忽略文件：从 .git/info/exclude 中删除
+ */
+export function unignoreFilesLocally(files: string[]) {
+  const workspacePath = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+  if (!workspacePath) return;
+  const excludeFile = path.join(workspacePath, ".git/info/exclude");
+  if (!fs.existsSync(excludeFile)) return;
+  let content = fs.readFileSync(excludeFile, "utf-8");
+  const lines = content.split(/\r?\n/);
+  // 过滤掉需要取消忽略的文件
+  const newLines = lines.filter(line => !files.includes(line.trim()));
+  fs.writeFileSync(excludeFile, newLines.join("\n"));
+}
