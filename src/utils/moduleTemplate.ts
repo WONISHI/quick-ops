@@ -1,6 +1,6 @@
 import type { EnvConf, LogEnhancerConfig } from '../types/EnvConf';
 import { generateUUID } from './index';
-import formattedPath from './formattedPath';
+import formattedPath,{resetIsBasePath} from './formattedPath';
 import { properties } from '../global-object/properties';
 import dayjs from 'dayjs';
 
@@ -62,8 +62,8 @@ export function parseSnippet(codes: string[]): any[] | null {
           logName = formattedPath(ids[i]).toString();
           i++;
         }
-        console.log('logName', logName);
-        return logName.replace('name', `${properties.fileName}文件`);
+        resetIsBasePath();
+        return logName.replace(/name/g, `${properties.fileName}文件`);
       }
       const target = handlers[code];
       // @ts-ignore

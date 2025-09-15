@@ -2,7 +2,7 @@ import * as path from 'path';
 import { properties } from '../global-object/properties';
 
 let targetPath = '';
-let isBasePath = false;
+let isBasePath = '';
 
 function cutPathBeforeSegment(fullPath: string, segment: string) {
   const regex = new RegExp(`(.*)\\\\${segment}.*`);
@@ -13,19 +13,21 @@ export default function formatPathBySign(sign: string) {
   const signHandlers: Record<string, () => string> = {
     '~': () => {
       targetPath = properties.fullPath;
-      isBasePath = true;
       return targetPath;
     },
     '^': () => {
       if (isBasePath) {
-        targetPath = path.basename(targetPath);
+        targetPath = cutPathBeforeSegment(properties.fullPath, isBasePath);
       } else {
-        targetPath = cutPathBeforeSegment(properties.fullPath, targetPath);
-        console.log('999999','targetPath');
+        targetPath = path.basename(targetPath);
       }
-      isBasePath = false;
-      return path.basename(targetPath);
+      isBasePath = path.basename(targetPath);
+      return isBasePath;
     },
   };
-  return sign in signHandlers ? signHandlers[sign]() : targetPath + '/' + sign;
+  return sign in signHandlers ? signHandlers[sign]() : isBasePath ? isBasePath + '//' + sign : targetPath + '//' + sign;
+}
+
+export function resetIsBasePath() {
+  isBasePath = '';
 }
