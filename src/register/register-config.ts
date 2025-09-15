@@ -106,8 +106,13 @@ export async function registerConfig(context: vscode.ExtensionContext) {
     const fileContent = '{"excludedConfigFiles": false}'; // 或者一个空 JSON 对象
 
     try {
-      await vscode.workspace.fs.writeFile(vscode.Uri.file(logrcPath), Buffer.from(fileContent));
+      // 1. 写入文件内容
+      const fileUri = vscode.Uri.file(logrcPath);
+      await vscode.workspace.fs.writeFile(fileUri, Buffer.from(fileContent));
       vscode.window.showInformationMessage('.logrc 文件已创建！');
+      // 2. 打开并显示这个文件
+      const document = await vscode.workspace.openTextDocument(fileUri);
+      await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
     } catch (error) {
       vscode.window.showErrorMessage(`创建文件失败: ${error}`);
     }

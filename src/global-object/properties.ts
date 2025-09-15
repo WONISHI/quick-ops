@@ -16,6 +16,8 @@ export const properties: Properties = {
 
 // 设置当前文件配置
 export const initProperties = (document: TextDocument) => {
+  // 没有任何文件打开就跳过
+  if(!document) return;
   const filePath = document.uri.fsPath;
   const fullPath = document.uri.path;
   properties.fullPath = filePath;

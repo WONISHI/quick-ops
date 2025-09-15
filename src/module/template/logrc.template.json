@@ -1,0 +1,16 @@
+{
+  "logEnhancerConfig": {
+    "log": "[icon]-[~/^/^/name]-[line]-[$0]"
+  },
+  "unitTime": {
+    "log": "YYYY-MM-DD HH:mm:ss"
+  },
+  "uuidLen": {
+    "log": 12
+  },
+  "alias": {
+    "path":{
+      "@/": "./src/"
+    }
+  }
+}

@@ -23,6 +23,7 @@ export function activate(context: vscode.ExtensionContext) {
   // 初始化其他功能
   waitForResult().then((res) => {
     vscode.window.showInformationMessage('插件已激活！');
+    console.log('初始化完成！');
     // console代码补全
     registerCompletion(context);
     // 定位文件
