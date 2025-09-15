@@ -53,6 +53,9 @@
           "light": "resources/svg/bottom-dark.svg",
           "dark": "resources/svg/bottom-light.svg"
         }
+      },{
+        "command": "extension.createLogrcFile",
+        "title": "创建 .logrc 文件"
       }
     ],
     "menus": {
@@ -71,6 +74,13 @@
           "command": "myExtension.scrollToBottom",
           "group": "navigation",
           "when": "editorTextFocus"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "extension.createLogrcFile",
+          "group": "navigation@1",
+          "when": "Extension.logrcNotFound"
         }
       ]
     }

@@ -18,7 +18,6 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
       MergeProperties({ workspaceConfig: {}, configResult: true });
       return basename;
     }
-    console.log('读取配置文件', text);
     if (basename.endsWith('.json') || /^\.[^.]+rc(\.json)?$/i.test(basename)) {
       const content = JSON.parse(text);
       if (basename === '.logrc') {
@@ -43,8 +42,15 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
 }
 
 // 通用的处理逻辑
-async function handleConfig(uri: vscode.Uri) {
+async function handleConfig(uri: vscode.Uri, context?: vscode.ExtensionContext) {
   const config = await readConfigFile(uri);
+  // 如果 .logrc 文件不存在 (configResult 为 false)，则显示菜单
+  const logrcFound = properties.configResult && path.basename(uri.fsPath) === '.logrc';
+
+  // 设置上下文键
+  // 如果找到了 .logrc 文件，Extension.logrcNotFound 的值为 false
+  // 否则为 true
+  vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', !logrcFound);
   if (config) {
     initPlugins(config);
   }
@@ -57,7 +63,7 @@ function registerSaveWatcher(context: vscode.ExtensionContext) {
     vscode.workspace.onDidSaveTextDocument((document) => {
       const basename = path.basename(document.uri.fsPath);
       if (CONFIG_FILES.includes(basename as ConfigFile)) {
-        handleConfig(document.uri);
+        handleConfig(document.uri, context);
       }
     }),
   );
@@ -69,18 +75,18 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
     for (const file of CONFIG_FILES) {
       const configPath = path.join(folder.uri.fsPath, file);
       if (fs.existsSync(configPath)) {
-        handleConfig(vscode.Uri.file(configPath));
+        handleConfig(vscode.Uri.file(configPath), context);
       }
 
       // 监听变化
       const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, file));
 
       // watcher.onDidChange((uri) => handleConfig(uri));
-      watcher.onDidCreate((uri) => handleConfig(uri));
-      watcher.onDidDelete(() => {
-        MergeProperties({ workspaceConfig: null, configResult: false });
-        // initPlugins();
+      watcher.onDidCreate((uri) => handleConfig(uri, context));
+      watcher.onDidDelete((uri) => {
         vscode.window.showWarningMessage(`${file} 已删除`);
+        MergeProperties({ workspaceConfig: {}, configResult: false });
+        handleConfig(uri, context);
       });
       context.subscriptions.push(watcher);
     }
@@ -88,6 +94,26 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
 }
 
 export async function registerConfig(context: vscode.ExtensionContext) {
+  // 注册创建文件的命令
+  let disposable = vscode.commands.registerCommand('extension.createLogrcFile', async () => {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) {
+      vscode.window.showWarningMessage('请先打开一个工作区。');
+      return;
+    }
+
+    const logrcPath = path.join(workspaceFolder.uri.fsPath, '.logrc');
+    const fileContent = '{"excludedConfigFiles": false}'; // 或者一个空 JSON 对象
+
+    try {
+      await vscode.workspace.fs.writeFile(vscode.Uri.file(logrcPath), Buffer.from(fileContent));
+      vscode.window.showInformationMessage('.logrc 文件已创建！');
+    } catch (error) {
+      vscode.window.showErrorMessage(`创建文件失败: ${error}`);
+    }
+  });
+  context.subscriptions.push(disposable);
+
   // 显示当前工作区信息
   const workspaceFolders = vscode.workspace.workspaceFolders;
 
