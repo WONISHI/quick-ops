@@ -8,8 +8,9 @@
   "uuidLen": {
     "log": 12
   },
+  "DEV": true,
   "alias": {
-    "path":{
+    "path": {
       "@/": "./src/"
     }
   }

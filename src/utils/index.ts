@@ -328,41 +328,43 @@ export function getSelectionInfo() {
 /**
  * 对象转ts类型
  */
-export function withTsType() {
+export async function withTsType(): Promise<string | false> {
   const editor = vscode.window.activeTextEditor;
-  if (!editor) return;
+  if (!editor) return false;
+
   const selection = editor.selection;
   const selectedText = editor.document.getText(selection).trim();
-  if (!selectedText) return;
-  return new Promise<string | boolean>((resolve, reject) => {
-    try {
-      const parsed = JSON.parse(selectedText);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        const convert = Object.keys(parsed).reduce(
-          (prev: Record<string, string>, key) => {
-            const value = parsed[key];
-            let type: string = typeof value;
-            if (type === 'object') {
-              type = Array.isArray(value) ? 'any[]' : 'Record<string,any>';
-            }
-            prev[key] = type;
-            return prev;
-          },
-          {} as Record<string, string>,
-        );
-        const typeString = Object.entries(convert)
-          .map(([key, type]) => `  ${key}: ${type};`)
-          .join('\n');
-        const finalString = `interface RootObject {\n${typeString}\n}`;
-        resolve(finalString);
-      } else {
-        resolve(false);
-        vscode.window.showErrorMessage('选中的内容不是标准 JSON 对象');
-        return;
-      }
-    } catch (e) {
-      reject(false);
-      vscode.window.showErrorMessage('选中的内容不是标准 JSON 对象');
+  if (!selectedText) return false;
+
+  try {
+    const parsed = Function(`"use strict"; return (${selectedText})`)();
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const convert = Object.keys(parsed).reduce(
+        (prev: Record<string, string>, key) => {
+          const value = parsed[key];
+          let type: string = typeof value;
+          if (type === "object") {
+            type = Array.isArray(value) ? "any[]" : "Record<string, any>";
+          }
+          prev[key] = type;
+          return prev;
+        },
+        {} as Record<string, string>
+      );
+
+      const typeString = Object.entries(convert)
+        .map(([key, type]) => `  ${key}: ${type};`)
+        .join("\n");
+
+      const finalString = `interface RootObject {\n${typeString}\n}`;
+      return finalString;
+    } else {
+      vscode.window.showErrorMessage("选中的内容不是标准 JSON 对象");
+      return false;
     }
-  });
+  } catch (e) {
+    vscode.window.showErrorMessage("选中的内容不是标准 JSON 对象");
+    return false;
+  }
 }
+

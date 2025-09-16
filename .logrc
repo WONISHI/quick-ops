@@ -74,9 +74,10 @@
     "timeStamp": 12,
     "context": 12
   },
-  "excludedConfigFiles":true,
+  "excludedConfigFiles": true,
+  "DEV": true,
   "alias": {
-    "path":{
+    "path": {
       "@/": "./src/"
     }
   }

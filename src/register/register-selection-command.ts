@@ -10,9 +10,18 @@ function setSelectionStatusBarText() {
   statusBarItem.show();
 }
 
-async function setWithTsType() {
+async function setWithTsType(context: vscode.ExtensionContext) {
   const result = await withTsType();
-  console.log(result);
+  if (result) {
+    vscode.commands.executeCommand('setContext', 'Extension.SelectTots', true);
+    let disposable = vscode.commands.registerCommand('extension.CopyTsType', async () => {
+      await vscode.env.clipboard.writeText(result);
+      vscode.window.showInformationMessage('TypeScript 类型已复制到剪贴板！');
+    });
+    context.subscriptions.push(disposable);
+  }else{
+    vscode.commands.executeCommand('setContext', 'Extension.SelectTots', false);
+  }
 }
 
 export function registerSelectionCommand(context: vscode.ExtensionContext) {
@@ -21,7 +30,7 @@ export function registerSelectionCommand(context: vscode.ExtensionContext) {
     // 统计选中字符，行数
     setSelectionStatusBarText();
     // 转ts
-    setWithTsType();
+    setWithTsType(context);
     // mock数据
   });
 

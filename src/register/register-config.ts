@@ -136,6 +136,7 @@ export async function registerConfig(context: vscode.ExtensionContext) {
   }
   const configPath = path.join(workspaceFolders!.uri.fsPath, '.logrc');
   if (!fs.existsSync(configPath)) {
+    vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', true);
     initPlugins('.logrc');
     return;
   }
