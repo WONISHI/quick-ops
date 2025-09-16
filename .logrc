@@ -76,6 +76,8 @@
   },
   "excludedConfigFiles": true,
   "DEV": true,
+  "useAsyncMock": true,
+  "mockServerCount": 5,
   "alias": {
     "path": {
       "@/": "./src/"

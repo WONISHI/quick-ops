@@ -14,6 +14,7 @@ export const properties: Properties = {
   supportsLessSyntax: false,
   supportsScssSyntax: false,
   ignore: ['.logrc'],
+  server:[],
 };
 
 // 设置当前文件配置

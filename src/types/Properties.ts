@@ -4,6 +4,7 @@ export interface Properties {
   fullPath: string;
   filePath: string;
   fileName: string;
+  // 文件后缀
   fileType: FileType | undefined;
   content: any;
   // 是否支持less语法
@@ -22,4 +23,6 @@ export interface Properties {
   workspaceConfig?: Partial<EnvConf> | null;
   // 合并后的配置项
   settings?: Partial<EnvConf> | null;
+  // 启动的服务
+  server: any[];
 }

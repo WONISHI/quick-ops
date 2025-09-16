@@ -31,6 +31,10 @@ export interface EnvConf {
   logEnhancerConfig: Record<ConsoleKeys, LogEnhancerConfig>;
   unitTime: Record<ConsoleKeys, OptionType>;
   uuidLen: Record<ConsoleKeys, number>;
+  useAsyncMock: boolean; // 是否使用异步模拟数据
+  DEV: boolean; // 是否开启开发模式
+  alias: Record<string, Record<string, string>>; // 别名配置
+  excludedConfigFiles: boolean; // 是否忽略配置文件
   [key: string]: any; // 允许其他任意配置项
 }
 
