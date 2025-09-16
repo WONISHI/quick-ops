@@ -23,6 +23,8 @@ export interface Properties {
   workspaceConfig?: Partial<EnvConf> | null;
   // 合并后的配置项
   settings?: Partial<EnvConf> | null;
+  // 文件是否被git跟踪
+  isGitTracked: boolean;
   // 启动的服务
   server: any[];
 }

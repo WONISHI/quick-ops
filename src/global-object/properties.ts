@@ -13,6 +13,7 @@ export const properties: Properties = {
   pluginConfig: null,
   supportsLessSyntax: false,
   supportsScssSyntax: false,
+  isGitTracked: true,
   ignore: ['.logrc'],
   server:[],
 };

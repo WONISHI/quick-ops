@@ -160,11 +160,13 @@ function initPlugins(config: ConfigFile) {
 // 设置忽略文件
 function setIgnoredFiles() {
   if (properties.ignorePluginConfig) {
-    NotificationService.info('检测到 .gitignore 配置了 .logrc，插件将忽略对 .logrc 的跟踪');
-    ignoreFilesLocally(properties.ignore);
+    let result = ignoreFilesLocally(properties.ignore);
+    MergeProperties({ isGitTracked: !!result });
+    if (result) NotificationService.info('检测到 .gitignore 配置了 .logrc，插件将忽略对 .logrc 的跟踪');
   } else {
-    NotificationService.info('检测到未忽略 .logrc，插件将跟踪对 .logrc 的更改');
-    unignoreFilesLocally(properties.ignore);
+    let result = unignoreFilesLocally(properties.ignore);
+    MergeProperties({ isGitTracked: !!result });
+    if (result) NotificationService.info('检测到未忽略 .logrc，插件将跟踪对 .logrc 的更改');
   }
 }
 

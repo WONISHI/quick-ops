@@ -55,7 +55,6 @@ export function parseSnippet(codes: string[]): any[] | null {
     .map((code) => {
       if (regexName.test(code)) {
         const ids = code.split('/');
-        console.log('ids', ids);
         let i = 0;
         let logName = '';
         while (i < ids.length) {
