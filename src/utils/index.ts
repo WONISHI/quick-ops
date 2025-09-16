@@ -338,23 +338,23 @@ export async function withTsType(): Promise<string | false> {
 
   try {
     const parsed = Function(`"use strict"; return (${selectedText})`)();
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       const convert = Object.keys(parsed).reduce(
         (prev: Record<string, string>, key) => {
           const value = parsed[key];
           let type: string = typeof value;
-          if (type === "object") {
-            type = Array.isArray(value) ? "any[]" : "Record<string, any>";
+          if (type === 'object') {
+            type = Array.isArray(value) ? 'any[]' : 'Record<string, any>';
           }
           prev[key] = type;
           return prev;
         },
-        {} as Record<string, string>
+        {} as Record<string, string>,
       );
 
       const typeString = Object.entries(convert)
         .map(([key, type]) => `  ${key}: ${type};`)
-        .join("\n");
+        .join('\n');
 
       const finalString = `interface RootObject {\n${typeString}\n}`;
       return finalString;
@@ -366,3 +366,53 @@ export async function withTsType(): Promise<string | false> {
   }
 }
 
+export async function parseElTableColumnsFromSelection() {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return [];
+  const selection = editor.selection;
+  const selectedText = editor.document.getText(selection);
+  const columns: { prop: string; label: string }[] = [];
+  // --- 1️⃣ 静态列解析 ---
+  const staticRegex = /<el-table-column\b([^>]*)\/?>/g;
+  let match: RegExpExecArray | null;
+  while ((match = staticRegex.exec(selectedText)) !== null) {
+    const attrs = match[1];
+    // 如果是 v-for 的列跳过
+    if (/:?v-for\s*=\s*["']\(\w+,\s*\w+\)\s+in\s+\w+["']/.test(attrs)) continue;
+    const propMatch = attrs.match(/:?prop\s*=\s*["'](\w+)["']/);
+    const labelMatch = attrs.match(/:?label\s*=\s*["']([^"']+)["']/);
+    const prop = propMatch ? propMatch[1] : '';
+    const label = labelMatch ? labelMatch[1] : '';
+    if (prop || label) {
+      columns.push({ prop, label });
+    }
+  }
+  // --- 2️⃣ 动态列解析 ---
+  // 查找 v-for 绑定的 columns 对象
+  const vForMatch = selectedText.match(/v-for\s*=\s*["']\(\w+,\s*\w+\)\s+in\s+(\w+)["']/);
+  if (vForMatch) {
+    const columnsVarName = vForMatch[1]; // e.g., "columns"
+    const docText = editor.document.getText();
+    // 简单正则解析 columns 数组定义
+    const arrayRegex = new RegExp(`\\b${columnsVarName}\\s*:\\s*\\[([\\s\\S]*?)\\]`, 'm');
+    const arrayMatch = docText.match(arrayRegex);
+    if (arrayMatch) {
+      const arrayContent = arrayMatch[1];
+      // 匹配对象内的 label 和 prop
+      const objectRegex = /\{\s*[^}]*?\}/g;
+      let objMatch: RegExpExecArray | null;
+      while ((objMatch = objectRegex.exec(arrayContent)) !== null) {
+        const objStr = objMatch[0];
+        const labelMatch = objStr.match(/label\s*:\s*['"`]([^'"`]+)['"`]/);
+        const propMatch = objStr.match(/prop\s*:\s*['"`]([^'"`]+)['"`]/);
+        if (labelMatch || propMatch) {
+          columns.push({
+            prop: propMatch ? propMatch[1] : '',
+            label: labelMatch ? labelMatch[1] : '',
+          });
+        }
+      }
+    }
+  }
+  return columns;
+}
