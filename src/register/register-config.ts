@@ -5,8 +5,9 @@ import NotificationService from '../utils/notificationService';
 import { resolveResult } from '../utils/promiseResolve';
 import { ignoreArray, ignoreFilesLocally, unignoreFilesLocally } from '../utils/index';
 import { MergeProperties, properties } from '../global-object/properties';
+import { is } from 'node_modules/cheerio/dist/commonjs/api/traversing';
 
-const CONFIG_FILES = ['.prettierrc', '.gitignore', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'] as const;
+const CONFIG_FILES = ['.prettierrc', '.gitignore', 'package.json', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'] as const;
 type ConfigFile = (typeof CONFIG_FILES)[number];
 
 // 通用的配置读取
@@ -21,9 +22,22 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
     }
     if (basename.endsWith('.json') || /^\.[^.]+rc(\.json)?$/i.test(basename)) {
       const content = JSON.parse(text);
+      const fileName = basename.split('.')[0];
+      // 读取logrc配置
       if (basename === '.logrc') {
         MergeProperties({ ignorePluginConfig: [undefined, true].includes(content.excludedConfigFiles) });
         MergeProperties({ workspaceConfig: content, configResult: true });
+      }
+      if (fileName === 'package') {
+        MergeProperties({
+          projectName: content.name || '',
+          languagesCss: Object.keys(content.devDependencies).includes('sass') ? 'scss' : Object.keys(content.devDependencies).includes('less') ? 'less' : 'css',
+          isVueProject: [2, 3].includes(content.dependencies?.vue) || [2, 3].includes(content.devDependencies?.vue),
+          isReactProject: [16, 17].includes(content.dependencies?.react) || [16, 17].includes(content.devDependencies?.react),
+          vueVersion: content.dependencies?.vue || content.devDependencies?.vue,
+          reactVersion: content.dependencies?.react || content.devDependencies?.react,
+          scripts: content.scripts || null,
+        });
       }
     }
     if (basename.endsWith('.mjs')) {

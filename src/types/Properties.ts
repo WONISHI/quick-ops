@@ -1,11 +1,15 @@
 import type { FileType } from './utils';
 import type { EnvConf } from './EnvConf';
 export interface Properties {
+  // 打开文件路径不带（盘符）
   fullPath: string;
+  // 打开文件路径带（盘符）
   filePath: string;
+  // 打开文件名称
   fileName: string;
-  // 文件后缀
+  // 打开文件后缀
   fileType: FileType | undefined;
+  // 打开文件内容
   content: any;
   // 是否支持less语法
   supportsLessSyntax: boolean;
@@ -27,4 +31,18 @@ export interface Properties {
   isGitTracked: boolean;
   // 启动的服务
   server: any[];
+  // 项目名称
+  projectName?: string;
+  // 项目使用的语言
+  languagesCss?: string;
+  // 是否是vue项目
+  isVueProject?: boolean;
+  // 是否是react项目
+  isReactProject?: boolean;
+  // vue是什么版本
+  vueVersion?: number;
+  // react是什么版本
+  reactVersion?: number;
+  // 项目启动目录
+  scripts?: Record<string, string> | null;
 }

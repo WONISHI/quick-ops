@@ -1,0 +1,33 @@
+[
+    {
+        "prefix": "v2",
+        "body": [
+            "<template>",
+            "  <div>",
+            "",
+            "  </div>",
+            "</template>",
+            "",
+            "<script>",
+            "export default {",
+            "  name:'',",
+            "  data() {",
+            "    return {",
+            "",
+            "    }",
+            "  },",
+            "  mounted() {",
+            "",
+            "  },",
+            "  methods: {",
+            "",
+            "  },",
+            "}",
+            "</script>",
+            "<style lang=${languagesCss} scoped>",
+            "",
+            "</style>"
+        ],
+        "description": "Log output to console"
+    }
+]
