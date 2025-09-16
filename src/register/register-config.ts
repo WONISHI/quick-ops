@@ -37,6 +37,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
           reactVersion: content.dependencies?.react || content.devDependencies?.react,
           scripts: content.scripts || null,
         });
+        console.log('9999',properties)
       }
     }
     if (basename.endsWith('.mjs')) {
@@ -153,7 +154,6 @@ export async function registerConfig(context: vscode.ExtensionContext) {
   if (!fs.existsSync(configPath)) {
     vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', true);
     initPlugins('.logrc');
-    return;
   }
   // 读取每个工作区的配置文件
   registerConfigWatchers(context);

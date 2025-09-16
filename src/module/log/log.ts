@@ -2,19 +2,16 @@ import { CompletionItem } from 'vscode';
 import { properties } from '../../global-object/properties';
 import { LogSnippetString } from './constants';
 import { getLabel } from '../../utils/getLable';
+import extendCompletionItem from '../../utils/extendCompletionItem'
 import { moduleConfig, parseModuleTemplate, parseSnippet, getVisualColumn } from '../../utils/moduleTemplate';
-
-class ModuleCompletionItem extends CompletionItem {
-  checkFn: ((dp: typeof properties) => boolean) | null | undefined;
-}
 
 const provideCompletions = (position: any) => {
   moduleConfig.line = position.line;
   moduleConfig.character = position.character;
   const codes = parseModuleTemplate('log');
-  return LogSnippetString.reduce<ModuleCompletionItem[]>((prev, snippet, index) => {
+  return LogSnippetString.reduce<extendCompletionItem[]>((prev, snippet, index) => {
     const module = parseSnippet(codes);
-    const cng = new ModuleCompletionItem(getLabel(snippet.label));
+    const cng = new extendCompletionItem(getLabel(snippet.label));
     let format = `console.log(${module!.map(item => `'${item}'`).join(', ')});`;
     getVisualColumn(format);
     format = format.replace(/'\$0'/, '');
@@ -25,7 +22,7 @@ const provideCompletions = (position: any) => {
     cng.checkFn = (dp) => {
       if (dp.fileType === 'js') return true;
       if (dp.fileType === 'vue' && dp.content.trim().includes('export default')) return true;
-      return true;
+      return false;
     };
     cng.command = {
       command: 'scope-search.onCompletionSelected',

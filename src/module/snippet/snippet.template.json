@@ -1,6 +1,10 @@
 [
     {
         "prefix": "vue2",
+        "scope": [
+            "vue",
+            "vue"
+        ],
         "body": [
             "<template>",
             "  <div>",

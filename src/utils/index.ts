@@ -373,24 +373,3 @@ export async function withTsType(): Promise<string | false> {
   }
 }
 
-/**
- * 生成字符串的所有前缀数组，并判断光标前字符是否匹配
- * @param words 输入字符串数组
- * @param document 当前文档
- * @param position 当前光标位置
- * @returns 匹配的前缀数组，如果没有匹配返回空数组
- */
-function getMatchingPrefixes(words: string[], document: vscode.TextDocument, position: vscode.Position): string[] {
-  // 1. 生成所有前缀
-  const allPrefixes: string[] = [];
-  for (const word of words) {
-    for (let i = 1; i <= word.length; i++) {
-      allPrefixes.push(word.slice(0, i));
-    }
-  }
-  // 2. 获取光标前字符
-  const char = document.getText(new vscode.Range(position.translate(0, -1), position));
-  // 3. 只保留以这个字符开头的前缀
-  const matchingPrefixes = allPrefixes.filter(prefix => prefix.startsWith(char));
-  return matchingPrefixes;
-}
