@@ -359,11 +359,9 @@ export async function withTsType(): Promise<string | false> {
       const finalString = `interface RootObject {\n${typeString}\n}`;
       return finalString;
     } else {
-      vscode.window.showErrorMessage("选中的内容不是标准 JSON 对象");
       return false;
     }
   } catch (e) {
-    vscode.window.showErrorMessage("选中的内容不是标准 JSON 对象");
     return false;
   }
 }

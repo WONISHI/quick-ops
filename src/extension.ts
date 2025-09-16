@@ -41,14 +41,14 @@ export function activate(context: vscode.ExtensionContext) {
     registerWorkspaceFolders(context);
     // 注册选中触发
     registerSelectionCommand(context);
-    // 折叠
+    // 注册mark
+    registerMark(context);
     // 取消警告
     // 标签补全
     // 导出项目依赖关系
     // 指针跳转（行数跳转）
     // TODO
     // 高效清理node module
-    // try插入
   });
 }
 
