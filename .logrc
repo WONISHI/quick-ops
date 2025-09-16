@@ -1,28 +1,28 @@
 {
   "logEnhancerConfig": {
-    "log": "[icon]-[name]-[line]-[$0]",
-    "info": "[icon]-[name]-[line]-[$0]",
-    "warn": "[icon]-[name]-[line]-[$0]",
-    "error": "[icon]-[name]-[line]-[$0]",
-    "debug": "[icon]-[name]-[line]-[$0]",
-    "trace": "[icon]-[name]-[line]-[$0]",
-    "assert": "[icon]-[name]-[line]-[$0]",
-    "count": "[icon]-[name]-[line]-[$0]",
-    "countReset": "[icon]-[name]-[line]-[$0]",
-    "group": "[icon]-[name]-[line]-[$0]",
-    "groupCollapsed": "[icon]-[name]-[line]-[$0]",
-    "groupEnd": "[icon]-[name]-[line]-[$0]",
-    "table": "[icon]-[name]-[line]-[$0]",
-    "time": "[icon]-[name]-[line]-[$0]",
-    "timeEnd": "[icon]-[name]-[line]-[$0]",
-    "timeLog": "[icon]-[name]-[line]-[$0]",
-    "clear": "[icon]-[name]-[line]-[$0]",
-    "dir": "[icon]-[name]-[line]-[$0]",
-    "dirxml": "[icon]-[name]-[line]-[$0]",
-    "profile": "[icon]-[name]-[line]-[$0]",
-    "profileEnd": "[icon]-[name]-[line]-[$0]",
-    "timeStamp": "[icon]-[name]-[line]-[$0]",
-    "context": "[icon]-[name]-[line]-[$0]"
+    "log": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "info": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "warn": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "error": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "debug": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "trace": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "assert": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "count": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "countReset": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "group": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "groupCollapsed": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "groupEnd": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "table": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "time": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "timeEnd": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "timeLog": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "clear": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "dir": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "dirxml": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "profile": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "profileEnd": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "timeStamp": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "context": "[icon]-[~/^/^/name]-[line]-[$0]"
   },
   "unitTime": {
     "log": "YYYY-MM-DD HH:mm:ss",
@@ -74,8 +74,13 @@
     "timeStamp": 12,
     "context": 12
   },
+  "excludedConfigFiles": true,
+  "DEV": true,
+  "useAsyncMock": true,
+  "mockServerCount": 5,
+  "port": 3100,
   "alias": {
-    "path":{
+    "path": {
       "@/": "./src/"
     }
   }

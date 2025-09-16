@@ -2,7 +2,7 @@
   "name": "quick-ops",
   "displayName": "quickOps",
   "description": "quick-ops",
-  "version": "0.0.5",
+  "version": "0.0.8",
   "engines": {
     "vscode": "^1.54.0"
   },
@@ -13,9 +13,10 @@
   "icon": "./icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/WONISHI/scope-search.git"
+    "url": "https://github.com/WONISHI/quick-ops.git"
   },
   "activationEvents": [
+    "onStartupFinished",
     "onCommand:actions.find",
     "workspaceContains:.logrc",
     "onLanguage:javascript",
@@ -25,7 +26,7 @@
     "onLanguage:vue",
     "onLanguage:html"
   ],
-  "main": "./dist/extension.js",
+  "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
@@ -52,19 +53,21 @@
           "light": "resources/svg/bottom-dark.svg",
           "dark": "resources/svg/bottom-light.svg"
         }
+      },
+      {
+        "command": "extension.createLogrcFile",
+        "title": "创建 .logrc 文件"
+      },
+      {
+        "command": "extension.CopyTsType",
+        "title": "复制 TypeScript 类型"
+      },
+      {
+        "command": "extension.MockData",
+        "title": "模拟数据生成"
       }
     ],
     "menus": {
-      "editor/context": [
-        {
-          "command": "scope-search.search",
-          "group": "navigation"
-        },
-        {
-          "command": "scope-search.resetHighlight",
-          "group": "navigation"
-        }
-      ],
       "editor/title": [
         {
           "command": "extension.revealCurrentFile",
@@ -80,6 +83,25 @@
           "command": "myExtension.scrollToBottom",
           "group": "navigation",
           "when": "editorTextFocus"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "extension.createLogrcFile",
+          "group": "navigation@1",
+          "when": "Extension.logrcNotFound"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "extension.CopyTsType",
+          "group": "navigation@1",
+          "when": "Extension.SelectTots"
+        },
+        {
+          "command": "extension.MockData",
+          "group": "navigation@2",
+          "when": "Extension.SelectToMock"
         }
       ]
     }
@@ -123,7 +145,11 @@
     "@babel/parser": "^7.28.3",
     "@babel/traverse": "^7.28.3",
     "@vue/compiler-sfc": "^3.5.20",
+    "cheerio": "^1.1.2",
     "dayjs": "^1.11.13",
+    "ignore": "^7.0.5",
+    "mockjs": "^1.1.0",
+    "terser-webpack-plugin": "^5.3.14",
     "vscode-languageclient": "^9.0.1"
   }
 }

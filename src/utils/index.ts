@@ -1,7 +1,16 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { isAlias } from './verify';
+import { execSync } from 'child_process';
+
+export function delayExecutor(callback: () => void, timeout: number = 3000) {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      callback();
+      resolve(true);
+    }, timeout);
+  });
+}
 
 export function generateUUID(length: number = 32): string {
   const chars = '0123456789abcdef'; // 十六进制字符
@@ -230,6 +239,11 @@ export function isCursorInsideBraces(): boolean {
   return stack > 0;
 }
 
+/**
+ * 解析import导入哪些函数
+ * @param document 语句
+ * @returns
+ */
 export function getCurrentImports(document: vscode.TextDocument): string[] {
   const text = document.getText();
   const regex = /import\s+{([^}]+)}\s+from\s+['"].+['"]/g;
@@ -240,4 +254,121 @@ export function getCurrentImports(document: vscode.TextDocument): string[] {
     imports.push(...names);
   }
   return imports;
+}
+
+/**
+ * 解析ignore文件
+ * @export
+ * @param {string} gitignoreContent ignore文件内容
+ * @returns
+ */
+
+export function ignoreArray(gitignoreContent: string) {
+  return gitignoreContent
+    .split(/\r?\n/) // 按行分割
+    .map((line) => line.trim()) // 去掉前后空格
+    .filter((line) => line && !line.startsWith('#')); // 去掉空行和注释
+}
+
+export function getExcludeFilePath(): string | null {
+  const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  if (!workspacePath) return null;
+  return path.join(workspacePath, '.git/info/exclude');
+}
+
+/**
+ *
+ * 取消文件的跟踪
+ * @export
+ * @param {string[]} files
+ * @returns
+ */
+
+export function ignoreFilesLocally(files: string[]) {
+  const excludeFile = getExcludeFilePath();
+  if (!excludeFile) return;
+  if (!fs.existsSync(excludeFile)) return false;
+  let content = fs.readFileSync(excludeFile, 'utf-8');
+  const newContent = files.filter((f) => !content.includes(f)).join('\n');
+  if (newContent) fs.appendFileSync(excludeFile, '\n' + newContent);
+  return true;
+}
+
+/**
+ * 取消忽略文件：从 .git/info/exclude 中删除
+ */
+export function unignoreFilesLocally(files: string[]) {
+  const excludeFile = getExcludeFilePath();
+  if (!excludeFile) return;
+  if (!fs.existsSync(excludeFile)) return false;
+  let content = fs.readFileSync(excludeFile, 'utf-8');
+  const lines = content.split(/\r?\n/);
+  // 过滤掉需要取消忽略的文件
+  const newLines = lines.filter((line) => !files.includes(line.trim()));
+  fs.writeFileSync(excludeFile, newLines.join('\n'));
+  return true;
+}
+
+/**
+ * 获取选中内容之前的字符数（多行累加）
+ */
+export function getSelectionInfo() {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+
+  const selection = editor.selection;
+  const document = editor.document;
+
+  // 获取选中行数（结束行-开始行+1）
+  const lineCount = selection.end.line - selection.start.line + 1;
+
+  // 获取光标位置（列数，从0开始）
+  const column = selection.active.character;
+
+  // 获取选中文本的字符数
+  const selectedText = document.getText(selection);
+  const charCount = selectedText.length;
+
+  return { lineCount, column, charCount };
+}
+
+/**
+ * 对象转ts类型
+ */
+export async function withTsType(): Promise<string | false> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return false;
+
+  const selection = editor.selection;
+  const selectedText = editor.document.getText(selection).trim();
+  if (!selectedText) return false;
+
+  try {
+    const parsed = Function(`"use strict"; return (${selectedText})`)();
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const convert = Object.keys(parsed).reduce(
+        (prev: Record<string, string>, key) => {
+          const value = parsed[key];
+          let type: string = typeof value;
+          if (type === 'object') {
+            type = Array.isArray(value) ? 'any[]' : 'Record<string, any>';
+          }
+          prev[key] = type;
+          return prev;
+        },
+        {} as Record<string, string>,
+      );
+
+      const typeString = Object.entries(convert)
+        .map(([key, type]) => `  ${key}: ${type};`)
+        .join('\n');
+
+      const finalString = `interface RootObject {\n${typeString}\n}`;
+      return finalString;
+    } else {
+      return false;
+    }
+  } catch (e) {
+    return false;
+  }
 }

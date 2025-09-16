@@ -1,53 +1,61 @@
 import * as vscode from 'vscode';
-import type { EnvConfProps } from './types/EnvConf';
 import type { FileType } from './types/utils';
-import { properties, initProperties } from './global-object/properties';
+import { waitForResult } from './utils/promiseResolve';
+import { properties, initProperties, MergeProperties } from './global-object/properties';
 import { registerConfig } from './register/register-config';
-import { decorationType, registerAreaSearch } from './register/register-area-search';
 import { registerCompletion } from './register/register-completion';
 import { registerExtension } from './register/register-extension';
 import { registerTop } from './register/register-top';
 import { registerExport } from './register/register-export';
+import { registerWorkspaceFolders } from './register/register-workspace-folders';
+import { registerSelectionCommand } from './register/register-selection-command';
+import { registerMark } from './register/register-mark';
+import { registerCodeSnippetsConfig } from './register/register-code-snippets-config';
 import { registerLogrcDecoration } from './register/register-logrc-decoration';
 
 export function activate(context: vscode.ExtensionContext) {
+  // 监听文件打开
   initProperties(vscode.window.activeTextEditor?.document!);
   vscode.workspace.onDidChangeTextDocument((e) => {
-    properties.content = e.document.getText();
-    properties.fileType = e.document.languageId as FileType;
+    const fileType = e.document.languageId as FileType;
+    MergeProperties({
+      content: e.document.getText(),
+      fileType: fileType,
+      supportsLessSyntax: fileType.toLocaleLowerCase() === 'less',
+      supportsScssSyntax: fileType.toLocaleLowerCase() === 'scss',
+    });
   });
+  // 初始化读取文件配置
+  // 没有logrc文件的时候创建logrc
+  // 取消git校验
+  // 配置文件智能提示
+  registerConfig(context);
 
-  // 5.注册全局配置，√
-  registerConfig(context)?.then((res: EnvConfProps) => {
-    // 1.局部搜索
-    registerAreaSearch(context, res);
-    // 3.代码补全 √
-    registerCompletion(context, res);
-    // 4.定位文件，√
-    registerExtension(context, res);
-    // 6.回到顶部或者底部，√
+  // 初始化其他功能
+  waitForResult().then((res) => {
+    vscode.window.showInformationMessage('插件已激活！');
+    console.log('初始化完成！');
+    // console代码补全
+    registerCompletion(context);
+    // 定位文件
+    registerExtension(context);
+    // 回调顶部
     registerTop(context);
-    // 8.导入补全 √
+    // 智能导出
     registerExport(context);
-    // 2.tab切换
-
-    // 7.合起文件夹
-
-    // 9.其他代码补全以及自定义补全
-
-    // 10.复制树结构
-
-    // 11.css片段
-
-    // 12.给.logrc文件添加logo √
-    registerLogrcDecoration(context);
-
-    // 13.todo标注
+    // 合起文件夹
+    registerWorkspaceFolders(context);
+    // 注册选中触发
+    registerSelectionCommand(context);
+    // 注册mark
+    registerMark(context);
+    // 设置代码片段
+    registerCodeSnippetsConfig(context);
+    // 取消警告
+    // 标签补全
+    // 导出项目依赖关系
+    // 高效清理node module
   });
 }
 
-export async function deactivate() {
-  if (decorationType) {
-    decorationType.dispose();
-  }
-}
+export async function deactivate() {}

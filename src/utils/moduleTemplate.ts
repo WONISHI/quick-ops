@@ -1,10 +1,21 @@
-import { getEnvConf } from '../global-object/envconfig';
 import type { EnvConf, LogEnhancerConfig } from '../types/EnvConf';
 import { generateUUID } from './index';
+import formattedPath,{resetIsBasePath} from './formattedPath';
 import { properties } from '../global-object/properties';
 import dayjs from 'dayjs';
 
-const envConf: Partial<EnvConf> | undefined = getEnvConf() ?? undefined;
+const envConf: Partial<EnvConf> | undefined = properties.pluginConfig ?? undefined;
+const handlers: Record<string, () => any> = {
+  uuid: () => {
+    const len = [NaN, 0].includes(Number(moduleConfig.envConf!.uuidLen)) ? 12 : Number(moduleConfig.envConf!.uuidLen);
+    return generateUUID(len);
+  },
+  line: () => `第${moduleConfig.line + 1}行`,
+  icon: () => '🚀🚀🚀',
+  // @ts-ignore
+  $0: (code: string) => code,
+  time: () => dayjs().format(moduleConfig.envConf!.unitTime![moduleConfig.key!] as string),
+};
 
 export const moduleConfig: {
   envConf: Partial<EnvConf> | undefined | null;
@@ -21,7 +32,8 @@ export const moduleConfig: {
 };
 
 export function parseModuleTemplate(type: keyof Console): string[] {
-  const [currentEnvConf, defaultEnvConf] = getEnvConf();
+  const defaultEnvConf = properties.pluginConfig;
+  const currentEnvConf = properties.settings;
   const template = (currentEnvConf as EnvConf).logEnhancerConfig[type] || (defaultEnvConf as EnvConf).logEnhancerConfig[type];
   moduleConfig.envConf = currentEnvConf || defaultEnvConf;
   moduleConfig.key = type;
@@ -35,34 +47,28 @@ export function parseModuleTemplate(type: keyof Console): string[] {
   return matches;
 }
 
-export function parseSnippet(codes: string[]) {
+export function parseSnippet(codes: string[]): any[] | null {
   if (!codes || !codes.length) return null;
-  const module: any[] = [];
-  codes.map((code) => {
-    switch (code) {
-      case 'uuid':
-        let len = [NaN, 0].includes(Number(moduleConfig.envConf!.uuidLen)) ? 12 : Number(moduleConfig.envConf!.uuidLen);
-        let uuid = generateUUID(len);
-        module.push(uuid);
-        break;
-      case 'line':
-        module.push(`第${moduleConfig.line + 1}行`);
-        break;
-      case 'icon':
-        module.push('🚀🚀🚀');
-        break;
-      case 'name':
-        module.push(`${properties.fileName}文件`);
-        break;
-      case '$0':
-        module.push(code);
-        break;
-      case 'time':
-        module.push(`${dayjs().format(moduleConfig.envConf!.unitTime![moduleConfig.key!] as string)}`);
-        break;
-    }
-  });
-  return module;
+  const regexName = /(~\/|\^\/).*name/;
+  if (!codes?.length) return null;
+  return codes
+    .map((code) => {
+      if (regexName.test(code)) {
+        const ids = code.split('/');
+        let i = 0;
+        let logName = '';
+        while (i < ids.length) {
+          logName = formattedPath(ids[i]).toString();
+          i++;
+        }
+        resetIsBasePath();
+        return logName.replace(/name/g, `${properties.fileName}文件`);
+      }
+      const target = handlers[code];
+      // @ts-ignore
+      return target ? target(code) : null;
+    })
+    .filter(Boolean); // 过滤掉 null
 }
 
 export function getVisualColumn(text: string, tabSize = 4): number {

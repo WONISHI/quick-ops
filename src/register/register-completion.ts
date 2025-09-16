@@ -1,16 +1,15 @@
 import * as vscode from 'vscode';
-import type { EnvConfProps } from '../types/EnvConf';
 import type { FileType } from '../types/utils';
 import { properties } from '../global-object/properties';
 import provideCompletions from '../module/log/log';
 import { moveCursor, matchKeyword } from '../utils/index';
 import { LogSnippetString } from '../module/log/constants';
 
-const LANGUAGES: vscode.DocumentSelector = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
+const LANGUAGES: vscode.DocumentSelector = properties.completionDocumentSelector;
 // 获取触发字段
 const isTarggetLogs = LogSnippetString.map((item) => item.label);
 
-export function registerCompletion(context: vscode.ExtensionContext, configs: EnvConfProps) {
+export function registerCompletion(context: vscode.ExtensionContext) {
   // 补全插入完成触发的事件
   const disposable = vscode.commands.registerCommand('scope-search.onCompletionSelected', (line: number, character: number) => {
     moveCursor(line, character);
