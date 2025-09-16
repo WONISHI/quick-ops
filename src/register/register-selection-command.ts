@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { getSelectionInfo, withTsType, parseElTableColumns } from '../utils/index';
+import { getSelectionInfo, withTsType } from '../utils/index';
+import { parseElTableColumnsFromSelection } from '../utils/parse';
 
 const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 statusBarItem.command = 'extension.showSelectionInfo';
@@ -28,8 +29,8 @@ async function setWithTsType(context: vscode.ExtensionContext) {
 
 // 生成mock数据
 function generateMockData(context: vscode.ExtensionContext) {
-  let result = parseElTableColumns();
-  console.log('generateMockData', result);
+  // let result = parseElTableColumnsFromSelection();
+  // console.log('generateMockData', result);
 }
 
 export function registerSelectionCommand(context: vscode.ExtensionContext) {
