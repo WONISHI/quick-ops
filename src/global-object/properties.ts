@@ -15,22 +15,7 @@ export const properties: Properties = {
   supportsScssSyntax: false,
   isGitTracked: true,
   ignore: ['.logrc'],
-  server:[],
-};
-
-// 设置当前文件配置
-export const initProperties = (document: TextDocument) => {
-  // 没有任何文件打开就跳过
-  if (!document) return;
-  const filePath = document.uri.fsPath;
-  const fullPath = document.uri.path;
-  properties.fullPath = filePath;
-  properties.filePath = fullPath;
-  properties.fileName = fullPath.split('/').pop() || '';
-  properties.fileType = fullPath.split('.').pop() as FileType;
-  properties.supportsLessSyntax = properties.fileType.toLocaleLowerCase() === 'less';
-  properties.supportsScssSyntax = properties.fileType.toLocaleLowerCase() === 'scss';
-  properties.content = document.getText();
+  server: [],
 };
 
 // 合并配置项
@@ -39,4 +24,22 @@ export const MergeProperties = (property: any) => {
   if (property.workspaceConfig && Reflect.ownKeys(property.workspaceConfig).length) {
     properties.settings = mergeClone(properties.pluginConfig!, properties.workspaceConfig!);
   }
+};
+
+// 设置当前文件配置
+export const initProperties = (document: TextDocument) => {
+  // 没有任何文件打开就跳过
+  if (!document) return;
+  const filePath = document.uri.fsPath;
+  const fullPath = document.uri.path;
+  const fileType = fullPath.split('.').pop() as FileType;
+  MergeProperties({
+    fullPath: filePath,
+    filePath: fullPath,
+    fileName: fullPath.split('/').pop() || '',
+    fileType: fileType,
+    supportsLessSyntax: fileType.toLocaleLowerCase() === 'less',
+    supportsScssSyntax: fileType.toLocaleLowerCase() === 'scss',
+    content: document.getText(),
+  });
 };

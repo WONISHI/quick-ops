@@ -5,7 +5,6 @@ import NotificationService from '../utils/notificationService';
 import { resolveResult } from '../utils/promiseResolve';
 import { ignoreArray, ignoreFilesLocally, unignoreFilesLocally } from '../utils/index';
 import { MergeProperties, properties } from '../global-object/properties';
-import { is } from 'node_modules/cheerio/dist/commonjs/api/traversing';
 
 const CONFIG_FILES = ['.prettierrc', '.gitignore', 'package.json', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'] as const;
 type ConfigFile = (typeof CONFIG_FILES)[number];
@@ -32,8 +31,8 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
         MergeProperties({
           projectName: content.name || '',
           languagesCss: Object.keys(content.devDependencies).includes('sass') ? 'scss' : Object.keys(content.devDependencies).includes('less') ? 'less' : 'css',
-          isVueProject: [2, 3].includes(content.dependencies?.vue) || [2, 3].includes(content.devDependencies?.vue),
-          isReactProject: [16, 17].includes(content.dependencies?.react) || [16, 17].includes(content.devDependencies?.react),
+          isVueProject: !!content.dependencies?.vue || !!content.devDependencies?.vue,
+          isReactProject: !!content.dependencies?.react || !!content.devDependencies?.react,
           vueVersion: content.dependencies?.vue || content.devDependencies?.vue,
           reactVersion: content.dependencies?.react || content.devDependencies?.react,
           scripts: content.scripts || null,
@@ -109,6 +108,8 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
 }
 
 export async function registerConfig(context: vscode.ExtensionContext) {
+  // 初始化注册其他内容
+  createProject(context);
   // 注册创建文件的命令
   let disposable = vscode.commands.registerCommand('extension.createLogrcFile', async () => {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
@@ -190,4 +191,9 @@ function setLogrc() {
   resolveResult(true);
 }
 
-function createProject() {}
+// 加载插件自带的代码片段
+function createProject(context: vscode.ExtensionContext) {
+  const pluginSnippetPath = path.join(context.extensionPath, '/src/module/snippet/snippet.template.json');
+  const fileContent = fs.readFileSync(pluginSnippetPath, 'utf8');
+  MergeProperties({ snippets: JSON.parse(fileContent) });
+}

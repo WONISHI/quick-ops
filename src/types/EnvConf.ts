@@ -37,6 +37,7 @@ export interface EnvConf {
   DEV: boolean; // 是否开启开发模式
   alias: Record<string, Record<string, string>>; // 别名配置
   excludedConfigFiles: boolean; // 是否忽略配置文件
+  customSnippets: Record<string, any>[]; // 自定义代码片段
   [key: string]: any; // 允许其他任意配置项
 }
 

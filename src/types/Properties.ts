@@ -45,4 +45,6 @@ export interface Properties {
   reactVersion?: number;
   // 项目启动目录
   scripts?: Record<string, string> | null;
+  // 默认的代码片段
+  snippets?: Record<string, any>[] | null;
 }
