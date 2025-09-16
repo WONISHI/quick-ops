@@ -10,6 +10,7 @@ import { registerTop } from './register/register-top';
 import { registerExport } from './register/register-export';
 import { registerWorkspaceFolders } from './register/register-workspace-folders';
 import { registerSelectionCommand } from './register/register-selection-command';
+import { registerMark } from './register/register-mark';
 import { registerLogrcDecoration } from './register/register-logrc-decoration';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -46,8 +47,6 @@ export function activate(context: vscode.ExtensionContext) {
     // 取消警告
     // 标签补全
     // 导出项目依赖关系
-    // 指针跳转（行数跳转）
-    // TODO
     // 高效清理node module
   });
 }
