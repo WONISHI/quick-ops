@@ -1,6 +1,6 @@
 [
     {
-        "prefix": "v2",
+        "prefix": "vue2",
         "body": [
             "<template>",
             "  <div>",

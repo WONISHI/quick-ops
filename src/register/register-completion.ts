@@ -5,7 +5,7 @@ import provideCompletions from '../module/log/log';
 import { moveCursor, matchKeyword } from '../utils/index';
 import { LogSnippetString } from '../module/log/constants';
 
-const LANGUAGES: vscode.DocumentSelector = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
+const LANGUAGES: vscode.DocumentSelector = properties.completionDocumentSelector;
 // 获取触发字段
 const isTarggetLogs = LogSnippetString.map((item) => item.label);
 

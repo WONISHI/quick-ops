@@ -16,13 +16,17 @@ export const properties: Properties = {
   isGitTracked: true,
   ignore: ['.logrc'],
   server: [],
+  completionDocumentSelector: ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'],
+  configFileSchema: ['.prettierrc', '.gitignore', 'package.json', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'],
 };
 
 // 合并配置项
 export const MergeProperties = (property: any) => {
   Object.assign(properties, property);
   if (property.workspaceConfig && Reflect.ownKeys(property.workspaceConfig).length) {
-    properties.settings = mergeClone(properties.pluginConfig!, properties.workspaceConfig!);
+    Object.assign({
+      settings: mergeClone(properties.pluginConfig!, properties.workspaceConfig!),
+    });
   }
 };
 

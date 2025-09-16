@@ -6,7 +6,7 @@ import { resolveResult } from '../utils/promiseResolve';
 import { ignoreArray, ignoreFilesLocally, unignoreFilesLocally } from '../utils/index';
 import { MergeProperties, properties } from '../global-object/properties';
 
-const CONFIG_FILES = ['.prettierrc', '.gitignore', 'package.json', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'] as const;
+const CONFIG_FILES = properties.configFileSchema;
 type ConfigFile = (typeof CONFIG_FILES)[number];
 
 // 通用的配置读取

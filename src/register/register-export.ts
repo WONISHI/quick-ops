@@ -6,7 +6,7 @@ import { parseExports, parseVueComponentName, type ExportResult } from '../utils
 import type { FileType, ExportNameType } from '../types/utils';
 import { isObject } from '../utils/is';
 
-const LANGUAGES: vscode.DocumentSelector = ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'];
+const LANGUAGES: vscode.DocumentSelector = properties.completionDocumentSelector;
 const defaultExportFileType: FileType[] = ['vue', 'jsx', 'tsx'];
 const varsExportFileType: FileType[] = ['css', 'less', 'scss'];
 const defaultExportName = ['vue'];

@@ -1,5 +1,6 @@
 import type { FileType } from './utils';
 import type { EnvConf } from './EnvConf';
+import * as vscode from 'vscode';
 export interface Properties {
   // 打开文件路径不带（盘符）
   fullPath: string;
@@ -47,4 +48,8 @@ export interface Properties {
   scripts?: Record<string, string> | null;
   // 默认的代码片段
   snippets?: Record<string, any>[] | null;
+  // 代码提示的文件格式
+  completionDocumentSelector:vscode.DocumentSelector;
+  // 读取配置文件格式
+  configFileSchema:string[]
 }
