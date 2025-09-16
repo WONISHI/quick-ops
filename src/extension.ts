@@ -47,7 +47,6 @@ export function activate(context: vscode.ExtensionContext) {
     // 导出项目依赖关系
     // 指针跳转（行数跳转）
     // TODO
-    // mock数据
     // 高效清理node module
     // try插入
   });

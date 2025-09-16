@@ -305,22 +305,64 @@ export function unignoreFilesLocally(files: string[]) {
 /**
  * 获取选中内容之前的字符数（多行累加）
  */
-export function getSelectedCharsCount(): number {
+export function getSelectionInfo() {
   const editor = vscode.window.activeTextEditor;
-  if (!editor) return 0;
-  const document = editor.document;
+  if (!editor) return;
+
   const selection = editor.selection;
-  let count = 0;
-  // 从起始行到光标所在行
-  for (let lineNum = 0; lineNum <= selection.start.line; lineNum++) {
-    const lineText = document.lineAt(lineNum).text;
-    if (lineNum === selection.start.line) {
-      // 当前行只统计从行首到选区起点的字符
-      count += selection.start.character;
-    } else {
-      // 其他行统计整行字符 + 换行符
-      count += lineText.length + 1; // 1 代表换行符
+  const document = editor.document;
+
+  // 获取选中行数（结束行-开始行+1）
+  const lineCount = selection.end.line - selection.start.line + 1;
+
+  // 获取光标位置（列数，从0开始）
+  const column = selection.active.character;
+
+  // 获取选中文本的字符数
+  const selectedText = document.getText(selection);
+  const charCount = selectedText.length;
+
+  return { lineCount, column, charCount };
+}
+
+/**
+ * 对象转ts类型
+ */
+export function withTsType() {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+  const selection = editor.selection;
+  const selectedText = editor.document.getText(selection).trim();
+  if (!selectedText) return;
+  return new Promise<string | boolean>((resolve, reject) => {
+    try {
+      const parsed = JSON.parse(selectedText);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const convert = Object.keys(parsed).reduce(
+          (prev: Record<string, string>, key) => {
+            const value = parsed[key];
+            let type: string = typeof value;
+            if (type === 'object') {
+              type = Array.isArray(value) ? 'any[]' : 'Record<string,any>';
+            }
+            prev[key] = type;
+            return prev;
+          },
+          {} as Record<string, string>,
+        );
+        const typeString = Object.entries(convert)
+          .map(([key, type]) => `  ${key}: ${type};`)
+          .join('\n');
+        const finalString = `interface RootObject {\n${typeString}\n}`;
+        resolve(finalString);
+      } else {
+        resolve(false);
+        vscode.window.showErrorMessage('选中的内容不是标准 JSON 对象');
+        return;
+      }
+    } catch (e) {
+      reject(false);
+      vscode.window.showErrorMessage('选中的内容不是标准 JSON 对象');
     }
-  }
-  return count;
+  });
 }
