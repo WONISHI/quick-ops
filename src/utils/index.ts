@@ -271,81 +271,36 @@ export function ignoreArray(gitignoreContent: string) {
 }
 
 /**
- * 取消文件的跟踪（忽略文件）
- * @param files 文件路径数组，相对 workspace 根目录
+ *
+ * 取消文件的跟踪
+ * @export
+ * @param {string[]} files
+ * @returns
  */
+
 export function ignoreFilesLocally(files: string[]) {
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-  if (!workspaceFolders || workspaceFolders.length === 0) return;
-  const workspaceRoot = workspaceFolders[0].uri.fsPath;
-
-  files.forEach((file) => {
-    const absPath = path.join(workspaceRoot, file);
-
-    // 如果文件不存在，先创建空文件
-    if (!fs.existsSync(absPath)) fs.writeFileSync(absPath, '');
-
-    // 检查文件是否已跟踪
-    let isTracked = true;
-    try {
-      execSync(`git ls-files --error-unmatch "${file}"`, { cwd: workspaceRoot });
-    } catch {
-      isTracked = false;
-    }
-
-    if (isTracked) {
-      try {
-        execSync(`git update-index --skip-worktree "${file}"`, { cwd: workspaceRoot });
-        console.log(`已忽略文件: ${file}`);
-      } catch (err: any) {
-        console.warn(`忽略文件失败: ${file}`, err.message);
-      }
-    } else {
-      console.log(`文件未跟踪，无需忽略: ${file}`);
-    }
-  });
+  const workspacePath = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+  if (!workspacePath) return;
+  const excludeFile = path.join(workspacePath, '.git/info/exclude');
+  let content = '';
+  if (fs.existsSync(excludeFile)) content = fs.readFileSync(excludeFile, 'utf-8');
+  const newContent = files.filter((f) => !content.includes(f)).join('\n');
+  if (newContent) fs.appendFileSync(excludeFile, '\n' + newContent);
 }
 
 /**
- * 恢复文件的跟踪（取消忽略）
- * @param files 文件路径数组，相对 workspace 根目录
+ * 取消忽略文件：从 .git/info/exclude 中删除
  */
 export function unignoreFilesLocally(files: string[]) {
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-  if (!workspaceFolders || workspaceFolders.length === 0) return;
-  const workspaceRoot = workspaceFolders[0].uri.fsPath;
-
-  files.forEach((file) => {
-    const absPath = path.join(workspaceRoot, file);
-
-    // 如果文件不存在，先创建空文件
-    if (!fs.existsSync(absPath)) fs.writeFileSync(absPath, '');
-
-    // 检查文件是否已跟踪
-    let isTracked = true;
-    try {
-      execSync(`git ls-files --error-unmatch "${file}"`, { cwd: workspaceRoot });
-    } catch {
-      isTracked = false;
-    }
-
-    if (isTracked) {
-      try {
-        execSync(`git update-index --no-skip-worktree "${file}"`, { cwd: workspaceRoot });
-        console.log(`已取消忽略文件: ${file}`);
-      } catch (err: any) {
-        console.warn(`取消忽略文件失败: ${file}`, err.message);
-      }
-    } else {
-      try {
-        // 未跟踪文件直接添加到索引
-        execSync(`git add "${file}"`, { cwd: workspaceRoot });
-        console.log(`文件未跟踪，已添加到索引: ${file}`);
-      } catch (err: any) {
-        console.warn(`添加文件失败: ${file}`, err.message);
-      }
-    }
-  });
+  const workspacePath = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+  if (!workspacePath) return;
+  const excludeFile = path.join(workspacePath, '.git/info/exclude');
+  if (!fs.existsSync(excludeFile)) return;
+  let content = fs.readFileSync(excludeFile, 'utf-8');
+  const lines = content.split(/\r?\n/);
+  // 过滤掉需要取消忽略的文件
+  const newLines = lines.filter((line) => !files.includes(line.trim()));
+  fs.writeFileSync(excludeFile, newLines.join('\n'));
 }
 
 /**
