@@ -7,7 +7,51 @@ import { ignoreArray, ignoreFilesLocally, unignoreFilesLocally } from '../utils/
 import { MergeProperties, properties } from '../global-object/properties';
 
 const CONFIG_FILES = ['.prettierrc', '.gitignore', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'] as const;
+const hiddenFiles: Set<string> = new Set();
 type ConfigFile = (typeof CONFIG_FILES)[number];
+
+/**
+ * 更新隐藏/显示文件
+ * @param files 文件路径数组
+ * @param hide 是否隐藏，true 隐藏，false 显示
+ */
+export function setFilesHidden(files: string[], hide: boolean) {
+  files.forEach((f) => {
+    if (hide) {
+      hiddenFiles.add(f);
+    } else {
+      hiddenFiles.delete(f);
+    }
+  });
+  refreshSCM();
+}
+
+/**
+ * 刷新 Git SCM 面板显示
+ */
+async function refreshSCM() {
+  const gitExtension = vscode.extensions.getExtension('vscode.git');
+  if (!gitExtension) {
+    console.warn('Git extension not installed.');
+    return;
+  }
+  // 等待激活
+  if (!gitExtension.isActive) {
+    await gitExtension.activate();
+  }
+  const gitApi = gitExtension.exports.getAPI(1);
+  if (!gitApi) return;
+  gitApi.repositories.forEach((repo: any) => {
+    const originalResources = repo.state.workingTreeChanges.concat(repo.state.indexChanges);
+    // hiddenFiles: Set<string>，存放需要隐藏的文件路径
+    const filtered = originalResources.filter((r: any) => !hiddenFiles.has(r.resourceUri.fsPath));
+    // 这里可以替换为自定义 SourceControl 面板显示 filtered
+    console.log(
+      '过滤后显示文件',
+      filtered.map((f: any) => f.resourceUri.fsPath),
+    );
+  });
+}
 
 // 通用的配置读取
 async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
@@ -83,7 +127,10 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
       const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(folder, file));
 
       // watcher.onDidChange((uri) => handleConfig(uri));
-      watcher.onDidCreate((uri) => handleConfig(uri, context));
+      watcher.onDidCreate((uri) => {
+        handleConfig(uri, context);
+        refreshSCM();
+      });
       watcher.onDidDelete((uri) => {
         NotificationService.warn(`${file} 已删除`);
         MergeProperties({ workspaceConfig: {}, configResult: false });
@@ -159,13 +206,13 @@ function initPlugins(config: ConfigFile) {
 
 // 设置忽略文件
 function setIgnoredFiles() {
-  if (properties.ignorePluginConfig) {
-    NotificationService.info('检测到 .gitignore 配置了 .logrc，插件将忽略对 .logrc 的跟踪');
-    ignoreFilesLocally(properties.ignore);
-  } else {
-    NotificationService.info('检测到未忽略 .logrc，插件将跟踪对 .logrc 的更改');
-    unignoreFilesLocally(properties.ignore);
-  }
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders || workspaceFolders.length === 0) return;
+  const workspaceRoot = workspaceFolders[0].uri.fsPath;
+  const absPath = path.join(workspaceRoot, '.logrc');
+  if (!fs.existsSync(absPath)) return;
+  console.log('设置忽略文件', absPath);
+  setFilesHidden([absPath], properties.ignorePluginConfig === undefined ? true : properties.ignorePluginConfig);
 }
 
 // 设置

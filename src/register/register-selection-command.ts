@@ -40,8 +40,9 @@ async function generateMockData(context: vscode.ExtensionContext) {
       // 如果为异步的话可以启动服务
       if (isAsync) {
         let serverResult = '同意';
-        if (properties.settings!.mockServerCount < properties.server.length) {
-          serverResult = (await vscode.window.showWarningMessage(`已启动${properties.settings!.server?.length}个Mock服务，如果需要启动则需要关闭最早先的服务，是否同意？`, '同意', '取消')) || '取消';
+        if ((properties.settings?.mockServerCount ?? 0) < (properties.server?.length ?? 0)) {
+          serverResult =
+            (await vscode.window.showWarningMessage(`已启动${properties.settings?.server?.length ?? 0}个Mock服务，如果需要启动则需要关闭最早先的服务，是否同意？`, '同意', '取消')) || '取消';
         }
         if (serverResult === '同意') {
           let serverId = generateUUID(8);
@@ -75,10 +76,16 @@ export function registerSelectionCommand(context: vscode.ExtensionContext) {
   const disposable = vscode.window.onDidChangeTextEditorSelection((e) => {
     // 统计选中字符，行数
     setSelectionStatusBarText();
+    if (e.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
+      console.log('鼠标改变选中');
+    }
+    if (e.kind === vscode.TextEditorSelectionChangeKind.Keyboard) {
+      console.log('键盘改变选中');
+    }
     // 转ts
-    setWithTsType(context);
+    // setWithTsType(context);
     // mock数据
-    generateMockData(context);
+    // generateMockData(context);
     // html to scss
     // 折叠
     // try插入

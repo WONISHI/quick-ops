@@ -78,6 +78,7 @@
   "DEV": true,
   "useAsyncMock": true,
   "mockServerCount": 5,
+  "port": 3100,
   "alias": {
     "path": {
       "@/": "./src/"
