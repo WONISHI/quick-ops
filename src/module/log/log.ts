@@ -8,7 +8,7 @@ class ModuleCompletionItem extends CompletionItem {
   checkFn: ((dp: typeof properties) => boolean) | null | undefined;
 }
 
-const cngGen = (position: any) => {
+const provideCompletions = (position: any) => {
   moduleConfig.line = position.line;
   moduleConfig.character = position.character;
   const codes = parseModuleTemplate('log');
@@ -36,4 +36,4 @@ const cngGen = (position: any) => {
   }, []);
 };
 
-export default cngGen;
+export default provideCompletions;

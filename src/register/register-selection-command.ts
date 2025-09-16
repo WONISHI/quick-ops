@@ -76,12 +76,12 @@ export function registerSelectionCommand(context: vscode.ExtensionContext) {
   const disposable = vscode.window.onDidChangeTextEditorSelection((e) => {
     // 统计选中字符，行数
     setSelectionStatusBarText();
-    if (e.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
-      console.log('鼠标改变选中');
-    }
-    if (e.kind === vscode.TextEditorSelectionChangeKind.Keyboard) {
-      console.log('键盘改变选中');
-    }
+    // if (e.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
+    //   console.log('鼠标改变选中');
+    // }
+    // if (e.kind === vscode.TextEditorSelectionChangeKind.Keyboard) {
+    //   console.log('键盘改变选中');
+    // }
     // 转ts
     // setWithTsType(context);
     // mock数据

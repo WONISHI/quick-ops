@@ -24,7 +24,7 @@ export const properties: Properties = {
 export const MergeProperties = (property: any) => {
   Object.assign(properties, property);
   if (property.workspaceConfig && Reflect.ownKeys(property.workspaceConfig).length) {
-    Object.assign({
+    Object.assign(properties,{
       settings: mergeClone(properties.pluginConfig!, properties.workspaceConfig!),
     });
   }

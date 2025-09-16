@@ -43,6 +43,10 @@ function createPathCompletionProvider(languages: vscode.DocumentSelector) {
     {
       async provideCompletionItems(document, position) {
         const lineText = document.lineAt(position).text;
+        const char = document.getText(new vscode.Range(position.translate(0, -1), position));
+        if (char !== '/') {
+          return []; // 不是 / 就不返回
+        }
         const entries = await resolveImportDir(properties.fullPath, lineText);
         const items: vscode.CompletionItem[] = [];
 
