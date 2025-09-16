@@ -107,20 +107,16 @@ export function generateCssStructure(html: string, type: 'less' | 'sass' = 'less
     const classAttr = el.attribs?.class;
     const selector = classAttr ? '.' + classAttr.split(/\s+/).join('.') : el.name;
     let css = `${indentChar.repeat(depth)}${selector} {\n`;
-    $(el)
-      .children()
-      .each((_, child) => {
-        css += traverse(child, depth + 1);
-      });
+    $(el).children().each((_, child) => {
+      css += traverse(child, depth + 1);
+    });
     css += `${indentChar.repeat(depth)}}\n`;
     return css;
   }
   let result = '';
-  $('body')
-    .children()
-    .each((_, el) => {
-      result += traverse(el);
-    });
+  $('body').children().each((_, el) => {
+    result += traverse(el);
+  });
   return result;
 }
 
@@ -129,8 +125,6 @@ export async function parseElTableColumnsFromSelection() {
   if (!editor) return [];
   const selection = editor.selection;
   const selectedText = editor.document.getText(selection);
-  const docText = editor.document.getText();
-
   const columns: { prop: string; label: string }[] = [];
 
   // --- 1️⃣ 静态列解析 ---
@@ -153,41 +147,33 @@ export async function parseElTableColumnsFromSelection() {
 
   // --- 2️⃣ 动态列解析 (v-for) ---
   const vForMatches = selectedText.matchAll(/<el-table-column\b([^>]*)\s+v-for\s*=\s*["']\(\w+,\s*\w+\)\s+in\s+(\w+)["'][^>]*>/g);
-
-  // 解析 AST
-  const ast = babelParse(docText, {
-    sourceType: 'module',
-    plugins: ['typescript', 'jsx'], // vue 单文件可以用 jsx plugin
-  });
-
   for (const vForMatch of vForMatches) {
-    const columnsVarName = vForMatch[2]; // v-for 引用的数组变量名
+    const columnsVarName = vForMatch[2]; // e.g., "columns"
+    const docText = editor.document.getText();
 
-    traverse(ast, {
-      ObjectProperty(path) {
-        const key = path.node.key;
-        if ((key.type === 'Identifier' && key.name === columnsVarName) || (key.type === 'StringLiteral' && key.value === columnsVarName)) {
-          const valueNode = path.node.value;
-          if (valueNode.type === 'ArrayExpression') {
-            valueNode.elements.forEach((el) => {
-              if (el && el.type === 'ObjectExpression') {
-                const propNode = el.properties.find(
-                  (p) => p.type === 'ObjectProperty' && ((p.key.type === 'Identifier' && p.key.name === 'prop') || (p.key.type === 'StringLiteral' && p.key.value === 'prop')),
-                );
-                const labelNode = el.properties.find(
-                  (p) => p.type === 'ObjectProperty' && ((p.key.type === 'Identifier' && p.key.name === 'label') || (p.key.type === 'StringLiteral' && p.key.value === 'label')),
-                );
+    // 匹配 columns 数组定义，兼容 data 或 setup
+    const arrayRegex = new RegExp(`\\b${columnsVarName}\\s*:\\s*\\[([\\s\\S]*?)\\]`, 'm');
+    const arrayMatch = docText.match(arrayRegex);
+    if (!arrayMatch) continue;
 
-                columns.push({
-                  prop: propNode?.type === 'ObjectProperty' && propNode.value.type === 'StringLiteral' ? propNode.value.value : '',
-                  label: labelNode?.type === 'ObjectProperty' && labelNode.value.type === 'StringLiteral' ? labelNode.value.value : '',
-                });
-              }
-            });
-          }
-        }
-      },
-    });
+    const arrayContent = arrayMatch[1];
+    console.log('arrayContent', arrayContent);
+
+    // 匹配对象内的 label 和 prop
+    const objectRegex = /\{([\s\S]*?)\}/g;
+    let objMatch: RegExpExecArray | null;
+    while ((objMatch = objectRegex.exec(arrayContent)) !== null) {
+      const objStr = objMatch[1];
+      const labelMatch = objStr.match(/label\s*:\s*['"`]([^'"`]+)['"`]/);
+      const propMatch = objStr.match(/prop\s*:\s*['"`]([^'"`]+)['"`]/);
+
+      if (labelMatch || propMatch) {
+        columns.push({
+          prop: propMatch ? propMatch[1] : '',
+          label: labelMatch ? labelMatch[1] : '',
+        });
+      }
+    }
   }
 
   return columns;

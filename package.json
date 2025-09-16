@@ -61,6 +61,10 @@
       {
         "command": "extension.CopyTsType",
         "title": "复制 TypeScript 类型"
+      },
+      {
+        "command": "extension.MockData",
+        "title": "模拟数据生成"
       }
     ],
     "menus": {
@@ -93,6 +97,11 @@
           "command": "extension.CopyTsType",
           "group": "navigation@1",
           "when": "Extension.SelectTots"
+        },
+        {
+          "command": "extension.MockData",
+          "group": "navigation@2",
+          "when": "Extension.SelectToMock"
         }
       ]
     }

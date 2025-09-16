@@ -28,9 +28,16 @@ async function setWithTsType(context: vscode.ExtensionContext) {
 }
 
 // 生成mock数据
-function generateMockData(context: vscode.ExtensionContext) {
-  // let result = parseElTableColumnsFromSelection();
-  // console.log('generateMockData', result);
+async function generateMockData(context: vscode.ExtensionContext) {
+  let result = await parseElTableColumnsFromSelection();
+  if (result?.length) {
+    vscode.commands.executeCommand('setContext', 'Extension.SelectToMock', true);
+    let disposable = vscode.commands.registerCommand('extension.MockData', async () => {
+      // 生成模拟数据
+    });
+  } else {
+    vscode.commands.executeCommand('setContext', 'Extension.SelectToMock', false);
+  }
 }
 
 export function registerSelectionCommand(context: vscode.ExtensionContext) {
