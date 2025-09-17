@@ -20,6 +20,7 @@ const provideCompletions = (position: any) => {
     cng.commitCharacters = snippet.commitCharacters;
     cng.insertText = format;
     cng.checkFn = (dp) => {
+      console.log('dp',dp)
       if (dp.fileType === 'js') return true;
       if (dp.fileType === 'vue' && dp.content.trim().includes('export default')) return true;
       return false;
