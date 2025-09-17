@@ -276,36 +276,48 @@ export function getExcludeFilePath(): string | null {
   return path.join(workspacePath, '.git/info/exclude');
 }
 
-/**
- *
- * 取消文件的跟踪
- * @export
- * @param {string[]} files
- * @returns
- */
-
-export function ignoreFilesLocally(files: string[]) {
-  const excludeFile = getExcludeFilePath();
-  if (!excludeFile) return;
-  if (!fs.existsSync(excludeFile)) return false;
-  let content = fs.readFileSync(excludeFile, 'utf-8');
-  const newContent = files.filter((f) => !content.includes(f)).join('\n');
-  if (newContent) fs.appendFileSync(excludeFile, '\n' + newContent);
-  return true;
+export function isGitTracked(filePath: string): boolean {
+  try {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+    if (!workspaceRoot) return false;
+    execSync(`git ls-files --error-unmatch "${filePath}"`, {
+      stdio: 'ignore',
+      cwd: workspaceRoot,
+    });
+    return true; // 被跟踪
+  } catch (err) {
+    return false; // 没被跟踪
+  }
 }
 
 /**
- * 取消忽略文件：从 .git/info/exclude 中删除
+ * 覆盖忽略文件：直接用传入的 files 覆盖 .git/info/exclude（忽略规则只对「未跟踪文件」生效。）
  */
-export function unignoreFilesLocally(files: string[]) {
+export function overwriteIgnoreFilesLocally(files: string[]) {
   const excludeFile = getExcludeFilePath();
   if (!excludeFile) return;
   if (!fs.existsSync(excludeFile)) return false;
-  let content = fs.readFileSync(excludeFile, 'utf-8');
+  const content = fs.readFileSync(excludeFile, 'utf-8');
   const lines = content.split(/\r?\n/);
-  // 过滤掉需要取消忽略的文件
-  const newLines = lines.filter((line) => !files.includes(line.trim()));
-  fs.writeFileSync(excludeFile, newLines.join('\n'));
+  const isGitFile: string[] = [];
+  // 保留注释行（以 # 开头）和空行
+  const preserved = lines.filter((line) => line.trim().startsWith('#') || line.trim() === '');
+  // 新的文件规则部分
+  const newRules = files
+    .map((f) => {
+      const isGit = isGitTracked(f);
+      isGit && isGitFile.push(f);
+      return f.trim();
+    })
+    .filter(Boolean);
+  if (isGitFile.length) {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+    if (!workspaceRoot) return false;
+    execSync(`git rm --cached ${isGitFile.join(' ')}`, { stdio: 'ignore',cwd: workspaceRoot });
+  }
+  // 合并（注释 + 新规则）
+  const newContent = [...preserved, ...newRules].join('\n');
+  fs.writeFileSync(excludeFile, newContent, 'utf-8');
   return true;
 }
 

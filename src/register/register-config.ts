@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import NotificationService from '../utils/notificationService';
 import { resolveResult } from '../utils/promiseResolve';
-import { ignoreArray, ignoreFilesLocally, unignoreFilesLocally, generateKeywords } from '../utils/index';
+import { ignoreArray, generateKeywords, overwriteIgnoreFilesLocally } from '../utils/index';
 import { MergeProperties, properties } from '../global-object/properties';
 
 const CONFIG_FILES = properties.configFileSchema;
@@ -63,16 +63,19 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
 
 // 通用的处理逻辑
 async function handleConfig(uri: vscode.Uri, context?: vscode.ExtensionContext) {
-  const config = await readConfigFile(uri);
-  // 如果 .logrc 文件不存在 (configResult 为 false)，则显示菜单
-  const logrcFound = properties.configResult && path.basename(uri.fsPath) === '.logrc';
-
-  // 设置上下文键
-  // 如果找到了 .logrc 文件，Extension.logrcNotFound 的值为 false
-  // 否则为 true
-  vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', !logrcFound);
-  if (config) {
-    initPlugins(config);
+  try {
+    const config = await readConfigFile(uri);
+    // 如果 .logrc 文件不存在 (configResult 为 false)，则显示菜单
+    const logrcFound = properties.configResult;
+    // 设置上下文键
+    // 如果找到了 .logrc 文件，Extension.logrcNotFound 的值为 false
+    // 否则为 true
+    vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', !logrcFound);
+    if (config) {
+      initPlugins(config);
+    }
+  } catch (err) {
+    console.log('err', err);
   }
 }
 
@@ -180,28 +183,16 @@ function initPlugins(config: ConfigFile) {
 
 // 设置忽略文件
 function setIgnoredFiles() {
-  // 忽略配置文件
-  if (properties.ignorePluginConfig) {
-    let result = ignoreFilesLocally(properties.ignore);
-    MergeProperties({ isGitTracked: !!result });
-    if (result && properties.configResult) NotificationService.info('检测到忽略 .logrc，插件将忽略对 .logrc 的跟踪');
-  } else {
-    let result = unignoreFilesLocally(properties.ignore);
-    MergeProperties({ isGitTracked: !!result });
-    if (result && properties.configResult) NotificationService.info('检测到未忽略 .logrc，插件将跟踪对 .logrc 的更改');
-  }
   // 给配置文件设置文件忽略
-  // if (properties.settings!.git?.length) {
-  //   let result = ignoreFilesLocally(properties.settings!.git);
-  //   MergeProperties({ isGitTracked: !!result });
-  //   if (result) NotificationService.info(`检测到忽略 ${properties.settings!.git.join(',')}，插件将忽略对 ${properties.settings!.git.join(',')} 的跟踪`);
-  // }
+  const igList = [properties.ignorePluginConfig ? '.logrc' : '', ...(properties?.settings?.git || [])];
+  let result = overwriteIgnoreFilesLocally(igList);
+  MergeProperties({ isGitTracked: !!result });
+  if (result) NotificationService.info(`忽略 ${igList.join(',')}文件跟踪！`);
 }
 
 // 设置
 function setLogrc() {
   setIgnoredFiles();
-  console.log('properties',properties);
   resolveResult(true);
 }
 
