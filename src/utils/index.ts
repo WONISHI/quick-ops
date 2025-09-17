@@ -293,7 +293,7 @@ export function isGitTracked(filePath: string): boolean {
 /**
  * 覆盖忽略文件：直接用传入的 files 覆盖 .git/info/exclude（忽略规则只对「未跟踪文件」生效。）
  */
-export function overwriteIgnoreFilesLocally(files: string[]) {
+export function overwriteIgnoreFilesLocally(files: string[], cb?: (files: string[]) => void) {
   const excludeFile = getExcludeFilePath();
   if (!excludeFile) return;
   if (!fs.existsSync(excludeFile)) return false;
@@ -310,14 +310,11 @@ export function overwriteIgnoreFilesLocally(files: string[]) {
       return f.trim();
     })
     .filter(Boolean);
-  if (isGitFile.length) {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-    if (!workspaceRoot) return false;
-    execSync(`git rm --cached ${isGitFile.join(' ')}`, { stdio: 'ignore',cwd: workspaceRoot });
-  }
+  console.log(newRules);
   // 合并（注释 + 新规则）
   const newContent = [...preserved, ...newRules].join('\n');
   fs.writeFileSync(excludeFile, newContent, 'utf-8');
+  if (cb) cb(isGitFile);
   return true;
 }
 

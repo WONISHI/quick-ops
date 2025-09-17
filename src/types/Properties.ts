@@ -1,6 +1,10 @@
 import type { FileType } from './utils';
 import type { EnvConf } from './EnvConf';
 import * as vscode from 'vscode';
+export interface IgnoredStatus {
+  added: string[];
+  remove: string[];
+}
 export interface Properties {
   // 打开文件路径不带（盘符）
   fullPath: string;
@@ -54,4 +58,6 @@ export interface Properties {
   configFileSchema: string[];
   // 项目关键词
   keywords?: string[];
+  // git变化
+  ignoredChanges?: IgnoredStatus;
 }

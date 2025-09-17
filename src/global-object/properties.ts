@@ -1,6 +1,7 @@
 import { TextDocument } from 'vscode';
-import type { Properties } from '../types/Properties';
+import type { Properties, IgnoredStatus } from '../types/Properties';
 import type { FileType } from '../types/utils';
+import type { EnvConf } from '../types/EnvConf';
 import mergeClone from '../utils/mergeClone';
 // 全局对象，用于存储当前文件的相关属性
 export const properties: Properties = {
@@ -19,6 +20,24 @@ export const properties: Properties = {
   completionDocumentSelector: ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'],
   configFileSchema: ['.prettierrc', '.gitignore', 'package.json', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'],
 };
+
+/**
+ * 比较两个 string[]，返回新增和删除项
+ */
+function computeArrayDiff(previous?: string[], current?: string[]): IgnoredStatus {
+  const previousSet = new Set(previous || []);
+  const currentSet = new Set(current || []);
+  const added = Array.from(currentSet).filter((item) => !previousSet.has(item));
+  const remove = Array.from(previousSet).filter((item) => !currentSet.has(item));
+  return { added, remove };
+}
+
+/**
+ * 获取 workspaceConfig.git 的变更
+ */
+export function computeGitChanges(previousConfig?: Partial<EnvConf>, currentConfig?: Partial<EnvConf>): IgnoredStatus {
+  return computeArrayDiff(previousConfig?.git, currentConfig?.git);
+}
 
 // 合并配置项
 export const MergeProperties = (property: Partial<Properties>) => {

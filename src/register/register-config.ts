@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { execSync } from 'child_process';
 import NotificationService from '../utils/notificationService';
 import { resolveResult } from '../utils/promiseResolve';
-import { ignoreArray, generateKeywords, overwriteIgnoreFilesLocally } from '../utils/index';
-import { MergeProperties, properties } from '../global-object/properties';
+import { ignoreArray, generateKeywords, overwriteIgnoreFilesLocally, isGitTracked } from '../utils/index';
+import { MergeProperties, properties, computeGitChanges } from '../global-object/properties';
 
 const CONFIG_FILES = properties.configFileSchema;
 type ConfigFile = (typeof CONFIG_FILES)[number];
@@ -24,7 +25,16 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
       const fileName = basename.split('.')[0];
       // 读取logrc配置
       if (basename === '.logrc') {
+        // 项目是否忽略配置文件
         MergeProperties({ ignorePluginConfig: [undefined, true].includes(content.excludedConfigFiles) });
+        // 忽略配置文件情况
+        /*封装方法比较旧值的properties.workspaceConfig.git(可能会出现properties.workspaceConfig不存在，
+         * properties.workspaceConfig.git不存在，properties.workspaceConfig.git的长度为0）和新值的property.workspaceConfig
+         * (可能会出现property.workspaceConfig不存在，property.workspaceConfig.git不存在，property.workspaceConfig.git的长度为0）找出新增和删除项，类型都是string[]
+         */
+        const gitChanges = computeGitChanges(properties.workspaceConfig!, content!);
+        MergeProperties({ ignoredChanges: gitChanges });
+        // 合并项目的配置文件
         MergeProperties({ workspaceConfig: content, configResult: true });
       }
       if (fileName === 'package') {
@@ -51,7 +61,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
     if (/^\.[^.]+ignore$/i.test(basename)) {
       if (basename === '.gitignore') {
         const workspaceIgnore = ignoreArray(text);
-        MergeProperties({ ignorePluginConfig: workspaceIgnore.includes('.logrc') });
+        MergeProperties({ ignorePluginConfig: !workspaceIgnore.includes('.logrc') ? properties.ignorePluginConfig : workspaceIgnore.includes('.logrc') });
       }
     }
     return basename;
@@ -185,7 +195,20 @@ function initPlugins(config: ConfigFile) {
 function setIgnoredFiles() {
   // 给配置文件设置文件忽略
   const igList = [properties.ignorePluginConfig ? '.logrc' : '', ...(properties?.settings?.git || [])];
-  let result = overwriteIgnoreFilesLocally(igList);
+  let result = overwriteIgnoreFilesLocally(igList, (isGitFile: string[]) => {
+    if (isGitFile.length) {
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+      if (!workspaceRoot) return false;
+      if (properties.ignoredChanges?.added.length) {
+        const skip = properties.ignoredChanges.added.filter((sk: string) => isGitFile.includes(sk));
+        execSync(`git update-index --skip-worktree ${skip.join(' ')}`, { stdio: 'ignore', cwd: workspaceRoot });
+      }
+      if (properties.ignoredChanges?.remove.length) {
+        const skip = properties.ignoredChanges.remove.filter((sk: string) => isGitTracked(sk));
+        execSync(`git update-index --no-skip-worktree ${skip.join(' ')}`, { stdio: 'ignore', cwd: workspaceRoot });
+      }
+    }
+  });
   MergeProperties({ isGitTracked: !!result });
   if (result) NotificationService.info(`忽略 ${igList.join(',')}文件跟踪！`);
 }
