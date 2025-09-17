@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import NotificationService from '../utils/notificationService';
 import { resolveResult } from '../utils/promiseResolve';
-import { ignoreArray, ignoreFilesLocally, unignoreFilesLocally } from '../utils/index';
+import { ignoreArray, ignoreFilesLocally, unignoreFilesLocally, generateKeywords } from '../utils/index';
 import { MergeProperties, properties } from '../global-object/properties';
 
 const CONFIG_FILES = properties.configFileSchema;
@@ -28,16 +28,21 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
         MergeProperties({ workspaceConfig: content, configResult: true });
       }
       if (fileName === 'package') {
+        const isVueProject = !!content.dependencies?.vue || !!content.devDependencies?.vue;
+        const isReactProject = !!content.dependencies?.react || !!content.devDependencies?.react;
+        const vueVersion = content.dependencies?.vue || content.devDependencies?.vue;
+        const reactVersion = content.dependencies?.react || content.devDependencies?.react;
+        const version = isVueProject ? vueVersion : reactVersion;
         MergeProperties({
           projectName: content.name || '',
           languagesCss: Object.keys(content.devDependencies).includes('sass') ? 'scss' : Object.keys(content.devDependencies).includes('less') ? 'less' : 'css',
-          isVueProject: !!content.dependencies?.vue || !!content.devDependencies?.vue,
-          isReactProject: !!content.dependencies?.react || !!content.devDependencies?.react,
-          vueVersion: content.dependencies?.vue || content.devDependencies?.vue,
-          reactVersion: content.dependencies?.react || content.devDependencies?.react,
+          isVueProject: isVueProject,
+          isReactProject: isReactProject,
+          vueVersion: vueVersion,
+          reactVersion: reactVersion,
           scripts: content.scripts || null,
+          keywords: generateKeywords(isVueProject ? 'vue' : 'react', version),
         });
-        console.log('9999',properties)
       }
     }
     if (basename.endsWith('.mjs')) {

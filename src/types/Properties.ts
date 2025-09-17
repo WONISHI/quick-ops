@@ -49,7 +49,9 @@ export interface Properties {
   // 默认的代码片段
   snippets?: Record<string, any>[] | null;
   // 代码提示的文件格式
-  completionDocumentSelector:vscode.DocumentSelector;
+  completionDocumentSelector: vscode.DocumentSelector;
   // 读取配置文件格式
-  configFileSchema:string[]
+  configFileSchema: string[];
+  // 项目关键词
+  keywords?: string[];
 }

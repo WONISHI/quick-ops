@@ -373,3 +373,21 @@ export async function withTsType(): Promise<string | false> {
   }
 }
 
+export function generateKeywords(name: string, version: string): string[] {
+  // 去掉 ^ ~ 等前缀
+  version = version.replace(/^[^\d]*/, '');
+  const parts = version.split('.'); // ['2','6','10']
+  const keywords: string[] = [name];
+  if (parts.length >= 1) {
+    keywords.push(`${name}${parts[0]}`);
+    keywords.push(`${name}${parts[0]}x`);
+  }
+  if (parts.length >= 2) {
+    keywords.push(`${name}${parts[0]}.${parts[1]}`);
+    keywords.push(`${name}${parts[0]}.${parts[1]}x`);
+  }
+  if (parts.length >= 3) {
+    keywords.push(`${name}${parts[0]}.${parts[1]}.${parts[2]}`);
+  }
+  return keywords;
+}
