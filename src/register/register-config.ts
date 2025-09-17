@@ -157,6 +157,7 @@ export async function registerConfig(context: vscode.ExtensionContext) {
   }
   const configPath = path.join(workspaceFolders!.uri.fsPath, '.logrc');
   if (!fs.existsSync(configPath)) {
+    MergeProperties({ configResult: false });
     vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', true);
     initPlugins('.logrc');
   }
@@ -179,15 +180,22 @@ function initPlugins(config: ConfigFile) {
 
 // 设置忽略文件
 function setIgnoredFiles() {
+  // 忽略配置文件
   if (properties.ignorePluginConfig) {
     let result = ignoreFilesLocally(properties.ignore);
     MergeProperties({ isGitTracked: !!result });
-    if (result) NotificationService.info('检测到 .gitignore 配置了 .logrc，插件将忽略对 .logrc 的跟踪');
+    if (result && properties.configResult) NotificationService.info('检测到忽略 .logrc，插件将忽略对 .logrc 的跟踪');
   } else {
     let result = unignoreFilesLocally(properties.ignore);
     MergeProperties({ isGitTracked: !!result });
-    if (result) NotificationService.info('检测到未忽略 .logrc，插件将跟踪对 .logrc 的更改');
+    if (result && properties.configResult) NotificationService.info('检测到未忽略 .logrc，插件将跟踪对 .logrc 的更改');
   }
+  // 给配置文件设置文件忽略
+  // if (properties.settings!.git?.length) {
+  //   let result = ignoreFilesLocally(properties.settings!.git);
+  //   MergeProperties({ isGitTracked: !!result });
+  //   if (result) NotificationService.info(`检测到忽略 ${properties.settings!.git.join(',')}，插件将忽略对 ${properties.settings!.git.join(',')} 的跟踪`);
+  // }
 }
 
 // 设置

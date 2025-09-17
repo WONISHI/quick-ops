@@ -20,10 +20,7 @@ type RandomizedPlaceholders = Perm3<Placeholder>;
 type CustomSegment = `[${string}]`;
 
 // 最终类型
-export type LogEnhancerConfig =
-  | RandomizedPlaceholders
-  | `${RandomizedPlaceholders}-${CustomSegment}`
-  | `${RandomizedPlaceholders}-${CustomSegment}-${CustomSegment}`;
+export type LogEnhancerConfig = RandomizedPlaceholders | `${RandomizedPlaceholders}-${CustomSegment}` | `${RandomizedPlaceholders}-${CustomSegment}-${CustomSegment}`;
 
 type ConsoleKeys = keyof Console;
 
@@ -38,6 +35,7 @@ export interface EnvConf {
   alias: Record<string, Record<string, string>>; // 别名配置
   excludedConfigFiles: boolean; // 是否忽略配置文件
   customSnippets: Record<string, any>[]; // 自定义代码片段
+  git: string[]; //临时忽略文件
   [key: string]: any; // 允许其他任意配置项
 }
 
