@@ -201,6 +201,7 @@ function setIgnoredFiles() {
 // 设置
 function setLogrc() {
   setIgnoredFiles();
+  console.log('properties',properties);
   resolveResult(true);
 }
 

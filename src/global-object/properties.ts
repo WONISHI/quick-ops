@@ -1,4 +1,4 @@
-import { TextDocument, window } from 'vscode';
+import { TextDocument } from 'vscode';
 import type { Properties } from '../types/Properties';
 import type { FileType } from '../types/utils';
 import mergeClone from '../utils/mergeClone';
@@ -21,10 +21,11 @@ export const properties: Properties = {
 };
 
 // 合并配置项
-export const MergeProperties = (property: any) => {
+export const MergeProperties = (property: Partial<Properties>) => {
   Object.assign(properties, property);
+  // 合并插件配置文件和工作区域的配置文件
   if (property.workspaceConfig && Reflect.ownKeys(property.workspaceConfig).length) {
-    Object.assign(properties,{
+    Object.assign(properties, {
       settings: mergeClone(properties.pluginConfig!, properties.workspaceConfig!),
     });
   }

@@ -148,6 +148,7 @@
     "cheerio": "^1.1.2",
     "dayjs": "^1.11.13",
     "ignore": "^7.0.5",
+    "lodash-es": "^4.17.21",
     "mockjs": "^1.1.0",
     "terser-webpack-plugin": "^5.3.14",
     "vscode-languageclient": "^9.0.1"
