@@ -60,4 +60,6 @@ export interface Properties {
   keywords?: string[];
   // git变化
   ignoredChanges?: IgnoredStatus;
+  // mark标识字段
+  identifiers: string[];
 }

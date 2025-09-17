@@ -17,6 +17,7 @@ export const properties: Properties = {
   isGitTracked: true,
   ignore: ['.logrc'],
   server: [],
+  identifiers: ['success', 'warning', 'error', 'head'],
   completionDocumentSelector: ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'],
   configFileSchema: ['.prettierrc', '.gitignore', 'package.json', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'],
 };

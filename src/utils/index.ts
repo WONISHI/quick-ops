@@ -262,7 +262,6 @@ export function getCurrentImports(document: vscode.TextDocument): string[] {
  * @param {string} gitignoreContent ignore文件内容
  * @returns
  */
-
 export function ignoreArray(gitignoreContent: string) {
   return gitignoreContent
     .split(/\r?\n/) // 按行分割
@@ -276,6 +275,7 @@ export function getExcludeFilePath(): string | null {
   return path.join(workspacePath, '.git/info/exclude');
 }
 
+// 监听文件是否被跟踪
 export function isGitTracked(filePath: string): boolean {
   try {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
@@ -310,7 +310,6 @@ export function overwriteIgnoreFilesLocally(files: string[], cb?: (files: string
       return f.trim();
     })
     .filter(Boolean);
-  console.log(newRules);
   // 合并（注释 + 新规则）
   const newContent = [...preserved, ...newRules].join('\n');
   fs.writeFileSync(excludeFile, newContent, 'utf-8');
@@ -324,20 +323,15 @@ export function overwriteIgnoreFilesLocally(files: string[], cb?: (files: string
 export function getSelectionInfo() {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return;
-
   const selection = editor.selection;
   const document = editor.document;
-
   // 获取选中行数（结束行-开始行+1）
   const lineCount = selection.end.line - selection.start.line + 1;
-
   // 获取光标位置（列数，从0开始）
   const column = selection.active.character;
-
   // 获取选中文本的字符数
   const selectedText = document.getText(selection);
   const charCount = selectedText.length;
-
   return { lineCount, column, charCount };
 }
 
@@ -399,4 +393,13 @@ export function generateKeywords(name: string, version: string): string[] {
     keywords.push(`${name}${parts[0]}.${parts[1]}.${parts[2]}`);
   }
   return keywords;
+}
+
+// 防抖函数
+export function debounce<T extends (...args: any[]) => void>(fn: T, delay: number): T {
+  let timer: NodeJS.Timeout;
+  return function (...args: any[]) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  } as T;
 }
