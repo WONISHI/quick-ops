@@ -9,7 +9,7 @@ import type { FileType } from '../types/utils';
  * @param values 替换对象，key 为变量名，value 为替换值
  */
 function replaceTemplateVariables(str: string) {
-  return str.replace(/\$\{([^}]+)\}/g, (_, key) => {
+  return str.replace( /\[\[(.+?)\]\]/g, (_, key) => {
     const k = key as keyof typeof properties;
     return !!properties[k] ? `"${properties[k]}"` : '';
   });
@@ -17,19 +17,19 @@ function replaceTemplateVariables(str: string) {
 
 function parseFieldValue(texts: string[]) {
   if (!texts.length) return '';
-  const regex = /\$\{([^}]+)\}/g;
+  const regex = /\[\[(.+?)\]\]/g;
   return texts.reduce((prev, item) => {
     if (regex.test(item)) {
-      prev += replaceTemplateVariables(item)+'\n';
+      prev += replaceTemplateVariables(item) + '\n';
+    } else {
+      prev += item + '\n';
     }
-    prev += item+'\n';
     return prev;
   }, '');
 }
 
 export function registerCodeSnippetsConfig(context: vscode.ExtensionContext) {
   // 准备变量
-  const languagesCss = properties.languagesCss;
   const snippets = properties.snippets?.concat(properties.settings?.customSnippets || []) || [];
   const keywords = snippets.map((item) => item.prefix);
   //   注册代码片段
@@ -49,10 +49,12 @@ export function registerCodeSnippetsConfig(context: vscode.ExtensionContext) {
             }
             const data = completionData!.reduce<any[]>((prev, item) => {
               const sn = new extendCompletionItem(item.prefix);
+              const body = parseFieldValue(item.body);
               sn.detail = item.description;
+              sn.documentation = new vscode.MarkdownString().appendCodeblock(body, "vue");
               sn.filterText = item.prefix;
               sn.commitCharacters = ['\t'];
-              sn.insertText = parseFieldValue(item.body)
+              sn.insertText = body;
               sn.checkFn = () => {
                 const [fileType = 'js', projectType = 'vue'] = item.scope;
                 if ((Array.isArray(fileType) && !fileType.includes(properties.fileType)) || properties.fileType !== fileType) return false;

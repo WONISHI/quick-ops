@@ -28,10 +28,10 @@
             "  },",
             "}",
             "</script>",
-            "<style lang=${languagesCss} scoped>",
+            "<style lang=[[languagesCss]] scoped>",
             "",
             "</style>"
         ],
-        "description": "Log output to console"
+        "description": "vue2代码模版 (quick-ops提供)"
     }
 ]
