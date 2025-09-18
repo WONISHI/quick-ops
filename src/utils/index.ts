@@ -318,24 +318,6 @@ export function overwriteIgnoreFilesLocally(files: string[], cb?: (files: string
 }
 
 /**
- * 获取选中内容之前的字符数（多行累加）
- */
-export function getSelectionInfo() {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return;
-  const selection = editor.selection;
-  const document = editor.document;
-  // 获取选中行数（结束行-开始行+1）
-  const lineCount = selection.end.line - selection.start.line + 1;
-  // 获取光标位置（列数，从0开始）
-  const column = selection.active.character;
-  // 获取选中文本的字符数
-  const selectedText = document.getText(selection);
-  const charCount = selectedText.length;
-  return { lineCount, column, charCount };
-}
-
-/**
  * 对象转ts类型
  */
 export async function withTsType(): Promise<string | false> {
@@ -393,13 +375,4 @@ export function generateKeywords(name: string, version: string): string[] {
     keywords.push(`${name}${parts[0]}.${parts[1]}.${parts[2]}`);
   }
   return keywords;
-}
-
-// 防抖函数
-export function debounce<T extends (...args: any[]) => void>(fn: T, delay: number): T {
-  let timer: NodeJS.Timeout;
-  return function (...args: any[]) {
-    clearTimeout(timer);
-    timer = setTimeout(() => fn(...args), delay);
-  } as T;
 }

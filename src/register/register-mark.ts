@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { properties } from '../global-object/properties';
-import { debounce } from '../utils/index';
 
 // 定义不同标识符的样式
 const decorationStyles: Record<string, vscode.TextEditorDecorationType> = {

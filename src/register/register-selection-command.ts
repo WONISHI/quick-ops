@@ -1,18 +1,9 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
-import { getSelectionInfo, withTsType, generateUUID } from '../utils/index';
+import { withTsType, generateUUID } from '../utils/index';
 import { parseElTableColumnsFromSelection } from '../utils/parse';
 import { properties } from '../global-object/properties';
 
-const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-statusBarItem.command = 'extension.showSelectionInfo';
-
-// 设置状态栏文本
-function setSelectionStatusBarText() {
-  const info = getSelectionInfo();
-  statusBarItem.text = `选中 行：${info?.lineCount} 列：${info?.column} 字符：${info?.charCount}`;
-  statusBarItem.show();
-}
 
 // 根据选中内容生成ts类型
 async function setWithTsType(context: vscode.ExtensionContext) {
@@ -74,8 +65,6 @@ async function generateMockData(context: vscode.ExtensionContext) {
 
 export function registerSelectionCommand(context: vscode.ExtensionContext) {
   const disposable = vscode.window.onDidChangeTextEditorSelection((e) => {
-    // 统计选中字符，行数
-    setSelectionStatusBarText();
     // if (e.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
     //   console.log('鼠标改变选中');
     // }
