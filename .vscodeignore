@@ -2,7 +2,11 @@
 .vscode-test/**
 out/**
 node_modules/**
+# 排除源码，但保留 snippet
 src/**
+!src/module/snippet/**
+!src/module/snippet/snippet.template.json
+
 .gitignore
 .yarnrc
 webpack.config.js

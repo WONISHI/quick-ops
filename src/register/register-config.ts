@@ -139,7 +139,7 @@ export async function registerConfig(context: vscode.ExtensionContext) {
 
     const logrcPath = path.join(workspaceFolder.uri.fsPath, '.logrc');
     // 读取插件自身的配置文件
-    const pluginConfigPath = path.join(context.extensionPath, '/src/module/template/logrc.template.json');
+    const pluginConfigPath = path.join(context.extensionPath, 'resources', 'template', 'logrc-template.json');
     const fileContent = fs.readFileSync(pluginConfigPath, 'utf8'); // 或者一个空 JSON 对象
 
     try {
@@ -222,7 +222,11 @@ function setLogrc() {
 
 // 加载插件自带的代码片段
 function createProject(context: vscode.ExtensionContext) {
-  const pluginSnippetPath = path.join(context.extensionPath, '/src/module/snippet/snippet.template.json');
-  const fileContent = fs.readFileSync(pluginSnippetPath, 'utf8');
-  MergeProperties({ snippets: JSON.parse(fileContent) });
+  try {
+    const pluginSnippetPath = path.join(context.extensionPath, 'resources', 'snippets', 'snippet-template.json');
+    const fileContent = fs.readFileSync(pluginSnippetPath, 'utf8');
+    MergeProperties({ snippets: JSON.parse(fileContent) });
+  } catch (err) {
+    console.log('err', err);
+  }
 }
