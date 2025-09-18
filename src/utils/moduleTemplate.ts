@@ -34,7 +34,7 @@ export const moduleConfig: {
 export function parseModuleTemplate(type: keyof Console): string[] {
   const defaultEnvConf = properties.pluginConfig;
   const currentEnvConf = properties.settings;
-  const template = (currentEnvConf as EnvConf).logEnhancerConfig[type] || (defaultEnvConf as EnvConf).logEnhancerConfig[type];
+  const template = (currentEnvConf as EnvConf)?.logEnhancerConfig[type] || (defaultEnvConf as EnvConf)?.logEnhancerConfig[type];
   moduleConfig.envConf = currentEnvConf || defaultEnvConf;
   moduleConfig.key = type;
   moduleConfig.format = template;

@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
+import * as path from "path";
 import type { FileType } from './types/utils';
 import { waitForResult } from './utils/promiseResolve';
-import { properties, initProperties, MergeProperties } from './global-object/properties';
+import { initProperties, MergeProperties } from './global-object/properties';
 import { registerConfig } from './register/register-config';
 import { registerCompletion } from './register/register-completion';
 import { registerExtension } from './register/register-extension';
@@ -17,12 +18,14 @@ export function activate(context: vscode.ExtensionContext) {
   // 监听文件打开
   initProperties(vscode.window.activeTextEditor?.document!);
   vscode.workspace.onDidChangeTextDocument((e) => {
-    const fileType = e.document.languageId as FileType;
+    const filePath = e.document.fileName; // 完整路径
+    const ext = path.extname(filePath).slice(1); // 去掉 "."，拿到后缀名
+    const fileType = ext.toLowerCase() as FileType; // 这里才是真正的后缀
     MergeProperties({
       content: e.document.getText(),
       fileType: fileType,
-      supportsLessSyntax: fileType.toLocaleLowerCase() === 'less',
-      supportsScssSyntax: fileType.toLocaleLowerCase() === 'scss',
+      supportsLessSyntax: fileType === 'less',
+      supportsScssSyntax: fileType === 'scss',
     });
   });
   // 初始化读取文件配置

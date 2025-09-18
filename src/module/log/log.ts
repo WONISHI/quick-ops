@@ -1,15 +1,13 @@
-import { CompletionItem } from 'vscode';
-import { properties } from '../../global-object/properties';
 import { LogSnippetString } from './constants';
 import { getLabel } from '../../utils/getLable';
-import extendCompletionItem from '../../utils/extendCompletionItem'
+import extendCompletionItem from '../../utils/extendCompletionItem';
 import { moduleConfig, parseModuleTemplate, parseSnippet, getVisualColumn } from '../../utils/moduleTemplate';
 
 const provideCompletions = (position: any) => {
   moduleConfig.line = position.line;
   moduleConfig.character = position.character;
   const codes = parseModuleTemplate('log');
-  return LogSnippetString.reduce<extendCompletionItem[]>((prev, snippet, index) => {
+  return LogSnippetString.reduce<extendCompletionItem[]>((prev, snippet) => {
     const module = parseSnippet(codes);
     const cng = new extendCompletionItem(getLabel(snippet.label));
     let format = `console.log(${module!.map(item => `'${item}'`).join(', ')});`;
@@ -21,7 +19,7 @@ const provideCompletions = (position: any) => {
     cng.insertText = format;
     cng.checkFn = (dp) => {
       if (dp.fileType === 'js') return true;
-      if (dp.fileType === 'vue' && dp.content.trim().includes('export default')) return true;
+      if (dp.fileType === 'vue') return true;
       return false;
     };
     cng.command = {
