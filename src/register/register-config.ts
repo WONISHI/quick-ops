@@ -13,6 +13,12 @@ type ConfigFile = (typeof CONFIG_FILES)[number];
 // 通用的配置读取
 async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
   try {
+    try {
+      await vscode.workspace.fs.stat(uri);
+    } catch {
+      console.log(`文件不存在: ${uri.fsPath}`);
+      return null;
+    }
     const document = await vscode.workspace.openTextDocument(uri);
     const text = document.getText();
     const basename = path.basename(uri.fsPath);
@@ -66,6 +72,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
     }
     return basename;
   } catch (err) {
+    console.log('err', err, uri);
     NotificationService.error(`读取配置文件出错: ${uri.fsPath}, ${err}`);
     return null;
   }
