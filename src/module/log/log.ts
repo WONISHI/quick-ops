@@ -24,7 +24,7 @@ const provideCompletions = (position: any) => {
       return false;
     };
     cng.command = {
-      command: 'scope-search.onCompletionSelected',
+      command: 'quick-ops.onCompletionSelected',
       title: '触发补全事件',
       arguments: [moduleConfig.line, moduleConfig.character],
     };

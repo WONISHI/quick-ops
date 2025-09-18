@@ -11,7 +11,7 @@ const isTarggetLogs = LogSnippetString.map((item) => item.label);
 
 export function registerCompletion(context: vscode.ExtensionContext) {
   // 补全插入完成触发的事件
-  const disposable = vscode.commands.registerCommand('scope-search.onCompletionSelected', (line: number, character: number) => {
+  const disposable = vscode.commands.registerCommand('quick-ops.onCompletionSelected', (line: number, character: number) => {
     moveCursor(line, character);
   });
 

@@ -56,14 +56,14 @@ function createPathCompletionProvider(languages: vscode.DocumentSelector) {
             item.kind = vscode.CompletionItemKind.Folder;
             item.insertText = entry.name + '/';
             item.command = {
-              command: 'scope-search.onProvideSelected',
+              command: 'quick-ops.onProvideSelected',
               title: '触发路径补全',
               arguments: setProviderParams({ item, entry, isDirectory: true, lineText }),
             };
           } else {
             item.kind = vscode.CompletionItemKind.File;
             item.command = {
-              command: 'scope-search.onProvideSelected',
+              command: 'quick-ops.onProvideSelected',
               title: '触发路径补全',
               arguments: setProviderParams({ item, entry, isDirectory: false, lineText }),
             };
@@ -115,7 +115,7 @@ function createFunctionCompletionProvider(languages: vscode.DocumentSelector) {
       resolveCompletionItem(item: vscode.CompletionItem) {
         // 点击 item 时绑定命令
         item.command = {
-          command: 'scope-search.onFunctionProvideSelected',
+          command: 'quick-ops.onFunctionProvideSelected',
           title: '触发函数补全',
           arguments: [item.label],
         };
@@ -131,7 +131,7 @@ function createFunctionCompletionProvider(languages: vscode.DocumentSelector) {
 // 注册 Export 功能
 export function registerExport(context: vscode.ExtensionContext) {
   //  注册路径选择命令
-  const disposablePath = vscode.commands.registerCommand('scope-search.onProvideSelected', async (contextItem: any) => {
+  const disposablePath = vscode.commands.registerCommand('quick-ops.onProvideSelected', async (contextItem: any) => {
     if (!contextItem) return;
     const editor = vscode.window.activeTextEditor;
     if (!editor) return;
@@ -174,7 +174,7 @@ export function registerExport(context: vscode.ExtensionContext) {
   });
 
   //  注册函数补全点击命令（只注册一次）
-  const disposableFunc = vscode.commands.registerCommand('scope-search.onFunctionProvideSelected', async (name: string) => {
+  const disposableFunc = vscode.commands.registerCommand('quick-ops.onFunctionProvideSelected', async (name: string) => {
     if (!currentExport) return;
     if (currentExport.namedExports.includes(name)) {
       setExportGlobalVariables({
