@@ -1,5 +1,6 @@
-
-<img src="./icon.png" style="width:104px;height:104px;display: flex;margin: 0 auto;" />
+<div style="display:flex;width:100%;justify-content: center;">
+   <img src="./icon.png" width="104" height="104" />
+</div>
 
 # quickOps
 
