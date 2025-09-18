@@ -12,7 +12,7 @@
       "runtimeExecutable": "${execPath}",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
       "runtimeArgs": ["-r", "ts-node/register"],
-      "outFiles": ["${workspaceFolder}/src/**/*.ts"],
+      "outFiles": ["${workspaceFolder}/dist/**/*.ts"],
       "preLaunchTask": "npm: watch" // 这里绑定 tasks.json 里的任务
     }
   ]

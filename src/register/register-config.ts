@@ -195,6 +195,7 @@ function initPlugins(config: ConfigFile) {
 function setIgnoredFiles() {
   // 给配置文件设置文件忽略
   const igList = [properties.ignorePluginConfig ? '.logrc' : '', ...(properties?.settings?.git || [])];
+  if (!igList.length || (igList.length === 1 && igList[0] === '')) return;
   let result = overwriteIgnoreFilesLocally(igList, (isGitFile: string[]) => {
     if (isGitFile.length) {
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;

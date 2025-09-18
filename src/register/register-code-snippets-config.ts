@@ -9,7 +9,7 @@ import type { FileType } from '../types/utils';
  * @param values 替换对象，key 为变量名，value 为替换值
  */
 function replaceTemplateVariables(str: string) {
-  return str.replace( /\[\[(.+?)\]\]/g, (_, key) => {
+  return str.replace(/\[\[(.+?)\]\]/g, (_, key) => {
     const k = key as keyof typeof properties;
     return !!properties[k] ? `"${properties[k]}"` : '';
   });
@@ -51,21 +51,26 @@ export function registerCodeSnippetsConfig(context: vscode.ExtensionContext) {
               const sn = new extendCompletionItem(item.prefix);
               const body = parseFieldValue(item.body);
               sn.detail = item.description;
-              sn.documentation = new vscode.MarkdownString().appendCodeblock(body, "vue");
+              sn.documentation = new vscode.MarkdownString().appendCodeblock(body, 'vue');
               sn.filterText = item.prefix;
               sn.commitCharacters = ['\t'];
               sn.insertText = body;
               sn.checkFn = () => {
-                const [fileType = 'js', projectType = 'vue'] = item.scope;
-                if ((Array.isArray(fileType) && !fileType.includes(properties.fileType)) || properties.fileType !== fileType) return false;
-                if (!properties.keywords!.includes(projectType)) {
+                try {
+                  const [fileType = 'js', projectType = 'vue'] = item.scope;
+                  if ((Array.isArray(fileType) && !fileType.includes(properties.fileType)) || properties.fileType !== fileType) return false;
+                  if (!properties.keywords!.includes(projectType)) {
+                    return false;
+                  }
+                  if (Array.isArray(projectType)) {
+                    const is = projectType.some((k) => properties.keywords?.includes(k));
+                    return is;
+                  }
+                  return true;
+                } catch (err) {
+                  console.log('err', err);
                   return false;
                 }
-                if (Array.isArray(projectType)) {
-                  const is = projectType.some((k) => properties.keywords?.includes(k));
-                  return is;
-                }
-                return true;
               };
               prev.push(sn);
               return prev;
