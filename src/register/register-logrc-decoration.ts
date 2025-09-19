@@ -16,7 +16,6 @@ export function registerLogrcDecoration(context: vscode.ExtensionContext) {
           color: new vscode.ThemeColor('charts.green'),
         };
       }
-      console.log('9999', ignoreHint);
       return undefined;
     },
   };

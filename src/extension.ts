@@ -28,8 +28,8 @@ export function activate(context: vscode.ExtensionContext) {
       supportsScssSyntax: fileType === 'scss',
     });
   });
-  // 初始化读取文件配置
-  // 没有logrc文件的时候创建logrc
+  // 初始化读取文件配置 √
+  // 没有logrc文件的时候创建logrc √
   // 取消git校验
   // 配置文件智能提示
   // 取消git校验
@@ -39,13 +39,13 @@ export function activate(context: vscode.ExtensionContext) {
   waitForResult().then((res) => {
     vscode.window.showInformationMessage('插件已激活！');
     console.log('初始化完成！');
-    // console代码补全
+    // console代码补全 √
     registerCompletion(context);
-    // 定位文件
+    // 定位文件 √
     registerExtension(context);
-    // 回调顶部
+    // 回调顶部 √
     registerTop(context);
-    // 智能导出
+    // 智能导出 √
     registerExport(context);
     // 合起文件夹
     registerWorkspaceFolders(context);
@@ -53,9 +53,9 @@ export function activate(context: vscode.ExtensionContext) {
     registerSelectionCommand(context);
     // 注册mark
     registerMark(context);
-    // 设置代码片段
+    // 设置代码片段 √
     registerCodeSnippetsConfig(context);
-    // 监听是否有忽略文件
+    // 监听是否有忽略文件 √
     registerLogrcDecoration(context);
     // 取消警告
     // 标签补全

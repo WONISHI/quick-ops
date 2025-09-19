@@ -4,6 +4,9 @@ import { withTsType, generateUUID } from '../utils/index';
 import { parseElTableColumnsFromSelection } from '../utils/parse';
 import { properties } from '../global-object/properties';
 
+let lastSelect = '';
+let isStickySelected = false;
+let timer: ReturnType<typeof setInterval> | null = null;
 
 // 根据选中内容生成ts类型
 async function setWithTsType(context: vscode.ExtensionContext) {
@@ -64,21 +67,31 @@ async function generateMockData(context: vscode.ExtensionContext) {
 }
 
 export function registerSelectionCommand(context: vscode.ExtensionContext) {
-  const disposable = vscode.window.onDidChangeTextEditorSelection((e) => {
-    // if (e.kind === vscode.TextEditorSelectionChangeKind.Mouse) {
-    //   console.log('鼠标改变选中');
-    // }
-    // if (e.kind === vscode.TextEditorSelectionChangeKind.Keyboard) {
-    //   console.log('键盘改变选中');
-    // }
-    // 转ts
-    // setWithTsType(context);
-    // mock数据
-    // generateMockData(context);
-    // html to scss
-    // 折叠
-    // try插入
+  const disposable = vscode.window.onDidChangeTextEditorSelection(() => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return;
+    const selection = editor.selection;
+    const selectedText = editor.document.getText(selection).trim();
+    if (selectedText !== lastSelect) {
+      isStickySelected = false;
+      lastSelect = selectedText;
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+      if (selectedText) {
+        timer = setInterval(() => {
+          const currentText = editor.document.getText(editor.selection).trim();
+          if (currentText === lastSelect && currentText !== '') {
+            isStickySelected = true;
+            if (timer) {
+              clearInterval(timer);
+              timer = null;
+            }
+          }
+        }, 1000);
+      }
+    }
   });
-
   context.subscriptions.push(disposable);
 }
