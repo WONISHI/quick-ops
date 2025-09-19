@@ -4,6 +4,7 @@
 
 const path = require('path');
 const webpack = require('webpack');
+const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 const TerserPlugin = require('terser-webpack-plugin');
 //@ts-check
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
@@ -18,9 +19,8 @@ const extensionConfig = {
     filename: 'extension.js',
     libraryTarget: 'commonjs2',
   },
-  externals: {
-    vscode: 'commonjs vscode',
-  },
+  externalsPresets: { node: true },
+  externals: { vscode: 'commonjs vscode' },
   resolve: {
     extensions: ['.ts', '.js'],
     alias: {
@@ -40,11 +40,36 @@ const extensionConfig = {
       },
     ],
   },
-  devtool: 'nosources-source-map',
+  devtool: process.env.NODE_ENV === 'production' ? false : 'cheap-module-source-map',
+  optimization: {
+    minimize: true,
+    minimizer: [
+      new TerserPlugin({
+        parallel: true,
+        terserOptions: {
+          compress: {
+            drop_console: true,
+            pure_funcs: ['console.log'],
+          },
+          format: {
+            comments: false,
+          },
+        },
+        extractComments: false,
+      }),
+    ],
+  },
   infrastructureLogging: {
     level: 'log',
   },
   plugins: [
+    // @ts-ignore
+    // new BundleAnalyzerPlugin({
+    //   analyzerMode: 'server', // 默认是 server，会开一个 http://127.0.0.1:8888
+    //   analyzerPort: 8888, // 可以改端口
+    //   openAnalyzer: true, // 打包完成自动打开浏览器
+    //   reportFilename: 'report.html', // 如果用 static 模式，生成静态文件
+    // }),
     // 🔑 忽略 consolidate.js 中用到但你项目没用到的模板引擎
     new webpack.IgnorePlugin({
       resourceRegExp:

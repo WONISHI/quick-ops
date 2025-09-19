@@ -2,7 +2,7 @@ import fs from 'fs';
 import { parse as vueParse } from '@vue/compiler-sfc';
 import { parse as babelParse } from '@babel/parser';
 import traverse from '@babel/traverse';
-import * as cheerio from 'cheerio';
+import { load as cheerioLoad } from 'cheerio';
 import * as vscode from 'vscode';
 
 export type ExportItem = string[];
@@ -100,23 +100,27 @@ export function parseVueComponentName(filePath: string): string | null {
  * @param type 'less' | 'sass'
  */
 export function generateCssStructure(html: string, type: 'less' | 'sass' = 'less'): string {
-  const $ = cheerio.load(html, { xmlMode: true });
+  const $ = cheerioLoad(html, { xmlMode: true });
   const indentChar = type === 'less' ? '  ' : '  ';
   function traverse(el: any, depth = 0): string {
     if (el.type !== 'tag') return '';
     const classAttr = el.attribs?.class;
     const selector = classAttr ? '.' + classAttr.split(/\s+/).join('.') : el.name;
     let css = `${indentChar.repeat(depth)}${selector} {\n`;
-    $(el).children().each((_, child) => {
-      css += traverse(child, depth + 1);
-    });
+    $(el)
+      .children()
+      .each((_, child) => {
+        css += traverse(child, depth + 1);
+      });
     css += `${indentChar.repeat(depth)}}\n`;
     return css;
   }
   let result = '';
-  $('body').children().each((_, el) => {
-    result += traverse(el);
-  });
+  $('body')
+    .children()
+    .each((_, el) => {
+      result += traverse(el);
+    });
   return result;
 }
 
