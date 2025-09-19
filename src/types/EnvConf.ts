@@ -35,7 +35,7 @@ export interface EnvConf {
   useAsyncMock: boolean; // 是否使用异步模拟数据
   mockServerCount: number; // 最大模拟数据服务数量
   port: number; // 模拟数据服务端口
-  DEV: boolean; // 是否开启开发模式
+  DEV: boolean; // 是否开启功能开发模式
   alias: Record<string, Record<string, string>>; // 别名配置
   excludedConfigFiles: boolean; // 是否忽略配置文件
   customSnippets: Record<string, any>[]; // 自定义代码片段

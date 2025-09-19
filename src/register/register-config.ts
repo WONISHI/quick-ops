@@ -5,8 +5,8 @@ import { execSync } from 'child_process';
 import NotificationService from '../utils/notificationService';
 import { resolveResult } from '../utils/promiseResolve';
 import { ignoreArray, generateKeywords, overwriteIgnoreFilesLocally, isGitTracked } from '../utils/index';
-import { MergeProperties, properties, computeGitChanges, updateEmitter, onUpdate } from '../global-object/properties';
-import bus from '../utils/emitter';
+import { MergeProperties, properties, computeGitChanges } from '../global-object/properties';
+import EventBus from '../utils/emitter';
 
 const CONFIG_FILES = properties.configFileSchema;
 type ConfigFile = (typeof CONFIG_FILES)[number];
@@ -203,21 +203,22 @@ function initPlugins(config: ConfigFile) {
 function setIgnoredFiles() {
   // 给配置文件设置文件忽略
   const igList = [properties.ignorePluginConfig ? '.logrc' : '', ...(properties?.settings?.git || [])];
-  bus.fire<{ hint: boolean }>('add-ignore', { hint: !!igList.length });
+  // 通知是否启用标记
+  EventBus.fire<{ hint: boolean }>('add-ignore', { hint: !!properties?.settings?.git?.length });
   if (!igList.length || (igList.length === 1 && igList[0] === '')) return;
   let result = overwriteIgnoreFilesLocally(igList, (isGitFile: string[]) => {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     if (isGitFile.length) {
-      const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
       if (!workspaceRoot) return false;
       if (properties.ignoredChanges?.added.length) {
         const skip = properties.ignoredChanges.added.filter((sk: string) => isGitFile.includes(sk));
         execSync(`git update-index --skip-worktree ${skip.join(' ')}`, { stdio: 'ignore', cwd: workspaceRoot });
       }
-      if (properties.ignoredChanges?.remove.length) {
+    }
+    if (properties.ignoredChanges?.remove.length) {
         const skip = properties.ignoredChanges.remove.filter((sk: string) => isGitTracked(sk));
         execSync(`git update-index --no-skip-worktree ${skip.join(' ')}`, { stdio: 'ignore', cwd: workspaceRoot });
       }
-    }
   });
   MergeProperties({ isGitTracked: !!result });
   if (result) NotificationService.info(`忽略 ${igList.join(',')}文件跟踪！`);
@@ -232,9 +233,12 @@ function setLogrc() {
 // 加载插件自带的代码片段
 function createProject(context: vscode.ExtensionContext) {
   try {
+    // 注册代码模块
     const pluginSnippetPath = path.join(context.extensionPath, 'resources', 'snippets', 'snippet-template.json');
     const fileContent = fs.readFileSync(pluginSnippetPath, 'utf8');
     MergeProperties({ snippets: JSON.parse(fileContent) });
+
+    // 注册指令模块
   } catch (err) {
     console.log('err', err);
   }

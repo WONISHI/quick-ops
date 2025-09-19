@@ -69,6 +69,3 @@ export const initProperties = (document: vscode.TextDocument) => {
     content: document.getText(),
   });
 };
-
-export const updateEmitter = new vscode.EventEmitter<string>(); // 泛型指定事件类型
-export const onUpdate = updateEmitter.event; // 导出事件
