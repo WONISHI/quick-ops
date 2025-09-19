@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import { properties } from '../global-object/properties';
+import type { MarkOption } from '../types/EnvConf';
 
 // 定义不同标识符的样式
-const decorationStyles: Record<string, vscode.TextEditorDecorationType> = {
+const decorationStyles: MarkOption = {
   success: vscode.window.createTextEditorDecorationType({
     backgroundColor: 'rgba(76, 175, 80, 0.3)',
     color: '#ffffff',
@@ -51,6 +52,8 @@ function decorateAnnotations(editor: vscode.TextEditor) {
 }
 
 // 注册监听
+// 指针跳转
+// mark
 export function registerMark(context: vscode.ExtensionContext) {
   const activeEditor = vscode.window.activeTextEditor;
   if (activeEditor) {

@@ -1,4 +1,5 @@
-import { TextDocument } from 'vscode';
+
+import * as vscode from 'vscode';
 import type { Properties, IgnoredStatus } from '../types/Properties';
 import type { FileType } from '../types/utils';
 import type { EnvConf } from '../types/EnvConf';
@@ -52,7 +53,7 @@ export const MergeProperties = (property: Partial<Properties>) => {
 };
 
 // 设置当前文件配置
-export const initProperties = (document: TextDocument) => {
+export const initProperties = (document: vscode.TextDocument) => {
   // 没有任何文件打开就跳过
   if (!document) return;
   const filePath = document.uri.fsPath;
@@ -68,3 +69,6 @@ export const initProperties = (document: TextDocument) => {
     content: document.getText(),
   });
 };
+
+export const updateEmitter = new vscode.EventEmitter<string>(); // 泛型指定事件类型
+export const onUpdate = updateEmitter.event; // 导出事件

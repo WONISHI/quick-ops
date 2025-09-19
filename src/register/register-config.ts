@@ -5,7 +5,8 @@ import { execSync } from 'child_process';
 import NotificationService from '../utils/notificationService';
 import { resolveResult } from '../utils/promiseResolve';
 import { ignoreArray, generateKeywords, overwriteIgnoreFilesLocally, isGitTracked } from '../utils/index';
-import { MergeProperties, properties, computeGitChanges } from '../global-object/properties';
+import { MergeProperties, properties, computeGitChanges, updateEmitter, onUpdate } from '../global-object/properties';
+import bus from '../utils/emitter';
 
 const CONFIG_FILES = properties.configFileSchema;
 type ConfigFile = (typeof CONFIG_FILES)[number];
@@ -202,6 +203,7 @@ function initPlugins(config: ConfigFile) {
 function setIgnoredFiles() {
   // 给配置文件设置文件忽略
   const igList = [properties.ignorePluginConfig ? '.logrc' : '', ...(properties?.settings?.git || [])];
+  bus.fire<{ hint: boolean }>('add-ignore', { hint: !!igList.length });
   if (!igList.length || (igList.length === 1 && igList[0] === '')) return;
   let result = overwriteIgnoreFilesLocally(igList, (isGitFile: string[]) => {
     if (isGitFile.length) {

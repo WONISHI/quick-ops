@@ -76,6 +76,9 @@
   },
   "excludedConfigFiles": true,
   "DEV": true,
+  "mark":{
+
+  },
   "useAsyncMock": true,
   "mockServerCount": 5,
   "git":[],

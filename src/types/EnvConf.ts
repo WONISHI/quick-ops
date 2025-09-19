@@ -1,4 +1,5 @@
 import type { OptionType } from 'dayjs';
+import * as vscode from 'vscode';
 type Placeholder = '[time]' | '[line]' | '[uuid]';
 
 // 工具类型：数组转联合
@@ -24,6 +25,9 @@ export type LogEnhancerConfig = RandomizedPlaceholders | `${RandomizedPlaceholde
 
 type ConsoleKeys = keyof Console;
 
+export type MarkOption = Record<string, vscode.TextEditorDecorationType>;
+export type MarkProp = Record<string, vscode.DecorationRenderOptions>;
+
 export interface EnvConf {
   logEnhancerConfig: Record<ConsoleKeys, LogEnhancerConfig>;
   unitTime: Record<ConsoleKeys, OptionType>;
@@ -36,6 +40,7 @@ export interface EnvConf {
   excludedConfigFiles: boolean; // 是否忽略配置文件
   customSnippets: Record<string, any>[]; // 自定义代码片段
   git: string[]; //临时忽略文件
+  mark: MarkProp;
   [key: string]: any; // 允许其他任意配置项
 }
 

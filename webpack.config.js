@@ -41,24 +41,24 @@ const extensionConfig = {
     ],
   },
   devtool: process.env.NODE_ENV === 'production' ? false : 'cheap-module-source-map',
-  optimization: {
-    minimize: true,
-    minimizer: [
-      new TerserPlugin({
-        parallel: true,
-        terserOptions: {
-          compress: {
-            drop_console: true,
-            pure_funcs: ['console.log'],
-          },
-          format: {
-            comments: false,
-          },
-        },
-        extractComments: false,
-      }),
-    ],
-  },
+  // optimization: {
+  //   minimize: true,
+  //   minimizer: [
+  //     new TerserPlugin({
+  //       parallel: true,
+  //       terserOptions: {
+  //         compress: {
+  //           drop_console: true,
+  //           pure_funcs: ['console.log'],
+  //         },
+  //         format: {
+  //           comments: false,
+  //         },
+  //       },
+  //       extractComments: false,
+  //     }),
+  //   ],
+  // },
   infrastructureLogging: {
     level: 'log',
   },

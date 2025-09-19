@@ -32,6 +32,7 @@ export function activate(context: vscode.ExtensionContext) {
   // 没有logrc文件的时候创建logrc
   // 取消git校验
   // 配置文件智能提示
+  // 取消git校验
   registerConfig(context);
 
   // 初始化其他功能
@@ -54,10 +55,15 @@ export function activate(context: vscode.ExtensionContext) {
     registerMark(context);
     // 设置代码片段
     registerCodeSnippetsConfig(context);
+    // 监听是否有忽略文件
+    registerLogrcDecoration(context);
     // 取消警告
     // 标签补全
     // 导出项目依赖关系
     // 高效清理node module
+    // tab切换
+    // 触发指令
+
   });
 }
 

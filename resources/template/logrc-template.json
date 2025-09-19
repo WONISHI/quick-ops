@@ -8,7 +8,6 @@
   "uuidLen": {
     "log": 12
   },
-  "DEV": true,
   "useAsyncMock": true,
   "alias": {
     "path": {
