@@ -9,6 +9,7 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "baseUrl": ".",
+    "jsx": "react", 
     "paths": {
       "@/*": ["src/*"]
     }

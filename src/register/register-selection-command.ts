@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import * as http from 'http';
+import * as fs from 'fs';
+import * as path from 'path';
 import { withTsType, generateUUID } from '../utils/index';
 import { parseElTableColumnsFromSelection } from '../utils/parse';
 import { properties } from '../global-object/properties';
@@ -66,8 +68,43 @@ async function generateMockData(context: vscode.ExtensionContext) {
   }
 }
 
+function getWebviewContent(context: vscode.ExtensionContext, webview: vscode.Webview) {
+  const htmlPath = path.join(context.extensionPath, 'resources', 'webview', 'html', 'objectToHtmlPage.html');
+  let html = fs.readFileSync(htmlPath, 'utf8');
+
+  const scriptPathOnDisk = vscode.Uri.file(path.join(context.extensionPath, 'resources', 'webview', 'js', 'objectToHtmlPage.js'));
+  const scriptUri = webview.asWebviewUri(scriptPathOnDisk);
+
+  const stylePathOnDisk = vscode.Uri.file(path.join(context.extensionPath, 'resources', 'webview', 'css', 'objectToHtmlPage.css'));
+  const styleUri = webview.asWebviewUri(stylePathOnDisk);
+
+  // 替换 index.html 中的占位符
+  html = html.replace('%%SCRIPT%%', `<script src="${scriptUri}"></script>`);
+  html = html.replace('%%STYLE%%', `<link rel="stylesheet" href="${styleUri}" />`);
+  console.log('html', html);
+  return html;
+}
+
 export function registerSelectionCommand(context: vscode.ExtensionContext) {
+  // 注册webview
+  const panel = vscode.window.createWebviewPanel(
+    'reactWebview', // 内部标识
+    '对象转ts', // 面板标题
+    // vscode.ViewColumn.One, // 显示在哪一列
+    vscode.ViewColumn.Active,
+    {
+      enableScripts: true, // 必须开启 JS
+      retainContextWhenHidden:true,
+      localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'resources/webview'))], // 限制可访问的本地资源
+    },
+  );
+
+  panel.webview.html = getWebviewContent(context, panel.webview);
+
+  panel.reveal();
+
   const disposable = vscode.window.onDidChangeTextEditorSelection(() => {
+    // 监听最后一次选中
     const editor = vscode.window.activeTextEditor;
     if (!editor) return;
     const selection = editor.selection;

@@ -144,11 +144,15 @@
   "dependencies": {
     "@babel/parser": "^7.28.3",
     "@babel/traverse": "^7.28.3",
+    "@types/react": "^19.1.13",
+    "@types/react-dom": "^19.1.9",
     "@vue/compiler-sfc": "^3.5.20",
     "cheerio": "^1.1.2",
     "dayjs": "^1.11.13",
     "ignore": "^7.0.5",
     "mockjs": "^1.1.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
     "terser-webpack-plugin": "^5.3.14",
     "vscode-languageclient": "^9.0.1",
     "webpack-bundle-analyzer": "^4.10.2"
