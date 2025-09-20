@@ -3,6 +3,7 @@ import * as path from "path";
 import type { FileType } from './types/utils';
 import { waitForResult } from './utils/promiseResolve';
 import { initProperties, MergeProperties } from './global-object/properties';
+import {registerQuickPick} from './register/register-quick-pick'
 import { registerConfig } from './register/register-config';
 import { registerCompletion } from './register/register-completion';
 import { registerExtension } from './register/register-extension';
@@ -39,6 +40,8 @@ export function activate(context: vscode.ExtensionContext) {
   waitForResult().then((res) => {
     vscode.window.showInformationMessage('插件已激活！');
     console.log('初始化完成！');
+    // 注册Quick Pick
+    registerQuickPick(context);
     // console代码补全 √
     registerCompletion(context);
     // 定位文件 √
@@ -63,7 +66,7 @@ export function activate(context: vscode.ExtensionContext) {
     // 高效清理node module
     // tab切换
     // 触发指令
-
+    // 注册侧边栏
   });
 }
 

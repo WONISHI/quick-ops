@@ -1,6 +1,6 @@
 import type { EnvConf, LogEnhancerConfig } from '../types/EnvConf';
 import { generateUUID } from './index';
-import formattedPath,{resetIsBasePath} from './formattedPath';
+import formattedPath, { resetIsBasePath } from './formattedPath';
 import { properties } from '../global-object/properties';
 import dayjs from 'dayjs';
 
