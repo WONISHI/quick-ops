@@ -5,6 +5,7 @@ import * as path from 'path';
 import { withTsType, generateUUID } from '../utils/index';
 import { parseElTableColumnsFromSelection } from '../utils/parse';
 import { properties } from '../global-object/properties';
+import EventBus from '../utils/emitter';
 
 let lastSelect = '';
 let isStickySelected = false;
@@ -14,12 +15,19 @@ let timer: ReturnType<typeof setInterval> | null = null;
 async function setWithTsType(context: vscode.ExtensionContext) {
   const result = await withTsType();
   if (result) {
+    // 通知可以复制内容了
     vscode.commands.executeCommand('setContext', 'Extension.SelectTots', true);
-    let disposable = vscode.commands.registerCommand('extension.CopyTsType', async () => {
-      await vscode.env.clipboard.writeText(result);
-      vscode.window.showInformationMessage('TypeScript 类型已复制到剪贴板！');
+    // 注册编辑右键菜单
+    let copyCommands = vscode.commands.registerCommand('extension.CopyTsType', async () => {
+      // 复制内容
+      const doc = await vscode.workspace.openTextDocument({
+        content: result,
+        language: 'typescript',
+      });
+      // 显示到编辑器
+      await vscode.window.showTextDocument(doc, vscode.ViewColumn.Active);
     });
-    context.subscriptions.push(disposable);
+    context.subscriptions.push(copyCommands);
   } else {
     vscode.commands.executeCommand('setContext', 'Extension.SelectTots', false);
   }
@@ -87,21 +95,21 @@ function getWebviewContent(context: vscode.ExtensionContext, webview: vscode.Web
 
 export function registerSelectionCommand(context: vscode.ExtensionContext) {
   // 注册webview
-  const panel = vscode.window.createWebviewPanel(
-    'reactWebview', // 内部标识
-    '对象转ts', // 面板标题
-    // vscode.ViewColumn.One, // 显示在哪一列
-    vscode.ViewColumn.Active,
-    {
-      enableScripts: true, // 必须开启 JS
-      retainContextWhenHidden:true,
-      localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'resources/webview'))], // 限制可访问的本地资源
-    },
-  );
+  // const panel = vscode.window.createWebviewPanel(
+  //   'reactWebview', // 内部标识
+  //   '对象转ts', // 面板标题
+  //   // vscode.ViewColumn.One, // 显示在哪一列
+  //   vscode.ViewColumn.Beside,
+  //   {
+  //     enableScripts: true, // 必须开启 JS
+  //     retainContextWhenHidden:true,
+  //     localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'resources/webview'))], // 限制可访问的本地资源
+  //   },
+  // );
 
-  panel.webview.html = getWebviewContent(context, panel.webview);
+  // panel.webview.html = getWebviewContent(context, panel.webview);
 
-  panel.reveal();
+  // panel.reveal();
 
   const disposable = vscode.window.onDidChangeTextEditorSelection(() => {
     // 监听最后一次选中
@@ -121,6 +129,7 @@ export function registerSelectionCommand(context: vscode.ExtensionContext) {
           const currentText = editor.document.getText(editor.selection).trim();
           if (currentText === lastSelect && currentText !== '') {
             isStickySelected = true;
+            fireTrigger(context);
             if (timer) {
               clearInterval(timer);
               timer = null;
@@ -131,4 +140,10 @@ export function registerSelectionCommand(context: vscode.ExtensionContext) {
     }
   });
   context.subscriptions.push(disposable);
+}
+
+// 选中后防抖时候的触发时机
+function fireTrigger(context: vscode.ExtensionContext) {
+  // 监听是否选中对象，是否可以转成ts
+  setWithTsType(context);
 }
