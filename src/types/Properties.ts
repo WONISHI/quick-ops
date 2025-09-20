@@ -62,4 +62,8 @@ export interface Properties {
   ignoredChanges?: IgnoredStatus;
   // mark标识字段
   identifiers: string[];
+  // webview
+  panel?: vscode.WebviewPanel;
+  // csp设置nonce
+  nonce?:string;
 }

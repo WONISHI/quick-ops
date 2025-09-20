@@ -1,4 +1,3 @@
-
 import * as vscode from 'vscode';
 import type { Properties, IgnoredStatus } from '../types/Properties';
 import type { FileType } from '../types/utils';
@@ -49,6 +48,10 @@ export const MergeProperties = (property: Partial<Properties>) => {
     Object.assign(properties, {
       settings: mergeClone(properties.pluginConfig!, properties.workspaceConfig!),
     });
+  }
+  // 创建了webveiw则需要给给webview通信
+  if (properties.panel) {
+    properties.panel.webview.postMessage({ type: 'webview', data: properties });
   }
 };
 

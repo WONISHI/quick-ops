@@ -2,9 +2,10 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { generateUUID } from '../utils/index';
+import { MergeProperties } from '../global-object/properties';
 
 export function registerQuickPick(context: vscode.ExtensionContext) {
-  const panel = vscode.window.createWebviewPanel('reactWebview', 'quick-ops(控制台)', vscode.ViewColumn.Beside, {
+  const panel: vscode.WebviewPanel = vscode.window.createWebviewPanel('reactWebview', 'quick-ops(控制台)', vscode.ViewColumn.Beside, {
     enableScripts: true,
     retainContextWhenHidden: true,
     localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'resources/webview'))],
@@ -24,9 +25,17 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
     jsContent = fs.readFileSync(jsPath, 'utf8');
   }
 
+  //   读取vue
+  const vuePath = path.join(context.extensionPath, 'resources/webview/js/vue.min.js');
+  let vueContent = '';
+  if (fs.existsSync(vuePath)) {
+    vueContent = fs.readFileSync(vuePath, 'utf8');
+  }
+
   // 生成随机 nonce
   const nonce = generateUUID(32);
-
+  //  存储nonce
+  MergeProperties({ nonce: nonce });
   // 读取html
   const htmlPath = path.join(context.extensionPath, 'resources/webview/html/index.html');
   let htmlContent = '';
@@ -40,6 +49,12 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
   );
   htmlContent = htmlContent.replace('%%styleContent%%', `<style>${styleContent}</style>`);
   htmlContent = htmlContent.replace(
+    '%%vueContent%%',
+    ` <script nonce="${nonce}">
+      ${vueContent}
+    </script>`,
+  );
+  htmlContent = htmlContent.replace(
     '%%jsContent%%',
     ` <script nonce="${nonce}">
       ${jsContent}
@@ -47,4 +62,5 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
   );
   panel.webview.html = htmlContent;
   panel.reveal();
+  MergeProperties({ panel: panel });
 }
