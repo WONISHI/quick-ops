@@ -25,13 +25,6 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
     jsContent = fs.readFileSync(jsPath, 'utf8');
   }
 
-  //   读取vue
-  const vuePath = path.join(context.extensionPath, 'resources/webview/js/vue.min.js');
-  let vueContent = '';
-  if (fs.existsSync(vuePath)) {
-    vueContent = fs.readFileSync(vuePath, 'utf8');
-  }
-
   // 生成随机 nonce
   const nonce = generateUUID(32);
   //  存储nonce
@@ -48,12 +41,6 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
     content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline';">`,
   );
   htmlContent = htmlContent.replace('%%styleContent%%', `<style>${styleContent}</style>`);
-  htmlContent = htmlContent.replace(
-    '%%vueContent%%',
-    ` <script nonce="${nonce}">
-      ${vueContent}
-    </script>`,
-  );
   htmlContent = htmlContent.replace(
     '%%jsContent%%',
     ` <script nonce="${nonce}">
