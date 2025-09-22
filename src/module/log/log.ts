@@ -10,7 +10,7 @@ const provideCompletions = (position: any) => {
   return LogSnippetString.reduce<extendCompletionItem[]>((prev, snippet) => {
     const module = parseSnippet(codes);
     const cng = new extendCompletionItem(getLabel(snippet.label));
-    let format = `console.log(${module!.map(item => `'${item}'`).join(', ')});`;
+    let format = `console.log(${module!.map((item) => `'${item}'`).join(', ')});`;
     getVisualColumn(format);
     format = format.replace(/'\$0'/, '');
     cng.detail = `当前的console格式是${moduleConfig.format}`;
@@ -18,8 +18,7 @@ const provideCompletions = (position: any) => {
     cng.commitCharacters = snippet.commitCharacters;
     cng.insertText = format;
     cng.checkFn = (dp) => {
-      if (dp.fileType === 'js') return true;
-      if (dp.fileType === 'vue') return true;
+      if (['ts', 'js', 'tsx', 'jsx'].includes(dp.fileType!)) return true;
       return false;
     };
     cng.command = {

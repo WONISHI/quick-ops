@@ -35,7 +35,7 @@
         "description": "vue2代码模版 (quick-ops提供)"
     },
     {
-        "prefix": "vue2",
+        "prefix": "vue3",
         "scope": [
             "vue",
             "vue3"
