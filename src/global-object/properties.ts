@@ -51,7 +51,6 @@ export const MergeProperties = (property: Partial<Properties>) => {
   }
   // 创建了webveiw则需要给给webview通信
   if (properties.panel) {
-    console.log('property.panel',property.panel)
     properties.panel.webview.postMessage({ type: property.panel ? 'ready' : 'update', data: properties });
   }
 };

@@ -320,7 +320,7 @@ export function overwriteIgnoreFilesLocally(files: string[], cb?: (files: string
 /**
  * 对象转ts类型
  */
-export async function withTsType(): Promise<string | false> {
+export async function withTsType(type: 'ts' | 'jsTots' = 'ts'): Promise<string | false> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return false;
 
@@ -349,7 +349,7 @@ export async function withTsType(): Promise<string | false> {
         .join('\n');
 
       const finalString = `interface RootObject {\n${typeString}\n}`;
-      return finalString;
+      return type === 'ts' ? finalString : typeString;
     } else {
       return false;
     }

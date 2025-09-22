@@ -144,6 +144,7 @@
   "dependencies": {
     "@babel/parser": "^7.28.3",
     "@babel/traverse": "^7.28.3",
+    "@types/mockjs": "^1.0.10",
     "@vue/compiler-sfc": "^3.5.20",
     "cheerio": "^1.1.2",
     "dayjs": "^1.11.13",

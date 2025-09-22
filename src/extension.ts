@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import * as path from "path";
+import * as path from 'path';
 import type { FileType } from './types/utils';
 import { waitForResult } from './utils/promiseResolve';
 import { initProperties, MergeProperties } from './global-object/properties';
-import {registerQuickPick} from './register/register-quick-pick'
+import { registerQuickPick } from './register/register-quick-pick';
 import { registerConfig } from './register/register-config';
 import { registerCompletion } from './register/register-completion';
 import { registerExtension } from './register/register-extension';
