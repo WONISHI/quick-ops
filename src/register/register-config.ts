@@ -216,12 +216,12 @@ function setIgnoredFiles() {
       }
     }
     if (properties.ignoredChanges?.remove.length) {
-        const skip = properties.ignoredChanges.remove.filter((sk: string) => isGitTracked(sk));
-        execSync(`git update-index --no-skip-worktree ${skip.join(' ')}`, { stdio: 'ignore', cwd: workspaceRoot });
-      }
+      const skip = properties.ignoredChanges.remove.filter((sk: string) => isGitTracked(sk));
+      execSync(`git update-index --no-skip-worktree ${skip.join(' ')}`, { stdio: 'ignore', cwd: workspaceRoot });
+    }
   });
   MergeProperties({ isGitTracked: !!result });
-  if (result) NotificationService.info(`忽略 ${igList.join(',')}文件跟踪！`);
+  if (result) NotificationService.info(`忽略 ${igList.length > 3 ? igList.slice(0, 3).join(',') + '...' : igList.join(',')}文件跟踪！`);
 }
 
 // 设置
