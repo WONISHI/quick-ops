@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { generateUUID } from './index';
 
 /**
  * 通道结构
@@ -6,6 +7,7 @@ import * as vscode from 'vscode';
 export interface Channel<T = any> {
   emitter: vscode.EventEmitter<T>;
   event: vscode.Event<T>;
+  id: string;
 }
 
 /**
@@ -23,7 +25,7 @@ export default class EventBus {
     let channelObj = this.events.get(channel) as Channel<T> | undefined;
     if (!channelObj) {
       const emitter = new vscode.EventEmitter<T>();
-      channelObj = { emitter, event: emitter.event };
+      channelObj = { emitter, event: emitter.event, id: generateUUID(12) };
       this.events.set(channel, channelObj);
     }
     return channelObj;
@@ -38,7 +40,7 @@ export default class EventBus {
     let channelObj = this.events.get(channel) as Channel<T> | undefined;
     if (!channelObj) {
       const emitter = new vscode.EventEmitter<T>();
-      channelObj = { emitter, event: emitter.event };
+      channelObj = { emitter, event: emitter.event, id: generateUUID(12) };
       this.events.set(channel, channelObj);
     }
     return channelObj.event(listener);
@@ -53,7 +55,7 @@ export default class EventBus {
     let channelObj = this.events.get(channel) as Channel<T> | undefined;
     if (!channelObj) {
       const emitter = new vscode.EventEmitter<T>();
-      channelObj = { emitter, event: emitter.event };
+      channelObj = { emitter, event: emitter.event, id: generateUUID(12) };
       this.events.set(channel, channelObj);
     }
     channelObj.emitter.fire(data);

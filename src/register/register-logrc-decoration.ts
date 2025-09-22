@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import EventBus from '../utils/emitter';
+import { properties } from '../global-object/properties';
 
 export function registerLogrcDecoration(context: vscode.ExtensionContext) {
   const instance = EventBus.getInstance('add-ignore-file');
-  let ignoreHint = false;
+  let ignoreHint = !!properties?.settings?.git?.length;
 
   // 文件装饰提供器
   const provider: vscode.FileDecorationProvider = {
@@ -20,8 +21,6 @@ export function registerLogrcDecoration(context: vscode.ExtensionContext) {
     },
   };
 
-  context.subscriptions.push(vscode.window.registerFileDecorationProvider(provider));
-
   EventBus.subscribe('add-ignore', (n: { hint: boolean }) => {
     ignoreHint = n.hint;
     // 通知 VSCode 刷新 .logrc 文件的装饰
@@ -29,4 +28,6 @@ export function registerLogrcDecoration(context: vscode.ExtensionContext) {
       uris.forEach((uri) => instance.emitter.fire(uri));
     });
   });
+
+  context.subscriptions.push(vscode.window.registerFileDecorationProvider(provider));
 }
