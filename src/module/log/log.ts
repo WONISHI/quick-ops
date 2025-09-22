@@ -1,5 +1,5 @@
 import { LogSnippetString } from './constants';
-import { getLabel } from '../../utils/getLable';
+import { CompletionItemKind, MarkdownString } from 'vscode';
 import extendCompletionItem from '../../utils/extendCompletionItem';
 import { moduleConfig, parseModuleTemplate, parseSnippet, getVisualColumn } from '../../utils/moduleTemplate';
 
@@ -9,16 +9,18 @@ const provideCompletions = (position: any) => {
   const codes = parseModuleTemplate('log');
   return LogSnippetString.reduce<extendCompletionItem[]>((prev, snippet) => {
     const module = parseSnippet(codes);
-    const cng = new extendCompletionItem(getLabel(snippet.label));
+    const cng = new extendCompletionItem(snippet.label);
     let format = `console.log(${module!.map((item) => `'${item}'`).join(', ')});`;
     getVisualColumn(format);
     format = format.replace(/'\$0'/, '');
+    cng.kind = CompletionItemKind.Method;
     cng.detail = `当前的console格式是${moduleConfig.format}`;
+    cng.documentation = new MarkdownString().appendCodeblock(format, 'js');
     cng.filterText = snippet.filterText;
     cng.commitCharacters = snippet.commitCharacters;
     cng.insertText = format;
     cng.checkFn = (dp) => {
-      if (['ts', 'js', 'tsx', 'jsx'].includes(dp.fileType!)) return true;
+      if (['ts', 'js', 'tsx', 'jsx', 'vue'].includes(dp.fileType!)) return true;
       return false;
     };
     cng.command = {
