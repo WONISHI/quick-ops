@@ -3,7 +3,7 @@
         "prefix": "vue2",
         "scope": [
             "vue",
-            "vue"
+            "vue2"
         ],
         "body": [
             "<template>",
@@ -33,5 +33,25 @@
             "</style>"
         ],
         "description": "vue2代码模版 (quick-ops提供)"
+    },
+    {
+        "prefix": "vue2",
+        "scope": [
+            "vue",
+            "vue3"
+        ],
+        "body": [
+            "<template>",
+            "<div>",
+            "  ${0}",
+            "</div>",
+            "</template>",
+            "<script lang='ts' setup>",
+            "</script>",
+            "<style lang=[[languagesCss]] scoped>",
+            "",
+            "</style>"
+        ],
+        "description": "vue3代码模版 (quick-ops提供)"
     }
 ]

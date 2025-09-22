@@ -5,6 +5,7 @@ import { generateUUID } from '../utils/index';
 import { MergeProperties } from '../global-object/properties';
 
 export function registerQuickPick(context: vscode.ExtensionContext) {
+  return;
   const panel: vscode.WebviewPanel = vscode.window.createWebviewPanel('reactWebview', 'quick-ops(控制台)', vscode.ViewColumn.Beside, {
     enableScripts: true,
     retainContextWhenHidden: true,
@@ -48,6 +49,7 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
     </script>`,
   );
   panel.webview.html = htmlContent;
-  panel.reveal();
+  // panel.reveal()
+  // panel.dispose();
   MergeProperties({ panel: panel });
 }
