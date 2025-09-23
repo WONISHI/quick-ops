@@ -66,12 +66,12 @@ const extensionConfig = {
   },
   plugins: [
     // @ts-ignore
-    new BundleAnalyzerPlugin({
-      analyzerMode: 'server', // 默认是 server，会开一个 http://127.0.0.1:8888
-      analyzerPort: 8888, // 可以改端口
-      openAnalyzer: true, // 打包完成自动打开浏览器
-      reportFilename: 'report.html', // 如果用 static 模式，生成静态文件
-    }),
+    // new BundleAnalyzerPlugin({
+    //   analyzerMode: 'server', // 默认是 server，会开一个 http://127.0.0.1:8888
+    //   analyzerPort: 8888, // 可以改端口
+    //   openAnalyzer: true, // 打包完成自动打开浏览器
+    //   reportFilename: 'report.html', // 如果用 static 模式，生成静态文件
+    // }),
     // 🔑 忽略 consolidate.js 中用到但你项目没用到的模板引擎
     new webpack.IgnorePlugin({
       resourceRegExp:

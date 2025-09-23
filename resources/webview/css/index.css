@@ -52,11 +52,49 @@ body {
 .webview-shell .table-shell{
     color: #000;
     border: 1px solid #f0f0f0;
+    border-collapse: collapse;
 }
 .webview-shell .table-shell .table-shell-thead{
     background:#f2f2f2;
 }
-
+.webview-shell .table-shell .table-shell-tbody tr td{
+    border-bottom:1px solid #f0f0f0;
+    border-right:1px solid #f0f0f0;
+    padding:5px;
+}
+.webview-shell .table-shell .table-shell-tbody tr td.table-shell-code{
+    font-size:12px;
+}
+.webview-shell .table-shell .table-shell-tbody tr td.table-shell-code > span{
+    display: flex;
+    padding: 3px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    align-items: center;
+    width: fit-content;
+}
+.webview-shell .table-shell .table-shell-tbody tr td.table-shell-code > span:hover{
+    color:#0581f3;
+    cursor:default;
+}
+.webview-shell .table-shell .table-shell-tbody tr td .run-code{
+    border-color: transparent;
+    color: #409eff;
+    background: transparent;
+    padding-left: 0;
+    padding-right: 0;
+    display: inline-block;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    -webkit-appearance: none;
+    text-align: center;
+    box-sizing: border-box;
+    outline: none;
+    margin: 0;
+    transition: .1s;
+    font-weight: 500;
+}
 .webview-service {
     display: none;
 }

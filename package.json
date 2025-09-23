@@ -17,14 +17,7 @@
   },
   "activationEvents": [
     "onStartupFinished",
-    "onCommand:actions.find",
-    "workspaceContains:.logrc",
-    "onLanguage:javascript",
-    "onLanguage:typescript",
-    "onLanguage:javascriptreact",
-    "onLanguage:typescriptreact",
-    "onLanguage:vue",
-    "onLanguage:html"
+    "workspaceContains:.logrc"
   ],
   "main": "./dist/extension.js",
   "contributes": {

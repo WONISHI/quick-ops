@@ -16,10 +16,14 @@
       .map((key, i) => {
         return `
           <tr>
-            <td>${i + 1}</td>
-            <td>${key}</td>
-            <td>${scripts[key]}</td>
-            <td><button data-cmd="${key}">运行</button></td>
+            <td align="center">${i + 1}</td>
+            <td align="center">${key}</td>
+            <td align="center" class="table-shell-code">
+              <span>${scripts[key]}</span>
+            </td>
+            <td align="center">
+              <button data-cmd="npm run ${key}" class="run-code">运行</button>
+            </td>
           </tr>`;
       })
       .join('');
@@ -27,8 +31,18 @@
     return `
       <table class="table-shell">
         <thead class="table-shell-thead"><tr>${headers}</tr></thead>
-        <tbody class="class="table-shell-tbody"">${rows}</tbody>
+        <tbody class="table-shell-tbody">${rows}</tbody>
       </table>`;
+  }
+
+  // 绑定按钮事件
+  function bindRunEvents() {
+    document.querySelectorAll('.run-code').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const cmd = btn.getAttribute('data-cmd');
+        vscode.postMessage({ type: 'run', command: cmd });
+      });
+    });
   }
 
   // 接收插件发来的消息
@@ -38,11 +52,14 @@
       const scripts = data?.scripts || {};
       if (Object.keys(scripts).length) {
         const html = buildTable(scripts);
-        document.querySelector('.webview-shell').innerHTML = html;
+        const container = document.querySelector('.webview-shell');
+        container.innerHTML = html;
+        bindRunEvents(); // 表格生成后再绑定事件
       }
     }
   });
 })();
+
 
 function createMockSelect() {
   const mockFormat = [
