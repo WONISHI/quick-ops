@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
+import formatPathBySign from './formattedPath';
 
 export function delayExecutor(callback: () => void, timeout: number = 3000) {
   return new Promise((resolve) => {

@@ -5,14 +5,41 @@
     { label: '服务', value: 'service' },
     { label: '设置', value: 'settings' },
   ];
+
   document.querySelector('.webview-title-text').innerText = useCatalogue[0].label;
+
+  // 构造表格
+  function buildTable(scripts) {
+    const headers = ['序号', '指令名称', '指令', '操作'].map((t) => `<th>${t}</th>`).join('');
+
+    const rows = Object.keys(scripts)
+      .map((key, i) => {
+        return `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${key}</td>
+            <td>${scripts[key]}</td>
+            <td><button data-cmd="${key}">运行</button></td>
+          </tr>`;
+      })
+      .join('');
+
+    return `
+      <table class="table-shell">
+        <thead class="table-shell-thead"><tr>${headers}</tr></thead>
+        <tbody class="class="table-shell-tbody"">${rows}</tbody>
+      </table>`;
+  }
+
   // 接收插件发来的消息
   window.addEventListener('message', (event) => {
-    const message = event.data;
-    // 初始化
-    if (message.type === 'ready') {
-      console.log('ready', message);
-      createMockSelect();
+    const { type, data } = event.data;
+    if (type === 'ready') {
+      const scripts = data?.scripts || {};
+      if (Object.keys(scripts).length) {
+        const html = buildTable(scripts);
+        document.querySelector('.webview-shell').innerHTML = html;
+      }
     }
   });
 })();

@@ -24,6 +24,7 @@ export default function formatPathBySign(sign: string) {
       isBasePath = path.basename(targetPath);
       return isBasePath;
     },
+    '@': () => properties.settings?.alias?.path['@/'] ?? '',
   };
   return sign in signHandlers ? signHandlers[sign]() : isBasePath ? isBasePath + '//' + sign : targetPath + '//' + sign;
 }
