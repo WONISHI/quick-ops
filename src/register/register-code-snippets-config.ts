@@ -51,7 +51,7 @@ export function registerCodeSnippetsConfig(context: vscode.ExtensionContext) {
               const sn = new extendCompletionItem(item.prefix);
               const body = parseFieldValue(item.body);
               sn.detail = item.description;
-              sn.kind = vscode.CompletionItemKind.Snippet
+              sn.kind = vscode.CompletionItemKind.Snippet;
               sn.documentation = new vscode.MarkdownString().appendCodeblock(body, 'vue');
               sn.filterText = item.prefix;
               sn.commitCharacters = ['\t'];

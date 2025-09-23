@@ -74,7 +74,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
     return basename;
   } catch (err) {
     console.log('err', err, uri);
-    NotificationService.error(`读取配置文件出错: ${uri.fsPath}, ${err}`);
+    // NotificationService.error(`读取配置文件出错: ${uri.fsPath}, ${err}`);
     return null;
   }
 }
