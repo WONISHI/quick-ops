@@ -50,7 +50,6 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
         const vueVersion = content.dependencies?.vue || content.devDependencies?.vue;
         const reactVersion = content.dependencies?.react || content.devDependencies?.react;
         const version = isVueProject ? vueVersion : reactVersion;
-        console.log('content', content);
         MergeProperties({
           projectName: content.name || '',
           languagesCss: Object.keys(content.devDependencies).includes('sass') ? 'scss' : Object.keys(content.devDependencies).includes('less') ? 'less' : 'css',
