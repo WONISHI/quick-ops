@@ -48,7 +48,7 @@
   // 接收插件发来的消息
   window.addEventListener('message', (event) => {
     const { type, data } = event.data;
-    if (type === 'ready') {
+    if (['ready','update'].includes(type)) {
       const scripts = data?.scripts || {};
       if (Object.keys(scripts).length) {
         const html = buildTable(scripts);

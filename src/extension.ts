@@ -29,6 +29,8 @@ export function activate(context: vscode.ExtensionContext) {
       supportsScssSyntax: fileType === 'scss',
     });
   });
+  // 注册Quick Pick
+  registerQuickPick(context);
   // 初始化读取文件配置 √
   // 没有logrc文件的时候创建logrc √
   // 取消git校验
@@ -40,8 +42,6 @@ export function activate(context: vscode.ExtensionContext) {
   waitForResult().then((res) => {
     vscode.window.showInformationMessage('插件已激活！');
     console.log('初始化完成！');
-    // 注册Quick Pick
-    registerQuickPick(context);
     // console代码补全 √
     registerCompletion(context);
     // 定位文件 √
