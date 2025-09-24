@@ -48,13 +48,16 @@
   // 接收插件发来的消息
   window.addEventListener('message', (event) => {
     const { type, data } = event.data;
-    if (['ready','update'].includes(type)) {
+    if (['ready', 'update'].includes(type)) {
+      const container = document.querySelector('.webview-shell');
       const scripts = data?.scripts || {};
       if (Object.keys(scripts).length) {
+        container.style.display = 'block';
         const html = buildTable(scripts);
-        const container = document.querySelector('.webview-shell');
         container.innerHTML = html;
         bindRunEvents(); // 表格生成后再绑定事件
+      } else {
+        container.style.display = 'none';
       }
     }
   });

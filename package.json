@@ -16,8 +16,7 @@
     "url": "https://github.com/WONISHI/quick-ops.git"
   },
   "activationEvents": [
-    "onStartupFinished",
-    "workspaceContains:.logrc"
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
