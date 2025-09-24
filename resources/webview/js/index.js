@@ -52,12 +52,9 @@
       const container = document.querySelector('.webview-shell');
       const scripts = data?.scripts || {};
       if (Object.keys(scripts).length) {
-        container.style.display = 'block';
         const html = buildTable(scripts);
         container.innerHTML = html;
         bindRunEvents(); // 表格生成后再绑定事件
-      } else {
-        container.style.display = 'none';
       }
     }
   });
