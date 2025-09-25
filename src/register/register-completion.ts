@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
 import type { FileType } from '../types/utils';
 import { properties } from '../global-object/properties';
-import provideCompletions from '../module/log/log';
+import provideCompletions, { LogSnippetString } from '../module/mixinLog';
 import { moveCursor, matchKeyword } from '../utils/index';
-import { LogSnippetString } from '../module/log/constants';
 
 const LANGUAGES: vscode.DocumentSelector = properties.completionDocumentSelector;
 // 获取触发字段

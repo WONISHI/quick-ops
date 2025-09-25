@@ -1,7 +1,27 @@
-import { LogSnippetString } from './constants';
 import { CompletionItemKind, MarkdownString } from 'vscode';
-import extendCompletionItem from '../../utils/extendCompletionItem';
-import { moduleConfig, parseModuleTemplate, parseSnippet, getVisualColumn } from '../../utils/moduleTemplate';
+import extendCompletionItem from '../utils/extendCompletionItem';
+import { moduleConfig, parseModuleTemplate, parseSnippet, getVisualColumn } from '../utils/moduleTemplate';
+
+export const LogSnippetString = [
+  {
+    label: 'cng',
+    detail: '',
+    filterText: 'cng',
+    commitCharacters: ['\t'],
+  },
+  {
+    label: 'cg',
+    detail: '',
+    filterText: 'cg',
+    commitCharacters: ['\t'],
+  },
+  {
+    label: 'log',
+    detail: '',
+    filterText: 'log',
+    commitCharacters: ['\t'],
+  },
+];
 
 const provideCompletions = (position: any) => {
   moduleConfig.line = position.line;
