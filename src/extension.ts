@@ -60,8 +60,6 @@ export function activate(context: vscode.ExtensionContext) {
     registerCodeSnippetsConfig(context);
     // 监听是否有忽略文件 √
     registerLogrcDecoration(context);
-    // 取消警告
-    // 标签补全
     // 导出项目依赖关系
     // 高效清理node module
     // tab切换

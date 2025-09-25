@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
+import { MixinReadSnippets } from '../module/mixinConfig';
 import NotificationService from '../utils/notificationService';
 import { resolveResult } from '../utils/promiseResolve';
 import { ignoreArray, generateKeywords, overwriteIgnoreFilesLocally, isGitTracked } from '../utils/index';
@@ -231,15 +232,6 @@ function setLogrc() {
 }
 
 // 加载插件自带的代码片段
-function createProject(context: vscode.ExtensionContext) {
-  try {
-    // 注册代码模块
-    const pluginSnippetPath = path.join(context.extensionPath, 'resources', 'snippets', 'snippet-template.json');
-    const fileContent = fs.readFileSync(pluginSnippetPath, 'utf8');
-    MergeProperties({ snippets: JSON.parse(fileContent) });
-
-    // 注册指令模块
-  } catch (err) {
-    console.log('err', err);
-  }
+async function createProject(context: vscode.ExtensionContext) {
+  MergeProperties({ snippets: await MixinReadSnippets() });
 }

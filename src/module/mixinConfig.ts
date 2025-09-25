@@ -1,0 +1,40 @@
+// 平行读取该文件夹下素有json
+import * as fs from 'fs/promises';
+import * as path from 'path';
+
+/**
+ * 读取指定文件夹下的所有 JSON 文件
+ * @param dir 文件夹路径
+ * @returns 返回数组，每个元素包含文件名和解析后的 JSON 对象
+ */
+export async function readAllJson(dir: string): Promise<Record<string, any>[]> {
+  // 读取目录
+  const files = await fs.readdir(dir);
+
+  // 过滤 JSON 文件
+  const jsonFiles = files.filter((f) => f.endsWith('.json'));
+
+  // 并行读取和解析
+  const results = await Promise.all(
+    jsonFiles.map(async (file) => {
+      const filePath = path.join(dir, file);
+      const content = await fs.readFile(filePath, 'utf-8');
+      try {
+        const data = JSON.parse(content);
+        return { file, data };
+      } catch (err) {
+        console.error(`解析 JSON 文件失败: ${file}`, err);
+        return { file, data: null };
+      }
+    }),
+  );
+
+  return results;
+}
+
+// 使用示例
+export async function MixinReadSnippets():Promise<Record<string, any>[]> {
+  const folderPath = path.resolve(__dirname, '../../resources/snippets'); // 当前文件夹
+  const jsonList = await readAllJson(folderPath);
+  return jsonList.flat(Infinity);
+}

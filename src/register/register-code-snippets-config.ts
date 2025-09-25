@@ -58,6 +58,7 @@ export function registerCodeSnippetsConfig(context: vscode.ExtensionContext) {
               sn.insertText = body;
               sn.checkFn = () => {
                 try {
+                  if (!item.scope) return true;
                   const [fileType = 'js', projectType = 'vue'] = item.scope;
                   if ((Array.isArray(fileType) && !fileType.includes(properties.fileType)) || properties.fileType !== fileType) return false;
                   if (!properties.keywords!.includes(projectType)) {
