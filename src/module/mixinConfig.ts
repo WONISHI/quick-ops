@@ -21,7 +21,7 @@ export async function readAllJson(dir: string): Promise<Record<string, any>[]> {
       const content = await fs.readFile(filePath, 'utf-8');
       try {
         const data = JSON.parse(content);
-        return { file, data };
+        return data;
       } catch (err) {
         console.error(`解析 JSON 文件失败: ${file}`, err);
         return { file, data: null };

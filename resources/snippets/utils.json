@@ -15,6 +15,7 @@
             "   return size + unitArr[index]",
             "}"
         ],
+        "style":"js",
         "description": "格式化文件大小 (quick-ops提供)"
     },
     {
@@ -24,6 +25,7 @@
             "   behavior: 'smooth'",
             "});"
         ],
+        "style":"js",
         "description": "元素滚动 (quick-ops提供)"
     },
     {
@@ -37,6 +39,7 @@
             "   }",
             "})()"
         ],
+        "style":"js",
         "description": "防抖 (quick-ops提供)"
     },
     {
@@ -53,6 +56,7 @@
             "   }",
             "})()"
         ],
+        "style":"js",
         "description": "节流 (quick-ops提供)"
     }
 ]

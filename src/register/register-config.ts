@@ -137,7 +137,7 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
 
 export async function registerConfig(context: vscode.ExtensionContext) {
   // 初始化注册其他内容
-  createProject(context);
+  await createProject(context);
   // 注册创建文件的命令
   let disposable = vscode.commands.registerCommand('extension.createLogrcFile', async () => {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];

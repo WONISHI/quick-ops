@@ -31,7 +31,9 @@ function parseFieldValue(texts: string[]) {
 export function registerCodeSnippetsConfig(context: vscode.ExtensionContext) {
   // 准备变量
   const snippets = properties.snippets?.concat(properties.settings?.customSnippets || []) || [];
-  const keywords = snippets.map((item) => item.prefix);
+  // 获取插件自带的关键字
+  const pluginSnippets = properties.snippets?.concat(properties.settings?.customSnippets || []) || [];
+  const keywords = snippets.map((item) => item.prefix).concat();
   //   注册代码片段
   const LANGUAGES: vscode.DocumentSelector = properties.completionDocumentSelector;
   const completionSnippets = vscode.languages.registerCompletionItemProvider(
@@ -52,7 +54,11 @@ export function registerCodeSnippetsConfig(context: vscode.ExtensionContext) {
               const body = parseFieldValue(item.body);
               sn.detail = item.description;
               sn.kind = vscode.CompletionItemKind.Snippet;
-              sn.documentation = new vscode.MarkdownString().appendCodeblock(body, 'vue');
+              // language:
+              /**
+               * 前端：html、vue （需要装 Volar / Vetur）、css、scss、less、javascript / js、typescript / ts、jsx （React JSX）、tsx （React TSX）、json、jsonc （带注释的 JSON）、markdown、yaml、xml
+               */
+              sn.documentation = new vscode.MarkdownString().appendCodeblock(body, item.style || 'vue');
               sn.filterText = item.prefix;
               sn.commitCharacters = ['\t'];
               sn.insertText = body;
