@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { generateUUID } from '../utils/index';
+import { generateUUID,getWebViewContent } from '../utils/index';
 import { MergeProperties, properties } from '../global-object/properties';
+import { channel } from 'diagnostics_channel';
 
 export function registerQuickPick(context: vscode.ExtensionContext) {
   let panel: vscode.WebviewPanel | undefined;
@@ -29,27 +30,27 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
       panel = vscode.window.createWebviewPanel('reactWebview', 'quick-ops(控制台)', vscode.ViewColumn.Beside, {
         enableScripts: true,
         retainContextWhenHidden: true, // 隐藏后保留状态
-        localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'resources/webview'))],
+        localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'src/webview'))],
       });
 
-      const stylePath = path.join(context.extensionPath, 'resources/webview/css/index.css');
-      const styleContent = fs.existsSync(stylePath) ? fs.readFileSync(stylePath, 'utf8') : '';
+      // const stylePath = path.join(context.extensionPath, 'resources/webview/css/index.css');
+      // const styleContent = fs.existsSync(stylePath) ? fs.readFileSync(stylePath, 'utf8') : '';
 
-      const jsPath = path.join(context.extensionPath, 'resources/webview/js/index.js');
-      const jsContent = fs.existsSync(jsPath) ? fs.readFileSync(jsPath, 'utf8') : '';
+      // const jsPath = path.join(context.extensionPath, 'resources/webview/js/index.js');
+      // const jsContent = fs.existsSync(jsPath) ? fs.readFileSync(jsPath, 'utf8') : '';
 
-      const htmlPath = path.join(context.extensionPath, 'resources/webview/html/index.html');
-      let htmlContent = fs.existsSync(htmlPath) ? fs.readFileSync(htmlPath, 'utf8') : '';
+      // const htmlPath = path.join(context.extensionPath, 'resources/webview/html/index.html');
+      // let htmlContent = fs.existsSync(htmlPath) ? fs.readFileSync(htmlPath, 'utf8') : '';
 
-      const nonce = generateUUID(32);
-      MergeProperties({ nonce });
+      // const nonce = generateUUID(32);
+      // MergeProperties({ nonce });
 
-      htmlContent = htmlContent
-        .replace('%%metaContent%%', `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline';">`)
-        .replace('%%styleContent%%', `<style>${styleContent}</style>`)
-        .replace('%%jsContent%%', `<script nonce="${nonce}">${jsContent}</script>`);
-
-      panel.webview.html = htmlContent;
+      // htmlContent = htmlContent
+      //   .replace('%%metaContent%%', `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline';">`)
+      //   .replace('%%styleContent%%', `<style>${styleContent}</style>`)
+      //   .replace('%%jsContent%%', `<script nonce="${nonce}">${jsContent}</script>`);
+      // @ts-ignore
+      panel.webview.html = getWebViewContent(context,'../webview/html/index.html',channel);
       panel.reveal();
       MergeProperties({ panel });
 

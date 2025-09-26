@@ -2,16 +2,6 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
-import formatPathBySign from './formattedPath';
-
-export function delayExecutor(callback: () => void, timeout: number = 3000) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      callback();
-      resolve(true);
-    }, timeout);
-  });
-}
 
 export function generateUUID(length: number = 32): string {
   const chars = '0123456789abcdef'; // 十六进制字符
@@ -67,10 +57,6 @@ export function scrollToBottom() {
   const lastLine = new vscode.Position(lastLineIndex, 0);
   editor.selection = new vscode.Selection(lastLine, lastLine);
   editor.revealRange(new vscode.Range(lastLine, lastLine), vscode.TextEditorRevealType.InCenter);
-}
-
-export function isDirLikePath(pathStr: string): boolean {
-  return /(['"])(?:\.\.\/|\.\/)\1$/.test(pathStr.trim());
 }
 
 /**
@@ -376,4 +362,19 @@ export function generateKeywords(name: string, version: string): string[] {
     keywords.push(`${name}${parts[0]}.${parts[1]}.${parts[2]}`);
   }
   return keywords;
+}
+
+export function getWebViewContent(context: vscode.ExtensionContext, templatePath: string, panel: vscode.WebviewPanel) {
+  const resourcePath = path.join(context.extensionPath, templatePath);
+  const dirPath = path.dirname(resourcePath);
+  let htmlIndexPath = fs.readFileSync(resourcePath, 'utf-8');
+
+  const html = htmlIndexPath.replace(/(<link.+?href="|<script.+?src="|<img.+?src=")(.+?)"/g, (m, $1, $2) => {
+    const absLocalPath = path.resolve(dirPath, $2);
+    console.log('absLocalPath ');
+    const webviewUri = panel.webview.asWebviewUri(vscode.Uri.file(absLocalPath));
+    const replaceHref = $1 + webviewUri.toString() + '"';
+    return replaceHref;
+  });
+  return html;
 }
