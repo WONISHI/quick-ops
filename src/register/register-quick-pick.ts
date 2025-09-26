@@ -7,7 +7,7 @@ import { MergeProperties, properties } from '../global-object/properties';
 export function registerQuickPick(context: vscode.ExtensionContext) {
   let panel: vscode.WebviewPanel | undefined;
 
-  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, -Infinity);
   statusBarItem.text = '$(book) quick-ops';
   statusBarItem.tooltip = '显示/隐藏控制台页面';
   statusBarItem.show();

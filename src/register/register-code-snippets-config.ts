@@ -32,7 +32,6 @@ export function registerCodeSnippetsConfig(context: vscode.ExtensionContext) {
   // 准备变量
   const snippets = properties.snippets?.concat(properties.settings?.customSnippets || []) || [];
   // 获取插件自带的关键字
-  const pluginSnippets = properties.snippets?.concat(properties.settings?.customSnippets || []) || [];
   const keywords = snippets.map((item) => item.prefix).concat();
   //   注册代码片段
   const LANGUAGES: vscode.DocumentSelector = properties.completionDocumentSelector;
