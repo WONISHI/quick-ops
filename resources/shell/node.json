@@ -26,7 +26,8 @@
         },
         {
             "description": "切换淘宝源",
-            "cmd": "npm config set registry https://registry.npmmirror.com"
+            "cmd": "npm config set registry <origin>",
+            "origin": "https://registry.npmmirror.com"
         }
     ]
 ]
