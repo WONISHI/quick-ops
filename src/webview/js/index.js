@@ -1,62 +1,46 @@
 (function () {
-  const vscode = acquireVsCodeApi();
-  const useCatalogue = [
-    { label: '指令', value: 'shell' },
-    { label: '服务', value: 'service' },
-    { label: '设置', value: 'settings' },
-  ];
+  // 全局注册 Element UI
+  Vue.use(ELEMENT);
 
-  document.querySelector('.webview-title-text').innerText = useCatalogue[0].label;
-
-  // 构造表格
-  function buildTable(scripts) {
-    const headers = ['序号', '指令名称', '指令', '操作'].map((t) => `<th>${t}</th>`).join('');
-
-    const rows = Object.keys(scripts)
-      .map((key, i) => {
-        return `
-          <tr>
-            <td align="center">${i + 1}</td>
-            <td align="center">${key}</td>
-            <td align="center" class="table-shell-code">
-              <span>${scripts[key]}</span>
-            </td>
-            <td align="center">
-              <button data-cmd="npm run ${key}" class="run-code">运行</button>
-            </td>
-          </tr>`;
-      })
-      .join('');
-
-    return `
-      <table class="table-shell">
-        <thead class="table-shell-thead"><tr>${headers}</tr></thead>
-        <tbody class="table-shell-tbody">${rows}</tbody>
-      </table>`;
-  }
-
-  // 绑定按钮事件
-  function bindRunEvents() {
-    document.querySelectorAll('.run-code').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const cmd = btn.getAttribute('data-cmd');
-        vscode.postMessage({ type: 'run', command: cmd });
-      });
-    });
-  }
-
-  // 接收插件发来的消息
-  window.addEventListener('message', (event) => {
-    const { type, data } = event.data;
-    if (['ready', 'update'].includes(type)) {
-      const container = document.querySelector('.webview-shell');
-      const scripts = data?.scripts || {};
-      if (Object.keys(scripts).length) {
-        const html = buildTable(scripts);
-        container.innerHTML = html;
-        bindRunEvents(); // 表格生成后再绑定事件
+  // 定义组件（可以写 template）
+  Vue.component("webview-menu", {
+    props: ["catalogue"],
+    data() {
+      return { activeName: '' }
+    },
+    template: `
+          <el-tabs v-model="activeName" @tab-click="handleClick">
+            <el-tab-pane
+              v-for="(item,index) in catalogue"
+              :key="index"
+              :label="item.label"
+              :name="item.value">
+              {{ item.label }}
+            </el-tab-pane>
+          </el-tabs>
+        `,
+    methods: {
+      handleClick(tab) {
+        console.log("点击了：", tab.name)
       }
     }
+  });
+
+  // 根实例
+  new Vue({
+    el: "#app",
+    data: {
+      useCatalogue: [
+        { label: '指令', value: 'shell' },
+        { label: '服务', value: 'service' },
+        { label: '设置', value: 'settings' },
+      ]
+    },
+    template: `
+          <div>
+            <webview-menu :catalogue="useCatalogue"></webview-menu>
+          </div>
+        `
   });
 })();
 

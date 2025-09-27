@@ -368,18 +368,24 @@ export function getWebviewContent(panel: vscode.WebviewPanel, context: vscode.Ex
   // 插件根目录
   const extensionPath = context.extensionPath;
   // index.html 所在目录
-  const htmlRoot = path.join(extensionPath,'src', 'webview','html');
+  const htmlRoot = path.join(extensionPath, 'src', 'webview', 'html');
   const htmlIndexPath = path.join(htmlRoot, 'index.html');
   if (!fs.existsSync(htmlIndexPath)) {
     vscode.window.showErrorMessage(`找不到文件: ${htmlIndexPath}`);
     return '';
   }
   let html = fs.readFileSync(htmlIndexPath, 'utf-8');
-  // 替换静态资源路径 (css, js, img 等)
+  // 只替换相对路径的静态资源（../ 或 ./ 开头）
   html = html.replace(/(<link.+?href="|<script.+?src="|<img.+?src=")(.+?)"/g, (m, prefix, relPath) => {
+    // 如果是 http/https 或 // 开头，直接跳过
+    if (/^(https?:)?\/\//.test(relPath)) {
+      return m;
+    }
+    // 本地相对路径 -> 转换为 webview 可访问的 URI
     const absLocalPath = path.resolve(htmlRoot, relPath);
     const webviewUri = panel.webview.asWebviewUri(vscode.Uri.file(absLocalPath));
     return `${prefix}${webviewUri.toString()}"`;
   });
+
   return html;
 }
