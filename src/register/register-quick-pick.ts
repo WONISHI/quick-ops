@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { generateUUID,getWebViewContent } from '../utils/index';
+import { generateUUID,getWebviewContent } from '../utils/index';
 import { MergeProperties, properties } from '../global-object/properties';
 import { channel } from 'diagnostics_channel';
 
@@ -33,6 +33,7 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
         localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'src/webview'))],
       });
 
+
       // const stylePath = path.join(context.extensionPath, 'resources/webview/css/index.css');
       // const styleContent = fs.existsSync(stylePath) ? fs.readFileSync(stylePath, 'utf8') : '';
 
@@ -49,8 +50,7 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
       //   .replace('%%metaContent%%', `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline';">`)
       //   .replace('%%styleContent%%', `<style>${styleContent}</style>`)
       //   .replace('%%jsContent%%', `<script nonce="${nonce}">${jsContent}</script>`);
-      // @ts-ignore
-      panel.webview.html = getWebViewContent(context,'../webview/html/index.html',channel);
+      panel.webview.html = getWebviewContent(panel,context);
       panel.reveal();
       MergeProperties({ panel });
 

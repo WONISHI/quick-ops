@@ -364,17 +364,22 @@ export function generateKeywords(name: string, version: string): string[] {
   return keywords;
 }
 
-export function getWebViewContent(context: vscode.ExtensionContext, templatePath: string, panel: vscode.WebviewPanel) {
-  const resourcePath = path.join(context.extensionPath, templatePath);
-  const dirPath = path.dirname(resourcePath);
-  let htmlIndexPath = fs.readFileSync(resourcePath, 'utf-8');
-
-  const html = htmlIndexPath.replace(/(<link.+?href="|<script.+?src="|<img.+?src=")(.+?)"/g, (m, $1, $2) => {
-    const absLocalPath = path.resolve(dirPath, $2);
-    console.log('absLocalPath ');
+export function getWebviewContent(panel: vscode.WebviewPanel, context: vscode.ExtensionContext): string {
+  // 插件根目录
+  const extensionPath = context.extensionPath;
+  // index.html 所在目录
+  const htmlRoot = path.join(extensionPath,'src', 'webview','html');
+  const htmlIndexPath = path.join(htmlRoot, 'index.html');
+  if (!fs.existsSync(htmlIndexPath)) {
+    vscode.window.showErrorMessage(`找不到文件: ${htmlIndexPath}`);
+    return '';
+  }
+  let html = fs.readFileSync(htmlIndexPath, 'utf-8');
+  // 替换静态资源路径 (css, js, img 等)
+  html = html.replace(/(<link.+?href="|<script.+?src="|<img.+?src=")(.+?)"/g, (m, prefix, relPath) => {
+    const absLocalPath = path.resolve(htmlRoot, relPath);
     const webviewUri = panel.webview.asWebviewUri(vscode.Uri.file(absLocalPath));
-    const replaceHref = $1 + webviewUri.toString() + '"';
-    return replaceHref;
+    return `${prefix}${webviewUri.toString()}"`;
   });
   return html;
 }
