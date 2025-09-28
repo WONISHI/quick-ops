@@ -2,16 +2,6 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
-import formatPathBySign from './formattedPath';
-
-export function delayExecutor(callback: () => void, timeout: number = 3000) {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      callback();
-      resolve(true);
-    }, timeout);
-  });
-}
 
 export function generateUUID(length: number = 32): string {
   const chars = '0123456789abcdef'; // 十六进制字符
@@ -67,10 +57,6 @@ export function scrollToBottom() {
   const lastLine = new vscode.Position(lastLineIndex, 0);
   editor.selection = new vscode.Selection(lastLine, lastLine);
   editor.revealRange(new vscode.Range(lastLine, lastLine), vscode.TextEditorRevealType.InCenter);
-}
-
-export function isDirLikePath(pathStr: string): boolean {
-  return /(['"])(?:\.\.\/|\.\/)\1$/.test(pathStr.trim());
 }
 
 /**
@@ -376,4 +362,30 @@ export function generateKeywords(name: string, version: string): string[] {
     keywords.push(`${name}${parts[0]}.${parts[1]}.${parts[2]}`);
   }
   return keywords;
+}
+
+export function getWebviewContent(panel: vscode.WebviewPanel, context: vscode.ExtensionContext): string {
+  // 插件根目录
+  const extensionPath = context.extensionPath;
+  // index.html 所在目录
+  const htmlRoot = path.join(extensionPath, 'src', 'webview', 'html');
+  const htmlIndexPath = path.join(htmlRoot, 'index.html');
+  if (!fs.existsSync(htmlIndexPath)) {
+    vscode.window.showErrorMessage(`找不到文件: ${htmlIndexPath}`);
+    return '';
+  }
+  let html = fs.readFileSync(htmlIndexPath, 'utf-8');
+  // 只替换相对路径的静态资源（../ 或 ./ 开头）
+  html = html.replace(/(<link.+?href="|<script.+?src="|<img.+?src=")(.+?)"/g, (m, prefix, relPath) => {
+    // 如果是 http/https 或 // 开头，直接跳过
+    if (/^(https?:)?\/\//.test(relPath)) {
+      return m;
+    }
+    // 本地相对路径 -> 转换为 webview 可访问的 URI
+    const absLocalPath = path.resolve(htmlRoot, relPath);
+    const webviewUri = panel.webview.asWebviewUri(vscode.Uri.file(absLocalPath));
+    return `${prefix}${webviewUri.toString()}"`;
+  });
+
+  return html;
 }
