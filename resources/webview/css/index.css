@@ -98,3 +98,50 @@ body {
 .webview-service {
     display: none;
 }
+
+.floating-menu {
+  position: fixed;
+  bottom: 40px;
+  right: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  z-index:1000;
+}
+
+.ball {
+  width: 48px;
+  height: 48px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.main-btn {
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0 8px;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.collapsed-icon {
+  transition: opacity 0.3s;
+}
+
+.expanded-icons {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  width: 100%;
+  transition: opacity 0.3s;
+}

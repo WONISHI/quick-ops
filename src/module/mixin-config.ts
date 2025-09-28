@@ -34,13 +34,13 @@ export async function readAllJson(dir: string): Promise<Record<string, any>[]> {
 
 // 使用示例
 export async function MixinReadSnippets(): Promise<Record<string, any>[]> {
-  const folderPath = path.resolve(__dirname, '../../resources/snippets'); // 当前文件夹
+  const folderPath = path.resolve(__dirname,"../","../", "resources","snippets"); // 当前文件夹
   const jsonList = await readAllJson(folderPath);
   return jsonList.flat(Infinity);
 }
 
 export async function MixinReadShells(): Promise<Record<string, any>[]> {
-  const folderPath = path.resolve(__dirname, '../../resources/shell'); // 当前文件夹
+  const folderPath = path.resolve(__dirname, '/resources/shell'); // 当前文件夹
   const jsonList = await readAllJson(folderPath);
   return jsonList.flat(Infinity);
 }

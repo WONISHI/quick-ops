@@ -1,33 +1,31 @@
 [
-    [
-        {
-            "description": "初始化项目",
-            "cmd": "npm init -y"
-        },
-        {
-            "description": "安装依赖",
-            "cmd": "npm install <pkg>"
-        },
-        {
-            "description": "安装开发依赖",
-            "cmd": "npm install <pkg> -D"
-        },
-        {
-            "description": "卸载依赖",
-            "cmd": "npm uninstall <pkg>"
-        },
-        {
-            "description": "更新依赖",
-            "cmd": "npm update <pkg>"
-        },
-        {
-            "description": "查看过期依赖",
-            "cmd": "npm outdated"
-        },
-        {
-            "description": "切换淘宝源",
-            "cmd": "npm config set registry <origin>",
-            "origin": "https://registry.npmmirror.com"
-        }
-    ]
+    {
+        "description": "初始化项目",
+        "cmd": "npm init -y"
+    },
+    {
+        "description": "安装依赖",
+        "cmd": "npm install <pkg>"
+    },
+    {
+        "description": "安装开发依赖",
+        "cmd": "npm install <pkg> -D"
+    },
+    {
+        "description": "卸载依赖",
+        "cmd": "npm uninstall <pkg>"
+    },
+    {
+        "description": "更新依赖",
+        "cmd": "npm update <pkg>"
+    },
+    {
+        "description": "查看过期依赖",
+        "cmd": "npm outdated"
+    },
+    {
+        "description": "切换淘宝源",
+        "cmd": "npm config set registry <origin>",
+        "origin": "https://registry.npmmirror.com"
+    }
 ]
