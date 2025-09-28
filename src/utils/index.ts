@@ -368,7 +368,7 @@ export function getWebviewContent(panel: vscode.WebviewPanel, context: vscode.Ex
   // 插件根目录
   const extensionPath = context.extensionPath;
   // index.html 所在目录
-  const htmlRoot = path.join(extensionPath, 'src', 'webview', 'html');
+  const htmlRoot = path.join(extensionPath, 'resources', 'webview', 'html');
   const htmlIndexPath = path.join(htmlRoot, 'index.html');
   if (!fs.existsSync(htmlIndexPath)) {
     vscode.window.showErrorMessage(`找不到文件: ${htmlIndexPath}`);
