@@ -1,12 +1,14 @@
 (function () {
+  const vscode = acquireVsCodeApi();
+
   // 全局注册 Element UI
   Vue.use(ELEMENT);
 
   // 定义组件（可以写 template）
-  Vue.component("webview-menu", {
-    props: ["catalogue"],
+  Vue.component('webview-menu', {
+    props: ['catalogue'],
     data() {
-      return { activeName: '' }
+      return { activeName: 'shell' };
     },
     template: `
           <el-tabs v-model="activeName" @tab-click="handleClick">
@@ -21,29 +23,95 @@
         `,
     methods: {
       handleClick(tab) {
-        console.log("点击了：", tab.name)
-      }
-    }
+        console.log('点击了：', tab.name);
+      },
+    },
   });
 
   // 根实例
   new Vue({
-    el: "#app",
+    el: '#app',
     data: {
       useCatalogue: [
         { label: '指令', value: 'shell' },
         { label: '服务', value: 'service' },
         { label: '设置', value: 'settings' },
-      ]
+      ],
+      loading: true,
+      tableData: [],
     },
     template: `
-          <div>
+          <div class="webview-menu">
             <webview-menu :catalogue="useCatalogue"></webview-menu>
+            <div>
+              <el-table :data="tableData" style="width: 100%">
+                <el-table-column
+                  prop="index"
+                  align="center"
+                  label="序号"
+                  min-width="10%">
+                </el-table-column>
+                <el-table-column
+                  prop="name"
+                  label="指令名称"
+                  align="center"
+                  min-width="30%">
+                </el-table-column>
+                <el-table-column
+                  min-width="40%"
+                  align="center"
+                  label="指令">
+                  <template slot-scope="scope">
+                    <el-button @click="handleClick(scope.row)" type="text" size="small">{{scope.row.cmd}}</el-button>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  label="操作"
+                  min-width="20%">
+                  <template slot-scope="scope">
+                    <el-button @click="handleClick(scope.row)" type="text" size="small">运行</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </div>
           </div>
-        `
+        `,
+    mounted() {
+      window.addEventListener('message', (event) => {
+        const { type, data } = event.data;
+        if (['ready', 'update'].includes(type)) {
+          const scripts = data?.scripts || {};
+          if (Object.keys(scripts).length) {
+            this.tableData = Object.keys(scripts).reduce((prev, key, index) => {
+              prev.push({
+                index: index + 1,
+                name: key,
+                cmd: scripts[key],
+              });
+              return prev;
+            }, []);
+            this.loading = false;
+            this.$nextTick(() => {
+              gsap.from('.el-table .el-table__body-wrapper .el-table__row', {
+                opacity: 0,
+                y: 50,
+                duration: 0.6,
+                stagger: 0.2,
+                ease: 'back.out(1.7)',
+              });
+            });
+          }
+        }
+      });
+    },
+    methods: {
+      handleClick(row) {
+        const cmd = `npm run ${row.name}`;
+        vscode.postMessage({ type: 'run', command: cmd });
+      },
+    },
   });
 })();
-
 
 function createMockSelect() {
   const mockFormat = [
@@ -64,173 +132,4 @@ function createMockSelect() {
   ];
   const form = new BasicComponents(data);
   console.log('form', form);
-}
-
-class BasicComponents {
-  constructor(data, fields = { label: 'label', value: 'value' }) {
-    this.data = this.getTemplates(data);
-    this.fields = fields;
-    this.structure = {
-      input: this.createInput.bind(this),
-      textarea: this.createTextarea.bind(this),
-      select: this.createSelect.bind(this),
-      checkbox: this.createCheckbox.bind(this),
-      radio: this.createRadio.bind(this),
-    };
-    this.formValues = {}; // 存储值
-    this.errors = {}; // 存储错误信息
-  }
-  getTemplates(data) {
-    if (typeof data !== 'object') return [];
-    return Array.isArray(data) ? data : [data];
-  }
-  render(container) {
-    this.container = container;
-    this.container.innerHTML = '';
-    this.data.forEach((item) => {
-      const fieldEl = this.createField(item);
-      if (fieldEl) {
-        this.container.appendChild(fieldEl);
-      }
-    });
-  }
-  createField(item) {
-    const type = item.type;
-    const factory = this.structure[type];
-    if (!factory) return null;
-    // 判断是否可见
-    let isVisible = this.getVisibility(item);
-    const wrapper = document.createElement('div');
-    wrapper.className = 'form-item';
-    wrapper.style.display = isVisible ? '' : 'none';
-    const label = document.createElement('label');
-    label.textContent = item[this.fields.label] || '';
-    wrapper.appendChild(label);
-    const field = factory(item);
-    wrapper.appendChild(field);
-    // 错误提示
-    const errorMsg = document.createElement('div');
-    errorMsg.className = 'error-msg';
-    errorMsg.style.color = 'red';
-    wrapper.appendChild(errorMsg);
-    // 保存默认值
-    this.formValues[item[this.fields.value]] = item.default || '';
-    return wrapper;
-  }
-  getVisibility(item) {
-    if (typeof item.visible === 'function') {
-      return item.visible(this.formValues);
-    } else if (typeof item.visible === 'boolean') {
-      return item.visible;
-    }
-    return true;
-  }
-  createInput(item) {
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.value = item.default || '';
-    input.oninput = (e) => {
-      this.formValues[item[this.fields.value]] = e.target.value;
-      this.updateVisibility();
-    };
-    return input;
-  }
-  createTextarea(item) {
-    const textarea = document.createElement('textarea');
-    textarea.value = item.default || '';
-    textarea.oninput = (e) => {
-      this.formValues[item[this.fields.value]] = e.target.value;
-      this.updateVisibility();
-    };
-    return textarea;
-  }
-  createSelect(item) {
-    const select = document.createElement('select');
-    (item.options || []).forEach((opt) => {
-      const option = document.createElement('option');
-      option.value = opt.value;
-      option.textContent = opt.label;
-      select.appendChild(option);
-    });
-    select.value = item.default || '';
-    select.onchange = (e) => {
-      this.formValues[item[this.fields.value]] = e.target.value;
-      this.updateVisibility();
-    };
-    return select;
-  }
-  createCheckbox(item) {
-    const container = document.createElement('div');
-    (item.options || []).forEach((opt) => {
-      const label = document.createElement('label');
-      const checkbox = document.createElement('input');
-      checkbox.type = 'checkbox';
-      checkbox.value = opt.value;
-      checkbox.checked = (item.default || []).includes(opt.value);
-      checkbox.onchange = () => {
-        this.formValues[item[this.fields.value]] = Array.from(container.querySelectorAll('input:checked')).map((c) => c.value);
-        this.updateVisibility();
-      };
-      label.appendChild(checkbox);
-      label.appendChild(document.createTextNode(opt.label));
-      container.appendChild(label);
-    });
-    this.formValues[item[this.fields.value]] = item.default || [];
-    return container;
-  }
-  createRadio(item) {
-    const container = document.createElement('div');
-    (item.options || []).forEach((opt) => {
-      const label = document.createElement('label');
-      const radio = document.createElement('input');
-      radio.type = 'radio';
-      radio.name = item[this.fields.value];
-      radio.value = opt.value;
-      radio.checked = item.default === opt.value;
-      radio.onchange = () => {
-        this.formValues[item[this.fields.value]] = radio.value;
-        this.updateVisibility();
-      };
-      label.appendChild(radio);
-      label.appendChild(document.createTextNode(opt.label));
-      container.appendChild(label);
-    });
-    this.formValues[item[this.fields.value]] = item.default || '';
-    return container;
-  }
-  updateVisibility() {
-    if (!this.container) return;
-    Array.from(this.container.children).forEach((child, index) => {
-      const item = this.data[index];
-      let isVisible = this.getVisibility(item);
-      child.style.display = isVisible ? '' : 'none';
-    });
-  }
-  validate() {
-    this.errors = {};
-    Array.from(this.container.children).forEach((child, index) => {
-      const item = this.data[index];
-      const key = item[this.fields.value];
-      const value = this.formValues[key];
-      let error = '';
-
-      if (item.required && !value) {
-        error = item.label + '不能为空';
-      } else if (typeof item.validator === 'function') {
-        const result = item.validator(value, this.formValues);
-        if (result !== true) {
-          error = result || '格式不正确';
-        }
-      }
-      this.errors[key] = error;
-      const errorDiv = child.querySelector('.error-msg');
-      if (errorDiv) {
-        errorDiv.textContent = error;
-      }
-    });
-    return Object.values(this.errors).every((e) => !e);
-  }
-  getValues() {
-    return this.formValues;
-  }
 }

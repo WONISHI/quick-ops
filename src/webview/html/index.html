@@ -1,23 +1,98 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vue Webview with Template</title>
+    <!-- Element UI 样式 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/element-ui/2.15.14/theme-chalk/index.min.css" />
+    <link rel="stylesheet" href="../css//index.css" />
+    <!-- ⚠️ 注意这里：用 vue.min.js (完整版)，而不是 vue.runtime.min.js -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.min.js"></script>
+    <!-- Element UI 脚本 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/element-ui/2.15.14/index.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  </head>
 
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Vue Webview with Template</title>
-  <!-- Element UI 样式 -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/element-ui/2.15.14/theme-chalk/index.min.css" />
-  <link rel="stylesheet" href="../css//index.css">
-  <!-- ⚠️ 注意这里：用 vue.min.js (完整版)，而不是 vue.runtime.min.js -->
-  <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.min.js"></script>
-  <!-- Element UI 脚本 -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/element-ui/2.15.14/index.min.js"></script>
-</head>
+  <body>
+    <div id="app"></div>
+    <!-- <table class="cool-table">
+      <thead>
+        <tr>
+          <th>排名</th>
+          <th>姓名</th>
+          <th>分数</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>张三</td>
+          <td>98</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>李四</td>
+          <td>92</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>王五</td>
+          <td>88</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>赵六</td>
+          <td>85</td>
+        </tr>
+      </tbody>
+    </table> -->
 
-<body>
-  <div id="app"></div>
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script> -->
+    <!-- <script>
+      gsap.from('.cool-table tbody tr', {
+        opacity: 0,
+        y: 50,
+        duration: 0.6,
+        stagger: 0.2,
+        ease: 'back.out(1.7)',
+      });
+    </script> -->
 
-  <script src="../js/index.js"></script>
-</body>
+    <!-- <style>
+      body {
+        background: #111;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+      }
+      .cool-table {
+        border-collapse: collapse;
+        width: 600px;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 0 20px rgba(0, 255, 255, 0.3);
+        color: #fff;
+        font-family: 'Segoe UI', sans-serif;
+      }
+      .cool-table thead {
+        background: linear-gradient(90deg, #0ff, #08f);
+      }
+      .cool-table th,
+      .cool-table td {
+        padding: 16px;
+        text-align: center;
+      }
+      .cool-table tbody tr {
+        transition: background 0.3s;
+      }
+      .cool-table tbody tr:hover {
+        background: rgba(0, 255, 255, 0.1);
+      }
+    </style> -->
 
+    <script src="../js/index.js"></script>
+  </body>
 </html>
