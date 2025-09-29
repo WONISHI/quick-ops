@@ -11,10 +11,8 @@ import * as vscode from "vscode"
 export async function readAllJson(dir: string): Promise<Record<string, any>[]> {
   // 读取目录
   const files = await fs.readdir(dir);
-
   // 过滤 JSON 文件
   const jsonFiles = files.filter((f) => f.endsWith('.json'));
-
   // 并行读取和解析
   const results = await Promise.all(
     jsonFiles.map(async (file) => {
@@ -56,16 +54,11 @@ export async function findPackageJsonFolder(): Promise<string | undefined> {
   if (!folder) return;
   const rootPath = folder.uri.fsPath;
   const rootPkg = path.join(rootPath, 'package.json');
-
   // 1. 先检查根目录
   try {
     await fs.access(rootPkg);
     return rootPath;
-  } catch {
-    // ignore
-  }
-
-  // 2. 遍历子目录
+  } catch {}
   try {
     const entries = await fs.readdir(rootPath, { withFileTypes: true });
     for (const entry of entries) {
@@ -74,9 +67,7 @@ export async function findPackageJsonFolder(): Promise<string | undefined> {
         try {
           await fs.access(pkgPath);
           return path.join(rootPath, entry.name);
-        } catch {
-          // ignore
-        }
+        } catch {}
       }
     }
   } catch (err) {

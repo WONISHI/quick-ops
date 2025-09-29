@@ -29,7 +29,6 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
       // Webview 不存在 → 创建新的
       panel = vscode.window.createWebviewPanel('reactWebview', 'quick-ops(控制台)', vscode.ViewColumn.Beside, {
         enableScripts: true,
-        retainContextWhenHidden: true, // 隐藏后保留状态
         localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'resources/webview'))],
       });
       panel.webview.html = getWebviewContent(panel,context);
@@ -48,10 +47,11 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
       // 接收 Webview 消息
       panel.webview.onDidReceiveMessage(
         (message) => {
+          console.log('message',message)
           if (message.type === 'run') {
             const command = message.command;
             const workspaceFolders = vscode.workspace.workspaceFolders;
-            const cwd = workspaceFolders ? workspaceFolders[0].uri.fsPath : process.cwd();
+            const cwd = workspaceFolders ? properties.rootFilePath : process.cwd();
 
             const terminal = vscode.window.createTerminal({ name: '命令执行终端', cwd });
             terminal.show();

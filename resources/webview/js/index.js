@@ -1,5 +1,4 @@
 (function () {
-  const vscode = acquireVsCodeApi();
 
   // 全局注册 Element UI
   Vue.use(ELEMENT);
@@ -36,8 +35,9 @@
         { label: '服务', value: 'service' },
         { label: '设置', value: 'settings' },
       ],
-      activeName:"shell",
+      activeName: "shell",
       loading: true,
+      propery: null,
       tableData: [],
     },
     template: `
@@ -82,6 +82,7 @@
         const { type, data } = event.data;
         if (['ready', 'update'].includes(type)) {
           const scripts = data?.scripts || {};
+          this.propery = data;
           if (Object.keys(scripts).length) {
             this.tableData = Object.keys(scripts).reduce((prev, key, index) => {
               prev.push({
@@ -107,6 +108,7 @@
     },
     methods: {
       handleClick(row) {
+        console.log('row', row, vscode,this.propery)
         const cmd = `npm run ${row.name}`;
         vscode.postMessage({ type: 'run', command: cmd });
       },
