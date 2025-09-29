@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { MixinReadSnippets, MixinReadShells } from '../module/mixin-config';
+import { MixinReadSnippets, MixinReadShells, findPackageJsonFolder } from '../module/mixin-config';
 import NotificationService from '../utils/notificationService';
 import { resolveResult } from '../utils/promiseResolve';
 import { ignoreArray, generateKeywords, overwriteIgnoreFilesLocally, isGitTracked } from '../utils/index';
@@ -115,7 +115,7 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
   const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
   for (const folder of workspaceFolders) {
     for (const file of CONFIG_FILES) {
-      const configPath = path.join(folder.uri.fsPath, file);
+      const configPath = path.join(properties.rootFilePath as string, file);
       if (fs.existsSync(configPath)) {
         handleConfig(vscode.Uri.file(configPath), context);
       }
@@ -146,7 +146,7 @@ export async function registerConfig(context: vscode.ExtensionContext) {
       return;
     }
 
-    const logrcPath = path.join(workspaceFolder.uri.fsPath, '.logrc');
+    const logrcPath = path.join(properties.rootFilePath as string, '.logrc');
     // 读取插件自身的配置文件
     const pluginConfigPath = path.join(context.extensionPath, 'resources', 'template', 'logrc-template.json');
     const fileContent = fs.readFileSync(pluginConfigPath, 'utf8'); // 或者一个空 JSON 对象
@@ -233,5 +233,7 @@ function setLogrc() {
 
 // 加载插件自带的代码片段
 async function createProject(context: vscode.ExtensionContext) {
-  MergeProperties({ snippets: await MixinReadSnippets() });
+  // 获取工作区的根目录
+  MergeProperties({ rootFilePath: await findPackageJsonFolder()});
+  // MergeProperties({ snippets: await MixinReadSnippets() });
 }

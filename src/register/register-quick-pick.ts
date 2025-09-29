@@ -32,24 +32,6 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
         retainContextWhenHidden: true, // 隐藏后保留状态
         localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'resources/webview'))],
       });
-
-
-      // const stylePath = path.join(context.extensionPath, 'resources/webview/css/index.css');
-      // const styleContent = fs.existsSync(stylePath) ? fs.readFileSync(stylePath, 'utf8') : '';
-
-      // const jsPath = path.join(context.extensionPath, 'resources/webview/js/index.js');
-      // const jsContent = fs.existsSync(jsPath) ? fs.readFileSync(jsPath, 'utf8') : '';
-
-      // const htmlPath = path.join(context.extensionPath, 'resources/webview/html/index.html');
-      // let htmlContent = fs.existsSync(htmlPath) ? fs.readFileSync(htmlPath, 'utf8') : '';
-
-      // const nonce = generateUUID(32);
-      // MergeProperties({ nonce });
-
-      // htmlContent = htmlContent
-      //   .replace('%%metaContent%%', `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline';">`)
-      //   .replace('%%styleContent%%', `<style>${styleContent}</style>`)
-      //   .replace('%%jsContent%%', `<script nonce="${nonce}">${jsContent}</script>`);
       panel.webview.html = getWebviewContent(panel,context);
       panel.reveal();
       MergeProperties({ panel });
