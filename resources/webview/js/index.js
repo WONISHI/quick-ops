@@ -43,7 +43,6 @@
     template: `
           <div class="webview-menu">
             <webview-menu :catalogue="useCatalogue"></webview-menu>
-            {{status}}
             <div>
               <el-table :data="tableData" style="width: 100%">
                 <el-table-column
@@ -79,10 +78,8 @@
         `,
     mounted() {
       this.vscode = acquireVsCodeApi();
-      console.log('this.vscode',this.vscode);
       window.addEventListener('message', (event) => {
         const { type, data } = event.data;
-        this.status = `${JSON.stringify(event.data)}`;
         this.vscode.postMessage({ type: 'debug', data: `${JSON.stringify(event)}` });
         if (['ready', 'update'].includes(type)) {
           const scripts = data?.scripts || {};

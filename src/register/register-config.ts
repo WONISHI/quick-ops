@@ -116,7 +116,7 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
   const workspaceFolders = vscode.workspace.workspaceFolders ?? [];
   for (const folder of workspaceFolders) {
     for (const file of CONFIG_FILES) {
-      const configPath = path.join(folder.uri.fsPath, file);
+      const configPath = path.join(properties.rootFilePath, file);
       if (fs.existsSync(configPath)) {
         handleConfig(vscode.Uri.file(configPath), context);
       }
@@ -178,7 +178,7 @@ export async function registerConfig(context: vscode.ExtensionContext) {
       NotificationService.error(`读取插件自身 .logrc 出错: ${err}`);
     }
   }
-  const configPath = path.join(workspaceFolders!.uri.fsPath, '.logrc');
+  const configPath = path.join(properties.rootFilePath, '.logrc');
   if (!fs.existsSync(configPath)) {
     MergeProperties({ configResult: false });
     vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', true);
