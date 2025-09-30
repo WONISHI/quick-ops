@@ -1,11 +1,15 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { useEditorSelection } from '../hook/useEditorSelection';
 import { MergeProperties } from '../../global-object/properties';
 import { findPackageJsonFolder } from '../mixin/mixin-config';
 import NotificationService from '../../utils/notificationService';
 // 加载插件自带的代码片段
 export default async function beforePluginInit(context: vscode.ExtensionContext) {
+  // 注册hook
+  useEditorSelection(context);
+
   MergeProperties({ rootFilePath: await findPackageJsonFolder() });
 
   // MergeProperties({ snippets: await MixinReadSnippets() });
