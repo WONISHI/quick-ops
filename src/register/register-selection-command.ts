@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { fireTrigger } from '../module/mixin-selection-command';
+import { fireTrigger } from '../module/mixin/mixin-selection-command';
 
 let lastSelect = '';
 let isStickySelected = false;

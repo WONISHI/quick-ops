@@ -1,4 +1,4 @@
-import { properties } from './../global-object/properties';
+import { properties } from '../../global-object/properties';
 /**
  * 替换字符串中 ${} 内容为指定值
  * @param str 原字符串

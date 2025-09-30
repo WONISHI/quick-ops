@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import type { FileType } from '../types/utils';
 import { properties } from '../global-object/properties';
-import provideCompletions, { LogSnippetString } from '../module/mixin-log';
+import provideCompletions, { LogSnippetString } from '../module/mixin/mixin-log';
 import { moveCursor, matchKeyword } from '../utils/index';
 
 const LANGUAGES: vscode.DocumentSelector = properties.completionDocumentSelector;

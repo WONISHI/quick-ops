@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { generateUUID, getWebviewContent } from '../utils/index';
-import { MergeProperties, properties } from '../global-object/properties';
-import { channel } from 'diagnostics_channel';
+import { getWebviewContent } from '../utils/index';
+import { MergeProperties } from '../global-object/properties';
 
 export function registerQuickPick(context: vscode.ExtensionContext) {
   let panel: vscode.WebviewPanel | undefined;
@@ -50,7 +49,6 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
       // 接收 Webview 消息
       panel.webview.onDidReceiveMessage(
         (message) => {
-          vscode.window.showInformationMessage(`打印数据${JSON.stringify(message)}`);
           if (message.type === 'run') {
             const command = message.command;
             const workspaceFolders = vscode.workspace.workspaceFolders;

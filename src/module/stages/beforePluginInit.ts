@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { MergeProperties } from '../global-object/properties';
-import { findPackageJsonFolder } from '../module/mixin-config';
-import NotificationService from '../utils/notificationService';
+import { MergeProperties } from '../../global-object/properties';
+import { findPackageJsonFolder } from '../mixin/mixin-config';
+import NotificationService from '../../utils/notificationService';
 // 加载插件自带的代码片段
 export default async function beforePluginInit(context: vscode.ExtensionContext) {
   MergeProperties({ rootFilePath: await findPackageJsonFolder() });

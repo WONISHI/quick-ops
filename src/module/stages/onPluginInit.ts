@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import EventBus from '../utils/emitter';
-import { resolveResult } from '../utils/promiseResolve';
+import EventBus from '../../utils/emitter';
+import { resolveResult } from '../../utils/promiseResolve';
 import { execSync } from 'child_process';
-import { overwriteIgnoreFilesLocally, isGitTracked } from '../utils/index';
-import { MergeProperties, properties } from '../global-object/properties';
-import NotificationService from '../utils/notificationService';
-import type { ConfigFile } from '../types/Properties';
+import { overwriteIgnoreFilesLocally, isGitTracked } from '../../utils/index';
+import { MergeProperties, properties } from '../../global-object/properties';
+import NotificationService from '../../utils/notificationService';
+import type { ConfigFile } from '../../types/Properties';
 
 export default function onPluginInit(config: ConfigFile ='.logrc') {
   switch (config) {
