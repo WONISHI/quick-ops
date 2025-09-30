@@ -3,7 +3,7 @@ import * as vscode from 'vscode';
 let lastSelect = '';
 let isStickySelected = false;
 let timer: ReturnType<typeof setInterval> | null = null;
-let callbacks: ((options: { vscode: vscode.ExtensionContext; isStickySelected: boolean }) => void)[] = [];
+let callbacks: ((options: { context: vscode.ExtensionContext; isStickySelected: boolean }) => void)[] = [];
 
 export function useEditorSelection(context: vscode.ExtensionContext) {
   const disposable = vscode.window.onDidChangeTextEditorSelection(() => {
@@ -27,7 +27,7 @@ export function useEditorSelection(context: vscode.ExtensionContext) {
             // 触发回调
             callbacks.forEach((cb) => {
               try {
-                cb({ vscode: context, isStickySelected });
+                cb({ context, isStickySelected });
               } catch (err) {
                 console.error('useSelection callback error:', err);
               }
@@ -44,7 +44,7 @@ export function useEditorSelection(context: vscode.ExtensionContext) {
   context.subscriptions.push(disposable);
 }
 
-export default function useSelection(callback: (options: { vscode: vscode.ExtensionContext; isStickySelected: boolean }) => void) {
+export function useSelection(callback: (options: { context: vscode.ExtensionContext; isStickySelected: boolean }) => void) {
   if (typeof callback === 'function') {
     callbacks.push(callback);
   }
