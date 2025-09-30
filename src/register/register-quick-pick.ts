@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { generateUUID,getWebviewContent } from '../utils/index';
+import { generateUUID, getWebviewContent } from '../utils/index';
 import { MergeProperties, properties } from '../global-object/properties';
 import { channel } from 'diagnostics_channel';
 
@@ -33,26 +33,10 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
         localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'resources/webview'))],
       });
 
-
-      // const stylePath = path.join(context.extensionPath, 'resources/webview/css/index.css');
-      // const styleContent = fs.existsSync(stylePath) ? fs.readFileSync(stylePath, 'utf8') : '';
-
-      // const jsPath = path.join(context.extensionPath, 'resources/webview/js/index.js');
-      // const jsContent = fs.existsSync(jsPath) ? fs.readFileSync(jsPath, 'utf8') : '';
-
-      // const htmlPath = path.join(context.extensionPath, 'resources/webview/html/index.html');
-      // let htmlContent = fs.existsSync(htmlPath) ? fs.readFileSync(htmlPath, 'utf8') : '';
-
-      // const nonce = generateUUID(32);
-      // MergeProperties({ nonce });
-
-      // htmlContent = htmlContent
-      //   .replace('%%metaContent%%', `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline';">`)
-      //   .replace('%%styleContent%%', `<style>${styleContent}</style>`)
-      //   .replace('%%jsContent%%', `<script nonce="${nonce}">${jsContent}</script>`);
-      panel.webview.html = getWebviewContent(panel,context);
-      panel.reveal();
+      panel.webview.html = getWebviewContent(panel, context);
       MergeProperties({ panel });
+      panel.reveal();
+      
 
       // 当 Webview 被关闭（dispose）时，清空 panel 引用
       panel.onDidDispose(
@@ -66,6 +50,7 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
       // 接收 Webview 消息
       panel.webview.onDidReceiveMessage(
         (message) => {
+          vscode.window.showInformationMessage(`打印数据${JSON.stringify(message)}`);
           if (message.type === 'run') {
             const command = message.command;
             const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -74,6 +59,8 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
             const terminal = vscode.window.createTerminal({ name: '命令执行终端', cwd });
             terminal.show();
             terminal.sendText(command);
+          } else if (message.type === 'debug') {
+            vscode.window.showInformationMessage(`打印数据${JSON.stringify(message)}`);
           }
         },
         undefined,

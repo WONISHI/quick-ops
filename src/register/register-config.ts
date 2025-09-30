@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { MixinReadSnippets, MixinReadShells } from '../module/mixin-config';
+import { MixinReadSnippets, MixinReadShells,findPackageJsonFolder } from '../module/mixin-config';
 import NotificationService from '../utils/notificationService';
 import { resolveResult } from '../utils/promiseResolve';
 import { ignoreArray, generateKeywords, overwriteIgnoreFilesLocally, isGitTracked } from '../utils/index';
@@ -51,6 +51,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
         const vueVersion = content.dependencies?.vue || content.devDependencies?.vue;
         const reactVersion = content.dependencies?.react || content.devDependencies?.react;
         const version = isVueProject ? vueVersion : reactVersion;
+        console.log('content',content);
         MergeProperties({
           projectName: content.name || '',
           languagesCss: Object.keys(content.devDependencies).includes('sass') ? 'scss' : Object.keys(content.devDependencies).includes('less') ? 'less' : 'css',
@@ -233,5 +234,6 @@ function setLogrc() {
 
 // 加载插件自带的代码片段
 async function createProject(context: vscode.ExtensionContext) {
-  MergeProperties({ snippets: await MixinReadSnippets() });
+  MergeProperties({ rootFilePath: await findPackageJsonFolder() });
+  // MergeProperties({ snippets: await MixinReadSnippets() });
 }

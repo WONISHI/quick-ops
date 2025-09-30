@@ -66,4 +66,6 @@ export interface Properties {
   panel?: vscode.WebviewPanel;
   // csp设置nonce
   nonce?:string;
+  // 工作区的根目录
+  rootFilePath:string;
 }

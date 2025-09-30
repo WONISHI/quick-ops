@@ -17,6 +17,7 @@ export const properties: Properties = {
   isGitTracked: true,
   ignore: ['.logrc'],
   server: [],
+  rootFilePath:'',
   identifiers: ['success', 'warning', 'error', 'head'],
   completionDocumentSelector: ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'],
   configFileSchema: ['.prettierrc', '.gitignore', 'package.json', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'],
@@ -42,6 +43,7 @@ export function computeGitChanges(previousConfig?: Partial<EnvConf>, currentConf
 
 // 合并配置项
 export const MergeProperties = (property: Partial<Properties>) => {
+  console.log('property', property);
   Object.assign(properties, property);
   // 合并插件配置文件和工作区域的配置文件
   if (property.workspaceConfig && Reflect.ownKeys(property.workspaceConfig).length) {
@@ -51,6 +53,7 @@ export const MergeProperties = (property: Partial<Properties>) => {
   }
   // 创建了webveiw则需要给给webview通信
   if (properties.panel) {
+    console.log('property2', properties.panel);
     properties.panel.webview.postMessage({ type: property.panel ? 'ready' : 'update', data: properties });
   }
 };

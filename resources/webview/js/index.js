@@ -1,5 +1,4 @@
 (function () {
-  const vscode = acquireVsCodeApi();
 
   // 全局注册 Element UI
   Vue.use(ELEMENT);
@@ -11,97 +10,19 @@
       return { activeName: 'shell' };
     },
     template: `
-      <div class="floating-menu">
-        <!-- 两个小球 -->
-        <div ref="menuBtn" class="ball" title="菜单">📂</div>
-        <div ref="topBtn" class="ball" title="回到顶部">⬆️</div>
-
-        <!-- 主按钮 -->
-        <div ref="mainBtn" class="main-btn" @mouseenter="expand" @mouseleave="collapse">
-          <!-- 收起时显示 -->
-          <span ref="collapsedIcon" class="collapsed-icon">📂</span>
-          <!-- 展开时显示 -->
-          <div ref="expandedIcons" class="expanded-icons">
-            <span title="指令">⚡</span>
-            <span title="服务">🛠️</span>
-            <span title="设置">⚙️</span>
-          </div>
-        </div>
-      </div>
+          <el-tabs v-model="activeName" @tab-click="handleClick">
+            <el-tab-pane
+              v-for="(item,index) in catalogue"
+              :key="index"
+              :label="item.label"
+              :name="item.value">
+            </el-tab-pane>
+          </el-tabs>
         `,
     methods: {
-      expand() {
-        const mainBtn = this.$refs.mainBtn;
-        const menuBtn = this.$refs.menuBtn;
-        const topBtn = this.$refs.topBtn;
-        const collapsedIcon = this.$refs.collapsedIcon;
-        const expandedIcons = this.$refs.expandedIcons;
-
-        // 收起图标淡出，展开图标淡入
-        gsap.set(collapsedIcon, { display: 'none', opacity: 0 });
-        gsap.set(expandedIcons, { display: 'flex', opacity: 0 });
-
-        gsap.to(expandedIcons, { opacity: 1, duration: 0.3 });
-
-        // 矩形变圆
-        gsap.to(mainBtn, {
-          width: 40,
-          height: 40,
-          borderRadius: '50%',
-          duration: 0.3,
-          ease: 'power2.out',
-        });
-
-        // 展开两个小球
-        gsap.to(menuBtn, { y: -70, opacity: 1, scale: 1, duration: 0.4 });
-        gsap.to(topBtn, { y: 0, opacity: 1, scale: 1, duration: 0.4 });
-
-        // 主按钮变椭圆
-        gsap.to(mainBtn, {
-          width: 140,
-          height: 40,
-          borderRadius: '30px',
-          delay: 0.3,
-          duration: 0.4,
-          ease: 'power2.out',
-        });
+      handleClick(tab) {
+        console.log('点击了：', tab.name);
       },
-      collapse() {
-        const mainBtn = this.$refs.mainBtn;
-        const menuBtn = this.$refs.menuBtn;
-        const topBtn = this.$refs.topBtn;
-        const collapsedIcon = this.$refs.collapsedIcon;
-        const expandedIcons = this.$refs.expandedIcons;
-
-        // 隐藏 expanded，显示 collapsed
-        gsap.to(expandedIcons, {
-          opacity: 0,
-          duration: 0.2,
-          onComplete: () => {
-            gsap.set(expandedIcons, { display: 'none' });
-            gsap.set(collapsedIcon, { display: 'inline-block', opacity: 1 });
-          },
-        });
-        gsap.to(collapsedIcon, { opacity: 1, delay: 0.2, duration: 0.3 });
-
-        // 收回两个小球
-        gsap.to([menuBtn, topBtn], { y: 0, opacity: 0, scale: 0, duration: 0.3 });
-
-        // 主按钮恢复矩形
-        gsap.to(mainBtn, {
-          width: 40,
-          height: 40,
-          borderRadius: 8,
-          duration: 0.4,
-          ease: 'power2.inOut',
-        });
-      },
-    },
-    mounted() {
-      // 初始状态
-      gsap.set(this.$refs.mainBtn, { width: 50, height: 30, borderRadius: 8 });
-      gsap.set([this.$refs.menuBtn, this.$refs.topBtn], { opacity: 0, scale: 0 });
-      gsap.set(this.$refs.expandedIcons, { opacity: 0 });
     },
   });
 
@@ -115,13 +36,14 @@
         { label: '设置', value: 'settings' },
       ],
       loading: true,
-      tableData: [],
       status: 1,
-      scripts: null,
+      vscode:null,
+      tableData: [],
     },
     template: `
           <div class="webview-menu">
             <webview-menu :catalogue="useCatalogue"></webview-menu>
+            {{status}}
             <div>
               <el-table :data="tableData" style="width: 100%">
                 <el-table-column
@@ -156,12 +78,14 @@
           </div>
         `,
     mounted() {
+      this.vscode = acquireVsCodeApi();
+      console.log('this.vscode',this.vscode);
       window.addEventListener('message', (event) => {
-        this.status = 2;
         const { type, data } = event.data;
+        this.status = `${JSON.stringify(event.data)}`;
+        this.vscode.postMessage({ type: 'debug', data: `${JSON.stringify(event)}` });
         if (['ready', 'update'].includes(type)) {
           const scripts = data?.scripts || {};
-          this.scripts = scripts;
           if (Object.keys(scripts).length) {
             this.tableData = Object.keys(scripts).reduce((prev, key, index) => {
               prev.push({
@@ -171,6 +95,7 @@
               });
               return prev;
             }, []);
+            this.status = `${JSON.stringify(this.tableData)}`;
             this.loading = false;
             this.$nextTick(() => {
               gsap.from('.el-table .el-table__body-wrapper .el-table__row', {
@@ -188,7 +113,7 @@
     methods: {
       handleClick(row) {
         const cmd = `npm run ${row.name}`;
-        vscode.postMessage({ type: 'run', command: cmd });
+        this.vscode.postMessage({ type: 'run', command: cmd });
       },
     },
   });
