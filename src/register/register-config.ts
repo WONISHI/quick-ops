@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { MixinReadSnippets, MixinReadShells,findPackageJsonFolder } from '../module/mixin-config';
+import beforePluginInit from "../module/mixin-beforePluginInit";
 import NotificationService from '../utils/notificationService';
 import { resolveResult } from '../utils/promiseResolve';
 import { ignoreArray, generateKeywords, overwriteIgnoreFilesLocally, isGitTracked } from '../utils/index';
@@ -51,7 +51,6 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
         const vueVersion = content.dependencies?.vue || content.devDependencies?.vue;
         const reactVersion = content.dependencies?.react || content.devDependencies?.react;
         const version = isVueProject ? vueVersion : reactVersion;
-        console.log('content',content);
         MergeProperties({
           projectName: content.name || '',
           languagesCss: Object.keys(content.devDependencies).includes('sass') ? 'scss' : Object.keys(content.devDependencies).includes('less') ? 'less' : 'css',
@@ -138,33 +137,7 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
 
 export async function registerConfig(context: vscode.ExtensionContext) {
   // 初始化注册其他内容
-  await createProject(context);
-  // 注册创建文件的命令
-  let disposable = vscode.commands.registerCommand('extension.createLogrcFile', async () => {
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (!workspaceFolder) {
-      NotificationService.warn('请先打开一个工作区。');
-      return;
-    }
-
-    const logrcPath = path.join(workspaceFolder.uri.fsPath, '.logrc');
-    // 读取插件自身的配置文件
-    const pluginConfigPath = path.join(context.extensionPath, 'resources', 'template', 'logrc-template.json');
-    const fileContent = fs.readFileSync(pluginConfigPath, 'utf8'); // 或者一个空 JSON 对象
-
-    try {
-      // 1. 写入文件内容
-      const fileUri = vscode.Uri.file(logrcPath);
-      await vscode.workspace.fs.writeFile(fileUri, Buffer.from(fileContent));
-      NotificationService.info('.logrc 文件已创建！');
-      // 2. 打开并显示这个文件
-      const document = await vscode.workspace.openTextDocument(fileUri);
-      await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
-    } catch (error) {
-      NotificationService.error(`创建文件失败: ${error}`);
-    }
-  });
-  context.subscriptions.push(disposable);
+  await beforePluginInit(context);
 
   // 显示当前工作区信息
   const workspaceFolders = vscode.workspace.workspaceFolders?.[0];
@@ -230,10 +203,4 @@ function setIgnoredFiles() {
 function setLogrc() {
   setIgnoredFiles();
   resolveResult(true);
-}
-
-// 加载插件自带的代码片段
-async function createProject(context: vscode.ExtensionContext) {
-  MergeProperties({ rootFilePath: await findPackageJsonFolder() });
-  // MergeProperties({ snippets: await MixinReadSnippets() });
 }
