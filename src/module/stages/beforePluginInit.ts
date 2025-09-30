@@ -6,6 +6,7 @@ import { MergeProperties } from '../../global-object/properties';
 import { findPackageJsonFolder } from '../mixin/mixin-config';
 import NotificationService from '../../utils/notificationService';
 // 加载插件自带的代码片段
+// 插件开始注册
 export default async function beforePluginInit(context: vscode.ExtensionContext) {
   // 注册hook
   useEditorSelection(context);

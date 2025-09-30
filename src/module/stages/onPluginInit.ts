@@ -7,6 +7,7 @@ import { MergeProperties, properties } from '../../global-object/properties';
 import NotificationService from '../../utils/notificationService';
 import type { ConfigFile } from '../../types/Properties';
 
+// 插件正在执行注册期间
 export default function onPluginInit(config: ConfigFile ='.logrc') {
   switch (config) {
     case '.gitignore':

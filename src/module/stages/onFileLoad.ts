@@ -8,6 +8,7 @@ import { MergeProperties, properties, computeGitChanges } from '../../global-obj
 import { CONFIG_FILES, type ConfigFile } from '../../types/Properties';
 
 // 通用的配置读取
+// 插件读取配置化文件
 async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
   try {
     try {
