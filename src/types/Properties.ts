@@ -1,10 +1,12 @@
 import type { FileType } from './utils';
 import type { EnvConf } from './EnvConf';
 import * as vscode from 'vscode';
+import { properties } from '../global-object/properties';
 export interface IgnoredStatus {
   added: string[];
   remove: string[];
 }
+
 export interface Properties {
   // 打开文件路径不带（盘符）
   fullPath: string;
@@ -65,7 +67,10 @@ export interface Properties {
   // webview
   panel?: vscode.WebviewPanel;
   // csp设置nonce
-  nonce?:string;
+  nonce?: string;
   // 工作区的根目录
-  rootFilePath:string;
+  rootFilePath: string;
 }
+
+export const CONFIG_FILES = properties.configFileSchema;
+export type ConfigFile = (typeof CONFIG_FILES)[number];
