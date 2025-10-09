@@ -122,7 +122,8 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
       // watcher.onDidChange((uri) => handleConfig(uri));
       watcher.onDidCreate((uri) => handleConfig(uri, context));
       watcher.onDidDelete((uri) => {
-        NotificationService.warn(`${file} 已删除`);
+        NotificationService.warn(`${file} 已删除`,3000);
+        vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', true);
         MergeProperties({ workspaceConfig: {}, configResult: false });
         handleConfig(uri, context);
       });

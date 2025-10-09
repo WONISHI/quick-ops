@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { useEditorSelection } from '../hook/useEditorSelection';
-import { MergeProperties } from '../../global-object/properties';
+import { MergeProperties, properties } from '../../global-object/properties';
 import { findPackageJsonFolder } from '../mixin/mixin-config';
 import NotificationService from '../../utils/notificationService';
 // 加载插件自带的代码片段
@@ -16,10 +16,17 @@ export default async function beforePluginInit(context: vscode.ExtensionContext)
   // MergeProperties({ snippets: await MixinReadSnippets() });
 
   // 注册创建文件的命令
-  let disposable = vscode.commands.registerCommand('extension.createLogrcFile', async () => {
+  let disposable = vscode.commands.registerCommand('extension.createLogrcFile', async (uri?: vscode.Uri) => {
+    // 如果是在资源管理器里右键，uri 就是被点击的文件或文件夹
+    const targetPath = uri?.fsPath;
+    if (properties.rootFilePath !== targetPath) {
+      vscode.window.showInformationMessage('请在根目录创建！');
+      return;
+    }
+
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
-      NotificationService.warn('请先打开一个工作区。');
+      NotificationService.warn('请先打开一个工作区。', 3000);
       return;
     }
 
@@ -32,12 +39,12 @@ export default async function beforePluginInit(context: vscode.ExtensionContext)
       // 1. 写入文件内容
       const fileUri = vscode.Uri.file(logrcPath);
       await vscode.workspace.fs.writeFile(fileUri, Buffer.from(fileContent));
-      NotificationService.info('.logrc 文件已创建！');
+      NotificationService.info('.logrc 文件已创建！', 3000);
       // 2. 打开并显示这个文件
       const document = await vscode.workspace.openTextDocument(fileUri);
       await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
     } catch (error) {
-      NotificationService.error(`创建文件失败: ${error}`);
+      NotificationService.error(`创建文件失败: ${error}`, 3000);
     }
   });
   context.subscriptions.push(disposable);
