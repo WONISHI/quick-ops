@@ -176,55 +176,44 @@ export function matchKeyword(keywords: string[], current: string): boolean {
  * @returns
  */
 export async function replaceCurrentPath(importStatement: string) {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return;
-  const document = editor.document;
-  const cursorPos = editor.selection.active;
-  const lineText = document.lineAt(cursorPos.line).text;
-
-  // 找到光标所在的引号范围
-  let start = -1;
-  let end = -1;
-  const quoteChars = [`'`, `"`];
-  for (let i = 0; i < lineText.length; i++) {
-    if (quoteChars.includes(lineText[i])) {
-      if (i < cursorPos.character) {
-        start = i;
-      } else if (quoteChars.includes(lineText[i]) && start !== i) {
-        end = i;
-        break;
+  VSCodeService.getActiveEditorInfo(async ({ editor, cursorPos, lineText }) => {
+    // 找到光标所在的引号范围
+    let start = -1;
+    let end = -1;
+    const quoteChars = [`'`, `"`];
+    for (let i = 0; i < lineText.length; i++) {
+      if (quoteChars.includes(lineText[i])) {
+        if (i < cursorPos.character) {
+          start = i;
+        } else if (quoteChars.includes(lineText[i]) && start !== i) {
+          end = i;
+          break;
+        }
       }
     }
-  }
-  if (start === -1 || end === -1) return;
+    if (start === -1 || end === -1) return;
 
-  const range = new vscode.Range(new vscode.Position(cursorPos.line, start), new vscode.Position(cursorPos.line, end + 1));
-  const snippet = new vscode.SnippetString(importStatement);
-  await editor.insertSnippet(snippet, range);
+    const range = new vscode.Range(new vscode.Position(cursorPos.line, start), new vscode.Position(cursorPos.line, end + 1));
+    const snippet = new vscode.SnippetString(importStatement);
+    await editor.insertSnippet(snippet, range);
+  });
 }
 
 /**
  * 判断光标是否在大括号里面
  */
 export function isCursorInsideBraces(): boolean {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return false;
+  return VSCodeService.getActiveEditorInfo(({ text, offset }) => {
+    // 用一个简单的栈判断
+    let stack = 0;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '{') stack++;
+      if (text[i] === '}') stack--;
+      if (i === offset) break;
+    }
 
-  const document = editor.document;
-  const position = editor.selection.active;
-
-  const text = document.getText();
-  const offset = document.offsetAt(position);
-
-  // 用一个简单的栈判断
-  let stack = 0;
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === '{') stack++;
-    if (text[i] === '}') stack--;
-    if (i === offset) break;
-  }
-
-  return stack > 0;
+    return stack > 0;
+  });
 }
 
 /**
