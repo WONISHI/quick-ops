@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { generateUUID } from './index';
+import { generateUUID } from '../utils/index';
 
 /**
  * 通道结构

@@ -1,15 +1,15 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { useEditorSelection } from '../hook/useEditorSelection';
+import { useRegisterEditorSelection } from '../hook/useEditorSelection';
 import { MergeProperties, properties } from '../../global-object/properties';
 import { findPackageJsonFolder } from '../mixin/mixin-config';
-import NotificationService from '../../utils/notificationService';
+import VSCodeNotifier from '../../services/VSCodeNotifier';
 // 加载插件自带的代码片段
 // 插件开始注册
 export default async function beforePluginInit(context: vscode.ExtensionContext) {
   // 注册hook
-  useEditorSelection(context);
+  useRegisterEditorSelection(context);
 
   MergeProperties({ rootFilePath: await findPackageJsonFolder() });
 
@@ -26,11 +26,11 @@ export default async function beforePluginInit(context: vscode.ExtensionContext)
 
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) {
-      NotificationService.warn('请先打开一个工作区。', 3000);
+      VSCodeNotifier.warn('请先打开一个工作区。', 3000);
       return;
     }
 
-    const logrcPath = path.join(workspaceFolder.uri.fsPath, '.logrc');
+    const logrcPath = path.join(properties.rootFilePath, '.logrc');
     // 读取插件自身的配置文件
     const pluginConfigPath = path.join(context.extensionPath, 'resources', 'template', 'logrc-template.json');
     const fileContent = fs.readFileSync(pluginConfigPath, 'utf8'); // 或者一个空 JSON 对象
@@ -39,12 +39,12 @@ export default async function beforePluginInit(context: vscode.ExtensionContext)
       // 1. 写入文件内容
       const fileUri = vscode.Uri.file(logrcPath);
       await vscode.workspace.fs.writeFile(fileUri, Buffer.from(fileContent));
-      NotificationService.info('.logrc 文件已创建！', 3000);
+      VSCodeNotifier.info('.logrc 文件已创建！', 3000);
       // 2. 打开并显示这个文件
       const document = await vscode.workspace.openTextDocument(fileUri);
       await vscode.window.showTextDocument(document, vscode.ViewColumn.One);
     } catch (error) {
-      NotificationService.error(`创建文件失败: ${error}`, 3000);
+      VSCodeNotifier.error(`创建文件失败: ${error}`, 3000);
     }
   });
   context.subscriptions.push(disposable);

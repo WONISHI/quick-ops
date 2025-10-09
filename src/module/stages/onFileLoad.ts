@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import NotificationService from '../../utils/notificationService';
+import VSCodeNotifier from '../../services/VSCodeNotifier';
 import onPluginInit from '../../module/stages/onPluginInit';
 import { ignoreArray, generateKeywords } from '../../utils/index';
 import { MergeProperties, properties, computeGitChanges } from '../../global-object/properties';
@@ -71,7 +71,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
     return basename;
   } catch (err) {
     console.log('err', err, uri);
-    // NotificationService.error(`读取配置文件出错: ${uri.fsPath}, ${err}`);
+    // VSCodeNotifier.error(`读取配置文件出错: ${uri.fsPath}, ${err}`);
     return null;
   }
 }
@@ -122,7 +122,7 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
       // watcher.onDidChange((uri) => handleConfig(uri));
       watcher.onDidCreate((uri) => handleConfig(uri, context));
       watcher.onDidDelete((uri) => {
-        NotificationService.warn(`${file} 已删除`,3000);
+        VSCodeNotifier.warn(`${file} 已删除`,3000);
         vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', true);
         MergeProperties({ workspaceConfig: {}, configResult: false });
         handleConfig(uri, context);
@@ -142,7 +142,7 @@ export default function onFileLoad(context: vscode.ExtensionContext) {
       const content = JSON.parse(fs.readFileSync(pluginConfigPath, 'utf8'));
       MergeProperties({ pluginConfig: content });
     } catch (err) {
-      NotificationService.error(`读取插件自身 .logrc 出错: ${err}`);
+      VSCodeNotifier.error(`读取插件自身 .logrc 出错: ${err}`);
     }
   }
   const configPath = path.join(properties.rootFilePath, '.logrc');

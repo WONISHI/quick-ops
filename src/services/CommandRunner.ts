@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { properties } from '../global-object/properties';
 
-export default class ShellCommands {
+export default class CommandRunner {
   private cmds: { cmdId: string; shell: string }[] = [];
   private terminal?: vscode.Terminal;
   private static DEV = properties?.settings?.DEV ?? properties?.pluginConfig?.DEV;

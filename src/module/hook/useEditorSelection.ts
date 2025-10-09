@@ -5,7 +5,7 @@ let isStickySelected = false;
 let timer: ReturnType<typeof setInterval> | null = null;
 let callbacks: ((options: { context: vscode.ExtensionContext; isStickySelected: boolean }) => void)[] = [];
 
-export function useEditorSelection(context: vscode.ExtensionContext) {
+export function useRegisterEditorSelection(context: vscode.ExtensionContext) {
   const disposable = vscode.window.onDidChangeTextEditorSelection(() => {
     // 监听最后一次选中
     const editor = vscode.window.activeTextEditor;
@@ -44,7 +44,7 @@ export function useEditorSelection(context: vscode.ExtensionContext) {
   context.subscriptions.push(disposable);
 }
 
-export function useSelection(callback: (options: { context: vscode.ExtensionContext; isStickySelected: boolean }) => void) {
+export function useEditorSelection(callback: (options: { context: vscode.ExtensionContext; isStickySelected: boolean }) => void) {
   if (typeof callback === 'function') {
     callbacks.push(callback);
   }

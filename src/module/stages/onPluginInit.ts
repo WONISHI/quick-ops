@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
-import EventBus from '../../utils/emitter';
+import EventBus from '../../services/Emitter';
 import { resolveResult } from '../../utils/promiseResolve';
 import { execSync } from 'child_process';
 import { overwriteIgnoreFilesLocally, isGitTracked } from '../../utils/index';
 import { MergeProperties, properties } from '../../global-object/properties';
-import NotificationService from '../../utils/notificationService';
+import VSCodeNotifier from '../../services/VSCodeNotifier';
 import type { ConfigFile } from '../../types/Properties';
 
 // 插件正在执行注册期间
@@ -41,7 +41,7 @@ function setIgnoredFiles() {
     }
   });
   MergeProperties({ isGitTracked: !!result });
-  if (result) NotificationService.info(`忽略 ${igList.length > 3 ? igList.slice(0, 3).join(',') + '...' : igList.join(',')}文件跟踪！`);
+  if (result) VSCodeNotifier.info(`忽略 ${igList.length > 3 ? igList.slice(0, 3).join(',') + '...' : igList.join(',')}文件跟踪！`);
 }
 
 // 设置
