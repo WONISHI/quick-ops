@@ -2,14 +2,14 @@ import * as http from 'http';
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { withTsType, generateUUID } from '../utils/index';
-import { parseElTableColumnsFromSelection } from '../utils/parse';
-import { properties } from '../global-object/properties';
-
+import { withTsType, generateUUID } from '../../utils/index';
+import { parseElTableColumnsFromSelection } from '../../utils/parse';
+import { properties } from '../../global-object/properties';
 
 // 根据选中内容生成ts类型
 async function setWithTsType(context: vscode.ExtensionContext) {
   const result = await withTsType();
+  console.log('11111');
   if (result) {
     // 通知可以复制内容了
     vscode.commands.executeCommand('setContext', 'Extension.SelectTots', true);

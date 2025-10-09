@@ -310,11 +310,9 @@ export function overwriteIgnoreFilesLocally(files: string[], cb?: (files: string
 export async function withTsType(type: 'ts' | 'jsTots' = 'ts'): Promise<string | false> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return false;
-
   const selection = editor.selection;
   const selectedText = editor.document.getText(selection).trim();
   if (!selectedText) return false;
-
   try {
     const parsed = Function(`"use strict"; return (${selectedText})`)();
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -325,6 +323,7 @@ export async function withTsType(type: 'ts' | 'jsTots' = 'ts'): Promise<string |
           if (type === 'object') {
             type = Array.isArray(value) ? 'any[]' : 'Record<string, any>';
           }
+          if (value === 'any') type = value;
           prev[key] = type;
           return prev;
         },
@@ -341,6 +340,7 @@ export async function withTsType(type: 'ts' | 'jsTots' = 'ts'): Promise<string |
       return false;
     }
   } catch (e) {
+    console.log('e', e);
     return false;
   }
 }

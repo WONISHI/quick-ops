@@ -2,7 +2,7 @@ import { properties } from './../global-object/properties';
 import * as vscode from 'vscode';
 import { matchKeyword } from '../utils/index';
 import extendCompletionItem from '../utils/extendCompletionItem';
-import { parseFieldValue } from '../module/mixin-code-snippets-config';
+import { parseFieldValue } from '../module/mixin/mixin-code-snippets-config';
 import type { FileType } from '../types/utils';
 
 export function registerCodeSnippetsConfig(context: vscode.ExtensionContext) {

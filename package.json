@@ -20,6 +20,10 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "webviews": {
+      "allowScripts": true,
+      "allowLinks": true
+    },
     "commands": [
       {
         "command": "extension.revealCurrentFile",

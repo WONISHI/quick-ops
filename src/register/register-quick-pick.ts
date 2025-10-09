@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { generateUUID,getWebviewContent } from '../utils/index';
+import { getWebviewContent } from '../utils/index';
 import { MergeProperties, properties } from '../global-object/properties';
-import { channel } from 'diagnostics_channel';
 
 export function registerQuickPick(context: vscode.ExtensionContext) {
   let panel: vscode.WebviewPanel | undefined;
@@ -31,9 +30,10 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
         enableScripts: true,
         localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'resources/webview'))],
       });
-      panel.webview.html = getWebviewContent(panel,context);
-      panel.reveal();
+
+      panel.webview.html = getWebviewContent(panel, context);
       MergeProperties({ panel });
+      panel.reveal();
 
       // 当 Webview 被关闭（dispose）时，清空 panel 引用
       panel.onDidDispose(
@@ -47,7 +47,6 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
       // 接收 Webview 消息
       panel.webview.onDidReceiveMessage(
         (message) => {
-          console.log('message',message)
           if (message.type === 'run') {
             const command = message.command;
             const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -56,6 +55,8 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
             const terminal = vscode.window.createTerminal({ name: '命令执行终端', cwd });
             terminal.show();
             terminal.sendText(command);
+          } else if (message.type === 'debug') {
+            vscode.window.showInformationMessage(`打印数据${JSON.stringify(message)}`);
           }
         },
         undefined,

@@ -38,3 +38,5 @@ export const isWeakSet = (val: unknown): val is WeakSet<object> => Object.protot
 export const isSymbol = (val: unknown): val is symbol => typeof val === 'symbol';
 
 export const isBigInt = (val: unknown): val is bigint => typeof val === 'bigint';
+
+export const isChineseChar = (val: string) => /^[\u4e00-\u9fa5]$/.test(val);
