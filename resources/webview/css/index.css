@@ -3,9 +3,15 @@ body {
     background-color: #fff;
     padding: 0px;
 }
-.webview-menu .el-tabs__header.is-top{
-    margin-bottom:0px;
+
+.webview-menu .el-tabs__header.is-top {
+    margin-bottom: 0px;
 }
-.webview-menu .el-tabs__header.is-top .el-tabs__nav-scroll{
-    padding:0 32px;
+
+.webview-menu .el-tabs__header.is-top .el-tabs__nav-scroll {
+    padding: 0 32px;
+}
+
+.service-operate {
+    padding: 16px;
 }
