@@ -54,10 +54,12 @@
           Helper: ['capitalize', 'upper', 'lower', 'pick', 'shuffle'],
           Miscellaneous: ['guid', 'id', 'increment']
         },
+        route: '',
+        isObject: false,
         httpTemplate: {
           code: 200,
           status: true,
-          data: null
+          template: []
         }
       }
     },
@@ -65,9 +67,13 @@
       <el-dialog
         title="创建服务"
         :visible.sync="dialogVisible"
-        width="50%"
+        width="90%"
+        height="90vh"
         :before-close="handleClose">
         <el-form ref="form" :model="httpTemplate" label-width="80px">
+          <el-form-item label="路由">
+           <el-input v-model="route" placeholder="请输入路由"></el-input>
+          </el-form-item>
           <el-form-item label="状态码">
             <el-select v-model="httpTemplate.code" placeholder="请选择活动区域">
               <el-option :label="item" :value="item" v-for="(item,index) in statusCode" :key="index"></el-option>
@@ -80,12 +86,53 @@
             </el-radio-group>
           </el-form-item>
           <el-form-item label="数据结构">
-            
+            <el-button-group>
+              <el-button :type="isObject?'primary':'default'">对象类型</el-button>
+              <el-button :type="!isObject?'primary':'default'">数组类型</el-button>
+            </el-button-group>
+            <el-table
+              border
+              size="mini"
+              :data="httpTemplate.template"
+              style="width: 100%;margin:10px 0;">
+              <el-table-column
+                prop="index"
+                label="序号"
+                width="180">
+                <template slot-scope="{ column, $index }">
+                  {{$index+1}}
+                </template>
+              </el-table-column>
+              <el-table-column
+                prop="key"
+                label="key"
+                width="180">
+                <template slot-scope="{ column, $index }">
+                  <el-input v-model="httpTemplate.template[$index].key" placeholder="请输入" />
+                </template>
+              </el-table-column>
+              <el-table-column
+                prop="value"
+                width="240"
+                label="value">
+                 <template slot-scope="{ column, $index }">
+                  <div class="create-http-value">
+                    <el-select v-model="httpTemplate.template[$index].type" placeholder="请选择">
+                    <el-option :label="item" :value="item" v-for="(item,index) in Object.keys(mockCategories)" :key="index"></el-option>
+                    </el-select>
+                    <el-select v-model="httpTemplate.template[$index].value" placeholder="请选择">
+                      <el-option :label="item" :value="item" v-for="(item,index) in mockCategories[httpTemplate.template[$index].type]" :key="index"></el-option>
+                    </el-select>
+                  </div>
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-button class="el-icon-plus" @click="add"></el-button>
           </el-form-item>
         </el-form>
         <span slot="footer" class="dialog-footer">
           <el-button @click="handleClose">取 消</el-button>
-          <el-button type="primary" @click="handleClose">确 定</el-button>
+          <el-button type="primary" @click="ok">确 定</el-button>
         </span>
       </el-dialog>
     `,
@@ -95,6 +142,17 @@
     methods: {
       handleClose() {
         this.$emit("update:dialogVisible", false)
+      },
+      add() {
+        this.httpTemplate.template.push({
+          key: '',
+          type: '',
+          value: ''
+        })
+      },
+      ok() {
+        this.$emit("ok", this.httpTemplate)
+        this.handleClose()
       }
     }
   })
@@ -113,7 +171,9 @@
       activeName: 'shell',
       vscode: null,
       dialogVisible: false,
+      httpTemplate: {},
       tableData: [],
+      serviceData: []
     },
     template: `
       <div class="webview-menu" v-loading="loading">
@@ -122,7 +182,7 @@
           <template #shell>
             <!-- shell 选项卡的内容 -->
             <div v-show="activeName === 'shell'">
-              <el-table :data="tableData" style="width: 100%">
+              <el-table :data="tableData" style="width: 100%" border>
                 <el-table-column
                   prop="index"
                   align="center"
@@ -158,7 +218,48 @@
               <div class="service-operate">
                 <el-button @click="handleCreateService">创建服务</el-button>
               </div>
-              <create-http :dialogVisible="dialogVisible"></create-http>
+               <el-table :data="serviceData" style="width: 100%" border>
+                <el-table-column
+                  prop="index"
+                  align="center"
+                  label="序号"
+                  min-width="10%">
+                  <template slot-scope="{ column, $index }">
+                    {{$index+1}}
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  prop="route"
+                  label="路由"
+                  align="center"
+                  min-width="30%">
+                  <template slot-scope="scope">
+                    <el-tag type="success">
+                      <a class="webview-a" :href="'http://localhost:'+scope.row.port+scope.row.route" :title="'http://localhost:'+scope.row.port+scope.row.route">{{scope.row.route}}</a>
+                    </el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  min-width="40%"
+                  prop="code"
+                  align="center"
+                  label="code">
+                </el-table-column>
+                <el-table-column
+                  min-width="40%"
+                  prop="method"
+                  align="center"
+                  label="method">
+                </el-table-column>
+                <el-table-column
+                  label="操作"
+                  min-width="20%">
+                  <template slot-scope="scope">
+                    <el-button @click="run(scope.row)" :class="[!scope.row.active?'active-text':'disabled-text']" type="text" size="small">{{scope.row.active?'停用':'启用'}}</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+              <create-http @ok="ok" :dialogVisible.sync="dialogVisible"></create-http>
             </div>
           </template>
         </webview-menu>
@@ -177,8 +278,9 @@
         const { type, data } = event.data;
         if (['ready', 'update'].includes(type)) {
           const scripts = data?.scripts || {};
+          const services = data?.server || [];
           if (Object.keys(scripts).length) {
-            // 填充表格数据
+            // 填充指令表格数据
             this.tableData = Object.keys(scripts).reduce((prev, key, index) => {
               prev.push({
                 index: index + 1,
@@ -200,6 +302,9 @@
               });
             });
           }
+          if (services?.length) {
+            this.serviceData = services;
+          }
         }
       });
     },
@@ -213,27 +318,14 @@
       // 创建服务
       handleCreateService() {
         this.dialogVisible = true
+      },
+      ok(data) {
+        this.vscode.postMessage({ type: 'service', data: data });
+      },
+      run(data) {
+        data.active = !data.active
+        this.vscode.postMessage({ type: 'rn-service', data: data });
       }
     },
   });
 })();
-
-function createMockSelect() {
-  const mockFormat = [
-    {
-      label: '基本',
-      value: 'basic',
-      type: 'select',
-      options: [
-        { label: '布尔值', value: 'boolean', type: 'input' },
-        { label: '自然数', value: 'natural', type: 'input' },
-        { label: '整数', value: 'integer', type: 'input' },
-        { label: '浮点数', value: 'float', type: 'input' },
-        { label: '字符', value: 'character', type: 'input' },
-        { label: '字符串', value: 'string', type: 'input' },
-        { label: '范围', value: 'range', type: 'input' },
-      ],
-    },
-  ];
-  const form = new BasicComponents(data);
-}

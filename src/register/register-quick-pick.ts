@@ -1,8 +1,9 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getWebviewContent } from '../utils/index';
+import { getWebviewContent, generateUUID } from '../utils/index';
 import { MergeProperties, properties } from '../global-object/properties';
+import HttpService from '../services/HttpService';
 
 export function registerQuickPick(context: vscode.ExtensionContext) {
   let panel: vscode.WebviewPanel | undefined;
@@ -57,6 +58,19 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
             terminal.sendText(command);
           } else if (message.type === 'debug') {
             vscode.window.showInformationMessage(`打印数据${JSON.stringify(message)}`);
+          } else if (message.type === 'service') {
+            const moduleRoute = HttpService.addRoute({
+              ...message.data,
+            });
+            MergeProperties({ server: [...properties.server, moduleRoute] });
+          } else if (message.type === 'rn-service') {
+            const moduleRoute = HttpService.toggleServer({
+              ...message.data,
+            });
+            const server = properties.server.find((item) => {
+              return item.route === moduleRoute.route && item.method === moduleRoute.method;
+            });
+            server.active = moduleRoute.active;
           }
         },
         undefined,

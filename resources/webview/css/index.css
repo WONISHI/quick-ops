@@ -2,6 +2,7 @@ html,
 body {
     background-color: #fff;
     padding: 0px;
+    scrollbar-color: unset;
 }
 
 .webview-menu .el-tabs__header.is-top {
@@ -14,4 +15,23 @@ body {
 
 .service-operate {
     padding: 16px;
+}
+
+.create-http-value {
+    display: flex;
+    gap: 10px;
+}
+
+.webview-a {
+    color: #409eff;
+    text-decoration: none;
+}
+
+.el-button--text.active-text {
+    color: #409eff;
+    outline: none;
+}
+.el-button--text.disabled-text{
+    color:#C0C4CC;
+    outline: none;
 }

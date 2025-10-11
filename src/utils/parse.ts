@@ -161,6 +161,7 @@ export async function parseElTableColumnsFromSelection() {
     if (!arrayMatch) continue;
 
     const arrayContent = arrayMatch[1];
+    
 
     // 匹配对象内的 label 和 prop
     const objectRegex = /\{([\s\S]*?)\}/g;
