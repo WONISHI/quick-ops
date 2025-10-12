@@ -1,10 +1,11 @@
 import express, { Request, Response, Express, NextFunction } from 'express';
 import Mock from 'mockjs';
 import { generateUUID } from '../utils/index';
-import { isUndefined } from './../utils/is';
-import type { HttpServiceOptions, HttpServiceTemplate, MockRoute,MethodType } from '../types/utils';
+import { isUndefined, isObject } from './../utils/is';
+import type { HttpServiceOptions, HttpServiceTemplate, MockRoute, MethodType } from '../types/utils';
 
 class HttpService {
+  // 服务集合
   private servers: { port: number; app: Express; routes: MockRoute[] }[] = [];
 
   constructor(private defaultPort = 9527) {
@@ -62,13 +63,6 @@ class HttpService {
       return this.addRoute(options);
     }
 
-    // 避免重复注册
-    const existed = this.findRoute(port, routePath, method);
-    if (existed) {
-      console.warn(`⚠️ 路由 [${method.toUpperCase()}] ${routePath} 已存在，将被覆盖`);
-      this.removeRoute(port, routePath, method);
-    }
-
     const template = options.template || [];
     const isObject = !isUndefined(options.isObject) ? options.isObject : false;
     const code = options.code ?? 200;
@@ -77,12 +71,18 @@ class HttpService {
     const active = options.active ?? true;
 
     const handler = (req: Request, res: Response) => {
-      const mockRules = this.buildMockRules(template);
-      const data = isObject
-        ? Mock.mock(mockRules)
-        : Mock.mock({ 'list|5-10': [mockRules] }).list;
+      const route = this.findRoute(port, routePath!, method);
+      if (route) {
+        const mockRules = this.buildMockRules(route.template);
+        const data = route.isObject ? Mock.mock(mockRules) : Mock.mock({ 'list|5-10': [mockRules] }).list;
 
-      res.send({ code, data, status, message });
+        res.send({ code: route.code, data, status: route.status, message: route.message });
+      } else {
+        const mockRules = this.buildMockRules(template);
+        const data = isObject ? Mock.mock(mockRules) : Mock.mock({ 'list|5-10': [mockRules] }).list;
+
+        res.send({ code, data, status, message });
+      }
     };
 
     const wrapper = (req: Request, res: Response, next: NextFunction) => {
@@ -94,7 +94,7 @@ class HttpService {
 
     (server.app as any)[method](routePath, wrapper);
 
-    server.routes.push({ path: routePath, method, handler, active, update: 0 });
+    server.routes.push({ path: routePath, status, code, message, method, handler, active, update: 0, template, isObject });
     console.log(`✅ 已注册路由: [${method.toUpperCase()}] http://localhost:${port}${routePath}`);
 
     return { port, route: routePath, method, active, code, message, status, isObject, template };
@@ -120,23 +120,25 @@ class HttpService {
     const routePath = options.route;
     const method = (options.method || 'all').toLowerCase();
 
-    const route = this.findRoute(port, routePath!, method);
-    if (!route) return console.warn(`未找到路由: ${routePath}`);
+    const server = this.findServer(port);
+    if (!server) return console.warn(`未找到服务: ${port}`);
 
-    route.update++;
-    route.handler = (req: Request, res: Response) => {
-      const mockRules = this.buildMockRules(options.template || []);
-      const data = options.isObject
-        ? Mock.mock(mockRules)
-        : Mock.mock({ 'list|5-10': [mockRules] }).list;
+    const index = server.routes.findIndex((r) => r.path === routePath && r.method === method);
+    if (index === -1) return console.warn(`未找到路由: ${routePath}`);
 
-      res.send({
-        code: options.code ?? 200,
-        data,
-        status: options.status ?? true,
-        message: options.message ?? '成功',
-      });
+    const old = server.routes[index];
+    const updated = {
+      ...old,
+      template: options.template ?? old.template,
+      isObject: options.isObject ?? old.isObject,
+      code: options.code ?? old.code,
+      status: options.status ?? old.status,
+      message: options.message ?? old.message,
+      active: options.active ?? old.active,
     };
+
+    // ✅ 替换数组中的引用
+    server.routes[index] = updated;
 
     console.log(`📝 路由 [${method.toUpperCase()}] ${routePath} 的模板已更新`);
   }
@@ -166,9 +168,7 @@ class HttpService {
       const server = this.findServer(port);
       return server ? server.routes : [];
     }
-    return this.servers.flatMap((s) =>
-      s.routes.map((r) => ({ port: s.port, ...r }))
-    );
+    return this.servers.flatMap((s) => s.routes.map((r) => ({ port: s.port, ...r })));
   }
 }
 

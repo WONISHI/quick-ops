@@ -1,6 +1,7 @@
 (function () {
   // 全局注册 Element UI
   Vue.use(ELEMENT);
+  Vue.prototype.$bus = new Vue();
 
   // 定义组件（可以写 template）
   Vue.component('webview-menu', {
@@ -32,7 +33,8 @@
     props: ['dialogVisible', 'title', 'row'],
     data() {
       return {
-        statusCode: [100, 101, 102, 200, 201, 202, 204, 301, 302, 304, 400, 401, 403, 404, 409, 429, 500, 501, 502, 503, 504],
+        statusCode: [],
+        methodCode: [],
         mockCategories: {
           Basic: ['boolean', 'natural', 'integer', 'float', 'character', 'string', 'range'],
           Date: ['date', 'time', 'datetime', 'now'],
@@ -45,13 +47,14 @@
           Helper: ['capitalize', 'upper', 'lower', 'pick', 'shuffle'],
           Miscellaneous: ['guid', 'id', 'increment'],
         },
-        isObject: false,
         type: 'add',
         httpTemplate: {
           code: 200,
+          isObject: false,
           status: true,
           template: [],
-          route:''
+          method:'get',
+          route: ''
         },
       };
     },
@@ -64,7 +67,12 @@
         :before-close="handleClose">
         <el-form ref="form" :model="httpTemplate" label-width="80px">
           <el-form-item label="路由:">
-           <el-input v-model="httpTemplate.route" placeholder="请输入路由"></el-input>
+           <el-input v-model="httpTemplate.route" placeholder="请输入路由" :disabled="type==='edit'"></el-input>
+          </el-form-item>
+          <el-form-item label="请求方式:">
+            <el-select v-model="httpTemplate.method" placeholder="请选择活动区域" :disabled="type==='edit'">
+              <el-option :label="item" :value="item" v-for="(item,index) in methodCode" :key="index"></el-option>
+            </el-select>
           </el-form-item>
           <el-form-item label="状态码:">
             <el-select v-model="httpTemplate.code" placeholder="请选择活动区域">
@@ -79,8 +87,8 @@
           </el-form-item>
           <el-form-item label="数据结构:">
             <el-button-group>
-              <el-button :type="isObject?'primary':'default'" @click="isObject=true">对象类型</el-button>
-              <el-button :type="!isObject?'primary':'default'" @click="isObject=false">数组类型</el-button>
+              <el-button :type="httpTemplate.isObject?'primary':'default'" @click="httpTemplate.isObject=true">对象类型</el-button>
+              <el-button :type="!httpTemplate.isObject?'primary':'default'" @click="httpTemplate.isObject=false">数组类型</el-button>
             </el-button-group>
             <el-table
               border
@@ -135,12 +143,13 @@
         handler(newVal) {
           if (Object.keys(newVal).length) {
             this.type = 'edit'
-            this.isObject = newVal.isObject;
             this.httpTemplate = {
               template: newVal.template,
               code: newVal.code,
               status: newVal.status,
-              route:newVal.route
+              route: newVal.route,
+              method:newVal.method,
+              isObject:newVal.isObject
             }
           } else {
             this.type = 'add'
@@ -148,7 +157,13 @@
         }
       }
     },
-    mounted() { },
+    mounted() {
+      this.$bus.$on('global-data', (data) => {
+        console.log('用户登录信息:', data);
+        this.statusCode = data.globalData.httpStatusCode
+        this.methodCode = data.globalData.methodCode
+      });
+    },
     methods: {
       handleClose() {
         this.isObject = false
@@ -156,7 +171,9 @@
           code: 200,
           status: true,
           template: [],
-          route:''
+          route: '',
+          method:'get',
+          isObject:false
         };
         this.$emit('update:dialogVisible', false);
         this.$emit('update:row', {})
@@ -169,7 +186,7 @@
         });
       },
       ok() {
-        this.$emit('ok',this.httpTemplate, this.type);
+        this.$emit('ok', this.httpTemplate, this.type);
         this.handleClose();
       },
     },
@@ -276,7 +293,7 @@
                   min-width="20%">
                   <template slot-scope="scope">
                     <el-button @click="run(scope.row)" :class="[!scope.row.active?'active-text':'disabled-text']" type="text" size="small">{{scope.row.active?'停用':'启用'}}</el-button>
-                    <el-button type="text" size="small" @click="readCode(scope.row)">查看</el-button>
+                    <el-button type="text" size="small" @click="readCode(scope.row)">编辑</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -298,6 +315,7 @@
       window.addEventListener('message', (event) => {
         const { type, data } = event.data;
         if (['ready', 'update'].includes(type)) {
+          this.$bus.$emit('global-data', { globalData: data });
           const scripts = data?.scripts || {};
           const services = data?.server || [];
           if (Object.keys(scripts).length) {

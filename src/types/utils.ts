@@ -46,15 +46,22 @@ export interface HttpServiceTemplate {
 export const Method = defineConstArray(MethodCode);
 export type MethodType = typeof Method[number];
 
+// 服务结合
 export interface MockRoute {
   path: string;
   method: MethodType;
+  template: HttpServiceTemplate[];
   handler: (req: Request, res: Response) => void;
   active: boolean; // 是否启用
   middlewares?: Array<(req: Request, res: Response, next: NextFunction) => void>;
   update: number; // 0是完成更新，1是准备更新
+  isObject:boolean;
+  code:number;
+  status:boolean;
+  message:string;
 }
 
+// 创建和更新服务参数
 export interface HttpServiceOptions {
   route?: string;
   template: HttpServiceTemplate[];
