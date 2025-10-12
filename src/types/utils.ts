@@ -1,11 +1,13 @@
 import * as vscode from 'vscode';
 import type { ExportResult } from '../utils/parse';
 import { Request, Response, Express, NextFunction } from 'express';
+import { defineConstArray } from './type';
+import { fileTypes, httpStatusCode,MethodCode } from '../constants/index';
 
-export const fileTypes = ['vue', 'jsx', 'tsx', 'css', 'less', 'scss', 'html', 'js', 'ts'] as const;
-export const HttpStatusCode = [100, 101, 102, 200, 201, 202, 204, 301, 302, 304, 400, 401, 403, 404, 409, 429, 500, 501, 502, 503, 504] as const;
+export const File = defineConstArray(fileTypes);
+export const HttpStatusCode = defineConstArray(httpStatusCode);
 
-export type FileType = (typeof fileTypes)[number];
+export type FileType = (typeof File)[number];
 export type HttpCode = (typeof HttpStatusCode)[number];
 
 export type ExportNameType = ExportResult | string;
@@ -41,7 +43,8 @@ export interface HttpServiceTemplate {
   value: string;
 }
 
-export type MethodType = 'get' | 'post' | 'put' | 'delete' | 'all';
+export const Method = defineConstArray(MethodCode);
+export type MethodType = typeof Method[number];
 
 export interface MockRoute {
   path: string;
@@ -49,7 +52,7 @@ export interface MockRoute {
   handler: (req: Request, res: Response) => void;
   active: boolean; // 是否启用
   middlewares?: Array<(req: Request, res: Response, next: NextFunction) => void>;
-  update:number; // 0是完成更新，1是准备更新
+  update: number; // 0是完成更新，1是准备更新
 }
 
 export interface HttpServiceOptions {
@@ -61,5 +64,5 @@ export interface HttpServiceOptions {
   message?: string;
   port?: number;
   method?: MethodType;
-  active?:boolean;
+  active?: boolean;
 }

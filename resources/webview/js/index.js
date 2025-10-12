@@ -51,6 +51,7 @@
           code: 200,
           status: true,
           template: [],
+          route:''
         },
       };
     },
@@ -62,21 +63,21 @@
         height="90vh"
         :before-close="handleClose">
         <el-form ref="form" :model="httpTemplate" label-width="80px">
-          <el-form-item label="路由">
+          <el-form-item label="路由:">
            <el-input v-model="httpTemplate.route" placeholder="请输入路由"></el-input>
           </el-form-item>
-          <el-form-item label="状态码">
+          <el-form-item label="状态码:">
             <el-select v-model="httpTemplate.code" placeholder="请选择活动区域">
               <el-option :label="item" :value="item" v-for="(item,index) in statusCode" :key="index"></el-option>
             </el-select>
           </el-form-item>
-          <el-form-item label="是否成功">
+          <el-form-item label="是否成功:">
             <el-radio-group v-model="httpTemplate.status">
               <el-radio :label="true">是</el-radio>
               <el-radio :label="false">否</el-radio>
             </el-radio-group>
           </el-form-item>
-          <el-form-item label="数据结构">
+          <el-form-item label="数据结构:">
             <el-button-group>
               <el-button :type="isObject?'primary':'default'" @click="isObject=true">对象类型</el-button>
               <el-button :type="!isObject?'primary':'default'" @click="isObject=false">数组类型</el-button>
