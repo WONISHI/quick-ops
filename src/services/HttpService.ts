@@ -30,10 +30,10 @@ class HttpService {
   }
 
   /** 查找具体路由 */
-  private findRoute(port: number, route: string, method: string) {
+  private findRoute(port: number, id: string) {
     const server = this.findServer(port);
     if (!server) return null;
-    return server.routes.find((r) => r.path === route && r.method === method);
+    return server.routes.find((r) => r.id === id);
   }
 
   /** 构建 Mock.js 规则 */
@@ -56,6 +56,7 @@ class HttpService {
     const routePath = options.route || `/api/${generateUUID(12)}`;
     const method = (options.method || 'all').toLowerCase() as MethodType;
     const server = this.findServer(port);
+    const id = `server_id_${generateUUID(12)}`;
 
     if (!server) {
       console.warn(`⚠️ 端口 ${port} 的服务不存在，正在创建...`);
@@ -71,22 +72,20 @@ class HttpService {
     const active = options.active ?? true;
 
     const handler = (req: Request, res: Response) => {
-      const route = this.findRoute(port, routePath!, method);
+      const route = this.findRoute(port, id);
       if (route) {
         const mockRules = this.buildMockRules(route.template);
         const data = route.isObject ? Mock.mock(mockRules) : Mock.mock({ 'list|5-10': [mockRules] }).list;
-
         res.send({ code: route.code, data, status: route.status, message: route.message });
       } else {
         const mockRules = this.buildMockRules(template);
         const data = isObject ? Mock.mock(mockRules) : Mock.mock({ 'list|5-10': [mockRules] }).list;
-
         res.send({ code, data, status, message });
       }
     };
 
     const wrapper = (req: Request, res: Response, next: NextFunction) => {
-      const route = this.findRoute(port, routePath, method);
+      const route = this.findRoute(port, id);
       if (!route) return res.status(404).send('服务未找到');
       if (!route.active) return res.status(403).send('服务已停用');
       handler(req, res);
@@ -94,10 +93,10 @@ class HttpService {
 
     (server.app as any)[method](routePath, wrapper);
 
-    server.routes.push({ path: routePath, status, code, message, method, handler, active, update: 0, template, isObject });
+    server.routes.push({ path: routePath, status, id, code, message, method, handler, active, template, isObject });
     console.log(`✅ 已注册路由: [${method.toUpperCase()}] http://localhost:${port}${routePath}`);
 
-    return { port, route: routePath, method, active, code, message, status, isObject, template };
+    return { port, route: routePath,id, method, active, code, message, status, isObject, template };
   }
 
   /** 启停路由 */
@@ -106,7 +105,7 @@ class HttpService {
     const routePath = options.route;
     const method = (options.method || 'all').toLowerCase();
 
-    const route = this.findRoute(port, routePath!, method);
+    const route = this.findRoute(port, options.id);
     if (!route) return console.warn(`未找到路由: ${routePath}`);
 
     route.active = typeof options.active === 'boolean' ? options.active : !route.active;
@@ -119,13 +118,10 @@ class HttpService {
     const port = options.port || this.defaultPort;
     const routePath = options.route;
     const method = (options.method || 'all').toLowerCase();
-
     const server = this.findServer(port);
     if (!server) return console.warn(`未找到服务: ${port}`);
-
-    const index = server.routes.findIndex((r) => r.path === routePath && r.method === method);
+    const index = server.routes.findIndex((r) => r.id === options.id);
     if (index === -1) return console.warn(`未找到路由: ${routePath}`);
-
     const old = server.routes[index];
     const updated = {
       ...old,
@@ -135,11 +131,11 @@ class HttpService {
       status: options.status ?? old.status,
       message: options.message ?? old.message,
       active: options.active ?? old.active,
+      path: options.route ?? old.path,
+      method: options.method ?? old.method,
     };
-
     // ✅ 替换数组中的引用
     server.routes[index] = updated;
-
     console.log(`📝 路由 [${method.toUpperCase()}] ${routePath} 的模板已更新`);
   }
 

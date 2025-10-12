@@ -68,12 +68,12 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
               ...message.data,
             });
             const server = properties.server.find((item) => {
-              return item.route === moduleRoute?.route && item.method === moduleRoute?.method;
+              return item.id === moduleRoute?.id;
             });
             server.active = moduleRoute?.active;
             MergeProperties({ server: [...properties.server] });
-          }else if(message.type === 're-service'){
-             const moduleRoute = HttpService.updateRouteData({
+          } else if (message.type === 're-service') {
+            const moduleRoute = HttpService.updateRouteData({
               ...message.data,
             });
           }

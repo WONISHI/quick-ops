@@ -67,10 +67,10 @@
         :before-close="handleClose">
         <el-form ref="form" :model="httpTemplate" label-width="80px">
           <el-form-item label="路由:">
-           <el-input v-model="httpTemplate.route" placeholder="请输入路由" :disabled="type==='edit'"></el-input>
+           <el-input v-model="httpTemplate.route" placeholder="请输入路由"></el-input>
           </el-form-item>
           <el-form-item label="请求方式:">
-            <el-select v-model="httpTemplate.method" placeholder="请选择活动区域" :disabled="type==='edit'">
+            <el-select v-model="httpTemplate.method" placeholder="请选择活动区域">
               <el-option :label="item" :value="item" v-for="(item,index) in methodCode" :key="index"></el-option>
             </el-select>
           </el-form-item>
@@ -149,7 +149,8 @@
               status: newVal.status,
               route: newVal.route,
               method:newVal.method,
-              isObject:newVal.isObject
+              isObject:newVal.isObject,
+              id:newVal.id
             }
           } else {
             this.type = 'add'
@@ -186,6 +187,7 @@
         });
       },
       ok() {
+        console.log(this.httpTemplate)
         this.$emit('ok', this.httpTemplate, this.type);
         this.handleClose();
       },
