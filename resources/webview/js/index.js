@@ -28,8 +28,8 @@
   });
 
   // 创建弹窗
-  Vue.component("create-http", {
-    props: ['dialogVisible'],
+  Vue.component('create-http', {
+    props: ['dialogVisible', 'title', 'row'],
     data() {
       return {
         statusCode: [100, 101, 102, 200, 201, 202, 204, 301, 302, 304, 400, 401, 403, 404, 409, 429, 500, 501, 502, 503, 504],
@@ -38,41 +38,32 @@
           Date: ['date', 'time', 'datetime', 'now'],
           Image: ['img', 'dataImage'],
           Color: ['color', 'hex', 'rgb', 'rgba', 'hsl'],
-          Text: [
-            'paragraph',
-            'sentence',
-            'word',
-            'title',
-            'cparagraph',
-            'csentence',
-            'cword',
-            'ctitle'
-          ],
+          Text: ['paragraph', 'sentence', 'word', 'title', 'cparagraph', 'csentence', 'cword', 'ctitle'],
           Name: ['first', 'last', 'name', 'cfirst', 'clast', 'cname'],
           Web: ['url', 'domain', 'protocol', 'tld', 'email', 'ip'],
           Address: ['region', 'province', 'city', 'county', 'zip'],
           Helper: ['capitalize', 'upper', 'lower', 'pick', 'shuffle'],
-          Miscellaneous: ['guid', 'id', 'increment']
+          Miscellaneous: ['guid', 'id', 'increment'],
         },
-        route: '',
         isObject: false,
+        type: 'add',
         httpTemplate: {
           code: 200,
           status: true,
-          template: []
-        }
-      }
+          template: [],
+        },
+      };
     },
     template: `
       <el-dialog
-        title="创建服务"
+        :title="title"
         :visible.sync="dialogVisible"
         width="90%"
         height="90vh"
         :before-close="handleClose">
         <el-form ref="form" :model="httpTemplate" label-width="80px">
           <el-form-item label="路由">
-           <el-input v-model="route" placeholder="请输入路由"></el-input>
+           <el-input v-model="httpTemplate.route" placeholder="请输入路由"></el-input>
           </el-form-item>
           <el-form-item label="状态码">
             <el-select v-model="httpTemplate.code" placeholder="请选择活动区域">
@@ -87,8 +78,8 @@
           </el-form-item>
           <el-form-item label="数据结构">
             <el-button-group>
-              <el-button :type="isObject?'primary':'default'">对象类型</el-button>
-              <el-button :type="!isObject?'primary':'default'">数组类型</el-button>
+              <el-button :type="isObject?'primary':'default'" @click="isObject=true">对象类型</el-button>
+              <el-button :type="!isObject?'primary':'default'" @click="isObject=false">数组类型</el-button>
             </el-button-group>
             <el-table
               border
@@ -136,26 +127,52 @@
         </span>
       </el-dialog>
     `,
-    mounted() {
-
+    watch: {
+      row: {
+        immediate: true,
+        deep: true,
+        handler(newVal) {
+          if (Object.keys(newVal).length) {
+            this.type = 'edit'
+            this.isObject = newVal.isObject;
+            this.httpTemplate = {
+              template: newVal.template,
+              code: newVal.code,
+              status: newVal.status,
+              route:newVal.route
+            }
+          } else {
+            this.type = 'add'
+          }
+        }
+      }
     },
+    mounted() { },
     methods: {
       handleClose() {
-        this.$emit("update:dialogVisible", false)
+        this.isObject = false
+        this.httpTemplate = {
+          code: 200,
+          status: true,
+          template: [],
+          route:''
+        };
+        this.$emit('update:dialogVisible', false);
+        this.$emit('update:row', {})
       },
       add() {
         this.httpTemplate.template.push({
           key: '',
           type: '',
-          value: ''
-        })
+          value: '',
+        });
       },
       ok() {
-        this.$emit("ok", this.httpTemplate)
-        this.handleClose()
-      }
-    }
-  })
+        this.$emit('ok',this.httpTemplate, this.type);
+        this.handleClose();
+      },
+    },
+  });
 
   // 根实例
   new Vue({
@@ -166,14 +183,16 @@
         { label: '服务', value: 'service' },
         { label: '设置', value: 'settings' },
       ],
-      activeName: "shell",
+      activeName: 'shell',
       loading: true,
+      title: '',
       activeName: 'shell',
       vscode: null,
       dialogVisible: false,
       httpTemplate: {},
       tableData: [],
-      serviceData: []
+      serviceData: [],
+      currentRow: {},
     },
     template: `
       <div class="webview-menu" v-loading="loading">
@@ -256,10 +275,11 @@
                   min-width="20%">
                   <template slot-scope="scope">
                     <el-button @click="run(scope.row)" :class="[!scope.row.active?'active-text':'disabled-text']" type="text" size="small">{{scope.row.active?'停用':'启用'}}</el-button>
+                    <el-button type="text" size="small" @click="readCode(scope.row)">查看</el-button>
                   </template>
                 </el-table-column>
               </el-table>
-              <create-http @ok="ok" :dialogVisible.sync="dialogVisible"></create-http>
+              <create-http @ok="ok" :dialogVisible.sync="dialogVisible" :title="title" :row.sync="currentRow"></create-http>
             </div>
           </template>
         </webview-menu>
@@ -269,7 +289,7 @@
       // 获取 vscode API
       this.vscode = acquireVsCodeApi();
       if (!this.vscode) {
-        console.error("Failed to acquire VSCode API.");
+        console.error('Failed to acquire VSCode API.');
         return;
       }
 
@@ -317,14 +337,25 @@
       },
       // 创建服务
       handleCreateService() {
-        this.dialogVisible = true
+        this.title = '创建服务';
+        this.dialogVisible = true;
       },
-      ok(data) {
-        this.vscode.postMessage({ type: 'service', data: data });
+      ok(data, type) {
+        if (type === 'add') {
+          this.vscode.postMessage({ type: 'service', data: data });
+        } else {
+          this.vscode.postMessage({ type: 're-service', data: data });
+        }
+
       },
       run(data) {
-        data.active = !data.active
+        data.active = !data.active;
         this.vscode.postMessage({ type: 'rn-service', data: data });
+      },
+      readCode(data) {
+        this.title = "查看服务";
+        this.dialogVisible = true;
+        this.currentRow = data;
       }
     },
   });

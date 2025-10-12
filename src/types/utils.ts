@@ -49,6 +49,7 @@ export interface MockRoute {
   handler: (req: Request, res: Response) => void;
   active: boolean; // 是否启用
   middlewares?: Array<(req: Request, res: Response, next: NextFunction) => void>;
+  update:number; // 0是完成更新，1是准备更新
 }
 
 export interface HttpServiceOptions {
