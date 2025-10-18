@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { isFunction } from '../../utils/is';
 
 let lastSelect = '';
 let isStickySelected = false;
@@ -45,7 +46,7 @@ export function useRegisterEditorSelection(context: vscode.ExtensionContext) {
 }
 
 export function useEditorSelection(callback: (options: { context: vscode.ExtensionContext; isStickySelected: boolean }) => void) {
-  if (typeof callback === 'function') {
+  if (isFunction(callback)) {
     callbacks.push(callback);
   }
 }

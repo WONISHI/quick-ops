@@ -96,7 +96,7 @@ class HttpService {
     server.routes.push({ path: routePath, status, id, code, message, method, handler, active, template, isObject });
     console.log(`✅ 已注册路由: [${method.toUpperCase()}] http://localhost:${port}${routePath}`);
 
-    return { port, route: routePath,id, method, active, code, message, status, isObject, template };
+    return { port, route: routePath, id, method, active, code, message, status, isObject, template };
   }
 
   /** 启停路由 */
@@ -140,21 +140,14 @@ class HttpService {
   }
 
   /** 删除路由 */
-  removeRoute(port: number, routePath: string, method: string = 'all'): boolean {
-    const server = this.findServer(port);
+  removeRoute(options: HttpServiceOptions): boolean {
+    const { port, id, method, route } = options;
+    const upperMethod = method!.toUpperCase();
+    const server = this.findServer(port!);
     if (!server) return false;
-
-    const app: any = server.app;
-    const upperMethod = method.toUpperCase();
-
-    app._router.stack = app._router.stack.filter((layer: any) => {
-      if (!layer.route) return true;
-      const match = layer.route.path === routePath && (upperMethod === 'ALL' || layer.route.methods[method]);
-      return !match;
-    });
-
-    server.routes = server.routes.filter((r) => !(r.path === routePath && r.method === method));
-    console.log(`❌ 已删除路由: [${upperMethod}] http://localhost:${port}${routePath}`);
+    const index = server.routes.findIndex((r) => r.id === id);
+    server.routes.splice(index, 1);
+    console.log(`❌ 已删除路由: [${upperMethod}] http://localhost:${port}${route}`);
     return true;
   }
 

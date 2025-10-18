@@ -4,7 +4,7 @@
   Vue.prototype.$bus = new Vue();
 
   // 定义组件（可以写 template）
-  Vue.component('webview-menu', {
+  Vue.component('advanced-tabs', {
     props: ['catalogue', 'value'],
     data() {
       return { activeName: 'shell' };
@@ -29,7 +29,7 @@
   });
 
   // 创建弹窗
-  Vue.component('create-http', {
+  Vue.component('api-creator', {
     props: ['dialogVisible', 'title', 'row'],
     data() {
       return {
@@ -53,7 +53,7 @@
           isObject: false,
           status: true,
           template: [],
-          method:'get',
+          method: 'get',
           route: ''
         },
       };
@@ -148,9 +148,9 @@
               code: newVal.code,
               status: newVal.status,
               route: newVal.route,
-              method:newVal.method,
-              isObject:newVal.isObject,
-              id:newVal.id
+              method: newVal.method,
+              isObject: newVal.isObject,
+              id: newVal.id
             }
           } else {
             this.type = 'add'
@@ -160,7 +160,6 @@
     },
     mounted() {
       this.$bus.$on('global-data', (data) => {
-        console.log('用户登录信息:', data);
         this.statusCode = data.globalData.httpStatusCode
         this.methodCode = data.globalData.methodCode
       });
@@ -173,8 +172,8 @@
           status: true,
           template: [],
           route: '',
-          method:'get',
-          isObject:false
+          method: 'get',
+          isObject: false
         };
         this.$emit('update:dialogVisible', false);
         this.$emit('update:row', {})
@@ -187,7 +186,6 @@
         });
       },
       ok() {
-        console.log(this.httpTemplate)
         this.$emit('ok', this.httpTemplate, this.type);
         this.handleClose();
       },
@@ -217,11 +215,11 @@
     template: `
       <div class="webview-menu" v-loading="loading">
         <!-- 使用v-model进行绑定 -->
-        <webview-menu :value="activeName" @input="activeName = $event" :catalogue="useCatalogue">
+        <advanced-tabs :value="activeName" @input="activeName = $event" :catalogue="useCatalogue">
           <template #shell>
             <!-- shell 选项卡的内容 -->
             <div v-show="activeName === 'shell'">
-              <el-table :data="tableData" style="width: 100%" border>
+              <el-table :data="tableData" size="mini" style="width: 100%" border>
                 <el-table-column
                   prop="index"
                   align="center"
@@ -239,14 +237,14 @@
                   align="center"
                   label="指令">
                   <template slot-scope="scope">
-                    <el-button @click="handleClick(scope.row)" type="text" size="small">{{scope.row.cmd}}</el-button>
+                    <el-button @click="onRunCommand(scope.row)" type="text" size="small">{{scope.row.cmd}}</el-button>
                   </template>
                 </el-table-column>
                 <el-table-column
                   label="操作"
                   min-width="20%">
                   <template slot-scope="scope">
-                    <el-button @click="handleClick(scope.row)" type="text" size="small">运行</el-button>
+                    <el-button @click="onRunCommand(scope.row)" type="text" size="small">运行</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -255,9 +253,9 @@
           <template #service>
             <div class="service-view">
               <div class="service-operate">
-                <el-button @click="handleCreateService">创建服务</el-button>
+                <el-button @click="showCreateServiceModal">创建服务</el-button>
               </div>
-               <el-table :data="serviceData" style="width: 100%" border>
+               <el-table :data="serviceData" size="mini" style="width: 100%" border>
                 <el-table-column
                   prop="index"
                   align="center"
@@ -294,15 +292,16 @@
                   label="操作"
                   min-width="20%">
                   <template slot-scope="scope">
-                    <el-button @click="run(scope.row)" :class="[!scope.row.active?'active-text':'disabled-text']" type="text" size="small">{{scope.row.active?'停用':'启用'}}</el-button>
-                    <el-button type="text" size="small" @click="readCode(scope.row)">编辑</el-button>
+                    <el-button @click="toggleService(scope.row)" :class="[!scope.row.active?'active-text':'disabled-text']" type="text" size="small">{{scope.row.active?'停用':'启用'}}</el-button>
+                    <el-button type="text" size="small" @click="editService(scope.row)">编辑</el-button>
+                    <el-button type="text" size="small" @click="deleteService(scope.row)">删除</el-button>
                   </template>
                 </el-table-column>
               </el-table>
-              <create-http @ok="ok" :dialogVisible.sync="dialogVisible" :title="title" :row.sync="currentRow"></create-http>
+              <api-creator @ok="handleConfirmService" :dialogVisible.sync="dialogVisible" :title="title" :row.sync="currentRow"></api-creator>
             </div>
           </template>
-        </webview-menu>
+        </advanced-tabs>
       </div>
     `,
     mounted() {
@@ -343,40 +342,43 @@
               });
             });
           }
-          if (services?.length) {
-            this.serviceData = services;
-          }
+          this.serviceData = services || [];
         }
       });
     },
     methods: {
       // 运行命令的方法
-      handleClick(row) {
+      onRunCommand(row) {
         const cmd = `npm run ${row.name}`;
         // 向 VSCode 发送消息
-        this.vscode.postMessage({ type: 'run', command: cmd });
+        this.vscode.postMessage({ type: 'start-service', command: cmd });
       },
       // 创建服务
-      handleCreateService() {
+      showCreateServiceModal() {
         this.title = '创建服务';
         this.dialogVisible = true;
       },
-      ok(data, type) {
+      // 新建服务和修改服务
+      handleConfirmService(data, type) {
         if (type === 'add') {
-          this.vscode.postMessage({ type: 'service', data: data });
+          this.vscode.postMessage({ type: 'new-service', data: data });
         } else {
-          this.vscode.postMessage({ type: 're-service', data: data });
+          this.vscode.postMessage({ type: 'update-service', data: data });
         }
-
       },
-      run(data) {
+      // 运行和停用
+      toggleService(data) {
         data.active = !data.active;
-        this.vscode.postMessage({ type: 'rn-service', data: data });
+        this.vscode.postMessage({ type: 'enable-service', data: data });
       },
-      readCode(data) {
+      // 查看和编辑弹窗显示
+      editService(data) {
         this.title = "查看服务";
         this.dialogVisible = true;
         this.currentRow = data;
+      },
+      deleteService(data) {
+        this.vscode.postMessage({ type: 'delete-service', data: data });
       }
     },
   });
