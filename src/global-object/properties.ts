@@ -3,6 +3,7 @@ import type { Properties, IgnoredStatus } from '../types/Properties';
 import type { FileType } from '../types/utils';
 import type { EnvConf } from '../types/EnvConf';
 import mergeClone from '../utils/mergeClone';
+import { fileTypes, httpStatusCode,MethodCode } from '../constants/index';
 // 全局对象，用于存储当前文件的相关属性
 export const properties: Properties = {
   fullPath: '',
@@ -17,6 +18,10 @@ export const properties: Properties = {
   isGitTracked: true,
   ignore: ['.logrc'],
   server: [],
+  rootFilePath:'',
+  fileTypes,
+  methodCode:MethodCode,
+  httpStatusCode,
   identifiers: ['success', 'warning', 'error', 'head'],
   completionDocumentSelector: ['javascript', 'javascriptreact', 'typescript', 'typescriptreact', 'vue'],
   configFileSchema: ['.prettierrc', '.gitignore', 'package.json', '.logrc', '.markdownlint.json', 'eslint.config.mjs', 'tsconfig.json'],

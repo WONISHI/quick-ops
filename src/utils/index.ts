@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
+import VSCodeService from '../services/VSCodeService';
 
 export function generateUUID(length: number = 32): string {
   const chars = '0123456789abcdef'; // 十六进制字符
@@ -26,11 +27,11 @@ export function getVisualColumn(text: string, character: number): number {
 }
 
 export function moveCursor(line: number, character: number) {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return;
-  const position = new vscode.Position(line, character);
-  editor.selection = new vscode.Selection(position, position);
-  editor.revealRange(new vscode.Range(position, position));
+  VSCodeService.getActiveEditor((editor: vscode.TextEditor) => {
+    const position = new vscode.Position(line, character);
+    editor.selection = new vscode.Selection(position, position);
+    editor.revealRange(new vscode.Range(position, position));
+  });
 }
 
 /**
@@ -39,10 +40,10 @@ export function moveCursor(line: number, character: number) {
  * @returns
  */
 export function scrollToTop() {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return;
-  const topLine = new vscode.Position(0, 0);
-  editor.revealRange(new vscode.Range(topLine, topLine), vscode.TextEditorRevealType.AtTop);
+  VSCodeService.getActiveEditor((editor: vscode.TextEditor) => {
+    const topLine = new vscode.Position(0, 0);
+    editor.revealRange(new vscode.Range(topLine, topLine), vscode.TextEditorRevealType.AtTop);
+  });
 }
 
 /**
@@ -51,12 +52,12 @@ export function scrollToTop() {
  * @returns
  */
 export function scrollToBottom() {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return;
-  const lastLineIndex = editor.document.lineCount - 1;
-  const lastLine = new vscode.Position(lastLineIndex, 0);
-  editor.selection = new vscode.Selection(lastLine, lastLine);
-  editor.revealRange(new vscode.Range(lastLine, lastLine), vscode.TextEditorRevealType.InCenter);
+  VSCodeService.getActiveEditor((editor: vscode.TextEditor) => {
+    const lastLineIndex = editor.document.lineCount - 1;
+    const lastLine = new vscode.Position(lastLineIndex, 0);
+    editor.selection = new vscode.Selection(lastLine, lastLine);
+    editor.revealRange(new vscode.Range(lastLine, lastLine), vscode.TextEditorRevealType.InCenter);
+  });
 }
 
 /**
@@ -175,55 +176,44 @@ export function matchKeyword(keywords: string[], current: string): boolean {
  * @returns
  */
 export async function replaceCurrentPath(importStatement: string) {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return;
-  const document = editor.document;
-  const cursorPos = editor.selection.active;
-  const lineText = document.lineAt(cursorPos.line).text;
-
-  // 找到光标所在的引号范围
-  let start = -1;
-  let end = -1;
-  const quoteChars = [`'`, `"`];
-  for (let i = 0; i < lineText.length; i++) {
-    if (quoteChars.includes(lineText[i])) {
-      if (i < cursorPos.character) {
-        start = i;
-      } else if (quoteChars.includes(lineText[i]) && start !== i) {
-        end = i;
-        break;
+  VSCodeService.getActiveEditorInfo(async ({ editor, cursorPos, lineText }) => {
+    // 找到光标所在的引号范围
+    let start = -1;
+    let end = -1;
+    const quoteChars = [`'`, `"`];
+    for (let i = 0; i < lineText.length; i++) {
+      if (quoteChars.includes(lineText[i])) {
+        if (i < cursorPos.character) {
+          start = i;
+        } else if (quoteChars.includes(lineText[i]) && start !== i) {
+          end = i;
+          break;
+        }
       }
     }
-  }
-  if (start === -1 || end === -1) return;
+    if (start === -1 || end === -1) return;
 
-  const range = new vscode.Range(new vscode.Position(cursorPos.line, start), new vscode.Position(cursorPos.line, end + 1));
-  const snippet = new vscode.SnippetString(importStatement);
-  await editor.insertSnippet(snippet, range);
+    const range = new vscode.Range(new vscode.Position(cursorPos.line, start), new vscode.Position(cursorPos.line, end + 1));
+    const snippet = new vscode.SnippetString(importStatement);
+    await editor.insertSnippet(snippet, range);
+  });
 }
 
 /**
  * 判断光标是否在大括号里面
  */
 export function isCursorInsideBraces(): boolean {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return false;
+  return VSCodeService.getActiveEditorInfo(({ text, offset }) => {
+    // 用一个简单的栈判断
+    let stack = 0;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === '{') stack++;
+      if (text[i] === '}') stack--;
+      if (i === offset) break;
+    }
 
-  const document = editor.document;
-  const position = editor.selection.active;
-
-  const text = document.getText();
-  const offset = document.offsetAt(position);
-
-  // 用一个简单的栈判断
-  let stack = 0;
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] === '{') stack++;
-    if (text[i] === '}') stack--;
-    if (i === offset) break;
-  }
-
-  return stack > 0;
+    return stack > 0;
+  });
 }
 
 /**
@@ -310,11 +300,9 @@ export function overwriteIgnoreFilesLocally(files: string[], cb?: (files: string
 export async function withTsType(type: 'ts' | 'jsTots' = 'ts'): Promise<string | false> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return false;
-
   const selection = editor.selection;
   const selectedText = editor.document.getText(selection).trim();
   if (!selectedText) return false;
-
   try {
     const parsed = Function(`"use strict"; return (${selectedText})`)();
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
@@ -325,6 +313,7 @@ export async function withTsType(type: 'ts' | 'jsTots' = 'ts'): Promise<string |
           if (type === 'object') {
             type = Array.isArray(value) ? 'any[]' : 'Record<string, any>';
           }
+          if (value === 'any') type = value;
           prev[key] = type;
           return prev;
         },
@@ -341,6 +330,7 @@ export async function withTsType(type: 'ts' | 'jsTots' = 'ts'): Promise<string |
       return false;
     }
   } catch (e) {
+    console.log('e', e);
     return false;
   }
 }
@@ -368,7 +358,7 @@ export function getWebviewContent(panel: vscode.WebviewPanel, context: vscode.Ex
   // 插件根目录
   const extensionPath = context.extensionPath;
   // index.html 所在目录
-  const htmlRoot = path.join(extensionPath, 'src', 'webview', 'html');
+  const htmlRoot = path.join(extensionPath, 'resources', 'webview', 'html');
   const htmlIndexPath = path.join(htmlRoot, 'index.html');
   if (!fs.existsSync(htmlIndexPath)) {
     vscode.window.showErrorMessage(`找不到文件: ${htmlIndexPath}`);

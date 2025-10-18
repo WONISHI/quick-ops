@@ -1,6 +1,7 @@
 // 平行读取该文件夹下素有json
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import * as vscode from "vscode";
 
 /**
  * 读取指定文件夹下的所有 JSON 文件
@@ -10,10 +11,8 @@ import * as path from 'path';
 export async function readAllJson(dir: string): Promise<Record<string, any>[]> {
   // 读取目录
   const files = await fs.readdir(dir);
-
   // 过滤 JSON 文件
   const jsonFiles = files.filter((f) => f.endsWith('.json'));
-
   // 并行读取和解析
   const results = await Promise.all(
     jsonFiles.map(async (file) => {
@@ -34,13 +33,39 @@ export async function readAllJson(dir: string): Promise<Record<string, any>[]> {
 
 // 使用示例
 export async function MixinReadSnippets(): Promise<Record<string, any>[]> {
-  const folderPath = path.resolve(__dirname, '../../resources/snippets'); // 当前文件夹
+  const folderPath = path.resolve(__dirname,'..','..', 'resources', 'snippets'); // 当前文件夹
   const jsonList = await readAllJson(folderPath);
   return jsonList.flat(Infinity);
 }
 
 export async function MixinReadShells(): Promise<Record<string, any>[]> {
-  const folderPath = path.resolve(__dirname, '../../resources/shell'); // 当前文件夹
+  const folderPath = path.resolve(__dirname,'..','..', 'resources', 'shell'); // 当前文件夹
   const jsonList = await readAllJson(folderPath);
   return jsonList.flat(Infinity);
+}
+
+export async function findPackageJsonFolder(): Promise<string | undefined> {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  if (!folder) return;
+  const rootPath = folder.uri.fsPath;
+  const rootPkg = path.join(rootPath, 'package.json');
+  try {
+    await fs.access(rootPkg);
+    return rootPath;
+  } catch {}
+  try {
+    const entries = await fs.readdir(rootPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const pkgPath = path.join(rootPath, entry.name, 'package.json');
+        try {
+          await fs.access(pkgPath);
+          return path.join(rootPath, entry.name);
+        } catch {}
+      }
+    }
+  } catch (err) {
+    console.error(err);
+  }
+  return undefined;
 }

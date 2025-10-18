@@ -20,6 +20,10 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "webviews": {
+      "allowScripts": true,
+      "allowLinks": true
+    },
     "commands": [
       {
         "command": "extension.revealCurrentFile",
@@ -136,10 +140,12 @@
   "dependencies": {
     "@babel/parser": "^7.28.3",
     "@babel/traverse": "^7.28.3",
+    "@types/express": "^5.0.3",
     "@types/mockjs": "^1.0.10",
     "@vue/compiler-sfc": "^3.5.20",
     "cheerio": "^1.1.2",
     "dayjs": "^1.11.13",
+    "express": "^5.1.0",
     "ignore": "^7.0.5",
     "mockjs": "^1.1.0",
     "terser-webpack-plugin": "^5.3.14",

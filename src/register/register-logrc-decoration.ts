@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import EventBus from '../utils/emitter';
+import EventBus from '../services/Emitter';
 import { properties } from '../global-object/properties';
 
 export function registerLogrcDecoration(context: vscode.ExtensionContext) {

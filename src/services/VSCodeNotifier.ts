@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-export default class NotificationService {
+export default class VSCodeNotifier {
   static info(message: string, duration?: number) {
     return this.show('info', message, duration);
   }

@@ -1,6 +1,6 @@
 import { CompletionItemKind, MarkdownString } from 'vscode';
-import extendCompletionItem from '../utils/extendCompletionItem';
-import { moduleConfig, parseModuleTemplate, parseSnippet, getVisualColumn } from '../utils/moduleTemplate';
+import extendCompletionItem from '../../services/ConditionalCompletionItem';
+import { moduleConfig, parseModuleTemplate, parseSnippet, getVisualColumn } from '../../utils/moduleTemplate';
 
 export const LogSnippetString = [
   {

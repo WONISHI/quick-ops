@@ -1,0 +1,6 @@
+[
+        {
+        "description": "初始化项目",
+        "cmd": "npm init -y"
+    }
+]

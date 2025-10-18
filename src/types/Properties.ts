@@ -1,10 +1,15 @@
 import type { FileType } from './utils';
 import type { EnvConf } from './EnvConf';
 import * as vscode from 'vscode';
+import { properties } from '../global-object/properties';
+import { defineConstArray } from './type';
+import { fileTypes, httpStatusCode,MethodCode } from '../constants/index';
+
 export interface IgnoredStatus {
   added: string[];
   remove: string[];
 }
+
 export interface Properties {
   // 打开文件路径不带（盘符）
   fullPath: string;
@@ -65,5 +70,16 @@ export interface Properties {
   // webview
   panel?: vscode.WebviewPanel;
   // csp设置nonce
-  nonce?:string;
+  nonce?: string;
+  // 工作区的根目录
+  rootFilePath: string;
+  // 文件后缀
+  fileTypes: typeof fileTypes;
+  // 网络状态码
+  httpStatusCode: typeof httpStatusCode;
+  // 请求方式
+  methodCode:typeof MethodCode;
 }
+
+export const CONFIG_FILES = properties.configFileSchema;
+export type ConfigFile = (typeof CONFIG_FILES)[number];
