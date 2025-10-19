@@ -4,11 +4,11 @@ import { OpenMode } from '../../constants/index';
 import HttpService from '../../services/HttpService';
 
 export function MixinSubscribeCommandChannel(message: any) {
-  console.log('message', message);
   switch (message.type) {
     case 'start-service':
       // 运行指令
-      runCommand(message);
+      const command = message.command;
+      runCommand(command);
       break;
     case 'debug':
       vscode.window.showInformationMessage(`打印数据${JSON.stringify(message)}`);
@@ -54,12 +54,21 @@ export function MixinSubscribeCommandChannel(message: any) {
       properties.panel!.webview.postMessage({ type: 'vscode-params-channel', data: properties });
       break;
     case 'execute-in-current':
-      runCommand(message,message.type);
+      const cmd = message.command;
+      runCommand(cmd, message.type);
+    case 'execute-in-terminal':
+      const terminal = vscode.window.activeTerminal;
+      console.log('.terminal',terminal)
+      if (!terminal) {
+        vscode.window.showWarningMessage('没有活动终端。');
+        return;
+      }
+      terminal.dispose();
+      break;
   }
 }
 
-function runCommand(message: any, type: OpenMode = OpenMode.NEW) {
-  const command = message.command;
+function runCommand(command: any, type: OpenMode = OpenMode.NEW) {
   const workspaceFolders = vscode.workspace.workspaceFolders;
   const cwd = workspaceFolders ? properties.rootFilePath : process.cwd();
   const terminal = vscode.window.terminals.length && type === OpenMode.CURRENT ? vscode.window.activeTerminal : vscode.window.createTerminal({ name: '命令执行终端', cwd });

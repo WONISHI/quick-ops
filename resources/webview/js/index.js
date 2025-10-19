@@ -254,6 +254,7 @@
                         <el-dropdown-item command="execute-with-new-session">新开运行</el-dropdown-item>
                       </el-dropdown-menu>
                     </el-dropdown>
+                    <el-button @click="disposeCommand" type="text" size="small">中断运行</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -326,6 +327,10 @@
       window.addEventListener('message', this.onMessage);
     },
     methods: {
+      // 终端运行
+      disposeCommand(){
+        this.vscode.postMessage({ type: 'execute-in-terminal' });
+      },
       // 新开弹窗和当前弹窗运行
       runInCurrentTerminal(command, row) {
         const cmd = `npm run ${row.name}`;
