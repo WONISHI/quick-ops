@@ -31,7 +31,20 @@ body {
     color: #409eff;
     outline: none;
 }
-.el-button--text.disabled-text{
-    color:#C0C4CC;
+
+.el-button--text.disabled-text {
+    color: #C0C4CC;
     outline: none;
+}
+
+.command-display {
+    display: flex;
+    width: 100%;
+    overflow: hidden;
+}
+
+.command-display>span {
+    overflow: hidden;
+    width: 100%;
+    text-overflow: ellipsis;
 }

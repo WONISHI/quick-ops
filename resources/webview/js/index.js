@@ -239,7 +239,7 @@
                   label="指令">
                   <template slot-scope="scope">
                     <el-tooltip class="item" effect="dark" :content="scope.row.cmd" placement="top">
-                      <el-button @click="onRunCommand(scope.row)" type="text" size="small">{{scope.row.cmd}}</el-button>
+                      <el-button @click="onRunCommand(scope.row)" type="text" size="small" class="command-display">{{scope.row.cmd}}</el-button>
                     </el-tooltip>
                   </template>
                 </el-table-column>
