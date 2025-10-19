@@ -71,26 +71,4 @@ export function parseSnippet(codes: string[]): any[] | null {
     .filter(Boolean); // 过滤掉 null
 }
 
-export function getVisualColumn(text: string, tabSize = 4): number {
-  let currentText = '';
-  const regex = /^(.*)(?=,\s*'\$0')/;
-  const match = text.match(regex);
-  if (match) {
-    currentText = match[0];
-  }
-  let col = 0;
-  for (let i = 0; i < currentText.length; i++) {
-    const code = currentText.charCodeAt(i);
-    if (code === 9) {
-      const add = tabSize - (col % tabSize);
-      col += add;
-    } else if (code >= 0xd800 && code <= 0xdbff) {
-      col += 2;
-      i++;
-    } else {
-      col += 1;
-    }
-  }
-  moduleConfig.character += col;
-  return col;
-}
+

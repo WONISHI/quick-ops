@@ -14,18 +14,6 @@ export function generateUUID(length: number = 32): string {
   return uuid;
 }
 
-export function getVisualColumn(text: string, character: number): number {
-  let col = 0;
-  for (let i = 0; i < character; i++) {
-    const ch = text[i];
-    if (/[\uD800-\uDBFF]/.test(ch)) {
-      continue;
-    }
-    col++;
-  }
-  return col;
-}
-
 export function moveCursor(line: number, character: number) {
   VSCodeService.getActiveEditor((editor: vscode.TextEditor) => {
     const position = new vscode.Position(line, character);

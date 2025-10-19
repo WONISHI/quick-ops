@@ -78,5 +78,5 @@ export function fireTrigger(context: vscode.ExtensionContext) {
   // 生成mock数据
   generateMockData(context);
   // 选中插入try
-  // 折叠
+  // 强制折叠
 }

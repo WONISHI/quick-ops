@@ -28,6 +28,53 @@
     },
   });
 
+  // 悬浮菜单
+  Vue.component("floating-nav-menu", {
+    template: `  
+      <div
+        class="floating-nav"
+        @mouseenter="isExpanded = true"
+        @mouseleave="isExpanded = false"
+      >
+        <div class="nav-inner" :class="{ expanded: isExpanded }">
+          <transition-group name="fade" tag="div" class="nav-buttons">
+            <button
+              v-for="(tool, index) in tools"
+              :key="tool.label"
+              class="nav-btn"
+              :title="tool.label"
+              v-show="isExpanded"
+              @click="tool.action && tool.action()"
+            >
+              {{ tool.icon }}
+            </button>
+          </transition-group>
+          <div class="collapse-btn">☰</div>
+        </div>
+      </div>
+    `,
+    props: {
+      tools: {
+        type: Array,
+        default: () => [
+          { label: "刷新页面", icon: "🔄", action: () => location.reload() },
+          {
+            label: "返回顶部",
+            icon: "⬆️",
+            action: () => window.scrollTo({ top: 0, behavior: "smooth" }),
+          },
+          { label: "设置", icon: "⚙️", action: () => alert("打开设置") },
+          { label: "帮助", icon: "❓", action: () => alert("打开帮助") },
+        ],
+      },
+    },
+    data() {
+      return {
+        isExpanded: false,
+      };
+    },
+  })
+
   // 创建弹窗
   Vue.component('api-creator', {
     props: ['dialogVisible', 'title', 'row'],
@@ -216,6 +263,7 @@
     template: `
       <div class="webview-menu" v-loading="loading">
         <!-- 使用v-model进行绑定 -->
+        <!-- #region advanced-tabs -->
         <advanced-tabs :value="activeName" @input="activeName = $event" :catalogue="useCatalogue">
           <template #shell>
             <!-- shell 选项卡的内容 -->
@@ -312,6 +360,7 @@
             </div>
           </template>
         </advanced-tabs>
+        <!-- #endregion -->
       </div>
     `,
     created() {
@@ -328,7 +377,7 @@
     },
     methods: {
       // 终端运行
-      disposeCommand(){
+      disposeCommand() {
         this.vscode.postMessage({ type: 'execute-in-terminal' });
       },
       // 新开弹窗和当前弹窗运行
