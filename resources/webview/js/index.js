@@ -211,6 +211,7 @@
       tableData: [],
       serviceData: [],
       currentRow: {},
+      enableVisibility: true,
     },
     template: `
       <div class="webview-menu" v-loading="loading">
@@ -237,14 +238,22 @@
                   align="center"
                   label="指令">
                   <template slot-scope="scope">
-                    <el-button @click="onRunCommand(scope.row)" type="text" size="small">{{scope.row.cmd}}</el-button>
+                    <el-tooltip class="item" effect="dark" :content="scope.row.cmd" placement="top">
+                      <el-button @click="onRunCommand(scope.row)" type="text" size="small">{{scope.row.cmd}}</el-button>
+                    </el-tooltip>
                   </template>
                 </el-table-column>
                 <el-table-column
                   label="操作"
                   min-width="20%">
                   <template slot-scope="scope">
-                    <el-button @click="onRunCommand(scope.row)" type="text" size="small">运行</el-button>
+                    <el-dropdown @command="runInCurrentTerminal($event,scope.row)">
+                      <el-button @click="onRunCommand(scope.row)" type="text" size="small">运行</el-button>
+                      <el-dropdown-menu slot="dropdown">
+                        <el-dropdown-item command="execute-in-current">当前运行</el-dropdown-item>
+                        <el-dropdown-item command="execute-with-new-session">新开运行</el-dropdown-item>
+                      </el-dropdown-menu>
+                    </el-dropdown>
                   </template>
                 </el-table-column>
               </el-table>
@@ -304,18 +313,32 @@
         </advanced-tabs>
       </div>
     `,
-    mounted() {
+    created() {
       // 获取 vscode API
       this.vscode = acquireVsCodeApi();
       if (!this.vscode) {
         console.error('Failed to acquire VSCode API.');
         return;
       }
-
+      // 监听是否可见，如果不可见标识一下
+      document.addEventListener('visibilitychange', this.onVisibility)
       // 接收 Webview 传来的消息
-      window.addEventListener('message', (event) => {
+      window.addEventListener('message', this.onMessage);
+    },
+    methods: {
+      // 新开弹窗和当前弹窗运行
+      runInCurrentTerminal(command, row) {
+        const cmd = `npm run ${row.name}`;
+        if (command === 'execute-with-new-session') {
+          this.vscode.postMessage({ type: 'start-service', command: cmd });
+        } else {
+          this.vscode.postMessage({ type: 'execute-in-current', command: cmd });
+        }
+      },
+      // 监听消息
+      onMessage(event) {
         const { type, data } = event.data;
-        if (['ready', 'update'].includes(type)) {
+        if (type === 'vscode-params-channel') {
           this.$bus.$emit('global-data', { globalData: data });
           const scripts = data?.scripts || {};
           const services = data?.server || [];
@@ -344,9 +367,13 @@
           }
           this.serviceData = services || [];
         }
-      });
-    },
-    methods: {
+      },
+      // 监听可见(卸载了不会触发)
+      onVisibility() {
+        if (document.visibilityState !== 'visible') {
+          sessionStorage.setItem("WEBVIEW_VISIBILITY", false)
+        }
+      },
       // 运行命令的方法
       onRunCommand(row) {
         const cmd = `npm run ${row.name}`;

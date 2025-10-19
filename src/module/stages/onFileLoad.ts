@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import VSCodeNotifier from '../../services/VSCodeNotifier';
 import onPluginInit from '../../module/stages/onPluginInit';
 import { ignoreArray, generateKeywords } from '../../utils/index';
-import { MergeProperties, properties, computeGitChanges } from '../../global-object/properties';
+import { mergeGlobalVars, properties, computeGitChanges } from '../../global-object/properties';
 import { CONFIG_FILES, type ConfigFile } from '../../types/Properties';
 
 // 通用的配置读取
@@ -21,7 +21,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
     const text = document.getText();
     const basename = path.basename(uri.fsPath);
     if (text.trim().length === 0) {
-      MergeProperties({ workspaceConfig: {}, configResult: true });
+      mergeGlobalVars({ workspaceConfig: {}, configResult: true });
       return basename;
     }
     if (basename.endsWith('.json') || /^\.[^.]+rc(\.json)?$/i.test(basename)) {
@@ -30,16 +30,16 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
       // 读取logrc配置
       if (basename === '.logrc') {
         // 项目是否忽略配置文件
-        MergeProperties({ ignorePluginConfig: [undefined, true].includes(content.excludedConfigFiles) });
+        mergeGlobalVars({ ignorePluginConfig: [undefined, true].includes(content.excludedConfigFiles) });
         // 忽略配置文件情况
         /*封装方法比较旧值的properties.workspaceConfig.git(可能会出现properties.workspaceConfig不存在，
          * properties.workspaceConfig.git不存在，properties.workspaceConfig.git的长度为0）和新值的property.workspaceConfig
          * (可能会出现property.workspaceConfig不存在，property.workspaceConfig.git不存在，property.workspaceConfig.git的长度为0）找出新增和删除项，类型都是string[]
          */
         const gitChanges = computeGitChanges(properties.workspaceConfig!, content!);
-        MergeProperties({ ignoredChanges: gitChanges });
+        mergeGlobalVars({ ignoredChanges: gitChanges });
         // 合并项目的配置文件
-        MergeProperties({ workspaceConfig: content, configResult: true });
+        mergeGlobalVars({ workspaceConfig: content, configResult: true });
       }
       if (fileName === 'package') {
         const isVueProject = !!content.dependencies?.vue || !!content.devDependencies?.vue;
@@ -47,7 +47,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
         const vueVersion = content.dependencies?.vue || content.devDependencies?.vue;
         const reactVersion = content.dependencies?.react || content.devDependencies?.react;
         const version = isVueProject ? vueVersion : reactVersion;
-        MergeProperties({
+        mergeGlobalVars({
           projectName: content.name || '',
           languagesCss: Object.keys(content.devDependencies).includes('sass') ? 'scss' : Object.keys(content.devDependencies).includes('less') ? 'less' : 'css',
           isVueProject: isVueProject,
@@ -65,7 +65,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
     if (/^\.[^.]+ignore$/i.test(basename)) {
       if (basename === '.gitignore') {
         const workspaceIgnore = ignoreArray(text);
-        MergeProperties({ ignorePluginConfig: !workspaceIgnore.includes('.logrc') ? properties.ignorePluginConfig : workspaceIgnore.includes('.logrc') });
+        mergeGlobalVars({ ignorePluginConfig: !workspaceIgnore.includes('.logrc') ? properties.ignorePluginConfig : workspaceIgnore.includes('.logrc') });
       }
     }
     return basename;
@@ -124,7 +124,7 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
       watcher.onDidDelete((uri) => {
         VSCodeNotifier.warn(`${file} 已删除`,3000);
         vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', true);
-        MergeProperties({ workspaceConfig: {}, configResult: false });
+        mergeGlobalVars({ workspaceConfig: {}, configResult: false });
         handleConfig(uri, context);
       });
       context.subscriptions.push(watcher);
@@ -140,14 +140,14 @@ export default function onFileLoad(context: vscode.ExtensionContext) {
   if (fs.existsSync(pluginConfigPath)) {
     try {
       const content = JSON.parse(fs.readFileSync(pluginConfigPath, 'utf8'));
-      MergeProperties({ pluginConfig: content });
+      mergeGlobalVars({ pluginConfig: content });
     } catch (err) {
       VSCodeNotifier.error(`读取插件自身 .logrc 出错: ${err}`);
     }
   }
   const configPath = path.join(properties.rootFilePath, '.logrc');
   if (!fs.existsSync(configPath)) {
-    MergeProperties({ configResult: false });
+    mergeGlobalVars({ configResult: false });
     vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', true);
     onPluginInit('.logrc');
   }

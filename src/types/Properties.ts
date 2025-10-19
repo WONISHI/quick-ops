@@ -79,6 +79,8 @@ export interface Properties {
   httpStatusCode: typeof httpStatusCode;
   // 请求方式
   methodCode:typeof MethodCode;
+  // webview是否挂载成功
+  isPreviewWebviewMounted?:boolean;
 }
 
 export const CONFIG_FILES = properties.configFileSchema;

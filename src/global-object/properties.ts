@@ -46,7 +46,7 @@ export function computeGitChanges(previousConfig?: Partial<EnvConf>, currentConf
 }
 
 // 合并配置项
-export const MergeProperties = (property: Partial<Properties>) => {
+export const mergeGlobalVars = (property: Partial<Properties>) => {
   Object.assign(properties, property);
   // 合并插件配置文件和工作区域的配置文件
   if (property.workspaceConfig && Reflect.ownKeys(property.workspaceConfig).length) {
@@ -56,7 +56,7 @@ export const MergeProperties = (property: Partial<Properties>) => {
   }
   // 创建了webveiw则需要给给webview通信
   if (properties.panel) {
-    properties.panel.webview.postMessage({ type: property.panel ? 'ready' : 'update', data: properties });
+    properties.panel.webview.postMessage({ type: 'vscode-params-channel', data: properties });
   }
 };
 
@@ -67,7 +67,7 @@ export const initProperties = (document: vscode.TextDocument) => {
   const filePath = document.uri.fsPath;
   const fullPath = document.uri.path;
   const fileType = fullPath.split('.').pop() as FileType;
-  MergeProperties({
+  mergeGlobalVars({
     fullPath: filePath,
     filePath: fullPath,
     fileName: fullPath.split('/').pop() || '',

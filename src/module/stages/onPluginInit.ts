@@ -3,7 +3,7 @@ import EventBus from '../../services/Emitter';
 import { resolveResult } from '../../utils/promiseResolve';
 import { execSync } from 'child_process';
 import { overwriteIgnoreFilesLocally, isGitTracked } from '../../utils/index';
-import { MergeProperties, properties } from '../../global-object/properties';
+import { mergeGlobalVars, properties } from '../../global-object/properties';
 import VSCodeNotifier from '../../services/VSCodeNotifier';
 import type { ConfigFile } from '../../types/Properties';
 
@@ -40,7 +40,7 @@ function setIgnoredFiles() {
       execSync(`git update-index --no-skip-worktree ${skip.join(' ')}`, { stdio: 'ignore', cwd: workspaceRoot });
     }
   });
-  MergeProperties({ isGitTracked: !!result });
+  mergeGlobalVars({ isGitTracked: !!result });
   if (result) VSCodeNotifier.info(`忽略 ${igList.length > 3 ? igList.slice(0, 3).join(',') + '...' : igList.join(',')}文件跟踪！`);
 }
 
