@@ -64,7 +64,7 @@ export default class EventBus {
   /**
    * 销毁某个通道
    */
-  public static disposeChannel(channel: string) {
+  public static dispose(channel: string) {
     const channelObj = this.events.get(channel);
     if (channelObj) {
       channelObj.emitter.dispose();
