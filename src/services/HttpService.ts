@@ -15,6 +15,18 @@ class HttpService {
   /** 创建服务实例 */
   private createServer(port: number) {
     const app = express();
+
+    app.use((req, res, next) => {
+      res.header('Access-Control-Allow-Origin', '*'); // 允许所有来源
+      res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+      res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+      // 预检请求直接返回
+      if (req.method === 'OPTIONS') {
+        return res.sendStatus(204);
+      }
+      next();
+    });
+
     app.use(express.json());
 
     app.listen(port, () => {
