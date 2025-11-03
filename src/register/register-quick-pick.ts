@@ -29,6 +29,7 @@ export function registerQuickPick(context: vscode.ExtensionContext) {
       // Webview 不存在 → 创建新的
       panel = vscode.window.createWebviewPanel('reactWebview', 'quick-ops(控制台)', vscode.ViewColumn.Beside, {
         enableScripts: true,
+        retainContextWhenHidden: true,
         localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'resources/webview'))],
       });
 

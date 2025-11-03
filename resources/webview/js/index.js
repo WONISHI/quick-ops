@@ -206,6 +206,7 @@
       },
     },
     mounted() {
+      console.log("是否初始化");
       this.$bus.$on('global-data', (data) => {
         this.statusCode = data.globalData.httpStatusCode;
         this.methodCode = data.globalData.methodCode;
