@@ -46,7 +46,16 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
         const isReactProject = !!content.dependencies?.react || !!content.devDependencies?.react;
         const vueVersion = content.dependencies?.vue || content.devDependencies?.vue;
         const reactVersion = content.dependencies?.react || content.devDependencies?.react;
-        const version = isVueProject ? vueVersion : reactVersion;
+        let version = undefined;
+        let keywords = undefined;
+        // 判断是否是前端项目
+        if (isVueProject || isReactProject) {
+          version = isVueProject ? vueVersion : reactVersion;
+        }
+        // 判断关键词
+        if(isVueProject || isReactProject){
+          keywords = generateKeywords(isVueProject ? 'vue' : 'react', version);
+        }
         mergeGlobalVars({
           projectName: content.name || '',
           languagesCss: Object.keys(content.devDependencies).includes('sass') ? 'scss' : Object.keys(content.devDependencies).includes('less') ? 'less' : 'css',
@@ -55,7 +64,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
           vueVersion: vueVersion,
           reactVersion: reactVersion,
           scripts: content.scripts || null,
-          keywords: generateKeywords(isVueProject ? 'vue' : 'react', version),
+          keywords: undefined,
         });
       }
     }
@@ -122,7 +131,7 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
       // watcher.onDidChange((uri) => handleConfig(uri));
       watcher.onDidCreate((uri) => handleConfig(uri, context));
       watcher.onDidDelete((uri) => {
-        VSCodeNotifier.warn(`${file} 已删除`,3000);
+        VSCodeNotifier.warn(`${file} 已删除`, 3000);
         vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', true);
         mergeGlobalVars({ workspaceConfig: {}, configResult: false });
         handleConfig(uri, context);
