@@ -135,7 +135,8 @@
     "webpack-cli": "^6.0.1"
   },
   "volta": {
-    "node": "22.18.0"
+    "node": "22.18.0",
+    "yarn": "4.10.3"
   },
   "dependencies": {
     "@babel/parser": "^7.28.3",
