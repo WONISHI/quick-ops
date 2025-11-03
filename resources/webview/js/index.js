@@ -391,7 +391,6 @@
       },
       // 监听消息
       onMessage(event) {
-        console.log('onMessage', event);
         const { type, data } = event.data;
         if (type === 'vscode-params-channel') {
           this.$bus.$emit('global-data', { globalData: data });
@@ -409,16 +408,6 @@
             }, []);
             this.status = `${JSON.stringify(this.tableData)}`;
             this.loading = false;
-            // this.$nextTick(() => {
-            //   // 使用 GSAP 动画效果
-            //   gsap.from('.el-table .el-table__body-wrapper .el-table__row', {
-            //     opacity: 0,
-            //     y: 50,
-            //     duration: 0.6,
-            //     stagger: 0.2,
-            //     ease: 'back.out(1.7)',
-            //   });
-            // });
           }
           this.serviceData = services || [];
         }
