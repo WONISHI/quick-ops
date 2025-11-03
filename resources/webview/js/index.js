@@ -29,7 +29,7 @@
   });
 
   // 悬浮菜单
-  Vue.component("floating-nav-menu", {
+  Vue.component('floating-nav-menu', {
     template: `  
       <div
         class="floating-nav"
@@ -57,14 +57,14 @@
       tools: {
         type: Array,
         default: () => [
-          { label: "刷新页面", icon: "🔄", action: () => location.reload() },
+          { label: '刷新页面', icon: '🔄', action: () => location.reload() },
           {
-            label: "返回顶部",
-            icon: "⬆️",
-            action: () => window.scrollTo({ top: 0, behavior: "smooth" }),
+            label: '返回顶部',
+            icon: '⬆️',
+            action: () => window.scrollTo({ top: 0, behavior: 'smooth' }),
           },
-          { label: "设置", icon: "⚙️", action: () => alert("打开设置") },
-          { label: "帮助", icon: "❓", action: () => alert("打开帮助") },
+          { label: '设置', icon: '⚙️', action: () => alert('打开设置') },
+          { label: '帮助', icon: '❓', action: () => alert('打开帮助') },
         ],
       },
     },
@@ -73,7 +73,7 @@
         isExpanded: false,
       };
     },
-  })
+  });
 
   // 创建弹窗
   Vue.component('api-creator', {
@@ -101,7 +101,7 @@
           status: true,
           template: [],
           method: 'get',
-          route: ''
+          route: '',
         },
       };
     },
@@ -189,7 +189,7 @@
         deep: true,
         handler(newVal) {
           if (Object.keys(newVal).length) {
-            this.type = 'edit'
+            this.type = 'edit';
             this.httpTemplate = {
               template: newVal.template,
               code: newVal.code,
@@ -197,33 +197,33 @@
               route: newVal.route,
               method: newVal.method,
               isObject: newVal.isObject,
-              id: newVal.id
-            }
+              id: newVal.id,
+            };
           } else {
-            this.type = 'add'
+            this.type = 'add';
           }
-        }
-      }
+        },
+      },
     },
     mounted() {
       this.$bus.$on('global-data', (data) => {
-        this.statusCode = data.globalData.httpStatusCode
-        this.methodCode = data.globalData.methodCode
+        this.statusCode = data.globalData.httpStatusCode;
+        this.methodCode = data.globalData.methodCode;
       });
     },
     methods: {
       handleClose() {
-        this.isObject = false
+        this.isObject = false;
         this.httpTemplate = {
           code: 200,
           status: true,
           template: [],
           route: '',
           method: 'get',
-          isObject: false
+          isObject: false,
         };
         this.$emit('update:dialogVisible', false);
-        this.$emit('update:row', {})
+        this.$emit('update:row', {});
       },
       add() {
         this.httpTemplate.template.push({
@@ -371,7 +371,7 @@
         return;
       }
       // 监听是否可见，如果不可见标识一下
-      document.addEventListener('visibilitychange', this.onVisibility)
+      document.addEventListener('visibilitychange', this.onVisibility);
       // 接收 Webview 传来的消息
       window.addEventListener('message', this.onMessage);
     },
@@ -425,7 +425,7 @@
       // 监听可见(卸载了不会触发)
       onVisibility() {
         if (document.visibilityState !== 'visible') {
-          sessionStorage.setItem("WEBVIEW_VISIBILITY", false)
+          sessionStorage.setItem('WEBVIEW_VISIBILITY', false);
         }
       },
       // 运行命令的方法
@@ -454,13 +454,13 @@
       },
       // 查看和编辑弹窗显示
       editService(data) {
-        this.title = "查看服务";
+        this.title = '查看服务';
         this.dialogVisible = true;
         this.currentRow = data;
       },
       deleteService(data) {
         this.vscode.postMessage({ type: 'delete-service', data: data });
-      }
+      },
     },
   });
 })();
