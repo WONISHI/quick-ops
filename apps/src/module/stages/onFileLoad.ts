@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import VSCodeNotifier from '../../services/VSCodeNotifier';
-import onPluginInit from '../../module/stages/onPluginInit';
+import onPluginInit from './onPluginInit';
 import { ignoreArray, generateKeywords } from '../../utils/index';
 import { mergeGlobalVars, properties, computeGitChanges } from '../../global-object/properties';
 import { CONFIG_FILES, type ConfigFile } from '../../types/Properties';

@@ -1,7 +1,7 @@
 import express, { Request, Response, Express, NextFunction } from 'express';
 import Mock from 'mockjs';
 import { generateUUID } from '../utils/index';
-import { isUndefined, isObject } from './../utils/is';
+import { isUndefined, isObject } from '../utils/is';
 import type { HttpServiceOptions, HttpServiceTemplate, MockRoute, MethodType } from '../types/utils';
 
 class HttpService {
