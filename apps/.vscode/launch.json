@@ -6,14 +6,15 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Extension (ts-node)",
+      "name": "Run QuickOps Extension",
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
-      "runtimeArgs": ["-r", "ts-node/register"],
-      "outFiles": ["${workspaceFolder}/dist/**/*.ts"],
-      "preLaunchTask": "npm: watch" // 这里绑定 tasks.json 里的任务
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "preLaunchTask": "npm: watch"
     }
   ]
 }
+
+
