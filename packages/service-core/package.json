@@ -1,11 +1,17 @@
 {
-  "name": "service-core",
-  "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "",
-  "license": "ISC",
-  "description": ""
+ "name": "http-mock-service",
+ "version": "1.0.0",
+ "main": "dist/index.js",
+ "types": "dist/index.d.ts",
+ "scripts": {
+  "build": "tsc -p tsconfig.json"
+ },
+ "author": "",
+ "license": "ISC",
+ "description": "",
+ "devDependencies": {
+  "@types/node": "~22.19.0",
+  "typescript": "^5.9.3",
+  "undici-types": "^7.16.0"
+ }
 }

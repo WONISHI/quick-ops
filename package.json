@@ -2,17 +2,21 @@
   "name": "quick-ops-monorepo",
   "private": true,
   "version": "1.0.0",
+  "packageManager": "pnpm@10.20.0",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "clean": "turbo run clean",
     "lint": "turbo run lint"
   },
+  "workspaces": [
+    "packages/*"
+  ],
   "devDependencies": {
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
     "turbo": "^2.0.0",
     "typescript": "^5.4.0",
-    "eslint": "^9.0.0",
-    "prettier": "^3.0.0"
+    "undici-types": "^7.16.0"
   }
 }
-
