@@ -49,7 +49,6 @@ function calculateVisualColumn(text: string, tabSize = 4): number {
 
 const provideCompletions = (position: any) => {
   moduleConfig.line = position.line;
-  console.log('moduleConfig',moduleConfig)
   moduleConfig.character = position.character;
   const codes = parseModuleTemplate('log');
   return LogSnippetString.reduce<extendCompletionItem[]>((prev, snippet) => {

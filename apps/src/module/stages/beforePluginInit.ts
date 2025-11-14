@@ -1,19 +1,17 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { useRegisterEditorSelection } from '../hook/useEditorSelection';
+import onSetup  from './onSetup';
 import { mergeGlobalVars, properties } from '../../global-object/properties';
 import { findPackageJsonFolder } from '../mixin/mixin-config';
 import VSCodeNotifier from '../../services/VSCodeNotifier';
+
 // 加载插件自带的代码片段
 // 插件开始注册
 export default async function beforePluginInit(context: vscode.ExtensionContext) {
-  // 注册hook
-  useRegisterEditorSelection(context);
+  onSetup(context);
 
   mergeGlobalVars({ rootFilePath: await findPackageJsonFolder() });
-
-  // mergeGlobalVars({ snippets: await MixinReadSnippets() });
 
   // 注册创建文件的命令
   let disposable = vscode.commands.registerCommand('extension.createLogrcFile', async (uri?: vscode.Uri) => {

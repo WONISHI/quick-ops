@@ -53,7 +53,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
           version = isVueProject ? vueVersion : reactVersion;
         }
         // 判断关键词
-        if(isVueProject || isReactProject){
+        if (isVueProject || isReactProject) {
           keywords = generateKeywords(isVueProject ? 'vue' : 'react', version);
         }
         mergeGlobalVars({
@@ -88,6 +88,7 @@ async function readConfigFile(uri: vscode.Uri): Promise<any | null> {
 // 通用的处理逻辑
 async function handleConfig(uri: vscode.Uri, context?: vscode.ExtensionContext) {
   try {
+    console.time('Plugin activation');
     const config = await readConfigFile(uri);
     // 如果 .logrc 文件不存在 (configResult 为 false)，则显示菜单
     const logrcFound = properties.configResult;
@@ -95,6 +96,7 @@ async function handleConfig(uri: vscode.Uri, context?: vscode.ExtensionContext) 
     // 如果找到了 .logrc 文件，Extension.logrcNotFound 的值为 false
     // 否则为 true
     vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', !logrcFound);
+    console.timeEnd('Plugin activation');
     if (config) {
       onPluginInit(config);
     }
@@ -106,14 +108,14 @@ async function handleConfig(uri: vscode.Uri, context?: vscode.ExtensionContext) 
 // 专门注册 onDidSaveTextDocument 监听器
 function registerSaveWatcher(context: vscode.ExtensionContext) {
   // 这个监听器只需要注册一次
-  context.subscriptions.push(
-    vscode.workspace.onDidSaveTextDocument((document) => {
-      const basename = path.basename(document.uri.fsPath);
-      if (CONFIG_FILES.includes(basename as ConfigFile)) {
-        handleConfig(document.uri, context);
-      }
-    }),
-  );
+  // context.subscriptions.push(
+  //   vscode.workspace.onDidSaveTextDocument((document) => {
+  //     const basename = path.basename(document.uri.fsPath);
+  //     if (CONFIG_FILES.includes(basename as ConfigFile)) {
+  //       handleConfig(document.uri, context);
+  //     }
+  //   }),
+  // );
 }
 
 function registerConfigWatchers(context: vscode.ExtensionContext) {
@@ -143,7 +145,6 @@ function registerConfigWatchers(context: vscode.ExtensionContext) {
 
 export default function onFileLoad(context: vscode.ExtensionContext) {
   // 显示当前工作区信息
-  const workspaceFolders = vscode.workspace.workspaceFolders?.[0];
   // 读取插件自身的配置文件
   const pluginConfigPath = path.join(context.extensionPath, '.logrc');
   if (fs.existsSync(pluginConfigPath)) {

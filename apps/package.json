@@ -19,6 +19,10 @@
     "onStartupFinished"
   ],
   "main": "./dist/extension.js",
+  "files": [
+    "dist",
+    "resources"
+  ],
   "contributes": {
     "webviews": {
       "allowScripts": true,

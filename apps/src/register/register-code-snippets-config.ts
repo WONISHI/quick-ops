@@ -7,7 +7,20 @@ import type { FileType } from '../types/utils';
 
 export function registerCodeSnippetsConfig(context: vscode.ExtensionContext) {
   // 准备变量
-  const snippets = properties.snippets?.concat(properties.settings?.customSnippets || []) || [];
+  const snippets = [
+  ...(Array.isArray(properties.snippets) 
+    ? properties.snippets.reduce<any[]>((prev, item) => {
+        if (Array.isArray(item.data)) {
+          prev.push(...item.data);
+        }
+        return prev;
+      }, [])
+    : []),
+  ...(Array.isArray(properties.settings?.customSnippets) 
+    ? properties.settings.customSnippets 
+    : [])
+];
+  console.log('加载的片段', snippets, properties);
   // 获取插件自带的关键字
   const keywords = snippets.map((item) => item.prefix).concat();
   //   注册代码片段

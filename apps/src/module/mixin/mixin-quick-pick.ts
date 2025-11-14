@@ -58,7 +58,6 @@ export function MixinSubscribeCommandChannel(message: any) {
       runCommand(cmd, message.type);
     case 'execute-in-terminal':
       const terminal = vscode.window.activeTerminal;
-      console.log('.terminal',terminal)
       if (!terminal) {
         vscode.window.showWarningMessage('没有活动终端。');
         return;

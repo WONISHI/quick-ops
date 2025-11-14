@@ -1,7 +1,8 @@
 // 平行读取该文件夹下素有json
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import * as vscode from "vscode";
+import * as vscode from 'vscode';
+import { properties } from '../../global-object/properties';
 
 /**
  * 读取指定文件夹下的所有 JSON 文件
@@ -20,7 +21,10 @@ export async function readAllJson(dir: string): Promise<Record<string, any>[]> {
       const content = await fs.readFile(filePath, 'utf-8');
       try {
         const data = JSON.parse(content);
-        return data;
+        return {
+          data,
+          name: file.lastIndexOf('.') > 0 ? file.slice(0, file.lastIndexOf('.')) : file,
+        };
       } catch (err) {
         console.error(`解析 JSON 文件失败: ${file}`, err);
         return { file, data: null };
@@ -32,18 +36,18 @@ export async function readAllJson(dir: string): Promise<Record<string, any>[]> {
 }
 
 // 使用示例
-export async function MixinReadSnippets(): Promise<Record<string, any>[]> {
-  const folderPath = path.resolve(__dirname,'..','..', 'resources', 'snippets'); // 当前文件夹
-  const jsonList = await readAllJson(folderPath);
-  return jsonList.flat(Infinity);
+export async function MixinResolveFile(context: vscode.ExtensionContext): Promise<any> {
+  const configSnippets: any[] = [];
+  for (let i = 0; i < properties.configDir.length; i++) {
+    const type = properties.configDir[i];
+    const folderPath = path.join(context.extensionPath, 'resources', type); // 当前文件夹
+    const jsonList = await readAllJson(folderPath);
+    configSnippets.push(...jsonList);
+  }
+  return configSnippets;
 }
 
-export async function MixinReadShells(): Promise<Record<string, any>[]> {
-  const folderPath = path.resolve(__dirname,'..','..', 'resources', 'shell'); // 当前文件夹
-  const jsonList = await readAllJson(folderPath);
-  return jsonList.flat(Infinity);
-}
-
+// 查找根目录
 export async function findPackageJsonFolder(): Promise<string | undefined> {
   const folder = vscode.workspace.workspaceFolders?.[0];
   if (!folder) return;

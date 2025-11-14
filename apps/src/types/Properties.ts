@@ -81,6 +81,8 @@ export interface Properties {
   methodCode:typeof MethodCode;
   // webview是否挂载成功
   isPreviewWebviewMounted?:boolean;
+  // 配置文件目录
+  configDir:string[];
 }
 
 export const CONFIG_FILES = properties.configFileSchema;
