@@ -32,6 +32,9 @@ importers:
       '@babel/traverse':
         specifier: ^7.28.3
         version: 7.28.5
+      '@quick-ops/http-mock':
+        specifier: workspace:*
+        version: link:../packages/http-mock
       '@types/express':
         specifier: ^5.0.3
         version: 5.0.5
@@ -50,9 +53,6 @@ importers:
       express:
         specifier: ^5.1.0
         version: 5.1.0
-      http-mock-service:
-        specifier: workspace:*
-        version: link:../packages/service-core
       ignore:
         specifier: ^7.0.5
         version: 7.0.5
@@ -61,7 +61,7 @@ importers:
         version: 1.1.0
       terser-webpack-plugin:
         specifier: ^5.3.14
-        version: 5.3.14(webpack@5.102.1)
+        version: 5.3.14(webpack@5.102.1(webpack-cli@6.0.1))
       vscode-languageclient:
         specifier: ^9.0.1
         version: 9.0.1
@@ -113,7 +113,7 @@ importers:
         version: 3.0.3
       ts-loader:
         specifier: ^9.5.2
-        version: 9.5.4(typescript@5.9.2)(webpack@5.102.1)
+        version: 9.5.4(typescript@5.9.2)(webpack@5.102.1(webpack-cli@6.0.1))
       typescript:
         specifier: ^5.9.2
         version: 5.9.2
@@ -124,7 +124,7 @@ importers:
         specifier: ^6.0.1
         version: 6.0.1(webpack-bundle-analyzer@4.10.2)(webpack@5.102.1)
 
-  packages/service-core:
+  packages/http-mock:
     devDependencies:
       '@types/node':
         specifier: ~22.19.0
@@ -3577,17 +3577,17 @@ snapshots:
       '@webassemblyjs/ast': 1.14.1
       '@xtuc/long': 4.2.2
 
-  '@webpack-cli/configtest@3.0.1(webpack-cli@6.0.1)(webpack@5.102.1)':
+  '@webpack-cli/configtest@3.0.1(webpack-cli@6.0.1(webpack-bundle-analyzer@4.10.2)(webpack@5.102.1))(webpack@5.102.1(webpack-cli@6.0.1))':
     dependencies:
       webpack: 5.102.1(webpack-cli@6.0.1)
       webpack-cli: 6.0.1(webpack-bundle-analyzer@4.10.2)(webpack@5.102.1)
 
-  '@webpack-cli/info@3.0.1(webpack-cli@6.0.1)(webpack@5.102.1)':
+  '@webpack-cli/info@3.0.1(webpack-cli@6.0.1(webpack-bundle-analyzer@4.10.2)(webpack@5.102.1))(webpack@5.102.1(webpack-cli@6.0.1))':
     dependencies:
       webpack: 5.102.1(webpack-cli@6.0.1)
       webpack-cli: 6.0.1(webpack-bundle-analyzer@4.10.2)(webpack@5.102.1)
 
-  '@webpack-cli/serve@3.0.1(webpack-cli@6.0.1)(webpack@5.102.1)':
+  '@webpack-cli/serve@3.0.1(webpack-cli@6.0.1(webpack-bundle-analyzer@4.10.2)(webpack@5.102.1))(webpack@5.102.1(webpack-cli@6.0.1))':
     dependencies:
       webpack: 5.102.1(webpack-cli@6.0.1)
       webpack-cli: 6.0.1(webpack-bundle-analyzer@4.10.2)(webpack@5.102.1)
@@ -5494,7 +5494,7 @@ snapshots:
       ansi-escapes: 7.2.0
       supports-hyperlinks: 3.2.0
 
-  terser-webpack-plugin@5.3.14(webpack@5.102.1):
+  terser-webpack-plugin@5.3.14(webpack@5.102.1(webpack-cli@6.0.1)):
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       jest-worker: 27.5.1
@@ -5538,7 +5538,7 @@ snapshots:
     dependencies:
       typescript: 5.9.2
 
-  ts-loader@9.5.4(typescript@5.9.2)(webpack@5.102.1):
+  ts-loader@9.5.4(typescript@5.9.2)(webpack@5.102.1(webpack-cli@6.0.1)):
     dependencies:
       chalk: 4.1.2
       enhanced-resolve: 5.18.3
@@ -5698,9 +5698,9 @@ snapshots:
   webpack-cli@6.0.1(webpack-bundle-analyzer@4.10.2)(webpack@5.102.1):
     dependencies:
       '@discoveryjs/json-ext': 0.6.3
-      '@webpack-cli/configtest': 3.0.1(webpack-cli@6.0.1)(webpack@5.102.1)
-      '@webpack-cli/info': 3.0.1(webpack-cli@6.0.1)(webpack@5.102.1)
-      '@webpack-cli/serve': 3.0.1(webpack-cli@6.0.1)(webpack@5.102.1)
+      '@webpack-cli/configtest': 3.0.1(webpack-cli@6.0.1(webpack-bundle-analyzer@4.10.2)(webpack@5.102.1))(webpack@5.102.1(webpack-cli@6.0.1))
+      '@webpack-cli/info': 3.0.1(webpack-cli@6.0.1(webpack-bundle-analyzer@4.10.2)(webpack@5.102.1))(webpack@5.102.1(webpack-cli@6.0.1))
+      '@webpack-cli/serve': 3.0.1(webpack-cli@6.0.1(webpack-bundle-analyzer@4.10.2)(webpack@5.102.1))(webpack@5.102.1(webpack-cli@6.0.1))
       colorette: 2.0.20
       commander: 12.1.0
       cross-spawn: 7.0.6
@@ -5746,7 +5746,7 @@ snapshots:
       neo-async: 2.6.2
       schema-utils: 4.3.3
       tapable: 2.3.0
-      terser-webpack-plugin: 5.3.14(webpack@5.102.1)
+      terser-webpack-plugin: 5.3.14(webpack@5.102.1(webpack-cli@6.0.1))
       watchpack: 2.4.4
       webpack-sources: 3.3.3
     optionalDependencies:
