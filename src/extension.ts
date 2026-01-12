@@ -1,15 +1,22 @@
 import * as vscode from 'vscode';
-import { waitForResult } from './utils/promiseResolve';
-import onPrepareStart from './module/stages/onPrepareStart';
-import onPluginReady from './module/stages/onPluginReady';
+import { QuickOpsApplication } from './app/QuickOpsApplication';
 
+let app: QuickOpsApplication | undefined;
+
+/**
+ * 插件激活入口
+ */
 export function activate(context: vscode.ExtensionContext) {
-  onPrepareStart(context);
-
-  // 初始化其他功能
-  waitForResult().then((res) => {
-    onPluginReady(context);
-  });
+  app = new QuickOpsApplication(context);
+  app.start();
 }
 
-export async function deactivate() {}
+/**
+ * 插件停用入口
+ */
+export function deactivate() {
+  if (app) {
+    app.dispose();
+    app = undefined;
+  }
+}
