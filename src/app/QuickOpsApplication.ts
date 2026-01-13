@@ -15,6 +15,8 @@ import { ProjectExportFeature } from '../features/ProjectExportFeature';
 import { FileNavigationFeature } from '../features/FileNavigationFeature';
 import { ConfigManagementFeature } from '../features/ConfigManagementFeature';
 import { LogEnhancerFeature } from '../features/LogEnhancerFeature';
+import { PackageScriptsFeature } from '../features/PackageScriptsFeature';
+
 export class QuickOpsApplication {
   private context: vscode.ExtensionContext;
 
@@ -33,7 +35,8 @@ export class QuickOpsApplication {
       new ProjectExportFeature(),
       new FileNavigationFeature(),
       new ConfigManagementFeature(),
-      new LogEnhancerFeature()
+      new LogEnhancerFeature(),
+      new PackageScriptsFeature(),
     ];
   }
 
