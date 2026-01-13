@@ -10,6 +10,11 @@ interface ISnippetItem {
     prefix: string;
     body: string[];
     description?: string;
+    /**
+     * Scope 定义:
+     * index 0: 文件语言类型 (e.g., "vue", "javascript")
+     * index 1: 项目依赖限制 (e.g., "vue2", "react")
+     */
     scope?: string[];
 }
 
@@ -59,18 +64,17 @@ export class CodeSnippetFeature implements IFeature {
      */
     private provideSnippets(document: vscode.TextDocument, position: number | vscode.Position): vscode.CompletionItem[] {
         if (this.cachedSnippets.length === 0) return [];
-
         // @ts-ignore
         const lineText = document.lineAt(position).text.trim();
+        const currentLangId = document.languageId; // 获取当前文件语言ID (如 'vue', 'typescript')
         
         // 1. 过滤：前缀匹配 + Scope 匹配
         const validSnippets = this.cachedSnippets.filter(item => {
-            // A. 前缀匹配 (简单的 startsWith，VSCode 会自己做模糊匹配，但这里先做一层初筛优化性能)
-            // 如果你希望输入 'vu' 也能提示 'vue3'，可以去掉这个 strict check，交给 VS Code 处理
-            // const prefixMatch = item.prefix.startsWith(lineText) || lineText.startsWith(item.prefix); 
+            // A. 前缀匹配 (交给 VS Code 模糊匹配，此处可选做初筛)
+            // const prefixMatch = item.prefix.startsWith(lineText);
             
-            // B. Scope 匹配 (智能核心)
-            const scopeMatch = this.checkScope(item.scope);
+            // B. Scope 匹配 (根据新的 [文件类型, 依赖环境] 逻辑)
+            const scopeMatch = this.checkScope(item.scope, currentLangId);
             
             return scopeMatch;
         });
@@ -93,7 +97,8 @@ export class CodeSnippetFeature implements IFeature {
             bodyStr = this.processDynamicVariables(bodyStr, currentFileName);
 
             completion.insertText = new vscode.SnippetString(bodyStr);
-            completion.documentation = new vscode.MarkdownString().appendCodeblock(bodyStr, 'vue'); // 默认高亮
+            // 这里为了更好的显示效果，可以将 markdown 语言设置为当前文件语言，或者默认 vue/js
+            completion.documentation = new vscode.MarkdownString().appendCodeblock(bodyStr, currentLangId || 'javascript');
 
             return completion;
         });
@@ -107,12 +112,10 @@ export class CodeSnippetFeature implements IFeature {
         let result = body;
 
         // 1. {module-name} -> 文件名 (去后缀)
-        // 例如: UserProfile.vue -> UserProfile
         const moduleName = fileName.includes('.') ? fileName.split('.')[0] : fileName;
         result = result.replace(/\{module-name\}/g, moduleName);
 
         // 2. [[languagesCss]] -> 样式语言 (scss/less/css)
-        // 策略：优先读取配置，没有则根据项目依赖猜测，最后默认 scss
         const cssLang = this.detectCssLanguage();
         result = result.replace(/\[\[languagesCss\]\]/g, cssLang);
 
@@ -120,23 +123,33 @@ export class CodeSnippetFeature implements IFeature {
     }
 
     /**
-     * 依赖匹配逻辑
-     * 检查 snippet 的 scope 是否符合当前项目的依赖
+     * 依赖匹配逻辑 (核心修改)
+     * 规则:
+     * - 如果没有 scope，则所有环境通用
+     * - scope[0]: 必须匹配当前文件类型 (languageId)
+     * - scope[1]: 必须存在于当前项目依赖 (package.json)
      */
-    private checkScope(scope?: string[]): boolean {
-        // 如果没有定义 scope，说明是通用的，直接通过
+    private checkScope(scope: string[] | undefined, currentLangId: string): boolean {
+        // 如果没有定义 scope 或为空数组，代表通用，直接通过
         if (!scope || scope.length === 0) return true;
 
-        // 只要满足 scope 中的任意一个条件即可 (OR 逻辑)
-        // 或者你需要 AND 逻辑？通常是 OR (例如 scope: ["vue2", "vue3"] 表示通用)
-        // 但这里你的例子是 ["vue", "vue2"]，我们假设必须满足其中之一的关键依赖
-        
-        // 策略：snippet 的 scope 列表中的所有项，只要有一项在当前项目依赖中存在，就认为匹配
-        // 例如：当前项目是 vue2。
-        // Snippet A scope: ["vue", "vue2"] -> 匹配 (因为项目有 vue，且版本判断符合 vue2)
-        // Snippet B scope: ["react"] -> 不匹配
-        
-        return scope.some(s => this.projectDependencies.has(s));
+        // 1. 检查文件类型 (scope[0])
+        const targetFileType = scope[0];
+        // 如果定义了文件类型限制，且与当前文件类型不符，则不显示
+        if (targetFileType && targetFileType !== currentLangId) {
+            return false;
+        }
+
+        // 2. 检查依赖环境 (scope[1])
+        if (scope.length > 1) {
+            const targetDependency = scope[1];
+            // 如果定义了依赖限制，但当前项目依赖中没有该依赖，则不显示
+            if (targetDependency && !this.projectDependencies.has(targetDependency)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -165,12 +178,13 @@ export class CodeSnippetFeature implements IFeature {
             }
         }
 
-        // 2. 加载用户自定义片段 (从 .logrc / ConfigService)
-        // 假设 ConfigService 中有一个 customSnippets 字段
-        // const userSnippets = this.configService.config['customSnippets'] as ISnippetItem[];
-        // if (Array.isArray(userSnippets)) {
-        //    this.cachedSnippets.push(...userSnippets);
-        // }
+        // 2. 加载用户自定义片段 (从 .logrc)
+        // 支持用户在 .logrc 中自定义 snippets
+        const userSnippets = this.configService.config['snippets'];
+        if (Array.isArray(userSnippets)) {
+           // @ts-ignore
+           this.cachedSnippets.push(...userSnippets);
+        }
     }
 
     /**
@@ -195,23 +209,24 @@ export class CodeSnippetFeature implements IFeature {
             // 2. 版本特定标记 (Vue2 vs Vue3)
             if (deps['vue']) {
                 const version = deps['vue'];
-                if (version.startsWith('^2') || version.startsWith('~2') || version.startsWith('2')) {
+                // 简单的版本判断逻辑
+                if (version.match(/(^|[^0-9])2\./)) {
                     this.projectDependencies.add('vue2');
                     this.projectDependencies.add('vue2x');
-                } else if (version.startsWith('^3') || version.startsWith('~3') || version.startsWith('3')) {
+                } else if (version.match(/(^|[^0-9])3\./)) {
                     this.projectDependencies.add('vue3');
                 }
             }
 
-            // 3. React 特定标记
+            // 3. React 标记
             if (deps['react']) {
                 this.projectDependencies.add('react');
-                // 可以加 react18 等判断
+                // 可以扩展 react18 等判断
             }
 
             // 4. CSS 预处理器
             if (deps['less']) this.projectDependencies.add('less');
-            if (deps['sass'] || deps['node-sass']) this.projectDependencies.add('scss');
+            if (deps['sass'] || deps['node-sass'] || deps['sass-loader']) this.projectDependencies.add('scss');
 
         } catch (e) {
             console.warn(`[${this.id}] Failed to parse package.json`);
@@ -223,7 +238,7 @@ export class CodeSnippetFeature implements IFeature {
      */
     private detectCssLanguage(): string {
         if (this.projectDependencies.has('less')) return 'less';
-        if (this.projectDependencies.has('scss') || this.projectDependencies.has('sass')) return 'scss';
+        if (this.projectDependencies.has('scss')) return 'scss';
         return 'css'; // 默认
     }
 

@@ -26,79 +26,82 @@
     },
     "commands": [
       {
-        "command": "extension.revealCurrentFile",
-        "title": "定位到当前文件",
-        "category": "quickOps",
+        "command": "quickOps.revealInExplorer",
+        "title": "定位当前文件 (Reveal File)",
+        "category": "Quick Ops",
         "icon": {
           "light": "resources/svg/position-dark.svg",
           "dark": "resources/svg/position-light.svg"
         }
       },
       {
-        "command": "myExtension.scrollToTop",
-        "title": "回到顶部",
+        "command": "quickOps.scrollToTop",
+        "title": "回到顶部 (Scroll to Top)",
         "icon": {
           "light": "resources/svg/top-dark.svg",
           "dark": "resources/svg/top-light.svg"
         }
       },
       {
-        "command": "myExtension.scrollToBottom",
-        "title": "回到底部",
+        "command": "quickOps.scrollToBottom",
+        "title": "回到底部 (Scroll to Bottom)",
+        "category": "Quick Ops",
         "icon": {
           "light": "resources/svg/bottom-dark.svg",
           "dark": "resources/svg/bottom-light.svg"
         }
       },
       {
-        "command": "extension.createLogrcFile",
-        "title": "创建 .logrc 文件",
+        "command": "quickOps.createConfigFile",
+        "title": "创建配置文件 (Create .logrc)",
         "category": "Quick Ops"
       },
       {
-        "command": "extension.CopyTsType",
-        "title": "复制 TypeScript 类型"
+        "command": "quickOps.generateTsType",
+        "title": "生成 TS 类型 (Generate TypeScript Interface)",
+        "category": "Quick Ops"
       },
       {
-        "command": "extension.MockData",
-        "title": "模拟数据生成"
+        "command": "quickOps.generateMockData",
+        "title": "生成模拟数据 (Generate Mock Data)",
+        "category": "Quick Ops"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "extension.revealCurrentFile",
+          "command": "quickOps.revealInExplorer",
           "when": "resourceLangId != ''",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
-          "command": "myExtension.scrollToTop",
-          "group": "navigation",
+          "command": "quickOps.scrollToTop",
+          "group": "navigation@2",
           "when": "editorTextFocus"
         },
         {
-          "command": "myExtension.scrollToBottom",
-          "group": "navigation",
+          "command": "quickOps.scrollToBottom",
+          "group": "navigation@3",
           "when": "editorTextFocus"
         }
       ],
       "explorer/context": [
         {
-          "command": "extension.createLogrcFile",
-          "group": "navigation@1",
-          "when": "Extension.logrcNotFound"
+          "command": "quickOps.createConfigFile",
+          "group": "quickOps@1",
+          "when": "quickOps.context.configMissing"
         }
       ],
       "editor/context": [
         {
-          "command": "extension.CopyTsType",
-          "group": "navigation@1",
-          "when": "Extension.SelectTots"
+          "command": "quickOps.generateTsType",
+          "group": "quickOps@1",
+          "when": "editorHasSelection && quickOps.context.canGenerateType"
         },
         {
-          "command": "extension.MockData",
-          "group": "navigation@2",
-          "when": "Extension.SelectToMock"
+          "command": "quickOps.generateMockData",
+          "group": "quickOps@2",
+          "when": "editorHasSelection && quickOps.context.canGenerateMock"
         }
       ]
     }

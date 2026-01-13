@@ -164,6 +164,7 @@ export class ProjectExportFeature implements IFeature {
   }
 
   private async replaceCurrentImportLine(newText: string) {
+    // @ts-ignore
     const { editor, cursorPos, lineText } = this.editorService.getActiveEditorInfo();
 
     // 简单的正则匹配引号范围
@@ -173,7 +174,7 @@ export class ProjectExportFeature implements IFeature {
     // 替换整行 (通常是 import ... from '...')
     // 这里做一个简单的整行替换演示，实际场景可能只需要替换路径部分或者 {} 之前的部分
     const range = editor.document.lineAt(cursorPos.line).range;
-    await editor.edit((editBuilder) => {
+    await editor.edit((editBuilder:any) => {
       editBuilder.replace(range, newText);
     });
 

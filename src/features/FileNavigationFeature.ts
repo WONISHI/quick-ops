@@ -5,7 +5,7 @@ export class FileNavigationFeature implements IFeature {
   public readonly id = 'FileNavigationFeature';
 
   public activate(context: vscode.ExtensionContext): void {
-    const disposable = vscode.commands.registerCommand('extension.revealCurrentFile', () => {
+    const disposable = vscode.commands.registerCommand('quickOps.revealInExplorer', () => {
       const activeEditor = vscode.window.activeTextEditor;
       if (!activeEditor) {
         vscode.window.showInformationMessage('当前没有打开的文件');

@@ -10,7 +10,7 @@ export class ConfigManagementFeature implements IFeature {
     ) {}
 
     public activate(context: vscode.ExtensionContext): void {
-        const createCmd = vscode.commands.registerCommand('extension.createLogrcFile', () => {
+        const createCmd = vscode.commands.registerCommand('quickOps.createConfigFile', () => {
             this.configService.createDefaultConfig();
         });
 

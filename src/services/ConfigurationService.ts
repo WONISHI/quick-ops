@@ -60,14 +60,14 @@ export class ConfigurationService extends EventEmitter implements IService {
 
     /**
      * ✅ 关键方法：设置 VS Code 上下文
-     * 当文件不存在时，设置 Extension.logrcNotFound = true，菜单按钮才会显示
+     * 当文件不存在时，设置 quickOps.context.configMissing = true，菜单按钮才会显示
      */
     private updateContextKey() {
         const filePath = this.workspaceConfigPath;
         const isNotFound = !filePath || !fs.existsSync(filePath);
         
         // 发送命令给 VS Code 核心
-        vscode.commands.executeCommand('setContext', 'Extension.logrcNotFound', isNotFound);
+        vscode.commands.executeCommand('setContext', 'quickOps.context.configMissing', isNotFound);
     }
 
     private loadInternalConfig(): ILogrcConfig {
