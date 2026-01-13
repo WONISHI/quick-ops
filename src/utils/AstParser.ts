@@ -30,7 +30,6 @@ export class AstParser {
       traverse(ast, {
         ExportNamedDeclaration(path) {
           const { node } = path;
-          console.log('node', node);
           // 1. export function/const
           if (node.declaration) {
             if (node.declaration.type === 'FunctionDeclaration' && node.declaration.id) {

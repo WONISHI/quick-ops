@@ -98,7 +98,6 @@ export class ProjectExportFeature implements IFeature {
    * 处理文件被选中后的逻辑 (解析 AST -> 生成语句 -> 替换整行)
    */
   private async handlePathSelected(args: { fileName: string; parentPath: string; isDirectory: boolean; lineText: string }) {
-    console.log('9999', args);
     // 防御性判断：文件夹不处理
     if (args.isDirectory) return;
 

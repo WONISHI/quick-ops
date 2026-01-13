@@ -28,12 +28,12 @@ export class GitService implements IService {
   public async updateIgnoreRules(newIgnoreList: string[], configDir: string) {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) return;
-    
+
     const rootPath = workspaceFolders[0].uri.fsPath;
 
     // 1. 计算差异：哪些是新增的（需要忽略），哪些是移除的（需要恢复跟踪）
-    const toIgnore = newIgnoreList.filter(item => !this._previousIgnoreList.includes(item));
-    const toTrack = this._previousIgnoreList.filter(item => !newIgnoreList.includes(item));
+    const toIgnore = newIgnoreList.filter((item) => !this._previousIgnoreList.includes(item));
+    const toTrack = this._previousIgnoreList.filter((item) => !newIgnoreList.includes(item));
 
     // 更新缓存
     this._previousIgnoreList = [...newIgnoreList];
@@ -42,7 +42,7 @@ export class GitService implements IService {
     for (const pattern of toIgnore) {
       const files = await this.resolveFiles(pattern, rootPath, configDir);
       for (const file of files) {
-        this.executeGitCommand(file, '--assume-unchanged', rootPath);
+        this.executeGitCommand(file, '--skip-worktree', rootPath);
       }
     }
 
@@ -50,7 +50,7 @@ export class GitService implements IService {
     for (const pattern of toTrack) {
       const files = await this.resolveFiles(pattern, rootPath, configDir);
       for (const file of files) {
-        this.executeGitCommand(file, '--no-assume-unchanged', rootPath);
+        this.executeGitCommand(file, '--no-skip-worktree', rootPath);
       }
     }
   }
@@ -73,7 +73,7 @@ export class GitService implements IService {
       // 全局文件名搜索逻辑 (排除 node_modules)
       // glob pattern: **/{pattern}
       const foundUris = await vscode.workspace.findFiles(`**/${pattern}`, '**/node_modules/**');
-      foundUris.forEach(uri => filesToProcess.push(uri.fsPath));
+      foundUris.forEach((uri) => filesToProcess.push(uri.fsPath));
     }
 
     return filesToProcess;
