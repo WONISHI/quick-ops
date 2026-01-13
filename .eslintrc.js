@@ -11,17 +11,14 @@ module.exports = {
   },
   extends: [
     "eslint:recommended",
-    "plugin:prettier/recommended", // 让 eslint 配合 prettier
+    "plugin:prettier/recommended",
   ],
   rules: {
-    // 关闭 import 花括号换行限制
     "object-curly-newline": "off",
-
-    // 保证 import 不强制换行
     "prettier/prettier": [
       "error",
       {
-        printWidth: 120, // 一行最大长度
+        printWidth: 120,
         bracketSpacing: true,
         singleQuote: true,
         trailingComma: "all",
