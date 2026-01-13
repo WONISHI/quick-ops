@@ -5,6 +5,7 @@ export class FileNavigationFeature implements IFeature {
   public readonly id = 'FileNavigationFeature';
 
   public activate(context: vscode.ExtensionContext): void {
+    // 定位文件
     const disposable = vscode.commands.registerCommand('quickOps.revealInExplorer', () => {
       const activeEditor = vscode.window.activeTextEditor;
       if (!activeEditor) {

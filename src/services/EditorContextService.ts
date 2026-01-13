@@ -31,6 +31,27 @@ export class EditorContextService implements IService {
   }
 
   /**
+   * [新增] 获取当前编辑器信息（安全方法，不抛错）
+   * 用于解构赋值，例如: const { editor, cursorPos } = service.getActiveEditorInfo();
+   */
+  public getActiveEditorInfo(): { 
+    editor: vscode.TextEditor | undefined; 
+    cursorPos: vscode.Position | undefined; 
+    lineText: string | undefined 
+  } {
+    const editor = vscode.window.activeTextEditor;
+    
+    if (!editor) {
+      return { editor: undefined, cursorPos: undefined, lineText: undefined };
+    }
+
+    const cursorPos = editor.selection.active;
+    const lineText = editor.document.lineAt(cursorPos.line).text;
+
+    return { editor, cursorPos, lineText };
+  }
+
+  /**
    * 滚动到指定行
    */
   public async revealLine(line: number, at: vscode.TextEditorRevealType = vscode.TextEditorRevealType.InCenter) {
