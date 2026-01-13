@@ -16,6 +16,7 @@ import { FileNavigationFeature } from '../features/FileNavigationFeature';
 import { ConfigManagementFeature } from '../features/ConfigManagementFeature';
 import { LogEnhancerFeature } from '../features/LogEnhancerFeature';
 import { PackageScriptsFeature } from '../features/PackageScriptsFeature';
+import { GitListenerFeature } from '../features/GitListenerFeature';
 
 export class QuickOpsApplication {
   private context: vscode.ExtensionContext;
@@ -37,6 +38,7 @@ export class QuickOpsApplication {
       new ConfigManagementFeature(),
       new LogEnhancerFeature(),
       new PackageScriptsFeature(),
+      new GitListenerFeature(),
     ];
   }
 
