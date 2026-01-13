@@ -53,6 +53,7 @@ export class PathHelper {
           // console.log('Directory read error', err);
           resolve([]); // 失败返回空，不崩溃
         } else {
+          console.log(entries);
           const files = entries.filter((e) => e.isFile());
           const dirs = entries.filter((e) => e.isDirectory());
           resolve([...files, ...dirs]);

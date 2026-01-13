@@ -12,8 +12,9 @@ import { TerminalExecutor } from '../services/TerminalExecutor';
 import { SmartScrollFeature } from '../features/SmartScrollFeature';
 import { CodeSnippetFeature } from '../features/CodeSnippetFeature';
 import { ProjectExportFeature } from '../features/ProjectExportFeature';
-// import { FileNavigationFeature } from '../features/FileNavigationFeature'; // 待实现
-
+import { FileNavigationFeature } from '../features/FileNavigationFeature';
+import { ConfigManagementFeature } from '../features/ConfigManagementFeature';
+import { LogEnhancerFeature } from '../features/LogEnhancerFeature';
 export class QuickOpsApplication {
   private context: vscode.ExtensionContext;
 
@@ -24,14 +25,15 @@ export class QuickOpsApplication {
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
 
-    // 构造阶段：只实例化，不执行副作用
     this.services = [ConfigurationService.getInstance(), WorkspaceStateService.getInstance(), EditorContextService.getInstance(), TerminalExecutor.getInstance()];
 
     this.features = [
       new SmartScrollFeature(),
-      new CodeSnippetFeature(), // 自动注入了单例服务
+      new CodeSnippetFeature(),
       new ProjectExportFeature(),
-      // new FileNavigationFeature()
+      new FileNavigationFeature(),
+      new ConfigManagementFeature(),
+      new LogEnhancerFeature()
     ];
   }
 
@@ -45,8 +47,8 @@ export class QuickOpsApplication {
     // 某些服务可能需要异步加载配置或状态
     for (const service of this.services) {
       try {
-        await service.init();
-        // console.log(`[Service] ${service.serviceId} initialized.`);
+        //@ts-ignore
+        await service.init(this.context);
       } catch (error) {
         console.error(`[Service] ${service.serviceId} failed to init:`, error);
       }
@@ -57,14 +59,11 @@ export class QuickOpsApplication {
     for (const feature of this.features) {
       try {
         feature.activate(this.context);
-        // console.log(`[Feature] ${feature.id} activated.`);
       } catch (error) {
         console.error(`[Feature] ${feature.id} failed to activate:`, error);
       }
     }
 
-    // 3. 全局事件监听 (Global Listeners - 可选)
-    // 例如监听配置变化来重新加载某些 Feature，或者由 Feature 自己监听
     this.setupGlobalDisposables();
 
     vscode.window.showInformationMessage('Quick Ops (Refactored) is now active!');

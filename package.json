@@ -52,7 +52,8 @@
       },
       {
         "command": "extension.createLogrcFile",
-        "title": "创建 .logrc 文件"
+        "title": "创建 .logrc 文件",
+        "category": "Quick Ops"
       },
       {
         "command": "extension.CopyTsType",

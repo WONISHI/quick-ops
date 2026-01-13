@@ -23,7 +23,6 @@ export class SmartScrollFeature implements IFeature {
     });
 
     context.subscriptions.push(topCmd, bottomCmd);
-    console.log(`[${this.id}] Commands registered.`);
   }
 
   private scrollToTop() {
