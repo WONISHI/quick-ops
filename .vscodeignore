@@ -1,5 +1,7 @@
 .vscode/**
 .vscode-test/**
+.yarn/**
+apps/**
 out/**
 node_modules/**
 src/**
