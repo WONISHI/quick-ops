@@ -7,6 +7,9 @@ import { LogHelper } from '../utils/LogHelper';
 export class LogEnhancerFeature implements IFeature {
   public readonly id = 'LogEnhancerFeature';
 
+  // 防止递归调用的锁
+  private isFetchingNative = false;
+
   constructor(
     private configService: ConfigurationService = ConfigurationService.getInstance(),
     private workspaceState: WorkspaceStateService = WorkspaceStateService.getInstance(),
@@ -22,127 +25,233 @@ export class LogEnhancerFeature implements IFeature {
           return this.provideLogs(document, position);
         },
       },
-      '>', // 触发字符 >
-      '?', // 触发字符 ?
+      '>', // 触发字符
+      '?', // 触发字符
+      '.', // 触发字符
     );
 
     context.subscriptions.push(provider);
+
+    // 🔥【核心修复】全自动触发逻辑
+    vscode.workspace.onDidChangeTextDocument(
+      (event) => {
+        if (event.contentChanges.length === 0) return;
+
+        const editor = vscode.window.activeTextEditor;
+        if (!editor || editor.document !== event.document) return;
+
+        const change = event.contentChanges[0];
+        const changedLineIndex = change.range.start.line;
+        const lineText = editor.document.lineAt(changedLineIndex).text;
+
+        // 1. 只有当前行处于 log> 指令模式下才生效
+        if (/(\b(?:log|cg|cng|lg))(\??)(>|>>)/.test(lineText)) {
+          const text = change.text;
+
+          // 2. 判断触发条件：
+          // - 粘贴 (text.length > 1)
+          // - 删除 (text === '' && rangeLength > 0)
+          // - 输入普通字符 (text.length === 1)，但排除掉已经是触发字符的符号（防止重复触发闪烁）
+          //   也就是：当你输入 'a' 时，这里会强制触发；当你输入 '>' 时，VS Code 原生触发，这里忽略
+          const isTriggerChar = ['>', '?', '.', ' ', '\n', '\t', ';'].includes(text);
+
+          if (text.length > 1 || (text.length === 0 && change.rangeLength > 0) || (text.length === 1 && !isTriggerChar)) {
+            // 使用 0ms 或极短延时，保证打字跟手
+            setTimeout(() => {
+              vscode.commands.executeCommand('editor.action.triggerSuggest');
+            }, 10);
+          }
+        }
+      },
+      null,
+      context.subscriptions,
+    );
+
     console.log(`[${this.id}] Activated.`);
   }
 
-  private provideLogs(document: vscode.TextDocument, position: vscode.Position): vscode.ProviderResult<vscode.CompletionList | vscode.CompletionItem[]> {
-    // 1. 获取光标处单词范围
-    const rangeRegex = /[\w\?>]+/;
-    const range = document.getWordRangeAtPosition(position, rangeRegex);
-    if (!range) return [];
+  private async provideLogs(document: vscode.TextDocument, position: vscode.Position): Promise<vscode.CompletionList | vscode.CompletionItem[]> {
+    // 1. 获取当前行文本
+    const lineText = document.lineAt(position.line).text.substring(0, position.character);
 
-    const currentText = document.getText(range);
+    // 2. 正则匹配
+    const triggerMatch = lineText.match(/(\b(?:log|cg|cng|lg))(\??)((?:>|>>).*)$/);
+    if (!triggerMatch) {
+      return [];
+    }
 
-    // 2. 准备基础上下文
-    const templateStr = this.configService.config.logger.template || '[icon]-[line]-[$0]';
-    const fileState = this.workspaceState.state;
-    if (!fileState.uri) return [];
+    const prefix = triggerMatch[1];
+    const modeSymbol = triggerMatch[2];
+    const remainder = triggerMatch[3];
+    const isRawMode = modeSymbol === '?';
 
+    // 获取最后一个 > 的位置
+    const lastGtIndex = remainder.lastIndexOf('>');
+
+    // === 解析已存在的参数 ===
+    const parserRegex = /(>>?)([^>]*)/g;
+    const parsedArgs: string[] = [];
+    let match;
+    while ((match = parserRegex.exec(remainder)) !== null) {
+      const operator = match[1];
+      const content = match[2].trim();
+      if (content) {
+        parsedArgs.push(operator === '>>' ? `'${content}'` : content);
+      }
+    }
+
+    // === 构建 LogItem (Generate Code) ===
     const ctx = {
       line: position.line,
-      fileName: fileState.fileName,
-      filePath: fileState.uri.fsPath,
+      fileName: this.workspaceState.state.fileName || 'unknown',
+      filePath: this.workspaceState.state.uri?.fsPath || '',
       rootPath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '',
     };
 
-    // 3. 正则匹配：分离 Trigger、RawFlag、Remainder
-    const triggerMatch = currentText.match(/^(\b(?:log|cg|cng|lg))(\??)(.+)$/);
+    let finalArgs: string[];
+    let labelDetail = '';
 
-    if (triggerMatch) {
-      const modeSymbol = triggerMatch[2]; // "?" 或 ""
-      const remainder = triggerMatch[3]; // ">>a>b"
-      const isRawMode = modeSymbol === '?';
+    if (isRawMode) {
+      finalArgs = [...parsedArgs];
+      labelDetail = 'Raw Log';
+    } else {
+      const templateStr = this.configService.config.logger.template || '[icon]-[line]-[$0]';
+      const baseArgs = LogHelper.parseTemplate(templateStr, ctx, this.configService.config);
+      finalArgs = this.injectFinalArgs(baseArgs, parsedArgs);
+      labelDetail = 'Template Log';
+    }
 
-      const parserRegex = /(>>?)([^>]*)/g;
-      const parsedArgs: string[] = [];
-      let match;
+    const insertText = `console.log(${finalArgs.join(', ')});`;
+    const logItemObj: vscode.CompletionItemLabel = {
+      label: lineText.substring(lineText.lastIndexOf(prefix)),
+      description: ' Generate Code',
+    };
 
-      while ((match = parserRegex.exec(remainder)) !== null) {
-        const operator = match[1]; // > 或 >>
-        const content = match[2].trim();
-        if (content) {
-          if (operator === '>>') {
-            parsedArgs.push(`'${content}'`);
-          } else {
-            parsedArgs.push(content);
+    const logItem = new vscode.CompletionItem(logItemObj, vscode.CompletionItemKind.Method);
+    const preview = parsedArgs.length > 0 ? parsedArgs.join(', ') : '...';
+
+    logItem.detail = `${labelDetail}: ${preview}`;
+    logItem.insertText = new vscode.SnippetString(insertText);
+    const fullStart = position.character - triggerMatch[0].length;
+    logItem.range = new vscode.Range(position.line, fullStart, position.line, position.character);
+    logItem.filterText = lineText;
+    logItem.sortText = '0'; // 绝对置顶
+    logItem.preselect = true;
+    logItem.documentation = new vscode.MarkdownString().appendCodeblock(insertText, 'javascript');
+
+    // 如果锁是开着的，直接返回 LogItem
+    if (this.isFetchingNative) {
+      return [logItem];
+    }
+
+    // === 剪贴板建议 ===
+    let clipboardItem: vscode.CompletionItem | undefined;
+    const clipboardText = await vscode.env.clipboard.readText();
+    const cleanClipboard = clipboardText?.trim();
+
+    if (cleanClipboard && cleanClipboard.length > 0 && cleanClipboard.length < 100 && !parsedArgs.includes(cleanClipboard)) {
+      if (!remainder.endsWith(cleanClipboard)) {
+        const baseArgs = LogHelper.parseTemplate(this.configService.config.logger.template || '[icon]-[line]-[$0]', ctx, this.configService.config);
+        const clipArgs = this.injectFinalArgs(baseArgs, [cleanClipboard]);
+        const clipInsert = `console.log(${clipArgs.join(', ')});`;
+
+        clipboardItem = new vscode.CompletionItem(
+          {
+            label: `${prefix}> 📋 ${cleanClipboard}`,
+            description: ' Log Clipboard',
+          },
+          vscode.CompletionItemKind.Snippet,
+        );
+
+        clipboardItem.insertText = new vscode.SnippetString(clipInsert);
+        clipboardItem.range = logItem.range;
+        clipboardItem.filterText = lineText;
+        clipboardItem.sortText = '00';
+        clipboardItem.documentation = new vscode.MarkdownString(`Generate:\n\`\`\`javascript\n${clipInsert}\n\`\`\``);
+      }
+    }
+
+    // === 上下文变量补全 ===
+    let contextSuggestions: vscode.CompletionItem[] = [];
+
+    // 获取当前正在输入的变量部分
+    const fullInputVar = remainder.substring(lastGtIndex + 1);
+    const lastDotIndex = fullInputVar.lastIndexOf('.');
+    let varToReplace = fullInputVar;
+    if (lastDotIndex !== -1) {
+      varToReplace = fullInputVar.substring(lastDotIndex + 1);
+    }
+
+    const replaceRange = new vscode.Range(position.line, position.character - varToReplace.length, position.line, position.character);
+
+    this.isFetchingNative = true;
+    try {
+      const triggerChar = lineText.endsWith('.') ? '.' : undefined;
+      contextSuggestions = await this.getContextVariables(document, position, replaceRange, triggerChar);
+    } finally {
+      this.isFetchingNative = false;
+    }
+
+    const items = [];
+    if (clipboardItem) items.push(clipboardItem);
+    items.push(logItem);
+    items.push(...contextSuggestions);
+
+    // 🔥【关键】永远返回 true，保证持续监听键盘输入刷新预览
+    return new vscode.CompletionList(items, true);
+  }
+
+  private async getContextVariables(document: vscode.TextDocument, position: vscode.Position, replaceRange: vscode.Range, triggerChar?: string): Promise<vscode.CompletionItem[]> {
+    try {
+      const result = await vscode.commands.executeCommand<vscode.CompletionList>('vscode.executeCompletionItemProvider', document.uri, position, triggerChar);
+
+      if (!result || !result.items) return [];
+
+      const validKinds = new Set([
+        vscode.CompletionItemKind.Variable,
+        vscode.CompletionItemKind.Property,
+        vscode.CompletionItemKind.Field,
+        vscode.CompletionItemKind.Function,
+        vscode.CompletionItemKind.Method,
+        vscode.CompletionItemKind.Constant,
+        vscode.CompletionItemKind.EnumMember,
+        vscode.CompletionItemKind.Value,
+        vscode.CompletionItemKind.Keyword,
+        vscode.CompletionItemKind.Text,
+        vscode.CompletionItemKind.Reference,
+        vscode.CompletionItemKind.Interface,
+        vscode.CompletionItemKind.Class,
+      ]);
+
+      const relevantItems = result.items.filter((item) => {
+        if (item.label === 'log' || (typeof item.label !== 'string' && item.label.label === 'log')) return false;
+
+        if (item.kind === vscode.CompletionItemKind.Keyword) {
+          const label = typeof item.label === 'string' ? item.label : item.label.label;
+          if (label !== 'this' && label !== 'super' && label !== 'true' && label !== 'false') {
+            return false;
           }
         }
-      }
 
-      // --- 生成最终参数 ---
-      let finalArgs: string[];
-      let labelDetail = '';
-
-      if (isRawMode) {
-        finalArgs = parsedArgs;
-        labelDetail = 'Raw Log';
-      } else {
-        const baseArgs = LogHelper.parseTemplate(templateStr, ctx, this.configService.config);
-        finalArgs = this.injectFinalArgs(baseArgs, parsedArgs);
-        labelDetail = 'Template Log';
-      }
-
-      const insertText = `console.log(${finalArgs.join(', ')});`;
-
-      // --- 构建补全项 (这里加入了你的 labelObj) ---
-
-      // 【修改点】：在复杂模式下也使用 labelObj 来显示灰色文字
-      const labelObj: vscode.CompletionItemLabel = {
-        label: currentText, // 例如 "log>a"
-        description: ' quick-ops', // 👈 这里就是你要的灰色文字
-      };
-
-      const item = new vscode.CompletionItem(labelObj, vscode.CompletionItemKind.Snippet);
-
-      const preview = parsedArgs.length > 0 ? parsedArgs.join(', ') : '...';
-      item.detail = `${labelDetail}: ${preview}`; // 这是最右侧的文字
-
-      item.insertText = new vscode.SnippetString(insertText);
-      item.range = range;
-      item.filterText = currentText;
-      item.sortText = '0000';
-      item.documentation = new vscode.MarkdownString().appendCodeblock(insertText, 'javascript');
-
-      return new vscode.CompletionList([item], true);
-    } else {
-      if (currentText.includes('?') || currentText.includes('>')) {
-        return new vscode.CompletionList([], true);
-      }
-
-      const baseArgs = LogHelper.parseTemplate(templateStr, ctx, this.configService.config);
-      const insertText = `console.log(${baseArgs.map((a) => (a === '$0' ? '$0' : `'${a}'`)).join(', ')});`;
-
-      const triggers = ['log', 'cg', 'cng', 'lg'];
-
-      const items = triggers.map((labelStr) => {
-        // 【修改点】：基础模式同样保持统一
-        const labelObj: vscode.CompletionItemLabel = {
-          label: labelStr,
-          description: ' quick-ops', // 👈 统一使用这个描述
-        };
-
-        const item = new vscode.CompletionItem(labelObj, vscode.CompletionItemKind.Snippet);
-
-        item.detail = `Quick Log`;
-        item.insertText = new vscode.SnippetString(insertText);
-
-        if (currentText === labelStr) {
-          item.range = range;
-        }
-
-        item.sortText = '!';
-        item.preselect = true;
-        item.documentation = new vscode.MarkdownString().appendCodeblock(insertText, 'javascript');
-
-        return item;
+        return validKinds.has(item.kind || vscode.CompletionItemKind.Text);
       });
 
-      return new vscode.CompletionList(items, false);
+      return relevantItems.map((item) => {
+        const label = typeof item.label === 'string' ? item.label : item.label.label;
+        const newItem = new vscode.CompletionItem(label, item.kind);
+
+        newItem.detail = item.detail;
+        newItem.documentation = item.documentation;
+        newItem.insertText = label;
+        newItem.range = replaceRange;
+
+        newItem.sortText = '1' + label;
+        newItem.preselect = false;
+
+        return newItem;
+      });
+    } catch (e) {
+      return [];
     }
   }
 
