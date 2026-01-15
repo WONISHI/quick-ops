@@ -25,9 +25,9 @@ export class LogEnhancerFeature implements IFeature {
           return this.provideLogs(document, position);
         },
       },
-      '>', // 触发字符
-      '?', // 触发字符
-      '.', // 触发字符
+      '>',
+      '?',
+      '.',
     );
 
     context.subscriptions.push(provider);
@@ -56,10 +56,10 @@ export class LogEnhancerFeature implements IFeature {
           const isTriggerChar = ['>', '?', '.', ' ', '\n', '\t', ';'].includes(text);
 
           if (text.length > 1 || (text.length === 0 && change.rangeLength > 0) || (text.length === 1 && !isTriggerChar)) {
-            // 使用 0ms 或极短延时，保证打字跟手
-            setTimeout(() => {
+            let timer = setTimeout(() => {
               vscode.commands.executeCommand('editor.action.triggerSuggest');
-            }, 10);
+              clearTimeout(timer);
+            }, 0);
           }
         }
       },
