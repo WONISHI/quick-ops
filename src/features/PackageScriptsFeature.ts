@@ -11,10 +11,9 @@ interface ShellConfigItem {
 
 // 扩展 QuickPickItem
 interface ScriptItem extends vscode.QuickPickItem {
-  //以此为准，删除了旧的 packagePath 等字段
   commandToExecute: string; // 实际要运行的命令字符串
-  cwd: string;              // 执行目录
-  isNpmScript: boolean;     // 标记：true=npm run xxx, false=直接执行
+  cwd: string; // 执行目录
+  isNpmScript: boolean; // 标记：true=npm run xxx, false=直接执行
 }
 
 export class PackageScriptsFeature implements IFeature {
@@ -55,17 +54,19 @@ export class PackageScriptsFeature implements IFeature {
           if (scriptNames.length > 0) {
             items.push({
               label: 'Project Scripts (package.json)',
-              kind: vscode.QuickPickItemKind.Separator
+              kind: vscode.QuickPickItemKind.Separator,
             });
 
-            scriptNames.forEach(name => {
-              items.push(this.createScriptItem(
-                name, 
-                scripts[name], 
-                name, // npm run 的名字
-                rootPath, 
-                true  // isNpmScript
-              ));
+            scriptNames.forEach((name) => {
+              items.push(
+                this.createScriptItem(
+                  name,
+                  scripts[name],
+                  name, // npm run 的名字
+                  rootPath,
+                  true, // isNpmScript
+                ),
+              );
             });
           }
         } catch (e) {
@@ -76,31 +77,19 @@ export class PackageScriptsFeature implements IFeature {
 
     // 2. 读取 resources/shell 下的 JSON
     const shellResourceDir = path.join(this.extensionPath, 'resources', 'shell');
-    
+
     if (fs.existsSync(shellResourceDir)) {
       try {
-        const files = fs.readdirSync(shellResourceDir).filter(file => file.endsWith('.json'));
-
+        const files = fs.readdirSync(shellResourceDir).filter((file) => file.endsWith('.json'));
         for (const file of files) {
           const filePath = path.join(shellResourceDir, file);
           try {
             const content = fs.readFileSync(filePath, 'utf-8');
             const jsonItems: ShellConfigItem[] = JSON.parse(content);
-
             if (Array.isArray(jsonItems) && jsonItems.length > 0) {
-              items.push({
-                label: file, 
-                kind: vscode.QuickPickItemKind.Separator
-              });
-
-              jsonItems.forEach(item => {
-                items.push(this.createScriptItem(
-                  item.description, 
-                  item.cmd,         
-                  item.cmd,         // 直接执行的命令
-                  rootPath || this.extensionPath, 
-                  false             // isNpmScript = false
-                ));
+              items.push({ label: file, kind: vscode.QuickPickItemKind.Separator });
+              jsonItems.forEach((item) => {
+                items.push(this.createScriptItem(item.description, item.cmd, item.cmd, rootPath || this.extensionPath, false));
               });
             }
           } catch (err) {
@@ -140,25 +129,13 @@ export class PackageScriptsFeature implements IFeature {
     quickPick.show();
   }
 
-  /**
-   * 辅助方法：构建统一的 ScriptItem
-   * 修复点：删除了报错的多余字段赋值
-   */
-  private createScriptItem(
-    label: string, 
-    description: string, 
-    commandToExecute: string, 
-    cwd: string, 
-    isNpmScript: boolean
-  ): ScriptItem {
+  private createScriptItem(label: string, description: string, commandToExecute: string, cwd: string, isNpmScript: boolean): ScriptItem {
     return {
       label: `$(terminal) ${label}`,
       description: description,
       commandToExecute: commandToExecute,
       cwd: cwd,
       isNpmScript: isNpmScript,
-      // ❌ 删除了 packagePath, scriptName, scriptCommand
-      // 因为它们不在 ScriptItem 接口定义中，且 commandToExecute 已替代了它们的功能
       buttons: [
         {
           iconPath: new vscode.ThemeIcon('debug-start'),
@@ -173,17 +150,79 @@ export class PackageScriptsFeature implements IFeature {
   }
 
   /**
+   * 核心修改：检测并选择包管理器
+   */
+  private async selectPackageManager(cwd: string): Promise<string | undefined> {
+    // 定义已知管理器及其对应的锁文件
+    const managers = [
+      { name: 'pnpm', lock: 'pnpm-lock.yaml' },
+      { name: 'yarn', lock: 'yarn.lock' },
+      { name: 'bun', lock: 'bun.lockb' },
+      { name: 'npm', lock: 'package-lock.json' },
+    ];
+
+    // 检测存在的锁文件
+    const detected = managers.filter((m) => fs.existsSync(path.join(cwd, m.lock)));
+
+    // 构建 QuickPick 选项
+    const items: vscode.QuickPickItem[] = [];
+
+    // 1. 添加检测到的推荐项
+    if (detected.length > 0) {
+      detected.forEach((m) => {
+        items.push({
+          label: m.name,
+          description: `检测到 ${m.lock} (推荐)`,
+          detail: '基于锁文件自动匹配',
+          picked: true, // 默认选中第一个检测到的
+        });
+      });
+      items.push({ label: '', kind: vscode.QuickPickItemKind.Separator }); // 分隔线
+    }
+
+    // 2. 添加所有可用项（防止用户想强制使用其他管理器）
+    // 过滤掉已经在推荐列表里的，避免重复，或者简单地列出 npm 作为保底
+    const detectedNames = detected.map((d) => d.name);
+
+    // 始终确保 npm 可选 (如果不在推荐列表里)
+    if (!detectedNames.includes('npm')) {
+      items.push({ label: 'npm', description: '默认工具' });
+    }
+    // 添加其他常见工具作为备选
+    ['pnpm', 'yarn', 'bun'].forEach((name) => {
+      if (!detectedNames.includes(name)) {
+        items.push({ label: name, description: '强制使用' });
+      }
+    });
+
+    // 如果没有检测到任何锁文件，直接默认 npm，不弹窗（减少打扰），或者你可以选择弹窗
+    // 这里采取：如果只有一个选项且是 npm（未检测到锁），直接返回 'npm'
+    if (detected.length === 0) {
+      return 'npm';
+    }
+
+    // 弹出选择框
+    const selected = await vscode.window.showQuickPick(items, {
+      placeHolder: '选择要使用的包管理器执行脚本',
+      ignoreFocusOut: true,
+    });
+
+    return selected ? selected.label : undefined;
+  }
+
+  /**
    * 执行逻辑
    */
-  private runScript(item: ScriptItem, newTerminal: boolean) {
+  private async runScript(item: ScriptItem, newTerminal: boolean) {
     let finalCommand = '';
 
     if (item.isNpmScript) {
-      let packageManager = 'npm';
-      if (fs.existsSync(path.join(item.cwd, 'pnpm-lock.yaml'))) {
-        packageManager = 'pnpm';
-      } else if (fs.existsSync(path.join(item.cwd, 'yarn.lock'))) {
-        packageManager = 'yarn';
+      // 弹出选择或自动判断包管理器
+      const packageManager = await this.selectPackageManager(item.cwd);
+
+      // 如果用户取消了选择 (Esc)，则终止执行
+      if (!packageManager) {
+        return;
       }
       finalCommand = `${packageManager} run ${item.commandToExecute}`;
     } else {
@@ -197,10 +236,12 @@ export class PackageScriptsFeature implements IFeature {
         cwd: item.cwd,
       });
     } else {
-      terminal = vscode.window.activeTerminal || vscode.window.createTerminal({
-        name: 'Terminal',
-        cwd: item.cwd,
-      });
+      terminal =
+        vscode.window.activeTerminal ||
+        vscode.window.createTerminal({
+          name: 'Terminal',
+          cwd: item.cwd,
+        });
     }
 
     terminal.show();
