@@ -108,13 +108,13 @@ export class CodeSnippetFeature implements IFeature {
   private processDynamicVariables(body: string, fileName: string): string {
     let result = body;
 
-    // 1. {module-name} -> 文件名 (去后缀)
+    // 1. [[module-name]] -> 文件名 (去后缀)
     const moduleName = fileName.includes('.') ? fileName.split('.')[0] : fileName;
-    result = result.replace(/\{module-name\}/g, moduleName);
+    result = result.replace(/\[\[module-name\]\]/g, moduleName);
 
-    // 2. [[languagesCss]] -> 样式语言 (scss/less/css)
+    // 2. [[languages-css]] -> 样式语言 (scss/less/css)
     const cssLang = this.detectCssLanguage();
-    result = result.replace(/\[\[languagesCss\]\]/g, cssLang);
+    result = result.replace(/\[\[languages-css\]\]/g, cssLang);
 
     return result;
   }
@@ -127,10 +127,7 @@ export class CodeSnippetFeature implements IFeature {
    * - scope[1]: 必须存在于当前项目依赖 (package.json)
    */
   private checkScope(scope: string[] | undefined, currentLangId: string): boolean {
-    // 如果没有定义 scope 或为空数组，代表通用，直接通过
     if (!scope || scope.length === 0) return true;
-
-    // 1. 检查文件类型 (scope[0])
     const targetFileType = scope[0];
     // 如果定义了文件类型限制，且与当前文件类型不符，则不显示
     if (targetFileType && targetFileType !== currentLangId) {
@@ -224,6 +221,7 @@ export class CodeSnippetFeature implements IFeature {
       // 4. CSS 预处理器
       if (deps['less']) this.projectDependencies.add('less');
       if (deps['sass'] || deps['node-sass'] || deps['sass-loader']) this.projectDependencies.add('scss');
+
     } catch (e) {
       console.warn(`[${this.id}] Failed to parse package.json`);
     }
