@@ -46,7 +46,7 @@ export class MarkDecorationFeature implements IFeature {
       this.triggerUpdateDecorations();
     });
 
-    const selector: vscode.DocumentSelector = ['javascript', 'typescript', 'vue', 'javascriptreact', 'typescriptreact', 'java', 'c', 'cpp', 'go', 'python'];
+    const selector: vscode.DocumentSelector = ['javascript', 'typescript', 'vue', 'javascriptreact', 'typescriptreact', 'java', 'c', 'cpp', 'go', 'python']; // 支持更多语言
 
     const completionProvider = vscode.languages.registerCompletionItemProvider(
       selector,
@@ -55,7 +55,7 @@ export class MarkDecorationFeature implements IFeature {
           return this.provideMarkCompletions(document, position);
         },
       },
-      '@', 
+      '@',
     );
     context.subscriptions.push(completionProvider);
 
@@ -76,7 +76,7 @@ export class MarkDecorationFeature implements IFeature {
     // 允许的格式： "// @", "   * @"
     // 不允许的格式： "var s = '// @", "text // @"
     const textBeforeAt = prefix.substring(0, atIndex);
-    
+
     // 正则解释：^ (行首) \s* (任意空格) (\/\/|\*|\/\*) (注释符) \s* (任意空格) $ (结束)
     const isValidCommentStart = /^\s*(\/\/|\*|\/\*)\s*$/.test(textBeforeAt);
 
@@ -99,7 +99,7 @@ export class MarkDecorationFeature implements IFeature {
       item.filterText = markText;
 
       // ✨ 关键修改：插入文本自动带上冒号
-      item.insertText = `${markText}: `; 
+      item.insertText = `${markText}: `;
 
       items.push(item);
     }
@@ -120,7 +120,7 @@ export class MarkDecorationFeature implements IFeature {
         fontWeight: style.fontWeight || 'bold',
         overviewRulerColor: style.backgroundColor,
         overviewRulerLane: vscode.OverviewRulerLane.Right,
-        rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
+        rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
       });
 
       this.decorationTypes.set(text, decorationType);
@@ -147,7 +147,7 @@ export class MarkDecorationFeature implements IFeature {
       // markText 是 "@success"，我们查找 "@success:"
       const escapedText = markText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       // 匹配 "@success:"
-      const regex = new RegExp(`${escapedText}:`, 'g'); 
+      const regex = new RegExp(`${escapedText}:`, 'g');
 
       let match;
       while ((match = regex.exec(text))) {
@@ -165,7 +165,7 @@ export class MarkDecorationFeature implements IFeature {
         const isStrictCommentStart = /^\s*(\/\/|\*|\/\*)\s*$/.test(textBeforeMatch);
 
         if (isStrictCommentStart) {
-           ranges.push(new vscode.Range(startPos, endPos));
+          ranges.push(new vscode.Range(startPos, endPos));
         }
       }
       editor.setDecorations(decorationType, ranges);
