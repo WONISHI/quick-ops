@@ -46,7 +46,7 @@ export class MarkDecorationFeature implements IFeature {
       this.triggerUpdateDecorations();
     });
 
-    const selector: vscode.DocumentSelector = ['javascript', 'typescript', 'vue', 'javascriptreact', 'typescriptreact', 'java', 'c', 'cpp', 'go', 'python'];
+    const selector: vscode.DocumentSelector = ['javascript', 'typescript', 'vue', 'javascriptreact', 'typescriptreact', 'java', 'c', 'cpp', 'go', 'python']; // 支持更多语言
 
     const completionProvider = vscode.languages.registerCompletionItemProvider(
       selector,

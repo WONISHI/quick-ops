@@ -121,7 +121,7 @@
     }
   },
   "scripts": {
-    "build": "npx vsce package --no-yarn",
+    "build": "npx vsce package --no-yarn --no-dependencies",
     "vscode:prepublish": "pnpm run package",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",

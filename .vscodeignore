@@ -7,6 +7,8 @@ node_modules/**
 src/**
 test/**
 .git/**
+packages/**
+**/node_modules/**
 
 .gitignore
 .yarnrc
