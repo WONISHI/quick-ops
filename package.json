@@ -165,6 +165,7 @@
     "@types/express": "^5.0.3",
     "@types/mockjs": "^1.0.10",
     "@vue/compiler-sfc": "^3.5.20",
+    "change-case": "^5.4.4",
     "cheerio": "^1.1.2",
     "dayjs": "^1.11.13",
     "express": "^5.1.0",

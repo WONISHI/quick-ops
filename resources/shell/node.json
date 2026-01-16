@@ -1,0 +1,6 @@
+[
+    {
+        "description": "删除node_modules",
+        "cmd": "rd /s /q node_modules"
+    }
+]
