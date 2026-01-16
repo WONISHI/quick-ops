@@ -22,9 +22,7 @@ export class LogEnhancerFeature implements IFeature {
           return this.provideLogs(document, position);
         },
       },
-      '>',
-      '?',
-      '.', // 触发字符
+      '>', '?', '.' 
     );
 
     context.subscriptions.push(provider);
@@ -40,8 +38,10 @@ export class LogEnhancerFeature implements IFeature {
         const change = event.contentChanges[0];
         const lineText = editor.document.lineAt(change.range.start.line).text;
 
-        // 检测到 log> 模式时自动弹出提示
-        if (/(\b(?:log|cg|cng|lg))(\??)(>|>>)/.test(lineText)) {
+        // 正则修改：支持 log> 同时也支持单纯的 log 结尾
+        // 1. (\b(?:log|cg|cng|lg)) 匹配关键字
+        // 2. (?:\??(?:>|>>).*)?  后续的 >... 部分变成可选的了
+        if (/(\b(?:log|cg|cng|lg))(?:\??(?:>|>>).*|$)/.test(lineText)) {
           const text = change.text;
           const isTriggerChar = ['>', '?', '.', '(', ')', ';', ' ', '\n'].includes(text);
 
@@ -49,7 +49,7 @@ export class LogEnhancerFeature implements IFeature {
             if (triggerTimer) clearTimeout(triggerTimer);
             triggerTimer = setTimeout(() => {
               vscode.commands.executeCommand('editor.action.triggerSuggest');
-            }, 20); // 极短延迟
+            }, 20); 
           }
         }
       },
@@ -63,61 +63,118 @@ export class LogEnhancerFeature implements IFeature {
   /**
    * 核心补全逻辑
    */
-  private provideLogs(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionList {
-    // ✅ 返回 CompletionList 以控制 isIncomplete
-
-    // 1. 获取当前行光标前的文本
+  private provideLogs(
+    document: vscode.TextDocument, 
+    position: vscode.Position
+  ): vscode.CompletionList { 
+    
     const lineText = document.lineAt(position.line).text.substring(0, position.character);
+    
+    // === 分支 1: 复杂模式 (log>abc) ===
+    // 匹配: log>..., log>>..., log?>...
+    const complexMatch = lineText.match(/(\b(?:log|cg|cng|lg))(\??)((?:>|>>).*)$/);
+    
+    if (complexMatch) {
+        const prefix = complexMatch[1];
+        const modeSymbol = complexMatch[2];
+        const remainder = complexMatch[3];
+        const isRawMode = modeSymbol === '?';
+        const matchLength = complexMatch[0].length;
 
-    // 2. 正则匹配
-    const triggerMatch = lineText.match(/(\b(?:log|cg|cng|lg))(\??)((?:>|>>).*)$/);
+        const item = this.generateComplexItem(document, position, prefix, remainder, isRawMode, lineText, matchLength);
+        return new vscode.CompletionList([item], true); // isIncomplete=true 保证后续输入持续响应
+    }
 
-    // 如果没匹配到，返回空
-    if (!triggerMatch) return new vscode.CompletionList([], false);
+    // === 分支 2: 基础模式 (log) ===
+    // 匹配: 仅以 log, lg, cg, cng 结尾，后面没有 >
+    const simpleMatch = lineText.match(/(\b(?:log|cg|cng|lg))$/);
+    
+    if (simpleMatch) {
+        const prefix = simpleMatch[1];
+        const matchLength = simpleMatch[0].length;
+        
+        const item = this.generateSimpleItem(document, position, prefix, matchLength);
+        return new vscode.CompletionList([item], false); // 基础模式不需要 incomplete
+    }
 
-    const prefix = triggerMatch[1];
-    const modeSymbol = triggerMatch[2];
-    const remainder = triggerMatch[3];
-    const isRawMode = modeSymbol === '?';
-
-    // 3. 构建 Log Item
-    const logItem = this.generateLogItem(document, position, prefix, remainder, isRawMode, lineText, triggerMatch[0].length);
-
-    // 🔥🔥【核心修复】🔥🔥
-    // 第二个参数 true 代表 isIncomplete。
-    // 这告诉 VS Code："用户虽然还在打字，但这个列表还没完，每输入一个字符，请务必重新调用我！"
-    // 这样当你输入 "response" 时，代码会重新生成 console.log(response) 而不是停留在 console.log()
-    return new vscode.CompletionList([logItem], true);
+    return new vscode.CompletionList([], false);
   }
 
-  private generateLogItem(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-    prefix: string,
-    remainder: string,
-    isRawMode: boolean,
-    lineText: string,
-    matchLength: number,
+  /**
+   * 生成基础 Log (输入 log 回车 -> 打印带行号的模板)
+   */
+  private generateSimpleItem(
+      document: vscode.TextDocument,
+      position: vscode.Position,
+      prefix: string,
+      matchLength: number
   ): vscode.CompletionItem {
-    // --- 解析参数 ---
+      const ctx = {
+          line: position.line,
+          fileName: this.workspaceState.state.fileName || 'unknown',
+          filePath: this.workspaceState.state.uri?.fsPath || '',
+          rootPath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '',
+      };
+
+      // 获取配置的模板
+      const templateStr = this.configService.config.logger.template || '[icon]-[line]-[$0]';
+      // 解析模板，得到 args 数组
+      const baseArgs = LogHelper.parseTemplate(templateStr, ctx, this.configService.config);
+      
+      // 构造插入文本，例如: console.log('🚀', 'file.ts', 'line 10', $0);
+      // 注意：LogHelper 解析出的 $0 会被当作光标位置
+      const argsString = baseArgs.map(arg => {
+          if (arg === '$0') return '$0'; // 光标位置
+          return `'${arg}'`; // 其他参数加引号
+      }).join(', ');
+
+      const insertText = `console.log(${argsString});`;
+
+      const item = new vscode.CompletionItem(prefix, vscode.CompletionItemKind.Snippet);
+      item.detail = 'Print Template Log';
+      item.insertText = new vscode.SnippetString(insertText);
+      item.documentation = new vscode.MarkdownString().appendCodeblock(insertText, 'javascript');
+      
+      // 替换范围：覆盖掉输入的 "log"
+      const range = new vscode.Range(position.line, position.character - matchLength, position.line, position.character);
+      item.range = range;
+
+      item.sortText = '0'; // 置顶
+      item.preselect = true;
+      
+      return item;
+  }
+
+  /**
+   * 生成复杂 Log (输入 log>var -> 打印 console.log(var))
+   */
+  private generateComplexItem(
+      document: vscode.TextDocument, 
+      position: vscode.Position,
+      prefix: string,
+      remainder: string,
+      isRawMode: boolean,
+      lineText: string,
+      matchLength: number
+  ): vscode.CompletionItem {
+    
+    // 解析参数
     const parserRegex = /(>>?)([^>]*)/g;
     const parsedArgs: string[] = [];
     let match;
-
-    // 处理参数解析
+    
     if (remainder.trim() === '>' || remainder.trim() === '>>') {
-      // 空参数
+        // empty args
     } else {
-      while ((match = parserRegex.exec(remainder)) !== null) {
-        const operator = match[1];
-        const content = match[2].trim();
-        if (content) {
-          parsedArgs.push(operator === '>>' ? `'${content}'` : content);
+        while ((match = parserRegex.exec(remainder)) !== null) {
+            const operator = match[1];
+            const content = match[2].trim();
+            if (content) {
+                parsedArgs.push(operator === '>>' ? `'${content}'` : content);
+            }
         }
-      }
     }
 
-    // --- 准备模板上下文 ---
     const ctx = {
       line: position.line,
       fileName: this.workspaceState.state.fileName || 'unknown',
@@ -125,7 +182,6 @@ export class LogEnhancerFeature implements IFeature {
       rootPath: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '',
     };
 
-    // --- 生成最终参数 ---
     let finalArgs: string[];
     let labelDetail = '';
 
@@ -139,36 +195,26 @@ export class LogEnhancerFeature implements IFeature {
       labelDetail = 'Template';
     }
 
-    // --- 构建 Insert Text ---
     const insertText = `console.log(${finalArgs.join(', ')});`;
-
-    // --- 构建 Label ---
-    // 动态显示当前输入的内容，例如 "log?>response"
+    
     const displayLabel = `${prefix}${isRawMode ? '?' : ''}${remainder}`;
 
     const logItemObj: vscode.CompletionItemLabel = {
-      label: displayLabel,
-      description: 'quick-ops',
+      label: displayLabel, 
+      description: 'quick-ops', 
     };
 
     const logItem = new vscode.CompletionItem(logItemObj, vscode.CompletionItemKind.Snippet);
-
+    
     logItem.detail = `console.log(...)`;
     logItem.insertText = new vscode.SnippetString(insertText);
-
-    // --- 计算替换范围 ---
+    
     const fullStart = position.character - matchLength;
     logItem.range = new vscode.Range(position.line, fullStart, position.line, position.character);
-
-    // 🔥【关键优化】
-    // 1. filterText 设置为 displayLabel，确保 VS Code 认为这就是最佳匹配
-    logItem.filterText = displayLabel;
-
-    // 2. sortText 设置为 '!' (ASCII 33)，比数字 '0' (ASCII 48) 更靠前
-    // 这能保证它死死地钉在列表的第一个，压制所有原生提示
-    logItem.sortText = '!';
-
-    logItem.preselect = true;
+    
+    logItem.filterText = displayLabel; 
+    logItem.sortText = '!'; 
+    logItem.preselect = true; 
 
     return logItem;
   }
