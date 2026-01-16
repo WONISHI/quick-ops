@@ -1,4 +1,3 @@
-// src/services/WorkspaceContextService.ts
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -7,43 +6,39 @@ import { exec } from 'child_process';
 
 // 定义上下文接口，方便类型提示
 export interface IWorkspaceContext {
-  // === 文件相关 ===
-  fileName: string; // full filename: "MyComponent.vue"
-  fileNameBase: string; // no extension: "MyComponent"
-  fileExt: string; // ".vue"
-  dirName: string; // parent dir: "components"
-  filePath: string; // absolute path
-  relativePath: string; // relative to workspace root
+  fileName: string;
+  fileNameBase: string;
+  fileExt: string;
+  dirName: string;
+  filePath: string;
+  relativePath: string;
 
-  // === 命名变体 (假设 fileNameBase = "my-component") ===
-  moduleName: string; // 原样 "my-component"
-  ModuleName: string; // PascalCase "MyComponent"
-  moduleNameCamel: string; // camelCase "myComponent"
-  moduleNameKebab: string; // kebab-case "my-component"
-  moduleNameSnake: string; // snake_case "my_component"
-  moduleNameUpper: string; // CONSTANT_CASE "MY_COMPONENT"
+  moduleName: string;
+  ModuleName: string;
+  moduleNameCamel: string;
+  moduleNameKebab: string;
+  moduleNameSnake: string;
+  moduleNameUpper: string;
 
-  // === 项目相关 (package.json) ===
-  projectName: string; // package.json -> name
-  projectVersion: string; // package.json -> version
-  dependencies: Record<string, string>; // 合并 dep & devDep
-  hasDependency: (dep: string) => boolean; // 辅助函数
+  projectName: string;
+  projectVersion: string;
+  dependencies: Record<string, string>;
+  hasDependency: (dep: string) => boolean;
 
-  // === 智能推断 ===
   cssLang: 'css' | 'less' | 'scss';
   isVue3: boolean;
   isReact: boolean;
   isTypeScript: boolean;
 
-  // === Git 相关 (异步更新，可能为空) ===
   gitBranch: string;
   gitRemote: string;
+  gitLocalBranch: string[];
+  gitRemoteBranch: string[];
 
-  // === 系统/用户 ===
-  userName: string; // 系统用户名
-  dateYear: string; // "2024"
-  dateDate: string; // "2024-05-20"
-  dateTime: string; // "2024-05-20 12:00:00"
+  userName: string;
+  dateYear: string;
+  dateDate: string;
+  dateTime: string;
 }
 
 export class WorkspaceContextService {
@@ -72,15 +67,11 @@ export class WorkspaceContextService {
    * 获取当前完整的上下文快照
    */
   public get context(): IWorkspaceContext {
-    // 确保每次获取时时间是最新的
     this.updateTimeContext();
-    // 确保文件上下文是最新的 (防止切换过快没触发事件)
     if (!this._context.fileName) {
       this.updateFileContext();
     }
 
-    // 返回代理对象或深拷贝，这里为了性能直接合并
-    // 增加一个辅助函数 hasDependency 方便在模板里调用
     return {
       ...this._context,
       dependencies: this._dependencies,
@@ -95,7 +86,6 @@ export class WorkspaceContextService {
     this.updateTimeContext();
   }
 
-  // === 1. 文件上下文更新 ===
   private updateFileContext() {
     const editor = vscode.window.activeTextEditor;
     if (!editor) return;
@@ -107,8 +97,7 @@ export class WorkspaceContextService {
     const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
     const relativePath = workspaceFolder ? path.relative(workspaceFolder.uri.fsPath, filePath) : filePath;
 
-    // 基础名处理
-    const baseName = parsedPath.name; // 去除后缀
+    const baseName = parsedPath.name;
 
     this._context.fileName = parsedPath.base;
     this._context.fileNameBase = baseName;
@@ -117,7 +106,6 @@ export class WorkspaceContextService {
     this._context.filePath = filePath;
     this._context.relativePath = relativePath;
 
-    // 命名变体生成 (使用 change-case 库，或者自己写简单的正则替换)
     this._context.moduleName = baseName;
     this._context.ModuleName = pascalCase(baseName);
     this._context.moduleNameCamel = camelCase(baseName);
@@ -126,7 +114,6 @@ export class WorkspaceContextService {
     this._context.moduleNameUpper = snakeCase(baseName).toUpperCase();
   }
 
-  // === 2. 项目上下文 (package.json) ===
   private updateProjectContext() {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot) return;
@@ -141,7 +128,6 @@ export class WorkspaceContextService {
 
       this._dependencies = { ...pkg.dependencies, ...pkg.devDependencies };
 
-      // 智能推断
       this._context.isVue3 = !!(this._dependencies['vue'] && this._dependencies['vue'].match(/(^|[^0-9])3\./));
       this._context.isReact = !!this._dependencies['react'];
       this._context.isTypeScript = !!this._dependencies['typescript'];
@@ -154,19 +140,54 @@ export class WorkspaceContextService {
     }
   }
 
-  // === 3. Git 上下文 ===
   private updateGitContext() {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot) return;
 
-    // 获取当前分支
-    exec('git rev-parse --abbrev-ref HEAD', { cwd: workspaceRoot }, (err, stdout) => {
-      if (!err && stdout) this._context.gitBranch = stdout.trim();
+    // 1. 获取当前分支 (例如: master)
+    exec('git branch --show-current', { cwd: workspaceRoot }, (err, stdout) => {
+      if (!err && stdout) {
+        this._context.gitBranch = stdout.trim();
+      } else {
+        console.log('Git branch check failed:', err);
+      }
     });
 
-    // 获取 User Name (用于 Author)
+    // 2. 获取远程上游分支 (例如: origin/master)
+    exec('git rev-parse --abbrev-ref @{u}', { cwd: workspaceRoot }, (err, stdout) => {
+      if (!err && stdout) {
+        this._context.gitRemote = stdout.trim();
+      } else if (err) {
+        this._context.gitRemote = '';
+      }
+    });
+
+    // 3. 获取当前本地所有分支
+    exec('git branch --format="%(refname:short)"', { cwd: workspaceRoot }, (err, stdout) => {
+      if (!err && stdout) {
+        const list = stdout
+          .split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        this._context.gitLocalBranch = list;
+      } else if (err) {
+        this._context.gitLocalBranch = [];
+      }
+    });
+
+    exec('git branch -r --format="%(refname:short)"', { cwd: workspaceRoot }, (err, stdout) => {
+      if (!err && stdout) {
+        const list = stdout
+          .split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean);
+        this._context.gitRemoteBranch = list;
+      } else if (err) {
+        this._context.gitRemoteBranch = [];
+      }
+    });
+
     if (!this._context.userName) {
-      // 优先 git config, 降级用 os info
       exec('git config user.name', { cwd: workspaceRoot }, (err, stdout) => {
         if (!err && stdout) {
           this._context.userName = stdout.trim();
@@ -177,7 +198,6 @@ export class WorkspaceContextService {
     }
   }
 
-  // === 4. 时间上下文 ===
   private updateTimeContext() {
     const now = new Date();
     const pad = (n: number) => n.toString().padStart(2, '0');
@@ -199,7 +219,6 @@ export class WorkspaceContextService {
   }
 }
 
-// 简单的 polyfill 如果你不想引入 change-case 库
 function pascalCase(str: string) {
   return str.replace(/(^|[-_])(\w)/g, (_, __, c) => c.toUpperCase());
 }

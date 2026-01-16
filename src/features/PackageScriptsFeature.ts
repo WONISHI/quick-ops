@@ -62,9 +62,9 @@ export class PackageScriptsFeature implements IFeature {
                 this.createScriptItem(
                   name,
                   scripts[name],
-                  name, // npm run 的名字
+                  name,
                   rootPath,
-                  true, // isNpmScript
+                  true,
                 ),
               );
             });
