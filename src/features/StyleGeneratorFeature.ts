@@ -21,7 +21,6 @@ export class StyleGeneratorFeature implements IFeature {
         const text = document.getText();
         const langId = document.languageId; // vue, html, javascriptreact, typescriptreact
 
-        console.log(text, langId);
 
         // 2. 调用解析工具
         try {
