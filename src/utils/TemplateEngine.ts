@@ -1,9 +1,13 @@
 import { IWorkspaceContext } from '../services/WorkspaceContextService';
 
-// 定义返回结构：一个大字符串 + 提取出来的复杂数据
+// 定义状态类型
+export type RenderStatus = 'success' | 'empty' | 'missing';
+
+// 定义返回结构：result + payload + status (共3个参数)
 interface TemplateResult {
-  result: string;                // 最终拼接好的字符串
-  payload: Record<string, any>;  // 解析过程中提取出的数组/对象数据
+  result: string; // 最终拼接好的字符串
+  payload: Record<string, any>; // 提取出的复杂数据
+  status: RenderStatus; // 解析状态
 }
 
 export class TemplateEngine {
@@ -11,38 +15,53 @@ export class TemplateEngine {
    * 渲染模板
    * @param template 模板字符串或数组
    * @param context 上下文数据
-   * @returns { result, payload }
+   * @returns { result, payload, status }
    */
   public static render(template: string | string[], context: IWorkspaceContext): TemplateResult {
-    // 1. 既然你想要字符串，第一步直接用 \n 拼接起来
     const rawContent = Array.isArray(template) ? template.join('\n') : template;
-    
-    // 用于收集遇到的数组/对象
     const payload: Record<string, any> = {};
 
-    // 2. 全局正则替换
+    // 用于追踪状态的标志位
+    let hasMissing = false;
+    let hasEmpty = false;
+
     const result = rawContent.replace(/\[\[\s*([\w-]+)\s*\]\]/g, (match, key) => {
       const varName = key.trim();
       const value = context[varName as keyof IWorkspaceContext];
 
-      // 情况 A: 没值，保留占位符
+      // 1. 检查缺失 (undefined 或 null)
       if (value === undefined || value === null) {
+        hasMissing = true; // 标记为缺失
+        return match; // 保留占位符
+      }
+
+      // 2. 检查数组或对象
+      if (Array.isArray(value) || typeof value === 'object') {
+        // 检查是否为空数组或空对象
+        if (Array.isArray(value) && value.length === 0) {
+          hasEmpty = true;
+        } else if (!Array.isArray(value) && Object.keys(value).length === 0) {
+          hasEmpty = true;
+        }
+
+        // 存入 payload，不替换文本
+        payload[varName] = value;
         return match;
       }
 
-      // 情况 B: 是数组或对象 (核心需求)
-      // 动作：不替换字符串，保留 [[key]]，但把数据存到 payload 里
-      if (Array.isArray(value) || typeof value === 'object') {
-        payload[varName] = value;
-        return match; // 返回原串，即 [[gitLocalBranch]]
-      }
-
-      // 情况 C: 是普通字符串/数字
-      // 动作：直接替换
+      // 3. 普通值 (String/Number)
+      // 如果是空字符串，视情况而定，通常不算错误，这里暂不标记为 empty
       return String(value);
     });
 
-    // 3. 返回拼接好的字符串 和 提取出的数据
-    return { result, payload };
+    // 计算最终状态 (优先级：missing > empty > success)
+    let status: RenderStatus = 'success';
+    if (hasMissing) {
+      status = 'missing';
+    } else if (hasEmpty) {
+      status = 'empty';
+    }
+
+    return { result, payload, status };
   }
 }

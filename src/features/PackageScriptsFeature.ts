@@ -2,18 +2,23 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { IFeature } from '../core/interfaces/IFeature';
+import { WorkspaceContextService } from '../services/WorkspaceContextService';
+import { TemplateEngine } from '../utils/TemplateEngine';
 
 // 定义 JSON 文件的结构接口
 interface ShellConfigItem {
   description: string;
   cmd: string;
+  keepOpen?: boolean; // 配置是否保持窗口打开 (例如 git status)
 }
 
-// 扩展 QuickPickItem
+// 扩展 QuickPickItem，增加自定义字段
 interface ScriptItem extends vscode.QuickPickItem {
-  commandToExecute: string; // 实际要运行的命令字符串
+  commandToExecute: string; // 实际要运行的命令字符串（包含占位符）
   cwd: string; // 执行目录
-  isNpmScript: boolean; // 标记：true=npm run xxx, false=直接执行
+  isNpmScript: boolean; // 标记：true=npm run xxx, false=直接执行 shell 指令
+  payload?: Record<string, any>; // 存储解析出来的数组参数 (供二次选择)
+  keepOpen?: boolean; // 是否在执行后保持 QuickPick 打开
 }
 
 export class PackageScriptsFeature implements IFeature {
@@ -21,12 +26,15 @@ export class PackageScriptsFeature implements IFeature {
   private statusBarItem: vscode.StatusBarItem | undefined;
   private extensionPath: string = '';
 
+  constructor(private contextService: WorkspaceContextService = WorkspaceContextService.getInstance()) {}
+
   public activate(context: vscode.ExtensionContext): void {
     this.extensionPath = context.extensionPath;
 
     const commandId = 'quick-ops.showPackageScripts';
     context.subscriptions.push(vscode.commands.registerCommand(commandId, this.showScripts.bind(this)));
 
+    // 创建底部状态栏按钮
     this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     this.statusBarItem.command = commandId;
     this.statusBarItem.text = '$(play) Scripts';
@@ -37,12 +45,15 @@ export class PackageScriptsFeature implements IFeature {
     console.log(`[${this.id}] Activated.`);
   }
 
+  /**
+   * 显示脚本列表的主逻辑
+   */
   private async showScripts() {
     const items: (ScriptItem | vscode.QuickPickItem)[] = [];
     const workspaceFolders = vscode.workspace.workspaceFolders;
     const rootPath = workspaceFolders ? workspaceFolders[0].uri.fsPath : '';
 
-    // 1. 读取 package.json
+    // 1. 读取 package.json 中的 npm scripts
     if (rootPath) {
       const packageJsonPath = path.join(rootPath, 'package.json');
       if (fs.existsSync(packageJsonPath)) {
@@ -58,15 +69,8 @@ export class PackageScriptsFeature implements IFeature {
             });
 
             scriptNames.forEach((name) => {
-              items.push(
-                this.createScriptItem(
-                  name,
-                  scripts[name],
-                  name,
-                  rootPath,
-                  true,
-                ),
-              );
+              // npm 脚本默认不保持窗口打开 (keepOpen: false)
+              items.push(this.createScriptItem(name, scripts[name], name, rootPath, true, undefined, false));
             });
           }
         } catch (e) {
@@ -75,22 +79,50 @@ export class PackageScriptsFeature implements IFeature {
       }
     }
 
-    // 2. 读取 resources/shell 下的 JSON
+    // 2. 读取 resources/shell 下的 JSON 配置
     const shellResourceDir = path.join(this.extensionPath, 'resources', 'shell');
+    const ctx = this.contextService.context;
 
     if (fs.existsSync(shellResourceDir)) {
       try {
         const files = fs.readdirSync(shellResourceDir).filter((file) => file.endsWith('.json'));
+
         for (const file of files) {
           const filePath = path.join(shellResourceDir, file);
           try {
             const content = fs.readFileSync(filePath, 'utf-8');
             const jsonItems: ShellConfigItem[] = JSON.parse(content);
+
             if (Array.isArray(jsonItems) && jsonItems.length > 0) {
-              items.push({ label: file, kind: vscode.QuickPickItemKind.Separator });
+              const validShellItems: ScriptItem[] = [];
+
               jsonItems.forEach((item) => {
-                items.push(this.createScriptItem(item.description, item.cmd, item.cmd, rootPath || this.extensionPath, false));
+                // 调用模板引擎解析指令
+                const { result, payload, status } = TemplateEngine.render(item.cmd, ctx);
+
+                // 过滤：如果缺失变量或数据为空，则不显示该指令
+                if (status === 'empty' || status === 'missing') {
+                  return;
+                }
+
+                // 加入列表
+                validShellItems.push(
+                  this.createScriptItem(
+                    item.description,
+                    result,
+                    result,
+                    rootPath || this.extensionPath,
+                    false, // isNpmScript = false
+                    payload,
+                    item.keepOpen,
+                  ),
+                );
               });
+
+              if (validShellItems.length > 0) {
+                items.push({ label: file, kind: vscode.QuickPickItemKind.Separator });
+                items.push(...validShellItems);
+              }
             }
           } catch (err) {
             console.error(`Error parsing shell file ${file}:`, err);
@@ -106,36 +138,62 @@ export class PackageScriptsFeature implements IFeature {
       return;
     }
 
-    // 3. 显示 QuickPick
+    // 3. 创建 QuickPick
     const quickPick = vscode.window.createQuickPick<ScriptItem>();
     quickPick.items = items as ScriptItem[];
     quickPick.placeholder = '选择要执行的指令';
     quickPick.matchOnDescription = true;
 
-    quickPick.onDidTriggerItemButton((e) => {
+    // 🔥🔥 关键修复 1: 防止 terminal.show() 抢走焦点导致窗口关闭
+    // 开启此项后，即使焦点跳到终端，列表框也会保持在顶部，直到用户按 Esc
+    quickPick.ignoreFocusOut = true;
+
+    // 事件：点击右侧图标按钮（例如“在新终端执行”）
+    quickPick.onDidTriggerItemButton(async (e) => {
       const isNewTerminal = e.button.tooltip === '在新终端执行';
-      this.runScript(e.item, isNewTerminal);
-      quickPick.hide();
+      await this.runScript(e.item, isNewTerminal);
+
+      if (!e.item.keepOpen) {
+        quickPick.hide();
+      }
     });
 
-    quickPick.onDidAccept(() => {
+    // 事件：选中列表项（回车或点击）
+    quickPick.onDidAccept(async () => {
       const selected = quickPick.selectedItems[0];
       if (selected) {
-        this.runScript(selected, false);
-        quickPick.hide();
+        // 🔥🔥 关键修复 2: 使用 await 等待脚本执行完毕
+        // 如果脚本里有二级弹窗（选分支），主列表会被暂时覆盖，await 保证执行完回来再决定显隐
+        await this.runScript(selected, false);
+
+        if (!selected.keepOpen) {
+          quickPick.hide();
+        } else {
+          // 🔥🔥 关键修复 3: 重置选中状态并重新显示
+          // 如果不重置，列表会一直显示刚才选中的项，体验不好
+          quickPick.selectedItems = [];
+
+          // 确保窗口可见（防止被二级弹窗覆盖后没回来）
+          quickPick.show();
+        }
       }
     });
 
     quickPick.show();
   }
 
-  private createScriptItem(label: string, description: string, commandToExecute: string, cwd: string, isNpmScript: boolean): ScriptItem {
+  /**
+   * 辅助方法：创建 ScriptItem 对象
+   */
+  private createScriptItem(label: string, description: string, commandToExecute: string, cwd: string, isNpmScript: boolean, payload?: Record<string, any>, keepOpen: boolean = false): ScriptItem {
     return {
       label: `$(terminal) ${label}`,
       description: description,
       commandToExecute: commandToExecute,
       cwd: cwd,
       isNpmScript: isNpmScript,
+      payload: payload,
+      keepOpen: keepOpen,
       buttons: [
         {
           iconPath: new vscode.ThemeIcon('debug-start'),
@@ -150,10 +208,9 @@ export class PackageScriptsFeature implements IFeature {
   }
 
   /**
-   * 核心修改：检测并选择包管理器
+   * 自动检测或让用户选择包管理器
    */
   private async selectPackageManager(cwd: string): Promise<string | undefined> {
-    // 定义已知管理器及其对应的锁文件
     const managers = [
       { name: 'pnpm', lock: 'pnpm-lock.yaml' },
       { name: 'yarn', lock: 'yarn.lock' },
@@ -161,47 +218,29 @@ export class PackageScriptsFeature implements IFeature {
       { name: 'npm', lock: 'package-lock.json' },
     ];
 
-    // 检测存在的锁文件
     const detected = managers.filter((m) => fs.existsSync(path.join(cwd, m.lock)));
-
-    // 构建 QuickPick 选项
     const items: vscode.QuickPickItem[] = [];
 
-    // 1. 添加检测到的推荐项
     if (detected.length > 0) {
-      detected.forEach((m) => {
+      detected.forEach((m) =>
         items.push({
           label: m.name,
           description: `检测到 ${m.lock} (推荐)`,
-          detail: '基于锁文件自动匹配',
-          picked: true, // 默认选中第一个检测到的
-        });
-      });
-      items.push({ label: '', kind: vscode.QuickPickItemKind.Separator }); // 分隔线
+          picked: true,
+        }),
+      );
+      items.push({ label: '', kind: vscode.QuickPickItemKind.Separator });
     }
 
-    // 2. 添加所有可用项（防止用户想强制使用其他管理器）
-    // 过滤掉已经在推荐列表里的，避免重复，或者简单地列出 npm 作为保底
     const detectedNames = detected.map((d) => d.name);
+    if (!detectedNames.includes('npm')) items.push({ label: 'npm', description: '默认工具' });
 
-    // 始终确保 npm 可选 (如果不在推荐列表里)
-    if (!detectedNames.includes('npm')) {
-      items.push({ label: 'npm', description: '默认工具' });
-    }
-    // 添加其他常见工具作为备选
     ['pnpm', 'yarn', 'bun'].forEach((name) => {
-      if (!detectedNames.includes(name)) {
-        items.push({ label: name, description: '强制使用' });
-      }
+      if (!detectedNames.includes(name)) items.push({ label: name, description: '强制使用' });
     });
 
-    // 如果没有检测到任何锁文件，直接默认 npm，不弹窗（减少打扰），或者你可以选择弹窗
-    // 这里采取：如果只有一个选项且是 npm（未检测到锁），直接返回 'npm'
-    if (detected.length === 0) {
-      return 'npm';
-    }
+    if (detected.length === 0) return 'npm';
 
-    // 弹出选择框
     const selected = await vscode.window.showQuickPick(items, {
       placeHolder: '选择要使用的包管理器执行脚本',
       ignoreFocusOut: true,
@@ -211,24 +250,36 @@ export class PackageScriptsFeature implements IFeature {
   }
 
   /**
-   * 执行逻辑
+   * 执行脚本的核心逻辑
    */
   private async runScript(item: ScriptItem, newTerminal: boolean) {
-    let finalCommand = '';
+    let finalCommand = item.commandToExecute;
 
-    if (item.isNpmScript) {
-      // 弹出选择或自动判断包管理器
-      const packageManager = await this.selectPackageManager(item.cwd);
+    // 1. 处理数组参数 (需要二次选择的情况)
+    if (item.payload && Object.keys(item.payload).length > 0) {
+      for (const [key, value] of Object.entries(item.payload)) {
+        if (Array.isArray(value)) {
+          // 弹出选择框
+          const choice = await vscode.window.showQuickPick(value.map(String), {
+            placeHolder: `请选择 ${key} 的值`,
+            ignoreFocusOut: true, // 二级弹窗也防止失焦关闭
+          });
 
-      // 如果用户取消了选择 (Esc)，则终止执行
-      if (!packageManager) {
-        return;
+          if (!choice) return; // 用户取消
+
+          finalCommand = finalCommand.replace(new RegExp(`\\[\\[\\s*${key}\\s*\\]\\]`, 'g'), choice);
+        }
       }
-      finalCommand = `${packageManager} run ${item.commandToExecute}`;
-    } else {
-      finalCommand = item.commandToExecute;
     }
 
+    // 2. 处理 NPM 脚本
+    if (item.isNpmScript) {
+      const packageManager = await this.selectPackageManager(item.cwd);
+      if (!packageManager) return;
+      finalCommand = `${packageManager} run ${finalCommand}`;
+    }
+
+    // 3. 执行
     let terminal: vscode.Terminal;
     if (newTerminal) {
       terminal = vscode.window.createTerminal({
@@ -244,7 +295,7 @@ export class PackageScriptsFeature implements IFeature {
         });
     }
 
-    terminal.show();
+    terminal.show(); // 这一行会抢走焦点，但因为有了 ignoreFocusOut，QuickPick 不会关
     terminal.sendText(finalCommand);
   }
 }
