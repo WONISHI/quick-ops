@@ -19,6 +19,7 @@ import { PackageScriptsFeature } from '../features/PackageScriptsFeature';
 import { GitListenerFeature } from '../features/GitListenerFeature';
 import { MarkDecorationFeature } from '../features/MarkDecorationFeature';
 import { StyleGeneratorFeature } from '../features/StyleGeneratorFeature';
+import { RegionFoldingFeature } from '../features/RegionFoldingFeature';
 
 export class QuickOpsApplication {
   private context: vscode.ExtensionContext;
@@ -43,6 +44,7 @@ export class QuickOpsApplication {
       new GitListenerFeature(),
       new MarkDecorationFeature(),
       new StyleGeneratorFeature(),
+      new RegionFoldingFeature(),
     ];
   }
 

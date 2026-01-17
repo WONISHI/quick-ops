@@ -12,13 +12,13 @@
 
 - [ ] feat:新增锚点跳转（待定）
 - [ ] feat:取消git校验
-- [ ] feat:新增高效清除node_module
+- [ ] <u>feat:新增高效清除node_module</u>
 - [ ] feat:自定义命令行指令
-- [ ] feat:新增代码折叠（引入+-展开和折叠）
+- [x] feat:新增代码折叠（引入+-展开和折叠）
 
 ## 第三步
 
-- [ ] feat:新增mock数据模拟
+- [ ] <u>feat:新增mock数据模拟</u>
 - [ ] feat:新增ctrl+tab切换代码弹窗
 - [ ] feat:暂时取消提交校验
 - [ ] perf:优化文件大小（移除无用的lock文件，图片放在云端）
