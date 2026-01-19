@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { IFeature } from '../core/interfaces/IFeature'; // 假设你有个接口定义
+import { IFeature } from '../core/interfaces/IFeature';
 import { StyleStructureParser } from '../utils/StyleStructureParser';
 
 export class StyleGeneratorFeature implements IFeature {
@@ -21,7 +21,6 @@ export class StyleGeneratorFeature implements IFeature {
         const text = document.getText();
         const langId = document.languageId; // vue, html, javascriptreact, typescriptreact
 
-
         // 2. 调用解析工具
         try {
           const scssString = StyleStructureParser.parse(text, langId);
@@ -31,11 +30,10 @@ export class StyleGeneratorFeature implements IFeature {
             return;
           }
 
-          // 3. 在光标位置插入生成的代码
-          editor.edit((editBuilder) => {
-            const position = editor.selection.active;
-            editBuilder.insert(position, scssString);
-          });
+          await vscode.env.clipboard.writeText(scssString);
+          
+          vscode.window.showInformationMessage('✨ 样式结构已复制到剪贴板');
+          
         } catch (error) {
           console.error(error);
           vscode.window.showErrorMessage('解析结构失败，请检查语法');
