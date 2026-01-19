@@ -70,8 +70,6 @@ export class CodeSnippetFeature implements IFeature {
 
       const { result, payload } = TemplateEngine.render(item.body, { ...ctx, ...(item.params || {}) });
 
-      console.log('payload', payload);
-
       completion.insertText = new vscode.SnippetString(result);
       completion.documentation = new vscode.MarkdownString().appendCodeblock(result, currentLangId);
 

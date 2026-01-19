@@ -46,7 +46,28 @@ export class MarkDecorationFeature implements IFeature {
       this.triggerUpdateDecorations();
     });
 
-    const selector: vscode.DocumentSelector = ['javascript', 'typescript', 'vue', 'javascriptreact', 'typescriptreact', 'java', 'c', 'cpp', 'go', 'python']; // 支持更多语言
+    // 添加 HTML/XML 相关语言支持
+    const selector: vscode.DocumentSelector = [
+      'javascript',
+      'typescript',
+      'vue',
+      'javascriptreact',
+      'typescriptreact',
+      'java',
+      'c',
+      'cpp',
+      'go',
+      'python',
+      'html',
+      'xml',
+      'vue-html',
+      'blade',
+      'php',
+      'jsx',
+      'tsx',
+      'markdown',
+      'mdx',
+    ];
 
     const completionProvider = vscode.languages.registerCompletionItemProvider(
       selector,
@@ -64,6 +85,7 @@ export class MarkDecorationFeature implements IFeature {
 
   /**
    * ✨ 核心补全逻辑 (已更新：支持自动补全冒号)
+   * 现在支持 HTML/XML 注释 <!-- -->
    */
   private provideMarkCompletions(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] | undefined {
     const lineText = document.lineAt(position).text;
@@ -73,12 +95,23 @@ export class MarkDecorationFeature implements IFeature {
     if (atIndex === -1) return undefined;
 
     // 1. 严格检查：@ 之前必须是 "空白 + 注释符 + 空白"
-    // 允许的格式： "// @", "   * @"
+    // 允许的格式： "// @", "   * @", "<!-- @"
     // 不允许的格式： "var s = '// @", "text // @"
     const textBeforeAt = prefix.substring(0, atIndex);
 
-    // 正则解释：^ (行首) \s* (任意空格) (\/\/|\*|\/\*) (注释符) \s* (任意空格) $ (结束)
-    const isValidCommentStart = /^\s*(\/\/|\*|\/\*)\s*$/.test(textBeforeAt);
+    // 正则解释：支持多种注释格式
+    // 1. // 单行注释
+    // 2. * 块注释中的行
+    // 3. /* 块注释开始
+    // 4. <!-- HTML/XML 注释开始
+    const commentPatterns = [
+      /^\s*\/\/\s*$/, // 单行注释: //
+      /^\s*\*\s*$/, // 块注释行: *
+      /^\s*\/\*\s*$/, // 块注释开始: /*
+      /^\s*<!--\s*$/, // HTML/XML 注释: <!--
+    ];
+
+    const isValidCommentStart = commentPatterns.some((pattern) => pattern.test(textBeforeAt));
 
     if (!isValidCommentStart) {
       return undefined;
@@ -89,10 +122,9 @@ export class MarkDecorationFeature implements IFeature {
     const items: vscode.CompletionItem[] = [];
 
     for (const [markText, style] of Object.entries(marksConfig)) {
-      // 显示 label 比如 "@success"
       const item = new vscode.CompletionItem(markText, vscode.CompletionItemKind.Color);
 
-      item.detail = `Mark: ${markText}:`; // 提示中显示带冒号
+      item.detail = `Mark: ${markText}:`;
       item.documentation = new vscode.MarkdownString(`Preview: **${markText}:**\n\nColor: ${style.backgroundColor}`);
       item.sortText = '!';
       item.range = replaceRange;
@@ -112,7 +144,6 @@ export class MarkDecorationFeature implements IFeature {
     const marksConfig = this.getMarksConfig();
 
     for (const [text, style] of Object.entries(marksConfig)) {
-      // 这里的 key 依然是 @success，但在 triggerUpdateDecorations 里我们会加上冒号匹配
       const decorationType = vscode.window.createTextEditorDecorationType({
         color: style.color || '#ffffff',
         backgroundColor: style.backgroundColor || '#007acc',
@@ -128,7 +159,7 @@ export class MarkDecorationFeature implements IFeature {
   }
 
   /**
-   * ✨ 核心高亮逻辑 (已更新：严格校验)
+   * ✨ 核心高亮逻辑 (已更新：严格校验，支持 HTML/XML 注释)
    */
   private triggerUpdateDecorations() {
     const editor = vscode.window.activeTextEditor;
@@ -144,9 +175,7 @@ export class MarkDecorationFeature implements IFeature {
       const ranges: vscode.Range[] = [];
 
       // 1. 构造带冒号的正则
-      // markText 是 "@success"，我们查找 "@success:"
       const escapedText = markText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // 匹配 "@success:"
       const regex = new RegExp(`${escapedText}:`, 'g');
 
       let match;
@@ -156,13 +185,17 @@ export class MarkDecorationFeature implements IFeature {
         const lineText = editor.document.lineAt(startPos.line).text;
 
         // 2. ✨ 严格校验：匹配项之前的内容
-        // 截取当前行，从行首到 @success: 之前的所有文本
         const textBeforeMatch = lineText.substring(0, startPos.character);
 
-        // 3. 校验规则：前缀必须且只能是 "空白 + 注释符 + 空白"
-        // 匹配: "  // ", " * ", "   /* "
-        // 不匹配: "var x = '// ", "text ", " // text "
-        const isStrictCommentStart = /^\s*(\/\/|\*|\/\*)\s*$/.test(textBeforeMatch);
+        // 3. 校验规则：支持多种注释格式
+        const commentPatterns = [
+          /^\s*\/\/\s*$/, // 单行注释: //
+          /^\s*\*\s*$/, // 块注释行: *
+          /^\s*\/\*\s*$/, // 块注释开始: /*
+          /^\s*<!--\s*$/, // HTML/XML 注释: <!--
+        ];
+
+        const isStrictCommentStart = commentPatterns.some((pattern) => pattern.test(textBeforeMatch));
 
         if (isStrictCommentStart) {
           ranges.push(new vscode.Range(startPos, endPos));

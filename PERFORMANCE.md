@@ -3,10 +3,10 @@
 ## 第一版
 
 - [x] perf:优化`log>`后的代码提示（提示过慢）
-- [ ] feat:新增解析模版结构生成less/scss结构
+- [x] feat:新增解析模版结构生成less/scss结构
 - [ ] fix:修复文件跟踪和取消功能功能修复
 - [ ] feat:新增文件跟踪和取消跟踪功能的提示
-- [ ] fix:修复mark不生效
+- [x] fix:修复mark不生效
 
 ## 第二版
 
@@ -19,7 +19,7 @@
 ## 第三步
 
 - [ ] <span style="text-decoration: underline;">feat:新增mock数据模拟</span>
-- [ ] feat:新增ctrl+tab切换代码弹窗
+- [ ] <span style="text-decoration: underline;">feat:新增ctrl+tab切换代码弹窗</span>
 - [ ] feat:暂时取消提交校验
 - [ ] perf:优化文件大小（移除无用的lock文件，图片放在云端）
 - [x] fix:修复启动目录用npm启动
