@@ -74,6 +74,27 @@
         "command": "quick-ops.generateStyleStructure",
         "title": "生成样式结构 (Generate SCSS)",
         "category": "Quick Ops"
+      },
+      {
+        "command": "quick-ops.anchor.add",
+        "title": "Add Anchor Point (添加锚点)",
+        "icon": "$(bookmark)"
+      },
+      {
+        "command": "quick-ops.anchor.showMenu",
+        "title": "Show Anchors"
+      },
+      {
+        "command": "quick-ops.anchor.listByGroup",
+        "title": "List Anchors"
+      },
+      {
+        "command": "quick-ops.anchor.navigate",
+        "title": "Navigate Anchor"
+      },
+      {
+        "command": "quick-ops.anchor.delete",
+        "title": "Delete Anchor"
       }
     ],
     "menus": {
@@ -116,6 +137,12 @@
           "command": "quickOps.generateMockData",
           "group": "quickOps@2",
           "when": "editorHasSelection && quickOps.context.canGenerateMock"
+        }
+      ],
+      "editor/lineNumber/context": [
+        {
+          "command": "quick-ops.anchor.add",
+          "group": "1_modification"
         }
       ]
     }
