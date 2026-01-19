@@ -12,14 +12,14 @@
 
 - [ ] feat:新增锚点跳转（待定）
 - [ ] feat:取消git校验
-- [ ] <span style="text-decoration: underline;">feat:新增高效清除node_module</span>
+- [ ] <ins>feat:新增高效清除node_module</ins>
 - [ ] feat:自定义命令行指令
 - [x] feat:新增代码折叠（引入+-展开和折叠）
 
 ## 第三步
 
-- [ ] <span style="text-decoration: underline;">feat:新增mock数据模拟</span>
-- [ ] <span style="text-decoration: underline;">feat:新增ctrl+tab切换代码弹窗</span>
+- [ ] <ins>feat:新增mock数据模拟</ins>
+- [ ] <ins>feat:新增ctrl+tab切换代码弹窗</ins>
 - [ ] feat:暂时取消提交校验
 - [ ] perf:优化文件大小（移除无用的lock文件，图片放在云端）
 - [x] fix:修复启动目录用npm启动
