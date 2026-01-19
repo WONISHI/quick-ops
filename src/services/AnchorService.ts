@@ -136,4 +136,12 @@ export class AnchorService {
       return index < allAnchors.length - 1 ? allAnchors[index + 1] : undefined;
     }
   }
+
+  public updateAnchorLine(id: string, newLine: number) {
+    const anchor = this.anchors.find((a) => a.id === id);
+    if (anchor && anchor.line !== newLine) {
+      anchor.line = newLine;
+      this.save(); // 保存到 json
+    }
+  }
 }

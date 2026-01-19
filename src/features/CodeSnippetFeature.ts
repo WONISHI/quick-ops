@@ -80,7 +80,6 @@ export class CodeSnippetFeature implements IFeature {
   private loadAllSnippets(context: vscode.ExtensionContext) {
     this.cachedSnippets = [];
 
-    // 1. Load Internal
     const snippetDir = path.join(context.extensionPath, 'resources', 'snippets');
     if (fs.existsSync(snippetDir)) {
       try {
