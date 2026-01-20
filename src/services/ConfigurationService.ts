@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { EventEmitter } from 'events';
-import { execSync } from 'child_process'; // 引入 execSync
+import { execSync } from 'child_process';
 import { IService } from '../core/interfaces/IService';
 import mergeClone from '../utils/mergeClone';
 
@@ -21,18 +21,19 @@ export class ConfigurationService extends EventEmitter implements IService {
   public readonly serviceId = 'ConfigurationService';
   private static _instance: ConfigurationService;
 
-  // 配置文件名常量
   private readonly _configFileName = '.logrc';
   private readonly _templateConfigPath = 'resources/template/logrc-template.json';
 
-  // 内部状态
+  // 默认配置为空对象，完全依赖文件加载
   private _config: ILogrcConfig = {} as ILogrcConfig;
-  private _lastConfig: ILogrcConfig | null = null; // 用于对比变化
+  private _lastConfig: ILogrcConfig | null = null;
   private _watcher: fs.FSWatcher | null = null;
   private _context?: vscode.ExtensionContext;
-  // 默认需要忽略的文件列表
-  private _defaultIgnoreFiles: string[] = ['.logrc', 'anchors.json'];
-  // 记录当前被本插件忽略的文件，用于提供 UI 装饰器
+
+  // 🔥 分离忽略列表：anchors.json 始终忽略，.logrc 由配置控制
+  private readonly _alwaysIgnoreFiles: string[] = ['anchors.json'];
+  private readonly _configFile: string = '.logrc';
+
   private _ignoredByExtension: Set<string> = new Set();
 
   private constructor() {
@@ -59,7 +60,6 @@ export class ConfigurationService extends EventEmitter implements IService {
     return configPath ? path.dirname(configPath) : null;
   }
 
-  // 对外暴露获取忽略状态的方法，供 DecorationProvider 使用
   public isIgnoredByExtension(filePath: string): boolean {
     const root = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     if (!root) return false;
@@ -73,7 +73,6 @@ export class ConfigurationService extends EventEmitter implements IService {
     this.watchConfigFile();
     this.updateContextKey();
 
-    // 注册文件装饰器 (实现截图2的效果)
     if (context) {
       context.subscriptions.push(vscode.window.registerFileDecorationProvider(new LogrcIgnoreDecorationProvider(this)));
     }
@@ -82,33 +81,41 @@ export class ConfigurationService extends EventEmitter implements IService {
   }
 
   public loadConfig(): void {
-    const defaultConfig = this.loadInternalConfig();
-    const userConfig = this.loadUserConfig();
-    this._config = mergeClone(defaultConfig, userConfig);
+    try {
+      const defaultConfig = this.loadInternalConfig();
+      const userConfig = this.loadUserConfig();
 
-    // 🔥 核心：处理 Git 忽略逻辑
-    this.handleGitConfiguration();
+      this._config = mergeClone(defaultConfig, userConfig);
 
-    // 更新最后一次配置快照
-    this._lastConfig = JSON.parse(JSON.stringify(this._config));
+      // 处理 Git 忽略
+      this.handleGitConfiguration();
 
-    this.emit('configChanged', this._config);
+      this._lastConfig = JSON.parse(JSON.stringify(this._config));
+      this.emit('configChanged', this._config);
+    } catch (error) {
+      console.error(`[${this.serviceId}] Error loading config:`, error);
+    }
   }
 
   private updateContextKey() {
     const filePath = this.workspaceConfigPath;
-    const isNotFound = !filePath || !fs.existsSync(filePath);
-    vscode.commands.executeCommand('setContext', 'quickOps.context.configMissing', isNotFound);
+    let exists = false;
+    try {
+      exists = !!filePath && fs.existsSync(filePath);
+    } catch (e) {}
+
+    vscode.commands.executeCommand('setContext', 'quickOps.context.configMissing', !exists);
   }
 
   private loadInternalConfig(): ILogrcConfig {
-    if (!this._context) return {} as ILogrcConfig;
-    const internalPath = path.join(this._context.extensionPath, this._configFileName);
-    if (fs.existsSync(internalPath)) {
-      try {
-        return JSON.parse(fs.readFileSync(internalPath, 'utf-8'));
-      } catch (e) {
-        console.error(`[${this.serviceId}] Failed to load internal config:`, e);
+    if (this._context) {
+      const templatePath = path.join(this._context.extensionPath, this._templateConfigPath);
+      if (fs.existsSync(templatePath)) {
+        try {
+          return JSON.parse(fs.readFileSync(templatePath, 'utf-8'));
+        } catch (e) {
+          console.error(`[${this.serviceId}] Failed to load template config:`, e);
+        }
       }
     }
     return {} as ILogrcConfig;
@@ -116,19 +123,26 @@ export class ConfigurationService extends EventEmitter implements IService {
 
   private loadUserConfig(): Partial<ILogrcConfig> {
     const filePath = this.workspaceConfigPath;
-    if (!filePath || !fs.existsSync(filePath)) return {};
+    if (!filePath) return {};
+
     try {
-      return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+      if (fs.existsSync(filePath)) {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        if (!content.trim()) return {};
+        return JSON.parse(content);
+      }
     } catch (error) {
-      console.warn(`[${this.serviceId}] Failed to parse user config:`, error);
+      console.log('err', error);
       return {};
     }
+    return {};
   }
 
   private watchConfigFile() {
     const filePath = this.workspaceConfigPath;
     if (!filePath) return;
-    const watchTarget = fs.existsSync(filePath) ? filePath : path.dirname(filePath);
+
+    const watchDir = path.dirname(filePath);
 
     if (this._watcher) {
       this._watcher.close();
@@ -136,13 +150,19 @@ export class ConfigurationService extends EventEmitter implements IService {
     }
 
     try {
-      this._watcher = fs.watch(watchTarget, (eventType, filename) => {
-        if (filename === this._configFileName || (filename && path.basename(filePath) === filename)) {
-          let timer: NodeJS.Timeout = setTimeout(() => {
-            if (timer) clearTimeout(timer);
-            this.loadConfig();
-          }, 100);
-          this.updateContextKey();
+      if (!fs.existsSync(watchDir)) return;
+
+      this._watcher = fs.watch(watchDir, (eventType, filename) => {
+        if (filename === this._configFileName) {
+          const timer = setTimeout(() => {
+            clearTimeout(timer);
+            try {
+              this.loadConfig();
+              this.updateContextKey();
+            } catch (e) {
+              console.warn(`[${this.serviceId}] Hot reload failed:`, e);
+            }
+          }, 300);
         }
       });
     } catch (e) {
@@ -164,15 +184,13 @@ export class ConfigurationService extends EventEmitter implements IService {
         const templatePath = path.join(this._context.extensionPath, this._templateConfigPath);
         if (fs.existsSync(templatePath)) {
           contentToWrite = fs.readFileSync(templatePath, 'utf-8');
-        } else {
-          contentToWrite = JSON.stringify(this._config, null, 2);
         }
       }
+
       fs.writeFileSync(targetPath, contentToWrite, 'utf-8');
       vscode.window.showInformationMessage(`已创建 ${this._configFileName}`);
 
       this.loadConfig();
-      this.watchConfigFile();
       this.updateContextKey();
     } catch (error: any) {
       vscode.window.showErrorMessage(`创建配置文件失败: ${error.message}`);
@@ -188,125 +206,106 @@ export class ConfigurationService extends EventEmitter implements IService {
   }
 
   // =====================================================================================
-  // 🔥 Git Ignore Logic Start
+  // 🔥 Git Ignore Logic (Logic Refined)
   // =====================================================================================
 
-  /**
-   * 处理 Git 忽略配置的主逻辑
-   */
   private handleGitConfiguration() {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-    if (!workspaceRoot) return;
+    try {
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+      if (!workspaceRoot) return;
 
-    // 1. 计算当前应该忽略的所有文件列表
-    const currentFilesToIgnore = new Set<string>();
+      // === 1. 计算【当前】忽略列表 ===
+      const currentFilesToIgnore = new Set<string>();
 
-    // 1.1 如果 general.excludeConfigFiles 为 true，添加默认文件
-    if (this._config.general?.excludeConfigFiles) {
-      this._defaultIgnoreFiles.forEach((f) => currentFilesToIgnore.add(f));
-    }
+      // [规则 A]: anchors.json 始终忽略 (本地数据，不应该提交)
+      this._alwaysIgnoreFiles.forEach((f) => currentFilesToIgnore.add(f));
 
-    // 1.2 添加 git.ignoreList 中的自定义文件
-    if (this._config.git?.ignoreList && Array.isArray(this._config.git.ignoreList)) {
-      this._config.git.ignoreList.forEach((f) => currentFilesToIgnore.add(f));
-    }
-
-    // 2. 计算上一次的文件列表（用于检测移除的文件）
-    const lastFilesToIgnore = new Set<string>();
-    if (this._lastConfig) {
-      if (this._lastConfig.general?.excludeConfigFiles) {
-        this._defaultIgnoreFiles.forEach((f) => lastFilesToIgnore.add(f));
+      // [规则 B]: .logrc 根据配置开关决定 (excludeConfigFiles 只控制它)
+      if (this._config.general?.excludeConfigFiles) {
+        currentFilesToIgnore.add(this._configFile);
       }
-      if (this._lastConfig.git?.ignoreList) {
-        this._lastConfig.git.ignoreList.forEach((f) => lastFilesToIgnore.add(f));
+
+      // [规则 C]: 用户自定义忽略列表
+      if (this._config.git?.ignoreList && Array.isArray(this._config.git.ignoreList)) {
+        this._config.git.ignoreList.forEach((f) => currentFilesToIgnore.add(f));
       }
-    }
 
-    // 3. 计算差异
-    // 需要新增忽略的
-    const toAdd = [...currentFilesToIgnore].filter((x) => !lastFilesToIgnore.has(x));
-    // 需要取消忽略的（恢复跟踪）
-    const toRemove = [...lastFilesToIgnore].filter((x) => !currentFilesToIgnore.has(x));
+      // === 2. 计算【上次】忽略列表 ===
+      const lastFilesToIgnore = new Set<string>();
 
-    // 更新内部状态用于装饰器
-    this._ignoredByExtension = currentFilesToIgnore;
-    // 触发装饰器更新事件
-    if (toAdd.length > 0 || toRemove.length > 0) {
-      // 稍微hack一下，触发所有装饰器更新
-      // 实际开发中应该 fire 特定的 uri，这里简化处理
-    }
+      // 如果没有 lastConfig (比如刚启动/新建)，我们也假设 anchors.json 是应该被忽略的
+      // 这样可以确保初次运行时，anchors.json 会被加入忽略
+      if (!this._lastConfig) {
+        // 什么都不做，让 toAdd 全量生效
+      } else {
+        // 还原上次的状态
+        this._alwaysIgnoreFiles.forEach((f) => lastFilesToIgnore.add(f));
 
-    // 4. 执行操作
-    if (toAdd.length > 0) {
-      this.processIgnoreFiles(toAdd, true, workspaceRoot);
-    }
+        if (this._lastConfig.general?.excludeConfigFiles) {
+          lastFilesToIgnore.add(this._configFile);
+        }
+        if (this._lastConfig.git?.ignoreList) {
+          this._lastConfig.git.ignoreList.forEach((f) => lastFilesToIgnore.add(f));
+        }
+      }
 
-    if (toRemove.length > 0) {
-      this.processIgnoreFiles(toRemove, false, workspaceRoot);
+      // === 3. Diff ===
+      const toAdd = [...currentFilesToIgnore].filter((x) => !lastFilesToIgnore.has(x));
+      const toRemove = [...lastFilesToIgnore].filter((x) => !currentFilesToIgnore.has(x));
+
+      this._ignoredByExtension = currentFilesToIgnore;
+
+      if (toAdd.length > 0) {
+        this.processIgnoreFiles(toAdd, true, workspaceRoot);
+      }
+
+      if (toRemove.length > 0) {
+        this.processIgnoreFiles(toRemove, false, workspaceRoot);
+      }
+    } catch (e) {
+      console.warn(`[${this.serviceId}] Git config sync failed:`, e);
     }
   }
 
-  /**
-   * 执行忽略或取消忽略的核心流程
-   * @param files 文件列表
-   * @param isIgnoring true=忽略, false=取消忽略
-   */
   private processIgnoreFiles(files: string[], isIgnoring: boolean, cwd: string) {
     const filesProcessed: string[] = [];
 
     files.forEach((file) => {
-      // 如果文件不存在，跳过
-      if (!fs.existsSync(path.join(cwd, file))) return;
+      try {
+        if (!fs.existsSync(cwd)) return;
 
-      if (isIgnoring) {
-        // === 忽略流程 ===
+        if (isIgnoring) {
+          if (this.isGitIgnored(file, cwd)) return;
 
-        // 1. 检查是否已被 .gitignore 包含
-        if (this.isGitIgnored(file, cwd)) {
-          // 已被 .gitignore 处理，无需操作
-          return;
+          const added = this.updateGitInfoExclude(file, true, cwd);
+
+          if (fs.existsSync(path.join(cwd, file)) && this.isGitTracked(file, cwd)) {
+            this.toggleSkipWorktree(file, true, cwd);
+          }
+
+          if (added) filesProcessed.push(file);
+        } else {
+          const removed = this.updateGitInfoExclude(file, false, cwd);
+
+          if (this.isGitTracked(file, cwd)) {
+            this.toggleSkipWorktree(file, false, cwd);
+          }
+
+          if (removed) filesProcessed.push(file);
         }
-
-        // 2. 添加到 .git/info/exclude
-        this.updateGitInfoExclude(file, true, cwd);
-
-        // 3. 检查是否被跟踪
-        if (this.isGitTracked(file, cwd)) {
-          // 4. 如果被跟踪，执行 skip-worktree
-          this.toggleSkipWorktree(file, true, cwd);
-        }
-
-        filesProcessed.push(file);
-      } else {
-        // === 取消忽略流程 ===
-
-        // 1. 从 .git/info/exclude 移除 (不处理 .gitignore)
-        const removed = this.updateGitInfoExclude(file, false, cwd);
-
-        // 2. 如果是从 exclude 移除的，或者文件存在
-        // 执行 no-skip-worktree (即使之前没 skip，执行这个也没副作用，除了报错)
-        // 只有当文件之前被我们处理过才尝试恢复
-        this.toggleSkipWorktree(file, false, cwd);
-
-        if (removed) {
-          filesProcessed.push(file);
-        }
+      } catch (fileErr) {
+        // ignore
       }
     });
 
-    // 截图1的效果：显示提示信息
     if (filesProcessed.length > 0) {
       const msg = isIgnoring ? `Quick Ops: 已忽略文件 ${filesProcessed.join(', ')} (Git)` : `Quick Ops: 已恢复文件跟踪 ${filesProcessed.join(', ')} (Git)`;
       vscode.window.showInformationMessage(msg);
     }
   }
 
-  /**
-   * 检查文件是否被 .gitignore 规则覆盖
-   */
   private isGitIgnored(filePath: string, cwd: string): boolean {
     try {
-      // git check-ignore 返回 0 表示被忽略，返回 1 表示未被忽略
       execSync(`git check-ignore "${filePath}"`, { stdio: 'ignore', cwd });
       return true;
     } catch {
@@ -314,96 +313,81 @@ export class ConfigurationService extends EventEmitter implements IService {
     }
   }
 
-  /**
-   * 检查文件是否被 Git 跟踪
-   */
   private isGitTracked(filePath: string, cwd: string): boolean {
     try {
-      execSync(`git ls-files --error-unmatch "${filePath}"`, {
-        stdio: 'ignore',
-        cwd,
-      });
-      return true; // 被跟踪
+      execSync(`git ls-files --error-unmatch "${filePath}"`, { stdio: 'ignore', cwd });
+      return true;
     } catch (err) {
-      return false; // 没被跟踪
+      return false;
     }
   }
 
-  /**
-   * 管理 .git/info/exclude 内容
-   * @returns true if file was actually added/removed
-   */
   private updateGitInfoExclude(filePath: string, add: boolean, cwd: string): boolean {
-    const gitDir = path.join(cwd, '.git');
-    const excludePath = path.join(gitDir, 'info', 'exclude');
+    try {
+      const gitDir = path.join(cwd, '.git');
+      const excludePath = path.join(gitDir, 'info', 'exclude');
 
-    if (!fs.existsSync(gitDir)) return false; // 不是 git 仓库
+      if (!fs.existsSync(gitDir)) return false;
 
-    // 确保 info 目录存在
-    const infoDir = path.dirname(excludePath);
-    if (!fs.existsSync(infoDir)) {
-      fs.mkdirSync(infoDir, { recursive: true });
-    }
-
-    let content = '';
-    if (fs.existsSync(excludePath)) {
-      content = fs.readFileSync(excludePath, 'utf-8');
-    }
-
-    // 统一换行符处理
-    let lines = content.split(/\r?\n/).filter((line) => line.trim() !== '');
-    const normalizedPath = filePath.replace(/\\/g, '/'); // git 使用 /
-
-    const exists = lines.includes(normalizedPath);
-
-    if (add) {
-      if (!exists) {
-        lines.push(normalizedPath);
-        fs.writeFileSync(excludePath, lines.join('\n') + '\n', 'utf-8');
-        return true;
+      const infoDir = path.dirname(excludePath);
+      if (!fs.existsSync(infoDir)) {
+        fs.mkdirSync(infoDir, { recursive: true });
       }
-    } else {
-      if (exists) {
-        lines = lines.filter((l) => l !== normalizedPath);
-        fs.writeFileSync(excludePath, lines.join('\n') + '\n', 'utf-8');
-        return true;
+
+      let content = '';
+      if (fs.existsSync(excludePath)) {
+        content = fs.readFileSync(excludePath, 'utf-8');
       }
+
+      let lines = content.split(/\r?\n/).filter((line) => line.trim() !== '');
+      const normalizedPath = filePath.replace(/\\/g, '/');
+
+      const exists = lines.includes(normalizedPath);
+
+      if (add) {
+        if (!exists) {
+          lines.push(normalizedPath);
+          fs.writeFileSync(excludePath, lines.join('\n') + '\n', 'utf-8');
+          return true;
+        }
+      } else {
+        if (exists) {
+          lines = lines.filter((l) => l !== normalizedPath);
+          fs.writeFileSync(excludePath, lines.join('\n') + '\n', 'utf-8');
+          return true;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to update git info/exclude', e);
     }
     return false;
   }
 
-  /**
-   * 执行 skip-worktree / no-skip-worktree
-   */
   private toggleSkipWorktree(filePath: string, skip: boolean, cwd: string) {
     try {
       const flag = skip ? '--skip-worktree' : '--no-skip-worktree';
       execSync(`git update-index ${flag} "${filePath}"`, { stdio: 'ignore', cwd });
     } catch (e) {
-      // 可能会失败（例如文件未被跟踪），忽略错误
+      // ignore
     }
   }
 }
 
-// =====================================================================================
-// 🔥 File Decoration Provider (实现截图2：文件右侧提示)
-// =====================================================================================
+// Decoration Provider
 class LogrcIgnoreDecorationProvider implements vscode.FileDecorationProvider {
   private _onDidChangeFileDecorations = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
   public readonly onDidChangeFileDecorations = this._onDidChangeFileDecorations.event;
 
   constructor(private configService: ConfigurationService) {
-    // 监听配置变化，刷新装饰器
     this.configService.on('configChanged', () => {
-      this._onDidChangeFileDecorations.fire(undefined); // 刷新所有
+      this._onDidChangeFileDecorations.fire(undefined);
     });
   }
 
   provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
-    // 检查文件是否被我们的配置忽略
     if (this.configService.isIgnoredByExtension(uri.fsPath)) {
       return {
-        badge: 'IG', // 简短的 Badge
+        badge: 'IG',
         tooltip: '该文件已被 .logrc 配置忽略',
         color: new vscode.ThemeColor('gitDecoration.ignoredResourceForeground'),
         propagate: false,
