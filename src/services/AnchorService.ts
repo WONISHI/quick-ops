@@ -9,7 +9,6 @@ export class AnchorService {
   private groups: string[] = ['Default'];
   private storagePath: string = '';
 
-  // 🔥 修正部分：只需要定义 _onDidChangeAnchors 及其 event
   private _onDidChangeAnchors = new vscode.EventEmitter<void>();
   public readonly onDidChangeAnchors = this._onDidChangeAnchors.event;
 
