@@ -7,8 +7,22 @@
     "vscode": "^1.54.0"
   },
   "publisher": "quick-ops",
+  "keywords": [
+    "anchor",
+    "bookmark",
+    "navigation",
+    "scroll",
+    "scss",
+    "css structure",
+    "productivity",
+    "tool",
+    "quick-ops",
+    "vue",
+    "react"
+  ],
   "categories": [
-    "Other"
+    "Other",
+    "Snippets"
   ],
   "icon": "./icon.png",
   "repository": {
