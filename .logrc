@@ -1,7 +1,7 @@
 {
   "general": {
     "debug": true,
-    "excludeConfigFiles": false
+    "excludeConfigFiles": true
   },
   "logger": {
     "template": "[icon]-[~/^/^/name]-[line]-[$0]",
@@ -9,12 +9,6 @@
   },
   "utils": {
     "uuidLength": 12
-  },
-  "mock": {
-    "enabled": true,
-    "asyncMode": true,
-    "port": 3100,
-    "workerCount": 5
   },
   "git": {
     "ignoreList": []

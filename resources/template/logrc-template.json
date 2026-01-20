@@ -10,12 +10,6 @@
   "utils": {
     "uuidLength": 12
   },
-  "mock": {
-    "enabled": true,
-    "asyncMode": true,
-    "port": 3100,
-    "workerCount": 5
-  },
   "git": {
     "ignoreList": []
   },
