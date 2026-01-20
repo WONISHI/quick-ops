@@ -33,5 +33,10 @@
     "description": "切换分支",
     "cmd": "git checkout [[gitLocalBranch]]",
     "keepOpen": true
+  },
+  {
+    "description": "获取远程分支链接",
+    "cmd": "git remote show origin",
+    "keepOpen": false
   }
 ]
