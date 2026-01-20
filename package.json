@@ -16,7 +16,11 @@
     "url": "https://github.com/WONISHI/quick-ops.git"
   },
   "activationEvents": [
-    "onStartupFinished"
+    "onStartupFinished",
+    "onLanguage:vue",
+    "onLanguage:html",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescriptreact"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -26,84 +30,125 @@
     },
     "commands": [
       {
-        "command": "extension.revealCurrentFile",
-        "title": "定位到当前文件",
-        "category": "quickOps",
+        "command": "quickOps.revealInExplorer",
+        "title": "定位当前文件 (Reveal File)",
+        "category": "Quick Ops",
         "icon": {
           "light": "resources/svg/position-dark.svg",
           "dark": "resources/svg/position-light.svg"
         }
       },
       {
-        "command": "myExtension.scrollToTop",
-        "title": "回到顶部",
+        "command": "quickOps.scrollToTop",
+        "title": "回到顶部 (Scroll to Top)",
         "icon": {
           "light": "resources/svg/top-dark.svg",
           "dark": "resources/svg/top-light.svg"
         }
       },
       {
-        "command": "myExtension.scrollToBottom",
-        "title": "回到底部",
+        "command": "quickOps.scrollToBottom",
+        "title": "回到底部 (Scroll to Bottom)",
+        "category": "Quick Ops",
         "icon": {
           "light": "resources/svg/bottom-dark.svg",
           "dark": "resources/svg/bottom-light.svg"
         }
       },
       {
-        "command": "extension.createLogrcFile",
-        "title": "创建 .logrc 文件"
+        "command": "quickOps.createConfigFile",
+        "title": "创建配置文件 (Create .logrc)",
+        "category": "Quick Ops"
       },
       {
-        "command": "extension.CopyTsType",
-        "title": "复制 TypeScript 类型"
+        "command": "quickOps.generateTsType",
+        "title": "生成 TS 类型 (Generate TypeScript Interface)",
+        "category": "Quick Ops"
       },
       {
-        "command": "extension.MockData",
-        "title": "模拟数据生成"
+        "command": "quickOps.generateMockData",
+        "title": "生成模拟数据 (Generate Mock Data)",
+        "category": "Quick Ops"
+      },
+      {
+        "command": "quick-ops.generateStyleStructure",
+        "title": "生成样式结构 (Generate SCSS)",
+        "category": "Quick Ops"
+      },
+      {
+        "command": "quick-ops.anchor.add",
+        "title": "Add Anchor Point (添加锚点)",
+        "icon": "$(bookmark)"
+      },
+      {
+        "command": "quick-ops.anchor.showMenu",
+        "title": "Show Anchors"
+      },
+      {
+        "command": "quick-ops.anchor.listByGroup",
+        "title": "List Anchors"
+      },
+      {
+        "command": "quick-ops.anchor.navigate",
+        "title": "Navigate Anchor"
+      },
+      {
+        "command": "quick-ops.anchor.delete",
+        "title": "Delete Anchor"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "extension.revealCurrentFile",
+          "command": "quickOps.revealInExplorer",
           "when": "resourceLangId != ''",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
-          "command": "myExtension.scrollToTop",
-          "group": "navigation",
+          "command": "quickOps.scrollToTop",
+          "group": "navigation@2",
           "when": "editorTextFocus"
         },
         {
-          "command": "myExtension.scrollToBottom",
-          "group": "navigation",
+          "command": "quickOps.scrollToBottom",
+          "group": "navigation@3",
           "when": "editorTextFocus"
         }
       ],
       "explorer/context": [
         {
-          "command": "extension.createLogrcFile",
-          "group": "navigation@1",
-          "when": "Extension.logrcNotFound"
+          "command": "quickOps.createConfigFile",
+          "group": "quickOps@1",
+          "when": "quickOps.context.configMissing"
+        },
+        {
+          "command": "quick-ops.generateStyleStructure",
+          "group": "quickOps@2",
+          "when": "resourceLangId == vue || resourceLangId == html || resourceLangId == javascriptreact || resourceLangId == typescriptreact"
         }
       ],
       "editor/context": [
         {
-          "command": "extension.CopyTsType",
-          "group": "navigation@1",
-          "when": "Extension.SelectTots"
+          "command": "quickOps.generateTsType",
+          "group": "quickOps@1",
+          "when": "editorHasSelection && quickOps.context.canGenerateType"
         },
         {
-          "command": "extension.MockData",
-          "group": "navigation@2",
-          "when": "Extension.SelectToMock"
+          "command": "quickOps.generateMockData",
+          "group": "quickOps@2",
+          "when": "editorHasSelection && quickOps.context.canGenerateMock"
+        }
+      ],
+      "editor/lineNumber/context": [
+        {
+          "command": "quick-ops.anchor.add",
+          "group": "1_modification"
         }
       ]
     }
   },
   "scripts": {
-    "build": "npx vsce package",
+    "build": "npx vsce package --no-yarn --no-dependencies",
     "vscode:prepublish": "pnpm run package",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
@@ -115,7 +160,9 @@
     "test": "vscode-test"
   },
   "devDependencies": {
+    "@types/babel__core": "^7.20.5",
     "@types/babel__traverse": "^7.28.0",
+    "@types/cheerio": "^1.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/vscode": "^1.54.0",
@@ -139,11 +186,13 @@
     "yarn": "4.10.3"
   },
   "dependencies": {
-    "@babel/parser": "^7.28.3",
-    "@babel/traverse": "^7.28.3",
+    "@babel/parser": "^7.28.6",
+    "@babel/traverse": "^7.28.6",
+    "@babel/types": "^7.28.6",
     "@types/express": "^5.0.3",
     "@types/mockjs": "^1.0.10",
     "@vue/compiler-sfc": "^3.5.20",
+    "change-case": "^5.4.4",
     "cheerio": "^1.1.2",
     "dayjs": "^1.11.13",
     "express": "^5.1.0",

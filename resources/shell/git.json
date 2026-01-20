@@ -1,6 +1,37 @@
 [
-        {
-        "description": "初始化项目",
-        "cmd": "npm init -y"
-    }
+  {
+    "description": "查看当前文件状态",
+    "cmd": "git status",
+    "keepOpen": true
+  },
+  {
+    "description": "查看所有分支（包含远程）",
+    "cmd": "git branch -a",
+    "keepOpen": true
+  },
+  {
+    "description": "暂存当前修改",
+    "cmd": "git stash",
+    "keepOpen": true
+  },
+  {
+    "description": "恢复最近一次暂存的修改",
+    "cmd": "git stash pop",
+    "keepOpen": true
+  },
+  {
+    "description": "撤销提交",
+    "cmd": "git reset --soft HEAD~1",
+    "keepOpen": true
+  },
+  {
+    "description": "拉取当前远程分钟",
+    "cmd": "git pull origin [[gitRemote]]",
+    "keepOpen": true
+  },
+  {
+    "description": "切换分支",
+    "cmd": "git checkout [[gitLocalBranch]]",
+    "keepOpen": true
+  }
 ]

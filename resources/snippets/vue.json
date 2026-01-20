@@ -14,7 +14,7 @@
             "",
             "<script>",
             "export default {",
-            "  name:'',",
+            "  name:'[[moduleName]]',",
             "  data() {",
             "    return {",
             "",
@@ -28,7 +28,7 @@
             "  },",
             "}",
             "</script>",
-            "<style lang=[[languagesCss]] scoped>",
+            "<style lang='[[cssLang]]' scoped>",
             "",
             "</style>"
         ],
@@ -48,7 +48,7 @@
             "</template>",
             "<script lang='ts' setup>",
             "</script>",
-            "<style lang=[[languagesCss]] scoped>",
+            "<style lang='[[cssLang]]' scoped>",
             "",
             "</style>"
         ],

@@ -1,16 +1,21 @@
 {
-  "logEnhancerConfig": {
-    "log": "[icon]-[~/^/^/name]-[line]-[$0]"
+  "general": {
+    "debug": true,
+    "excludeConfigFiles": true
   },
-  "unitTime": {
-    "log": "YYYY-MM-DD HH:mm:ss"
+  "logger": {
+    "template": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "dateFormat": "YYYY-MM-DD HH:mm:ss"
   },
-  "uuidLen": {
-    "log": 12
+  "utils": {
+    "uuidLength": 12
   },
-  "useAsyncMock": true,
-  "alias": {
-    "path": {
+  "git": {
+    "ignoreList": []
+  },
+  "project": {
+    "marks": {},
+    "alias": {
       "@/": "./src/"
     }
   }
