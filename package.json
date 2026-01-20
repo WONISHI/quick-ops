@@ -1,12 +1,12 @@
 {
   "name": "quick-ops",
-  "displayName": "quickOps",
-  "description": "quick-ops",
-  "version": "0.0.10",
+  "displayName": "Quick Ops: Code Utils & Anchors",
+  "description": "Essential toolkit for VS Code: Code Anchors, TS/Mock generation, SCSS structure, and quick navigation utils.",
+  "version": "0.0.15",
   "engines": {
     "vscode": "^1.54.0"
   },
-  "publisher": "quick-ops",
+  "publisher": "WONISHI",
   "categories": [
     "Other"
   ],
