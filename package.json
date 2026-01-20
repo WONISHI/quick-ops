@@ -1,7 +1,7 @@
 {
   "name": "quick-ops",
   "displayName": "Quick Ops: Code Utils & Anchors",
-  "description": "Essential toolkit for VS Code: Code Anchors, TS/Mock generation, SCSS structure, and quick navigation utils.",
+  "description": "Boost productivity with Code Anchors, SCSS structure generation, and essential navigation shortcuts.",
   "version": "0.0.15",
   "engines": {
     "vscode": "^1.54.0"
