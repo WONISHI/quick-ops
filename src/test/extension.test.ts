@@ -1,15 +1,17 @@
-import * as assert from 'assert';
+import * as path from 'path';
+import { runTests } from '@vscode/test-electron';
 
-// You can import and use all API from the 'vscode' module
-// as well as import your extension to test it
-import * as vscode from 'vscode';
-// import * as myExtension from '../../extension';
+async function main() {
+	try {
+		const extensionDevelopmentPath = path.resolve(__dirname, '../');
+		
+		const extensionTestsPath = path.resolve(__dirname, './suite/index');
 
-suite('Extension Test Suite', () => {
-	vscode.window.showInformationMessage('Start all tests.');
+		await runTests({ extensionDevelopmentPath, extensionTestsPath });
+	} catch (err) {
+		console.error('Failed to run tests', err);
+		process.exit(1);
+	}
+}
 
-	test('Sample test', () => {
-		assert.strictEqual(-1, [1, 2, 3].indexOf(5));
-		assert.strictEqual(-1, [1, 2, 3].indexOf(0));
-	});
-});
+main();
