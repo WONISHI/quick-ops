@@ -38,6 +38,26 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "json",
+        "filenames": [
+          ".logrc"
+        ]
+      },
+      {
+        "id": "json",
+        "filenames": [
+          ".logrc"
+        ]
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": ".logrc",
+        "url": "./resources/schema/logrc-schema.json"
+      }
+    ],
     "webviews": {
       "allowScripts": true,
       "allowLinks": true
