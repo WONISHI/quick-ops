@@ -35,3 +35,4 @@
 ## 第五版
 - [ ] feat:添加languages和jsonValidation、
 - [ ] feat:提示安装依赖
+- [ ] feat:支持不同环境提示不同指令
