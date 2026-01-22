@@ -60,5 +60,11 @@
     "body": ["try {", "   $TM_SELECTED_TEXT", "} catch (err) {", "   console.log('err',err)", "} finally {", "   ${0}", "}"],
     "style": "javascript",
     "description": "try-catch (quick-ops提供)"
+  },
+  {
+    "prefix": "ccg",
+    "body": "console.log('$TM_FILENAME文件的:第$TM_LINE_INDEX行' , $CLIPBOARD)",
+    "style": "javascript",
+    "description": "ccg-log (quick-ops提供)"
   }
 ]
