@@ -1,62 +1,64 @@
 [
-    {
-        "prefix": "rsz",
-        "body": [
-            "function renderSize(value){",
-            "   if (null == value || value == '') {",
-            "       return '0 Bytes'",
-            "   }",
-            "   var unitArr = new Array('Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB')",
-            "   var index = 0",
-            "   var srcsize = parseFloat(value)",
-            "   index = Math.floor(Math.log(srcsize) / Math.log(1024))",
-            "   var size = srcsize / Math.pow(1024, index)",
-            "   size = size.toFixed(2) ",
-            "   return size + unitArr[index]",
-            "}"
-        ],
-        "style":"js",
-        "description": "格式化文件大小 (quick-ops提供)"
-    },
-    {
-        "prefix": "sct",
-        "body": [
-            "document.querySelector(${0}).scrollIntoView({",
-            "   behavior: 'smooth'",
-            "});"
-        ],
-        "style":"js",
-        "description": "元素滚动 (quick-ops提供)"
-    },
-    {
-        "prefix": "deb",
-        "body": [
-            "function debounce(() => {",
-            "   let timer = null",
-            "   return (callback, wait = 800) => {",
-            "       timer&&clearTimeout(timer)",
-            "       timer = setTimeout(callback, wait)",
-            "   }",
-            "})()"
-        ],
-        "style":"js",
-        "description": "防抖 (quick-ops提供)"
-    },
-    {
-        "prefix": "thr",
-        "body": [
-            "function throttle(() => {",
-            "   let last = 0",
-            "   return (callback, wait = 800) => {",
-            "       let now = +new Date()",
-            "       if (now - last > wait) {",
-            "           callback()",
-            "           last = now",
-            "       }",
-            "   }",
-            "})()"
-        ],
-        "style":"js",
-        "description": "节流 (quick-ops提供)"
-    }
+  {
+    "prefix": "rsz",
+    "body": [
+      "function renderSize(value){",
+      "   if (null == value || value == '') {",
+      "       return '0 Bytes'",
+      "   }",
+      "   var unitArr = new Array('Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB')",
+      "   var index = 0",
+      "   var srcsize = parseFloat(value)",
+      "   index = Math.floor(Math.log(srcsize) / Math.log(1024))",
+      "   var size = srcsize / Math.pow(1024, index)",
+      "   size = size.toFixed(2) ",
+      "   return size + unitArr[index]",
+      "}"
+    ],
+    "style": "js",
+    "description": "格式化文件大小 (quick-ops提供)"
+  },
+  {
+    "prefix": "sct",
+    "body": ["document.querySelector(${0}).scrollIntoView({", "   behavior: 'smooth'", "});"],
+    "style": "js",
+    "description": "元素滚动 (quick-ops提供)"
+  },
+  {
+    "prefix": "deb",
+    "body": [
+      "function debounce(() => {",
+      "   let timer = null",
+      "   return (callback, wait = 800) => {",
+      "       timer&&clearTimeout(timer)",
+      "       timer = setTimeout(callback, wait)",
+      "   }",
+      "})()"
+    ],
+    "style": "js",
+    "description": "防抖 (quick-ops提供)"
+  },
+  {
+    "prefix": "thr",
+    "body": [
+      "function throttle(() => {",
+      "   let last = 0",
+      "   return (callback, wait = 800) => {",
+      "       let now = +new Date()",
+      "       if (now - last > wait) {",
+      "           callback()",
+      "           last = now",
+      "       }",
+      "   }",
+      "})()"
+    ],
+    "style": "js",
+    "description": "节流 (quick-ops提供)"
+  },
+  {
+    "prefix": "try",
+    "body": ["try {", "   $TM_SELECTED_TEXT", "} catch (err) {", "   console.log('err',err)", "} finally {", "   ${0}", "}"],
+    "style": "js",
+    "description": "try-catch (quick-ops提供)"
+  }
 ]
