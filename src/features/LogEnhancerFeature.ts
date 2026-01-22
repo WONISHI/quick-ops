@@ -131,7 +131,7 @@ export class LogEnhancerFeature implements IFeature {
     };
 
     const item = new vscode.CompletionItem(logItemObj, vscode.CompletionItemKind.Snippet);
-    item.detail = 'Print Template Log';
+    item.detail = '从"quick-ops"导入添加';
     item.insertText = new vscode.SnippetString(insertText);
     item.documentation = new vscode.MarkdownString().appendCodeblock(insertText, 'javascript');
 
