@@ -33,6 +33,8 @@
 - [ ] feat:解析导出函数能解析函数体
 
 ## 第五版
+
 - [ ] feat:添加languages和jsonValidation、
 - [ ] feat:提示安装依赖
 - [ ] feat:支持不同环境提示不同指令
+- [ ] feat:新增别名识别解析
