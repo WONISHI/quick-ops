@@ -22,7 +22,7 @@ export class AnchorService {
   }
 
   public init(rootPath: string) {
-    this.storagePath = path.join(rootPath, 'anchors.json');
+    this.storagePath = path.join(rootPath, '.telemetryrc');
     this.load();
   }
 

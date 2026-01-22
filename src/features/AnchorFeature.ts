@@ -58,7 +58,6 @@ export class AnchorFeature implements IFeature {
       }),
     );
 
-    // List By Group
     context.subscriptions.push(
       vscode.commands.registerCommand('quick-ops.anchor.listByGroup', async (groupName: string) => {
         this.showAnchorList(groupName, true);

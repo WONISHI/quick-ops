@@ -42,20 +42,20 @@
       {
         "id": "json",
         "filenames": [
-          ".logrc"
+          ".quickopsrc"
         ]
       },
       {
         "id": "json",
         "filenames": [
-          ".logrc"
+          ".telemetryrc"
         ]
       }
     ],
     "jsonValidation": [
       {
-        "fileMatch": ".logrc",
-        "url": "./resources/schema/logrc-schema.json"
+        "fileMatch": ".quickopsrc",
+        "url": "./resources/schema/.quickopsrc-schema.json"
       }
     ],
     "webviews": {
@@ -91,7 +91,7 @@
       },
       {
         "command": "quickOps.createConfigFile",
-        "title": "创建配置文件 (Create .logrc)",
+        "title": "创建配置文件 (Create .quickopsrc)",
         "category": "Quick Ops"
       },
       {

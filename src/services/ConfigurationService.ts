@@ -21,8 +21,8 @@ export class ConfigurationService extends EventEmitter implements IService {
   public readonly serviceId = 'ConfigurationService';
   private static _instance: ConfigurationService;
 
-  private readonly _configFileName = '.logrc';
-  private readonly _templateConfigPath = 'resources/template/logrc-template.json';
+  private readonly _configFileName = '.quickopsrc';
+  private readonly _templateConfigPath = 'resources/template/.quickopsrc.json';
 
   // 默认配置为空对象，完全依赖文件加载
   private _config: ILogrcConfig = {} as ILogrcConfig;
@@ -30,9 +30,9 @@ export class ConfigurationService extends EventEmitter implements IService {
   private _watcher: fs.FSWatcher | null = null;
   private _context?: vscode.ExtensionContext;
 
-  // 🔥 分离忽略列表：anchors.json 始终忽略，.logrc 由配置控制
-  private readonly _alwaysIgnoreFiles: string[] = ['anchors.json'];
-  private readonly _configFile: string = '.logrc';
+  // 🔥 分离忽略列表：.telemetryrc 始终忽略，.quickopsrc 由配置控制
+  private readonly _alwaysIgnoreFiles: string[] = ['.telemetryrc'];
+  private readonly _configFile: string = '.quickopsrc';
 
   private _ignoredByExtension: Set<string> = new Set();
 
@@ -217,10 +217,10 @@ export class ConfigurationService extends EventEmitter implements IService {
       // === 1. 计算【当前】忽略列表 ===
       const currentFilesToIgnore = new Set<string>();
 
-      // [规则 A]: anchors.json 始终忽略 (本地数据，不应该提交)
+      // [规则 A]: .telemetryrc 始终忽略 (本地数据，不应该提交)
       this._alwaysIgnoreFiles.forEach((f) => currentFilesToIgnore.add(f));
 
-      // [规则 B]: .logrc 根据配置开关决定 (excludeConfigFiles 只控制它)
+      // [规则 B]: .quickopsrc 根据配置开关决定 (excludeConfigFiles 只控制它)
       if (this._config.general?.excludeConfigFiles) {
         currentFilesToIgnore.add(this._configFile);
       }
@@ -233,8 +233,8 @@ export class ConfigurationService extends EventEmitter implements IService {
       // === 2. 计算【上次】忽略列表 ===
       const lastFilesToIgnore = new Set<string>();
 
-      // 如果没有 lastConfig (比如刚启动/新建)，我们也假设 anchors.json 是应该被忽略的
-      // 这样可以确保初次运行时，anchors.json 会被加入忽略
+      // 如果没有 lastConfig (比如刚启动/新建)，我们也假设 .telemetryrc 是应该被忽略的
+      // 这样可以确保初次运行时，.telemetryrc 会被加入忽略
       if (!this._lastConfig) {
         // 什么都不做，让 toAdd 全量生效
       } else {
@@ -388,7 +388,7 @@ class LogrcIgnoreDecorationProvider implements vscode.FileDecorationProvider {
     if (this.configService.isIgnoredByExtension(uri.fsPath)) {
       return {
         badge: 'IG',
-        tooltip: '该文件已被 .logrc 配置忽略',
+        tooltip: '该文件已被 .quickopsrc 配置忽略',
         color: new vscode.ThemeColor('gitDecoration.ignoredResourceForeground'),
         propagate: false,
       };

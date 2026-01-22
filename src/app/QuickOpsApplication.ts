@@ -42,7 +42,7 @@ export class QuickOpsApplication {
       new ConfigManagementFeature(),
       new LogEnhancerFeature(),
       new PackageScriptsFeature(),
-      new GitListenerFeature(),
+      // new GitListenerFeature(),
       new MarkDecorationFeature(),
       new StyleGeneratorFeature(),
       new RegionFoldingFeature(),
@@ -55,6 +55,7 @@ export class QuickOpsApplication {
    */
   public async start() {
     console.log('[QuickOps] Application Starting...');
+    console.time();
 
     // 1. 初始化服务 (Initialization)
     // 某些服务可能需要异步加载配置或状态
@@ -78,7 +79,7 @@ export class QuickOpsApplication {
     }
 
     this.setupGlobalDisposables();
-
+    console.timeEnd();
     vscode.window.showInformationMessage('Quick Ops (Refactored) is now active!');
   }
 

@@ -9,7 +9,7 @@ export class GitListenerFeature implements IFeature {
 
   constructor(
     private configService: ConfigurationService = ConfigurationService.getInstance(),
-    private gitService: GitService = GitService.getInstance()
+    private gitService: GitService = GitService.getInstance(),
   ) {}
 
   public activate(context: vscode.ExtensionContext): void {
@@ -29,9 +29,9 @@ export class GitListenerFeature implements IFeature {
     // 如果没有 git 配置或 ignoreList，传空数组以确保清空之前的设置（如果需要的话）或者跳过
     const ignoreList = config.git?.ignoreList || [];
 
-    // 获取 .logrc 所在的目录，用于解析相对路径
+    // 获取 .quickopsrc 所在的目录，用于解析相对路径
     const configPath = this.configService.workspaceConfigPath;
-    const configDir = configPath ? path.dirname(configPath) : (vscode.workspace.workspaceFolders?.[0].uri.fsPath || '');
+    const configDir = configPath ? path.dirname(configPath) : vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
     console.log(`[${this.id}] Updating Git ignore rules with configDir: ${configDir}`);
     if (configDir) {
       this.gitService.updateIgnoreRules(ignoreList, configDir);
