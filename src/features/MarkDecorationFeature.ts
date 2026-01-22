@@ -122,7 +122,11 @@ export class MarkDecorationFeature implements IFeature {
     const items: vscode.CompletionItem[] = [];
 
     for (const [markText, style] of Object.entries(marksConfig)) {
-      const item = new vscode.CompletionItem(markText, vscode.CompletionItemKind.Color);
+      const logItemObj: vscode.CompletionItemLabel = {
+        label: markText,
+        description: `quick-ops/${markText}`,
+      };
+      const item = new vscode.CompletionItem(logItemObj, vscode.CompletionItemKind.Color);
 
       item.detail = `Mark: ${markText}:`;
       item.documentation = new vscode.MarkdownString(`Preview: **${markText}:**\n\nColor: ${style.backgroundColor}`);
