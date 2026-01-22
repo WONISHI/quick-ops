@@ -15,13 +15,13 @@
       "   return size + unitArr[index]",
       "}"
     ],
-    "style": "js",
+    "style": "javascript",
     "description": "格式化文件大小 (quick-ops提供)"
   },
   {
     "prefix": "sct",
     "body": ["document.querySelector(${0}).scrollIntoView({", "   behavior: 'smooth'", "});"],
-    "style": "js",
+    "style": "javascript",
     "description": "元素滚动 (quick-ops提供)"
   },
   {
@@ -35,7 +35,7 @@
       "   }",
       "})()"
     ],
-    "style": "js",
+    "style": "javascript",
     "description": "防抖 (quick-ops提供)"
   },
   {
@@ -52,13 +52,13 @@
       "   }",
       "})()"
     ],
-    "style": "js",
+    "style": "javascript",
     "description": "节流 (quick-ops提供)"
   },
   {
     "prefix": "try",
     "body": ["try {", "   $TM_SELECTED_TEXT", "} catch (err) {", "   console.log('err',err)", "} finally {", "   ${0}", "}"],
-    "style": "js",
+    "style": "javascript",
     "description": "try-catch (quick-ops提供)"
   }
 ]
