@@ -13,7 +13,16 @@
       "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
       "runtimeArgs": ["-r", "ts-node/register"],
       "outFiles": ["${workspaceFolder}/dist/**/*.ts"],
-      "preLaunchTask": "npm: watch" // 这里绑定 tasks.json 里的任务
+      "preLaunchTask": "npm: watch"
+    },
+    {
+      "name": "Run Extension Tests",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": ["--disable-extensions", "--extensionDevelopmentPath=${workspaceFolder}", "--extensionTestsPath=${workspaceFolder}/dist/test/suite/index"],
+      "outFiles": ["${workspaceFolder}/dist/test/**/*.js"],
+      "preLaunchTask": "npm: watch"
     }
   ]
 }

@@ -38,6 +38,26 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "languages": [
+      {
+        "id": "json",
+        "filenames": [
+          ".logrc"
+        ]
+      },
+      {
+        "id": "json",
+        "filenames": [
+          ".logrc"
+        ]
+      }
+    ],
+    "jsonValidation": [
+      {
+        "fileMatch": ".logrc",
+        "url": "./resources/schema/logrc-schema.json"
+      }
+    ],
     "webviews": {
       "allowScripts": true,
       "allowLinks": true
@@ -171,12 +191,13 @@
     "watch-tests": "tsc -p . -w --outDir dist",
     "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "node ./dist/test/extension.test.js"
   },
   "devDependencies": {
     "@types/babel__core": "^7.20.5",
     "@types/babel__traverse": "^7.28.0",
     "@types/cheerio": "^1.0.0",
+    "@types/glob": "^9.0.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/vscode": "^1.54.0",
@@ -188,6 +209,8 @@
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
+    "glob": "^13.0.0",
+    "mocha": "^11.7.5",
     "prettier": "^3.6.2",
     "pug": "^3.0.3",
     "ts-loader": "^9.5.2",
