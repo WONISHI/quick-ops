@@ -20,3 +20,8 @@ vsc-extension-quickstart.md
 **/*.ts
 **/.vscode-test.*
 pnpm-lock.yaml
+.turbo/**
+dist/*.map  
+dist/*.txt
+**/*.tsbuildinfo
+PERFORMANCE.md

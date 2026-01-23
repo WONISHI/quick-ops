@@ -11,16 +11,19 @@ const TerserPlugin = require('terser-webpack-plugin');
 
 /** @type WebpackConfig */
 const extensionConfig = {
-  target: 'node',
+  target: 'node16',
   mode: 'production',
   entry: './src/extension.ts',
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: 'extension.js',
-    libraryTarget: 'commonjs2',
+    libraryTarget: 'commonjs',
   },
   externalsPresets: { node: true },
   externals: { vscode: 'commonjs vscode' },
+  cache: {
+    type: 'filesystem',
+  },
   resolve: {
     extensions: ['.ts', '.js'],
     alias: {
@@ -35,32 +38,25 @@ const extensionConfig = {
         use: [
           {
             loader: 'ts-loader',
+            options: {
+              transpileOnly: true,
+            },
           },
         ],
       },
     ],
   },
-  devtool: process.env.NODE_ENV === 'production' ? false : 'cheap-module-source-map',
-  // optimization: {
-  //   usedExports: true,
-  //   sideEffects: true,
-  //   minimize: true,
-  //   minimizer: [
-  //     new TerserPlugin({
-  //       parallel: true,
-  //       terserOptions: {
-  //         compress: {
-  //           drop_console: true,
-  //           pure_funcs: ['console.log'],
-  //         },
-  //         format: {
-  //           comments: false,
-  //         },
-  //       },
-  //       extractComments: false,
-  //     }),
-  //   ],
-  // },
+  devtool: process.env.NODE_ENV === 'production' ? false : 'source-map',
+  optimization: {
+    concatenateModules: true,
+    minimize: true,
+    minimizer: [
+      new TerserPlugin({
+        parallel: true,
+        extractComments: false, // 不生成 license 文件
+      }),
+    ],
+  },
   infrastructureLogging: {
     level: 'log',
   },

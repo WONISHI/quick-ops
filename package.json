@@ -2,10 +2,11 @@
   "name": "quick-ops",
   "displayName": "Quick Ops: Code Utils & Anchors",
   "description": "Boost productivity with Code Anchors, SCSS structure generation, and essential navigation shortcuts.",
-  "version": "0.0.16",
+  "version": "0.0.17",
   "engines": {
     "vscode": "^1.54.0"
   },
+  "sideEffects": false,
   "publisher": "quick-ops",
   "keywords": [
     "anchor",
@@ -178,6 +179,7 @@
     "@types/glob": "^9.0.0",
     "@types/lodash-es": "^4",
     "@types/mocha": "^10.0.10",
+    "@types/mockjs": "^1.0.10",
     "@types/node": "22.x",
     "@types/vscode": "^1.54.0",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
@@ -195,6 +197,7 @@
     "ts-loader": "^9.5.2",
     "typescript": "^5.9.2",
     "webpack": "^5.101.0",
+    "webpack-bundle-analyzer": "^5.2.0",
     "webpack-cli": "^6.0.1"
   },
   "volta": {
@@ -205,19 +208,14 @@
     "@babel/parser": "^7.28.6",
     "@babel/traverse": "^7.28.6",
     "@babel/types": "^7.28.6",
-    "@types/express": "^5.0.3",
-    "@types/mockjs": "^1.0.10",
     "@vue/compiler-sfc": "^3.5.20",
     "change-case": "^5.4.4",
     "cheerio": "^1.1.2",
     "dayjs": "^1.11.13",
-    "express": "^5.1.0",
     "ignore": "^7.0.5",
     "lodash-es": "^4.17.23",
     "mockjs": "^1.1.0",
     "nanoid": "^5.1.6",
-    "terser-webpack-plugin": "^5.3.14",
-    "vscode-languageclient": "^9.0.1",
-    "webpack-bundle-analyzer": "^4.10.2"
+    "terser-webpack-plugin": "^5.3.14"
   }
 }
