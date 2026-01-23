@@ -1,11 +1,14 @@
 [
   {
     "prefix": "vue2",
-    "scope": ["vue", "vue2"],
+    "scope": [
+      "vue",
+      "vue2"
+    ],
     "body": [
       "<template>",
       "  <div>",
-      "  ${0}",
+      "  ${1}",
       "  </div>",
       "</template>",
       "",
@@ -25,7 +28,7 @@
       "  },",
       "}",
       "</script>",
-      "<style lang='[[cssLang]]' scoped>",
+      "<style lang='${0:[[cssLang]]}' scoped>",
       "",
       "</style>"
     ],
@@ -34,8 +37,22 @@
   },
   {
     "prefix": "vue3",
-    "scope": ["vue", "vue3"],
-    "body": ["<template>", "<div>", "  ${0}", "</div>", "</template>", "<script lang='ts' setup>", "</script>", "<style lang='[[cssLang]]' scoped>", "", "</style>"],
+    "scope": [
+      "vue",
+      "vue3"
+    ],
+    "body": [
+      "<template>",
+      "<div>",
+      "  ${1}",
+      "</div>",
+      "</template>",
+      "<script lang='ts' setup>",
+      "</script>",
+      "<style lang='${0:[[cssLang]]}' scoped>",
+      "",
+      "</style>"
+    ],
     "style": "vue",
     "description": "vue3代码模版 (quick-ops提供)"
   }
