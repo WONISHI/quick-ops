@@ -74,6 +74,47 @@
                     "type": "object"
                 }
             }
+        },
+        "snippets": {
+            "type": "array",
+            "description": "Custom code snippets configuration",
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "prefix",
+                    "body"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the snippet"
+                    },
+                    "prefix": {
+                        "type": "string",
+                        "description": "Trigger keyword for the snippet"
+                    },
+                    "body": {
+                        "type": [
+                            "string",
+                            "array"
+                        ],
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "The content of the snippet. Can be a single string or an array of strings (for multiline)."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description of what this snippet does"
+                    },
+                    "scope": {
+                        "type": "string",
+                        "description": "Language scope (e.g., 'javascript,typescript'). If omitted, applies globally."
+                    }
+                }
+            },
+            "default": []
         }
     }
 }
