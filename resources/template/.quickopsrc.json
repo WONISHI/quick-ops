@@ -1,0 +1,23 @@
+{
+  "general": {
+    "debug": true,
+    "excludeConfigFiles": true
+  },
+  "logger": {
+    "template": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "dateFormat": "YYYY-MM-DD HH:mm:ss"
+  },
+  "utils": {
+    "uuidLength": 12
+  },
+  "git": {
+    "ignoreList": []
+  },
+  "snippets": [],
+  "project": {
+    "marks": {},
+    "alias": {
+      "@/": "./src/"
+    }
+  }
+}

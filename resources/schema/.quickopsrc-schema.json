@@ -1,0 +1,120 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Quick Ops Config",
+    "description": "Configuration file for Quick Ops extension",
+    "type": "object",
+    "properties": {
+        "general": {
+            "type": "object",
+            "description": "General settings",
+            "properties": {
+                "debug": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable debug mode"
+                },
+                "excludeConfigFiles": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether to ignore configuration files in Git"
+                }
+            }
+        },
+        "logger": {
+            "type": "object",
+            "description": "Logger settings",
+            "properties": {
+                "template": {
+                    "type": "string",
+                    "default": "[icon]-[~/^/^/name]-[line]-[$0]",
+                    "description": "Log output template"
+                },
+                "dateFormat": {
+                    "type": "string",
+                    "default": "YYYY-MM-DD HH:mm:ss"
+                }
+            }
+        },
+        "git": {
+            "type": "object",
+            "description": "Git integration settings",
+            "properties": {
+                "ignoreList": {
+                    "type": "array",
+                    "description": "List of files to ignore/skip-worktree",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                }
+            }
+        },
+        "utils": {
+            "type": "object",
+            "properties": {
+                "uuidLength": {
+                    "type": "integer",
+                    "default": 12
+                }
+            }
+        },
+        "project": {
+            "type": "object",
+            "properties": {
+                "alias": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "default": {
+                        "@/": "./src/"
+                    }
+                },
+                "marks": {
+                    "type": "object"
+                }
+            }
+        },
+        "snippets": {
+            "type": "array",
+            "description": "Custom code snippets configuration",
+            "items": {
+                "type": "object",
+                "required": [
+                    "name",
+                    "prefix",
+                    "body"
+                ],
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the snippet"
+                    },
+                    "prefix": {
+                        "type": "string",
+                        "description": "Trigger keyword for the snippet"
+                    },
+                    "body": {
+                        "type": [
+                            "string",
+                            "array"
+                        ],
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "The content of the snippet. Can be a single string or an array of strings (for multiline)."
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "Description of what this snippet does"
+                    },
+                    "scope": {
+                        "type": "string",
+                        "description": "Language scope (e.g., 'javascript,typescript'). If omitted, applies globally."
+                    }
+                }
+            },
+            "default": []
+        }
+    }
+}
