@@ -1,4 +1,5 @@
 import { IWorkspaceContext } from '../services/WorkspaceContextService';
+import { isObject } from 'lodash-es';
 
 // 定义状态类型
 export type RenderStatus = 'success' | 'empty' | 'missing';
@@ -36,7 +37,7 @@ export class TemplateEngine {
       }
 
       // 2. 检查数组或对象
-      if (Array.isArray(value) || typeof value === 'object') {
+      if (Array.isArray(value) || isObject(value)) {
         // 检查是否为空数组或空对象
         if (Array.isArray(value) && value.length === 0) {
           hasEmpty = true;

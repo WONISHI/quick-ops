@@ -73,7 +73,12 @@ export class AnchorService {
     }
   }
 
-  // 普通添加
+  // 🔥 新增：移除分组
+  public removeGroup(group: string) {
+    this.groups = this.groups.filter((g) => g !== group);
+    this.save();
+  }
+
   public addAnchor(anchor: Omit<AnchorData, 'id' | 'timestamp'>) {
     const newAnchor: AnchorData = {
       ...anchor,
@@ -84,7 +89,6 @@ export class AnchorService {
     this.save();
   }
 
-  // 插入指定位置 (支持自定义排序)
   public insertAnchor(anchor: Omit<AnchorData, 'id' | 'timestamp'>, targetId: string, position: 'before' | 'after') {
     const targetIndex = this.anchors.findIndex((a) => a.id === targetId);
     if (targetIndex === -1) {
@@ -116,7 +120,6 @@ export class AnchorService {
     return this.anchors.find((a) => a.id === id);
   }
 
-  // 获取相邻锚点 (严格按照数组顺序)
   public getNeighborAnchor(currentId: string, direction: 'prev' | 'next'): AnchorData | undefined {
     const current = this.getAnchorById(currentId);
     if (!current) return undefined;
@@ -135,7 +138,7 @@ export class AnchorService {
     const anchor = this.anchors.find((a) => a.id === id);
     if (anchor && anchor.line !== newLine) {
       anchor.line = newLine;
-      this.save(); // 保存到 json
+      this.save();
     }
   }
 }

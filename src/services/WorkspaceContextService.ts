@@ -3,8 +3,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { exec } from 'child_process';
+import { camelCase, kebabCase, snakeCase, upperFirst } from 'lodash-es';
 
-// 定义上下文接口，方便类型提示
 export interface IWorkspaceContext {
   fileName: string;
   fileNameBase: string;
@@ -34,6 +34,67 @@ export interface IWorkspaceContext {
   gitRemote: string;
   gitLocalBranch: string[];
   gitRemoteBranch: string[];
+
+  shadcnComponents: [
+    'accordion',
+    'alert',
+    'alert-dialog',
+    'aspect-ratio',
+    'avatar',
+    'badge',
+    'breadcrumb',
+    'button',
+    'button-group',
+    'calendar',
+    'card',
+    'carousel',
+    'chart',
+    'checkbox',
+    'collapsible',
+    'combobox',
+    'command',
+    'context-menu',
+    'data-table',
+    'date-picker',
+    'dialog',
+    'drawer',
+    'dropdown-menu',
+    'empty',
+    'field',
+    'hover-card',
+    'input',
+    'input-group',
+    'input-otp',
+    'item',
+    'kbd',
+    'label',
+    'menubar',
+    'native-select',
+    'navigation-menu',
+    'pagination',
+    'popover',
+    'progress',
+    'radio-group',
+    'resizable',
+    'scroll-area',
+    'select',
+    'separator',
+    'sheet',
+    'sidebar',
+    'skeleton',
+    'slider',
+    'sonner',
+    'spinner',
+    'switch',
+    'table',
+    'tabs',
+    'textarea',
+    'toast',
+    'toggle',
+    'toggle-group',
+    'tooltip',
+    'typography',
+  ];
 
   userName: string;
   dateYear: string;
@@ -107,7 +168,7 @@ export class WorkspaceContextService {
     this._context.relativePath = relativePath;
 
     this._context.moduleName = baseName;
-    this._context.ModuleName = pascalCase(baseName);
+    this._context.ModuleName = upperFirst(camelCase(baseName));
     this._context.moduleNameCamel = camelCase(baseName);
     this._context.moduleNameKebab = kebabCase(baseName);
     this._context.moduleNameSnake = snakeCase(baseName);
@@ -217,23 +278,4 @@ export class WorkspaceContextService {
       this._context.cssLang = 'css';
     });
   }
-}
-
-function pascalCase(str: string) {
-  return str.replace(/(^|[-_])(\w)/g, (_, __, c) => c.toUpperCase());
-}
-function camelCase(str: string) {
-  return str.replace(/[-_](\w)/g, (_, c) => c.toUpperCase());
-}
-function kebabCase(str: string) {
-  return str
-    .replace(/([a-z])([A-Z])/g, '$1-$2')
-    .replace(/[\s_]+/g, '-')
-    .toLowerCase();
-}
-function snakeCase(str: string) {
-  return str
-    .replace(/([a-z])([A-Z])/g, '$1_$2')
-    .replace(/[\s-]+/g, '_')
-    .toLowerCase();
 }

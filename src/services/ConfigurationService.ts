@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { EventEmitter } from 'events';
+import { merge } from 'lodash-es';
 import { execSync } from 'child_process';
 import { IService } from '../core/interfaces/IService';
-import mergeClone from '../utils/mergeClone';
 
 // 完整的配置接口定义
 export interface ILogrcConfig {
@@ -85,7 +85,7 @@ export class ConfigurationService extends EventEmitter implements IService {
       const defaultConfig = this.loadInternalConfig();
       const userConfig = this.loadUserConfig();
 
-      this._config = mergeClone(defaultConfig, userConfig);
+      this._config = merge(defaultConfig, userConfig);
 
       // 处理 Git 忽略
       this.handleGitConfiguration();

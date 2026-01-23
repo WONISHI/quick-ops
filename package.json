@@ -2,7 +2,7 @@
   "name": "quick-ops",
   "displayName": "Quick Ops: Code Utils & Anchors",
   "description": "Boost productivity with Code Anchors, SCSS structure generation, and essential navigation shortcuts.",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "engines": {
     "vscode": "^1.54.0"
   },
@@ -151,13 +151,6 @@
           "when": "resourceLangId == vue || resourceLangId == html || resourceLangId == javascriptreact || resourceLangId == typescriptreact"
         }
       ],
-      "editor/context": [
-        {
-          "command": "quickOps.generateTsType",
-          "group": "quickOps@1",
-          "when": "editorHasSelection && quickOps.context.canGenerateType"
-        }
-      ],
       "editor/lineNumber/context": [
         {
           "command": "quick-ops.anchor.add",
@@ -183,6 +176,7 @@
     "@types/babel__traverse": "^7.28.0",
     "@types/cheerio": "^1.0.0",
     "@types/glob": "^9.0.0",
+    "@types/lodash-es": "^4",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
     "@types/vscode": "^1.54.0",
@@ -219,7 +213,9 @@
     "dayjs": "^1.11.13",
     "express": "^5.1.0",
     "ignore": "^7.0.5",
+    "lodash-es": "^4.17.23",
     "mockjs": "^1.1.0",
+    "nanoid": "^5.1.6",
     "terser-webpack-plugin": "^5.3.14",
     "vscode-languageclient": "^9.0.1",
     "webpack-bundle-analyzer": "^4.10.2"

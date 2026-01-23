@@ -1,13 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
+import { isFunction } from 'lodash-es';
 import { IFeature } from '../core/interfaces/IFeature';
-import { WorkspaceStateService } from '../services/WorkspaceStateService';
+import { ConfigurationService } from '../services/ConfigurationService';
 import { EditorContextService } from '../services/EditorContextService';
 import { PathHelper } from '../utils/PathHelper';
-// 引入新的接口和解析器
 import { AstParser, ExportItem, ParseResult } from '../utils/AstParser';
 
-// 1. 更新 State 接口，使用 ExportItem[]
 interface ExportState {
   namedExports: ExportItem[];
   defaultExport: string[];
@@ -17,7 +17,6 @@ interface ExportState {
 export class ProjectExportFeature implements IFeature {
   public readonly id = 'ProjectExportFeature';
 
-  // 2. 初始化 State
   private state: ExportState = {
     namedExports: [],
     defaultExport: [],
@@ -25,17 +24,17 @@ export class ProjectExportFeature implements IFeature {
   };
 
   constructor(
-    private workspaceState: WorkspaceStateService = WorkspaceStateService.getInstance(),
+    private configService: ConfigurationService = ConfigurationService.getInstance(),
     private editorService: EditorContextService = EditorContextService.getInstance(),
   ) {}
 
   public activate(context: vscode.ExtensionContext): void {
     const selector: vscode.DocumentSelector = ['javascript', 'typescript', 'vue', 'javascriptreact', 'typescriptreact'];
 
-    // 路径补全注册
-    const pathProvider = vscode.languages.registerCompletionItemProvider(selector, { provideCompletionItems: this.providePathCompletion.bind(this) }, '/', '.', '"', "'");
+    // 注册触发字符：包含常见路径字符和别名首字符 (@, ~)
+    const triggers = ['/', '.', '"', "'", '@', '~'];
+    const pathProvider = vscode.languages.registerCompletionItemProvider(selector, { provideCompletionItems: this.providePathCompletion.bind(this) }, ...triggers);
 
-    // 函数导出补全注册
     const funcProvider = vscode.languages.registerCompletionItemProvider(
       selector,
       {
@@ -54,32 +53,102 @@ export class ProjectExportFeature implements IFeature {
     console.log(`[${this.id}] Activated.`);
   }
 
-  // --- 路径补全逻辑 (保持之前优化的版本) ---
+  /**
+   * 获取项目别名配置
+   */
+  private getAliasConfig(): Record<string, string> {
+    const config = this.configService.config;
+    const projectConfig = config?.project || {};
+    return projectConfig.alias || { '@/': './src/' };
+  }
+
+  // --- 路径补全逻辑 ---
   private async providePathCompletion(document: vscode.TextDocument, position: vscode.Position) {
     const linePrefix = document.lineAt(position).text.substring(0, position.character);
-    const match = linePrefix.match(/^\s*(['"]?)(\.{1,2}[\\/][^'"]*)$/);
+    // 宽容正则：只要在引号内，就尝试匹配
+    const match = linePrefix.match(/^\s*(['"]?)([^'"]*)$/);
 
     if (!match) return [];
 
     const currentFilePath = document.uri.fsPath;
     const currentDir = path.dirname(currentFilePath);
-    const enteredPath = match[2];
+    const enteredPath = match[2]; // 用户输入的内容，如 "@/components/CommonTable/in"
 
-    const entries = await PathHelper.resolveImportDir(currentFilePath, document.lineAt(position).text);
-    const targetDirAbsolutePath = path.resolve(currentDir, enteredPath);
+    let targetDirAbsolutePath = '';
+    let importBase = '';
+    let entries: { name: string; isDirectory: () => boolean }[] = [];
 
-    let relativeBase = path.relative(currentDir, targetDirAbsolutePath).split(path.sep).join('/');
-    if (!relativeBase.startsWith('.') && !relativeBase.startsWith('/')) {
-      relativeBase = relativeBase === '' ? '.' : './' + relativeBase;
+    const aliases = this.getAliasConfig();
+    const aliasKeys = Object.keys(aliases);
+
+    // 查找匹配的别名 (长匹配优先)
+    const matchedAliasKey = aliasKeys.sort((a, b) => b.length - a.length).find((key) => enteredPath.startsWith(key));
+
+    // === 分支 A: 别名路径处理 ===
+    if (matchedAliasKey) {
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      if (!workspaceFolders) return [];
+      const rootPath = workspaceFolders[0].uri.fsPath;
+
+      const aliasValue = aliases[matchedAliasKey];
+      const aliasRootAbsPath = path.resolve(rootPath, aliasValue); // 别名指向的物理根目录 (e.g. .../src)
+      const remainingPath = enteredPath.slice(matchedAliasKey.length); // 除去别名后的部分 (e.g. components/CommonTable/in)
+
+      // 计算目标目录的绝对路径
+      // 这里直接拼接，不使用 dirname，因为可能用户正在输入文件夹名
+      targetDirAbsolutePath = path.join(aliasRootAbsPath, remainingPath);
+
+      // 容错：如果路径不存在(可能文件名没输完)，回退到父目录去读取列表
+      if (!fs.existsSync(targetDirAbsolutePath) || !fs.statSync(targetDirAbsolutePath).isDirectory()) {
+        targetDirAbsolutePath = path.dirname(targetDirAbsolutePath);
+      }
+
+      // 【核心修复 1】计算 importBase
+      // 这里的逻辑是：算出 "当前展示列表的物理目录" 相对于 "别名物理根目录" 的路径
+      // 例如：aliasRoot = /src, targetDir = /src/components/CommonTable
+      // relative = components/CommonTable
+      const relativeFromAliasRoot = path.relative(aliasRootAbsPath, targetDirAbsolutePath).split(path.sep).join('/');
+
+      // 拼接别名 Key 和 相对路径
+      // importBase = @/ + components/CommonTable -> @/components/CommonTable
+      importBase = path.posix.join(matchedAliasKey, relativeFromAliasRoot);
+
+      // 特殊处理：如果 relative 为空 (就在 src 根目录下)，且别名带斜杠 (@/)，join 可能会把斜杠吃掉变成 @
+      if (matchedAliasKey.endsWith('/') && !importBase.endsWith('/') && relativeFromAliasRoot === '') {
+        importBase = matchedAliasKey;
+      }
+
+      // 读取目录列表
+      try {
+        if (fs.existsSync(targetDirAbsolutePath)) {
+          const dirents = fs.readdirSync(targetDirAbsolutePath, { withFileTypes: true });
+          entries = dirents.map((d) => ({
+            name: d.name,
+            isDirectory: () => d.isDirectory(),
+          }));
+        }
+      } catch (e) {
+        return [];
+      }
+    }
+    // === 分支 B: 相对路径处理 ===
+    else if (enteredPath.startsWith('.') || enteredPath.startsWith('/')) {
+      entries = (await PathHelper.resolveImportDir(currentFilePath, document.lineAt(position).text)) as any;
+      targetDirAbsolutePath = path.resolve(currentDir, enteredPath);
+
+      let relativeBaseStr = path.relative(currentDir, targetDirAbsolutePath).split(path.sep).join('/');
+      if (!relativeBaseStr.startsWith('.') && !relativeBaseStr.startsWith('/')) {
+        relativeBaseStr = relativeBaseStr === '' ? '.' : './' + relativeBaseStr;
+      }
+      importBase = relativeBaseStr;
+    } else {
+      return [];
     }
 
     return entries.map((entry) => {
-      const isDir = entry.isDirectory();
-      const logItemObj: vscode.CompletionItemLabel = {
-        label: entry.name,
-        description: `quick-ops/${entry.name}`,
-      };
-      const item = new vscode.CompletionItem(logItemObj, isDir ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File);
+      const isDir = isFunction(entry.isDirectory) ? entry.isDirectory() : (entry as any).isDirectory;
+
+      const item = new vscode.CompletionItem(entry.name, isDir ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File);
       item.insertText = entry.name;
       item.sortText = isDir ? '0' : '1';
 
@@ -91,7 +160,7 @@ export class ProjectExportFeature implements IFeature {
             {
               fileName: entry.name,
               parentPath: targetDirAbsolutePath,
-              importBase: relativeBase,
+              importBase: importBase, // 传入计算好的 Base
               isDirectory: isDir,
             },
           ],
@@ -101,29 +170,54 @@ export class ProjectExportFeature implements IFeature {
     });
   }
 
-  // --- 路径选中处理逻辑 (解析 AST 并存储源码) ---
+  // --- 路径选中处理逻辑 ---
   private async handlePathSelected(args: { fileName: string; parentPath: string; importBase: string; isDirectory: boolean }) {
     if (args.isDirectory) return;
 
     const fullPath = path.join(args.parentPath, args.fileName);
 
-    // 初始化解析结果
     let parseResult: ParseResult = { namedExports: [], defaultExport: [] };
     let vueName: string | null = null;
 
     try {
-      // 解析文件，获取包含源码的 ExportItem[]
       parseResult = AstParser.parseExports(fullPath);
       vueName = AstParser.parseVueComponentName(fullPath);
     } catch (e) {
       console.error('AST Parse Failed:', e);
     }
 
-    if (fullPath.endsWith('.vue') && vueName) {
-      parseResult.defaultExport = [vueName];
+    if (fullPath.endsWith('.vue')) {
+      if (!vueName) {
+        const ext = path.extname(args.fileName);
+        const baseName = path.basename(args.fileName, ext);
+
+        let rawName = '';
+
+        // 1. 确定原始名称来源
+        if (baseName.toLowerCase() === 'index') {
+          // 如果是 index.vue，取父目录名 (如 "nf-columns")
+          rawName = path.basename(args.parentPath);
+        } else {
+          // 否则取文件名 (如 "my-header")
+          rawName = baseName;
+        }
+
+        // 2. 执行转换逻辑
+        if (rawName) {
+          vueName = rawName
+            // 第一步：处理分隔符 (nf-columns -> nfColumns, nf_columns -> nfColumns)
+            // 正则解释：匹配一个或多个[-_]，后面紧跟一个字母(\w)，将该字母转大写
+            .replace(/[-_]+(\w)/g, (_, c) => c.toUpperCase())
+            // 第二步：首字母大写 (nfColumns -> NfColumns)
+            .replace(/^[a-z]/, (c) => c.toUpperCase());
+        }
+      }
+
+      if (vueName) {
+        parseResult.defaultExport = [vueName];
+      }
     }
 
-    // 更新状态
     this.state = {
       namedExports: parseResult.namedExports,
       defaultExport: parseResult.defaultExport,
@@ -133,14 +227,17 @@ export class ProjectExportFeature implements IFeature {
     // 生成 import 路径
     let finalPath = path.posix.join(args.importBase, args.fileName);
     finalPath = finalPath.replace(/\.(ts|js|vue|tsx|jsx|d\.ts)$/, '');
-    if (!finalPath.startsWith('.') && !finalPath.startsWith('/')) {
+
+    const aliases = this.getAliasConfig();
+    const isAliasPath = Object.keys(aliases).some((aliasKey) => finalPath.startsWith(aliasKey));
+
+    if (!isAliasPath && !finalPath.startsWith('.') && !finalPath.startsWith('/')) {
       finalPath = './' + finalPath;
     }
 
     const importStmt = this.generateImportStatement(finalPath, parseResult);
     await this.replaceCurrentImportLine(importStmt);
 
-    // 触发建议
     if (importStmt.includes('{  }')) {
       setTimeout(() => vscode.commands.executeCommand('editor.action.triggerSuggest'), 50);
     }
@@ -172,30 +269,25 @@ export class ProjectExportFeature implements IFeature {
     }
   }
 
-  // --- 导出函数补全逻辑 (添加文档预览) ---
+  // --- 导出函数补全逻辑 ---
   private provideExportCompletion(document: vscode.TextDocument) {
-    // 过滤掉已经选中的
     const availableNamed = this.state.namedExports.filter((item) => !this.state.selectedExports.includes(item.name));
-
     const items: vscode.CompletionItem[] = [];
 
     availableNamed.forEach((exportItem) => {
       const logItemObj: vscode.CompletionItemLabel = {
         label: exportItem.name,
-        description: `quick-ops/${exportItem.name}`,
+        description: `quick-ops`,
       };
 
       const item = new vscode.CompletionItem(logItemObj, vscode.CompletionItemKind.Function);
-
-      item.sortText = '!'; // 确保排在最前
+      item.sortText = '!';
       item.insertText = exportItem.name;
       item.preselect = true;
-      item.detail = 'quick-ops自动导入：';
+      item.detail = 'Auto Import';
 
-      // 【关键】添加代码预览
       if (exportItem.code) {
         const markdown = new vscode.MarkdownString();
-        // 指定代码块语言为 typescript，以获得正确的语法高亮
         markdown.appendCodeblock(exportItem.code, 'typescript');
         item.documentation = markdown;
       }
@@ -204,21 +296,14 @@ export class ProjectExportFeature implements IFeature {
       items.push(item);
     });
 
-    // 默认导出建议 (保持不变)
     if (this.state.defaultExport.length > 0) {
-      const defName = this.state.defaultExport[0] === 'default' ? 'DefaultExport' : this.state.defaultExport[0];
-      const logItemObj: vscode.CompletionItemLabel = {
-        label: defName,
-        description: `quick-ops/${defName}`,
-      };
-
-      const item = new vscode.CompletionItem(logItemObj, vscode.CompletionItemKind.Variable);
+      const defName = this.state.defaultExport[0]; // 这里不需要判空，因为上一步 handlePathSelected 保证了如果能取到名字就会放进去
+      const item = new vscode.CompletionItem(defName, vscode.CompletionItemKind.Variable);
       item.detail = '(Default Export)';
       item.sortText = '!';
       item.preselect = true;
       items.push(item);
     }
-
     return items;
   }
 

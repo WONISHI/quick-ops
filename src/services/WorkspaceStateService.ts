@@ -72,7 +72,7 @@ export class WorkspaceStateService implements IService {
       uri: document.uri,
       fileName: path.basename(filePath),
       fileType: path.extname(filePath).replace('.', '').toLowerCase(),
-      content: document.getText(), // 注意：大文件可能影响性能
+      content: document.getText(),
       isDirty: document.isDirty,
     };
   }
