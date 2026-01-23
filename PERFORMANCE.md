@@ -36,4 +36,4 @@
 
 - [x] feat:添加languages和jsonValidation、
 - [ ] ~~feat:提示安装依赖~~
-- [ ] feat:新增别名`@`识别解析
+- [x] feat:新增别名`@`识别解析

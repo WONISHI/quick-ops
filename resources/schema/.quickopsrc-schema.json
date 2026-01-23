@@ -115,6 +115,33 @@
                 }
             },
             "default": []
+        },
+        "shells": {
+            "type": "array",
+            "description": "Custom shell commands configuration for workspace",
+            "items": {
+                "type": "object",
+                "required": [
+                    "description",
+                    "cmd"
+                ],
+                "properties": {
+                    "description": {
+                        "type": "string",
+                        "description": "Description displayed in the QuickPick list"
+                    },
+                    "cmd": {
+                        "type": "string",
+                        "description": "The shell command to execute. Supports template variables like ${name}, ${file}, [[Branch]] etc."
+                    },
+                    "keepOpen": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Whether to keep the QuickPick list open after executing this command"
+                    }
+                }
+            },
+            "default": []
         }
     }
 }
