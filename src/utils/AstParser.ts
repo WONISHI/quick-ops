@@ -4,8 +4,13 @@ import { parse as babelParse } from '@babel/parser';
 import traverse from '@babel/traverse';
 import * as t from '@babel/types'; // 需要安装 @types/babel__types
 
-export interface ExportResult {
-  namedExports: string[];
+export interface ExportItem {
+  name: string;
+  code?: string; // 新增字段：用于存储函数体代码
+}
+
+export interface ParseResult {
+  namedExports: ExportItem[]; // 修改这里，不再只是 string[]
   defaultExport: string[];
 }
 
@@ -14,88 +19,68 @@ export class AstParser {
    * 解析文件的导出 (Export) 信息
    * 支持 TypeScript, JSX, TSX, JS
    */
-  static parseExports(filePath: string): ExportResult {
-    if (!fs.existsSync(filePath)) {
-      return { namedExports: [], defaultExport: [] };
-    }
-
+  public static parseExports(filePath: string): ParseResult {
     const code = fs.readFileSync(filePath, 'utf-8');
-    const result: ExportResult = { namedExports: [], defaultExport: [] };
+    const ast = babelParse(code, {
+      sourceType: 'module',
+      plugins: ['typescript', 'jsx'], // 根据需要添加插件
+    });
 
-    try {
-      // 1. 生成 AST
-      const ast = babelParse(code, {
-        sourceType: 'module',
-        plugins: ['typescript', 'jsx', 'decorators-legacy', 'classProperties', 'exportDefaultFrom'],
-      });
+    const namedExports: ExportItem[] = [];
+    const defaultExport: string[] = [];
 
-      // 2. 遍历 AST
-      traverse(ast, {
-        // === 处理具名导出 (export const/function/class/interface...) ===
-        ExportNamedDeclaration(path) {
-          const { node } = path;
+    traverse(ast, {
+      // 1. 处理 export const/let/var ...
+      ExportNamedDeclaration(path) {
+        if (path.node.declaration) {
+          const declaration = path.node.declaration;
 
-          // 情况 A: export const a = 1; / export function f() {}
-          if (node.declaration) {
-            // Function
-            if (node.declaration.type === 'FunctionDeclaration' && node.declaration.id) {
-              result.namedExports.push(node.declaration.id.name);
-            }
-            // Class
-            else if (node.declaration.type === 'ClassDeclaration' && node.declaration.id) {
-              result.namedExports.push(node.declaration.id.name);
-            }
-            // Variable (const/let/var)
-            else if (node.declaration.type === 'VariableDeclaration') {
-              node.declaration.declarations.forEach((decl) => {
-                if (decl.id.type === 'Identifier') {
-                  result.namedExports.push(decl.id.name);
-                }
-              });
-            }
-            // TypeScript Interface
-            else if (node.declaration.type === 'TSInterfaceDeclaration') {
-              result.namedExports.push(node.declaration.id.name);
-            }
-            // TypeScript Type Alias
-            else if (node.declaration.type === 'TSTypeAliasDeclaration') {
-              result.namedExports.push(node.declaration.id.name);
-            }
-            // TypeScript Enum
-            else if (node.declaration.type === 'TSEnumDeclaration') {
-              result.namedExports.push(node.declaration.id.name);
-            }
-          }
+          // export const foo = () => {}
+          if (t.isVariableDeclaration(declaration)) {
+            declaration.declarations.forEach((decl) => {
+              if (t.isIdentifier(decl.id)) {
+                // 截取源码
+                const start = path.node.start ?? 0;
+                const end = path.node.end ?? 0;
+                const codeSnippet = code.slice(start, end);
 
-          // 情况 B: export { foo, bar as baz }
-          if (node.specifiers.length > 0) {
-            node.specifiers.forEach((spec) => {
-              if (spec.type === 'ExportSpecifier' && spec.exported.type === 'Identifier') {
-                result.namedExports.push(spec.exported.name);
+                namedExports.push({ name: decl.id.name, code: codeSnippet });
               }
             });
           }
-        },
+          // export function foo() {}
+          else if (t.isFunctionDeclaration(declaration) && declaration.id) {
+            const start = path.node.start ?? 0;
+            const end = path.node.end ?? 0;
+            const codeSnippet = code.slice(start, end);
 
-        // === 处理默认导出 (export default ...) ===
-        ExportDefaultDeclaration(path) {
-          const { node } = path;
-          // export default function foo() {}
-          if ((node.declaration.type === 'FunctionDeclaration' || node.declaration.type === 'ClassDeclaration') && node.declaration.id) {
-            result.defaultExport.push(node.declaration.id.name);
-          } else {
-            // export default { ... } 或 export default someVar
-            // 通常统一标记为 "default"
-            result.defaultExport.push('default');
+            namedExports.push({ name: declaration.id.name, code: codeSnippet });
           }
-        },
-      });
-    } catch (error) {
-      // 忽略解析错误（可能是语法错误或非标准文件）
-      // console.warn(`[AstParser] Error parsing ${filePath}:`, error);
-    }
+          // export class Foo {}
+          else if (t.isClassDeclaration(declaration) && declaration.id) {
+            const start = path.node.start ?? 0;
+            const end = path.node.end ?? 0;
+            const codeSnippet = code.slice(start, end);
+            namedExports.push({ name: declaration.id.name, code: codeSnippet });
+          }
+        }
+      },
 
-    return result;
+      // 2. 处理 export default ... (通常只拿名字，或者你可以扩展逻辑拿代码)
+      ExportDefaultDeclaration(path) {
+        const decl = path.node.declaration;
+        if (t.isIdentifier(decl)) {
+          defaultExport.push(decl.name);
+        } else if (t.isFunctionDeclaration(decl) && decl.id) {
+          defaultExport.push(decl.id.name);
+        } else if (t.isClassDeclaration(decl) && decl.id) {
+          defaultExport.push(decl.id.name);
+        }
+        // 对于匿名 default export，通常无法补全名字，这里暂且忽略
+      },
+    });
+
+    return { namedExports, defaultExport };
   }
 
   /**

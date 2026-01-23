@@ -4,10 +4,12 @@ import { IFeature } from '../core/interfaces/IFeature';
 import { WorkspaceStateService } from '../services/WorkspaceStateService';
 import { EditorContextService } from '../services/EditorContextService';
 import { PathHelper } from '../utils/PathHelper';
-import { AstParser } from '../utils/AstParser';
+// 引入新的接口和解析器
+import { AstParser, ExportItem, ParseResult } from '../utils/AstParser';
 
+// 1. 更新 State 接口，使用 ExportItem[]
 interface ExportState {
-  namedExports: string[];
+  namedExports: ExportItem[];
   defaultExport: string[];
   selectedExports: string[];
 }
@@ -15,6 +17,7 @@ interface ExportState {
 export class ProjectExportFeature implements IFeature {
   public readonly id = 'ProjectExportFeature';
 
+  // 2. 初始化 State
   private state: ExportState = {
     namedExports: [],
     defaultExport: [],
@@ -29,10 +32,10 @@ export class ProjectExportFeature implements IFeature {
   public activate(context: vscode.ExtensionContext): void {
     const selector: vscode.DocumentSelector = ['javascript', 'typescript', 'vue', 'javascriptreact', 'typescriptreact'];
 
-    // 1. 【关键】注册触发字符：'.' (支持 ./ ../), '"', "'"
+    // 路径补全注册
     const pathProvider = vscode.languages.registerCompletionItemProvider(selector, { provideCompletionItems: this.providePathCompletion.bind(this) }, '/', '.', '"', "'");
 
-    // 2. 注册函数补全
+    // 函数导出补全注册
     const funcProvider = vscode.languages.registerCompletionItemProvider(
       selector,
       {
@@ -51,46 +54,32 @@ export class ProjectExportFeature implements IFeature {
     console.log(`[${this.id}] Activated.`);
   }
 
-  /**
-   * 提供路径补全建议
-   */
+  // --- 路径补全逻辑 (保持之前优化的版本) ---
   private async providePathCompletion(document: vscode.TextDocument, position: vscode.Position) {
     const linePrefix = document.lineAt(position).text.substring(0, position.character);
-
-    // 【核心正则】：匹配行首(允许空格)开始的路径，前面不能有任何其他字符
-    // Group 1: 可选的引号 (['"]?)
-    // Group 2: 具体的路径，必须以 ./ 或 ../ 开头 (\.{1,2}[\\/])
     const match = linePrefix.match(/^\s*(['"]?)(\.{1,2}[\\/][^'"]*)$/);
 
     if (!match) return [];
 
     const currentFilePath = document.uri.fsPath;
     const currentDir = path.dirname(currentFilePath);
-
-    // 获取用户输入的路径部分 (例如 "./utils/")
-    // 即使没输引号，match[2] 也能拿到路径
     const enteredPath = match[2];
 
-    // 获取文件列表
-    // 注意：这里传给 resolveImportDir 的 lineText 最好是模拟一个合法的 import 路径，或者确保 PathHelper 能处理裸路径
-    // 如果 PathHelper 比较脆弱，可以直接用 enteredPath 算绝对路径，然后用 fs.readdir 读（假设 PathHelper 已经封装好了，这里继续调用它）
     const entries = await PathHelper.resolveImportDir(currentFilePath, document.lineAt(position).text);
-
-    // 【关键步骤】计算目标的“绝对路径” (用于 AST 解析)
     const targetDirAbsolutePath = path.resolve(currentDir, enteredPath);
 
-    // 【关键步骤】计算标准的“相对路径前缀” (用于生成 import 语句)
-    // 这样无论用户输入的是 " ./utils" 还是 "../utils"，我们都基于物理路径重新算一遍标准的相对路径
     let relativeBase = path.relative(currentDir, targetDirAbsolutePath).split(path.sep).join('/');
-
-    // 补齐 ./ 前缀
     if (!relativeBase.startsWith('.') && !relativeBase.startsWith('/')) {
       relativeBase = relativeBase === '' ? '.' : './' + relativeBase;
     }
 
     return entries.map((entry) => {
       const isDir = entry.isDirectory();
-      const item = new vscode.CompletionItem(entry.name, isDir ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File);
+      const logItemObj: vscode.CompletionItemLabel = {
+        label: entry.name,
+        description: `quick-ops/${entry.name}`,
+      };
+      const item = new vscode.CompletionItem(logItemObj, isDir ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File);
       item.insertText = entry.name;
       item.sortText = isDir ? '0' : '1';
 
@@ -101,9 +90,7 @@ export class ProjectExportFeature implements IFeature {
           arguments: [
             {
               fileName: entry.name,
-              // 传绝对路径给 AST 解析用
               parentPath: targetDirAbsolutePath,
-              // 传相对路径前缀给 Import 生成用
               importBase: relativeBase,
               isDirectory: isDir,
             },
@@ -114,66 +101,52 @@ export class ProjectExportFeature implements IFeature {
     });
   }
 
-  /**
-   * 处理路径选中
-   */
+  // --- 路径选中处理逻辑 (解析 AST 并存储源码) ---
   private async handlePathSelected(args: { fileName: string; parentPath: string; importBase: string; isDirectory: boolean }) {
     if (args.isDirectory) return;
 
-    // 1. AST 解析 (使用绝对路径)
     const fullPath = path.join(args.parentPath, args.fileName);
-    console.log('Full Path to Parse:', fullPath);
 
-    let exports: { namedExports: string[]; defaultExport: string[] } = {
-      namedExports: [],
-      defaultExport: [],
-    };
-
+    // 初始化解析结果
+    let parseResult: ParseResult = { namedExports: [], defaultExport: [] };
     let vueName: string | null = null;
 
     try {
-      // 现在赋值就不会报错了，因为类型匹配
-      exports = AstParser.parseExports(fullPath);
+      // 解析文件，获取包含源码的 ExportItem[]
+      parseResult = AstParser.parseExports(fullPath);
       vueName = AstParser.parseVueComponentName(fullPath);
     } catch (e) {
       console.error('AST Parse Failed:', e);
     }
 
     if (fullPath.endsWith('.vue') && vueName) {
-      // 这里赋值也不会报错了，因为 defaultExport 被定义为 string[]
-      exports.defaultExport = [vueName];
+      parseResult.defaultExport = [vueName];
     }
 
+    // 更新状态
     this.state = {
-      namedExports: exports.namedExports,
-      defaultExport: exports.defaultExport,
+      namedExports: parseResult.namedExports,
+      defaultExport: parseResult.defaultExport,
       selectedExports: [],
     };
 
-    // 2. 拼接最终 Import 路径
-    // 使用传入的基准路径 + 文件名
+    // 生成 import 路径
     let finalPath = path.posix.join(args.importBase, args.fileName);
-
-    // 移除扩展名
     finalPath = finalPath.replace(/\.(ts|js|vue|tsx|jsx|d\.ts)$/, '');
-
-    // 确保 ./ 开头
     if (!finalPath.startsWith('.') && !finalPath.startsWith('/')) {
       finalPath = './' + finalPath;
     }
 
-    // 3. 生成语句并替换
-    const importStmt = this.generateImportStatement(finalPath, exports);
-
+    const importStmt = this.generateImportStatement(finalPath, parseResult);
     await this.replaceCurrentImportLine(importStmt);
 
-    // 4. 如果是命名导出，触发建议供用户选择
+    // 触发建议
     if (importStmt.includes('{  }')) {
       setTimeout(() => vscode.commands.executeCommand('editor.action.triggerSuggest'), 50);
     }
   }
 
-  private generateImportStatement(relativePath: string, exports: { namedExports: string[]; defaultExport: string[] }): string {
+  private generateImportStatement(relativePath: string, exports: ParseResult): string {
     if (exports.defaultExport.length > 0) {
       return `import ${exports.defaultExport[0]} from '${relativePath}';`;
     } else if (exports.namedExports.length > 0) {
@@ -187,11 +160,8 @@ export class ProjectExportFeature implements IFeature {
     if (!editor || !cursorPos) return;
 
     const lineRange = editor.document.lineAt(cursorPos.line).range;
-    await editor.edit((editBuilder: vscode.TextEditorEdit) => {
-      editBuilder.replace(lineRange, newText);
-    });
+    await editor.edit((edit) => edit.replace(lineRange, newText));
 
-    // 移动光标
     if (newText.includes('{  }')) {
       const braceIndex = newText.indexOf('{');
       const newPos = new vscode.Position(cursorPos.line, braceIndex + 2);
@@ -202,35 +172,60 @@ export class ProjectExportFeature implements IFeature {
     }
   }
 
-  // ... export completion 保持不变 ...
+  // --- 导出函数补全逻辑 (添加文档预览) ---
   private provideExportCompletion(document: vscode.TextDocument) {
-    const availableNamed = this.state.namedExports.filter((n) => !this.state.selectedExports.includes(n));
+    // 过滤掉已经选中的
+    const availableNamed = this.state.namedExports.filter((item) => !this.state.selectedExports.includes(item.name));
+
     const items: vscode.CompletionItem[] = [];
 
-    availableNamed.forEach((name) => {
-      const item = new vscode.CompletionItem(name, vscode.CompletionItemKind.Value);
-      item.sortText = '!';
-      item.insertText = name;
+    availableNamed.forEach((exportItem) => {
+      const logItemObj: vscode.CompletionItemLabel = {
+        label: exportItem.name,
+        description: `quick-ops/${exportItem.name}`,
+      };
+
+      const item = new vscode.CompletionItem(logItemObj, vscode.CompletionItemKind.Function);
+
+      item.sortText = '!'; // 确保排在最前
+      item.insertText = exportItem.name;
       item.preselect = true;
-      item.detail = '(Auto Import)';
-      item.command = { command: 'quick-ops.onFuncSelected', title: '', arguments: [name] };
+      item.detail = 'quick-ops自动导入：';
+
+      // 【关键】添加代码预览
+      if (exportItem.code) {
+        const markdown = new vscode.MarkdownString();
+        // 指定代码块语言为 typescript，以获得正确的语法高亮
+        markdown.appendCodeblock(exportItem.code, 'typescript');
+        item.documentation = markdown;
+      }
+
+      item.command = { command: 'quick-ops.onFuncSelected', title: '', arguments: [exportItem.name] };
       items.push(item);
     });
 
+    // 默认导出建议 (保持不变)
     if (this.state.defaultExport.length > 0) {
       const defName = this.state.defaultExport[0] === 'default' ? 'DefaultExport' : this.state.defaultExport[0];
-      const item = new vscode.CompletionItem(defName, vscode.CompletionItemKind.Variable);
+      const logItemObj: vscode.CompletionItemLabel = {
+        label: defName,
+        description: `quick-ops/${defName}`,
+      };
+
+      const item = new vscode.CompletionItem(logItemObj, vscode.CompletionItemKind.Variable);
       item.detail = '(Default Export)';
       item.sortText = '!';
       item.preselect = true;
       items.push(item);
     }
+
     return items;
   }
 
   private resolveExportCompletion(item: vscode.CompletionItem) {
     return item;
   }
+
   private handleFuncSelected(name: string) {
     this.state.selectedExports.push(name);
   }

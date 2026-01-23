@@ -30,6 +30,11 @@
     "keepOpen": true
   },
   {
+    "description": "提交远程分支",
+    "cmd": "git push origin [[gitBranch]]",
+    "keepOpen": true
+  },
+  {
     "description": "切换分支",
     "cmd": "git checkout [[gitLocalBranch]]",
     "keepOpen": true
