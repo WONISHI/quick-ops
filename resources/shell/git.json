@@ -26,7 +26,7 @@
   },
   {
     "description": "拉取当前远程分钟",
-    "cmd": "git pull origin [[gitRemote]]",
+    "cmd": "git pull origin [[gitBranch]]",
     "keepOpen": true
   },
   {
