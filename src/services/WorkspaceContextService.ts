@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { exec } from 'child_process';
+import { camelCase, kebabCase, snakeCase, upperFirst } from 'lodash-es';
 
 export interface IWorkspaceContext {
   fileName: string;
@@ -33,6 +34,8 @@ export interface IWorkspaceContext {
   gitRemote: string;
   gitLocalBranch: string[];
   gitRemoteBranch: string[];
+
+  shadcnComponents: [];
 
   userName: string;
   dateYear: string;
@@ -106,7 +109,7 @@ export class WorkspaceContextService {
     this._context.relativePath = relativePath;
 
     this._context.moduleName = baseName;
-    this._context.ModuleName = pascalCase(baseName);
+    this._context.ModuleName = upperFirst(camelCase(baseName));
     this._context.moduleNameCamel = camelCase(baseName);
     this._context.moduleNameKebab = kebabCase(baseName);
     this._context.moduleNameSnake = snakeCase(baseName);
@@ -216,23 +219,4 @@ export class WorkspaceContextService {
       this._context.cssLang = 'css';
     });
   }
-}
-
-function pascalCase(str: string) {
-  return str.replace(/(^|[-_])(\w)/g, (_, __, c) => c.toUpperCase());
-}
-function camelCase(str: string) {
-  return str.replace(/[-_](\w)/g, (_, c) => c.toUpperCase());
-}
-function kebabCase(str: string) {
-  return str
-    .replace(/([a-z])([A-Z])/g, '$1-$2')
-    .replace(/[\s_]+/g, '-')
-    .toLowerCase();
-}
-function snakeCase(str: string) {
-  return str
-    .replace(/([a-z])([A-Z])/g, '$1_$2')
-    .replace(/[\s-]+/g, '_')
-    .toLowerCase();
 }
