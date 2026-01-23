@@ -18,80 +18,84 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
   public provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.CodeLens[] {
     const lenses: vscode.CodeLens[] = [];
     const rootPath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
-    
-    // 获取当前文件所有的锚点数据 (原始数据)
+
     const relativePath = path.relative(rootPath, document.uri.fsPath).replace(/\\/g, '/');
     const anchors = this.service.getAnchors(relativePath);
 
-    // 🔥 优化：如果锚点对应的行内容对不上了，尝试在附近找一下
     for (const anchor of anchors) {
-      let targetLine = anchor.line;
+      // 🔥🔥🔥 核心修复：
+      // 文件里存的是 25 (UI行号)，VS Code 内部渲染需要 24 (0-based)
+      // 所以必须 减 1
+      let targetLineIndex = Math.max(0, anchor.line - 1);
       const docLineCount = document.lineCount;
 
-      // 1. 检查当前记录的行号，内容是否匹配
-      // 注意：anchor.content 存的是 trim() 后的内容，所以比较时也要 trim()
-      const currentLineContent = targetLine < docLineCount ? document.lineAt(targetLine).text.trim() : '';
-      
+      if (targetLineIndex >= docLineCount) {
+        continue;
+      }
+
+      // 1. 内容校准逻辑
+      const currentLineContent = document.lineAt(targetLineIndex).text.trim();
+
       if (currentLineContent !== anchor.content) {
-        // 🔥 内容不匹配！说明代码行号变了（比如上面插入了新行）
-        // 尝试在附近查找 (比如上下 50 行内) 或者全文查找
-        // 为了性能，我们先简单全文查找（如果文件极其巨大可能要优化）
-        let foundLine = -1;
-        
-        // 简单策略：先找原行号附近，再扩大范围
-        // 这里演示直接遍历全文查找 (最稳健但最耗时)
+        let foundLineIndex = -1;
         for (let i = 0; i < docLineCount; i++) {
           if (document.lineAt(i).text.trim() === anchor.content) {
-            foundLine = i;
+            foundLineIndex = i;
             break;
           }
         }
 
-        if (foundLine !== -1) {
-          targetLine = foundLine;
-          // 可选：静默更新 Service 里的行号，下次就不用找了
-          this.service.updateAnchorLine(anchor.id, foundLine); 
+        if (foundLineIndex !== -1) {
+          targetLineIndex = foundLineIndex;
+          // 🔥 修正存储：将找到的 0-based 转回 1-based (UI行号) 存起来
+          this.service.updateAnchorLine(anchor.id, foundLineIndex + 1);
         } else {
-          // 彻底找不到了（可能代码被改了），那就只能显示在旧位置或者不显示
-          // 这里的策略是：如果找不到内容，就不显示 CodeLens，避免误导
-          continue; 
+          continue;
         }
       }
 
-      const range = new vscode.Range(targetLine, 0, targetLine, 0);
+      // 2. 构造 CodeLens
+      // 使用 0-based 索引，VS Code 会渲染在该行上方
+      const range = new vscode.Range(targetLineIndex, 0, targetLineIndex, 0);
       const emoji = ColorUtils.getEmoji(anchor.group);
 
-      lenses.push(new vscode.CodeLens(range, {
-        title: `${emoji} ${anchor.group}`, 
-        tooltip: '查看该组所有锚点',
-        command: 'quick-ops.anchor.listByGroup',
-        arguments: [anchor.group]
-      }));
+      lenses.push(
+        new vscode.CodeLens(range, {
+          title: `${emoji} ${anchor.group}`,
+          tooltip: '查看该组所有锚点',
+          command: 'quick-ops.anchor.listByGroup',
+          arguments: [anchor.group],
+        }),
+      );
 
-      lenses.push(new vscode.CodeLens(range, {
-        title: '↑',
-        tooltip: '上一个',
-        command: 'quick-ops.anchor.navigate',
-        arguments: [anchor.id, 'prev']
-      }));
+      lenses.push(
+        new vscode.CodeLens(range, {
+          title: '↑',
+          tooltip: '上一个',
+          command: 'quick-ops.anchor.navigate',
+          arguments: [anchor.id, 'prev'],
+        }),
+      );
 
-      lenses.push(new vscode.CodeLens(range, {
-        title: '↓',
-        tooltip: '下一个',
-        command: 'quick-ops.anchor.navigate',
-        arguments: [anchor.id, 'next']
-      }));
+      lenses.push(
+        new vscode.CodeLens(range, {
+          title: '↓',
+          tooltip: '下一个',
+          command: 'quick-ops.anchor.navigate',
+          arguments: [anchor.id, 'next'],
+        }),
+      );
 
-      lenses.push(new vscode.CodeLens(range, {
-        title: '$(trash)',
-        tooltip: '删除',
-        command: 'quick-ops.anchor.delete',
-        arguments: [anchor.id]
-      }));
+      lenses.push(
+        new vscode.CodeLens(range, {
+          title: '$(trash)',
+          tooltip: '删除',
+          command: 'quick-ops.anchor.delete',
+          arguments: [anchor.id],
+        }),
+      );
     }
 
     return lenses;
   }
-
-  
 }
