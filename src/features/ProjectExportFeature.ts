@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { isFunction } from 'lodash-es';
 import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { EditorContextService } from '../services/EditorContextService';
@@ -145,7 +146,7 @@ export class ProjectExportFeature implements IFeature {
     }
 
     return entries.map((entry) => {
-      const isDir = typeof entry.isDirectory === 'function' ? entry.isDirectory() : (entry as any).isDirectory;
+      const isDir = isFunction(entry.isDirectory) ? entry.isDirectory() : (entry as any).isDirectory;
 
       const item = new vscode.CompletionItem(entry.name, isDir ? vscode.CompletionItemKind.Folder : vscode.CompletionItemKind.File);
       item.insertText = entry.name;

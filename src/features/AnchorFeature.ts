@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { isNumber, isFunction } from 'lodash-es';
 import { IFeature } from '../core/interfaces/IFeature';
 import { AnchorService } from '../services/AnchorService';
 import { AnchorCodeLensProvider } from '../providers/AnchorCodeLensProvider';
@@ -83,7 +84,7 @@ export class AnchorFeature implements IFeature {
       // 情况A：在编辑器内容区右键 -> 光标会自动移动到该行 -> 使用 selection (0-based) -> +1
       // 情况B：在左侧行号栏右键 -> 光标不动，args里有 lineNumber (通常是 1-based)
 
-      if (args.length > 0 && args[0] && typeof args[0].lineNumber === 'number') {
+      if (args.length > 0 && args[0] && isNumber(args[0].lineNumber)) {
         // 来自行号栏右键：args[0].lineNumber 已经是 1-based (UI行号)
         uiLineNumber = args[0].lineNumber;
       } else {
@@ -217,7 +218,7 @@ export class AnchorFeature implements IFeature {
       });
 
       if (!isDefault) {
-        if (typeof this.service.removeGroup === 'function') {
+        if (isFunction(this.service.removeGroup)) {
           this.service.removeGroup(groupName);
         }
       }
