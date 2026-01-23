@@ -42,20 +42,20 @@
       {
         "id": "json",
         "filenames": [
-          ".logrc"
+          ".quickopsrc"
         ]
       },
       {
         "id": "json",
         "filenames": [
-          ".logrc"
+          ".telemetryrc"
         ]
       }
     ],
     "jsonValidation": [
       {
-        "fileMatch": ".logrc",
-        "url": "./resources/schema/logrc-schema.json"
+        "fileMatch": ".quickopsrc",
+        "url": "./resources/schema/.quickopsrc-schema.json"
       }
     ],
     "webviews": {
@@ -91,17 +91,7 @@
       },
       {
         "command": "quickOps.createConfigFile",
-        "title": "创建配置文件 (Create .logrc)",
-        "category": "Quick Ops"
-      },
-      {
-        "command": "quickOps.generateTsType",
-        "title": "生成 TS 类型 (Generate TypeScript Interface)",
-        "category": "Quick Ops"
-      },
-      {
-        "command": "quickOps.generateMockData",
-        "title": "生成模拟数据 (Generate Mock Data)",
+        "title": "创建配置文件 (Create .quickopsrc)",
         "category": "Quick Ops"
       },
       {
@@ -166,11 +156,6 @@
           "command": "quickOps.generateTsType",
           "group": "quickOps@1",
           "when": "editorHasSelection && quickOps.context.canGenerateType"
-        },
-        {
-          "command": "quickOps.generateMockData",
-          "group": "quickOps@2",
-          "when": "editorHasSelection && quickOps.context.canGenerateMock"
         }
       ],
       "editor/lineNumber/context": [

@@ -64,14 +64,18 @@ export class CodeSnippetFeature implements IFeature {
 
     // 2. 渲染逻辑
     return validSnippets.map((item) => {
-      const completion = new vscode.CompletionItem(item.prefix, vscode.CompletionItemKind.Snippet);
+      const logItemObj: vscode.CompletionItemLabel = {
+        label: item.prefix,
+        description: `quick-ops/${item.origin}`,
+      };
+      const completion = new vscode.CompletionItem(logItemObj, vscode.CompletionItemKind.Snippet);
       completion.detail = item.description || `Snippet for ${item.prefix}`;
       completion.sortText = '0'; // 置顶
 
       const { result, payload } = TemplateEngine.render(item.body, { ...ctx, ...(item.params || {}) });
 
       completion.insertText = new vscode.SnippetString(result);
-      completion.documentation = new vscode.MarkdownString().appendCodeblock(result, currentLangId);
+      completion.documentation = new vscode.MarkdownString().appendCodeblock(result, item.style || currentLangId);
 
       return completion;
     });
@@ -87,7 +91,15 @@ export class CodeSnippetFeature implements IFeature {
         files.forEach((file) => {
           if (file.endsWith('.json')) {
             const content = fs.readFileSync(path.join(snippetDir, file), 'utf-8');
-            this.cachedSnippets.push(...JSON.parse(content));
+            const fileName = path.parse(file).name;
+            const jsonData = JSON.parse(content);
+            if (jsonData?.length) {
+              const snippetsWithOrigin = jsonData.map((item: any) => ({
+                ...item,
+                origin: fileName,
+              }));
+              this.cachedSnippets.push(...snippetsWithOrigin);
+            }
           }
         });
       } catch (e) {}

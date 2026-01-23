@@ -1,0 +1,32 @@
+{
+  "general": {
+    "debug": true,
+    "excludeConfigFiles": true
+  },
+  "logger": {
+    "template": "[icon]-[~/^/^/name]-[line]-[$0]",
+    "dateFormat": "YYYY-MM-DD HH:mm:ss"
+  },
+  "utils": {
+    "uuidLength": 12
+  },
+  "git": {
+    "ignoreList": []
+  },
+  "project": {
+    "marks": {
+      "@FIXME": {
+        "backgroundColor": "#9c27b0",
+        "color": "#fff",
+        "borderRadius": "2px"
+      },
+      "@OPTIMIZE": {
+        "backgroundColor": "#00bcd4",
+        "color": "#fff"
+      }
+    },
+    "alias": {
+      "@/": "./src/"
+    }
+  }
+}

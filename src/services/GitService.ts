@@ -23,7 +23,7 @@ export class GitService implements IService {
   /**
    * 核心入口：处理忽略列表的变更
    * @param newIgnoreList 新的配置列表
-   * @param configDir .logrc 文件所在的目录（用于解析相对路径）
+   * @param configDir .quickopsrc 文件所在的目录（用于解析相对路径）
    */
   public async updateIgnoreRules(newIgnoreList: string[], configDir: string) {
     const workspaceFolders = vscode.workspace.workspaceFolders;
