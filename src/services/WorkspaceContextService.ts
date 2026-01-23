@@ -4,7 +4,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { exec } from 'child_process';
 
-// 定义上下文接口，方便类型提示
 export interface IWorkspaceContext {
   fileName: string;
   fileNameBase: string;
