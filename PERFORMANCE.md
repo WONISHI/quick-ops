@@ -28,7 +28,7 @@
 
 - [x] feat:抛出变量服务
 - [x] pref:优化editor/title的icon
-- [ ] feat:代码片段解析控制添加可输入选项
+- [ ] ~~feat:代码片段解析控制添加可输入选项~~
 - [ ] feat:新增锚点分组删除
 - [x] feat:解析导出函数能解析函数体
 
@@ -36,5 +36,4 @@
 
 - [x] feat:添加languages和jsonValidation、
 - [ ] ~~feat:提示安装依赖~~
-- [ ] feat:支持不同环境提示不同指令
 - [ ] feat:新增别名`@`识别解析

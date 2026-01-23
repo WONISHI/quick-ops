@@ -20,7 +20,11 @@
   },
   {
     "prefix": "sct",
-    "body": ["document.querySelector(${0}).scrollIntoView({", "   behavior: 'smooth'", "});"],
+    "body": [
+      "document.querySelector(${0}).scrollIntoView({",
+      "   behavior: 'smooth'",
+      "});"
+    ],
     "style": "javascript",
     "description": "元素滚动 (quick-ops提供)"
   },
@@ -56,8 +60,28 @@
     "description": "节流 (quick-ops提供)"
   },
   {
-    "prefix": "try",
-    "body": ["try {", "   $TM_SELECTED_TEXT", "} catch (err) {", "   console.log('err',err)", "} finally {", "   ${0}", "}"],
+    "prefix": "tcf",
+    "body": [
+      "try {",
+      "   $TM_SELECTED_TEXT",
+      "} catch (err) {",
+      "   console.log('err',err)",
+      "} finally {",
+      "   ${0}",
+      "}"
+    ],
+    "style": "javascript",
+    "description": "try-catch-finally (quick-ops提供)"
+  },
+  {
+    "prefix": "trc",
+    "body": [
+      "try {",
+      "   $TM_SELECTED_TEXT",
+      "} catch (err) {",
+      "   console.log('err',err)",
+      "}"
+    ],
     "style": "javascript",
     "description": "try-catch (quick-ops提供)"
   },

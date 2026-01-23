@@ -112,7 +112,7 @@ export class PackageScriptsFeature implements IFeature {
                     result,
                     result,
                     rootPath || this.extensionPath,
-                    false, // isNpmScript = false
+                    false, 
                     payload,
                     item.keepOpen,
                   ),
