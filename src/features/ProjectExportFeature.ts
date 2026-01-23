@@ -185,30 +185,33 @@ export class ProjectExportFeature implements IFeature {
       console.error('AST Parse Failed:', e);
     }
 
-    // 【核心修复 2】Vue 组件名兜底逻辑
     if (fullPath.endsWith('.vue')) {
-      // 如果 AST 解析不到 name (如 script setup 中未显式定义 name)
       if (!vueName) {
-        // 获取文件名 (不含后缀)
         const ext = path.extname(args.fileName);
         const baseName = path.basename(args.fileName, ext);
 
-        // 如果文件名是 index，则取其父目录名
+        let rawName = '';
+
+        // 1. 确定原始名称来源
         if (baseName.toLowerCase() === 'index') {
-          // parentPath 已经是该文件的绝对父目录路径，直接取 basename 即可
-          vueName = path.basename(args.parentPath);
+          // 如果是 index.vue，取父目录名 (如 "nf-columns")
+          rawName = path.basename(args.parentPath);
         } else {
-          vueName = baseName;
+          // 否则取文件名 (如 "my-header")
+          rawName = baseName;
         }
 
-        // 强制转换为大驼峰 (PascalCase): my-cmp -> MyCmp (简单处理首字母大写，可按需加更复杂的转换)
-        if (vueName) {
-          // 简单的首字母大写，如果需要处理横杠连接符，可以加 replace 逻辑
-          vueName = vueName.charAt(0).toUpperCase() + vueName.slice(1);
+        // 2. 执行转换逻辑
+        if (rawName) {
+          vueName = rawName
+            // 第一步：处理分隔符 (nf-columns -> nfColumns, nf_columns -> nfColumns)
+            // 正则解释：匹配一个或多个[-_]，后面紧跟一个字母(\w)，将该字母转大写
+            .replace(/[-_]+(\w)/g, (_, c) => c.toUpperCase())
+            // 第二步：首字母大写 (nfColumns -> NfColumns)
+            .replace(/^[a-z]/, (c) => c.toUpperCase());
         }
       }
 
-      // 只有当解析出 vueName 时，才覆盖 defaultExport
       if (vueName) {
         parseResult.defaultExport = [vueName];
       }
@@ -222,10 +225,8 @@ export class ProjectExportFeature implements IFeature {
 
     // 生成 import 路径
     let finalPath = path.posix.join(args.importBase, args.fileName);
-    // 移除常见后缀
     finalPath = finalPath.replace(/\.(ts|js|vue|tsx|jsx|d\.ts)$/, '');
 
-    // 检查是否是别名路径，如果是则不加 ./
     const aliases = this.getAliasConfig();
     const isAliasPath = Object.keys(aliases).some((aliasKey) => finalPath.startsWith(aliasKey));
 
