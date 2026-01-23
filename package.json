@@ -2,7 +2,7 @@
   "name": "quick-ops",
   "displayName": "Quick Ops: Code Utils & Anchors",
   "description": "Boost productivity with Code Anchors, SCSS structure generation, and essential navigation shortcuts.",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "engines": {
     "vscode": "^1.54.0"
   },
@@ -149,13 +149,6 @@
           "command": "quick-ops.generateStyleStructure",
           "group": "quickOps@2",
           "when": "resourceLangId == vue || resourceLangId == html || resourceLangId == javascriptreact || resourceLangId == typescriptreact"
-        }
-      ],
-      "editor/context": [
-        {
-          "command": "quickOps.generateTsType",
-          "group": "quickOps@1",
-          "when": "editorHasSelection && quickOps.context.canGenerateType"
         }
       ],
       "editor/lineNumber/context": [

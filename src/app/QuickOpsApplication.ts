@@ -16,7 +16,6 @@ import { FileNavigationFeature } from '../features/FileNavigationFeature';
 import { ConfigManagementFeature } from '../features/ConfigManagementFeature';
 import { LogEnhancerFeature } from '../features/LogEnhancerFeature';
 import { PackageScriptsFeature } from '../features/PackageScriptsFeature';
-import { GitListenerFeature } from '../features/GitListenerFeature';
 import { MarkDecorationFeature } from '../features/MarkDecorationFeature';
 import { StyleGeneratorFeature } from '../features/StyleGeneratorFeature';
 import { RegionFoldingFeature } from '../features/RegionFoldingFeature';
@@ -42,7 +41,6 @@ export class QuickOpsApplication {
       new ConfigManagementFeature(),
       new LogEnhancerFeature(),
       new PackageScriptsFeature(),
-      // new GitListenerFeature(),
       new MarkDecorationFeature(),
       new StyleGeneratorFeature(),
       new RegionFoldingFeature(),
