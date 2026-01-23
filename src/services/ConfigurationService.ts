@@ -170,13 +170,18 @@ export class ConfigurationService extends EventEmitter implements IService {
     }
   }
 
-  public createDefaultConfig(): void {
+  public async createDefaultConfig(): Promise<void> {
     const targetPath = this.workspaceConfigPath;
     if (!targetPath) {
       vscode.window.showErrorMessage('Quick Ops: 请先打开一个文件夹。');
       return;
     }
-    if (fs.existsSync(targetPath)) return;
+
+    if (fs.existsSync(targetPath)) {
+      const doc = await vscode.workspace.openTextDocument(targetPath);
+      await vscode.window.showTextDocument(doc);
+      return;
+    }
 
     try {
       let contentToWrite = '{}';
@@ -192,6 +197,8 @@ export class ConfigurationService extends EventEmitter implements IService {
 
       this.loadConfig();
       this.updateContextKey();
+      const doc = await vscode.workspace.openTextDocument(targetPath);
+      await vscode.window.showTextDocument(doc);
     } catch (error: any) {
       vscode.window.showErrorMessage(`创建配置文件失败: ${error.message}`);
     }

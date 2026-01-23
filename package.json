@@ -95,16 +95,6 @@
         "category": "Quick Ops"
       },
       {
-        "command": "quickOps.generateTsType",
-        "title": "生成 TS 类型 (Generate TypeScript Interface)",
-        "category": "Quick Ops"
-      },
-      {
-        "command": "quickOps.generateMockData",
-        "title": "生成模拟数据 (Generate Mock Data)",
-        "category": "Quick Ops"
-      },
-      {
         "command": "quick-ops.generateStyleStructure",
         "title": "生成样式结构 (Generate SCSS)",
         "category": "Quick Ops"
@@ -166,11 +156,6 @@
           "command": "quickOps.generateTsType",
           "group": "quickOps@1",
           "when": "editorHasSelection && quickOps.context.canGenerateType"
-        },
-        {
-          "command": "quickOps.generateMockData",
-          "group": "quickOps@2",
-          "when": "editorHasSelection && quickOps.context.canGenerateMock"
         }
       ],
       "editor/lineNumber/context": [
