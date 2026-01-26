@@ -1,59 +1,103 @@
 <p align="center">
-   <img src="./icon.png" width="104" height="104" />
+    <img src="./icon.png" width="128" height="128" alt="quickOps Logo" />
 </p>
 
-# quickOps
+<h1 align="center">quickOps</h1>
 
-`quickOps` 是一款面向开发者的 **VSCode 开发辅助插件**，提供了一系列高效实用的功能，帮助你快速完成常见操作，显著提升开发效率：
+<p align="center">
+    <a href="https://img.shields.io/visual-studio-marketplace/v/quick-ops.quick-ops">
+        <img src="https://img.shields.io/visual-studio-marketplace/v/quick-ops.quick-ops?style=flat-square&label=Version&color=007ACC" alt="Version">
+    </a>
+    <a href="https://img.shields.io/visual-studio-marketplace/i/quick-ops.quick-ops">
+        <img src="https://img.shields.io/visual-studio-marketplace/i/quick-ops.quick-ops?style=flat-square&label=Installs&color=green" alt="Installs">
+    </a>
+    <img src="https://img.shields.io/badge/License-MIT-orange.svg?style=flat-square" alt="License">
+</p>
 
-- 🚀 **自定义 Console 调试**：一键插入个性化调试语句。
-- 📂 **文件快速定位与展开**：快速跳转到目标文件或目录。
-- ⬆️⬇️ **快捷滚动**：一键滚动到文件顶部或底部。
-- 📦 **导入语句自动化**：智能生成并维护 import/export。
-- 🏷 **自定义标注提醒（Mark）**：高亮和追踪重要代码片段。
-- ✨ **条件化代码片段**：支持逻辑判断的个性化代码片段。
-- 🚫 **文件隔离**：通过自定义忽略规则，解耦工作区与远程仓库。
-
-让你在 VSCode 中操作更快捷，专注于核心开发。
-
-##  🚀 **自定义 Console 调试**
-
-![image-20250924200842673](resources/images/image-20250924200842673.png)
-
-通过输入关键字段即可插入预设的 `console` 模板，在浏览器调试页面中快速定位打印位置。相比于手动反复输出 `111` 或 `222` 等标记，这种方式更高效、更直观，能够大幅提升调试效率。📂 **文件快速定位与展开**
-
-## ⬆️⬇️ **快捷滚动**
-
-![image-20250924201408859](resources/images/image-20250924201408859.png)
-
-当项目文件代码量很大时，手动滚动到顶部或底部非常耗时。`quickOps` 提供一键回到顶部和一键回到底部的功能，让你在 Vue 项目中快速查看 `template` 结构，或者迅速定位到 `style` 区块写样式，大幅提升代码浏览与编辑效率。
-
-## 📦 **导入语句自动化**
-
-从你输入 `'./'` 的那一刻起，`quickOps` 即可智能提示项目中的文件和文件夹。当你选中文件（例如 `.js` 文件）并回车时，插件会自动解析文件内的函数，并允许你自由选择要导入的函数，极大提升导入语句的效率与准确性。
-
-## 🏷 **自定义标注提醒（Mark）**
-
-![image-20250924202632556](resources/images/image-20250924202632556.png)
-
-新增mark，可以新增更多的标注提示，后期新增对颜色自定义一句智能化提示
-
-## ✨ **条件化代码片段**
-
-![image-20250924202938579](resources/images/image-20250924202938579.png)
-
-新增代码片段，可以设定在什么环境生效，以及什么框架生效（vue2、vue3、react）
-
-## 🚫 **文件隔离**
-
-文件隔离的作用主要是新拉取下来的代码个人会有不同的改动，又不想推送到远程，但是被远程分支跟踪，在.gitignore添加会导致不小心上传.gitignore导致不好的效果，quickOps配置文件（配置文件初始化也是不被版本跟踪）新增git字段可以忽略文件跟踪（不被版本跟踪）
+quickOps 是一个 VS Code 扩展，集成了代码标记、本地文件忽略、路径补全及调试辅助等功能。旨在补充 VS Code 原生功能的不足，通过快捷指令和配置文件优化开发流程。
 
 ---
 
-## 🛠️ 使用方法
+## 功能列表
 
-1. 安装插件后，插件会自动在 VSCode 激活。  
-2. 通过命令面板（`Ctrl+Shift+P` / `Cmd+Shift+P`）输入 **quickOps: XXX** 使用对应功能。  
-3. 部分功能支持快捷键触发，可在 `keybindings.json` 中自行配置。  
+### 1. Git 本地文件忽略 (File Isolation)
+
+该功能允许在本地忽略对**已跟踪文件**的修改，而无需更改 `.gitignore`。适用于需要修改本地配置文件（如数据库配置、API端点）但禁止提交该修改的场景。
+
+- **实现原理**：插件读取配置后，通过 `git update-index --skip-worktree` 或修改 `.git/info/exclude` 实现忽略。
+- **特性**：
+  - 被忽略的文件在 Git 状态中显示为未修改。
+  - 忽略规则仅在本地生效，不影响远程仓库和其他协作者。
+  - 在资源管理器中，被忽略的文件会显示 `IG` (Ignored) 徽章以便识别。
+
+### 2. 代码锚点 (Anchors)
+
+在代码行中添加可视化标记，用于记录关键逻辑位置或待办事项。
+
+- **功能**：
+  - **添加锚点**：支持对当前行添加标记，并归类到自定义分组（如 TODO, FIXME, Default）。
+  - **CodeLens 导航**：在锚点行的上方显示操作栏，支持跳转至同组的上一个/下一个锚点，或删除当前锚点。
+  - **持久化存储**：锚点数据存储于工作区根目录的 `.telemetryrc` 文件中（该文件默认被插件设为 Git 忽略）。
+
+### 3. 智能导入辅助 (Auto Import)
+
+增强现有的导入路径补全功能，支持解析项目别名。
+
+- **路径补全**：
+  - 支持识别 `tsconfig.json` 或 `.quickopsrc` 中配置的路径别名（如 `@/`）。
+  - 输入路径后，自动列出该路径下的文件。
+- **导出解析**：
+  - 选中文件后，插件会解析该文件的 AST（抽象语法树）。
+  - 列出该文件中所有 `export` 的变量和函数供选择，自动生成 import 语句。
+
+### 4. 调试日志工具 (Smart Log)
+
+快速插入包含上下文信息的调试语句。
+
+- **模板生成**：输入特定前缀（默认 `log`）触发。
+- **内容格式**：自动填充 `[文件名:行号]` 及当前选中的变量名。
+- **样式定制**：可通过配置文件自定义 `console.log` 的输出模板。
+
+### 5. 样式结构生成 (Style Generator)
+
+针对 Vue 或 HTML 文件，根据 `template` 结构自动生成对应的 SCSS/Less 嵌套代码。
+
+- **用法**：在编辑器中右键选择 "Generate SCSS"，插件将解析 HTML 类名层级并生成样式代码至剪贴板或样式块中。
+
+### 6. 视图导航 (Smart Scroll)
+
+- **一键滚动**：提供命令在文件的顶部（通常是 Template）和底部（通常是 Style/Script）之间快速切换。
+- **定位文件**：提供命令在左侧资源管理器中选中当前正在编辑的文件。
+
+### 7. 脚本执行 (Script Runner)
+
+- **NPM 脚本**：自动读取 `package.json` 中的 `scripts` 字段，提供列表供选择执行。
+- **自定义脚本**：支持在 `.quickopsrc` 中定义项目专属的 Shell 命令。
 
 ---
+
+## 配置说明
+
+插件行为由项目根目录下的 `.quickopsrc` 文件控制（JSON 格式）。
+
+```json
+{
+  "project": {
+    // 项目路径别名，用于辅助路径补全
+    "alias": {
+      "@": "./src",
+      "components": "./src/components"
+    }
+  },
+  "git": {
+    // 本地忽略文件列表 (相对路径)
+    // 这些文件的改动将不会被 Git 记录
+    "ignoreList": ["src/config.local.js", ".env"]
+  },
+  "logger": {
+    // 调试日志的插入模板
+    // 可用变量: ${file}, ${line}, ${selection}
+    "template": "console.log('[${file}:${line}]', ${selection})"
+  }
+}
+```
