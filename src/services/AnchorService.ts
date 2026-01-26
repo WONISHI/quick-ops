@@ -39,14 +39,14 @@ export class AnchorService {
     }
   }
 
-  private save() {
+  private async save() {
     if (!this.storagePath) return;
     const data: AnchorConfig = {
       groups: this.groups,
       anchors: this.anchors,
     };
     try {
-      fs.writeFileSync(this.storagePath, JSON.stringify(data, null, 2), 'utf-8');
+      fs.promises.writeFile(this.storagePath, JSON.stringify(data, null, 2), 'utf-8');
       this._onDidChangeAnchors.fire();
     } catch (error) {
       vscode.window.showErrorMessage('无法保存锚点文件: ' + error);
@@ -73,7 +73,6 @@ export class AnchorService {
     }
   }
 
-  // 🔥 新增：移除分组
   public removeGroup(group: string) {
     this.groups = this.groups.filter((g) => g !== group);
     this.save();

@@ -8,60 +8,83 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
   private _onDidChangeCodeLenses: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
   public readonly onDidChangeCodeLenses: vscode.Event<void> = this._onDidChangeCodeLenses.event;
 
+  private isInternalUpdate = false;
+  private debounceTimer: NodeJS.Timeout | undefined;
+
   constructor() {
     this.service = AnchorService.getInstance();
+
     this.service.onDidChangeAnchors(() => {
-      this._onDidChangeCodeLenses.fire();
+      if (this.isInternalUpdate) return;
+
+      if (this.debounceTimer) clearTimeout(this.debounceTimer);
+      this.debounceTimer = setTimeout(() => {
+        this._onDidChangeCodeLenses.fire();
+      }, 200);
     });
   }
 
   public provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.CodeLens[] {
     const lenses: vscode.CodeLens[] = [];
     const rootPath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
-
     const relativePath = path.relative(rootPath, document.uri.fsPath).replace(/\\/g, '/');
     const anchors = this.service.getAnchors(relativePath);
 
-    for (const anchor of anchors) {
-      // 🔥🔥🔥 核心修复：
-      // 文件里存的是 25 (UI行号)，VS Code 内部渲染需要 24 (0-based)
-      // 所以必须 减 1
+    let contentToLinesMap: Map<string, number[]> | null = null;
+
+    for (const i in anchors) {
+      const anchor = anchors[i];
       let targetLineIndex = Math.max(0, anchor.line - 1);
       const docLineCount = document.lineCount;
 
       if (targetLineIndex >= docLineCount) {
-        continue;
+        continue; // 越界忽略
       }
 
-      // 1. 内容校准逻辑
       const currentLineContent = document.lineAt(targetLineIndex).text.trim();
 
       if (currentLineContent !== anchor.content) {
         let foundLineIndex = -1;
-        for (let i = 0; i < docLineCount; i++) {
-          if (document.lineAt(i).text.trim() === anchor.content) {
-            foundLineIndex = i;
-            break;
+
+        if (!contentToLinesMap) {
+          contentToLinesMap = new Map();
+          for (let l = 0; l < docLineCount; l++) {
+            const lineText = document.lineAt(l).text.trim();
+            if (!lineText) continue;
+            if (!contentToLinesMap.has(lineText)) {
+              contentToLinesMap.set(lineText, []);
+            }
+            contentToLinesMap.get(lineText)!.push(l);
           }
         }
 
+        const candidates = contentToLinesMap.get(anchor.content);
+
+        if (candidates && candidates.length > 0) {
+          // 在所有内容匹配的行中，找到离“原位置”最近的那一行
+          foundLineIndex = candidates.reduce((prev, curr) => {
+            return Math.abs(curr - targetLineIndex) < Math.abs(prev - targetLineIndex) ? curr : prev;
+          });
+        }
+
+        // 修正逻辑
         if (foundLineIndex !== -1) {
           targetLineIndex = foundLineIndex;
-          // 🔥 修正存储：将找到的 0-based 转回 1-based (UI行号) 存起来
+          this.isInternalUpdate = true;
           this.service.updateAnchorLine(anchor.id, foundLineIndex + 1);
+          this.isInternalUpdate = false;
         } else {
           continue;
         }
       }
 
-      // 2. 构造 CodeLens
-      // 使用 0-based 索引，VS Code 会渲染在该行上方
+      // --- 构造 CodeLens ---
       const range = new vscode.Range(targetLineIndex, 0, targetLineIndex, 0);
       const emoji = ColorUtils.getEmoji(anchor.group);
 
       lenses.push(
         new vscode.CodeLens(range, {
-          title: `${emoji} ${anchor.group}`,
+          title: `${emoji} ${anchor.group}-${i}`,
           tooltip: '查看该组所有锚点',
           command: 'quick-ops.anchor.listByGroup',
           arguments: [anchor.group],

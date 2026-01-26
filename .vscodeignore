@@ -5,10 +5,11 @@ apps/**
 out/**
 node_modules/**
 src/**
-test/**
+src/test/**
 .git/**
 packages/**
 **/node_modules/**
+dist/test**
 .zip
 .markdownlint.json
 

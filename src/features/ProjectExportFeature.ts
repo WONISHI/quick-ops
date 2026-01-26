@@ -98,19 +98,18 @@ export class ProjectExportFeature implements IFeature {
       // 这里直接拼接，不使用 dirname，因为可能用户正在输入文件夹名
       targetDirAbsolutePath = path.join(aliasRootAbsPath, remainingPath);
 
-      // 容错：如果路径不存在(可能文件名没输完)，回退到父目录去读取列表
-      if (!fs.existsSync(targetDirAbsolutePath) || !fs.statSync(targetDirAbsolutePath).isDirectory()) {
+      try {
+        const stats = await fs.promises.stat(targetDirAbsolutePath);
+        if (!stats.isDirectory()) {
+          targetDirAbsolutePath = path.dirname(targetDirAbsolutePath);
+        }
+      } catch (e) {
+        // 路径不存在，回退到父目录
         targetDirAbsolutePath = path.dirname(targetDirAbsolutePath);
       }
 
-      // 【核心修复 1】计算 importBase
-      // 这里的逻辑是：算出 "当前展示列表的物理目录" 相对于 "别名物理根目录" 的路径
-      // 例如：aliasRoot = /src, targetDir = /src/components/CommonTable
-      // relative = components/CommonTable
       const relativeFromAliasRoot = path.relative(aliasRootAbsPath, targetDirAbsolutePath).split(path.sep).join('/');
 
-      // 拼接别名 Key 和 相对路径
-      // importBase = @/ + components/CommonTable -> @/components/CommonTable
       importBase = path.posix.join(matchedAliasKey, relativeFromAliasRoot);
 
       // 特殊处理：如果 relative 为空 (就在 src 根目录下)，且别名带斜杠 (@/)，join 可能会把斜杠吃掉变成 @
@@ -121,7 +120,7 @@ export class ProjectExportFeature implements IFeature {
       // 读取目录列表
       try {
         if (fs.existsSync(targetDirAbsolutePath)) {
-          const dirents = fs.readdirSync(targetDirAbsolutePath, { withFileTypes: true });
+          const dirents = await fs.promises.readdir(targetDirAbsolutePath, { withFileTypes: true });
           entries = dirents.map((d) => ({
             name: d.name,
             isDirectory: () => d.isDirectory(),

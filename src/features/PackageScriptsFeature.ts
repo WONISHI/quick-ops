@@ -64,7 +64,8 @@ export class PackageScriptsFeature implements IFeature {
       const packageJsonPath = path.join(rootPath, 'package.json');
       if (fs.existsSync(packageJsonPath)) {
         try {
-          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
+          const content = await fs.promises.readFile(packageJsonPath, 'utf-8');
+          const packageJson = JSON.parse(content);
           const scripts = packageJson.scripts || {};
           const scriptNames = Object.keys(scripts);
 
@@ -83,7 +84,7 @@ export class PackageScriptsFeature implements IFeature {
         }
       }
 
-      // 2. 【修改】读取工作区自定义配置
+      // 2. 读取工作区自定义配置
       // 这里不再手动读文件，而是从 ConfigurationService 获取
       const workspaceScripts = this.loadWorkspaceScripts(rootPath, ctx);
 
@@ -96,16 +97,25 @@ export class PackageScriptsFeature implements IFeature {
       }
     }
 
-    // 3. 读取插件内置 resources/shell 下的 JSON 配置
     const shellResourceDir = path.join(this.extensionPath, 'resources', 'shell');
-    if (fs.existsSync(shellResourceDir)) {
-      try {
-        const files = fs.readdirSync(shellResourceDir).filter((file) => file.endsWith('.json'));
 
+    let shellDirExists = false;
+    try {
+      const stats = await fs.promises.stat(shellResourceDir);
+      shellDirExists = stats.isDirectory();
+    } catch (e) {
+      console.log(e);
+    }
+
+    if (shellDirExists) {
+      try {
+        const files = (await fs.promises.readdir(shellResourceDir)).filter((file) => file.endsWith('.json'));
+
+        // 异步读取每个文件的内容
         for (const file of files) {
           const filePath = path.join(shellResourceDir, file);
           try {
-            const content = fs.readFileSync(filePath, 'utf-8');
+            const content = await fs.promises.readFile(filePath, 'utf-8');
             const jsonItems: ShellConfigItem[] = JSON.parse(content);
 
             if (Array.isArray(jsonItems) && jsonItems.length > 0) {
