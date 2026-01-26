@@ -9,6 +9,8 @@ test/**
 .git/**
 packages/**
 **/node_modules/**
+.zip
+.markdownlint.json
 
 .gitignore
 .yarnrc

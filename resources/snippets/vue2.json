@@ -36,24 +36,34 @@
     "description": "vue2代码模版 (quick-ops提供)"
   },
   {
-    "prefix": "vue3",
+    "prefix": "wht",
     "scope": [
       "vue",
-      "vue3"
+      "vue2"
     ],
     "body": [
-      "<template>",
-      "<div>",
-      "  ${1}",
-      "</div>",
-      "</template>",
-      "<script lang='ts' setup>",
-      "</script>",
-      "<style lang='${0:[[cssLang]]}' scoped>",
-      "",
-      "</style>"
+      "${1}:{",
+      "   immediate: true,",
+      "   deep:true,",
+      "   handler(newV){",
+      "     ${0}",
+      "}"
     ],
-    "style": "vue",
-    "description": "vue3代码模版 (quick-ops提供)"
+    "style": "javascript",
+    "description": "vue2-watch-deep模版 (quick-ops提供)"
+  },
+  {
+    "prefix": "wh",
+    "scope": [
+      "vue",
+      "vue2"
+    ],
+    "body": [
+      "${1}(newV){",
+      "   ${0}",
+      "}"
+    ],
+    "style": "javascript",
+    "description": "vue2-watch模版 (quick-ops提供)"
   }
 ]

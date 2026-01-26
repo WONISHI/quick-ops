@@ -1,47 +1,48 @@
 {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Quick Ops Config",
-    "description": "Configuration file for Quick Ops extension",
+    "description": "Quick Ops 插件配置文件 (Configuration file for Quick Ops extension)",
     "type": "object",
     "properties": {
         "general": {
             "type": "object",
-            "description": "General settings",
+            "description": "常规设置 (General settings)",
             "properties": {
                 "debug": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Enable debug mode"
+                    "description": "启用调试模式 (Enable debug mode)"
                 },
                 "excludeConfigFiles": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Whether to ignore configuration files in Git"
+                    "description": "是否在 Git 中忽略配置文件 (Whether to ignore configuration files in Git)"
                 }
             }
         },
         "logger": {
             "type": "object",
-            "description": "Logger settings",
+            "description": "日志记录器设置 (Logger settings)",
             "properties": {
                 "template": {
                     "type": "string",
                     "default": "[icon]-[~/^/^/name]-[line]-[$0]",
-                    "description": "Log output template"
+                    "description": "日志输出模板 (Log output template)"
                 },
                 "dateFormat": {
                     "type": "string",
-                    "default": "YYYY-MM-DD HH:mm:ss"
+                    "default": "YYYY-MM-DD HH:mm:ss",
+                    "description": "日期格式 (Date format)"
                 }
             }
         },
         "git": {
             "type": "object",
-            "description": "Git integration settings",
+            "description": "Git 集成设置 (Git integration settings)",
             "properties": {
                 "ignoreList": {
                     "type": "array",
-                    "description": "List of files to ignore/skip-worktree",
+                    "description": "需要忽略或执行 skip-worktree 的文件列表 (List of files to ignore/skip-worktree)",
                     "items": {
                         "type": "string"
                     },
@@ -51,18 +52,22 @@
         },
         "utils": {
             "type": "object",
+            "description": "工具函数设置 (Utility settings)",
             "properties": {
                 "uuidLength": {
                     "type": "integer",
-                    "default": 12
+                    "default": 12,
+                    "description": "UUID 生成长度 (UUID generation length)"
                 }
             }
         },
         "project": {
             "type": "object",
+            "description": "项目相关设置 (Project settings)",
             "properties": {
                 "alias": {
                     "type": "object",
+                    "description": "路径别名配置 (Path alias configuration)",
                     "additionalProperties": {
                         "type": "string"
                     },
@@ -71,13 +76,14 @@
                     }
                 },
                 "marks": {
-                    "type": "object"
+                    "type": "object",
+                    "description": "代码标注配置 (Code marks configuration)"
                 }
             }
         },
         "snippets": {
             "type": "array",
-            "description": "Custom code snippets configuration",
+            "description": "自定义代码片段配置 (Custom code snippets configuration)",
             "items": {
                 "type": "object",
                 "required": [
@@ -88,11 +94,11 @@
                 "properties": {
                     "name": {
                         "type": "string",
-                        "description": "Name of the snippet"
+                        "description": "代码片段名称 (Name of the snippet)"
                     },
                     "prefix": {
                         "type": "string",
-                        "description": "Trigger keyword for the snippet"
+                        "description": "代码片段触发关键词 (Trigger keyword for the snippet)"
                     },
                     "body": {
                         "type": [
@@ -102,15 +108,15 @@
                         "items": {
                             "type": "string"
                         },
-                        "description": "The content of the snippet. Can be a single string or an array of strings (for multiline)."
+                        "description": "代码片段内容，支持字符串或数组形式 (The content of the snippet. Can be a single string or an array of strings)"
                     },
                     "description": {
                         "type": "string",
-                        "description": "Description of what this snippet does"
+                        "description": "代码片段的功能描述 (Description of what this snippet does)"
                     },
                     "scope": {
                         "type": "string",
-                        "description": "Language scope (e.g., 'javascript,typescript'). If omitted, applies globally."
+                        "description": "语言作用域，如 'javascript,typescript'，缺省则全局生效 (Language scope. If omitted, applies globally)"
                     }
                 }
             },
@@ -118,7 +124,7 @@
         },
         "shells": {
             "type": "array",
-            "description": "Custom shell commands configuration for workspace",
+            "description": "工作区自定义 Shell 命令配置 (Custom shell commands configuration for workspace)",
             "items": {
                 "type": "object",
                 "required": [
@@ -128,16 +134,16 @@
                 "properties": {
                     "description": {
                         "type": "string",
-                        "description": "Description displayed in the QuickPick list"
+                        "description": "在快速选择列表中显示的描述文字 (Description displayed in the QuickPick list)"
                     },
                     "cmd": {
                         "type": "string",
-                        "description": "The shell command to execute. Supports template variables like ${name}, ${file}, [[Branch]] etc."
+                        "description": "要执行的 Shell 命令。支持 ${name}, ${file}, [[Branch]] 等模板变量 (The shell command to execute. Supports template variables)"
                     },
                     "keepOpen": {
                         "type": "boolean",
                         "default": false,
-                        "description": "Whether to keep the QuickPick list open after executing this command"
+                        "description": "执行命令后是否保持快速选择列表打开 (Whether to keep the QuickPick list open after executing this command)"
                     }
                 }
             },
