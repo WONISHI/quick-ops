@@ -39,9 +39,12 @@ export class AnchorFeature implements IFeature {
       vscode.window.onDidChangeActiveTextEditor(() => this.updateDecorations()),
       vscode.workspace.onDidSaveTextDocument(() => this.updateDecorations()),
     );
-    setTimeout(() => this.updateDecorations(), 500);
+    let timer = setTimeout(() => {
+      this.updateDecorations();
+      clearTimeout(timer);
+    }, 500);
 
-    // Commands
+    // 注册指令
     context.subscriptions.push(
       vscode.commands.registerCommand('quick-ops.anchor.add', async (...args: any[]) => {
         this.handleAddAnchorCommand(...args);

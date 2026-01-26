@@ -8,10 +8,23 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
   private _onDidChangeCodeLenses: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
   public readonly onDidChangeCodeLenses: vscode.Event<void> = this._onDidChangeCodeLenses.event;
 
+  private isInternalUpdate = false;
+  private debounceTimer: NodeJS.Timeout | undefined;
+
   constructor() {
     this.service = AnchorService.getInstance();
+    
     this.service.onDidChangeAnchors(() => {
-      this._onDidChangeCodeLenses.fire();
+      if (this.isInternalUpdate) {
+          return; 
+      }
+
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+      }
+      this.debounceTimer = setTimeout(() => {
+        this._onDidChangeCodeLenses.fire();
+      }, 200);
     });
   }
 
@@ -22,6 +35,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
     const relativePath = path.relative(rootPath, document.uri.fsPath).replace(/\\/g, '/');
     const anchors = this.service.getAnchors(relativePath);
 
+    // 遍历所有锚点
     for (const i in anchors) {
       const anchor = anchors[i];
       let targetLineIndex = Math.max(0, anchor.line - 1);
@@ -33,7 +47,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
 
       const currentLineContent = document.lineAt(targetLineIndex).text.trim();
 
-      // 如果内部不同的话
+      // 如果内容不匹配，需要修正行号
       if (currentLineContent !== anchor.content) {
         let foundLineIndex = -1;
         for (let i = 0; i < docLineCount; i++) {
@@ -43,23 +57,17 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
           }
         }
 
-        // 修正line
         if (foundLineIndex !== -1) {
           targetLineIndex = foundLineIndex;
+          this.isInternalUpdate = true; 
           this.service.updateAnchorLine(anchor.id, foundLineIndex + 1);
+          this.isInternalUpdate = false; 
         } else {
           continue;
         }
       }
 
       const range = new vscode.Range(targetLineIndex, 0, targetLineIndex, 0);
-
-      /**
-       * CodeLens
-       * - 按 range.start.line 分组
-       * - 同一行上的多个 CodeLens → 横向排列显示
-       */
-
       const emoji = ColorUtils.getEmoji(anchor.group);
 
       lenses.push(
