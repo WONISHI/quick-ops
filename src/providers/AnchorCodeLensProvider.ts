@@ -61,6 +61,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
         const candidates = contentToLinesMap.get(anchor.content);
 
         if (candidates && candidates.length > 0) {
+          // 在所有内容匹配的行中，找到离“原位置”最近的那一行
           foundLineIndex = candidates.reduce((prev, curr) => {
             return Math.abs(curr - targetLineIndex) < Math.abs(prev - targetLineIndex) ? curr : prev;
           });
