@@ -13,15 +13,11 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
 
   constructor() {
     this.service = AnchorService.getInstance();
-    
-    this.service.onDidChangeAnchors(() => {
-      if (this.isInternalUpdate) {
-          return; 
-      }
 
-      if (this.debounceTimer) {
-        clearTimeout(this.debounceTimer);
-      }
+    this.service.onDidChangeAnchors(() => {
+      if (this.isInternalUpdate) return;
+
+      if (this.debounceTimer) clearTimeout(this.debounceTimer);
       this.debounceTimer = setTimeout(() => {
         this._onDidChangeCodeLenses.fire();
       }, 200);
@@ -31,42 +27,57 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
   public provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.CodeLens[] {
     const lenses: vscode.CodeLens[] = [];
     const rootPath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
-
     const relativePath = path.relative(rootPath, document.uri.fsPath).replace(/\\/g, '/');
     const anchors = this.service.getAnchors(relativePath);
 
-    // 遍历所有锚点
+    let contentToLinesMap: Map<string, number[]> | null = null;
+
     for (const i in anchors) {
       const anchor = anchors[i];
       let targetLineIndex = Math.max(0, anchor.line - 1);
       const docLineCount = document.lineCount;
 
       if (targetLineIndex >= docLineCount) {
-        continue;
+        continue; // 越界忽略
       }
 
       const currentLineContent = document.lineAt(targetLineIndex).text.trim();
 
-      // 如果内容不匹配，需要修正行号
       if (currentLineContent !== anchor.content) {
         let foundLineIndex = -1;
-        for (let i = 0; i < docLineCount; i++) {
-          if (document.lineAt(i).text.trim() === anchor.content) {
-            foundLineIndex = i;
-            break;
+
+        if (!contentToLinesMap) {
+          contentToLinesMap = new Map();
+          for (let l = 0; l < docLineCount; l++) {
+            const lineText = document.lineAt(l).text.trim();
+            if (!lineText) continue;
+            if (!contentToLinesMap.has(lineText)) {
+              contentToLinesMap.set(lineText, []);
+            }
+            contentToLinesMap.get(lineText)!.push(l);
           }
         }
 
+        const candidates = contentToLinesMap.get(anchor.content);
+
+        if (candidates && candidates.length > 0) {
+          foundLineIndex = candidates.reduce((prev, curr) => {
+            return Math.abs(curr - targetLineIndex) < Math.abs(prev - targetLineIndex) ? curr : prev;
+          });
+        }
+
+        // 修正逻辑
         if (foundLineIndex !== -1) {
           targetLineIndex = foundLineIndex;
-          this.isInternalUpdate = true; 
+          this.isInternalUpdate = true;
           this.service.updateAnchorLine(anchor.id, foundLineIndex + 1);
-          this.isInternalUpdate = false; 
+          this.isInternalUpdate = false;
         } else {
           continue;
         }
       }
 
+      // --- 构造 CodeLens ---
       const range = new vscode.Range(targetLineIndex, 0, targetLineIndex, 0);
       const emoji = ColorUtils.getEmoji(anchor.group);
 

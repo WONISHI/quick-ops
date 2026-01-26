@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { isNumber, isFunction } from 'lodash-es';
+import { isNumber, isFunction, debounce } from 'lodash-es';
 import { IFeature } from '../core/interfaces/IFeature';
 import { AnchorService } from '../services/AnchorService';
 import { AnchorCodeLensProvider } from '../providers/AnchorCodeLensProvider';
@@ -36,7 +36,7 @@ export class AnchorFeature implements IFeature {
 
     context.subscriptions.push(
       this.service.onDidChangeAnchors(() => this.updateDecorations()),
-      vscode.window.onDidChangeActiveTextEditor(() => this.updateDecorations()),
+      vscode.window.onDidChangeActiveTextEditor(() => this.debouncedUpdate()),
       vscode.workspace.onDidSaveTextDocument(() => this.updateDecorations()),
     );
     let timer = setTimeout(() => {
@@ -70,6 +70,8 @@ export class AnchorFeature implements IFeature {
 
     console.log(`[${this.id}] Activated.`);
   }
+
+  private debouncedUpdate = debounce(() => this.updateDecorations(), 200);
 
   private async handleAddAnchorCommand(...args: any[]) {
     try {

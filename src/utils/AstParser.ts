@@ -2,17 +2,21 @@ import * as fs from 'fs';
 import { parse as vueParse } from '@vue/compiler-sfc';
 import { parse as babelParse } from '@babel/parser';
 import traverse from '@babel/traverse';
-import * as t from '@babel/types'; // 需要安装 @types/babel__types
+import * as t from '@babel/types';
 
 export interface ExportItem {
   name: string;
-  code?: string; // 新增字段：用于存储函数体代码
+  code?: string;
 }
 
 export interface ParseResult {
-  namedExports: ExportItem[]; // 修改这里，不再只是 string[]
+  namedExports: ExportItem[];
   defaultExport: string[];
 }
+
+// 🔥 1. 定义缓存容器 (放在类外部，随模块生命周期存在)
+const exportsCache = new Map<string, { mtime: number; result: ParseResult }>();
+const vueNameCache = new Map<string, { mtime: number; result: string | null }>();
 
 export class AstParser {
   /**
@@ -20,97 +24,112 @@ export class AstParser {
    * 支持 TypeScript, JSX, TSX, JS
    */
   public static parseExports(filePath: string): ParseResult {
-    const code = fs.readFileSync(filePath, 'utf-8');
-    const ast = babelParse(code, {
-      sourceType: 'module',
-      plugins: ['typescript', 'jsx'], // 根据需要添加插件
-    });
+    // 🔥 2. 获取文件状态 (检查修改时间)
+    let stats: fs.Stats;
+    try {
+      stats = fs.statSync(filePath);
+    } catch (e) {
+      // 文件不存在或无法访问
+      return { namedExports: [], defaultExport: [] };
+    }
 
-    const namedExports: ExportItem[] = [];
-    const defaultExport: string[] = [];
+    // 🔥 3. 检查缓存：路径匹配 且 修改时间一致
+    const cached = exportsCache.get(filePath);
+    if (cached && cached.mtime === stats.mtimeMs) {
+      return cached.result;
+    }
 
-    traverse(ast, {
-      // 1. 处理 export const/let/var ...
-      ExportNamedDeclaration(path) {
-        if (path.node.declaration) {
-          const declaration = path.node.declaration;
+    // --- 缓存未命中，开始执行耗时解析 ---
+    try {
+      const code = fs.readFileSync(filePath, 'utf-8');
+      const ast = babelParse(code, {
+        sourceType: 'module',
+        plugins: ['typescript', 'jsx'],
+      });
 
-          // export const foo = () => {}
-          if (t.isVariableDeclaration(declaration)) {
-            declaration.declarations.forEach((decl) => {
-              if (t.isIdentifier(decl.id)) {
-                // 截取源码
-                const start = path.node.start ?? 0;
-                const end = path.node.end ?? 0;
-                const codeSnippet = code.slice(start, end);
+      const namedExports: ExportItem[] = [];
+      const defaultExport: string[] = [];
 
-                namedExports.push({ name: decl.id.name, code: codeSnippet });
-              }
-            });
+      traverse(ast, {
+        ExportNamedDeclaration(path) {
+          if (path.node.declaration) {
+            const declaration = path.node.declaration;
+
+            if (t.isVariableDeclaration(declaration)) {
+              declaration.declarations.forEach((decl) => {
+                if (t.isIdentifier(decl.id)) {
+                  const start = path.node.start ?? 0;
+                  const end = path.node.end ?? 0;
+                  const codeSnippet = code.slice(start, end);
+                  namedExports.push({ name: decl.id.name, code: codeSnippet });
+                }
+              });
+            } else if (t.isFunctionDeclaration(declaration) && declaration.id) {
+              const start = path.node.start ?? 0;
+              const end = path.node.end ?? 0;
+              const codeSnippet = code.slice(start, end);
+              namedExports.push({ name: declaration.id.name, code: codeSnippet });
+            } else if (t.isClassDeclaration(declaration) && declaration.id) {
+              const start = path.node.start ?? 0;
+              const end = path.node.end ?? 0;
+              const codeSnippet = code.slice(start, end);
+              namedExports.push({ name: declaration.id.name, code: codeSnippet });
+            }
           }
-          // export function foo() {}
-          else if (t.isFunctionDeclaration(declaration) && declaration.id) {
-            const start = path.node.start ?? 0;
-            const end = path.node.end ?? 0;
-            const codeSnippet = code.slice(start, end);
-
-            namedExports.push({ name: declaration.id.name, code: codeSnippet });
+        },
+        ExportDefaultDeclaration(path) {
+          const decl = path.node.declaration;
+          if (t.isIdentifier(decl)) {
+            defaultExport.push(decl.name);
+          } else if (t.isFunctionDeclaration(decl) && decl.id) {
+            defaultExport.push(decl.id.name);
+          } else if (t.isClassDeclaration(decl) && decl.id) {
+            defaultExport.push(decl.id.name);
           }
-          // export class Foo {}
-          else if (t.isClassDeclaration(declaration) && declaration.id) {
-            const start = path.node.start ?? 0;
-            const end = path.node.end ?? 0;
-            const codeSnippet = code.slice(start, end);
-            namedExports.push({ name: declaration.id.name, code: codeSnippet });
-          }
-        }
-      },
+        },
+      });
 
-      // 2. 处理 export default ... (通常只拿名字，或者你可以扩展逻辑拿代码)
-      ExportDefaultDeclaration(path) {
-        const decl = path.node.declaration;
-        if (t.isIdentifier(decl)) {
-          defaultExport.push(decl.name);
-        } else if (t.isFunctionDeclaration(decl) && decl.id) {
-          defaultExport.push(decl.id.name);
-        } else if (t.isClassDeclaration(decl) && decl.id) {
-          defaultExport.push(decl.id.name);
-        }
-        // 对于匿名 default export，通常无法补全名字，这里暂且忽略
-      },
-    });
+      const result = { namedExports, defaultExport };
 
-    return { namedExports, defaultExport };
+      // 🔥 4. 解析完成，写入缓存
+      exportsCache.set(filePath, { mtime: stats.mtimeMs, result });
+
+      return result;
+    } catch (e) {
+      console.error(`Parse error for ${filePath}:`, e);
+      return { namedExports: [], defaultExport: [] };
+    }
   }
 
   /**
    * 解析 Vue 组件名称
-   * 支持:
-   * 1. Vue 2/3 Options API: export default { name: 'Comp' }
-   * 2. Vue 3 defineComponent: export default defineComponent({ name: 'Comp' })
-   * 3. Vue 3 Script Setup: defineOptions({ name: 'Comp' })
    */
   static parseVueComponentName(filePath: string): string | null {
-    if (!fs.existsSync(filePath)) return null;
+    // 🔥 同样添加缓存逻辑
+    let stats: fs.Stats;
+    try {
+      stats = fs.statSync(filePath);
+    } catch (e) {
+      return null;
+    }
+
+    const cached = vueNameCache.get(filePath);
+    if (cached && cached.mtime === stats.mtimeMs) {
+      return cached.result;
+    }
 
     try {
       const source = fs.readFileSync(filePath, 'utf-8');
-
-      // 使用 Vue 官方编译器解析 SFC 结构
       const { descriptor } = vueParse(source);
-
       let componentName: string | null = null;
 
-      // === 策略 1: 检查 <script setup> (Vue 3.3+ defineOptions) ===
       if (descriptor.scriptSetup) {
         const ast = babelParse(descriptor.scriptSetup.content, {
           sourceType: 'module',
           plugins: ['typescript', 'jsx'],
         });
-
         traverse(ast, {
           CallExpression(path) {
-            // 查找 defineOptions({ name: '...' })
             if (path.node.callee.type === 'Identifier' && path.node.callee.name === 'defineOptions' && path.node.arguments.length > 0) {
               const arg = path.node.arguments[0];
               if (arg.type === 'ObjectExpression') {
@@ -122,25 +141,18 @@ export class AstParser {
         });
       }
 
-      // === 策略 2: 如果 script setup 没找到，检查普通 <script> ===
       if (!componentName && descriptor.script) {
         const ast = babelParse(descriptor.script.content, {
           sourceType: 'module',
           plugins: ['typescript', 'jsx'],
         });
-
         traverse(ast, {
           ExportDefaultDeclaration(path) {
             const decl = path.node.declaration;
-
-            // 情况 A: export default { name: '...' }
             if (decl.type === 'ObjectExpression') {
               const nameProp = AstParser.findPropertyByName(decl, 'name');
               if (nameProp) componentName = nameProp;
-            }
-            // 情况 B: export default defineComponent({ name: '...' })
-            else if (decl.type === 'CallExpression') {
-              // 判断是否是 defineComponent(...)
+            } else if (decl.type === 'CallExpression') {
               if (decl.callee.type === 'Identifier' && decl.callee.name === 'defineComponent' && decl.arguments.length > 0) {
                 const arg = decl.arguments[0];
                 if (arg.type === 'ObjectExpression') {
@@ -153,6 +165,9 @@ export class AstParser {
         });
       }
 
+      // 🔥 写入缓存
+      vueNameCache.set(filePath, { mtime: stats.mtimeMs, result: componentName });
+
       return componentName;
     } catch (e) {
       return null;
@@ -164,18 +179,12 @@ export class AstParser {
    */
   private static findPropertyByName(node: t.ObjectExpression, keyName: string): string | null {
     const prop = node.properties.find((p) => {
-      // 过滤掉 SpreadElement (...obj)
       if (p.type !== 'ObjectProperty') return false;
-
-      // 检查 key: name
       if (p.key.type === 'Identifier' && p.key.name === keyName) return true;
-      // 检查 key: 'name'
       if (p.key.type === 'StringLiteral' && p.key.value === keyName) return true;
-
       return false;
     });
 
-    // 确保 value 是字符串字面量
     if (prop && prop.type === 'ObjectProperty' && prop.value.type === 'StringLiteral') {
       return prop.value.value;
     }
