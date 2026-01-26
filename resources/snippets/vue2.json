@@ -34,26 +34,5 @@
     ],
     "style": "vue",
     "description": "vue2代码模版 (quick-ops提供)"
-  },
-  {
-    "prefix": "vue3",
-    "scope": [
-      "vue",
-      "vue3"
-    ],
-    "body": [
-      "<template>",
-      "<div>",
-      "  ${1}",
-      "</div>",
-      "</template>",
-      "<script lang='ts' setup>",
-      "</script>",
-      "<style lang='${0:[[cssLang]]}' scoped>",
-      "",
-      "</style>"
-    ],
-    "style": "vue",
-    "description": "vue3代码模版 (quick-ops提供)"
   }
 ]
