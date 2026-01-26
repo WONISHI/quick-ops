@@ -1,7 +1,6 @@
 import * as cheerio from 'cheerio';
 import { parse } from '@babel/parser';
 import traverse from '@babel/traverse';
-import * as t from '@babel/types';
 
 interface StyleNode {
   selector: string;
@@ -22,9 +21,6 @@ export class StyleStructureParser {
     return this.generateScss(nodes);
   }
 
-  // ==========================================
-  // 1. HTML / Vue 解析 (支持中间层无class透传)
-  // ==========================================
   private static parseHtmlOrVue(content: string, isVue: boolean): StyleNode[] {
     let htmlContent = content;
 
