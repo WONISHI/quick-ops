@@ -19,5 +19,59 @@
         ],
         "style": "vue",
         "description": "vue3代码模版 (quick-ops提供)"
+    },
+    {
+        "prefix": "watchEffect",
+        "scope": [
+            "vue",
+            "vue3"
+        ],
+        "body": [
+            "watchEffect(() => {",
+            "   ${0}",
+            "}"
+        ],
+        "style": "javascript",
+        "description": "vue3-watchEffect (quick-ops提供)"
+    },
+    {
+        "prefix": "wht",
+        "scope": [
+            "vue",
+            "vue3"
+        ],
+        "body": [
+            "watch(() => ${1},",
+            "   (newVal) => {",
+            "       ${0}",
+            "},",
+            "{ immediate: true, deep: true })"
+        ],
+        "style": "javascript",
+        "description": "vue3-watch-deep (quick-ops提供)"
+    },
+    {
+        "prefix": "irt",
+        "scope": [
+            "vue",
+            "vue3"
+        ],
+        "body": "import { ref } from 'vue'",
+        "style": "javascript",
+        "description": "vue3-import-ref (quick-ops提供)"
+    },
+    {
+        "prefix": "props",
+        "scope": [
+            "vue",
+            "vue3"
+        ],
+        "body": [
+            "const props = withDefaults(defineProps<${1}>(), {",
+            "   ${0}",
+            "})"
+        ],
+        "style": "javascript",
+        "description": "vue3-props (quick-ops提供)"
     }
 ]
