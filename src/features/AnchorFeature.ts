@@ -12,7 +12,6 @@ export class AnchorFeature implements IFeature {
   private statusBarItem: vscode.StatusBarItem | undefined;
   private decorationTypes: Map<string, vscode.TextEditorDecorationType> = new Map();
 
-  // 定义默认分组
   private readonly defaultGroups = ['default', 'Default', 'TODO', 'FIXME'];
 
   constructor() {
@@ -26,6 +25,7 @@ export class AnchorFeature implements IFeature {
     }
 
     const codeLensProvider = new AnchorCodeLensProvider();
+    // 注册 CodeLens 提供器的接口
     context.subscriptions.push(vscode.languages.registerCodeLensProvider({ scheme: 'file' }, codeLensProvider));
 
     this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -68,7 +68,6 @@ export class AnchorFeature implements IFeature {
     console.log(`[${this.id}] Activated.`);
   }
 
-  // 🔥🔥🔥 核心修复：确保获取到的行号和存储的行号一致（UI行号）
   private async handleAddAnchorCommand(...args: any[]) {
     try {
       const editor = vscode.window.activeTextEditor;
@@ -206,11 +205,7 @@ export class AnchorFeature implements IFeature {
   private async handleDeleteGroup(groupName: string) {
     const isDefault = this.defaultGroups.includes(groupName);
     const confirmMessage = isDefault ? `是否清空默认分组 [${groupName}] 下的所有记录？` : `确认要删除分组 [${groupName}] 及其下所有记录吗？`;
-    const selection = await vscode.window.showWarningMessage(
-      confirmMessage,
-      '确认删除', // 第一个按钮
-      '取消', // 第二个按钮
-    );
+    const selection = await vscode.window.showWarningMessage(confirmMessage, '确认删除', '取消');
     if (selection === '确认删除') {
       const anchorsToDelete = this.service.getAnchors().filter((a) => a.group === groupName);
       anchorsToDelete.forEach((anchor) => {

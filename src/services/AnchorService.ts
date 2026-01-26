@@ -73,7 +73,6 @@ export class AnchorService {
     }
   }
 
-  // 🔥 新增：移除分组
   public removeGroup(group: string) {
     this.groups = this.groups.filter((g) => g !== group);
     this.save();
