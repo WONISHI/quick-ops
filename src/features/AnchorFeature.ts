@@ -52,8 +52,8 @@ export class AnchorFeature implements IFeature {
       vscode.commands.registerCommand('quick-ops.anchor.showMenu', async () => {
         this.showGroupList(true);
       }),
-      vscode.commands.registerCommand('quick-ops.anchor.listByGroup', async (groupName: string) => {
-        this.showAnchorList(groupName, true);
+      vscode.commands.registerCommand('quick-ops.anchor.listByGroup', async (groupName: string, anchorId: string) => {
+        this.showAnchorList(groupName, true, undefined, anchorId);
       }),
       vscode.commands.registerCommand('quick-ops.anchor.navigate', async (currentId: string, direction: 'prev' | 'next') => {
         const target = this.service.getNeighborAnchor(currentId, direction);
@@ -261,15 +261,15 @@ export class AnchorFeature implements IFeature {
     }
   }
 
-  private async showAnchorList(groupName: string, isPreviewMode: boolean, pinnedLineIndex?: number) {
+  private async showAnchorList(groupName: string, isPreviewMode: boolean, pinnedLineIndex?: number, defaultAnchorId?: string) {
     const mapItems = () => {
       const latestAnchors = this.service.getAnchors().filter((a) => a.group === groupName);
-      return latestAnchors.map((a) => {
+      return latestAnchors.map((a, index) => {
         return {
           label: `$(file) ${path.basename(a.filePath)} : ${a.line}`,
           description: a.content,
           detail: a.filePath,
-          anchorId: a.id,
+          anchorId: a.id, // 确保 item 里有 id
           buttons: isPreviewMode
             ? [{ iconPath: new vscode.ThemeIcon('trash'), tooltip: '删除' }]
             : [
@@ -289,7 +289,15 @@ export class AnchorFeature implements IFeature {
       quickPick.title = `${ColorUtils.getEmoji(groupName)} [${groupName}] 列表`;
     }
 
-    quickPick.items = mapItems();
+    const items = mapItems();
+    quickPick.items = items;
+
+    if (defaultAnchorId) {
+      const targetItem = items.find((item) => item.anchorId === defaultAnchorId);
+      if (targetItem) {
+        quickPick.activeItems = [targetItem];
+      }
+    }
 
     quickPick.onDidAccept(() => {
       const selected = quickPick.selectedItems[0];
@@ -308,10 +316,15 @@ export class AnchorFeature implements IFeature {
 
       if (tooltip === '删除') {
         this.service.removeAnchor(anchorId);
-        quickPick.items = mapItems();
+        // 重新获取并刷新列表
+        const newItems = mapItems();
+        quickPick.items = newItems;
+        // 如果删除了之后列表不为空，保持选中位置或者选中第一个
+        // 这里简单处理：如果当前选中的是被删除的，VS Code 会自动处理焦点
         this.updateDecorations();
-        if (quickPick.items.length === 0 && isPreviewMode) quickPick.hide();
+        if (newItems.length === 0 && isPreviewMode) quickPick.hide();
       } else if (tooltip.includes('插入')) {
+        // ... (插入逻辑保持不变) ...
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
           vscode.window.showWarningMessage('请先激活编辑器');
@@ -343,6 +356,7 @@ export class AnchorFeature implements IFeature {
           this.service.insertAnchor(newAnchorData, anchorId, 'after');
         }
 
+        // 插入后刷新列表
         quickPick.items = mapItems();
         this.updateDecorations();
         vscode.window.showInformationMessage(`已插入第 ${lineToUseIndex + 1} 行`);

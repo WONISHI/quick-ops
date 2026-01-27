@@ -234,7 +234,7 @@
     }
   },
   "scripts": {
-    "build": "npx vsce package --no-yarn --no-dependencies",
+    "build": "npx vsce package --no-yarn --no-dependencies --mode production --devtool hidden-source-map",
     "vscode:prepublish": "pnpm run package",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
