@@ -74,6 +74,19 @@ quickOps 是一个 VS Code 扩展，集成了代码标记、本地文件忽略�
 - **NPM 脚本**：自动读取 `package.json` 中的 `scripts` 字段，提供列表供选择执行。
 - **自定义脚本**：支持在 `.quickopsrc` 中定义项目专属的 Shell 命令。
 
+### 8.剪贴板变量转换 (Smart Clipboard)
+
+无需打开网页工具，直接在编辑器中对剪贴板内容进行格式转换。支持非法字符校验，保留原有空格与缩进。
+
+| 命令       | 快捷键 (Win/Mac) | 示例（转换前 → 转换后） |
+| ---------- | ---------------- | ----------------------- |
+| 转小驼峰   | Ctrl + Alt + C   | user-id → userId        |
+| 转大驼峰   | Ctrl + Alt + P   | user-id → UserId        |
+| 转常量     | Ctrl + Alt + U   | user-id → USER_ID       |
+| 转短横线   | Ctrl + Alt + K   | userId → user-id        |
+| 转小写     | Ctrl + Alt + L   | USER ID → user id       |
+| 首字母大写 | Ctrl + Alt + F   | apple → Apple           |
+
 ---
 
 ## 配置说明
