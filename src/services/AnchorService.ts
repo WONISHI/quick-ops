@@ -46,10 +46,31 @@ export class AnchorService {
       anchors: this.anchors,
     };
     try {
-      fs.promises.writeFile(this.storagePath, JSON.stringify(data, null, 2), 'utf-8');
+      await fs.promises.writeFile(this.storagePath, JSON.stringify(data, null, 2), 'utf-8');
       this._onDidChangeAnchors.fire();
     } catch (error) {
       vscode.window.showErrorMessage('无法保存锚点文件: ' + error);
+    }
+  }
+
+  /**
+   * 核心改进：支持同时更新行号和内容
+   */
+  public updateAnchor(id: string, updates: { line?: number; content?: string }) {
+    const anchor = this.anchors.find((a) => a.id === id);
+    if (anchor) {
+      let changed = false;
+      if (updates.line !== undefined && anchor.line !== updates.line) {
+        anchor.line = updates.line;
+        changed = true;
+      }
+      if (updates.content !== undefined && anchor.content !== updates.content) {
+        anchor.content = updates.content;
+        changed = true;
+      }
+      if (changed) {
+        this.save();
+      }
     }
   }
 

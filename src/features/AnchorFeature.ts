@@ -25,7 +25,6 @@ export class AnchorFeature implements IFeature {
     }
 
     const codeLensProvider = new AnchorCodeLensProvider();
-    // 注册 CodeLens 提供器的接口
     context.subscriptions.push(vscode.languages.registerCodeLensProvider({ scheme: 'file' }, codeLensProvider));
 
     this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
@@ -34,17 +33,18 @@ export class AnchorFeature implements IFeature {
     this.statusBarItem.show();
     context.subscriptions.push(this.statusBarItem);
 
+    // 核心改进：监听保存事件并执行同步校对
     context.subscriptions.push(
       this.service.onDidChangeAnchors(() => this.updateDecorations()),
       vscode.window.onDidChangeActiveTextEditor(() => this.debouncedUpdate()),
-      vscode.workspace.onDidSaveTextDocument(() => this.updateDecorations()),
+      vscode.workspace.onDidSaveTextDocument((doc) => this.syncAnchorsWithContent(doc)),
     );
+
     let timer = setTimeout(() => {
       this.updateDecorations();
       clearTimeout(timer);
     }, 500);
 
-    // 注册指令
     context.subscriptions.push(
       vscode.commands.registerCommand('quick-ops.anchor.add', async (...args: any[]) => {
         this.handleAddAnchorCommand(...args);
@@ -67,8 +67,55 @@ export class AnchorFeature implements IFeature {
         this.service.removeAnchor(id);
       }),
     );
+  }
 
-    console.log(`[${this.id}] Activated.`);
+  /**
+   * 核心逻辑：自动校对锚点位置
+   */
+  private async syncAnchorsWithContent(doc: vscode.TextDocument) {
+    const rootPath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
+    const relativePath = path.relative(rootPath, doc.uri.fsPath).replace(/\\/g, '/');
+
+    const fileAnchors = this.service.getAnchors().filter((a) => a.filePath === relativePath);
+    if (fileAnchors.length === 0) return;
+
+    let hasUpdates = false;
+
+    for (const anchor of fileAnchors) {
+      const oldIndex = anchor.line - 1;
+
+      // 1. 如果原位置内容匹配，则无需操作
+      if (oldIndex < doc.lineCount && doc.lineAt(oldIndex).text.trim() === anchor.content) {
+        continue;
+      }
+
+      // 2. 原位置没匹配上，说明行号变了。全文搜索原本的内容
+      let foundNewSelection = false;
+      for (let i = 0; i < doc.lineCount; i++) {
+        const lineText = doc.lineAt(i).text.trim();
+        if (lineText === anchor.content && lineText !== '') {
+          this.service.updateAnchor(anchor.id, { line: i + 1 });
+          foundNewSelection = true;
+          hasUpdates = true;
+          break;
+        }
+      }
+
+      // 3. 全文也没找到原本的内容（说明内容也变了）
+      // 此时保持行号，更新内容为该行当前的新内容，防止该锚点以后彻底失效
+      if (!foundNewSelection) {
+        const currentLineIndex = Math.min(anchor.line - 1, doc.lineCount - 1);
+        const newContent = doc.lineAt(currentLineIndex).text.trim();
+        if (newContent !== anchor.content) {
+          this.service.updateAnchor(anchor.id, { content: newContent });
+          hasUpdates = true;
+        }
+      }
+    }
+
+    if (hasUpdates) {
+      this.updateDecorations();
+    }
   }
 
   private debouncedUpdate = debounce(() => this.updateDecorations(), 200);
@@ -81,25 +128,15 @@ export class AnchorFeature implements IFeature {
         return;
       }
 
-      // 1. 确定【UI行号】(即你眼睛看到的行号，从1开始)
       let uiLineNumber: number;
-
-      // 这里的逻辑是：VS Code 右键菜单行为
-      // 情况A：在编辑器内容区右键 -> 光标会自动移动到该行 -> 使用 selection (0-based) -> +1
-      // 情况B：在左侧行号栏右键 -> 光标不动，args里有 lineNumber (通常是 1-based)
-
       if (args.length > 0 && args[0] && isNumber(args[0].lineNumber)) {
-        // 来自行号栏右键：args[0].lineNumber 已经是 1-based (UI行号)
         uiLineNumber = args[0].lineNumber;
       } else {
-        // 来自内容区右键或快捷键：使用光标位置 (0-based) -> 手动 +1
         uiLineNumber = editor.selection.active.line + 1;
       }
 
-      // 2. 获取行内容 (读取文档内容需要 0-based 索引，所以要 -1)
       const doc = editor.document;
-      const contentLineIndex = uiLineNumber - 1;
-      const targetText = doc.lineAt(contentLineIndex).text.trim();
+      const targetText = doc.lineAt(uiLineNumber - 1).text.trim();
 
       const workspaceFolders = vscode.workspace.workspaceFolders;
       let rootPath = '';
@@ -121,7 +158,6 @@ export class AnchorFeature implements IFeature {
       const quickPick = vscode.window.createQuickPick();
       const previewText = targetText.length > 20 ? targetText.substring(0, 20) + '...' : targetText;
 
-      // 标题显示 UI 行号
       quickPick.title = `添加锚点: 第 ${uiLineNumber} 行 [${previewText}]`;
       quickPick.placeholder = '输入新分组名称或从列表中选择';
       quickPick.items = items;
@@ -147,14 +183,12 @@ export class AnchorFeature implements IFeature {
           if (existingAnchors.length === 0) {
             this.service.addAnchor({
               filePath: relativePath,
-              // 🔥 存入：UI 行号 (比如 25)
               line: uiLineNumber,
               content: targetText,
               group: groupName,
             });
             vscode.window.showInformationMessage(`已直接添加到 [${groupName}]`);
           } else {
-            // 列表显示逻辑里会再处理，传入 0-based index 方便预览高亮
             this.showAnchorList(groupName, false, uiLineNumber - 1);
           }
         } else {
@@ -227,17 +261,14 @@ export class AnchorFeature implements IFeature {
     }
   }
 
-  // pinnedLineIndex 是 0-based (用于高亮代码行)
   private async showAnchorList(groupName: string, isPreviewMode: boolean, pinnedLineIndex?: number) {
     const mapItems = () => {
       const latestAnchors = this.service.getAnchors().filter((a) => a.group === groupName);
       return latestAnchors.map((a) => {
         return {
-          // 🔥 显示：直接显示存储的 UI 行号 (比如 25)
           label: `$(file) ${path.basename(a.filePath)} : ${a.line}`,
           description: a.content,
           detail: a.filePath,
-          // @ts-ignore
           anchorId: a.id,
           buttons: isPreviewMode
             ? [{ iconPath: new vscode.ThemeIcon('trash'), tooltip: '删除' }]
@@ -287,7 +318,6 @@ export class AnchorFeature implements IFeature {
           return;
         }
 
-        // 获取插入点的 0-based index
         let lineToUseIndex: number;
         if (pinnedLineIndex !== undefined) {
           lineToUseIndex = pinnedLineIndex;
@@ -302,7 +332,6 @@ export class AnchorFeature implements IFeature {
 
         const newAnchorData = {
           filePath: relativePath,
-          // 🔥 插入也存 UI 行号 (0-based + 1)
           line: lineToUseIndex + 1,
           content: text,
           group: groupName,
@@ -323,7 +352,6 @@ export class AnchorFeature implements IFeature {
     quickPick.show();
   }
 
-  // 🔥 跳转：UI 行号 (25) -> 内部索引 (24)
   private async openFileAtLine(filePath: string, uiLine: number) {
     const rootPath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
     const absolutePath = path.join(rootPath, filePath);
@@ -332,7 +360,6 @@ export class AnchorFeature implements IFeature {
       const doc = await vscode.workspace.openTextDocument(absolutePath);
       const editor = await vscode.window.showTextDocument(doc);
 
-      // 减 1 才能对齐
       const lineIndex = Math.max(0, uiLine - 1);
       const pos = new vscode.Position(lineIndex, 0);
       editor.selection = new vscode.Selection(pos, pos);
