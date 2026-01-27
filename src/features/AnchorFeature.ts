@@ -261,15 +261,44 @@ export class AnchorFeature implements IFeature {
     }
   }
 
+  private getIconForFile(filePath: string): string {
+    const ext = path.extname(filePath).toLowerCase();
+    switch (ext) {
+      case '.ts':
+      case '.tsx':
+      case '.js':
+      case '.jsx':
+        return '$(file-code)';
+      case '.vue':
+      case '.html':
+        return '$(browser)';
+      case '.css':
+      case '.scss':
+      case '.less':
+        return '$(paintcan)';
+      case '.json':
+        return '$(json)';
+      case '.md':
+        return '$(markdown)';
+      case '.png':
+      case '.jpg':
+      case '.svg':
+        return '$(file-media)';
+      default:
+        return '$(file)'; 
+    }
+  }
+
   private async showAnchorList(groupName: string, isPreviewMode: boolean, pinnedLineIndex?: number, defaultAnchorId?: string) {
     const mapItems = () => {
       const latestAnchors = this.service.getAnchors().filter((a) => a.group === groupName);
       return latestAnchors.map((a, index) => {
+        const icon = this.getIconForFile(a.filePath);
         return {
-          label: `$(file) ${path.basename(a.filePath)} : ${a.line}`,
+          label: `${icon} ${path.basename(a.filePath)} : ${a.line}`,
           description: a.content,
           detail: a.filePath,
-          anchorId: a.id, // 确保 item 里有 id
+          anchorId: a.id,
           buttons: isPreviewMode
             ? [{ iconPath: new vscode.ThemeIcon('trash'), tooltip: '删除' }]
             : [
