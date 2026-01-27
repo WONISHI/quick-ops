@@ -87,14 +87,13 @@
             "items": {
                 "type": "object",
                 "required": [
-                    "name",
                     "prefix",
                     "body"
                 ],
                 "properties": {
-                    "name": {
+                    "style": {
                         "type": "string",
-                        "description": "代码片段名称 (Name of the snippet)"
+                        "description": "Markdown文档中代码块的语言高亮 (Syntax highlighting language in Markdown documentation)"
                     },
                     "prefix": {
                         "type": "string",
@@ -115,7 +114,10 @@
                         "description": "代码片段的功能描述 (Description of what this snippet does)"
                     },
                     "scope": {
-                        "type": "string",
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
                         "description": "语言作用域，如 'javascript,typescript'，缺省则全局生效 (Language scope. If omitted, applies globally)"
                     }
                 }

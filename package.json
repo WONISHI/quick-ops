@@ -2,7 +2,7 @@
   "name": "quick-ops",
   "displayName": "Quick Ops: Code Utils & Anchors",
   "description": "Boost productivity with Code Anchors, SCSS structure generation, and essential navigation shortcuts.",
-  "version": "0.0.18",
+  "version": "0.0.19",
   "engines": {
     "vscode": "^1.54.0"
   },
@@ -120,6 +120,72 @@
       {
         "command": "quick-ops.anchor.delete",
         "title": "Delete Anchor"
+      },
+      {
+        "command": "quick-ops.addToSnippets",
+        "title": "添加选中内容到代码片段 (Add to Quick Ops Snippets)"
+      },
+      {
+        "command": "quick-ops.transformToLower",
+        "title": "剪贴板转全部小写 (Clipboard to lowercase)"
+      },
+      {
+        "command": "quick-ops.transformToCamel",
+        "title": "剪贴板转小驼峰 (Clipboard to camelCase)"
+      },
+      {
+        "command": "quick-ops.transformToPascal",
+        "title": "剪贴板转大驼峰 (Clipboard to PascalCase)"
+      },
+      {
+        "command": "quick-ops.transformToConstant",
+        "title": "剪贴板转全大写常量 (Clipboard to CONSTANT_CASE)"
+      },
+      {
+        "command": "quick-ops.transformToFirstUpper",
+        "title": "剪贴板首字母大写 (Clipboard to UpperFirst)"
+      },
+      {
+        "command": "quick-ops.transformToKebab",
+        "title": "剪贴板转短横线 (Clipboard to kebab-case)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "quick-ops.transformToKebab",
+        "key": "ctrl+alt+k",
+        "mac": "cmd+alt+k",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "quick-ops.transformToLower",
+        "key": "ctrl+alt+l",
+        "mac": "cmd+alt+l",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "quick-ops.transformToCamel",
+        "key": "ctrl+alt+c",
+        "mac": "cmd+alt+c",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "quick-ops.transformToPascal",
+        "key": "ctrl+alt+p",
+        "mac": "cmd+alt+p",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "quick-ops.transformToConstant",
+        "key": "ctrl+alt+u",
+        "mac": "cmd+alt+u",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "quick-ops.transformToFirstUpper",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+f",
+        "when": "editorTextFocus"
       }
     ],
     "menus": {
@@ -150,6 +216,13 @@
           "command": "quick-ops.generateStyleStructure",
           "group": "quickOps@2",
           "when": "resourceLangId == vue || resourceLangId == html || resourceLangId == javascriptreact || resourceLangId == typescriptreact"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "quick-ops.addToSnippets",
+          "group": "1_modification",
+          "when": "editorHasSelection"
         }
       ],
       "editor/lineNumber/context": [
