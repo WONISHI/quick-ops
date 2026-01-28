@@ -54,42 +54,108 @@ export class AnchorService {
   }
 
   /**
-   * 🔥 新增：移动/交换锚点位置
+   * 生成思维导图数据结构 (D3.js Tree 格式)
    */
-  public moveAnchor(id: string, direction: 'up' | 'down') {
+  public getMindMapData() {
+    const root = { name: 'QuickOps Anchors', children: [] as any[] };
+
+    this.groups.forEach((groupName) => {
+      const groupAnchors = this.anchors.filter((a) => a.group === groupName);
+
+      // 只有当分组下有锚点，或者显式存在于 groups 列表中时才显示
+      const groupNode = {
+        name: groupName,
+        children: groupAnchors.map((a) => ({
+          name: a.description || path.basename(a.filePath), // 优先显示备注，否则显示文件名
+          id: a.id,
+          data: a, // 携带完整数据供前端跳转使用
+        })),
+      };
+
+      // 只有当分组有内容时才加入树，避免空节点过多干扰视图（可根据需求调整）
+      if (groupNode.children.length > 0) {
+        root.children.push(groupNode);
+      }
+    });
+
+    return root;
+  }
+
+  /**
+   * 循环交换顺序：当前项与上一项交换；如果是第一项，则与最后一项交换
+   */
+  public cycleAnchorOrder(id: string) {
     const anchor = this.getAnchorById(id);
     if (!anchor) return;
 
-    // 1. 获取同组的所有锚点
+    // 获取同组锚点
     const groupAnchors = this.anchors.filter((a) => a.group === anchor.group);
+    if (groupAnchors.length < 2) return;
+
     const indexInGroup = groupAnchors.findIndex((a) => a.id === id);
-
-    if (indexInGroup === -1) return;
-
-    // 2. 确定要交换的目标索引
     let targetIndexInGroup = -1;
-    if (direction === 'up') {
-      if (indexInGroup > 0) targetIndexInGroup = indexInGroup - 1;
-    } else {
-      if (indexInGroup < groupAnchors.length - 1) targetIndexInGroup = indexInGroup + 1;
-    }
 
-    if (targetIndexInGroup === -1) return; // 已经在顶部或底部，无法移动
+    if (indexInGroup === 0) {
+      targetIndexInGroup = groupAnchors.length - 1; // 第一项换到最后
+    } else {
+      targetIndexInGroup = indexInGroup - 1; // 否则跟上一个换
+    }
 
     const targetAnchor = groupAnchors[targetIndexInGroup];
 
-    // 3. 在主数组中交换位置
+    // 在主数组中交换
     const indexA = this.anchors.indexOf(anchor);
     const indexB = this.anchors.indexOf(targetAnchor);
 
     if (indexA !== -1 && indexB !== -1) {
-      this.anchors[indexA] = targetAnchor;
-      this.anchors[indexB] = anchor;
+      [this.anchors[indexA], this.anchors[indexB]] = [this.anchors[indexB], this.anchors[indexA]];
       this.save();
     }
   }
 
-  public updateAnchor(id: string, updates: { line?: number; content?: string; description?: string }) {
+  /**
+   * 移动锚点到指定分组的特定位置 (用于“移动/归档”功能)
+   */
+  public moveAnchorToGroup(anchorId: string, targetGroupName: string, targetIndexInGroup: number, position: 'before' | 'after') {
+    const anchorIndex = this.anchors.findIndex((a) => a.id === anchorId);
+    if (anchorIndex === -1) return;
+
+    // 1. 从原位置移除
+    const [anchor] = this.anchors.splice(anchorIndex, 1);
+
+    // 2. 更新分组
+    anchor.group = targetGroupName;
+
+    // 3. 确定插入位置
+    const targetGroupAnchors = this.anchors.filter((a) => a.group === targetGroupName);
+
+    if (targetGroupAnchors.length === 0) {
+      // 目标组为空，直接追加
+      this.anchors.push(anchor);
+    } else {
+      // 找到目标锚点在全局数组中的位置
+      // 注意：targetIndexInGroup 是基于 targetGroupAnchors 的索引
+      // 需要做越界保护
+      const safeIndex = Math.min(targetIndexInGroup, targetGroupAnchors.length - 1);
+      const targetAnchor = targetGroupAnchors[safeIndex];
+      const globalTargetIndex = this.anchors.indexOf(targetAnchor);
+
+      if (globalTargetIndex !== -1) {
+        if (position === 'before') {
+          this.anchors.splice(globalTargetIndex, 0, anchor);
+        } else {
+          this.anchors.splice(globalTargetIndex + 1, 0, anchor);
+        }
+      } else {
+        // 兜底：如果找不到目标，加到最后
+        this.anchors.push(anchor);
+      }
+    }
+
+    this.save();
+  }
+
+  public updateAnchor(id: string, updates: { line?: number; content?: string; description?: string; group?: string }) {
     const anchor = this.anchors.find((a) => a.id === id);
     if (anchor) {
       let changed = false;
@@ -105,7 +171,10 @@ export class AnchorService {
         anchor.description = updates.description;
         changed = true;
       }
-      
+      if (updates.group !== undefined && anchor.group !== updates.group) {
+        anchor.group = updates.group;
+        changed = true;
+      }
       if (changed) {
         this.save();
       }
