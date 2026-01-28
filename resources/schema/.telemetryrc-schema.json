@@ -51,6 +51,10 @@
                     "timestamp": {
                         "type": "number",
                         "description": "创建时间戳"
+                    },
+                    "description": {
+                        "type": "string",
+                        "description": "锚点备注信息"
                     }
                 }
             }

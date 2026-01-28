@@ -85,7 +85,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
       lenses.push(
         new vscode.CodeLens(range, {
           title: `${emoji} ${anchor.group}-${Number(i) + 1}`,
-          tooltip: '查看该组所有锚点',
+          tooltip: anchor.description || '查看该组所有锚点',
           command: 'quick-ops.anchor.listByGroup',
           arguments: [anchor.group, anchor.id],
         }),

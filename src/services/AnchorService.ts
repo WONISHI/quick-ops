@@ -89,7 +89,7 @@ export class AnchorService {
     }
   }
 
-  public updateAnchor(id: string, updates: { line?: number; content?: string }) {
+  public updateAnchor(id: string, updates: { line?: number; content?: string; description?: string }) {
     const anchor = this.anchors.find((a) => a.id === id);
     if (anchor) {
       let changed = false;
@@ -101,6 +101,11 @@ export class AnchorService {
         anchor.content = updates.content;
         changed = true;
       }
+      if (updates.description !== undefined && anchor.description !== updates.description) {
+        anchor.description = updates.description;
+        changed = true;
+      }
+      
       if (changed) {
         this.save();
       }

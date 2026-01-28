@@ -302,9 +302,11 @@ export class AnchorFeature implements IFeature {
           if (index < latestAnchors.length - 1) {
             buttons.push({ iconPath: new vscode.ThemeIcon('arrow-down'), tooltip: '下移' });
           }
+          buttons.push({ iconPath: new vscode.ThemeIcon('edit'), tooltip: '添加备注' });
           buttons.push({ iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: '删除' });
         } else if (isPreviewMode) {
-          buttons = [{ iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: '删除' }];
+          buttons.push({ iconPath: new vscode.ThemeIcon('edit'), tooltip: '添加备注' });
+          buttons.push({ iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: '删除' });
         } else {
           buttons = [
             { iconPath: new vscode.ThemeIcon('arrow-up'), tooltip: '在此项【之前】插入' },
@@ -312,12 +314,19 @@ export class AnchorFeature implements IFeature {
             { iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: '删除' },
           ];
         }
+
+        let detailText = a.filePath; // 默认展示路径
+        if (a.description && a.description.trim()) {
+          detailText = a.description.length > 30 ? `📝 ${a.description.substring(0, 30)}...` : `📝 ${a.description}`;
+        }
+
         return {
           label: `${icon} ${path.basename(a.filePath)} : ${a.line}`,
           description: a.content,
-          detail: a.filePath,
+          detail: detailText,
           anchorId: a.id,
           buttons: buttons,
+          rawDescription: a.description,
         };
       });
     };
@@ -367,7 +376,30 @@ export class AnchorFeature implements IFeature {
       const anchorId = e.item.anchorId;
       const tooltip = e.button.tooltip || '';
 
-      if (tooltip === '上移') {
+      if (tooltip === '添加备注') {
+        const currentDesc = e.item.rawDescription || '';
+
+        // 弹出输入框
+        const input = await vscode.window.showInputBox({
+          title: '设置锚点备注',
+          placeHolder: '例如：需要重构此逻辑 / 待修复的 Bug',
+          value: currentDesc, // 回显已有备注
+          validateInput: (text) => {
+            return text.trim().length === 0 ? '备注内容不能为空' : null;
+          },
+        });
+
+        if (input !== undefined) {
+          // 用户没有按 Esc 取消
+          // 更新 Service
+          this.service.updateAnchor(anchorId, { description: input.trim() });
+          // 刷新列表显示
+          refreshList(anchorId);
+          // 刷新编辑器内的 CodeLens
+          this.updateDecorations();
+          vscode.window.showInformationMessage('备注已更新');
+        }
+      } else if (tooltip === '上移') {
         this.service.moveAnchor(anchorId, 'up');
         // 移动后刷新，并保持聚焦在当前移动的条目上，方便连续移动
         refreshList(anchorId);
