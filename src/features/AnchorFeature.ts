@@ -294,18 +294,30 @@ export class AnchorFeature implements IFeature {
       const latestAnchors = this.service.getAnchors().filter((a) => a.group === groupName);
       return latestAnchors.map((a, index) => {
         const icon = this.getIconForFile(a.filePath);
+        let buttons: any[] = [];
+        if (defaultAnchorId) {
+          if (index > 0) {
+            buttons.push({ iconPath: new vscode.ThemeIcon('arrow-up'), tooltip: '上移' });
+          }
+          if (index < latestAnchors.length - 1) {
+            buttons.push({ iconPath: new vscode.ThemeIcon('arrow-down'), tooltip: '下移' });
+          }
+          buttons.push({ iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: '删除' });
+        } else if (isPreviewMode) {
+          buttons = [{ iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: '删除' }];
+        } else {
+          buttons = [
+            { iconPath: new vscode.ThemeIcon('arrow-up'), tooltip: '在此项【之前】插入' },
+            { iconPath: new vscode.ThemeIcon('arrow-down'), tooltip: '在此项【之后】插入' },
+            { iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: '删除' },
+          ];
+        }
         return {
           label: `${icon} ${path.basename(a.filePath)} : ${a.line}`,
           description: a.content,
           detail: a.filePath,
           anchorId: a.id,
-          buttons: isPreviewMode
-            ? [{ iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: '删除' }]
-            : [
-                { iconPath: new vscode.ThemeIcon('arrow-up'), tooltip: '在此项【之前】插入' },
-                { iconPath: new vscode.ThemeIcon('arrow-down'), tooltip: '在此项【之后】插入' },
-                { iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: '删除' },
-              ],
+          buttons: buttons,
         };
       });
     };
@@ -318,15 +330,27 @@ export class AnchorFeature implements IFeature {
       quickPick.title = `${ColorUtils.getEmoji(groupName)} [${groupName}] 列表`;
     }
 
-    const items = mapItems();
-    quickPick.items = items;
+    const refreshList = (targetAnchorId?: string) => {
+      const items = mapItems();
+      quickPick.items = items;
 
-    if (defaultAnchorId) {
-      const targetItem = items.find((item) => item.anchorId === defaultAnchorId);
-      if (targetItem) {
-        quickPick.activeItems = [targetItem];
+      // 如果指定了要选中的 ID，则高亮它
+      if (targetAnchorId) {
+        const targetItem = items.find((item) => item.anchorId === targetAnchorId);
+        if (targetItem) {
+          quickPick.activeItems = [targetItem];
+        }
+      } else if (defaultAnchorId && !targetAnchorId) {
+        // 初始化时如果有默认 ID，也高亮
+        const targetItem = items.find((item) => item.anchorId === defaultAnchorId);
+        if (targetItem) {
+          quickPick.activeItems = [targetItem];
+        }
       }
-    }
+    };
+
+    // 初始化显示
+    refreshList();
 
     quickPick.onDidAccept(() => {
       const selected = quickPick.selectedItems[0];
@@ -343,13 +367,20 @@ export class AnchorFeature implements IFeature {
       const anchorId = e.item.anchorId;
       const tooltip = e.button.tooltip || '';
 
-      if (tooltip === '删除') {
-        this.service.removeAnchor(anchorId);
-        // 重新获取并刷新列表
-        const newItems = mapItems();
-        quickPick.items = newItems;
+      if (tooltip === '上移') {
+        this.service.moveAnchor(anchorId, 'up');
+        // 移动后刷新，并保持聚焦在当前移动的条目上，方便连续移动
+        refreshList(anchorId);
         this.updateDecorations();
-        if (newItems.length === 0 && isPreviewMode) quickPick.hide();
+      } else if (tooltip === '下移') {
+        this.service.moveAnchor(anchorId, 'down');
+        refreshList(anchorId);
+        this.updateDecorations();
+      } else if (tooltip === '删除') {
+        this.service.removeAnchor(anchorId);
+        refreshList(); // 删除后刷新
+        this.updateDecorations();
+        if (quickPick.items.length === 0 && isPreviewMode) quickPick.hide();
       } else if (tooltip.includes('插入')) {
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
@@ -382,8 +413,7 @@ export class AnchorFeature implements IFeature {
           this.service.insertAnchor(newAnchorData, anchorId, 'after');
         }
 
-        // 插入后刷新列表
-        quickPick.items = mapItems();
+        refreshList();
         this.updateDecorations();
         vscode.window.showInformationMessage(`已插入第 ${lineToUseIndex + 1} 行`);
       }

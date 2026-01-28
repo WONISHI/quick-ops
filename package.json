@@ -57,6 +57,10 @@
       {
         "fileMatch": ".quickopsrc",
         "url": "./resources/schema/.quickopsrc-schema.json"
+      },
+      {
+        "fileMatch": ".telemetryrc",
+        "url": "./resources/schema/.telemetryrc-schema.json"
       }
     ],
     "webviews": {
@@ -252,7 +256,6 @@
     "@types/glob": "^9.0.0",
     "@types/lodash-es": "^4",
     "@types/mocha": "^10.0.10",
-    "@types/mockjs": "^1.0.10",
     "@types/node": "22.x",
     "@types/vscode": "^1.54.0",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
@@ -285,9 +288,7 @@
     "change-case": "^5.4.4",
     "cheerio": "^1.1.2",
     "dayjs": "^1.11.13",
-    "ignore": "^7.0.5",
     "lodash-es": "^4.17.23",
-    "mockjs": "^1.1.0",
     "nanoid": "^5.1.6",
     "terser-webpack-plugin": "^5.3.14"
   }

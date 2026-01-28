@@ -1,0 +1,59 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Telemetry Config",
+    "description": "Quick Ops 锚点数据存储文件 (Anchors storage file for Quick Ops)",
+    "type": "object",
+    "properties": {
+        "groups": {
+            "type": "array",
+            "description": "锚点分组列表 (List of anchor groups)",
+            "items": {
+                "type": "string"
+            },
+            "default": [
+                "Default"
+            ]
+        },
+        "anchors": {
+            "type": "array",
+            "description": "具体的锚点记录 (List of anchor records)",
+            "items": {
+                "type": "object",
+                "required": [
+                    "filePath",
+                    "line",
+                    "content",
+                    "group",
+                    "id",
+                    "timestamp"
+                ],
+                "properties": {
+                    "filePath": {
+                        "type": "string",
+                        "description": "文件相对路径"
+                    },
+                    "line": {
+                        "type": "number",
+                        "description": "行号"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "行内容快照"
+                    },
+                    "group": {
+                        "type": "string",
+                        "description": "所属分组"
+                    },
+                    "id": {
+                        "type": "string",
+                        "description": "唯一标识符"
+                    },
+                    "timestamp": {
+                        "type": "number",
+                        "description": "创建时间戳"
+                    }
+                }
+            }
+        }
+    }
+}

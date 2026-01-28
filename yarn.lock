@@ -884,13 +884,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/mockjs@npm:^1.0.10":
-  version: 1.0.10
-  resolution: "@types/mockjs@npm:1.0.10"
-  checksum: 10c0/080e7d7e572fbc04892c60846f767049676976f562b7ce22568b6cc6d81eff7e9b0727ec48f02a57bb108d6dfdf8bf622374e0f0b1fad2c9417d0976c3c5aef9
-  languageName: node
-  linkType: hard
-
 "@types/node@npm:*":
   version: 24.3.1
   resolution: "@types/node@npm:24.3.1"
@@ -2145,13 +2138,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"commander@npm:*":
-  version: 14.0.1
-  resolution: "commander@npm:14.0.1"
-  checksum: 10c0/64439c0651ddd01c1d0f48c8f08e97c18a0a1fa693879451f1203ad01132af2c2aa85da24cf0d8e098ab9e6dc385a756be670d2999a3c628ec745c3ec124587b
-  languageName: node
-  linkType: hard
-
 "commander@npm:^12.1.0":
   version: 12.1.0
   resolution: "commander@npm:12.1.0"
@@ -3326,7 +3312,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ignore@npm:^7.0.0, ignore@npm:^7.0.3, ignore@npm:^7.0.5":
+"ignore@npm:^7.0.0, ignore@npm:^7.0.3":
   version: 7.0.5
   resolution: "ignore@npm:7.0.5"
   checksum: 10c0/ae00db89fe873064a093b8999fe4cc284b13ef2a178636211842cceb650b9c3e390d3339191acb145d81ed5379d2074840cf0c33a20bdbd6f32821f79eb4ad5d
@@ -4368,17 +4354,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"mockjs@npm:^1.1.0":
-  version: 1.1.0
-  resolution: "mockjs@npm:1.1.0"
-  dependencies:
-    commander: "npm:*"
-  bin:
-    random: bin/random
-  checksum: 10c0/b96f7f2845da5dd0c8305e2931da6bde00bf13314bc48d1c0ee1a56346da187be678acc0f657c9a5bde15d85ee3e6c9337562c8e43016689bc7a53d4d2500c10
-  languageName: node
-  linkType: hard
-
 "mrmime@npm:^2.0.0":
   version: 2.0.1
   resolution: "mrmime@npm:2.0.1"
@@ -5121,7 +5096,6 @@ __metadata:
     "@types/glob": "npm:^9.0.0"
     "@types/lodash-es": "npm:^4"
     "@types/mocha": "npm:^10.0.10"
-    "@types/mockjs": "npm:^1.0.10"
     "@types/node": "npm:22.x"
     "@types/vscode": "npm:^1.54.0"
     "@typescript-eslint/eslint-plugin": "npm:^8.39.0"
@@ -5137,10 +5111,8 @@ __metadata:
     eslint-config-prettier: "npm:^10.1.8"
     eslint-plugin-prettier: "npm:^5.5.4"
     glob: "npm:^13.0.0"
-    ignore: "npm:^7.0.5"
     lodash-es: "npm:^4.17.23"
     mocha: "npm:^11.7.5"
-    mockjs: "npm:^1.1.0"
     nanoid: "npm:^5.1.6"
     prettier: "npm:^3.6.2"
     pug: "npm:^3.0.3"

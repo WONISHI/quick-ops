@@ -54,8 +54,41 @@ export class AnchorService {
   }
 
   /**
-   * 核心改进：支持同时更新行号和内容
+   * 🔥 新增：移动/交换锚点位置
    */
+  public moveAnchor(id: string, direction: 'up' | 'down') {
+    const anchor = this.getAnchorById(id);
+    if (!anchor) return;
+
+    // 1. 获取同组的所有锚点
+    const groupAnchors = this.anchors.filter((a) => a.group === anchor.group);
+    const indexInGroup = groupAnchors.findIndex((a) => a.id === id);
+
+    if (indexInGroup === -1) return;
+
+    // 2. 确定要交换的目标索引
+    let targetIndexInGroup = -1;
+    if (direction === 'up') {
+      if (indexInGroup > 0) targetIndexInGroup = indexInGroup - 1;
+    } else {
+      if (indexInGroup < groupAnchors.length - 1) targetIndexInGroup = indexInGroup + 1;
+    }
+
+    if (targetIndexInGroup === -1) return; // 已经在顶部或底部，无法移动
+
+    const targetAnchor = groupAnchors[targetIndexInGroup];
+
+    // 3. 在主数组中交换位置
+    const indexA = this.anchors.indexOf(anchor);
+    const indexB = this.anchors.indexOf(targetAnchor);
+
+    if (indexA !== -1 && indexB !== -1) {
+      this.anchors[indexA] = targetAnchor;
+      this.anchors[indexB] = anchor;
+      this.save();
+    }
+  }
+
   public updateAnchor(id: string, updates: { line?: number; content?: string }) {
     const anchor = this.anchors.find((a) => a.id === id);
     if (anchor) {
