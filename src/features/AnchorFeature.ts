@@ -215,7 +215,7 @@ export class AnchorFeature implements IFeature {
         label: g,
         iconPath: new vscode.ThemeIcon('symbol-folder'),
         description: ColorUtils.getEmoji(g),
-        buttons: [{ iconPath: new vscode.ThemeIcon('trash'), tooltip: '删除分组' }],
+        buttons: [{ iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: '删除分组' }],
       }));
     };
 
@@ -285,7 +285,7 @@ export class AnchorFeature implements IFeature {
       case '.svg':
         return '$(file-media)';
       default:
-        return '$(file)'; 
+        return '$(file)';
     }
   }
 
@@ -300,11 +300,11 @@ export class AnchorFeature implements IFeature {
           detail: a.filePath,
           anchorId: a.id,
           buttons: isPreviewMode
-            ? [{ iconPath: new vscode.ThemeIcon('trash'), tooltip: '删除' }]
+            ? [{ iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: '删除' }]
             : [
                 { iconPath: new vscode.ThemeIcon('arrow-up'), tooltip: '在此项【之前】插入' },
                 { iconPath: new vscode.ThemeIcon('arrow-down'), tooltip: '在此项【之后】插入' },
-                { iconPath: new vscode.ThemeIcon('trash'), tooltip: '删除' },
+                { iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: '删除' },
               ],
         };
       });
@@ -348,12 +348,9 @@ export class AnchorFeature implements IFeature {
         // 重新获取并刷新列表
         const newItems = mapItems();
         quickPick.items = newItems;
-        // 如果删除了之后列表不为空，保持选中位置或者选中第一个
-        // 这里简单处理：如果当前选中的是被删除的，VS Code 会自动处理焦点
         this.updateDecorations();
         if (newItems.length === 0 && isPreviewMode) quickPick.hide();
       } else if (tooltip.includes('插入')) {
-        // ... (插入逻辑保持不变) ...
         const editor = vscode.window.activeTextEditor;
         if (!editor) {
           vscode.window.showWarningMessage('请先激活编辑器');
