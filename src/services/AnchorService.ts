@@ -45,18 +45,24 @@ export class AnchorService {
     }
   }
 
+  // 🔥 核心修复：调整了 refreshFlotAnchors 的调用位置
   private async save() {
+    // 1. 立即刷新内存中的扁平索引，确保后续同步代码（如 UI 刷新）能读到最新数据
+    this.refreshFlotAnchors();
+    // 2. 立即触发事件，让装饰器等同步更新
+    this._onDidChangeAnchors.fire();
+
     if (!this.storagePath) return;
+
     const data: AnchorConfig = {
       groups: this.groups,
       children: this.itemGroups,
       anchors: this.anchors,
     };
+
     try {
+      // 3. 然后再执行耗时的文件写入
       await fs.promises.writeFile(this.storagePath, JSON.stringify(data, null, 2), 'utf-8');
-      // 保存成功后刷新扁平索引，确保数据一致
-      this.refreshFlotAnchors();
-      this._onDidChangeAnchors.fire();
     } catch (error) {
       vscode.window.showErrorMessage('无法保存锚点文件: ' + error);
     }
@@ -140,24 +146,16 @@ export class AnchorService {
       if (updates.description !== undefined && anchor.description !== updates.description) {
         anchor.description = updates.description;
 
-        // 🔥 关键修正：如果修改了 description，且该节点有子项，且子项的 group 依赖于父节点的 description
-        // 注意：这里假设子节点的 group 属性应该等于父节点的 description (作为子分组名)
+        // 如果修改了 description，且该节点有子项，同步更新子项的 group
         if (anchor.items && anchor.items.length > 0) {
-          // 递归更新所有子孙节点的 group 属性
           const updateChildrenGroup = (items: AnchorData[], newGroupName: string) => {
             items.forEach((child) => {
               child.group = newGroupName;
-              // 如果子节点还有子节点，且逻辑也是继承分组名，则继续递归
-              // 但通常子节点的子节点可能属于更深层的分组，这里仅更新直接子级或者根据你的业务逻辑调整
-              // 假设所有后代都属于这个父分组名（扁平化分组视角）：
               if (child.items && child.items.length > 0) {
-                // 如果这是个纯粹的层级结构，子项的 group 可能是 "ParentDesc/ChildDesc" ?
-                // 既然之前的代码是直接赋值，这里保持一致：
                 updateChildrenGroup(child.items, newGroupName);
               }
             });
           };
-          // 只有当 description 有值时才作为分组名，防止空字符串导致分组丢失
           if (anchor.description) {
             updateChildrenGroup(anchor.items, anchor.description);
           }
@@ -214,7 +212,6 @@ export class AnchorService {
     };
     // 默认放到最后，更新 sort
     if (this.anchors.length > 0) {
-      // 简单的自动递增 sort，实际可能需要更复杂的逻辑
       const lastSort = parseInt(String(this.anchors[this.anchors.length - 1].sort || 0));
       newAnchor.sort = isNaN(lastSort) ? 1 : lastSort + 1;
     } else {
@@ -243,10 +240,6 @@ export class AnchorService {
       const sort = parent.items.length + 1;
       newAnchor.sort = sort;
 
-      // 子节点的 group 通常应该跟随父节点的标识（如 description 或 group）
-      // 这里根据上下文假设，如果父节点是作为分组容器，子节点的 group 属性可能需要同步
-      // 但你的入参 anchor 中已经包含了 group，所以以入参为准
-
       parent.items.push(newAnchor);
       this.save();
     }
@@ -254,12 +247,9 @@ export class AnchorService {
 
   // 插入到指定节点前后 (支持嵌套)
   public insertAnchor(anchor: Omit<AnchorData, 'id' | 'timestamp' | 'sort'>, targetId: string, position: 'before' | 'after') {
-    // 找到包含 targetId 的数组
     const container = this.findContainerArray(targetId, this.anchors);
 
-    // 如果找不到 (比如 targetId 不存在)，则默认追加到根
     if (!container) {
-      // 这里的 sort 逻辑简单处理为 1，或者你可以查找最大值
       this.addAnchor({ ...anchor, sort: 1 });
       return;
     }
@@ -271,11 +261,10 @@ export class AnchorService {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       timestamp: Date.now(),
       items: [],
-      sort: undefined, // 稍后重算
+      sort: undefined,
     };
 
-    // 如果插入的是子节点，可能需要继承 pid
-    // 获取 targetItem 以检查其 pid
+    // 继承父级ID
     const targetItem = list[index];
     if (targetItem.pid) {
       newAnchor.pid = targetItem.pid;
@@ -298,7 +287,6 @@ export class AnchorService {
     const container = this.findContainerArray(id, this.anchors);
     if (container) {
       container.list.splice(container.index, 1);
-      // 删除后也可以选择重算 sort，保持连续性
       container.list.forEach((item, idx) => (item.sort = idx + 1));
       this.save();
     }
@@ -315,10 +303,7 @@ export class AnchorService {
   }
 
   public getNeighborAnchor(currentId: string, direction: 'prev' | 'next'): AnchorData | undefined {
-    // 使用扁平列表进行导航
-    const flatList = this.flotAnchors; // 假设导航是基于文件扁平顺序，或者是基于 group 扁平顺序
-    // 如果你是希望在“同级”导航，应该用 findContainerArray
-    // 这里保留你原本意图：在扁平视图中导航
+    const flatList = this.flotAnchors;
     const index = flatList.findIndex((a) => a.id === currentId);
     if (index === -1) return undefined;
 
@@ -330,7 +315,6 @@ export class AnchorService {
   }
 
   public updateAnchorLine(id: string, newLine: number) {
-    // 复用 updateAnchor
     this.updateAnchor(id, { line: newLine });
   }
 }

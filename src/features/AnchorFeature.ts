@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { isNumber, isFunction, debounce } from 'lodash-es';
+import { isNumber, debounce, isFunction } from 'lodash-es';
 import { IFeature } from '../core/interfaces/IFeature';
 import { AnchorService } from '../services/AnchorService';
 import { AnchorCodeLensProvider } from '../providers/AnchorCodeLensProvider';
 import { ColorUtils } from '../utils/ColorUtils';
 
+// 常量定义，方便维护
 const TOOLTIPS = {
   ADD_NOTE: '添加备注',
   UP: '上移',
@@ -440,6 +441,10 @@ export class AnchorFeature implements IFeature {
         case TOOLTIPS.INSERT_AFTER:
           await this.handleInsertAnchor(anchorId, tooltip === TOOLTIPS.INSERT_BEFORE ? 'before' : 'after', groupName, pinnedLineIndex);
           refreshList();
+          let timer = setTimeout(() => {
+            quickPick.hide();
+            clearTimeout(timer);
+          }, 1000);
           break;
       }
     });
