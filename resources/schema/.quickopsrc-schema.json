@@ -17,6 +17,11 @@
                     "type": "boolean",
                     "default": true,
                     "description": "是否在 Git 中忽略配置文件 (Whether to ignore configuration files in Git)"
+                },
+                "anchorViewMode": {
+                    "type": "string",
+                    "default": "menu",
+                    "description": "锚点视图预览模式"
                 }
             }
         },

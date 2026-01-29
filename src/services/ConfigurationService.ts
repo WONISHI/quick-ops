@@ -12,7 +12,7 @@ import { IService } from '../core/interfaces/IService';
 const execAsync = promisify(exec);
 
 export interface ILogrcConfig {
-  general: { debug: boolean; excludeConfigFiles: boolean };
+  general: { debug: boolean; excludeConfigFiles: boolean; anchorViewMode?: 'menu' | 'mindmap' };
   logger: { template: string; dateFormat: string };
   utils: { uuidLength: number };
   mock: { port: number; asyncMode: boolean; workerCount: number };
@@ -204,7 +204,6 @@ export class ConfigurationService extends EventEmitter implements IService {
     }
     this.removeAllListeners();
   }
-
 
   private async handleGitConfiguration() {
     try {
