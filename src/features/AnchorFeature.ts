@@ -155,88 +155,125 @@ export class AnchorFeature implements IFeature {
                 onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css';">
 
           <style>
-              body { background-color: var(--vscode-editor-background); color: var(--vscode-editor-foreground); margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: var(--vscode-font-family); }
+              :root {
+                  --node-text-color: var(--vscode-editor-foreground);
+                  --node-hover-bg: var(--vscode-list-hoverBackground);
+                  --tooltip-bg: var(--vscode-editorHoverWidget-background);
+                  --tooltip-border: var(--vscode-editorHoverWidget-border);
+                  --code-bg: var(--vscode-textBlockQuote-background);
+                  --accent-color: var(--vscode-textLink-foreground);
+              }
+
+              body { background-color: var(--vscode-editor-background); color: var(--vscode-editor-foreground); margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
               #tree-container { width: 100%; height: 100%; cursor: grab; }
               #tree-container:active { cursor: grabbing; }
               
-              /* 错误提示样式 */
               #error-message { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: var(--vscode-errorForeground); }
 
-              .node { cursor: default; }
+              /* --- 节点样式 --- */
+              .node { cursor: pointer; }
               
-              /* --- 圆点样式 --- */
-              .node circle { transition: all 0.3s ease; cursor: pointer; }
-              .node circle.outer { fill: transparent; stroke: var(--vscode-button-background); stroke-width: 1.5px; opacity: 0; }
-              .node circle.inner { stroke: var(--vscode-button-background); stroke-width: 1.5px; }
-              .node circle.inner.leaf { fill: var(--vscode-button-background); stroke: none; }
-              .node circle.inner.expanded { fill: var(--vscode-editor-background); }
-              .node circle.inner.collapsed { fill: var(--vscode-button-background); }
+              /* 1. 圆点样式 */
+              .node circle { transition: all 0.3s ease; }
+              .node circle.outer { fill: transparent; stroke-width: 2px; opacity: 0; }
+              .node circle.inner { stroke-width: 2px; fill: var(--vscode-editor-background); }
+              .node:hover circle.outer { opacity: 0.5; stroke: var(--accent-color); }
 
-              /* --- 图标样式 (新添加) --- */
+              /* 2. 图标样式 */
               .node text.node-icon {
-                  font-family: "Font Awesome 6 Free"; /* 必须指定字体族 */
-                  font-weight: 900; /* Solid 图标需要 900 */
-                  font-size: 12px;
-                  fill: var(--vscode-textLink-foreground); /* 使用链接色 */
-                  cursor: pointer;
+                  font-family: "Font Awesome 6 Free"; 
+                  font-weight: 900; 
+                  font-size: 14px;
+                  fill: var(--accent-color); 
+                  /* 确保图标不响应鼠标事件，避免影响点击文字 */
+                  pointer-events: none; 
               }
 
-              /* --- 文字样式 --- */
+              /* 3. 文字标签样式 */
               .node text.label { 
-                  font: 12px sans-serif; 
-                  fill: var(--vscode-editor-foreground); 
-                  text-shadow: 0 1px 0 var(--vscode-editor-background); 
-                  cursor: pointer; 
+                  font: 13px "Segoe UI", sans-serif; 
+                  font-weight: 500;
+                  fill: var(--node-text-color); 
+                  /* 添加文字背景描边，防止连线穿过文字时看不清 */
+                  paint-order: stroke;
+                  stroke: var(--vscode-editor-background);
+                  stroke-width: 3px;
+                  stroke-linecap: round;
+                  stroke-linejoin: round;
               }
-              .node text.label:hover { fill: var(--vscode-textLink-activeForeground); text-decoration: underline; }
+              .node:hover text.label { fill: var(--vscode-textLink-activeForeground); font-weight: 600; }
 
-              /* 徽标数字样式 */
-              .node text.badge { font: 10px sans-serif; fill: var(--vscode-descriptionForeground); pointer-events: none; font-weight: bold; }
-
-              .link { fill: none; stroke: var(--vscode-editor-lineHighlightBorder); stroke-width: 1.5px; transition: all 0.5s; }
+              .link { fill: none; stroke-width: 2px; stroke-opacity: 0.6; transition: all 0.5s; }
+              .link:hover { stroke-opacity: 1; stroke-width: 2.5px; }
               
-              /* --- 控件样式 --- */
+              .node text.badge { font: 10px sans-serif; fill: var(--vscode-descriptionForeground); font-weight: bold; pointer-events: none; }
+
+              /* --- 控件 --- */
               #controls-top-right { position: absolute; top: 20px; right: 20px; z-index: 100; }
-              #controls-bottom { 
-                  position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); 
-                  z-index: 100; display: flex; gap: 12px; 
-                  padding: 10px; 
-              }
+              #controls-bottom { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; gap: 12px; padding: 10px; }
 
               .icon-btn {
-                  background-color: #ffffff; 
-                  color: #555555; 
-                  border: none;
-                  width: 40px; height: 40px; border-radius: 50%;
-                  font-size: 16px; cursor: pointer;
-                  display: flex; align-items: center; justify-content: center;
-                  box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.06);
-                  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+                  background-color: #ffffff; color: #444; border: none;
+                  width: 36px; height: 36px; border-radius: 8px;
+                  font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+                  box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.2s ease;
               }
-              .icon-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.15), 0 6px 6px rgba(0,0,0,0.1); color: #000; background-color: #ffffff; }
+              .icon-btn:hover { transform: translateY(-2px); background-color: #f0f0f0; color: #000; box-shadow: 0 6px 16px rgba(0,0,0,0.2); }
               .icon-btn:active { transform: translateY(0); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
               
-              /* Tooltip */
-              .tooltip { position: absolute; pointer-events: none; opacity: 0; background: var(--vscode-editorHoverWidget-background); border: 1px solid var(--vscode-editorHoverWidget-border); color: var(--vscode-editorHoverWidget-foreground); padding: 6px 8px; border-radius: 3px; font-size: 12px; line-height: 1.2; z-index: 9999; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: opacity 0.15s ease-in-out; max-width: 320px; word-wrap: break-word; }
-              .tooltip-header { font-weight: 600; color: var(--vscode-textLink-foreground); margin-bottom: 3px; border-bottom: 1px solid var(--vscode-editorHoverWidget-border); padding-bottom: 3px; }
-              .tooltip-row { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 2px; }
-              .tooltip-label { opacity: 0.7; min-width: 30px; }
-              .tooltip-val { opacity: 1; word-break: break-all; }
+              /* --- Tooltip 样式 --- */
+              .tooltip { 
+                  position: absolute; pointer-events: none; opacity: 0; 
+                  background: var(--tooltip-bg); 
+                  border: 1px solid var(--tooltip-border); 
+                  color: var(--vscode-editorHoverWidget-foreground); 
+                  padding: 0; border-radius: 6px; font-size: 12px; z-index: 9999; 
+                  box-shadow: 0 8px 24px rgba(0,0,0,0.25); 
+                  transition: opacity 0.2s ease-in-out; 
+                  min-width: 250px; max-width: 500px; /* 加宽以展示长代码 */
+              }
+              .tooltip-header { 
+                  background: var(--vscode-sideBarSectionHeader-background); 
+                  padding: 8px 12px; font-weight: 600; border-bottom: 1px solid var(--vscode-panel-border);
+                  display: flex; align-items: center; gap: 8px; font-size: 13px;
+              }
+              .tooltip-header i { color: var(--accent-color); }
+              .tooltip-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+              .tooltip-row { display: flex; align-items: center; gap: 8px; color: var(--vscode-descriptionForeground); }
+              .tooltip-row i { width: 16px; text-align: center; font-size: 11px; }
+              .tooltip-val { color: var(--vscode-editor-foreground); word-break: break-all; }
+
+              /* 代码块样式 */
+              .code-block {
+                  background: var(--code-bg);
+                  padding: 10px;
+                  border-radius: 4px;
+                  font-family: var(--vscode-editor-font-family, 'Courier New', monospace);
+                  border-left: 3px solid var(--accent-color);
+                  white-space: pre-wrap; /* 关键：保留换行 */
+                  word-break: break-all; /* 防止撑爆容器 */
+                  font-size: 11px;
+                  margin-top: 4px;
+                  color: var(--vscode-editor-foreground);
+                  line-height: 1.4;
+                  max-height: 300px;
+                  overflow-y: auto; /* 内容太长可滚动 */
+              }
           </style>
       </head>
       <body>
           <div id="error-message">
-              <h3>资源加载失败</h3>
-              <p>检测到 D3.js 或样式文件无法加载。<br>请检查您的网络连接。</p>
+              <h3><i class="fa-solid fa-triangle-exclamation"></i> 资源加载失败</h3>
+              <p>请检查网络连接</p>
           </div>
 
           <div id="controls-top-right">
-            <button id="refresh-btn" class="icon-btn" title="刷新数据"><i class="fa-solid fa-rotate-right"></i></button>
+            <button id="refresh-btn" class="icon-btn" title="刷新"><i class="fa-solid fa-rotate-right"></i></button>
           </div>
 
           <div id="controls-bottom">
             <button id="zoom-out-btn" class="icon-btn" title="缩小"><i class="fa-solid fa-minus"></i></button>
-            <button id="zoom-reset-btn" class="icon-btn" title="适应屏幕"><i class="fa-solid fa-compress"></i></button>
+            <button id="zoom-reset-btn" class="icon-btn" title="适应"><i class="fa-solid fa-compress"></i></button>
             <button id="zoom-in-btn" class="icon-btn" title="放大"><i class="fa-solid fa-plus"></i></button>
           </div>
 
@@ -247,7 +284,21 @@ export class AnchorFeature implements IFeature {
               const vscode = acquireVsCodeApi();
               vscode.postMessage({ command: 'ready' });
 
-              // --- 资源检查兜底逻辑 ---
+              /**
+               * 关键工具函数：HTML 转义
+               * 将 <, >, &, " 等符号转义为实体字符。
+               * 这样浏览器就会显示 "<div...>" 字样，而不是去渲染一个 div 标签。
+               */
+              function escapeHtml(text) {
+                  if (!text) return "";
+                  return text
+                      .replace(/&/g, "&amp;")
+                      .replace(/</g, "&lt;")
+                      .replace(/>/g, "&gt;")
+                      .replace(/"/g, "&quot;")
+                      .replace(/'/g, "&#039;");
+              }
+
               window.onload = function() {
                   if (typeof d3 === 'undefined') {
                       document.getElementById('tree-container').style.display = 'none';
@@ -256,16 +307,23 @@ export class AnchorFeature implements IFeature {
                       document.getElementById('error-message').style.display = 'block';
                       return;
                   }
-                  // 初始化布局变量
                   initD3();
               };
 
               let root, svg, g, zoom, tree;
               const width = window.innerWidth;
               const height = window.innerHeight;
+              const colorScale = d3.scaleOrdinal(d3.schemeSet2); 
+
+              function getNodeColor(d) {
+                  if(d.depth === 0) return "var(--vscode-editor-foreground)";
+                  let ancestor = d;
+                  while(ancestor.depth > 1) ancestor = ancestor.parent;
+                  return colorScale(ancestor.id || ancestor.data.name);
+              }
 
               function initD3() {
-                  zoom = d3.zoom().scaleExtent([0.1, 3]).on("zoom", (e) => {
+                  zoom = d3.zoom().scaleExtent([0.1, 4]).on("zoom", (e) => {
                       if(g) g.attr("transform", e.transform);
                   });
 
@@ -276,8 +334,8 @@ export class AnchorFeature implements IFeature {
                       .on("dblclick.zoom", null);
 
                   g = svg.append("g");
-                  tree = d3.tree().nodeSize([25, 200]); 
-
+                  // 增加水平间距 (240 -> 260) 确保展开时不会太拥挤
+                  tree = d3.tree().nodeSize([35, 260]); 
                   setupEvents();
               }
 
@@ -289,27 +347,21 @@ export class AnchorFeature implements IFeature {
               }
 
               window.addEventListener('message', event => {
-                  if (event.data.command === 'refresh') {
-                      // 确保 D3 已加载
-                      if (typeof d3 !== 'undefined') {
-                          initData(event.data.data);
-                      }
+                  if (event.data.command === 'refresh' && typeof d3 !== 'undefined') {
+                      initData(event.data.data);
                   }
               });
 
               function centerView(animate = false) {
                   if (!svg) return;
-                  const initialTransform = d3.zoomIdentity.translate(80, height / 2).scale(1);
-                  if (animate) {
-                      svg.transition().duration(750).call(zoom.transform, initialTransform);
-                  } else {
-                      svg.call(zoom.transform, initialTransform);
-                  }
+                  // 调整初始偏移量，因为所有文字都在右边，图表会偏右，所以我们往左移一点 (120)
+                  const initialTransform = d3.zoomIdentity.translate(120, height / 2).scale(1);
+                  if (animate) svg.transition().duration(750).call(zoom.transform, initialTransform);
+                  else svg.call(zoom.transform, initialTransform);
               }
 
               function initData(data) {
                   g.selectAll("*").remove(); 
-                  
                   if (!data || !data.children || data.children.length === 0) {
                       g.append("text").attr("x", 50).attr("y", 50).text("暂无数据").style("fill", "var(--vscode-descriptionForeground)");
                       return;
@@ -329,166 +381,134 @@ export class AnchorFeature implements IFeature {
 
                   const node = g.selectAll(".node").data(nodes, d => d.id);
 
-                  // Enter
+                  // --- Enter ---
                   const nodeEnter = node.enter().append("g")
                       .attr("class", "node")
                       .attr("transform", d => "translate(" + (source.y0 || source.y) + "," + (source.x0 || source.x) + ")");
 
-                  // 1. 外圈大圆
-                  nodeEnter.append("circle")
-                      .attr("class", "outer")
-                      .attr("r", 1e-6)
-                      .on("click", clickToggle);
-
-                  // 2. 内圈小圆
-                  nodeEnter.append("circle")
-                      .attr("class", "inner")
-                      .attr("r", 1e-6)
-                      .on("click", clickToggle);
-
-                  function clickToggle(e, d) {
-                      toggle(d); 
-                      update(d); 
-                      e.stopPropagation(); 
-                  }
+                  // 1. 圆点 (Circle)
+                  // 永远在 (0,0) 位置
+                  nodeEnter.append("circle").attr("class", "outer").attr("r", 1e-6).style("stroke", d => getNodeColor(d)).on("click", clickToggle);
+                  nodeEnter.append("circle").attr("class", "inner").attr("r", 1e-6).style("stroke", d => getNodeColor(d)).on("click", clickToggle);
                   
-                  // --- 3. 新增: 节点图标 (Paperclip or Folder) ---
-                  // 使用 FontAwesome Unicode (Paperclip: \uf0c1, Folder: \uf07b)
+                  function clickToggle(e, d) { toggle(d); update(d); e.stopPropagation(); }
+                  
+                  // 2. 节点图标 (Icon) - 位置修复
+                  // 统一放在圆点右侧固定位置 (x=16)，不再判断 children
                   nodeEnter.append("text")
                       .attr("class", "node-icon")
-                      .attr("dy", 3)
-                      // 如果在右侧(叶子)，图标放在文字左边；如果在左侧(根/组)，图标放在文字右边
-                      .attr("x", d => d.children || d._children ? -14 : 14) 
-                      .style("text-anchor", d => d.children || d._children ? "end" : "start")
+                      .attr("dy", 5)
+                      .attr("x", 16) // 永远在圆点右侧 16px
+                      .style("text-anchor", "middle") // 居中对齐，占据约 14px 宽度
                       .text(d => {
-                          if (d.data.data) {
-                             return "\\uf0c1"; // 📎 Paperclip (可跳转)
-                          }
-                          return ""; // 纯分组节点暂时不加图标，或者可以用 "\\uf07b" (Folder)
+                          if (d.data.data) return "\\uf0c1"; // 📎
+                          return ""; 
                       })
                       .on("click", (e, d) => {
                           if(d.data.data) vscode.postMessage({ command: 'jump', data: d.data.data });
                           e.stopPropagation();
                       });
 
-                  // 4. 文字 Label (位置需要调整，避开图标)
+                  // 3. 文字标签 (Label) - 位置修复
+                  // 统一放在图标右侧 (x=30)，左对齐 (start)
+                  // 这样顺序永远是: Circle(0) -> Icon(16) -> Label(30)
                   nodeEnter.append("text")
                       .attr("class", "label")
-                      .attr("dy", 3)
-                      // 这里的距离要比图标更远一点 (14 + 18 = 32)
+                      .attr("dy", 5)
                       .attr("x", d => {
-                          const gap = d.data.data ? 32 : 14; // 如果有图标，偏移量更大
-                          return d.children || d._children ? -gap : gap;
+                          // 如果有图标，文字从 30px 开始；如果没图标，文字靠前一点 (14px)
+                          return d.data.data ? 30 : 14; 
                       })
-                      .style("text-anchor", d => d.children || d._children ? "end" : "start")
+                      .style("text-anchor", "start") // 永远左对齐
                       .text(d => {
-                          if (d.data.data) {
-                              return d.data.data.description || d.data.name; 
-                          }
+                          if (d.data.data) return d.data.data.description || d.data.name; 
                           return d.data.name;
                       })
                       .on("click", (e, d) => {
-                          if(d.data.data) {
-                              vscode.postMessage({ command: 'jump', data: d.data.data });
-                          }
+                          if(d.data.data) vscode.postMessage({ command: 'jump', data: d.data.data });
                           e.stopPropagation();
                       });
 
-                  // 5. 徽标数字
+                  // 4. 徽标数字 (Badge)
                   nodeEnter.append("text")
                       .attr("class", "badge")
-                      .attr("dy", 3)
-                      .attr("x", 16) // 组节点通常没有图标，所以位置保持不变，或者根据图标逻辑调整
-                      .style("text-anchor", "start")
+                      .attr("dy", -8)
+                      .attr("dx", 8)
+                      .style("text-anchor", "middle")
                       .text(d => d._children ? d._children.length : "")
                       .style("opacity", 0);
 
-                  // Tooltip (逻辑保持不变)
+                  // --- Tooltip 逻辑修复 ---
                   const tooltip = d3.select("#tooltip");
                   nodeEnter.on("mouseover", (e, d) => {
                       if (!d.data.data) return;
                       const raw = d.data.data;
-                      const content = raw.content ? raw.content.trim() : "No Content";
+                      
+                      // ★★★ 核心修复：使用 escapeHtml 确保 HTML 标签显示为源码 ★★★
+                      // 比如 <div...> 会被转义为 &lt;div...&gt; 从而显示在页面上，而不是被渲染。
+                      const content = raw.content ? escapeHtml(raw.content.trim()) : "";
+                      
                       const group = raw.group || "Default";
-                      const file = raw.filePath ? raw.filePath.split('/').pop() : "";
+                      const file = raw.filePath ? raw.filePath.split('/').pop() : "Unknown File";
                       const line = raw.line || "?";
                       const desc = raw.description || "Anchor Point";
+                      
                       const htmlContent = \`
-                          <div class="tooltip-header">\${desc}</div>
-                          <div class="tooltip-row"><span class="tooltip-label">内容:</span><span class="tooltip-val">\${content}</span></div>
-                          <div class="tooltip-row"><span class="tooltip-label">位置:</span><span class="tooltip-val">\${file}:\${line}</span></div>
-                          <div class="tooltip-row"><span class="tooltip-label">分组:</span><span class="tooltip-val">\${group}</span></div>
+                          <div class="tooltip-header">
+                              <i class="fa-solid fa-tag"></i> <span>\${desc}</span>
+                          </div>
+                          <div class="tooltip-body">
+                             <div class="tooltip-row">
+                                <i class="fa-regular fa-folder-open"></i> <span class="tooltip-val">\${group}</span>
+                             </div>
+                             <div class="tooltip-row">
+                                <i class="fa-regular fa-file-code"></i> <span class="tooltip-val">\${file} : \${line}</span>
+                             </div>
+                             \${content ? \`<div class="code-block">\${content}</div>\` : ''}
+                          </div>
                       \`;
-                      tooltip.style("opacity", 1).html(htmlContent).style("left", (e.pageX + 15) + "px").style("top", (e.pageY + 10) + "px");
+                      tooltip.style("opacity", 1).html(htmlContent)
+                             .style("left", (e.pageX + 20) + "px")
+                             .style("top", (e.pageY + 10) + "px");
                   }).on("mouseout", () => tooltip.style("opacity", 0));
 
-                  // Update
+                  // --- Update Transitions ---
                   const nodeUpdate = nodeEnter.merge(node);
-
-                  nodeUpdate.transition().duration(250)
-                      .attr("transform", d => "translate(" + d.y + "," + d.x + ")");
-
-                  // 样式逻辑
+                  nodeUpdate.transition().duration(250).attr("transform", d => "translate(" + d.y + "," + d.x + ")");
+                  
                   const isGroup = d => d.data.children && d.data.children.length > 0;
+                  
+                  nodeUpdate.select("circle.outer").attr("r", d => isGroup(d) ? 10 : 0).style("opacity", d => isGroup(d) ? 0 : 0);
+                  nodeUpdate.select("circle.inner").attr("r", d => isGroup(d) ? 5 : 3).style("fill", d => isGroup(d) ? (d._children ? getNodeColor(d) : "var(--vscode-editor-background)") : getNodeColor(d));
+                  nodeUpdate.select(".badge").text(d => d._children ? d._children.length : "").transition().duration(250).style("opacity", d => d._children ? 1 : 0);
 
-                  nodeUpdate.select("circle.outer")
-                      .attr("r", d => isGroup(d) ? 8 : 0)
-                      .style("opacity", d => isGroup(d) ? 1 : 0);
-
-                  nodeUpdate.select("circle.inner")
-                      .attr("r", 4)
-                      .attr("class", d => {
-                          if (isGroup(d)) {
-                              return d._children ? "inner collapsed" : "inner expanded";
-                          }
-                          return "inner leaf";
-                      });
-
-                  nodeUpdate.select(".badge")
-                      .text(d => d._children ? d._children.length : "")
-                      .transition().duration(250)
-                      .style("opacity", d => d._children ? 1 : 0);
-
-                  // Exit
-                  const nodeExit = node.exit().transition().duration(250)
-                      .attr("transform", d => "translate(" + source.y + "," + source.x + ")")
-                      .remove();
-
+                  // --- Exit ---
+                  const nodeExit = node.exit().transition().duration(250).attr("transform", d => "translate(" + source.y + "," + source.x + ")").remove();
                   nodeExit.selectAll("circle").attr("r", 1e-6);
                   nodeExit.select("text").style("fill-opacity", 1e-6);
 
-                  // Links
+                  // --- Links ---
                   const link = g.selectAll(".link").data(links, d => d.target.id);
-                  const linkEnter = link.enter().insert("path", "g")
-                      .attr("class", "link")
+                  const linkEnter = link.enter().insert("path", "g").attr("class", "link")
+                      .style("stroke", d => getNodeColor(d.target))
                       .attr("d", d => {
                           const o = {x: source.x0 || source.x, y: source.y0 || source.y};
                           return d3.linkHorizontal().x(d => d.y).y(d => d.x)({source: o, target: o});
                       });
+                  
                   const linkUpdate = linkEnter.merge(link);
-                  linkUpdate.transition().duration(250)
-                      .attr("d", d3.linkHorizontal().x(d => d.y).y(d => d.x));
-                  link.exit().transition().duration(250)
-                      .attr("d", d => {
+                  linkUpdate.transition().duration(250).attr("d", d3.linkHorizontal().x(d => d.y).y(d => d.x)).style("stroke", d => getNodeColor(d.target));
+                  link.exit().transition().duration(250).attr("d", d => {
                           const o = {x: source.x, y: source.y};
                           return d3.linkHorizontal().x(d => d.y).y(d => d.x)({source: o, target: o});
-                      })
-                      .remove();
+                      }).remove();
 
-                  nodes.forEach(d => {
-                      d.x0 = d.x;
-                      d.y0 = d.y;
-                  });
+                  nodes.forEach(d => { d.x0 = d.x; d.y0 = d.y; });
               }
 
               function toggle(d) {
-                  if (d.children) {
-                      d._children = d.children;
-                      d.children = null;
-                  } else {
-                      d.children = d._children;
-                      d._children = null;
-                  }
+                  if (d.children) { d._children = d.children; d.children = null; } 
+                  else { d.children = d._children; d._children = null; }
               }
           </script>
       </body>
