@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { AnchorService } from '../services/AnchorService';
 import { ColorUtils } from '../utils/ColorUtils';
+import { AnchorData } from '../core/types/anchor';
 
 export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
   private service: AnchorService;
@@ -61,13 +62,11 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
         const candidates = contentToLinesMap.get(anchor.content);
 
         if (candidates && candidates.length > 0) {
-          // 在所有内容匹配的行中，找到离“原位置”最近的那一行
           foundLineIndex = candidates.reduce((prev, curr) => {
             return Math.abs(curr - targetLineIndex) < Math.abs(prev - targetLineIndex) ? curr : prev;
           });
         }
 
-        // 修正逻辑
         if (foundLineIndex !== -1) {
           targetLineIndex = foundLineIndex;
           this.isInternalUpdate = true;
@@ -82,18 +81,47 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
       const range = new vscode.Range(targetLineIndex, 0, targetLineIndex, 0);
       const emoji = ColorUtils.getEmoji(anchor.group);
 
+      const parents: AnchorData[] = [];
+      let currentItem = anchor;
+
+      // 利用 pid 字段向上回溯
+      while ((currentItem as any).pid) {
+        const parent = this.service.getAnchorById((currentItem as any).pid);
+        if (parent) {
+          parents.unshift(parent); // 插入到头部，形成 Root -> Parent 顺序
+          currentItem = parent;
+        } else {
+          break;
+        }
+      }
+
+      // 渲染父级面包屑 (例如: "📂 Parent >")
+      parents.forEach((p) => {
+        const pEmoji = ColorUtils.getEmoji(p.group);
+        lenses.push(
+          new vscode.CodeLens(range, {
+            title: `${pEmoji} ${p.group}:${p.sort} >`,
+            tooltip: `跳转到父分组: ${p.description || p.group}`,
+            command: 'quick-ops.anchor.listByGroup',
+            arguments: [p.group, p.id], // 点击父级 Lens，打开父级列表
+          }),
+        );
+      });
+
+      // 渲染当前锚点
       lenses.push(
         new vscode.CodeLens(range, {
-          title: `${emoji} ${anchor.group}-${Number(i) + 1}`,
+          title: `${emoji} ${anchor.group}:${anchor.sort}`,
           tooltip: anchor.description || '查看该组所有锚点',
           command: 'quick-ops.anchor.listByGroup',
           arguments: [anchor.group, anchor.id],
         }),
       );
 
+      // 渲染操作按钮
       lenses.push(
         new vscode.CodeLens(range, {
-          title: '↑',
+          title: '$(debug-step-out)',
           tooltip: '上一个',
           command: 'quick-ops.anchor.navigate',
           arguments: [anchor.id, 'prev'],
@@ -102,7 +130,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
 
       lenses.push(
         new vscode.CodeLens(range, {
-          title: '↓',
+          title: '$(debug-step-into)',
           tooltip: '下一个',
           command: 'quick-ops.anchor.navigate',
           arguments: [anchor.id, 'next'],
