@@ -286,7 +286,6 @@ export class AnchorFeature implements IFeature {
                       .attr("class", "node")
                       .attr("transform", d => "translate(" + d.y + "," + d.x + ")");
 
-                  // 🔥 修改1：文字点击跳转 & 区域点击
                   // 将点击事件绑定到整个 Group (g.node)，增加点击面积
                   node.on("click", (e, d) => {
                       if(d.data.data) vscode.postMessage({ command: 'jump', data: d.data.data });
@@ -295,7 +294,6 @@ export class AnchorFeature implements IFeature {
 
                   node.append("circle").attr("r", 5);
 
-                  // 🔥 修改2：增强 Hover Tooltip
                   const tooltip = d3.select("#tooltip");
                   node.on("mouseover", (e, d) => {
                       if (!d.data.data) return;
@@ -332,7 +330,6 @@ export class AnchorFeature implements IFeature {
                       .style("text-anchor", d => d.children ? "end" : "start")
                       .text(d => d.data.name);
 
-                  // 🔥 修改3：去除初始动画，直接定位
                   // 之前可能用了 transition导致从(0,0)飞过来，现在直接 call
                   centerView(false); 
               }
@@ -530,14 +527,11 @@ export class AnchorFeature implements IFeature {
         const icon = this.getIconForFile(a.filePath);
         let buttons: any[] = [];
 
-        // 🔥 核心修正区域
         if (defaultAnchorId) {
           // CodeLens 模式：替换新建分组为“查看子级”
           if (index > 0) buttons.push({ iconPath: new vscode.ThemeIcon('arrow-up'), tooltip: TOOLTIPS.UP });
           if (index < latestAnchors.length - 1) buttons.push({ iconPath: new vscode.ThemeIcon('arrow-down'), tooltip: TOOLTIPS.DOWN });
-
-          buttons.push({ iconPath: new vscode.ThemeIcon('file-symlink-directory'), tooltip: TOOLTIPS.VIEW_CHILDREN }); // 🔥 仅在此处修改
-
+          buttons.push({ iconPath: new vscode.ThemeIcon('file-symlink-directory'), tooltip: TOOLTIPS.VIEW_CHILDREN }); 
           buttons.push({ iconPath: new vscode.ThemeIcon('edit'), tooltip: TOOLTIPS.ADD_NOTE });
           buttons.push({ iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: TOOLTIPS.DELETE });
         } else if (isPreviewMode) {
@@ -621,7 +615,7 @@ export class AnchorFeature implements IFeature {
           this.updateDecorations();
           if (quickPick.items.length === 0 && isPreviewMode) quickPick.hide();
           break;
-        case TOOLTIPS.VIEW_CHILDREN: // 🔥 查看子级逻辑
+        case TOOLTIPS.VIEW_CHILDREN: 
           const targetAnchor = this.service.getAnchorById(anchorId);
           if (targetAnchor) {
             let childGroupName = targetAnchor.description;
@@ -644,7 +638,7 @@ export class AnchorFeature implements IFeature {
           refreshList();
           setTimeout(() => {
             quickPick.hide();
-          }, 1000); // 🔥 延时关闭
+          }, 1000); 
           break;
       }
     });
