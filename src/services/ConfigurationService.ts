@@ -30,14 +30,12 @@ export class ConfigurationService extends EventEmitter implements IService {
 
   private _config: ILogrcConfig = {} as ILogrcConfig;
   private _lastConfig: ILogrcConfig | null = null;
-  // 🔥 优化 2: 使用 VS Code 原生 Watcher
   private _watcher: vscode.FileSystemWatcher | null = null;
   private _context?: vscode.ExtensionContext;
 
   private readonly _alwaysIgnoreFiles: string[] = ['.telemetryrc'];
   private readonly _configFile: string = '.quickopsrc';
 
-  // 🔥 优化 3: 存储绝对路径，避免重复计算 relative path
   private _ignoredAbsolutePaths: Set<string> = new Set();
 
   private constructor() {
@@ -59,7 +57,6 @@ export class ConfigurationService extends EventEmitter implements IService {
     return path.join(workspaceFolders[0].uri.fsPath, this._configFileName);
   }
 
-  // 🔥 优化 3: O(1) 复杂度查找，不再每次计算 relative
   public isIgnoredByExtension(filePath: string): boolean {
     // 统一正斜杠，防止 Windows 路径问题
     const normalized = filePath.replace(/\\/g, '/');
@@ -80,7 +77,6 @@ export class ConfigurationService extends EventEmitter implements IService {
     console.log(`[${this.serviceId}] Initialized.`);
   }
 
-  // 🔥 优化 1: 全异步加载
   public async loadConfig(): Promise<void> {
     try {
       const defaultConfig = await this.loadInternalConfig();
@@ -108,7 +104,6 @@ export class ConfigurationService extends EventEmitter implements IService {
     vscode.commands.executeCommand('setContext', 'quickOps.context.configMissing', !exists);
   }
 
-  // 🔥 优化 1: 异步读取模板
   private async loadInternalConfig(): Promise<ILogrcConfig> {
     if (this._context) {
       const templatePath = path.join(this._context.extensionPath, this._templateConfigPath);
@@ -124,7 +119,6 @@ export class ConfigurationService extends EventEmitter implements IService {
     return {} as ILogrcConfig;
   }
 
-  // 🔥 优化 1: 异步读取用户配置
   private async loadUserConfig(): Promise<Partial<ILogrcConfig>> {
     const filePath = this.workspaceConfigPath;
     if (!filePath) return {};
@@ -140,7 +134,6 @@ export class ConfigurationService extends EventEmitter implements IService {
     }
   }
 
-  // 🔥 优化 2: 使用 VS Code API 监听文件
   private setupWatcher() {
     if (this._watcher) {
       this._watcher.dispose();
@@ -212,9 +205,6 @@ export class ConfigurationService extends EventEmitter implements IService {
     this.removeAllListeners();
   }
 
-  // =====================================================================================
-  // 🔥 Git Ignore Logic (Async Optimized)
-  // =====================================================================================
 
   private async handleGitConfiguration() {
     try {
@@ -301,7 +291,6 @@ export class ConfigurationService extends EventEmitter implements IService {
     }
   }
 
-  // 🔥 优化 4: 异步 Git 命令
   private async isGitIgnored(filePath: string, cwd: string): Promise<boolean> {
     try {
       await execAsync(`git check-ignore "${filePath}"`, { cwd });
@@ -383,7 +372,6 @@ class LogrcIgnoreDecorationProvider implements vscode.FileDecorationProvider {
   }
 
   provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
-    // 🔥 优化 3: 这里的调用现在是 O(1) 的，非常快
     if (this.configService.isIgnoredByExtension(uri.fsPath)) {
       return {
         badge: 'IG',

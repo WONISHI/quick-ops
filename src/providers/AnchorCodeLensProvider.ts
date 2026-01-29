@@ -95,7 +95,6 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
         }
       }
 
-      // 渲染父级面包屑 (例如: "📂 Parent >")
       parents.forEach((p) => {
         const pEmoji = ColorUtils.getEmoji(p.group);
         lenses.push(

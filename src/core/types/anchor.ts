@@ -8,11 +8,11 @@ export interface AnchorData {
   description?: string;
   pid?: string;
   sort: number | undefined;
-  items?: AnchorData[]; // 🔥 嵌套结构
+  items?: AnchorData[]; 
 }
 
 export interface AnchorConfig {
   groups: string[];
-  children?: string[]; // 🔥 对应 itemGroups
+  children?: string[]; 
   anchors: AnchorData[];
 }

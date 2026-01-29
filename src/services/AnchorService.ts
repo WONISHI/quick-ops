@@ -45,7 +45,6 @@ export class AnchorService {
     }
   }
 
-  // 🔥 核心修复：调整了 refreshFlotAnchors 的调用位置
   private async save() {
     // 1. 立即刷新内存中的扁平索引，确保后续同步代码（如 UI 刷新）能读到最新数据
     this.refreshFlotAnchors();
@@ -68,7 +67,6 @@ export class AnchorService {
     }
   }
 
-  // 🔥 核心工具：刷新扁平化列表 (每次增删改后调用)
   private refreshFlotAnchors() {
     const _anchors = new Set<AnchorData>();
     const traverse = (items: AnchorData[]) => {
@@ -85,7 +83,6 @@ export class AnchorService {
     this.flotAnchors = Array.from(_anchors);
   }
 
-  // 🔥 核心工具：找到某个ID所在的数组及其索引 (用于删除/移动/插入)
   private findContainerArray(targetId: string, currentList: AnchorData[]): { list: AnchorData[]; index: number } | null {
     const index = currentList.findIndex((a) => a.id === targetId);
     if (index !== -1) {
