@@ -198,8 +198,12 @@ export class AnchorService {
       timestamp: Date.now(),
       items: [],
     };
-    if (this.anchors.length > 0) {
-      const lastSort = parseInt(String(this.anchors[this.anchors.length - 1].sort || 0));
+
+    const groupAnchors = this.anchors.filter((a) => a.group === anchor.group);
+
+    if (groupAnchors.length > 0) {
+      const lastAnchor = groupAnchors[groupAnchors.length - 1];
+      const lastSort = parseInt(String(lastAnchor.sort || 0));
       newAnchor.sort = isNaN(lastSort) ? 1 : lastSort + 1;
     } else {
       newAnchor.sort = 1;
@@ -233,6 +237,7 @@ export class AnchorService {
     const container = this.findContainerArray(targetId, this.anchors);
 
     if (!container) {
+      // 如果找不到目标，就作为新项添加到对应分组的末尾
       this.addAnchor({ ...anchor, sort: 1 });
       return;
     }
@@ -244,21 +249,28 @@ export class AnchorService {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       timestamp: Date.now(),
       items: [],
-      sort: undefined,
+      sort: undefined, // 稍后计算
     };
 
     const targetItem = list[index];
+
     if (targetItem.pid) {
       newAnchor.pid = targetItem.pid;
     }
 
+    // 1. 执行物理插入 (改变数组结构)
     if (position === 'before') {
       list.splice(index, 0, newAnchor);
     } else {
       list.splice(index + 1, 0, newAnchor);
     }
 
-    list.forEach((item, idx) => (item.sort = idx + 1));
+    let sortCounter = 1;
+    list.forEach((item) => {
+      if (item.group === newAnchor.group) {
+        item.sort = sortCounter++;
+      }
+    });
 
     this.save();
   }
