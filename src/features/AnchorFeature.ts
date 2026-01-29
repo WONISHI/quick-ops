@@ -1,18 +1,18 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { isNumber, debounce, isFunction } from 'lodash-es';
+import { isNumber, isFunction, debounce } from 'lodash-es';
 import { IFeature } from '../core/interfaces/IFeature';
 import { AnchorService } from '../services/AnchorService';
 import { AnchorCodeLensProvider } from '../providers/AnchorCodeLensProvider';
 import { ColorUtils } from '../utils/ColorUtils';
 
-// 常量定义，方便维护
 const TOOLTIPS = {
   ADD_NOTE: '添加备注',
   UP: '上移',
   DOWN: '下移',
   DELETE: '删除',
   NEW_SUBGROUP: '由此创建新分组',
+  VIEW_CHILDREN: '查看子级',
   INSERT_BEFORE: '在此项【之前】插入',
   INSERT_AFTER: '在此项【之后】插入',
   TRASH: '删除',
@@ -84,11 +84,7 @@ export class AnchorFeature implements IFeature {
     }
 
     const rootPath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || path.dirname(editor.document.uri.fsPath);
-    // 如果没有初始化，顺便初始化
-    // this.service.init(rootPath);
-
     const doc = editor.document;
-    // 确定使用的行号 (优先使用 override，否则取光标位)
     const lineIndex = overrideLineNumber !== undefined ? overrideLineNumber : editor.selection.active.line;
     const text = doc.lineAt(lineIndex).text.trim();
     const relativePath = path.relative(rootPath, doc.uri.fsPath).replace(/\\/g, '/');
@@ -98,8 +94,8 @@ export class AnchorFeature implements IFeature {
       doc,
       rootPath,
       relativePath,
-      lineIndex, // 0-based index
-      uiLineNumber: lineIndex + 1, // 1-based for display
+      lineIndex,
+      uiLineNumber: lineIndex + 1,
       text,
     };
   }
@@ -118,12 +114,10 @@ export class AnchorFeature implements IFeature {
     for (const anchor of fileAnchors) {
       const oldIndex = anchor.line - 1;
 
-      // 1. 原位置匹配，跳过
       if (oldIndex < doc.lineCount && doc.lineAt(oldIndex).text.trim() === anchor.content) {
         continue;
       }
 
-      // 2. 原位置失效，全文搜索
       let foundNewSelection = false;
       for (let i = 0; i < doc.lineCount; i++) {
         const lineText = doc.lineAt(i).text.trim();
@@ -135,7 +129,6 @@ export class AnchorFeature implements IFeature {
         }
       }
 
-      // 3. 全文未找到，更新内容以防止锚点死链
       if (!foundNewSelection) {
         const currentLineIndex = Math.min(anchor.line - 1, doc.lineCount - 1);
         const newContent = doc.lineAt(currentLineIndex).text.trim();
@@ -155,10 +148,9 @@ export class AnchorFeature implements IFeature {
 
   private async handleAddAnchorCommand(...args: any[]) {
     try {
-      // 解析参数中的行号 (右键菜单传入)
       let argLineIndex: number | undefined;
       if (args.length > 0 && args[0] && isNumber(args[0].lineNumber)) {
-        argLineIndex = args[0].lineNumber - 1; // 转为 0-based
+        argLineIndex = args[0].lineNumber - 1;
       }
 
       const ctx = this.getEditorContext(argLineIndex);
@@ -166,7 +158,6 @@ export class AnchorFeature implements IFeature {
 
       this.service.init(ctx.rootPath);
 
-      // 选择分组
       const groups = this.service.getGroups();
       const items: vscode.QuickPickItem[] = groups.map((g) => ({
         label: g,
@@ -211,7 +202,6 @@ export class AnchorFeature implements IFeature {
             vscode.window.showInformationMessage(`已直接添加到 [${groupName}]`);
           } else {
             // Case B: 有记录 -> 进入插入模式
-            // 传入 0-based index 给 showAnchorList, 内部会用来获取 ctx
             this.showAnchorList(groupName, false, ctx.lineIndex);
           }
         } else {
@@ -315,15 +305,14 @@ export class AnchorFeature implements IFeature {
         let buttons: any[] = [];
 
         // 按钮逻辑分流
-        // 分组查看模式
         if (defaultAnchorId) {
-          if (index > 0) buttons.push({ iconPath: new vscode.ThemeIcon('arrow-up'), tooltip: TOOLTIPS.UP });
-          if (index < latestAnchors.length - 1) buttons.push({ iconPath: new vscode.ThemeIcon('arrow-down'), tooltip: TOOLTIPS.DOWN });
-          buttons.push({ iconPath: new vscode.ThemeIcon('new-folder'), tooltip: TOOLTIPS.NEW_SUBGROUP });
+          if (index > 0) buttons.push({ iconPath: new vscode.ThemeIcon('repo-pull'), tooltip: TOOLTIPS.UP });
+          if (index < latestAnchors.length - 1) buttons.push({ iconPath: new vscode.ThemeIcon('repo-push'), tooltip: TOOLTIPS.DOWN });
+          if (a.items?.length) buttons.push({ iconPath: new vscode.ThemeIcon('file-symlink-directory'), tooltip: TOOLTIPS.VIEW_CHILDREN });
           buttons.push({ iconPath: new vscode.ThemeIcon('edit'), tooltip: TOOLTIPS.ADD_NOTE });
           buttons.push({ iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: TOOLTIPS.DELETE });
         } else if (isPreviewMode) {
-          // 全局预览模式
+          if (a.items?.length) buttons.push({ iconPath: new vscode.ThemeIcon('file-symlink-directory'), tooltip: TOOLTIPS.VIEW_CHILDREN });
           buttons.push({ iconPath: new vscode.ThemeIcon('edit'), tooltip: TOOLTIPS.ADD_NOTE });
           buttons.push({ iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: TOOLTIPS.DELETE });
         } else {
@@ -331,7 +320,9 @@ export class AnchorFeature implements IFeature {
           buttons = [
             { iconPath: new vscode.ThemeIcon('arrow-up'), tooltip: TOOLTIPS.INSERT_BEFORE },
             { iconPath: new vscode.ThemeIcon('arrow-down'), tooltip: TOOLTIPS.INSERT_AFTER },
-            { iconPath: new vscode.ThemeIcon('new-folder'), tooltip: TOOLTIPS.NEW_SUBGROUP },
+            a.items?.length
+              ? { iconPath: new vscode.ThemeIcon('file-symlink-directory'), tooltip: TOOLTIPS.VIEW_CHILDREN }
+              : { iconPath: new vscode.ThemeIcon('new-folder'), tooltip: TOOLTIPS.NEW_SUBGROUP },
             { iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: TOOLTIPS.DELETE },
           ];
         }
@@ -354,7 +345,6 @@ export class AnchorFeature implements IFeature {
 
     const quickPick = vscode.window.createQuickPick<any>();
 
-    // 如果是插入模式，显示行号提示
     const insertLineDisplay = pinnedLineIndex !== undefined ? pinnedLineIndex + 1 : '?';
     quickPick.title =
       pinnedLineIndex !== undefined && !isPreviewMode
@@ -364,7 +354,6 @@ export class AnchorFeature implements IFeature {
     const refreshList = (targetAnchorId?: string) => {
       const items = mapItems();
       quickPick.items = items;
-      // 处理高亮
       const idToSelect = targetAnchorId || (defaultAnchorId && !targetAnchorId ? defaultAnchorId : undefined);
       if (idToSelect) {
         const t = items.find((i) => i.anchorId === idToSelect);
@@ -419,16 +408,38 @@ export class AnchorFeature implements IFeature {
           if (quickPick.items.length === 0 && isPreviewMode) quickPick.hide();
           break;
 
+        case TOOLTIPS.VIEW_CHILDREN:
+          const targetAnchor = this.service.getAnchorById(anchorId);
+          if (targetAnchor) {
+            let childGroupName = targetAnchor.description;
+            if (targetAnchor.items && targetAnchor.items.length > 0) {
+              childGroupName = targetAnchor.items[0].group;
+            }
+
+            if (childGroupName) {
+              const ctx = this.getEditorContext(pinnedLineIndex);
+              if (!ctx) return;
+              if (defaultAnchorId || isPreviewMode) {
+                const _defaultAnchorId = defaultAnchorId || targetAnchor.id;
+                this.showAnchorList(childGroupName, true, undefined, _defaultAnchorId);
+              } else {
+                this.showAnchorList(childGroupName, false, ctx.uiLineNumber);
+              }
+            } else {
+              vscode.window.showInformationMessage('此记录没有子分组 (请先添加备注或创建子分组)');
+            }
+          }
+          break;
+
         case TOOLTIPS.NEW_SUBGROUP:
           await this.handleCreateSubGroup(anchorId, pinnedLineIndex);
-          // 可能需要刷新列表来反映变化，视具体业务逻辑而定
           refreshList(anchorId);
           break;
 
         case TOOLTIPS.INSERT_BEFORE:
         case TOOLTIPS.INSERT_AFTER:
           await this.handleInsertAnchor(anchorId, tooltip === TOOLTIPS.INSERT_BEFORE ? 'before' : 'after', groupName, pinnedLineIndex);
-          refreshList(); // 插入后刷新
+          refreshList();
           break;
       }
     });
@@ -444,7 +455,6 @@ export class AnchorFeature implements IFeature {
 
     let targetGroupName = parentAnchor.description;
 
-    // 如果没有备注作为组名，则通过文件名生成建议并询问用户
     if (!targetGroupName) {
       const fileNameWithoutExt = path.parse(parentAnchor.filePath).name;
       const parentDir = path.basename(path.dirname(parentAnchor.filePath));
@@ -456,14 +466,12 @@ export class AnchorFeature implements IFeature {
         prompt: '确认新分组路径',
       });
 
-      if (!input) return; // 用户取消
+      if (!input) return;
       targetGroupName = input.trim();
     }
 
-    // 执行创建逻辑
     this.service.addChild(targetGroupName);
 
-    // 如果处于“插入模式”(有 pinnedLineIndex)，则同时把当前待插入的行作为第一条记录加进去
     const ctx = this.getEditorContext(pinnedLineIndex);
     if (ctx) {
       this.service.addChildAnchor(parentAnchor.id, {
@@ -475,7 +483,6 @@ export class AnchorFeature implements IFeature {
       vscode.window.showInformationMessage(`已创建子分组: ${targetGroupName}`);
       this.updateDecorations();
     } else {
-      // 仅仅是创建结构，不添加额外记录
       vscode.window.showInformationMessage(`已为记录创建子分组结构: ${targetGroupName}`);
     }
   }
@@ -489,7 +496,7 @@ export class AnchorFeature implements IFeature {
       line: ctx.uiLineNumber,
       content: ctx.text,
       group: groupName,
-      sort: 0, // sort will be recalculated by service
+      sort: 0,
     };
 
     this.service.insertAnchor(newAnchorData, targetId, position);

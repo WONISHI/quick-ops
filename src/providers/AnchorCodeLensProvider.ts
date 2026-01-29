@@ -39,7 +39,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
       const docLineCount = document.lineCount;
 
       if (targetLineIndex >= docLineCount) {
-        continue; // 越界忽略
+        continue;
       }
 
       const currentLineContent = document.lineAt(targetLineIndex).text.trim();
