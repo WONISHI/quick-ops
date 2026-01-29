@@ -147,52 +147,99 @@ export class AnchorFeature implements IFeature {
       <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <script src="https://d3js.org/d3.v7.min.js"></script>
+          
+          <script src="https://d3js.org/d3.v7.min.js" 
+                  onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/d3@7';"></script>
+          
+          <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" 
+                onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css';">
+
           <style>
               body { background-color: var(--vscode-editor-background); color: var(--vscode-editor-foreground); margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: var(--vscode-font-family); }
               #tree-container { width: 100%; height: 100%; cursor: grab; }
               #tree-container:active { cursor: grabbing; }
               
-              .node { cursor: pointer; } /* 让整个节点区域都显示手型 */
-              .node circle { fill: var(--vscode-button-background); stroke: var(--vscode-button-foreground); stroke-width: 1.5px; }
-              .node text { font: 12px sans-serif; fill: var(--vscode-editor-foreground); text-shadow: 0 1px 0 var(--vscode-editor-background); }
-              .link { fill: none; stroke: var(--vscode-editor-lineHighlightBorder); stroke-width: 1.5px; }
+              /* 错误提示样式 */
+              #error-message { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: var(--vscode-errorForeground); }
+
+              .node { cursor: default; }
               
-              /* 控件样式保持不变 */
-              #controls-top-right { position: absolute; top: 15px; right: 15px; z-index: 100; }
+              /* --- 圆点样式 --- */
+              .node circle { transition: all 0.3s ease; cursor: pointer; }
+              .node circle.outer { fill: transparent; stroke: var(--vscode-button-background); stroke-width: 1.5px; opacity: 0; }
+              .node circle.inner { stroke: var(--vscode-button-background); stroke-width: 1.5px; }
+              .node circle.inner.leaf { fill: var(--vscode-button-background); stroke: none; }
+              .node circle.inner.expanded { fill: var(--vscode-editor-background); }
+              .node circle.inner.collapsed { fill: var(--vscode-button-background); }
+
+              /* --- 图标样式 (新添加) --- */
+              .node text.node-icon {
+                  font-family: "Font Awesome 6 Free"; /* 必须指定字体族 */
+                  font-weight: 900; /* Solid 图标需要 900 */
+                  font-size: 12px;
+                  fill: var(--vscode-textLink-foreground); /* 使用链接色 */
+                  cursor: pointer;
+              }
+
+              /* --- 文字样式 --- */
+              .node text.label { 
+                  font: 12px sans-serif; 
+                  fill: var(--vscode-editor-foreground); 
+                  text-shadow: 0 1px 0 var(--vscode-editor-background); 
+                  cursor: pointer; 
+              }
+              .node text.label:hover { fill: var(--vscode-textLink-activeForeground); text-decoration: underline; }
+
+              /* 徽标数字样式 */
+              .node text.badge { font: 10px sans-serif; fill: var(--vscode-descriptionForeground); pointer-events: none; font-weight: bold; }
+
+              .link { fill: none; stroke: var(--vscode-editor-lineHighlightBorder); stroke-width: 1.5px; transition: all 0.5s; }
+              
+              /* --- 控件样式 --- */
+              #controls-top-right { position: absolute; top: 20px; right: 20px; z-index: 100; }
               #controls-bottom { 
-                  position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 100; 
-                  display: flex; gap: 8px; background: var(--vscode-editor-inactiveSelectionBackground);
-                  padding: 6px 10px; border-radius: 20px; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+                  position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); 
+                  z-index: 100; display: flex; gap: 12px; 
+                  padding: 10px; 
               }
-              button { 
-                  padding: 4px 12px; cursor: pointer; background: var(--vscode-button-background); 
-                  color: var(--vscode-button-foreground); border: none; border-radius: 2px; font-size: 12px;
+
+              .icon-btn {
+                  background-color: #ffffff; 
+                  color: #555555; 
+                  border: none;
+                  width: 40px; height: 40px; border-radius: 50%;
+                  font-size: 16px; cursor: pointer;
+                  display: flex; align-items: center; justify-content: center;
+                  box-shadow: 0 4px 6px rgba(0,0,0,0.1), 0 1px 3px rgba(0,0,0,0.06);
+                  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
               }
-              button:hover { background: var(--vscode-button-hoverBackground); }
+              .icon-btn:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.15), 0 6px 6px rgba(0,0,0,0.1); color: #000; background-color: #ffffff; }
+              .icon-btn:active { transform: translateY(0); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
               
-              /* Tooltip 样式优化 */
-              .tooltip {
-                  position: absolute; pointer-events: none; opacity: 0; 
-                  background: var(--vscode-editorHoverWidget-background);
-                  border: 1px solid var(--vscode-editorHoverWidget-border);
-                  color: var(--vscode-editorHoverWidget-foreground);
-                  padding: 8px 12px; border-radius: 4px; font-size: 13px; line-height: 1.4;
-                  z-index: 9999; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-                  transition: opacity 0.15s ease-in-out;
-                  max-width: 300px; word-wrap: break-word;
-              }
-              .tooltip strong { color: var(--vscode-textLink-foreground); }
-              .tooltip .meta { font-size: 11px; opacity: 0.8; margin-top: 4px; border-top: 1px solid var(--vscode-editorHoverWidget-border); padding-top: 4px;}
+              /* Tooltip */
+              .tooltip { position: absolute; pointer-events: none; opacity: 0; background: var(--vscode-editorHoverWidget-background); border: 1px solid var(--vscode-editorHoverWidget-border); color: var(--vscode-editorHoverWidget-foreground); padding: 6px 8px; border-radius: 3px; font-size: 12px; line-height: 1.2; z-index: 9999; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: opacity 0.15s ease-in-out; max-width: 320px; word-wrap: break-word; }
+              .tooltip-header { font-weight: 600; color: var(--vscode-textLink-foreground); margin-bottom: 3px; border-bottom: 1px solid var(--vscode-editorHoverWidget-border); padding-bottom: 3px; }
+              .tooltip-row { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 2px; }
+              .tooltip-label { opacity: 0.7; min-width: 30px; }
+              .tooltip-val { opacity: 1; word-break: break-all; }
           </style>
       </head>
       <body>
-          <div id="controls-top-right"><button id="refresh-btn">🔄 刷新</button></div>
-          <div id="controls-bottom">
-            <button id="zoom-out-btn">➖</button>
-            <button id="zoom-reset-btn">⭕ 适应</button>
-            <button id="zoom-in-btn">➕</button>
+          <div id="error-message">
+              <h3>资源加载失败</h3>
+              <p>检测到 D3.js 或样式文件无法加载。<br>请检查您的网络连接。</p>
           </div>
+
+          <div id="controls-top-right">
+            <button id="refresh-btn" class="icon-btn" title="刷新数据"><i class="fa-solid fa-rotate-right"></i></button>
+          </div>
+
+          <div id="controls-bottom">
+            <button id="zoom-out-btn" class="icon-btn" title="缩小"><i class="fa-solid fa-minus"></i></button>
+            <button id="zoom-reset-btn" class="icon-btn" title="适应屏幕"><i class="fa-solid fa-compress"></i></button>
+            <button id="zoom-in-btn" class="icon-btn" title="放大"><i class="fa-solid fa-plus"></i></button>
+          </div>
+
           <div id="tree-container"></div>
           <div id="tooltip" class="tooltip"></div>
 
@@ -200,65 +247,59 @@ export class AnchorFeature implements IFeature {
               const vscode = acquireVsCodeApi();
               vscode.postMessage({ command: 'ready' });
 
+              // --- 资源检查兜底逻辑 ---
+              window.onload = function() {
+                  if (typeof d3 === 'undefined') {
+                      document.getElementById('tree-container').style.display = 'none';
+                      document.getElementById('controls-bottom').style.display = 'none';
+                      document.getElementById('controls-top-right').style.display = 'none';
+                      document.getElementById('error-message').style.display = 'block';
+                      return;
+                  }
+                  // 初始化布局变量
+                  initD3();
+              };
+
+              let root, svg, g, zoom, tree;
               const width = window.innerWidth;
               const height = window.innerHeight;
-              
-              // Zoom 配置
-              const zoom = d3.zoom().scaleExtent([0.1, 3]).on("zoom", (e) => {
-                  g.attr("transform", e.transform);
-              });
 
-              const svg = d3.select("#tree-container").append("svg")
-                  .attr("width", "100%")
-                  .attr("height", "100%")
-                  .call(zoom)
-                  .on("dblclick.zoom", null);
+              function initD3() {
+                  zoom = d3.zoom().scaleExtent([0.1, 3]).on("zoom", (e) => {
+                      if(g) g.attr("transform", e.transform);
+                  });
 
-              const g = svg.append("g");
-              const tree = d3.tree().nodeSize([30, 200]); // 增加水平间距
+                  svg = d3.select("#tree-container").append("svg")
+                      .attr("width", "100%")
+                      .attr("height", "100%")
+                      .call(zoom)
+                      .on("dblclick.zoom", null);
 
-              // 按钮事件
-              document.getElementById('refresh-btn').addEventListener('click', () => vscode.postMessage({ command: 'refresh' }));
-              document.getElementById('zoom-in-btn').addEventListener('click', () => svg.transition().call(zoom.scaleBy, 1.2));
-              document.getElementById('zoom-out-btn').addEventListener('click', () => svg.transition().call(zoom.scaleBy, 0.8));
-              document.getElementById('zoom-reset-btn').addEventListener('click', () => centerView(true));
+                  g = svg.append("g");
+                  tree = d3.tree().nodeSize([25, 200]); 
 
-              let currentData = null;
+                  setupEvents();
+              }
+
+              function setupEvents() {
+                  document.getElementById('refresh-btn').addEventListener('click', () => vscode.postMessage({ command: 'refresh' }));
+                  document.getElementById('zoom-in-btn').addEventListener('click', () => svg.transition().call(zoom.scaleBy, 1.2));
+                  document.getElementById('zoom-out-btn').addEventListener('click', () => svg.transition().call(zoom.scaleBy, 0.8));
+                  document.getElementById('zoom-reset-btn').addEventListener('click', () => centerView(true));
+              }
 
               window.addEventListener('message', event => {
                   if (event.data.command === 'refresh') {
-                      currentData = event.data.data;
-                      update(currentData);
+                      // 确保 D3 已加载
+                      if (typeof d3 !== 'undefined') {
+                          initData(event.data.data);
+                      }
                   }
               });
 
-              // 核心修改：居中逻辑优化，支持动画切换
               function centerView(animate = false) {
-                  // 获取当前内容的边界框
-                  const bounds = g.node().getBBox();
-                  const fullWidth = width || 800;
-                  const fullHeight = height || 600;
-                  
-                  // 如果没有内容，默认居中
-                  if (bounds.width === 0 || bounds.height === 0) {
-                      const t = d3.zoomIdentity.translate(fullWidth / 2, fullHeight / 2);
-                      svg.call(zoom.transform, t);
-                      return;
-                  }
-
-                  // 计算缩放比例和偏移量，使其居中
-                  const scale = 0.9; // 默认缩放 0.9 倍，留点边距
-                  const x = -bounds.y + (fullWidth - bounds.height) / 2; // 树是横向的，x 对应 y
-                  const y = -bounds.x + (fullHeight - bounds.width) / 2; // 树是横向的，y 对应 x
-                  
-                  // 针对横向树图的修正：根节点在左侧
-                  // bounds.x 是垂直方向（因为 d3.tree 默认是垂直的，我们转换了坐标），bounds.y 是水平方向
-                  // 这里的变换逻辑需要根据下面的 node transform 来定
-                  // 我们的 node transform 是 translate(d.y, d.x) -> d.y 是水平, d.x 是垂直
-                  
-                  // 简单粗暴居中策略：将根节点定位到左侧 100px，垂直居中
-                  const initialTransform = d3.zoomIdentity.translate(100, fullHeight / 2).scale(1);
-
+                  if (!svg) return;
+                  const initialTransform = d3.zoomIdentity.translate(80, height / 2).scale(1);
                   if (animate) {
                       svg.transition().duration(750).call(zoom.transform, initialTransform);
                   } else {
@@ -266,72 +307,188 @@ export class AnchorFeature implements IFeature {
                   }
               }
 
-              function update(data) {
-                  g.selectAll("*").remove();
+              function initData(data) {
+                  g.selectAll("*").remove(); 
+                  
                   if (!data || !data.children || data.children.length === 0) {
                       g.append("text").attr("x", 50).attr("y", 50).text("暂无数据").style("fill", "var(--vscode-descriptionForeground)");
                       return;
                   }
+                  root = d3.hierarchy(data);
+                  let i = 0;
+                  root.descendants().forEach(d => { d.id = i++; });
+                  update(root);
+                  centerView(false);
+              }
 
-                  const root = d3.hierarchy(data);
+              function update(source) {
+                  const nodes = root.descendants();
+                  const links = root.links();
+
                   tree(root);
 
-                  // Links
-                  g.selectAll(".link").data(root.links()).enter().append("path")
-                      .attr("class", "link")
-                      .attr("d", d3.linkHorizontal().x(d => d.y).y(d => d.x));
+                  const node = g.selectAll(".node").data(nodes, d => d.id);
 
-                  // Nodes
-                  const node = g.selectAll(".node").data(root.descendants()).enter().append("g")
+                  // Enter
+                  const nodeEnter = node.enter().append("g")
                       .attr("class", "node")
+                      .attr("transform", d => "translate(" + (source.y0 || source.y) + "," + (source.x0 || source.x) + ")");
+
+                  // 1. 外圈大圆
+                  nodeEnter.append("circle")
+                      .attr("class", "outer")
+                      .attr("r", 1e-6)
+                      .on("click", clickToggle);
+
+                  // 2. 内圈小圆
+                  nodeEnter.append("circle")
+                      .attr("class", "inner")
+                      .attr("r", 1e-6)
+                      .on("click", clickToggle);
+
+                  function clickToggle(e, d) {
+                      toggle(d); 
+                      update(d); 
+                      e.stopPropagation(); 
+                  }
+                  
+                  // --- 3. 新增: 节点图标 (Paperclip or Folder) ---
+                  // 使用 FontAwesome Unicode (Paperclip: \uf0c1, Folder: \uf07b)
+                  nodeEnter.append("text")
+                      .attr("class", "node-icon")
+                      .attr("dy", 3)
+                      // 如果在右侧(叶子)，图标放在文字左边；如果在左侧(根/组)，图标放在文字右边
+                      .attr("x", d => d.children || d._children ? -14 : 14) 
+                      .style("text-anchor", d => d.children || d._children ? "end" : "start")
+                      .text(d => {
+                          if (d.data.data) {
+                             return "\\uf0c1"; // 📎 Paperclip (可跳转)
+                          }
+                          return ""; // 纯分组节点暂时不加图标，或者可以用 "\\uf07b" (Folder)
+                      })
+                      .on("click", (e, d) => {
+                          if(d.data.data) vscode.postMessage({ command: 'jump', data: d.data.data });
+                          e.stopPropagation();
+                      });
+
+                  // 4. 文字 Label (位置需要调整，避开图标)
+                  nodeEnter.append("text")
+                      .attr("class", "label")
+                      .attr("dy", 3)
+                      // 这里的距离要比图标更远一点 (14 + 18 = 32)
+                      .attr("x", d => {
+                          const gap = d.data.data ? 32 : 14; // 如果有图标，偏移量更大
+                          return d.children || d._children ? -gap : gap;
+                      })
+                      .style("text-anchor", d => d.children || d._children ? "end" : "start")
+                      .text(d => {
+                          if (d.data.data) {
+                              return d.data.data.description || d.data.name; 
+                          }
+                          return d.data.name;
+                      })
+                      .on("click", (e, d) => {
+                          if(d.data.data) {
+                              vscode.postMessage({ command: 'jump', data: d.data.data });
+                          }
+                          e.stopPropagation();
+                      });
+
+                  // 5. 徽标数字
+                  nodeEnter.append("text")
+                      .attr("class", "badge")
+                      .attr("dy", 3)
+                      .attr("x", 16) // 组节点通常没有图标，所以位置保持不变，或者根据图标逻辑调整
+                      .style("text-anchor", "start")
+                      .text(d => d._children ? d._children.length : "")
+                      .style("opacity", 0);
+
+                  // Tooltip (逻辑保持不变)
+                  const tooltip = d3.select("#tooltip");
+                  nodeEnter.on("mouseover", (e, d) => {
+                      if (!d.data.data) return;
+                      const raw = d.data.data;
+                      const content = raw.content ? raw.content.trim() : "No Content";
+                      const group = raw.group || "Default";
+                      const file = raw.filePath ? raw.filePath.split('/').pop() : "";
+                      const line = raw.line || "?";
+                      const desc = raw.description || "Anchor Point";
+                      const htmlContent = \`
+                          <div class="tooltip-header">\${desc}</div>
+                          <div class="tooltip-row"><span class="tooltip-label">内容:</span><span class="tooltip-val">\${content}</span></div>
+                          <div class="tooltip-row"><span class="tooltip-label">位置:</span><span class="tooltip-val">\${file}:\${line}</span></div>
+                          <div class="tooltip-row"><span class="tooltip-label">分组:</span><span class="tooltip-val">\${group}</span></div>
+                      \`;
+                      tooltip.style("opacity", 1).html(htmlContent).style("left", (e.pageX + 15) + "px").style("top", (e.pageY + 10) + "px");
+                  }).on("mouseout", () => tooltip.style("opacity", 0));
+
+                  // Update
+                  const nodeUpdate = nodeEnter.merge(node);
+
+                  nodeUpdate.transition().duration(250)
                       .attr("transform", d => "translate(" + d.y + "," + d.x + ")");
 
-                  // 将点击事件绑定到整个 Group (g.node)，增加点击面积
-                  node.on("click", (e, d) => {
-                      if(d.data.data) vscode.postMessage({ command: 'jump', data: d.data.data });
-                      e.stopPropagation(); // 防止触发 zoom
+                  // 样式逻辑
+                  const isGroup = d => d.data.children && d.data.children.length > 0;
+
+                  nodeUpdate.select("circle.outer")
+                      .attr("r", d => isGroup(d) ? 8 : 0)
+                      .style("opacity", d => isGroup(d) ? 1 : 0);
+
+                  nodeUpdate.select("circle.inner")
+                      .attr("r", 4)
+                      .attr("class", d => {
+                          if (isGroup(d)) {
+                              return d._children ? "inner collapsed" : "inner expanded";
+                          }
+                          return "inner leaf";
+                      });
+
+                  nodeUpdate.select(".badge")
+                      .text(d => d._children ? d._children.length : "")
+                      .transition().duration(250)
+                      .style("opacity", d => d._children ? 1 : 0);
+
+                  // Exit
+                  const nodeExit = node.exit().transition().duration(250)
+                      .attr("transform", d => "translate(" + source.y + "," + source.x + ")")
+                      .remove();
+
+                  nodeExit.selectAll("circle").attr("r", 1e-6);
+                  nodeExit.select("text").style("fill-opacity", 1e-6);
+
+                  // Links
+                  const link = g.selectAll(".link").data(links, d => d.target.id);
+                  const linkEnter = link.enter().insert("path", "g")
+                      .attr("class", "link")
+                      .attr("d", d => {
+                          const o = {x: source.x0 || source.x, y: source.y0 || source.y};
+                          return d3.linkHorizontal().x(d => d.y).y(d => d.x)({source: o, target: o});
+                      });
+                  const linkUpdate = linkEnter.merge(link);
+                  linkUpdate.transition().duration(250)
+                      .attr("d", d3.linkHorizontal().x(d => d.y).y(d => d.x));
+                  link.exit().transition().duration(250)
+                      .attr("d", d => {
+                          const o = {x: source.x, y: source.y};
+                          return d3.linkHorizontal().x(d => d.y).y(d => d.x)({source: o, target: o});
+                      })
+                      .remove();
+
+                  nodes.forEach(d => {
+                      d.x0 = d.x;
+                      d.y0 = d.y;
                   });
+              }
 
-                  node.append("circle").attr("r", 5);
-
-                  const tooltip = d3.select("#tooltip");
-                  node.on("mouseover", (e, d) => {
-                      if (!d.data.data) return;
-                      
-                      const raw = d.data.data; // 原始 AnchorData
-                      const content = raw.content || "无内容";
-                      const group = raw.group || "Default";
-                      const id = raw.id || "N/A";
-                      const line = raw.line || "?";
-                      const file = raw.filePath || "Unknown File";
-                      const desc = raw.description ? \`📝 \${raw.description}\` : "";
-
-                      const htmlContent = \`
-                          <strong>\${desc || "Anchor Point"}</strong>
-                          <div style="margin: 4px 0; font-family: monospace; white-space: wrap;">\${content}</div>
-                          <div class="meta">
-                              <div>📂 分组: \${group}</div>
-                              <div>📄 文件: \${file} : \${line}</div>
-                              <div>🆔 ID: \${id}</div>
-                          </div>
-                      \`;
-
-                      tooltip.style("opacity", 1)
-                             .html(htmlContent)
-                             .style("left", (e.pageX + 15) + "px")
-                             .style("top", (e.pageY + 10) + "px");
-                  }).on("mouseout", () => {
-                      tooltip.style("opacity", 0);
-                  });
-
-                  node.append("text")
-                      .attr("dy", 3)
-                      .attr("x", d => d.children ? -8 : 8)
-                      .style("text-anchor", d => d.children ? "end" : "start")
-                      .text(d => d.data.name);
-
-                  // 之前可能用了 transition导致从(0,0)飞过来，现在直接 call
-                  centerView(false); 
+              function toggle(d) {
+                  if (d.children) {
+                      d._children = d.children;
+                      d.children = null;
+                  } else {
+                      d.children = d._children;
+                      d._children = null;
+                  }
               }
           </script>
       </body>
