@@ -308,7 +308,7 @@ export class AnchorFeature implements IFeature {
 
                       const htmlContent = \`
                           <strong>\${desc || "Anchor Point"}</strong>
-                          <div style="margin: 4px 0; font-family: monospace; white-space: pre-wrap;">\${content}</div>
+                          <div style="margin: 4px 0; font-family: monospace; white-space: wrap;">\${content}</div>
                           <div class="meta">
                               <div>📂 分组: \${group}</div>
                               <div>📄 文件: \${file} : \${line}</div>
@@ -528,14 +528,13 @@ export class AnchorFeature implements IFeature {
         let buttons: any[] = [];
 
         if (defaultAnchorId) {
-          // CodeLens 模式：替换新建分组为“查看子级”
           if (index > 0) buttons.push({ iconPath: new vscode.ThemeIcon('arrow-up'), tooltip: TOOLTIPS.UP });
           if (index < latestAnchors.length - 1) buttons.push({ iconPath: new vscode.ThemeIcon('arrow-down'), tooltip: TOOLTIPS.DOWN });
-          buttons.push({ iconPath: new vscode.ThemeIcon('file-symlink-directory'), tooltip: TOOLTIPS.VIEW_CHILDREN }); 
+          if (a.items?.length) buttons.push({ iconPath: new vscode.ThemeIcon('file-symlink-directory'), tooltip: TOOLTIPS.VIEW_CHILDREN });
           buttons.push({ iconPath: new vscode.ThemeIcon('edit'), tooltip: TOOLTIPS.ADD_NOTE });
           buttons.push({ iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: TOOLTIPS.DELETE });
         } else if (isPreviewMode) {
-          // 预览模式：保持原样
+          if (a.items?.length) buttons.push({ iconPath: new vscode.ThemeIcon('file-symlink-directory'), tooltip: TOOLTIPS.VIEW_CHILDREN });
           buttons.push({ iconPath: new vscode.ThemeIcon('edit'), tooltip: TOOLTIPS.ADD_NOTE });
           buttons.push({ iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: TOOLTIPS.DELETE });
         } else {
@@ -543,7 +542,9 @@ export class AnchorFeature implements IFeature {
           buttons = [
             { iconPath: new vscode.ThemeIcon('arrow-up'), tooltip: TOOLTIPS.INSERT_BEFORE },
             { iconPath: new vscode.ThemeIcon('arrow-down'), tooltip: TOOLTIPS.INSERT_AFTER },
-            { iconPath: new vscode.ThemeIcon('new-folder'), tooltip: TOOLTIPS.NEW_SUBGROUP },
+            a.items?.length
+              ? { iconPath: new vscode.ThemeIcon('file-symlink-directory'), tooltip: TOOLTIPS.VIEW_CHILDREN }
+              : { iconPath: new vscode.ThemeIcon('new-folder'), tooltip: TOOLTIPS.NEW_SUBGROUP },
             { iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')), tooltip: TOOLTIPS.DELETE },
           ];
         }
@@ -615,14 +616,20 @@ export class AnchorFeature implements IFeature {
           this.updateDecorations();
           if (quickPick.items.length === 0 && isPreviewMode) quickPick.hide();
           break;
-        case TOOLTIPS.VIEW_CHILDREN: 
+        case TOOLTIPS.VIEW_CHILDREN:
           const targetAnchor = this.service.getAnchorById(anchorId);
           if (targetAnchor) {
             let childGroupName = targetAnchor.description;
             if (targetAnchor.items && targetAnchor.items.length > 0) childGroupName = targetAnchor.items[0].group;
             if (childGroupName) {
-              const _defaultAnchorId = defaultAnchorId || targetAnchor.id;
-              this.showAnchorList(childGroupName, true, undefined, _defaultAnchorId);
+              const ctx = this.getEditorContext(pinnedLineIndex);
+              if (!ctx) return;
+              if (defaultAnchorId || isPreviewMode) {
+                const _defaultAnchorId = defaultAnchorId || targetAnchor.id;
+                this.showAnchorList(childGroupName, true, undefined, _defaultAnchorId);
+              } else {
+                this.showAnchorList(childGroupName, false, ctx.uiLineNumber);
+              }
             } else {
               vscode.window.showInformationMessage('此记录没有子分组');
             }
@@ -636,9 +643,10 @@ export class AnchorFeature implements IFeature {
         case TOOLTIPS.INSERT_AFTER:
           await this.handleInsertAnchor(anchorId, tooltip === TOOLTIPS.INSERT_BEFORE ? 'before' : 'after', groupName, pinnedLineIndex);
           refreshList();
-          setTimeout(() => {
+          let timer = setTimeout(() => {
             quickPick.hide();
-          }, 1000); 
+            clearTimeout(timer);
+          }, 1000);
           break;
       }
     });
