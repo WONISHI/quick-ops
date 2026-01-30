@@ -20,8 +20,12 @@
                 },
                 "anchorViewMode": {
                     "type": "string",
-                    "default": "menu",
-                    "description": "锚点视图预览模式"
+                    "default": "mindmap",
+                    "enum": [
+                        "mindmap",
+                        "menu"
+                    ],
+                    "description": "锚点视图预览模式 (Anchor view preview mode)"
                 }
             }
         },
@@ -98,6 +102,18 @@
                 "properties": {
                     "style": {
                         "type": "string",
+                        "enum": [
+                            "javascript",
+                            "typescript",
+                            "vue",
+                            "html",
+                            "css",
+                            "scss",
+                            "json",
+                            "markdown",
+                            "shellscript",
+                            "python"
+                        ],
                         "description": "Markdown文档中代码块的语言高亮 (Syntax highlighting language in Markdown documentation)"
                     },
                     "prefix": {
