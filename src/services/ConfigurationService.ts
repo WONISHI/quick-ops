@@ -26,7 +26,7 @@ export class ConfigurationService extends EventEmitter implements IService {
   private static _instance: ConfigurationService;
 
   private readonly _configFileName = '.quickopsrc';
-  private readonly _templateConfigPath = 'resources/template/.quickopsrc.json';
+  private readonly _templateConfigPath = '.quickopsrc';
 
   private _config: ILogrcConfig = {} as ILogrcConfig;
   private _lastConfig: ILogrcConfig | null = null;
