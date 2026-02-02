@@ -102,21 +102,33 @@ export class AnchorFeature implements IFeature {
   }
 
   // --- 2. Webview 思维导图实现 ---
-  private openMindMapPanel() {
+  // 修改为 async 以支持拆分命令的等待
+  private async openMindMapPanel() {
+    const config = this.configService.config?.general || {};
+    const mode = config.mindMapPosition || 'right';
+
     if (this.currentPanel) {
-      this.currentPanel.reveal(vscode.ViewColumn.Beside);
+      // 如果面板已存在，尝试根据配置位置 reveal
+      const revealColumn = mode === 'left' ? vscode.ViewColumn.One : vscode.ViewColumn.Beside;
+      this.currentPanel.reveal(revealColumn);
       return;
     }
 
-    this.currentPanel = vscode.window.createWebviewPanel(
-      'anchorMindMap',
-      'Anchors Mind Map',
-      vscode.ViewColumn.Beside, // 默认右侧分屏
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-      },
-    );
+    let targetColumn = vscode.ViewColumn.Beside;
+
+    // 如果配置为 left，执行向左拆分命令
+    if (mode === 'left') {
+      // 执行 VS Code 内置的“向左拆分编辑器”命令
+      // 这会将当前编辑器向左复制一份并聚焦，从而在左侧腾出空间
+      await vscode.commands.executeCommand('workbench.action.splitEditorLeft');
+      // 拆分后焦点在左侧，直接使用 Active 即可
+      targetColumn = vscode.ViewColumn.Active;
+    }
+
+    this.currentPanel = vscode.window.createWebviewPanel('anchorMindMap', 'Anchors Mind Map', targetColumn, {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+    });
 
     this.currentPanel.webview.html = this.getWebviewContent();
 
@@ -867,7 +879,28 @@ export class AnchorFeature implements IFeature {
     const absolutePath = path.join(rootPath, filePath);
     try {
       const doc = await vscode.workspace.openTextDocument(absolutePath);
-      const editor = await vscode.window.showTextDocument(doc);
+
+      let targetColumn = vscode.ViewColumn.Active;
+
+      // 2. 检查思维导图是否打开且可见
+      if (this.currentPanel && this.currentPanel.visible && this.currentPanel.viewColumn) {
+        // 获取思维导图当前的实时列
+        const mindMapColumn = this.currentPanel.viewColumn;
+
+        if (mindMapColumn === vscode.ViewColumn.One) {
+          targetColumn = vscode.ViewColumn.Two;
+        } else {
+          targetColumn = vscode.ViewColumn.One;
+        }
+      }
+
+      // --- 动态互斥逻辑结束 ---
+
+      const editor = await vscode.window.showTextDocument(doc, {
+        viewColumn: targetColumn,
+        preview: false,
+      });
+
       const lineIndex = Math.max(0, uiLine - 1);
       const pos = new vscode.Position(lineIndex, 0);
       editor.selection = new vscode.Selection(pos, pos);

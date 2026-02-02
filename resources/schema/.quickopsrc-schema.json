@@ -26,6 +26,15 @@
                         "menu"
                     ],
                     "description": "锚点视图预览模式 (Anchor view preview mode)"
+                },
+                "mindMapPosition": {
+                    "type": "string",
+                    "default": "right",
+                    "enum": [
+                        "left",
+                        "right"
+                    ],
+                    "description": "锚点视图拆分模式 (Anchor view preview mode)"
                 }
             }
         },

@@ -1,7 +1,9 @@
 {
   "general": {
     "debug": true,
-    "excludeConfigFiles": true
+    "excludeConfigFiles": false,
+    "anchorViewMode": "mindmap",
+    "mindMapPosition": "right"
   },
   "logger": {
     "template": "[icon]-[~/^/^/name]-[line]-[$0]",

@@ -12,7 +12,7 @@ import { IService } from '../core/interfaces/IService';
 const execAsync = promisify(exec);
 
 export interface ILogrcConfig {
-  general: { debug: boolean; excludeConfigFiles: boolean; anchorViewMode?: 'menu' | 'mindmap' };
+  general: { debug: boolean; excludeConfigFiles: boolean; anchorViewMode?: 'menu' | 'mindmap'; mindMapPosition?: 'left' | 'right' };
   logger: { template: string; dateFormat: string };
   utils: { uuidLength: number };
   mock: { port: number; asyncMode: boolean; workerCount: number };
