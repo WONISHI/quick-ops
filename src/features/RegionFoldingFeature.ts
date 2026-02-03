@@ -1,19 +1,34 @@
 import * as vscode from 'vscode';
 import { IFeature } from '../core/interfaces/IFeature';
-
-interface RegionStackItem {
-  line: number;
-  type: '+' | '-';
-}
+import type { RegionStackItem } from '../core/types/region-fold';
 
 export class RegionFoldingFeature implements IFeature {
   public readonly id = 'RegionFoldingFeature';
 
   // 1. 支持的语言列表
   private readonly selector: vscode.DocumentSelector = [
-    'javascript', 'typescript', 'vue', 'javascriptreact', 'typescriptreact',
-    'java', 'c', 'cpp', 'go', 'python', 'html', 'xml', 'markdown',
-    'json', 'jsonc', 'css', 'scss', 'less', 'yaml', 'php', 'csharp', 'sql'
+    'javascript',
+    'typescript',
+    'vue',
+    'javascriptreact',
+    'typescriptreact',
+    'java',
+    'c',
+    'cpp',
+    'go',
+    'python',
+    'html',
+    'xml',
+    'markdown',
+    'json',
+    'jsonc',
+    'css',
+    'scss',
+    'less',
+    'yaml',
+    'php',
+    'csharp',
+    'sql',
   ];
 
   // 2. 样式装饰器：用于高亮 region 标题
@@ -39,11 +54,7 @@ export class RegionFoldingFeature implements IFeature {
     });
 
     // B. 注册代码补全 (输入 ! 自动提示)
-    const completionProvider = vscode.languages.registerCompletionItemProvider(
-      this.selector,
-      { provideCompletionItems: (d, p) => this.provideCompletionItems(d, p) },
-      '!', '['
-    );
+    const completionProvider = vscode.languages.registerCompletionItemProvider(this.selector, { provideCompletionItems: (d, p) => this.provideCompletionItems(d, p) }, '!', '[');
 
     // C. 监听：打开文档时 -> 强制执行折叠/展开状态 + 更新颜色
     context.subscriptions.push(
@@ -123,7 +134,7 @@ export class RegionFoldingFeature implements IFeature {
   // --- 2. 核心：强制执行折叠/展开状态 (进页面时触发) ---
   private async enforceRegionState(editor: vscode.TextEditor) {
     const document = editor.document;
-    
+
     // 过滤非代码文件
     if (document.uri.scheme !== 'file' && document.uri.scheme !== 'untitled') return;
 
@@ -136,11 +147,11 @@ export class RegionFoldingFeature implements IFeature {
 
       if (match) {
         const type = match[1]; // '+' 或 '-'
-        
+
         // 如果是 ':-'，加入折叠列表
         if (type === '-') {
           linesToFold.push(i);
-        } 
+        }
         // 如果是 ':+'，加入展开列表 (确保它是打开的)
         else if (type === '+') {
           linesToUnfold.push(i);
@@ -181,16 +192,16 @@ export class RegionFoldingFeature implements IFeature {
       // match[2] 是标题部分
       if (match && match[2] && match[2].trim().length > 0) {
         const titleText = match[2];
-        
+
         // 找到标题在行内的位置用于高亮
         const startIndex = lineText.lastIndexOf(titleText);
         const endIndex = startIndex + titleText.length;
 
         const range = new vscode.Range(i, startIndex, i, endIndex);
-        
+
         titleDecorations.push({
           range: range,
-          hoverMessage: 'Custom Region'
+          hoverMessage: 'Custom Region',
         });
       }
     }
@@ -202,7 +213,7 @@ export class RegionFoldingFeature implements IFeature {
   private provideCompletionItems(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
     const lineText = document.lineAt(position).text;
     const prefix = lineText.substring(0, position.character);
-    
+
     // 简单检查触发字符
     if (!prefix.includes('!')) return [];
 

@@ -6,19 +6,7 @@ import { AnchorService } from '../services/AnchorService';
 import { AnchorCodeLensProvider } from '../providers/AnchorCodeLensProvider';
 import { ColorUtils } from '../utils/ColorUtils';
 import { ConfigurationService } from '../services/ConfigurationService';
-
-// 常量定义，方便维护
-const TOOLTIPS = {
-  ADD_NOTE: '添加备注',
-  UP: '上移',
-  DOWN: '下移',
-  DELETE: '删除',
-  NEW_SUBGROUP: '由此创建新分组',
-  VIEW_CHILDREN: '查看子级',
-  INSERT_BEFORE: '在此项【之前】插入',
-  INSERT_AFTER: '在此项【之后】插入',
-  TRASH: '删除',
-};
+import { TOOLTIPS } from '../core/constants';
 
 export class AnchorFeature implements IFeature {
   public readonly id = 'AnchorFeature';
@@ -456,8 +444,6 @@ export class AnchorFeature implements IFeature {
                       if (!d.data.data) return;
                       const raw = d.data.data;
                       
-                      // ★★★ 核心修复：使用 escapeHtml 确保 HTML 标签显示为源码 ★★★
-                      // 比如 <div...> 会被转义为 &lt;div...&gt; 从而显示在页面上，而不是被渲染。
                       const content = raw.content ? escapeHtml(raw.content.trim()) : "";
                       
                       const group = raw.group || "Default";
@@ -526,8 +512,6 @@ export class AnchorFeature implements IFeature {
       </body>
       </html>`;
   }
-
-  // --- 3. 列表交互逻辑 (添加、插入、查看子级) ---
 
   private getEditorContext(overrideLineNumber?: number) {
     const editor = vscode.window.activeTextEditor;

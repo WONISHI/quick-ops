@@ -1,4 +1,4 @@
-import { IWorkspaceContext } from '../services/WorkspaceContextService';
+import type { IWorkspaceContext } from '../core/types/work-space';
 import { isObject } from 'lodash-es';
 
 // 定义状态类型

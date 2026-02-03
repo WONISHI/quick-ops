@@ -12,3 +12,13 @@ export interface ISnippetConfig {
   description?: string;
   scope?: SupportedFileType[];
 }
+
+export interface ILogrcConfig {
+  general: { debug: boolean; excludeConfigFiles: boolean; anchorViewMode?: 'menu' | 'mindmap'; mindMapPosition?: 'left' | 'right' };
+  logger: { template: string; dateFormat: string };
+  utils: { uuidLength: number };
+  mock: { port: number; asyncMode: boolean; workerCount: number };
+  git: { ignoreList: string[] };
+  project: { alias: Record<string, string>; marks: Record<string, any> };
+  [key: string]: any;
+}
