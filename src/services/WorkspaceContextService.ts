@@ -14,6 +14,7 @@ export interface IWorkspaceContext {
   relativePath: string;
 
   moduleName: string;
+  baseName: string;
   ModuleName: string;
   moduleNameCamel: string;
   moduleNameKebab: string;
@@ -159,6 +160,7 @@ export class WorkspaceContextService {
     const relativePath = workspaceFolder ? path.relative(workspaceFolder.uri.fsPath, filePath) : filePath;
 
     const baseName = parsedPath.name;
+    const dirName = path.basename(parsedPath.dir);
 
     this._context.fileName = parsedPath.base;
     this._context.fileNameBase = baseName;
@@ -168,11 +170,13 @@ export class WorkspaceContextService {
     this._context.relativePath = relativePath;
 
     this._context.moduleName = baseName;
+    this._context.baseName = upperFirst(camelCase(baseName.toLowerCase() === 'index' ? dirName : baseName));
     this._context.ModuleName = upperFirst(camelCase(baseName));
     this._context.moduleNameCamel = camelCase(baseName);
     this._context.moduleNameKebab = kebabCase(baseName);
     this._context.moduleNameSnake = snakeCase(baseName);
     this._context.moduleNameUpper = snakeCase(baseName).toUpperCase();
+    console.log(this._context);
   }
 
   private updateProjectContext() {

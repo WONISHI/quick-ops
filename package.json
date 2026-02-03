@@ -21,6 +21,10 @@
     "vue",
     "react"
   ],
+  "galleryBanner": {
+    "color": "#ffe04b",
+    "theme": "light"
+  },
   "categories": [
     "Other",
     "Snippets"
