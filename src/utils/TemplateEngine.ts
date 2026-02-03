@@ -1,15 +1,6 @@
 import type { IWorkspaceContext } from '../core/types/work-space';
+import type { RenderStatus, TemplateResult } from '../core/types/package-script';
 import { isObject } from 'lodash-es';
-
-// 定义状态类型
-export type RenderStatus = 'success' | 'empty' | 'missing';
-
-// 定义返回结构：result + payload + status (共3个参数)
-interface TemplateResult {
-  result: string; // 最终拼接好的字符串
-  payload: Record<string, any>; // 提取出的复杂数据
-  status: RenderStatus; // 解析状态
-}
 
 export class TemplateEngine {
   /**

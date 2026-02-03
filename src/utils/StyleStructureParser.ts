@@ -1,11 +1,7 @@
 import * as cheerio from 'cheerio';
 import { parse } from '@babel/parser';
 import traverse from '@babel/traverse';
-
-interface StyleNode {
-  selector: string;
-  children: StyleNode[];
-}
+import type { StyleNode } from '../core/types/style-generator';
 
 export class StyleStructureParser {
   static parse(content: string, languageId: string): string {

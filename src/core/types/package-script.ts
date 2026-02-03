@@ -19,3 +19,11 @@ export interface CmdInfo {
   cmdId: string;
   shell: string;
 }
+
+export type RenderStatus = 'success' | 'empty' | 'missing';
+
+export interface TemplateResult {
+  result: string;
+  payload: Record<string, any>;
+  status: RenderStatus;
+}
