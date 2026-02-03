@@ -14,7 +14,6 @@ export interface ParseResult {
   defaultExport: string[];
 }
 
-// 🔥 1. 定义缓存容器 (放在类外部，随模块生命周期存在)
 const exportsCache = new Map<string, { mtime: number; result: ParseResult }>();
 const vueNameCache = new Map<string, { mtime: number; result: string | null }>();
 
@@ -24,7 +23,6 @@ export class AstParser {
    * 支持 TypeScript, JSX, TSX, JS
    */
   public static parseExports(filePath: string): ParseResult {
-    // 🔥 2. 获取文件状态 (检查修改时间)
     let stats: fs.Stats;
     try {
       stats = fs.statSync(filePath);
@@ -33,7 +31,6 @@ export class AstParser {
       return { namedExports: [], defaultExport: [] };
     }
 
-    // 🔥 3. 检查缓存：路径匹配 且 修改时间一致
     const cached = exportsCache.get(filePath);
     if (cached && cached.mtime === stats.mtimeMs) {
       return cached.result;
@@ -91,7 +88,6 @@ export class AstParser {
 
       const result = { namedExports, defaultExport };
 
-      // 🔥 4. 解析完成，写入缓存
       exportsCache.set(filePath, { mtime: stats.mtimeMs, result });
 
       return result;
@@ -105,7 +101,6 @@ export class AstParser {
    * 解析 Vue 组件名称
    */
   static parseVueComponentName(filePath: string): string | null {
-    // 🔥 同样添加缓存逻辑
     let stats: fs.Stats;
     try {
       stats = fs.statSync(filePath);
@@ -165,7 +160,6 @@ export class AstParser {
         });
       }
 
-      // 🔥 写入缓存
       vueNameCache.set(filePath, { mtime: stats.mtimeMs, result: componentName });
 
       return componentName;

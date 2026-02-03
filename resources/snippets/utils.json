@@ -63,7 +63,7 @@
     "prefix": "tcf",
     "body": [
       "try {",
-      "   $TM_SELECTED_TEXT",
+      "   ${1:$TM_SELECTED_TEXT}",
       "} catch (err) {",
       "   console.log('err',err)",
       "} finally {",
@@ -77,7 +77,7 @@
     "prefix": "trc",
     "body": [
       "try {",
-      "   $TM_SELECTED_TEXT",
+      "   ${0:$TM_SELECTED_TEXT}",
       "} catch (err) {",
       "   console.log('err',err)",
       "}"

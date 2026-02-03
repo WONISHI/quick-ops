@@ -2,7 +2,7 @@
   "name": "quick-ops",
   "displayName": "Quick Ops: Code Utils & Anchors",
   "description": "Boost productivity with Code Anchors, SCSS structure generation, and essential navigation shortcuts.",
-  "version": "0.0.20",
+  "version": "0.0.21",
   "engines": {
     "vscode": "^1.73.0"
   },
@@ -21,6 +21,10 @@
     "vue",
     "react"
   ],
+  "galleryBanner": {
+    "color": "#ffe04b",
+    "theme": "light"
+  },
   "categories": [
     "Other",
     "Snippets"

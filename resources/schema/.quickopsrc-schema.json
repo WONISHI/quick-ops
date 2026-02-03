@@ -17,6 +17,32 @@
                     "type": "boolean",
                     "default": true,
                     "description": "是否在 Git 中忽略配置文件 (Whether to ignore configuration files in Git)"
+                },
+                "anchorViewMode": {
+                    "type": "string",
+                    "default": "mindmap",
+                    "enum": [
+                        "mindmap",
+                        "menu"
+                    ],
+                    "enumDescriptions": [
+                        "以思维导图形式可视化展示 (Visual Mind Map)",
+                        "以快速选择列表形式展示 (Quick Pick Menu)"
+                    ],
+                    "description": "选择锚点列表的展示方式 (Choose how to display the anchor list)"
+                },
+                "mindMapPosition": {
+                    "type": "string",
+                    "default": "right",
+                    "enum": [
+                        "left",
+                        "right"
+                    ],
+                    "enumDescriptions": [
+                        "在左侧拆分出一个新编辑器组显示 (Split editor to the left)",
+                        "在当前编辑器右侧/旁边显示 (Open beside active editor)"
+                    ],
+                    "description": "思维导图视图的打开位置 (Controls where the Anchor Mind Map opens)"
                 }
             }
         },
@@ -93,7 +119,32 @@
                 "properties": {
                     "style": {
                         "type": "string",
-                        "description": "Markdown文档中代码块的语言高亮 (Syntax highlighting language in Markdown documentation)"
+                        "default": "typescript",
+                        "enum": [
+                            "javascript",
+                            "typescript",
+                            "vue",
+                            "html",
+                            "css",
+                            "scss",
+                            "json",
+                            "markdown",
+                            "shellscript",
+                            "python"
+                        ],
+                        "enumDescriptions": [
+                            "JavaScript (JS)",
+                            "TypeScript (TS)",
+                            "Vue.js Component",
+                            "HTML Markup",
+                            "CSS Stylesheet",
+                            "SCSS/Sass",
+                            "JSON Data",
+                            "Markdown Document",
+                            "Shell/Bash Script",
+                            "Python Script"
+                        ],
+                        "description": "Markdown 文档中代码块的语法高亮语言 (Syntax highlighting language for Markdown code blocks)"
                     },
                     "prefix": {
                         "type": "string",
