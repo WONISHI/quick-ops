@@ -26,7 +26,9 @@ export class ConfigurationService extends EventEmitter implements IService {
   private static _instance: ConfigurationService;
 
   private readonly _configFileName = '.quickopsrc';
-  private readonly _templateConfigPath = '.quickopsrc';
+
+  // 修改这里：指向插件资源目录下的模板文件
+  private readonly _templateConfigPath = 'resources/template/.quickopsrc.json';
 
   private _config: ILogrcConfig = {} as ILogrcConfig;
   private _lastConfig: ILogrcConfig | null = null;
@@ -112,8 +114,10 @@ export class ConfigurationService extends EventEmitter implements IService {
           const content = await fsPromises.readFile(templatePath, 'utf-8');
           return JSON.parse(content);
         } catch (e) {
-          console.error(`[${this.serviceId}] Failed to load template config:`, e);
+          console.error(`[${this.serviceId}] Failed to load template config from ${templatePath}:`, e);
         }
+      } else {
+        // console.warn(`[${this.serviceId}] Template config not found at: ${templatePath}`);
       }
     }
     return {} as ILogrcConfig;
@@ -183,6 +187,8 @@ export class ConfigurationService extends EventEmitter implements IService {
         const templatePath = path.join(this._context.extensionPath, this._templateConfigPath);
         if (fs.existsSync(templatePath)) {
           contentToWrite = await fsPromises.readFile(templatePath, 'utf-8');
+        } else {
+          console.warn(`[${this.serviceId}] Template for creation not found at: ${templatePath}`);
         }
       }
 
