@@ -273,7 +273,7 @@ export class PackageScriptsFeature implements IFeature {
     if (item.isNpmScript) {
       const packageManager = await this.selectPackageManager(item.cwd);
       if (!packageManager) return;
-      finalCommand = `${packageManager} run ${finalCommand}`;
+      finalCommand = `${packageManager}${packageManager === 'yarn' ? ` ${finalCommand}` : ` run ${finalCommand}`}`;
     }
 
     let terminal: vscode.Terminal;
