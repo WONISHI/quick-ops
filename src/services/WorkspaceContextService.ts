@@ -79,7 +79,6 @@ export class WorkspaceContextService {
     this._context.moduleNameKebab = kebabCase(baseName);
     this._context.moduleNameSnake = snakeCase(baseName);
     this._context.moduleNameUpper = snakeCase(baseName).toUpperCase();
-    console.log(this._context);
   }
 
   private updateProjectContext() {

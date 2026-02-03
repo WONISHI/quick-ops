@@ -81,6 +81,7 @@ export class QuickOpsApplication {
     }
 
     this.setupGlobalDisposables();
+    console.log('[QuickOps] (Refactored) is now active!');
     console.timeEnd();
     vscode.window.showInformationMessage('Quick Ops (Refactored) is now active!');
   }
