@@ -7,19 +7,10 @@ import { merge } from 'lodash-es';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { IService } from '../core/interfaces/IService';
+import type { ILogrcConfig } from '../core/types/config';
 
 // Promisify exec for async shell execution
 const execAsync = promisify(exec);
-
-export interface ILogrcConfig {
-  general: { debug: boolean; excludeConfigFiles: boolean; anchorViewMode?: 'menu' | 'mindmap'; mindMapPosition?: 'left' | 'right' };
-  logger: { template: string; dateFormat: string };
-  utils: { uuidLength: number };
-  mock: { port: number; asyncMode: boolean; workerCount: number };
-  git: { ignoreList: string[] };
-  project: { alias: Record<string, string>; marks: Record<string, any> };
-  [key: string]: any;
-}
 
 export class ConfigurationService extends EventEmitter implements IService {
   public readonly serviceId = 'ConfigurationService';

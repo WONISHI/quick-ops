@@ -1,14 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { IService } from '../core/interfaces/IService';
-
-export interface ICurrentFileState {
-  uri: vscode.Uri | null;
-  fileName: string;
-  fileType: string;
-  content: string;
-  isDirty: boolean;
-}
+import type { ICurrentFileState } from '../core/types/work-space';
 
 export class WorkspaceStateService implements IService {
   public readonly serviceId = 'WorkspaceStateService';

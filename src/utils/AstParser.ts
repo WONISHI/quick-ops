@@ -3,16 +3,7 @@ import { parse as vueParse } from '@vue/compiler-sfc';
 import { parse as babelParse } from '@babel/parser';
 import traverse from '@babel/traverse';
 import * as t from '@babel/types';
-
-export interface ExportItem {
-  name: string;
-  code?: string;
-}
-
-export interface ParseResult {
-  namedExports: ExportItem[];
-  defaultExport: string[];
-}
+import type { ExportItem, ParseResult } from '../core/types/export';
 
 const exportsCache = new Map<string, { mtime: number; result: ParseResult }>();
 const vueNameCache = new Map<string, { mtime: number; result: string | null }>();

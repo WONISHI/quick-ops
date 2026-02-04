@@ -5,21 +5,7 @@ import { IFeature } from '../core/interfaces/IFeature';
 import { WorkspaceContextService } from '../services/WorkspaceContextService';
 import { TemplateEngine } from '../utils/TemplateEngine';
 import { ConfigurationService } from '../services/ConfigurationService';
-
-export interface ShellConfigItem {
-  description: string;
-  cmd: string;
-  keepOpen?: boolean;
-}
-
-// 扩展 QuickPickItem
-interface ScriptItem extends vscode.QuickPickItem {
-  commandToExecute: string;
-  cwd: string;
-  isNpmScript: boolean;
-  payload?: Record<string, any>;
-  keepOpen?: boolean;
-}
+import type { ShellConfigItem, ScriptItem } from '../core/types/package-script';
 
 export class PackageScriptsFeature implements IFeature {
   public readonly id = 'PackageScriptsFeature';
@@ -273,7 +259,7 @@ export class PackageScriptsFeature implements IFeature {
     if (item.isNpmScript) {
       const packageManager = await this.selectPackageManager(item.cwd);
       if (!packageManager) return;
-      finalCommand = `${packageManager} run ${finalCommand}`;
+      finalCommand = `${packageManager}${packageManager === 'yarn' ? ` ${finalCommand}` : ` run ${finalCommand}`}`;
     }
 
     let terminal: vscode.Terminal;

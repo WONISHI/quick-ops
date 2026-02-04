@@ -6,13 +6,8 @@ import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { EditorContextService } from '../services/EditorContextService';
 import { PathHelper } from '../utils/PathHelper';
-import { AstParser, ExportItem, ParseResult } from '../utils/AstParser';
-
-interface ExportState {
-  namedExports: ExportItem[];
-  defaultExport: string[];
-  selectedExports: string[];
-}
+import { AstParser } from '../utils/AstParser';
+import type { ExportState, ParseResult } from '../core/types/export';
 
 export class ProjectExportFeature implements IFeature {
   public readonly id = 'ProjectExportFeature';

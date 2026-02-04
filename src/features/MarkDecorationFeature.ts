@@ -1,15 +1,7 @@
 import * as vscode from 'vscode';
 import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
-
-interface MarkStyle {
-  color?: string;
-  backgroundColor?: string;
-  fontWeight?: string;
-  borderRadius?: string;
-  padding?: string;
-  isWholeLine?: boolean;
-}
+import type { MarkStyle } from '../core/types/mark-style';
 
 export class MarkDecorationFeature implements IFeature {
   public readonly id = 'MarkDecorationFeature';
