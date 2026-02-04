@@ -104,6 +104,16 @@
         "category": "Quick Ops"
       },
       {
+        "command": "quickOps.addToIgnore",
+        "title": "添加到 QuickOps 忽略列表 (Ignore in QuickOps)",
+        "category": "Quick Ops"
+      },
+      {
+        "command": "quickOps.removeFromIgnore",
+        "title": "从 QuickOps 忽略列表移除 (Unignore in QuickOps)",
+        "category": "Quick Ops"
+      },
+      {
         "command": "quick-ops.generateStyleStructure",
         "title": "生成样式结构 (Generate SCSS)",
         "category": "Quick Ops"
@@ -219,6 +229,16 @@
           "command": "quickOps.createConfigFile",
           "group": "quickOps@1",
           "when": "quickOps.context.configMissing"
+        },
+        {
+          "command": "quickOps.addToIgnore",
+          "group": "quickOps@5",
+          "when": "!quickOps.context.configMissing && !quickOps.isCurrentResourceIgnored && resourceScheme == file"
+        },
+        {
+          "command": "quickOps.removeFromIgnore",
+          "group": "quickOps@5",
+          "when": "!quickOps.context.configMissing && quickOps.isCurrentResourceIgnored && resourceScheme == file"
         },
         {
           "command": "quick-ops.generateStyleStructure",

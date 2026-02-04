@@ -1,16 +1,24 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs'; // 依然导入 fs 用于 existsSync 等简单判断
-import { promises as fsPromises } from 'fs'; // 导入 promises 用于异步读写
+import * as fs from 'fs';
+import { promises as fsPromises } from 'fs';
 import { EventEmitter } from 'events';
-import { merge } from 'lodash-es';
+import { merge, uniq } from 'lodash-es'; // 引入 uniq 去重
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { IService } from '../core/interfaces/IService';
-import type { ILogrcConfig } from '../core/types/config';
 
-// Promisify exec for async shell execution
 const execAsync = promisify(exec);
+
+export interface ILogrcConfig {
+  general: { debug: boolean; excludeConfigFiles: boolean; anchorViewMode?: 'menu' | 'mindmap'; mindMapPosition?: 'left' | 'right' };
+  logger: { template: string; dateFormat: string };
+  utils: { uuidLength: number };
+  mock: { port: number; asyncMode: boolean; workerCount: number };
+  git: { ignoreList: string[] };
+  project: { alias: Record<string, string>; marks: Record<string, any> };
+  [key: string]: any;
+}
 
 export class ConfigurationService extends EventEmitter implements IService {
   public readonly serviceId = 'ConfigurationService';
@@ -18,7 +26,6 @@ export class ConfigurationService extends EventEmitter implements IService {
 
   private readonly _configFileName = '.quickopsrc';
 
-  // 修改这里：指向插件资源目录下的模板文件
   private readonly _templateConfigPath = 'resources/template/.quickopsrc.json';
 
   private _config: ILogrcConfig = {} as ILogrcConfig;
@@ -87,6 +94,57 @@ export class ConfigurationService extends EventEmitter implements IService {
     }
   }
 
+  // --- 新增：修改 Ignore List 的方法 ---
+  public async modifyIgnoreList(fileUri: vscode.Uri, type: 'add' | 'remove'): Promise<void> {
+    const configPath = this.workspaceConfigPath;
+    if (!configPath || !fs.existsSync(configPath)) {
+      vscode.window.showErrorMessage('未找到 .quickopsrc 配置文件，请先创建。');
+      return;
+    }
+
+    try {
+      // 1. 计算相对路径
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+      if (!workspaceRoot) return;
+
+      const relativePath = path.relative(workspaceRoot, fileUri.fsPath).replace(/\\/g, '/');
+
+      // 2. 读取当前文件内容（不使用缓存，确保原子性操作）
+      const content = await fsPromises.readFile(configPath, 'utf-8');
+      const json = JSON.parse(content);
+
+      // 3. 初始化结构
+      if (!json.git) json.git = {};
+      if (!Array.isArray(json.git.ignoreList)) json.git.ignoreList = [];
+
+      // 4. 修改数组
+      if (type === 'add') {
+        if (!json.git.ignoreList.includes(relativePath)) {
+          json.git.ignoreList.push(relativePath);
+        } else {
+          // 已经存在，不需要操作
+          return;
+        }
+      } else {
+        json.git.ignoreList = json.git.ignoreList.filter((p: string) => p !== relativePath);
+      }
+
+      // 5. 写回文件 (这会触发 watcher -> loadConfig -> handleGitConfiguration)
+      await fsPromises.writeFile(configPath, JSON.stringify(json, null, 2), 'utf-8');
+
+      // 6. 立即更新内存中的 Set，以便 UI 能够迅速响应（不必等待 watcher）
+      const absPath = fileUri.fsPath.replace(/\\/g, '/');
+      if (type === 'add') {
+        this._ignoredAbsolutePaths.add(absPath);
+      } else {
+        this._ignoredAbsolutePaths.delete(absPath);
+      }
+      this.emit('configChanged', this._config); // 触发 UI 刷新
+    } catch (e: any) {
+      vscode.window.showErrorMessage(`更新配置文件失败: ${e.message}`);
+    }
+  }
+
   private updateContextKey() {
     const filePath = this.workspaceConfigPath;
     let exists = false;
@@ -107,8 +165,6 @@ export class ConfigurationService extends EventEmitter implements IService {
         } catch (e) {
           console.error(`[${this.serviceId}] Failed to load template config from ${templatePath}:`, e);
         }
-      } else {
-        // console.warn(`[${this.serviceId}] Template config not found at: ${templatePath}`);
       }
     }
     return {} as ILogrcConfig;
@@ -124,7 +180,6 @@ export class ConfigurationService extends EventEmitter implements IService {
       if (!content.trim()) return {};
       return JSON.parse(content);
     } catch (error) {
-      // 文件不存在或读取失败忽略
       return {};
     }
   }
