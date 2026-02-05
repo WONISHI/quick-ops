@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
 import * as path from 'path';
 import type { ISnippetItem } from '../core/types/snippet';
 import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { WorkspaceContextService } from '../services/WorkspaceContextService';
 import { TemplateEngine } from '../utils/TemplateEngine';
+import { promises as fsPromises } from 'fs';
 
 export class CodeSnippetFeature implements IFeature {
   public readonly id = 'CodeSnippetFeature';
@@ -97,28 +97,35 @@ export class CodeSnippetFeature implements IFeature {
     });
   }
 
-  private loadAllSnippets(context: vscode.ExtensionContext) {
+  private async loadAllSnippets(context: vscode.ExtensionContext) {
     this.cachedSnippets = [];
 
     const snippetDir = path.join(context.extensionPath, 'resources', 'snippets');
-    if (fs.existsSync(snippetDir)) {
-      try {
-        const files = fs.readdirSync(snippetDir);
-        files.forEach((file) => {
-          if (file.endsWith('.json')) {
-            const content = fs.readFileSync(path.join(snippetDir, file), 'utf-8');
-            const fileName = path.parse(file).name;
+    try {
+      await fsPromises.access(snippetDir);
+      const files = await fsPromises.readdir(snippetDir); // 异步读取目录
+
+      // 2. 并发读取文件内容 (比 forEach + await 快得多)
+      const readPromises = files
+        .filter((file) => file.endsWith('.json'))
+        .map(async (file) => {
+          try {
+            const content = await fsPromises.readFile(path.join(snippetDir, file), 'utf-8');
             const jsonData = JSON.parse(content);
+            const fileName = path.parse(file).name;
             if (jsonData?.length) {
-              const snippetsWithOrigin = jsonData.map((item: any) => ({
-                ...item,
-                origin: fileName,
-              }));
-              this.cachedSnippets.push(...snippetsWithOrigin);
+              return jsonData.map((item: any) => ({ ...item, origin: fileName }));
             }
+          } catch (e) {
+            console.error(`Error parsing snippet ${file}:`, e);
           }
+          return [];
         });
-      } catch (e) {}
+
+      const results = await Promise.all(readPromises);
+      results.forEach((items) => this.cachedSnippets.push(...items));
+    } catch (e) {
+      // 目录不存在忽略即可
     }
 
     const userSnippets = this.configService.config['snippets'];

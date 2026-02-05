@@ -3,7 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { exec } from 'child_process';
-import { camelCase, kebabCase, snakeCase, upperFirst } from 'lodash-es';
+import { camelCase, kebabCase, snakeCase, upperFirst, debounce } from 'lodash-es';
 import type { IWorkspaceContext } from '../core/types/work-space';
 
 export class WorkspaceContextService {
@@ -17,8 +17,8 @@ export class WorkspaceContextService {
     vscode.window.onDidChangeActiveTextEditor(() => this.updateFileContext());
     // 监听 package.json 变化
     this.watchPackageJson();
-    // 定时刷新 Git 信息 (避免太频繁)
-    setInterval(() => this.updateGitContext(), 30000);
+    // 优化：监听 Git 文件变动，替代原本的 setInterval
+    this.watchGitFiles();
   }
 
   public static getInstance(): WorkspaceContextService {
@@ -107,6 +107,35 @@ export class WorkspaceContextService {
     }
   }
 
+  /**
+   * 核心优化：监听 .git 文件夹变动
+   */
+  private watchGitFiles() {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) return;
+
+    // 监听以下文件的变动：
+    // HEAD: 切换分支时变动
+    // config: 修改 git 配置时变动
+    // refs/**: commit、fetch、pull、新建分支时变动
+    const pattern = new vscode.RelativePattern(workspaceFolder, '.git/{HEAD,config,refs/**}');
+    const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+
+    // 使用 debounce 防止短时间内多次触发 (例如 git pull 可能连续修改多个文件)
+    // 500ms 内的多次变动只会触发一次 updateGitContext
+    const debouncedUpdate = debounce(() => {
+      // console.log('[WorkspaceContext] Git change detected, updating context...');
+      this.updateGitContext();
+    }, 500);
+
+    // 绑定事件
+    watcher.onDidChange(debouncedUpdate);
+    watcher.onDidCreate(debouncedUpdate);
+    watcher.onDidDelete(debouncedUpdate);
+
+    // 将 watcher 加入 context subscriptions (如果需要销毁机制，可以在这里处理，单例模式下通常不需要)
+  }
+
   private updateGitContext() {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot) return;
@@ -116,7 +145,7 @@ export class WorkspaceContextService {
       if (!err && stdout) {
         this._context.gitBranch = stdout.trim();
       } else {
-        console.log('Git branch check failed:', err);
+        // console.log('Git branch check failed:', err);
       }
     });
 
@@ -142,6 +171,7 @@ export class WorkspaceContextService {
       }
     });
 
+    // 4. 获取远程分支列表
     exec('git branch -r --format="%(refname:short)"', { cwd: workspaceRoot }, (err, stdout) => {
       if (!err && stdout) {
         const list = stdout
@@ -154,6 +184,7 @@ export class WorkspaceContextService {
       }
     });
 
+    // 5. 获取用户名
     if (!this._context.userName) {
       exec('git config user.name', { cwd: workspaceRoot }, (err, stdout) => {
         if (!err && stdout) {
