@@ -1,0 +1,12 @@
+[
+    {
+        "prefix": "region",
+        "body": [
+            "// #region ${1}",
+            "${0:$TM_SELECTED_TEXT}",
+            "// #endregion"
+        ],
+        "style": "javascript",
+        "description": "折叠注释 (quick-ops提供)"
+    }
+]

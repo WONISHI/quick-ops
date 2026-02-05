@@ -18,7 +18,6 @@ import { LogEnhancerFeature } from '../features/LogEnhancerFeature';
 import { PackageScriptsFeature } from '../features/PackageScriptsFeature';
 import { MarkDecorationFeature } from '../features/MarkDecorationFeature';
 import { StyleGeneratorFeature } from '../features/StyleGeneratorFeature';
-import { RegionFoldingFeature } from '../features/RegionFoldingFeature';
 import { AnchorFeature } from '../features/AnchorFeature';
 import { SnippetGeneratorFeature } from '../features/SnippetGeneratorFeature';
 import { ClipboardTransformFeature } from '../features/ClipboardTransformFeature';
@@ -45,7 +44,6 @@ export class QuickOpsApplication {
       new PackageScriptsFeature(),
       new MarkDecorationFeature(),
       new StyleGeneratorFeature(),
-      new RegionFoldingFeature(),
       new AnchorFeature(),
       new SnippetGeneratorFeature(),
       new ClipboardTransformFeature(),
