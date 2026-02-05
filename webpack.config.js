@@ -4,10 +4,17 @@
 
 const path = require('path');
 const webpack = require('webpack');
+const CopyPlugin = require('copy-webpack-plugin');
 const { BundleAnalyzerPlugin } = require('webpack-bundle-analyzer');
 const TerserPlugin = require('terser-webpack-plugin');
 //@ts-check
 /** @typedef {import('webpack').Configuration} WebpackConfig **/
+
+// @ts-ignore
+function stripJsonComments(jsonString) {
+  // @ts-ignore
+  return jsonString.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, g) => (g ? '' : m));
+}
 
 /** @type WebpackConfig */
 const extensionConfig = {
@@ -72,6 +79,44 @@ const extensionConfig = {
     new webpack.IgnorePlugin({
       resourceRegExp:
         /^(atpl|bracket-template|dot|dust|eco|ect|haml|hamlet|haml-coffee|hogan\.js|htmling|jade|jazz|jqtpl|just|liquor|marko|mote|mustache|nunjucks|plates|pug|qejs|ractive|razor-tmpl|react|react-dom|react-dom\/server|slm|squirrelly|swig|swig-templates|teacup|teacup\/lib\/express|templayed|then-jade|then-pug|toffee|twig|twing|tinyliquid|liquid-node|dustjs-helpers|dustjs-linkedin|ejs|hamljs|handlebars|babel-core|coffee-script|underscore|vash|velocityjs|walrus|whiskers|arc-templates\/dist\/es5)$/,
+    }),
+    new CopyPlugin({
+      patterns: [
+        {
+          from: 'resources',
+          to: 'resources',
+          globOptions: {
+            ignore: ['**/.DS_Store'],
+          },
+          transform(content, absoluteFrom) {
+            if (absoluteFrom.endsWith('.json')) {
+              try {
+                let jsonStr = content.toString();
+
+                // 1. 先去除注释 (处理 tsconfig.json 等带注释的文件)
+                jsonStr = stripJsonComments(jsonStr);
+
+                // 2. 解析对象
+                const jsonObj = JSON.parse(jsonStr);
+
+                // 3. 重新序列化 (不传参数，默认无空格、无换行)
+                const minified = JSON.stringify(jsonObj);
+
+                // [调试日志] 打印压缩成功的文件
+                console.log(`[Minified] ${path.basename(absoluteFrom)}`);
+
+                return minified;
+              } catch (e) {
+                // 如果还是解析失败，打印错误原因
+                // @ts-ignore
+                console.error(`[Minify Failed] ${absoluteFrom}: ${e.message}`);
+                return content;
+              }
+            }
+            return content;
+          },
+        },
+      ],
     }),
   ],
 };

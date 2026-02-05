@@ -2183,6 +2183,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"copy-webpack-plugin@npm:^13.0.1":
+  version: 13.0.1
+  resolution: "copy-webpack-plugin@npm:13.0.1"
+  dependencies:
+    glob-parent: "npm:^6.0.1"
+    normalize-path: "npm:^3.0.0"
+    schema-utils: "npm:^4.2.0"
+    serialize-javascript: "npm:^6.0.2"
+    tinyglobby: "npm:^0.2.12"
+  peerDependencies:
+    webpack: ^5.1.0
+  checksum: 10c0/14299770d2b37833306b2b115312a100b456fb48d0c8f3d2ad3af893cf4da8cd34855481e20e7914c0471a5e74a93b4e5517b122341c49a1d7d7ea4863d48222
+  languageName: node
+  linkType: hard
+
 "core-util-is@npm:~1.0.0":
   version: 1.0.3
   resolution: "core-util-is@npm:1.0.3"
@@ -3069,7 +3084,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"glob-parent@npm:^6.0.2":
+"glob-parent@npm:^6.0.1, glob-parent@npm:^6.0.2":
   version: 6.0.2
   resolution: "glob-parent@npm:6.0.2"
   dependencies:
@@ -5106,6 +5121,7 @@ __metadata:
     "@vue/compiler-sfc": "npm:^3.5.20"
     change-case: "npm:^5.4.4"
     cheerio: "npm:^1.1.2"
+    copy-webpack-plugin: "npm:^13.0.1"
     dayjs: "npm:^1.11.13"
     eslint: "npm:^9.32.0"
     eslint-config-prettier: "npm:^10.1.8"
@@ -5361,6 +5377,18 @@ __metadata:
   version: 1.4.1
   resolution: "sax@npm:1.4.1"
   checksum: 10c0/6bf86318a254c5d898ede6bd3ded15daf68ae08a5495a2739564eb265cd13bcc64a07ab466fb204f67ce472bb534eb8612dac587435515169593f4fffa11de7c
+  languageName: node
+  linkType: hard
+
+"schema-utils@npm:^4.2.0":
+  version: 4.3.3
+  resolution: "schema-utils@npm:4.3.3"
+  dependencies:
+    "@types/json-schema": "npm:^7.0.9"
+    ajv: "npm:^8.9.0"
+    ajv-formats: "npm:^2.1.1"
+    ajv-keywords: "npm:^5.1.0"
+  checksum: 10c0/1c8d2c480a026d7c02ab2ecbe5919133a096d6a721a3f201fa50663e4f30f6d6ba020dfddd93cb828b66b922e76b342e103edd19a62c95c8f60e9079cc403202
   languageName: node
   linkType: hard
 
