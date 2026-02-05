@@ -1,11 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
-import { promises as fsPromises } from 'fs';
 import { EventEmitter } from 'events';
 import { merge } from 'lodash-es';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { TextDecoder, TextEncoder } from 'util'; // 引入转换工具
 import { IService } from '../core/interfaces/IService';
 
 const execAsync = promisify(exec);
@@ -14,7 +13,7 @@ export interface ILogrcConfig {
   general: {
     debug: boolean;
     excludeConfigFiles: boolean;
-    excludeTelemetryFile?: boolean; // 新增字段
+    excludeTelemetryFile?: boolean;
     anchorViewMode?: 'menu' | 'mindmap';
     mindMapPosition?: 'left' | 'right';
   };
@@ -38,11 +37,7 @@ export class ConfigurationService extends EventEmitter implements IService {
   private _watcher: vscode.FileSystemWatcher | null = null;
   private _context?: vscode.ExtensionContext;
 
-  // =========================================================
-  // ★★★ 核心修复点：此处必须为空数组，绝对不能包含 .telemetryrc ★★★
-  // =========================================================
   private readonly _alwaysIgnoreFiles: string[] = [];
-
   private readonly _configFile: string = '.quickopsrc';
   private readonly _telemetryFile: string = '.telemetryrc';
 
@@ -61,10 +56,10 @@ export class ConfigurationService extends EventEmitter implements IService {
     return this._config;
   }
 
-  public get workspaceConfigPath(): string | null {
+  public get workspaceConfigUri(): vscode.Uri | null {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || workspaceFolders.length === 0) return null;
-    return path.join(workspaceFolders[0].uri.fsPath, this._configFileName);
+    return vscode.Uri.joinPath(workspaceFolders[0].uri, this._configFileName);
   }
 
   public isIgnoredByExtension(filePath: string): boolean {
@@ -92,6 +87,7 @@ export class ConfigurationService extends EventEmitter implements IService {
 
       this._config = merge(defaultConfig, userConfig);
 
+      // 异步执行 Git 同步，不阻塞启动
       this.handleGitConfiguration().catch((e) => console.warn(`[${this.serviceId}] Git sync warning:`, e));
 
       this._lastConfig = JSON.parse(JSON.stringify(this._config));
@@ -102,8 +98,10 @@ export class ConfigurationService extends EventEmitter implements IService {
   }
 
   public async modifyIgnoreList(fileUri: vscode.Uri, type: 'add' | 'remove'): Promise<void> {
-    const configPath = this.workspaceConfigPath;
-    if (!configPath || !fs.existsSync(configPath)) {
+    const configUri = this.workspaceConfigUri;
+
+    // 优化：使用 VS Code API 检查文件是否存在
+    if (!configUri || !(await this.pathExists(configUri))) {
       vscode.window.showErrorMessage('未找到 .quickopsrc 配置文件，请先创建。');
       return;
     }
@@ -113,30 +111,25 @@ export class ConfigurationService extends EventEmitter implements IService {
       if (!workspaceRoot) return;
 
       const relativePath = path.relative(workspaceRoot, fileUri.fsPath).replace(/\\/g, '/');
-      const content = await fsPromises.readFile(configPath, 'utf-8');
+
+      // 优化：使用 VS Code FS 读取
+      const content = await this.readFile(configUri);
       const json = JSON.parse(content);
 
-      // 初始化对象结构，防止报错
       if (!json.general) json.general = {};
       if (!json.git) json.git = {};
       if (!Array.isArray(json.git.ignoreList)) json.git.ignoreList = [];
 
-      // === 核心修复：清理残留 ===
-      // 无论操作类型是什么，先从 git.ignoreList 数组中移除该文件
-      // 防止文件既被 excludeTelemetryFile 控制，又在 ignoreList 数组中，导致死循环
+      // 清理残留
       if (relativePath === this._configFile || relativePath === this._telemetryFile) {
         json.git.ignoreList = json.git.ignoreList.filter((p: string) => p !== relativePath);
       }
 
-      // === 分支处理逻辑 ===
       if (relativePath === this._configFile) {
-        // .quickopsrc -> 改 excludeConfigFiles
         json.general.excludeConfigFiles = type === 'add';
       } else if (relativePath === this._telemetryFile) {
-        // .telemetryrc -> 改 excludeTelemetryFile
         json.general.excludeTelemetryFile = type === 'add';
       } else {
-        // 普通文件 -> 操作 git.ignoreList
         if (type === 'add') {
           if (!json.git.ignoreList.includes(relativePath)) {
             json.git.ignoreList.push(relativePath);
@@ -148,9 +141,9 @@ export class ConfigurationService extends EventEmitter implements IService {
         }
       }
 
-      await fsPromises.writeFile(configPath, JSON.stringify(json, null, 2), 'utf-8');
+      // 优化：使用 VS Code FS 写入
+      await this.writeFile(configUri, JSON.stringify(json, null, 2));
 
-      // === 立即更新内存状态 ===
       const absPath = fileUri.fsPath.replace(/\\/g, '/');
       if (type === 'add') {
         this._ignoredAbsolutePaths.add(absPath);
@@ -163,22 +156,21 @@ export class ConfigurationService extends EventEmitter implements IService {
     }
   }
 
-  private updateContextKey() {
-    const filePath = this.workspaceConfigPath;
+  private async updateContextKey() {
+    const uri = this.workspaceConfigUri;
     let exists = false;
     try {
-      exists = !!filePath && fs.existsSync(filePath);
+      exists = !!uri && (await this.pathExists(uri));
     } catch (e) {}
-
     vscode.commands.executeCommand('setContext', 'quickOps.context.configMissing', !exists);
   }
 
   private async loadInternalConfig(): Promise<ILogrcConfig> {
     if (this._context) {
-      const templatePath = path.join(this._context.extensionPath, this._templateConfigPath);
-      if (fs.existsSync(templatePath)) {
+      const templateUri = vscode.Uri.joinPath(this._context.extensionUri, this._templateConfigPath);
+      if (await this.pathExists(templateUri)) {
         try {
-          const content = await fsPromises.readFile(templatePath, 'utf-8');
+          const content = await this.readFile(templateUri);
           return JSON.parse(content);
         } catch (e) {
           console.error(`[${this.serviceId}] Failed to load template config:`, e);
@@ -189,11 +181,12 @@ export class ConfigurationService extends EventEmitter implements IService {
   }
 
   private async loadUserConfig(): Promise<Partial<ILogrcConfig>> {
-    const filePath = this.workspaceConfigPath;
-    if (!filePath) return {};
+    const uri = this.workspaceConfigUri;
+    if (!uri) return {};
 
     try {
-      const content = await fsPromises.readFile(filePath, 'utf-8');
+      if (!(await this.pathExists(uri))) return {};
+      const content = await this.readFile(uri);
       if (!content.trim()) return {};
       return JSON.parse(content);
     } catch (error) {
@@ -207,9 +200,9 @@ export class ConfigurationService extends EventEmitter implements IService {
     }
 
     const pattern = new vscode.RelativePattern(vscode.workspace.workspaceFolders?.[0] || '', this._configFileName);
-
     this._watcher = vscode.workspace.createFileSystemWatcher(pattern);
 
+    // 防抖逻辑保持不变
     let debounceTimer: NodeJS.Timeout;
     const reload = () => {
       clearTimeout(debounceTimer);
@@ -229,14 +222,14 @@ export class ConfigurationService extends EventEmitter implements IService {
   }
 
   public async createDefaultConfig(): Promise<void> {
-    const targetPath = this.workspaceConfigPath;
-    if (!targetPath) {
+    const targetUri = this.workspaceConfigUri;
+    if (!targetUri) {
       vscode.window.showErrorMessage('Quick Ops: 请先打开一个文件夹。');
       return;
     }
 
-    if (fs.existsSync(targetPath)) {
-      const doc = await vscode.workspace.openTextDocument(targetPath);
+    if (await this.pathExists(targetUri)) {
+      const doc = await vscode.workspace.openTextDocument(targetUri);
       await vscode.window.showTextDocument(doc);
       return;
     }
@@ -244,18 +237,18 @@ export class ConfigurationService extends EventEmitter implements IService {
     try {
       let contentToWrite = '{}';
       if (this._context) {
-        const templatePath = path.join(this._context.extensionPath, this._templateConfigPath);
-        if (fs.existsSync(templatePath)) {
-          contentToWrite = await fsPromises.readFile(templatePath, 'utf-8');
+        const templateUri = vscode.Uri.joinPath(this._context.extensionUri, this._templateConfigPath);
+        if (await this.pathExists(templateUri)) {
+          contentToWrite = await this.readFile(templateUri);
         }
       }
 
-      await fsPromises.writeFile(targetPath, contentToWrite, 'utf-8');
+      await this.writeFile(targetUri, contentToWrite);
       vscode.window.showInformationMessage(`已创建 ${this._configFileName}`);
 
       await this.loadConfig();
       this.updateContextKey();
-      const doc = await vscode.workspace.openTextDocument(targetPath);
+      const doc = await vscode.workspace.openTextDocument(targetUri);
       await vscode.window.showTextDocument(doc);
     } catch (error: any) {
       vscode.window.showErrorMessage(`创建配置文件失败: ${error.message}`);
@@ -269,6 +262,8 @@ export class ConfigurationService extends EventEmitter implements IService {
     this.removeAllListeners();
   }
 
+  // === 核心优化：Git 配置同步 ===
+
   private async handleGitConfiguration() {
     try {
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
@@ -276,19 +271,11 @@ export class ConfigurationService extends EventEmitter implements IService {
 
       const currentFilesToIgnore = new Set<string>();
 
-      // 1. _alwaysIgnoreFiles 现在为空，不会强制添加
       this._alwaysIgnoreFiles.forEach((f) => currentFilesToIgnore.add(f));
 
-      // 2. 检查 .quickopsrc 开关
-      if (this._config.general?.excludeConfigFiles) {
-        currentFilesToIgnore.add(this._configFile);
-      }
-      // 3. 检查 .telemetryrc 开关
-      if (this._config.general?.excludeTelemetryFile) {
-        currentFilesToIgnore.add(this._telemetryFile);
-      }
+      if (this._config.general?.excludeConfigFiles) currentFilesToIgnore.add(this._configFile);
+      if (this._config.general?.excludeTelemetryFile) currentFilesToIgnore.add(this._telemetryFile);
 
-      // 4. 添加 ignoreList 数组中的文件
       if (this._config.git?.ignoreList && Array.isArray(this._config.git.ignoreList)) {
         this._config.git.ignoreList.forEach((f) => currentFilesToIgnore.add(f));
       }
@@ -299,131 +286,171 @@ export class ConfigurationService extends EventEmitter implements IService {
         this._ignoredAbsolutePaths.add(absPath);
       }
 
+      // 计算 diff
       const lastFilesToIgnore = new Set<string>();
       if (this._lastConfig) {
         this._alwaysIgnoreFiles.forEach((f) => lastFilesToIgnore.add(f));
         if (this._lastConfig.general?.excludeConfigFiles) lastFilesToIgnore.add(this._configFile);
         if (this._lastConfig.general?.excludeTelemetryFile) lastFilesToIgnore.add(this._telemetryFile);
-
         if (this._lastConfig.git?.ignoreList) this._lastConfig.git.ignoreList.forEach((f) => lastFilesToIgnore.add(f));
       }
 
       const toAdd = [...currentFilesToIgnore].filter((x) => !lastFilesToIgnore.has(x));
       const toRemove = [...lastFilesToIgnore].filter((x) => !currentFilesToIgnore.has(x));
 
-      if (toAdd.length > 0) {
-        await this.processIgnoreFiles(toAdd, true, workspaceRoot);
-      }
-
-      if (toRemove.length > 0) {
-        await this.processIgnoreFiles(toRemove, false, workspaceRoot);
+      if (toAdd.length > 0 || toRemove.length > 0) {
+        // 优化：传入两个列表，一次性批量处理
+        await this.batchProcessIgnoreFiles(toAdd, toRemove, workspaceRoot);
       }
     } catch (e) {
       console.warn(`[${this.serviceId}] Git config sync failed:`, e);
     }
   }
 
-  private async processIgnoreFiles(files: string[], isIgnoring: boolean, cwd: string) {
-    const filesProcessed: string[] = [];
+  /**
+   * 【核心优化】批量处理 Git 忽略逻辑
+   * 1. 批量修改 .git/info/exclude (读写一次文件)
+   * 2. 批量执行 git update-index (执行两次命令处理所有文件)
+   */
+  private async batchProcessIgnoreFiles(filesToAdd: string[], filesToRemove: string[], cwd: string) {
+    try {
+      // 1. 批量更新 .git/info/exclude
+      await this.batchUpdateGitInfoExclude(filesToAdd, filesToRemove, cwd);
 
-    for (const file of files) {
-      try {
-        if (isIgnoring) {
-          if (await this.isGitIgnored(file, cwd)) continue;
-
-          const added = await this.updateGitInfoExclude(file, true, cwd);
-
-          const fullPath = path.join(cwd, file);
-          if (fs.existsSync(fullPath) && (await this.isGitTracked(file, cwd))) {
-            await this.toggleSkipWorktree(file, true, cwd);
-          }
-
-          if (added) filesProcessed.push(file);
-        } else {
-          const removed = await this.updateGitInfoExclude(file, false, cwd);
-
-          if (await this.isGitTracked(file, cwd)) {
-            await this.toggleSkipWorktree(file, false, cwd);
-          }
-
-          if (removed) filesProcessed.push(file);
+      // 2. 批量处理 Tracked 文件的 skip-worktree
+      // 只有已被 Git 跟踪的文件才需要设置 skip-worktree，未跟踪的文件由 info/exclude 处理
+      if (filesToAdd.length > 0) {
+        const trackedToAdd = await this.filterTrackedFiles(filesToAdd, cwd);
+        if (trackedToAdd.length > 0) {
+          // 将所有文件合并到一个命令中
+          await this.runGitUpdateIndex(trackedToAdd, true, cwd);
         }
-      } catch (fileErr) {
-        // ignore
       }
-    }
 
-    if (filesProcessed.length > 0) {
-      const msg = isIgnoring ? `Quick Ops: 已忽略文件 ${filesProcessed.join(', ')} (Git)` : `Quick Ops: 已恢复文件跟踪 ${filesProcessed.join(', ')} (Git)`;
-      vscode.window.showInformationMessage(msg);
-    }
-  }
+      if (filesToRemove.length > 0) {
+        // 恢复时，尝试恢复所有（即使可能未被设置），或者也先检查一下
+        // 为了保险和性能平衡，这里也建议过滤一下，或者直接执行(Git不会报错如果本身没设置)
+        // 使用 filterTrackedFiles 更稳妥
+        const trackedToRemove = await this.filterTrackedFiles(filesToRemove, cwd);
+        if (trackedToRemove.length > 0) {
+          await this.runGitUpdateIndex(trackedToRemove, false, cwd);
+        }
+      }
 
-  private async isGitIgnored(filePath: string, cwd: string): Promise<boolean> {
-    try {
-      await execAsync(`git check-ignore "${filePath}"`, { cwd });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  private async isGitTracked(filePath: string, cwd: string): Promise<boolean> {
-    try {
-      await execAsync(`git ls-files --error-unmatch "${filePath}"`, { cwd });
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  private async toggleSkipWorktree(filePath: string, skip: boolean, cwd: string) {
-    try {
-      const flag = skip ? '--skip-worktree' : '--no-skip-worktree';
-      await execAsync(`git update-index ${flag} "${filePath}"`, { cwd });
+      const count = filesToAdd.length + filesToRemove.length;
+      if (count > 0) {
+        console.log(`[${this.serviceId}] Synced ${count} files to Git config.`);
+      }
     } catch (e) {
-      console.log(e);
+      console.error(`[${this.serviceId}] Batch process failed:`, e);
     }
   }
 
-  private async updateGitInfoExclude(filePath: string, add: boolean, cwd: string): Promise<boolean> {
+  private async batchUpdateGitInfoExclude(toAdd: string[], toRemove: string[], cwd: string) {
     try {
       const gitDir = path.join(cwd, '.git');
       const excludePath = path.join(gitDir, 'info', 'exclude');
+      const excludeUri = vscode.Uri.file(excludePath); // 这里必须用 file uri
 
-      if (!fs.existsSync(gitDir)) return false;
+      // 检查 .git 目录是否存在 (VSCode FS check)
+      if (!(await this.pathExists(vscode.Uri.file(gitDir)))) return;
 
       const infoDir = path.dirname(excludePath);
-      if (!fs.existsSync(infoDir)) {
-        await fsPromises.mkdir(infoDir, { recursive: true });
+      const infoDirUri = vscode.Uri.file(infoDir);
+      if (!(await this.pathExists(infoDirUri))) {
+        await vscode.workspace.fs.createDirectory(infoDirUri);
       }
 
       let content = '';
-      if (fs.existsSync(excludePath)) {
-        content = await fsPromises.readFile(excludePath, 'utf-8');
+      if (await this.pathExists(excludeUri)) {
+        content = await this.readFile(excludeUri);
       }
 
       let lines = content.split(/\r?\n/).filter((line) => line.trim() !== '');
-      const normalizedPath = filePath.replace(/\\/g, '/');
-      const exists = lines.includes(normalizedPath);
+      const originalCount = lines.length;
 
-      if (add) {
-        if (!exists) {
-          lines.push(normalizedPath);
-          await fsPromises.writeFile(excludePath, lines.join('\n') + '\n', 'utf-8');
-          return true;
+      // 内存中处理所有增删
+      const toRemoveSet = new Set(toRemove.map((p) => p.replace(/\\/g, '/')));
+
+      // 先删
+      lines = lines.filter((line) => !toRemoveSet.has(line));
+
+      // 后加
+      toAdd.forEach((file) => {
+        const normalized = file.replace(/\\/g, '/');
+        if (!lines.includes(normalized)) {
+          lines.push(normalized);
         }
-      } else {
-        if (exists) {
-          lines = lines.filter((l) => l !== normalizedPath);
-          await fsPromises.writeFile(excludePath, lines.join('\n') + '\n', 'utf-8');
-          return true;
-        }
+      });
+
+      if (lines.length !== originalCount || toRemove.length > 0) {
+        await this.writeFile(excludeUri, lines.join('\n') + '\n');
       }
     } catch (e) {
-      console.warn('Failed to update git info/exclude', e);
+      console.warn('Failed to batch update git info/exclude', e);
     }
-    return false;
+  }
+
+  /**
+   * 过滤出 Git 已跟踪的文件
+   * 使用 git ls-files 批量检查
+   */
+  private async filterTrackedFiles(files: string[], cwd: string): Promise<string[]> {
+    if (files.length === 0) return [];
+    try {
+      // 加上 --error-unmatch 会报错，不加则只输出存在的
+      // 注意文件名如果有空格需处理，这里假设文件名简单，或者用 quotes
+      const fileArgs = files.map((f) => `"${f}"`).join(' ');
+      // 使用 git ls-files 找出其中已被跟踪的文件
+      const { stdout } = await execAsync(`git ls-files ${fileArgs}`, { cwd });
+
+      const tracked = new Set(
+        stdout
+          .split(/\r?\n/)
+          .map((s) => s.trim())
+          .filter(Boolean),
+      );
+      // 返回原始列表中在 tracked 集合里的项 (处理路径分隔符可能的不一致)
+      return files.filter((f) => {
+        const normalized = f.replace(/\\/g, '/');
+        // git output usually matches repo root relative
+        return tracked.has(normalized) || tracked.has(f);
+      });
+    } catch (e) {
+      return [];
+    }
+  }
+
+  private async runGitUpdateIndex(files: string[], skip: boolean, cwd: string) {
+    try {
+      const flag = skip ? '--skip-worktree' : '--no-skip-worktree';
+      const fileArgs = files.map((f) => `"${f}"`).join(' ');
+      // 批量执行
+      await execAsync(`git update-index ${flag} ${fileArgs}`, { cwd });
+    } catch (e) {
+      console.warn('Git update-index failed', e);
+    }
+  }
+
+  // === 工具方法：封装 VS Code FS ===
+
+  private async pathExists(uri: vscode.Uri): Promise<boolean> {
+    try {
+      await vscode.workspace.fs.stat(uri);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async readFile(uri: vscode.Uri): Promise<string> {
+    const uint8Array = await vscode.workspace.fs.readFile(uri);
+    return new TextDecoder('utf-8').decode(uint8Array);
+  }
+
+  private async writeFile(uri: vscode.Uri, content: string): Promise<void> {
+    const uint8Array = new TextEncoder().encode(content);
+    await vscode.workspace.fs.writeFile(uri, uint8Array);
   }
 }
 
