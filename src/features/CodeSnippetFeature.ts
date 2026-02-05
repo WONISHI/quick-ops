@@ -45,17 +45,33 @@ export class CodeSnippetFeature implements IFeature {
 
     // 1. 过滤逻辑
     const validSnippets = this.cachedSnippets.filter((item) => {
+      // 如果没有定义 scope，默认对所有语言生效
       if (!item.scope || item.scope.length === 0) return true;
 
-      if (item.scope[0] && item.scope[0] !== currentLangId) return false;
+      // 获取第一个参数：语言范围
+      const languageScope = item.scope[0];
 
+      // 修改：支持字符串或数组
+      if (languageScope) {
+        if (Array.isArray(languageScope)) {
+          //如果是数组，检查当前语言是否包含在内
+          if (!languageScope.includes(currentLangId)) return false;
+        } else {
+          // 如果是字符串，检查是否相等
+          if (languageScope !== currentLangId) return false;
+        }
+      }
+
+      // 检查第二个参数：依赖库 (dependency)
       if (item.scope.length > 1 && item.scope[1]) {
         const dep = item.scope[1];
+        // 特殊框架判断
         if (dep === 'vue3' && !ctx.isVue3) return false;
         if (dep === 'vue2' && ctx.isVue3) return false;
         if (dep === 'react' && !ctx.isReact) return false;
 
-        if (!['vue', 'vue2', 'vue3', 'react'].includes(dep) && !ctx.hasDependency(dep)) {
+        // 通用依赖判断 (package.json dependencies/devDependencies)
+        if (!['vue', 'vue2', 'vue3', 'react'].includes(dep as string) && !ctx.hasDependency(dep as string)) {
           return false;
         }
       }
@@ -66,7 +82,7 @@ export class CodeSnippetFeature implements IFeature {
     return validSnippets.map((item) => {
       const logItemObj: vscode.CompletionItemLabel = {
         label: item.prefix,
-        description: `quick-ops/${item.origin}`,
+        description: `quick-ops/${item.origin || 'user'}`,
       };
       const completion = new vscode.CompletionItem(logItemObj, vscode.CompletionItemKind.Snippet);
       completion.detail = item.description || `Snippet for ${item.prefix}`;

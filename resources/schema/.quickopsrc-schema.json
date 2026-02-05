@@ -171,10 +171,22 @@
                     },
                     "scope": {
                         "type": "array",
+                        "description": "生效范围配置。参数1: 语言ID或语言ID数组; 参数2: 依赖库名称 (Scope config. Param 1: Language ID(s); Param 2: Dependency check)",
                         "items": {
-                            "type": "string"
-                        },
-                        "description": "语言作用域，如 'javascript,typescript'，缺省则全局生效 (Language scope. If omitted, applies globally)"
+                            "anyOf": [
+                                {
+                                    "type": "string",
+                                    "description": "单个语言ID 或 依赖库名称 (Language ID or Dependency Name)"
+                                },
+                                {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                    "description": "语言ID数组 (Array of Language IDs)"
+                                }
+                            ]
+                        }
                     }
                 }
             },
