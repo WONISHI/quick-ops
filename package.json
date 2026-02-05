@@ -65,6 +65,10 @@
       {
         "fileMatch": ".telemetryrc",
         "url": "./resources/schema/.telemetryrc-schema.json"
+      },
+      {
+        "fileMatch": "tsconfig*.json",
+        "url": "./resources/schema/tsconfig-zh-schema.json"
       }
     ],
     "webviews": {
