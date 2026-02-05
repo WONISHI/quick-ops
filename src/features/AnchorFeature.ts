@@ -120,7 +120,7 @@ export class AnchorFeature implements IFeature {
 
     this.currentPanel.webview.html = this.getWebviewContent();
 
-    this.currentPanel.webview.onDidReceiveMessage((message) => {
+    this.currentPanel.webview.onDidReceiveMessage(async (message) => {
       switch (message.command) {
         case 'ready':
           this.currentPanel?.webview.postMessage({ command: 'refresh', data: this.service.getMindMapData() });
@@ -131,6 +131,18 @@ export class AnchorFeature implements IFeature {
         case 'jump':
           if (message.data) {
             this.openFileAtLine(message.data.filePath, message.data.line);
+          }
+          break;
+        // === 新增：处理全屏切换 ===
+        case 'toggleFullscreen':
+          // 旧命令: 'workbench.action.maximizeEditor' (已失效)
+          // 新命令: 'workbench.action.toggleMaximizeEditorGroup' (1.84+ 版本)
+          try {
+            await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
+          } catch (e) {
+            // 兼容性兜底：如果新命令不存在（极老版本），尝试使用 'workbench.action.minimizeOtherEditors'
+            console.warn('Failed to toggle maximize, trying fallback...', e);
+            await vscode.commands.executeCommand('workbench.action.minimizeOtherEditors');
           }
           break;
       }
@@ -209,7 +221,11 @@ export class AnchorFeature implements IFeature {
               .node text.badge { font: 10px sans-serif; fill: var(--vscode-descriptionForeground); font-weight: bold; pointer-events: none; }
 
               /* --- 控件 --- */
-              #controls-top-right { position: absolute; top: 20px; right: 20px; z-index: 100; }
+              /* 修改: 添加 flex 布局和间距 */
+              #controls-top-right { 
+                  position: absolute; top: 20px; right: 20px; z-index: 100; 
+                  display: flex; gap: 10px;
+              }
               #controls-bottom { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; gap: 12px; padding: 10px; }
 
               .icon-btn {
@@ -268,6 +284,7 @@ export class AnchorFeature implements IFeature {
           </div>
 
           <div id="controls-top-right">
+            <button id="fullscreen-btn" class="icon-btn" title="切换编辑器最大化 (Toggle Maximize)"><i class="fa-solid fa-expand"></i></button>
             <button id="refresh-btn" class="icon-btn" title="刷新"><i class="fa-solid fa-rotate-right"></i></button>
           </div>
 
@@ -341,9 +358,32 @@ export class AnchorFeature implements IFeature {
 
               function setupEvents() {
                   document.getElementById('refresh-btn').addEventListener('click', () => vscode.postMessage({ command: 'refresh' }));
+                  
+                  // 修改：全屏按钮逻辑调整为发送消息
+                  document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
+                  
                   document.getElementById('zoom-in-btn').addEventListener('click', () => svg.transition().call(zoom.scaleBy, 1.2));
                   document.getElementById('zoom-out-btn').addEventListener('click', () => svg.transition().call(zoom.scaleBy, 0.8));
                   document.getElementById('zoom-reset-btn').addEventListener('click', () => centerView(true));
+              }
+
+              function toggleFullscreen() {
+                  // 1. 发送消息通知插件执行 VS Code 命令
+                  vscode.postMessage({ command: 'toggleFullscreen' });
+                  
+                  // 2. 本地切换图标样式 (简单的视觉反馈)
+                  // 注意：这只是为了视觉效果，无法精确知道 VS Code 实际是否成功最大化
+                  const btnIcon = document.querySelector('#fullscreen-btn i');
+                  const btn = document.getElementById('fullscreen-btn');
+                  if (btnIcon.classList.contains('fa-expand')) {
+                      btnIcon.classList.remove('fa-expand');
+                      btnIcon.classList.add('fa-compress');
+                      btn.title = "恢复默认布局 (Restore Layout)";
+                  } else {
+                      btnIcon.classList.remove('fa-compress');
+                      btnIcon.classList.add('fa-expand');
+                      btn.title = "切换编辑器最大化 (Toggle Maximize)";
+                  }
               }
 
               window.addEventListener('message', event => {
