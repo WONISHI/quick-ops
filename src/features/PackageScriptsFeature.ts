@@ -269,12 +269,16 @@ export class PackageScriptsFeature implements IFeature {
         cwd: item.cwd,
       });
     } else {
-      terminal =
-        vscode.window.activeTerminal ||
-        vscode.window.createTerminal({
+      // 核心修改：如果是复用当前终端，先发送 Ctrl+C 中断信号
+      if (vscode.window.activeTerminal) {
+        terminal = vscode.window.activeTerminal;
+        terminal.sendText('\u0003'); // 发送 Ctrl+C
+      } else {
+        terminal = vscode.window.createTerminal({
           name: 'Terminal',
           cwd: item.cwd,
         });
+      }
     }
 
     terminal.show();

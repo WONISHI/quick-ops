@@ -16,7 +16,12 @@
                 "excludeConfigFiles": {
                     "type": "boolean",
                     "default": true,
-                    "description": "是否在 Git 中忽略配置文件 (Whether to ignore configuration files in Git)"
+                    "description": "是否在 Git 中忽略 .quickopsrc 配置文件 (Whether to ignore .quickopsrc in Git)"
+                },
+                "excludeTelemetryFile": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "是否在 Git 中忽略 .telemetryrc 配置文件 (Whether to ignore .telemetryrc in Git)"
                 },
                 "anchorViewMode": {
                     "type": "string",

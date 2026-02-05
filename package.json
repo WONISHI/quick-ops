@@ -47,12 +47,7 @@
       {
         "id": "json",
         "filenames": [
-          ".quickopsrc"
-        ]
-      },
-      {
-        "id": "json",
-        "filenames": [
+          ".quickopsrc",
           ".telemetryrc"
         ]
       }

@@ -3,7 +3,8 @@
     "debug": true,
     "excludeConfigFiles": false,
     "anchorViewMode": "mindmap",
-    "mindMapPosition": "right"
+    "mindMapPosition": "right",
+    "excludeTelemetryFile": true
   },
   "logger": {
     "template": "[icon]-[~/^/^/name]-[line]-[$0]",
@@ -15,6 +16,8 @@
   "git": {
     "ignoreList": []
   },
+  "snippets": [],
+  "shells": [],
   "project": {
     "marks": {
       "@FIXME": {

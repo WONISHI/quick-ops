@@ -25,7 +25,7 @@
     "keepOpen": true
   },
   {
-    "description": "拉取当前远程分钟",
+    "description": "拉取当前远程分支",
     "cmd": "git pull origin [[gitBranch]]",
     "keepOpen": true
   },

@@ -118,9 +118,10 @@ export class AnchorFeature implements IFeature {
       retainContextWhenHidden: true,
     });
 
-    this.currentPanel.webview.html = this.getWebviewContent();
+    // 传入 webview 实例以生成 CSP
+    this.currentPanel.webview.html = this.getWebviewContent(this.currentPanel.webview);
 
-    this.currentPanel.webview.onDidReceiveMessage((message) => {
+    this.currentPanel.webview.onDidReceiveMessage(async (message) => {
       switch (message.command) {
         case 'ready':
           this.currentPanel?.webview.postMessage({ command: 'refresh', data: this.service.getMindMapData() });
@@ -133,6 +134,18 @@ export class AnchorFeature implements IFeature {
             this.openFileAtLine(message.data.filePath, message.data.line);
           }
           break;
+        // === 新增：处理全屏切换 ===
+        case 'toggleFullscreen':
+          // 旧命令: 'workbench.action.maximizeEditor' (已失效)
+          // 新命令: 'workbench.action.toggleMaximizeEditorGroup' (1.84+ 版本)
+          try {
+            await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
+          } catch (e) {
+            // 兼容性兜底：如果新命令不存在（极老版本），尝试使用 'workbench.action.minimizeOtherEditors'
+            console.warn('Failed to toggle maximize, trying fallback...', e);
+            await vscode.commands.executeCommand('workbench.action.minimizeOtherEditors');
+          }
+          break;
       }
     });
 
@@ -141,14 +154,21 @@ export class AnchorFeature implements IFeature {
     });
   }
 
-  private getWebviewContent() {
+  private getWebviewContent(webview: vscode.Webview) {
+    const nonce = getNonce();
+    // 允许的 CDN 列表
+    const scriptSrc = `https://d3js.org https://cdn.jsdelivr.net`;
+    const styleSrc = `https://cdnjs.cloudflare.com https://cdn.jsdelivr.net`;
+
     return `<!DOCTYPE html>
       <html lang="en">
       <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           
-          <script src="https://d3js.org/d3.v7.min.js" 
+          <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline' ${styleSrc}; script-src 'nonce-${nonce}' ${scriptSrc}; img-src ${webview.cspSource} https:; font-src ${webview.cspSource} https:;">
+
+          <script nonce="${nonce}" src="https://d3js.org/d3.v7.min.js" 
                   onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/npm/d3@7';"></script>
           
           <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" 
@@ -165,9 +185,25 @@ export class AnchorFeature implements IFeature {
               }
 
               body { background-color: var(--vscode-editor-background); color: var(--vscode-editor-foreground); margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-              #tree-container { width: 100%; height: 100%; cursor: grab; }
+              
+              #tree-container { width: 100%; height: 100%; cursor: grab; opacity: 0; transition: opacity 0.5s; }
               #tree-container:active { cursor: grabbing; }
               
+              /* 加载中动画 */
+              #loading {
+                  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                  display: flex; flex-direction: column; align-items: center; gap: 10px;
+                  color: var(--vscode-descriptionForeground);
+              }
+              .spinner {
+                  width: 30px; height: 30px;
+                  border: 3px solid var(--vscode-editor-background);
+                  border-top: 3px solid var(--accent-color);
+                  border-radius: 50%;
+                  animation: spin 1s linear infinite;
+              }
+              @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
               #error-message { display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: var(--vscode-errorForeground); }
 
               /* --- 节点样式 --- */
@@ -179,27 +215,13 @@ export class AnchorFeature implements IFeature {
               .node circle.inner { stroke-width: 2px; fill: var(--vscode-editor-background); }
               .node:hover circle.outer { opacity: 0.5; stroke: var(--accent-color); }
 
-              /* 2. 图标样式 */
               .node text.node-icon {
-                  font-family: "Font Awesome 6 Free"; 
-                  font-weight: 900; 
-                  font-size: 14px;
-                  fill: var(--accent-color); 
-                  /* 确保图标不响应鼠标事件，避免影响点击文字 */
-                  pointer-events: none; 
+                  font-family: "Font Awesome 6 Free"; font-weight: 900; font-size: 14px; fill: var(--accent-color); pointer-events: none; 
               }
 
-              /* 3. 文字标签样式 */
               .node text.label { 
-                  font: 13px "Segoe UI", sans-serif; 
-                  font-weight: 500;
-                  fill: var(--node-text-color); 
-                  /* 添加文字背景描边，防止连线穿过文字时看不清 */
-                  paint-order: stroke;
-                  stroke: var(--vscode-editor-background);
-                  stroke-width: 3px;
-                  stroke-linecap: round;
-                  stroke-linejoin: round;
+                  font: 13px "Segoe UI", sans-serif; font-weight: 500; fill: var(--node-text-color); 
+                  paint-order: stroke; stroke: var(--vscode-editor-background); stroke-width: 3px; stroke-linecap: round; stroke-linejoin: round;
               }
               .node:hover text.label { fill: var(--vscode-textLink-activeForeground); font-weight: 600; }
 
@@ -209,8 +231,16 @@ export class AnchorFeature implements IFeature {
               .node text.badge { font: 10px sans-serif; fill: var(--vscode-descriptionForeground); font-weight: bold; pointer-events: none; }
 
               /* --- 控件 --- */
-              #controls-top-right { position: absolute; top: 20px; right: 20px; z-index: 100; }
-              #controls-bottom { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; gap: 12px; padding: 10px; }
+              #controls-top-right { 
+                  position: absolute; top: 20px; right: 20px; z-index: 100; 
+                  display: flex; gap: 10px;
+                  opacity: 0; transition: opacity 0.5s; /* 初始隐藏，加载完显示 */
+              }
+              #controls-bottom { 
+                  position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 100; 
+                  display: flex; gap: 12px; padding: 10px; 
+                  opacity: 0; transition: opacity 0.5s; /* 初始隐藏，加载完显示 */
+              }
 
               .icon-btn {
                   background-color: #ffffff; color: #444; border: none;
@@ -224,13 +254,12 @@ export class AnchorFeature implements IFeature {
               /* --- Tooltip 样式 --- */
               .tooltip { 
                   position: absolute; pointer-events: none; opacity: 0; 
-                  background: var(--tooltip-bg); 
-                  border: 1px solid var(--tooltip-border); 
+                  background: var(--tooltip-bg); border: 1px solid var(--tooltip-border); 
                   color: var(--vscode-editorHoverWidget-foreground); 
                   padding: 0; border-radius: 6px; font-size: 12px; z-index: 9999; 
                   box-shadow: 0 8px 24px rgba(0,0,0,0.25); 
                   transition: opacity 0.2s ease-in-out; 
-                  min-width: 250px; max-width: 500px; /* 加宽以展示长代码 */
+                  min-width: 250px; max-width: 500px; 
               }
               .tooltip-header { 
                   background: var(--vscode-sideBarSectionHeader-background); 
@@ -243,31 +272,28 @@ export class AnchorFeature implements IFeature {
               .tooltip-row i { width: 16px; text-align: center; font-size: 11px; }
               .tooltip-val { color: var(--vscode-editor-foreground); word-break: break-all; }
 
-              /* 代码块样式 */
               .code-block {
-                  background: var(--code-bg);
-                  padding: 10px;
-                  border-radius: 4px;
+                  background: var(--code-bg); padding: 10px; border-radius: 4px;
                   font-family: var(--vscode-editor-font-family, 'Courier New', monospace);
                   border-left: 3px solid var(--accent-color);
-                  white-space: pre-wrap; /* 关键：保留换行 */
-                  word-break: break-all; /* 防止撑爆容器 */
-                  font-size: 11px;
-                  margin-top: 4px;
-                  color: var(--vscode-editor-foreground);
-                  line-height: 1.4;
-                  max-height: 300px;
-                  overflow-y: auto; /* 内容太长可滚动 */
+                  white-space: pre-wrap; word-break: break-all; font-size: 11px; margin-top: 4px;
+                  color: var(--vscode-editor-foreground); line-height: 1.4; max-height: 300px; overflow-y: auto;
               }
           </style>
       </head>
       <body>
+          <div id="loading">
+              <div class="spinner"></div>
+              <div>Loading Resources...</div>
+          </div>
+
           <div id="error-message">
               <h3><i class="fa-solid fa-triangle-exclamation"></i> 资源加载失败</h3>
-              <p>请检查网络连接</p>
+              <p>请检查网络连接 (CDN)</p>
           </div>
 
           <div id="controls-top-right">
+            <button id="fullscreen-btn" class="icon-btn" title="切换编辑器最大化 (Toggle Maximize)"><i class="fa-solid fa-expand"></i></button>
             <button id="refresh-btn" class="icon-btn" title="刷新"><i class="fa-solid fa-rotate-right"></i></button>
           </div>
 
@@ -280,15 +306,10 @@ export class AnchorFeature implements IFeature {
           <div id="tree-container"></div>
           <div id="tooltip" class="tooltip"></div>
 
-          <script>
+          <script nonce="${nonce}">
               const vscode = acquireVsCodeApi();
               vscode.postMessage({ command: 'ready' });
 
-              /**
-               * 关键工具函数：HTML 转义
-               * 将 <, >, &, " 等符号转义为实体字符。
-               * 这样浏览器就会显示 "<div...>" 字样，而不是去渲染一个 div 标签。
-               */
               function escapeHtml(text) {
                   if (!text) return "";
                   return text
@@ -300,10 +321,9 @@ export class AnchorFeature implements IFeature {
               }
 
               window.onload = function() {
+                  // 2. 检查 D3 是否加载成功
                   if (typeof d3 === 'undefined') {
-                      document.getElementById('tree-container').style.display = 'none';
-                      document.getElementById('controls-bottom').style.display = 'none';
-                      document.getElementById('controls-top-right').style.display = 'none';
+                      document.getElementById('loading').style.display = 'none';
                       document.getElementById('error-message').style.display = 'block';
                       return;
                   }
@@ -313,7 +333,7 @@ export class AnchorFeature implements IFeature {
               let root, svg, g, zoom, tree;
               const width = window.innerWidth;
               const height = window.innerHeight;
-              const colorScale = d3.scaleOrdinal(d3.schemeSet2); 
+              let colorScale; // 延迟初始化
 
               function getNodeColor(d) {
                   if(d.depth === 0) return "var(--vscode-editor-foreground)";
@@ -323,6 +343,7 @@ export class AnchorFeature implements IFeature {
               }
 
               function initD3() {
+                  colorScale = d3.scaleOrdinal(d3.schemeSet2);
                   zoom = d3.zoom().scaleExtent([0.1, 4]).on("zoom", (e) => {
                       if(g) g.attr("transform", e.transform);
                   });
@@ -334,16 +355,31 @@ export class AnchorFeature implements IFeature {
                       .on("dblclick.zoom", null);
 
                   g = svg.append("g");
-                  // 增加水平间距 (240 -> 260) 确保展开时不会太拥挤
                   tree = d3.tree().nodeSize([35, 260]); 
                   setupEvents();
               }
 
               function setupEvents() {
                   document.getElementById('refresh-btn').addEventListener('click', () => vscode.postMessage({ command: 'refresh' }));
+                  document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
                   document.getElementById('zoom-in-btn').addEventListener('click', () => svg.transition().call(zoom.scaleBy, 1.2));
                   document.getElementById('zoom-out-btn').addEventListener('click', () => svg.transition().call(zoom.scaleBy, 0.8));
                   document.getElementById('zoom-reset-btn').addEventListener('click', () => centerView(true));
+              }
+
+              function toggleFullscreen() {
+                  vscode.postMessage({ command: 'toggleFullscreen' });
+                  const btnIcon = document.querySelector('#fullscreen-btn i');
+                  const btn = document.getElementById('fullscreen-btn');
+                  if (btnIcon.classList.contains('fa-expand')) {
+                      btnIcon.classList.remove('fa-expand');
+                      btnIcon.classList.add('fa-compress');
+                      btn.title = "恢复默认布局";
+                  } else {
+                      btnIcon.classList.remove('fa-compress');
+                      btnIcon.classList.add('fa-expand');
+                      btn.title = "切换编辑器最大化";
+                  }
               }
 
               window.addEventListener('message', event => {
@@ -354,13 +390,18 @@ export class AnchorFeature implements IFeature {
 
               function centerView(animate = false) {
                   if (!svg) return;
-                  // 调整初始偏移量，因为所有文字都在右边，图表会偏右，所以我们往左移一点 (120)
                   const initialTransform = d3.zoomIdentity.translate(120, height / 2).scale(1);
                   if (animate) svg.transition().duration(750).call(zoom.transform, initialTransform);
                   else svg.call(zoom.transform, initialTransform);
               }
 
               function initData(data) {
+                  // 3. 数据到来，隐藏 Loading，显示图表和控件
+                  document.getElementById('loading').style.display = 'none';
+                  document.getElementById('tree-container').style.opacity = '1';
+                  document.getElementById('controls-top-right').style.opacity = '1';
+                  document.getElementById('controls-bottom').style.opacity = '1';
+
                   g.selectAll("*").remove(); 
                   if (!data || !data.children || data.children.length === 0) {
                       g.append("text").attr("x", 50).attr("y", 50).text("暂无数据").style("fill", "var(--vscode-descriptionForeground)");
@@ -370,6 +411,7 @@ export class AnchorFeature implements IFeature {
                   let i = 0;
                   root.descendants().forEach(d => { d.id = i++; });
                   update(root);
+                  // 首次渲染居中
                   centerView(false);
               }
 
@@ -386,91 +428,57 @@ export class AnchorFeature implements IFeature {
                       .attr("class", "node")
                       .attr("transform", d => "translate(" + (source.y0 || source.y) + "," + (source.x0 || source.x) + ")");
 
-                  // 1. 圆点 (Circle)
-                  // 永远在 (0,0) 位置
                   nodeEnter.append("circle").attr("class", "outer").attr("r", 1e-6).style("stroke", d => getNodeColor(d)).on("click", clickToggle);
                   nodeEnter.append("circle").attr("class", "inner").attr("r", 1e-6).style("stroke", d => getNodeColor(d)).on("click", clickToggle);
                   
                   function clickToggle(e, d) { toggle(d); update(d); e.stopPropagation(); }
                   
-                  // 2. 节点图标 (Icon) - 位置修复
-                  // 统一放在圆点右侧固定位置 (x=16)，不再判断 children
                   nodeEnter.append("text")
                       .attr("class", "node-icon")
-                      .attr("dy", 5)
-                      .attr("x", 16) // 永远在圆点右侧 16px
-                      .style("text-anchor", "middle") // 居中对齐，占据约 14px 宽度
-                      .text(d => {
-                          if (d.data.data) return "\\uf0c1"; // 📎
-                          return ""; 
-                      })
+                      .attr("dy", 5).attr("x", 16).style("text-anchor", "middle")
+                      .text(d => d.data.data ? "\\uf0c1" : "")
                       .on("click", (e, d) => {
                           if(d.data.data) vscode.postMessage({ command: 'jump', data: d.data.data });
                           e.stopPropagation();
                       });
 
-                  // 3. 文字标签 (Label) - 位置修复
-                  // 统一放在图标右侧 (x=30)，左对齐 (start)
-                  // 这样顺序永远是: Circle(0) -> Icon(16) -> Label(30)
                   nodeEnter.append("text")
                       .attr("class", "label")
-                      .attr("dy", 5)
-                      .attr("x", d => {
-                          // 如果有图标，文字从 30px 开始；如果没图标，文字靠前一点 (14px)
-                          return d.data.data ? 30 : 14; 
-                      })
-                      .style("text-anchor", "start") // 永远左对齐
-                      .text(d => {
-                          if (d.data.data) return d.data.data.description || d.data.name; 
-                          return d.data.name;
-                      })
+                      .attr("dy", 5).attr("x", d => d.data.data ? 30 : 14).style("text-anchor", "start")
+                      .text(d => d.data.data ? (d.data.data.description || d.data.name) : d.data.name)
                       .on("click", (e, d) => {
                           if(d.data.data) vscode.postMessage({ command: 'jump', data: d.data.data });
                           e.stopPropagation();
                       });
 
-                  // 4. 徽标数字 (Badge)
                   nodeEnter.append("text")
                       .attr("class", "badge")
-                      .attr("dy", -8)
-                      .attr("dx", 8)
-                      .style("text-anchor", "middle")
+                      .attr("dy", -8).attr("dx", 8).style("text-anchor", "middle")
                       .text(d => d._children ? d._children.length : "")
                       .style("opacity", 0);
 
-                  // --- Tooltip 逻辑修复 ---
                   const tooltip = d3.select("#tooltip");
                   nodeEnter.on("mouseover", (e, d) => {
                       if (!d.data.data) return;
                       const raw = d.data.data;
-                      
                       const content = raw.content ? escapeHtml(raw.content.trim()) : "";
-                      
                       const group = raw.group || "Default";
                       const file = raw.filePath ? raw.filePath.split('/').pop() : "Unknown File";
                       const line = raw.line || "?";
                       const desc = raw.description || "Anchor Point";
                       
                       const htmlContent = \`
-                          <div class="tooltip-header">
-                              <i class="fa-solid fa-tag"></i> <span>\${desc}</span>
-                          </div>
+                          <div class="tooltip-header"><i class="fa-solid fa-tag"></i> <span>\${desc}</span></div>
                           <div class="tooltip-body">
-                             <div class="tooltip-row">
-                                <i class="fa-regular fa-folder-open"></i> <span class="tooltip-val">\${group}</span>
-                             </div>
-                             <div class="tooltip-row">
-                                <i class="fa-regular fa-file-code"></i> <span class="tooltip-val">\${file} : \${line}</span>
-                             </div>
+                             <div class="tooltip-row"><i class="fa-regular fa-folder-open"></i> <span class="tooltip-val">\${group}</span></div>
+                             <div class="tooltip-row"><i class="fa-regular fa-file-code"></i> <span class="tooltip-val">\${file} : \${line}</span></div>
                              \${content ? \`<div class="code-block">\${content}</div>\` : ''}
                           </div>
                       \`;
                       tooltip.style("opacity", 1).html(htmlContent)
-                             .style("left", (e.pageX + 20) + "px")
-                             .style("top", (e.pageY + 10) + "px");
+                             .style("left", (e.pageX + 20) + "px").style("top", (e.pageY + 10) + "px");
                   }).on("mouseout", () => tooltip.style("opacity", 0));
 
-                  // --- Update Transitions ---
                   const nodeUpdate = nodeEnter.merge(node);
                   nodeUpdate.transition().duration(250).attr("transform", d => "translate(" + d.y + "," + d.x + ")");
                   
@@ -480,12 +488,10 @@ export class AnchorFeature implements IFeature {
                   nodeUpdate.select("circle.inner").attr("r", d => isGroup(d) ? 5 : 3).style("fill", d => isGroup(d) ? (d._children ? getNodeColor(d) : "var(--vscode-editor-background)") : getNodeColor(d));
                   nodeUpdate.select(".badge").text(d => d._children ? d._children.length : "").transition().duration(250).style("opacity", d => d._children ? 1 : 0);
 
-                  // --- Exit ---
                   const nodeExit = node.exit().transition().duration(250).attr("transform", d => "translate(" + source.y + "," + source.x + ")").remove();
                   nodeExit.selectAll("circle").attr("r", 1e-6);
                   nodeExit.select("text").style("fill-opacity", 1e-6);
 
-                  // --- Links ---
                   const link = g.selectAll(".link").data(links, d => d.target.id);
                   const linkEnter = link.enter().insert("path", "g").attr("class", "link")
                       .style("stroke", d => getNodeColor(d.target))
@@ -893,4 +899,14 @@ export class AnchorFeature implements IFeature {
       vscode.window.showErrorMessage('无法打开文件: ' + filePath);
     }
   }
+}
+
+// 辅助函数：生成 Nonce 随机字符串
+function getNonce() {
+  let text = '';
+  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  for (let i = 0; i < 32; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length));
+  }
+  return text;
 }
