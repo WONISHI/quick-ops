@@ -161,9 +161,20 @@
       {
         "command": "quick-ops.transformToKebab",
         "title": "剪贴板转短横线 (Clipboard to kebab-case)"
+      },
+      {
+        "command": "quick-ops.switchPreviousEditor",
+        "title": "Quick Ops: Switch to Previous Editor",
+        "category": "Quick Ops"
       }
     ],
     "keybindings": [
+      {
+        "command": "quick-ops.switchPreviousEditor",
+        "key": "alt+b",
+        "mac": "opt+b",
+        "when": "editorTextFocus"
+      },
       {
         "command": "quick-ops.transformToKebab",
         "key": "ctrl+alt+k",

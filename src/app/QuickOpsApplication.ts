@@ -21,6 +21,7 @@ import { StyleGeneratorFeature } from '../features/StyleGeneratorFeature';
 import { AnchorFeature } from '../features/AnchorFeature';
 import { SnippetGeneratorFeature } from '../features/SnippetGeneratorFeature';
 import { ClipboardTransformFeature } from '../features/ClipboardTransformFeature';
+import { EditorHistoryFeature } from '../features/EditorHistoryFeature';
 
 export class QuickOpsApplication {
   private context: vscode.ExtensionContext;
@@ -47,6 +48,7 @@ export class QuickOpsApplication {
       new AnchorFeature(),
       new SnippetGeneratorFeature(),
       new ClipboardTransformFeature(),
+      new EditorHistoryFeature(),
     ];
   }
 
