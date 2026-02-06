@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
+import { TextDecoder } from 'util'; // 用于将 Uint8Array 转为 string
 import { IFeature } from '../core/interfaces/IFeature';
 import { WorkspaceContextService } from '../services/WorkspaceContextService';
 import { TemplateEngine } from '../utils/TemplateEngine';
@@ -10,15 +9,17 @@ import type { ShellConfigItem, ScriptItem } from '../core/types/package-script';
 export class PackageScriptsFeature implements IFeature {
   public readonly id = 'PackageScriptsFeature';
   private statusBarItem: vscode.StatusBarItem | undefined;
-  private extensionPath: string = '';
 
-  // 2. 注入配置服务
+  // 1. 改用 Uri 类型存储扩展路径
+  private extensionUri!: vscode.Uri;
+
   private configService: ConfigurationService = ConfigurationService.getInstance();
 
   constructor(private contextService: WorkspaceContextService = WorkspaceContextService.getInstance()) {}
 
   public activate(context: vscode.ExtensionContext): void {
-    this.extensionPath = context.extensionPath;
+    // 2. 获取 extensionUri
+    this.extensionUri = context.extensionUri;
 
     const commandId = 'quick-ops.showPackageScripts';
     context.subscriptions.push(vscode.commands.registerCommand(commandId, this.showScripts.bind(this)));
@@ -33,23 +34,19 @@ export class PackageScriptsFeature implements IFeature {
     console.log(`[${this.id}] Activated.`);
   }
 
-  /**
-   * 显示脚本列表的主逻辑
-   */
   private async showScripts() {
     const items: (ScriptItem | vscode.QuickPickItem)[] = [];
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    const rootPath = workspaceFolders ? workspaceFolders[0].uri.fsPath : '';
-
-    // 获取上下文用于模板解析
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    const rootUri = workspaceFolder?.uri;
     const ctx = this.contextService.context;
+    const decoder = new TextDecoder('utf-8');
 
-    // 1. 读取 package.json (优化：移除 fs.existsSync 同步检查)
-    if (rootPath) {
-      const packageJsonPath = path.join(rootPath, 'package.json');
+    // 1. 读取 package.json (使用 VS Code FS)
+    if (rootUri) {
+      const packageJsonUri = vscode.Uri.joinPath(rootUri, 'package.json');
       try {
-        // 直接尝试读取，如果文件不存在会抛出 ENOENT 错误，捕获即可
-        const content = await fs.promises.readFile(packageJsonPath, 'utf-8');
+        const contentUint8 = await vscode.workspace.fs.readFile(packageJsonUri);
+        const content = decoder.decode(contentUint8);
         const packageJson = JSON.parse(content);
         const scripts = packageJson.scripts || {};
         const scriptNames = Object.keys(scripts);
@@ -61,18 +58,19 @@ export class PackageScriptsFeature implements IFeature {
           });
 
           scriptNames.forEach((name) => {
-            items.push(this.createScriptItem(name, scripts[name], name, rootPath, true, undefined, false));
+            // 注意：这里 cwd 依然传 string (fsPath)，因为 ScriptItem 接口和终端创建需要 string
+            items.push(this.createScriptItem(name, scripts[name], name, rootUri.fsPath, true, undefined, false));
           });
         }
       } catch (e: any) {
-        // 忽略文件不存在的错误，只打印其他解析错误
-        if (e.code !== 'ENOENT') {
+        // 文件不存在 (FileNotFound) 忽略，其他错误打印
+        if (e.code !== 'FileNotFound' && e.code !== 'ENOENT') {
           console.error('Error parsing package.json', e);
         }
       }
 
-      // 2. 读取工作区自定义配置 (从内存读取，无IO)
-      const workspaceScripts = this.loadWorkspaceScripts(rootPath, ctx);
+      // 2. 读取工作区自定义配置
+      const workspaceScripts = this.loadWorkspaceScripts(rootUri.fsPath, ctx);
       if (workspaceScripts.length > 0) {
         items.push({
           label: 'Workspace Custom Scripts',
@@ -82,46 +80,44 @@ export class PackageScriptsFeature implements IFeature {
       }
     }
 
-    // 3. 读取插件内置资源 (优化：并发读取 + 异常处理)
-    // 建议：如果之前定义了 PathHelper，这里可以用 PathHelper.getResourcesDir(this.context)
-    const shellResourceDir = path.join(this.extensionPath, 'resources', 'shell');
+    // 3. 读取插件内置资源 (使用 VS Code FS)
+    const shellResourceUri = vscode.Uri.joinPath(this.extensionUri, 'resources', 'shell');
 
     try {
-      // readdir 会抛错如果目录不存在，所以外层 try-catch 保留
-      const files = (await fs.promises.readdir(shellResourceDir)).filter((file) => file.endsWith('.json'));
+      const entries = await vscode.workspace.fs.readDirectory(shellResourceUri);
 
-      // 优化：使用 Promise.all 并发读取所有 JSON 文件，而不是串行等待
-      const fileReadPromises = files.map(async (file) => {
-        const filePath = path.join(shellResourceDir, file);
-        try {
-          const content = await fs.promises.readFile(filePath, 'utf-8');
-          const jsonItems: ShellConfigItem[] = JSON.parse(content);
-          if (Array.isArray(jsonItems) && jsonItems.length > 0) {
-            const validShellItems = this.processShellItems(jsonItems, ctx, rootPath || this.extensionPath);
-            if (validShellItems.length > 0) {
-              return { file, items: validShellItems };
+      // 优化：并发读取
+      const fileReadPromises = entries
+        .filter(([name, type]) => type === vscode.FileType.File && name.endsWith('.json'))
+        .map(async ([name]) => {
+          try {
+            const fileUri = vscode.Uri.joinPath(shellResourceUri, name);
+            const contentUint8 = await vscode.workspace.fs.readFile(fileUri);
+            const content = decoder.decode(contentUint8);
+
+            const jsonItems: ShellConfigItem[] = JSON.parse(content);
+            if (Array.isArray(jsonItems) && jsonItems.length > 0) {
+              const validShellItems = this.processShellItems(jsonItems, ctx, rootUri ? rootUri.fsPath : this.extensionUri.fsPath);
+              if (validShellItems.length > 0) {
+                return { file: name, items: validShellItems };
+              }
             }
+          } catch (err) {
+            console.error(`Error parsing shell file ${name}:`, err);
           }
-        } catch (err) {
-          console.error(`Error parsing shell file ${file}:`, err);
-        }
-        return null;
-      });
+          return null;
+        });
 
       const results = await Promise.all(fileReadPromises);
 
-      // 将结果按顺序加入列表
       results.forEach((res) => {
         if (res) {
           items.push({ label: `Extension: ${res.file}`, kind: vscode.QuickPickItemKind.Separator });
           items.push(...res.items);
         }
       });
-    } catch (err: any) {
-      // 忽略目录不存在错误
-      if (err.code !== 'ENOENT') {
-        console.error('Error reading resources/shell directory:', err);
-      }
+    } catch (err) {
+      // 目录不存在忽略
     }
 
     if (items.length === 0) {
@@ -129,7 +125,6 @@ export class PackageScriptsFeature implements IFeature {
       return;
     }
 
-    // 4. 创建 QuickPick (保持不变)
     const quickPick = vscode.window.createQuickPick<ScriptItem>();
     quickPick.items = items as ScriptItem[];
     quickPick.placeholder = '选择要执行的指令';
@@ -200,10 +195,20 @@ export class PackageScriptsFeature implements IFeature {
       { name: 'npm', lock: 'package-lock.json' },
     ];
 
-    // 优化：使用 Promise.all 并发检查所有 lock 文件，而不是使用同步的 fs.existsSync
+    // 辅助函数：尝试将 cwd 字符串转回 Uri，以支持远程环境检查
+    const getCwdUri = (cwdPath: string): vscode.Uri => {
+      const ws = vscode.workspace.workspaceFolders?.find((w) => w.uri.fsPath === cwdPath);
+      return ws ? ws.uri : vscode.Uri.file(cwdPath);
+    };
+
+    const cwdUri = getCwdUri(cwd);
+
+    // 优化：使用 Promise.all 并发检查，替换 fs.existsSync
     const checkPromises = managers.map(async (m) => {
       try {
-        await fs.promises.access(path.join(cwd, m.lock));
+        const lockUri = vscode.Uri.joinPath(cwdUri, m.lock);
+        // 使用 stat 检查文件是否存在
+        await vscode.workspace.fs.stat(lockUri);
         return m;
       } catch {
         return null;

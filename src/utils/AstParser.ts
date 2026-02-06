@@ -1,35 +1,46 @@
-import * as fs from 'fs';
 import { parse as vueParse } from '@vue/compiler-sfc';
 import { parse as babelParse } from '@babel/parser';
 import traverse from '@babel/traverse';
 import * as t from '@babel/types';
 import type { ExportItem, ParseResult } from '../core/types/export';
 
-const exportsCache = new Map<string, { mtime: number; result: ParseResult }>();
-const vueNameCache = new Map<string, { mtime: number; result: string | null }>();
+// 缓存 Key 改为 fileUri (字符串) + version (或 content hash)，这里简化为 uri 字符串
+// 为了避免内存无限增长，建议使用 LRU 策略，或者简单的 Map
+const exportsCache = new Map<string, { contentHash: number; result: ParseResult }>();
+const vueNameCache = new Map<string, { contentHash: number; result: string | null }>();
 
 export class AstParser {
   /**
-   * 解析文件的导出 (Export) 信息
-   * 支持 TypeScript, JSX, TSX, JS
+   * 简单的字符串哈希，用于检测内容是否变化 (替代 mtime)
    */
-  public static parseExports(filePath: string): ParseResult {
-    let stats: fs.Stats;
-    try {
-      stats = fs.statSync(filePath);
-    } catch (e) {
-      // 文件不存在或无法访问
-      return { namedExports: [], defaultExport: [] };
+  private static stringHash(str: string): number {
+    let hash = 0;
+    if (str.length === 0) return hash;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash |= 0; // Convert to 32bit integer
     }
+    return hash;
+  }
 
-    const cached = exportsCache.get(filePath);
-    if (cached && cached.mtime === stats.mtimeMs) {
+  /**
+   * 解析代码内容的导出信息 (纯函数，无 I/O)
+   * @param fileKey 文件的唯一标识 (通常是 Uri.toString())，用于缓存
+   * @param code 文件内容字符串
+   */
+  public static parseExports(fileKey: string, code: string): ParseResult {
+    // 1. 计算内容哈希
+    const currentHash = this.stringHash(code);
+
+    // 2. 检查缓存
+    const cached = exportsCache.get(fileKey);
+    if (cached && cached.contentHash === currentHash) {
       return cached.result;
     }
 
-    // --- 缓存未命中，开始执行耗时解析 ---
+    // --- 开始解析 ---
     try {
-      const code = fs.readFileSync(filePath, 'utf-8');
       const ast = babelParse(code, {
         sourceType: 'module',
         plugins: ['typescript', 'jsx'],
@@ -79,34 +90,29 @@ export class AstParser {
 
       const result = { namedExports, defaultExport };
 
-      exportsCache.set(filePath, { mtime: stats.mtimeMs, result });
+      // 写入缓存
+      exportsCache.set(fileKey, { contentHash: currentHash, result });
 
       return result;
     } catch (e) {
-      console.error(`Parse error for ${filePath}:`, e);
+      console.error(`Parse error for ${fileKey}:`, e);
       return { namedExports: [], defaultExport: [] };
     }
   }
 
   /**
-   * 解析 Vue 组件名称
+   * 解析 Vue 组件名称 (纯函数，无 I/O)
    */
-  static parseVueComponentName(filePath: string): string | null {
-    let stats: fs.Stats;
-    try {
-      stats = fs.statSync(filePath);
-    } catch (e) {
-      return null;
-    }
+  static parseVueComponentName(fileKey: string, code: string): string | null {
+    const currentHash = this.stringHash(code);
 
-    const cached = vueNameCache.get(filePath);
-    if (cached && cached.mtime === stats.mtimeMs) {
+    const cached = vueNameCache.get(fileKey);
+    if (cached && cached.contentHash === currentHash) {
       return cached.result;
     }
 
     try {
-      const source = fs.readFileSync(filePath, 'utf-8');
-      const { descriptor } = vueParse(source);
+      const { descriptor } = vueParse(code);
       let componentName: string | null = null;
 
       if (descriptor.scriptSetup) {
@@ -151,17 +157,13 @@ export class AstParser {
         });
       }
 
-      vueNameCache.set(filePath, { mtime: stats.mtimeMs, result: componentName });
-
+      vueNameCache.set(fileKey, { contentHash: currentHash, result: componentName });
       return componentName;
     } catch (e) {
       return null;
     }
   }
 
-  /**
-   * 内部辅助：从对象表达式中查找 key 为 'name' 的字符串值
-   */
   private static findPropertyByName(node: t.ObjectExpression, keyName: string): string | null {
     const prop = node.properties.find((p) => {
       if (p.type !== 'ObjectProperty') return false;

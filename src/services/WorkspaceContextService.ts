@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
 import * as os from 'os';
 import { exec } from 'child_process';
+import { TextDecoder } from 'util'; // 引入解码工具
 import { camelCase, kebabCase, snakeCase, upperFirst, debounce } from 'lodash-es';
 import type { IWorkspaceContext } from '../core/types/work-space';
 
@@ -17,7 +17,7 @@ export class WorkspaceContextService {
     vscode.window.onDidChangeActiveTextEditor(() => this.updateFileContext());
     // 监听 package.json 变化
     this.watchPackageJson();
-    // 优化：监听 Git 文件变动，替代原本的 setInterval
+    // 监听 Git 文件变动
     this.watchGitFiles();
   }
 
@@ -45,6 +45,7 @@ export class WorkspaceContextService {
   }
 
   private init() {
+    // 这里的异步调用不需要 await，允许后台更新
     this.updateProjectContext();
     this.updateGitContext();
     this.updateFileContext();
@@ -57,10 +58,10 @@ export class WorkspaceContextService {
 
     const uri = editor.document.uri;
     const filePath = uri.fsPath;
-    const parsedPath = path.parse(filePath);
+    const parsedPath = path.parse(filePath); // path 模块处理字符串是安全的
 
-    const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
-    const relativePath = workspaceFolder ? path.relative(workspaceFolder.uri.fsPath, filePath) : filePath;
+    // 使用 VS Code API 获取相对路径，比 path.relative 更准确
+    const relativePath = vscode.workspace.asRelativePath(uri);
 
     const baseName = parsedPath.name;
     const dirName = path.basename(parsedPath.dir);
@@ -68,7 +69,7 @@ export class WorkspaceContextService {
     this._context.fileName = parsedPath.base;
     this._context.fileNameBase = baseName;
     this._context.fileExt = parsedPath.ext;
-    this._context.dirName = path.basename(parsedPath.dir);
+    this._context.dirName = dirName;
     this._context.filePath = filePath;
     this._context.relativePath = relativePath;
 
@@ -81,15 +82,22 @@ export class WorkspaceContextService {
     this._context.moduleNameUpper = snakeCase(baseName).toUpperCase();
   }
 
-  private updateProjectContext() {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    if (!workspaceRoot) return;
+  /**
+   * 优化：使用 VS Code FS API 异步读取，移除 fs 模块依赖
+   */
+  private async updateProjectContext() {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) return;
 
-    const pkgPath = path.join(workspaceRoot, 'package.json');
-    if (!fs.existsSync(pkgPath)) return;
+    const pkgUri = vscode.Uri.joinPath(workspaceFolder.uri, 'package.json');
+    const decoder = new TextDecoder('utf-8');
 
     try {
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+      // 异步读取文件内容
+      const contentUint8 = await vscode.workspace.fs.readFile(pkgUri);
+      const content = decoder.decode(contentUint8);
+      const pkg = JSON.parse(content);
+
       this._context.projectName = pkg.name || 'unknown-project';
       this._context.projectVersion = pkg.version || '0.0.0';
 
@@ -103,57 +111,49 @@ export class WorkspaceContextService {
       else if (this._dependencies['sass'] || this._dependencies['scss']) this._context.cssLang = 'scss';
       else this._context.cssLang = 'css';
     } catch (e) {
-      console.warn('Failed to parse package.json');
+      // 文件不存在或解析失败，忽略
+      // console.warn('Failed to parse package.json', e);
     }
   }
 
   /**
-   * 核心优化：监听 .git 文件夹变动
+   * 监听 .git 文件夹变动
    */
   private watchGitFiles() {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) return;
 
-    // 监听以下文件的变动：
-    // HEAD: 切换分支时变动
-    // config: 修改 git 配置时变动
-    // refs/**: commit、fetch、pull、新建分支时变动
     const pattern = new vscode.RelativePattern(workspaceFolder, '.git/{HEAD,config,refs/**}');
     const watcher = vscode.workspace.createFileSystemWatcher(pattern);
 
-    // 使用 debounce 防止短时间内多次触发 (例如 git pull 可能连续修改多个文件)
-    // 500ms 内的多次变动只会触发一次 updateGitContext
     const debouncedUpdate = debounce(() => {
-      // console.log('[WorkspaceContext] Git change detected, updating context...');
       this.updateGitContext();
     }, 500);
 
-    // 绑定事件
     watcher.onDidChange(debouncedUpdate);
     watcher.onDidCreate(debouncedUpdate);
     watcher.onDidDelete(debouncedUpdate);
-
-    // 将 watcher 加入 context subscriptions (如果需要销毁机制，可以在这里处理，单例模式下通常不需要)
   }
 
   private updateGitContext() {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (!workspaceRoot) return;
 
-    // 1. 获取当前分支 (例如: master)
+    // child_process.exec 在远程开发环境中会在远程机器执行，所以这里保留 exec 是正确的
+    // 只要 workspaceRoot 是正确的 fsPath 即可
+
+    // 1. 获取当前分支
     exec('git branch --show-current', { cwd: workspaceRoot }, (err, stdout) => {
       if (!err && stdout) {
         this._context.gitBranch = stdout.trim();
-      } else {
-        // console.log('Git branch check failed:', err);
       }
     });
 
-    // 2. 获取远程上游分支 (例如: origin/master)
+    // 2. 获取远程上游分支
     exec('git rev-parse --abbrev-ref @{u}', { cwd: workspaceRoot }, (err, stdout) => {
       if (!err && stdout) {
         this._context.gitRemote = stdout.trim();
-      } else if (err) {
+      } else {
         this._context.gitRemote = '';
       }
     });
@@ -166,7 +166,7 @@ export class WorkspaceContextService {
           .map((s) => s.trim())
           .filter(Boolean);
         this._context.gitLocalBranch = list;
-      } else if (err) {
+      } else {
         this._context.gitLocalBranch = [];
       }
     });
@@ -179,7 +179,7 @@ export class WorkspaceContextService {
           .map((s) => s.trim())
           .filter(Boolean);
         this._context.gitRemoteBranch = list;
-      } else if (err) {
+      } else {
         this._context.gitRemoteBranch = [];
       }
     });
@@ -206,6 +206,7 @@ export class WorkspaceContextService {
   }
 
   private watchPackageJson() {
+    // 这里的 watcher 依然有效，因为它是 VS Code API
     const watcher = vscode.workspace.createFileSystemWatcher('**/package.json');
     const update = () => this.updateProjectContext();
     watcher.onDidChange(update);

@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
+// import * as path from 'path'; // 可以移除或减少使用
+import { TextDecoder } from 'util'; // 用于将 Uint8Array 转为 string
 import type { ISnippetItem } from '../core/types/snippet';
 import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { WorkspaceContextService } from '../services/WorkspaceContextService';
 import { TemplateEngine } from '../utils/TemplateEngine';
-import { promises as fsPromises } from 'fs';
 
 export class CodeSnippetFeature implements IFeature {
   public readonly id = 'CodeSnippetFeature';
@@ -19,7 +19,6 @@ export class CodeSnippetFeature implements IFeature {
   public activate(context: vscode.ExtensionContext): void {
     this.loadAllSnippets(context);
 
-    // 监听配置变化重新加载
     this.configService.on('configChanged', () => this.loadAllSnippets(context));
 
     const selector: vscode.DocumentSelector = ['javascript', 'typescript', 'vue', 'javascriptreact', 'typescriptreact', 'html', 'css', 'scss', 'less'];
@@ -86,9 +85,9 @@ export class CodeSnippetFeature implements IFeature {
       };
       const completion = new vscode.CompletionItem(logItemObj, vscode.CompletionItemKind.Snippet);
       completion.detail = item.description || `Snippet for ${item.prefix}`;
-      completion.sortText = '0'; // 置顶
+      completion.sortText = '0';
 
-      const { result, payload } = TemplateEngine.render(item.body, { ...ctx, ...(item.params || {}) });
+      const { result } = TemplateEngine.render(item.body, { ...ctx, ...(item.params || {}) });
 
       completion.insertText = new vscode.SnippetString(result);
       completion.documentation = new vscode.MarkdownString().appendCodeblock(result, item.style || currentLangId);
@@ -100,24 +99,34 @@ export class CodeSnippetFeature implements IFeature {
   private async loadAllSnippets(context: vscode.ExtensionContext) {
     this.cachedSnippets = [];
 
-    const snippetDir = path.join(context.extensionPath, 'resources', 'snippets');
-    try {
-      await fsPromises.access(snippetDir);
-      const files = await fsPromises.readdir(snippetDir); // 异步读取目录
+    // 优化：使用 Uri.joinPath 替代 path.join，更安全且支持 Web 环境
+    const snippetsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'snippets');
+    const decoder = new TextDecoder('utf-8');
 
-      // 2. 并发读取文件内容 (比 forEach + await 快得多)
-      const readPromises = files
-        .filter((file) => file.endsWith('.json'))
-        .map(async (file) => {
+    try {
+      // 优化：vscode.workspace.fs.readDirectory 返回的是 [文件名, 文件类型] 的元组
+      const entries = await vscode.workspace.fs.readDirectory(snippetsUri);
+
+      // 并发读取处理
+      const readPromises = entries
+        .filter(([name, type]) => type === vscode.FileType.File && name.endsWith('.json'))
+        .map(async ([name]) => {
           try {
-            const content = await fsPromises.readFile(path.join(snippetDir, file), 'utf-8');
+            const fileUri = vscode.Uri.joinPath(snippetsUri, name);
+            // 优化：fs.readFile 返回 Uint8Array，需转换
+            const contentBytes = await vscode.workspace.fs.readFile(fileUri);
+            const content = decoder.decode(contentBytes);
+            
             const jsonData = JSON.parse(content);
-            const fileName = path.parse(file).name;
-            if (jsonData?.length) {
+            // 这里使用 name 而不是 path.parse(name).name，因为 name 本身就是文件名(如 vue.json)
+            // 如果需要去除后缀，可以用简单的字符串处理
+            const fileName = name.replace(/\.json$/, ''); 
+
+            if (Array.isArray(jsonData) && jsonData.length) {
               return jsonData.map((item: any) => ({ ...item, origin: fileName }));
             }
           } catch (e) {
-            console.error(`Error parsing snippet ${file}:`, e);
+            console.error(`Error parsing snippet ${name}:`, e);
           }
           return [];
         });
@@ -125,7 +134,8 @@ export class CodeSnippetFeature implements IFeature {
       const results = await Promise.all(readPromises);
       results.forEach((items) => this.cachedSnippets.push(...items));
     } catch (e) {
-      // 目录不存在忽略即可
+      // 目录不存在或读取失败，忽略
+      // console.warn('Snippets directory load failed or empty', e);
     }
 
     const userSnippets = this.configService.config['snippets'];

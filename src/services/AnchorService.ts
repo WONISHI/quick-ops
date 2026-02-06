@@ -1,20 +1,31 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import * as fs from 'fs';
+// import * as path from 'path'; // 移除 path
+import { TextDecoder, TextEncoder } from 'util';
 import { AnchorConfig, AnchorData } from '../core/types/anchor';
+import { debounce } from 'lodash-es';
 
 export class AnchorService {
   private static instance: AnchorService;
   private anchors: AnchorData[] = [];
-  private flotAnchors: AnchorData[] = []; // 扁平化索引，用于快速查找
+  private flotAnchors: AnchorData[] = [];
   private groups: string[] = ['Default'];
   private itemGroups: string[] = [];
-  private storagePath: string = '';
+
+  // 使用 Uri 存储配置路径
+  private storageUri: vscode.Uri | undefined;
 
   private _onDidChangeAnchors = new vscode.EventEmitter<void>();
   public readonly onDidChangeAnchors = this._onDidChangeAnchors.event;
 
-  private constructor() {}
+  // 防抖保存函数引用
+  private debouncedSave: () => void;
+
+  private constructor() {
+    // 初始化防抖保存，500ms 内的多次保存请求合并为一次
+    this.debouncedSave = debounce(async () => {
+      await this.persist();
+    }, 500);
+  }
 
   public static getInstance(): AnchorService {
     if (!AnchorService.instance) {
@@ -23,35 +34,53 @@ export class AnchorService {
     return AnchorService.instance;
   }
 
+  // 1. init 接收 rootPath (字符串) 或 rootUri (Uri)
+  // 为了兼容之前的调用，我们可以保留 rootPath 参数，但内部转为 Uri
   public init(rootPath: string) {
-    this.storagePath = path.join(rootPath, '.telemetryrc');
+    // 假设 rootPath 是 fsPath，我们将其转为 Uri
+    // 更好的做法是直接让 init 接收 Uri，但这需要修改调用方
+    // 这里使用简单的 file uri 转换，如果是远程环境，建议调用方传 workspaceFolder.uri
+    const ws = vscode.workspace.workspaceFolders?.find((w) => w.uri.fsPath === rootPath);
+    const rootUri = ws ? ws.uri : vscode.Uri.file(rootPath);
+
+    this.storageUri = vscode.Uri.joinPath(rootUri, '.telemetryrc');
     this.load();
   }
 
-  private load() {
-    if (fs.existsSync(this.storagePath)) {
-      try {
-        const content = fs.readFileSync(this.storagePath, 'utf-8');
-        const data: AnchorConfig = JSON.parse(content);
-        this.anchors = data.anchors || [];
-        this.groups = data.groups || ['Default'];
-        this.itemGroups = data.children || [];
+  private async load() {
+    if (!this.storageUri) return;
 
-        // 初始化扁平索引
-        this.refreshFlotAnchors();
-      } catch (e) {
+    try {
+      // 使用 VS Code FS 读取
+      const contentUint8 = await vscode.workspace.fs.readFile(this.storageUri);
+      const content = new TextDecoder('utf-8').decode(contentUint8);
+      const data: AnchorConfig = JSON.parse(content);
+
+      this.anchors = data.anchors || [];
+      this.groups = data.groups || ['Default'];
+      this.itemGroups = data.children || [];
+
+      this.refreshFlotAnchors();
+      // 首次加载后通知视图更新
+      this._onDidChangeAnchors.fire();
+    } catch (e: any) {
+      // 文件不存在是正常情况，初始化为空
+      if (e.code !== 'FileNotFound' && e.code !== 'ENOENT') {
         console.error('Failed to load anchors', e);
       }
     }
   }
 
-  private async save() {
-    // 1. 立即刷新内存中的扁平索引
+  // 公开的 save 方法只负责更新状态和触发事件，实际写入磁盘交给防抖函数
+  private save() {
     this.refreshFlotAnchors();
-    // 2. 立即触发事件
     this._onDidChangeAnchors.fire();
+    this.debouncedSave();
+  }
 
-    if (!this.storagePath) return;
+  // 真正的持久化操作
+  private async persist() {
+    if (!this.storageUri) return;
 
     const data: AnchorConfig = {
       groups: this.groups,
@@ -60,7 +89,9 @@ export class AnchorService {
     };
 
     try {
-      await fs.promises.writeFile(this.storagePath, JSON.stringify(data, null, 2), 'utf-8');
+      const content = JSON.stringify(data, null, 2);
+      const encoder = new TextEncoder();
+      await vscode.workspace.fs.writeFile(this.storageUri, encoder.encode(content));
     } catch (error) {
       vscode.window.showErrorMessage('无法保存锚点文件: ' + error);
     }
@@ -97,9 +128,6 @@ export class AnchorService {
     return null;
   }
 
-  /**
-   * 移动/交换锚点位置 (支持嵌套)
-   */
   public moveAnchor(id: string, direction: 'up' | 'down') {
     const container = this.findContainerArray(id, this.anchors);
     if (!container) return;
@@ -237,7 +265,6 @@ export class AnchorService {
     const container = this.findContainerArray(targetId, this.anchors);
 
     if (!container) {
-      // 如果找不到目标，就作为新项添加到对应分组的末尾
       this.addAnchor({ ...anchor, sort: 1 });
       return;
     }
@@ -249,7 +276,7 @@ export class AnchorService {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       timestamp: Date.now(),
       items: [],
-      sort: undefined, // 稍后计算
+      sort: undefined,
     };
 
     const targetItem = list[index];
@@ -258,7 +285,6 @@ export class AnchorService {
       newAnchor.pid = targetItem.pid;
     }
 
-    // 1. 执行物理插入 (改变数组结构)
     if (position === 'before') {
       list.splice(index, 0, newAnchor);
     } else {
@@ -316,12 +342,17 @@ export class AnchorService {
     const root = { name: 'Anchors', children: [] as any[] };
     this.groups.forEach((groupName) => {
       const groupAnchors = this.anchors.filter((a) => a.group === groupName);
-      const transform = (anchor: AnchorData): any => ({
-        name: anchor.description || path.basename(anchor.filePath),
-        id: anchor.id,
-        data: anchor,
-        children: anchor.items ? anchor.items.map(transform) : [],
-      });
+      const transform = (anchor: AnchorData): any => {
+        // 在生成展示数据时，由于不再使用 path 模块，这里简单地处理路径显示
+        // 如果需要严格的 basename，可以手写 split 逻辑
+        const fileName = anchor.filePath.split(/[/\\]/).pop() || anchor.filePath;
+        return {
+          name: anchor.description || fileName,
+          id: anchor.id,
+          data: anchor,
+          children: anchor.items ? anchor.items.map(transform) : [],
+        };
+      };
       const groupNode = {
         name: groupName,
         children: groupAnchors.map(transform),
