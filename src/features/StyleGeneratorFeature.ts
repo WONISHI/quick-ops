@@ -19,7 +19,7 @@ export class StyleGeneratorFeature implements IFeature {
 
         const document = editor.document;
         const text = document.getText();
-        const langId = document.languageId; // vue, html, javascriptreact, typescriptreact
+        const langId = document.languageId;
 
         // 2. 调用解析工具
         try {
@@ -29,7 +29,7 @@ export class StyleGeneratorFeature implements IFeature {
             vscode.window.showInformationMessage('未找到有效的 HTML/JSX 结构 (需要包含 class 或 id)');
             return;
           }
-
+          
           await vscode.env.clipboard.writeText(scssString);
           
           vscode.window.showInformationMessage('✨ 样式结构已复制到剪贴板');
