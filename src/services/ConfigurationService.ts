@@ -38,9 +38,6 @@ export class ConfigurationService extends EventEmitter implements IService {
   private _watcher: vscode.FileSystemWatcher | null = null;
   private _context?: vscode.ExtensionContext;
 
-  // =========================================================
-  // ★★★ 核心修复点：此处必须为空数组，绝对不能包含 .telemetryrc ★★★
-  // =========================================================
   private readonly _alwaysIgnoreFiles: string[] = [];
 
   private readonly _configFile: string = '.quickopsrc';

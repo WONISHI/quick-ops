@@ -314,7 +314,7 @@ export class AnchorFeature implements IFeature {
                   if (!text) return "";
                   return text
                       .replace(/&/g, "&amp;")
-                      .replace(/</g, "&lt;")
+                      .replace(/<//g, "&lt;")
                       .replace(/>/g, "&gt;")
                       .replace(/"/g, "&quot;")
                       .replace(/'/g, "&#039;");
@@ -331,8 +331,6 @@ export class AnchorFeature implements IFeature {
               };
 
               let root, svg, g, zoom, tree;
-              const width = window.innerWidth;
-              const height = window.innerHeight;
               let colorScale; // 延迟初始化
 
               function getNodeColor(d) {
@@ -365,6 +363,11 @@ export class AnchorFeature implements IFeature {
                   document.getElementById('zoom-in-btn').addEventListener('click', () => svg.transition().call(zoom.scaleBy, 1.2));
                   document.getElementById('zoom-out-btn').addEventListener('click', () => svg.transition().call(zoom.scaleBy, 0.8));
                   document.getElementById('zoom-reset-btn').addEventListener('click', () => centerView(true));
+                  
+                  // 新增：监听窗口尺寸变化，自动居中
+                  window.addEventListener('resize', () => {
+                      centerView(false); // 不带动画，响应更快
+                  });
               }
 
               function toggleFullscreen() {
@@ -380,6 +383,9 @@ export class AnchorFeature implements IFeature {
                       btnIcon.classList.add('fa-expand');
                       btn.title = "切换编辑器最大化";
                   }
+                  
+                  // 触发一次居中 (延时以等待VSCode动画)
+                  setTimeout(() => centerView(true), 400);
               }
 
               window.addEventListener('message', event => {
@@ -388,11 +394,38 @@ export class AnchorFeature implements IFeature {
                   }
               });
 
+              // 修改：计算边界框实现真正的“左右上下居中”
               function centerView(animate = false) {
-                  if (!svg) return;
-                  const initialTransform = d3.zoomIdentity.translate(120, height / 2).scale(1);
-                  if (animate) svg.transition().duration(750).call(zoom.transform, initialTransform);
-                  else svg.call(zoom.transform, initialTransform);
+                  if (!svg || !root) return;
+                  const w = window.innerWidth;
+                  const h = window.innerHeight;
+                  
+                  // 1. 计算可视节点的边界框
+                  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                  
+                  // D3 tree布局中：x 是垂直坐标，y 是水平坐标
+                  root.descendants().forEach(d => {
+                      if (d.x < minX) minX = d.x;
+                      if (d.x > maxX) maxX = d.x;
+                      if (d.y < minY) minY = d.y;
+                      if (d.y > maxY) maxY = d.y;
+                  });
+                  
+                  // 防止空数据
+                  if (minX === Infinity) { minX = 0; maxX = 0; minY = 0; maxY = 0; }
+                  
+                  // 计算图表的几何中心点 (在 D3 坐标系内)
+                  const graphCenterX = (minY + maxY) / 2; // y是水平方向
+                  const graphCenterY = (minX + maxX) / 2; // x是垂直方向
+                  
+                  // 计算将图表中心移动到屏幕中心所需的偏移量
+                  const tx = (w / 2) - graphCenterX;
+                  const ty = (h / 2) - graphCenterY;
+                  
+                  const transform = d3.zoomIdentity.translate(tx, ty).scale(1);
+                  
+                  if (animate) svg.transition().duration(750).call(zoom.transform, transform);
+                  else svg.call(zoom.transform, transform);
               }
 
               function initData(data) {
