@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
-import { TextDecoder } from 'util'; // 用于将 Uint8Array 转为 string
+import { TextDecoder } from 'util';
+import * as path from 'path'; // Need path for directory traversal logic
 import { IFeature } from '../core/interfaces/IFeature';
 import { WorkspaceContextService } from '../services/WorkspaceContextService';
 import { TemplateEngine } from '../utils/TemplateEngine';
@@ -9,16 +10,12 @@ import type { ShellConfigItem, ScriptItem } from '../core/types/package-script';
 export class PackageScriptsFeature implements IFeature {
   public readonly id = 'PackageScriptsFeature';
   private statusBarItem: vscode.StatusBarItem | undefined;
-
-  // 1. 改用 Uri 类型存储扩展路径
   private extensionUri!: vscode.Uri;
-
   private configService: ConfigurationService = ConfigurationService.getInstance();
 
   constructor(private contextService: WorkspaceContextService = WorkspaceContextService.getInstance()) {}
 
   public activate(context: vscode.ExtensionContext): void {
-    // 2. 获取 extensionUri
     this.extensionUri = context.extensionUri;
 
     const commandId = 'quick-ops.showPackageScripts';
@@ -27,23 +24,62 @@ export class PackageScriptsFeature implements IFeature {
     this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     this.statusBarItem.command = commandId;
     this.statusBarItem.text = '$(play) Scripts';
-    this.statusBarItem.tooltip = '查看并执行常用脚本';
+    this.statusBarItem.tooltip = 'View and execute scripts';
     this.statusBarItem.show();
     context.subscriptions.push(this.statusBarItem);
 
     console.log(`[${this.id}] Activated.`);
   }
 
+  private async findPackageJsonUri(startUri: vscode.Uri): Promise<vscode.Uri | undefined> {
+    let currentUri = startUri;
+
+    // Safety check loop to prevent infinite loops, though file system root check should suffice
+    while (true) {
+      const packageJsonUri = vscode.Uri.joinPath(currentUri, 'package.json');
+      try {
+        await vscode.workspace.fs.stat(packageJsonUri);
+        return packageJsonUri; // Found it
+      } catch {
+        // Not found in current directory
+      }
+
+      const parentUri = vscode.Uri.joinPath(currentUri, '..');
+
+      // If we have reached the root (parent is same as current), stop
+      if (parentUri.toString() === currentUri.toString()) {
+        return undefined;
+      }
+      currentUri = parentUri;
+    }
+  }
+
   private async showScripts() {
     const items: (ScriptItem | vscode.QuickPickItem)[] = [];
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    const rootUri = workspaceFolder?.uri;
     const ctx = this.contextService.context;
     const decoder = new TextDecoder('utf-8');
 
-    // 1. 读取 package.json (使用 VS Code FS)
-    if (rootUri) {
-      const packageJsonUri = vscode.Uri.joinPath(rootUri, 'package.json');
+    // 1. Determine the starting point for finding package.json
+    let startUri: vscode.Uri | undefined;
+
+    // Priority 1: Active Text Editor's folder
+    if (vscode.window.activeTextEditor) {
+      startUri = vscode.Uri.joinPath(vscode.window.activeTextEditor.document.uri, '..');
+    }
+    // Priority 2: Workspace Root
+    else if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+      startUri = vscode.workspace.workspaceFolders[0].uri;
+    }
+
+    let packageJsonUri: vscode.Uri | undefined;
+    let projectRootStr = ''; // Used for cwd in scripts
+
+    if (startUri) {
+      packageJsonUri = await this.findPackageJsonUri(startUri);
+    }
+
+    // 2. Read package.json if found
+    if (packageJsonUri) {
       try {
         const contentUint8 = await vscode.workspace.fs.readFile(packageJsonUri);
         const content = decoder.decode(contentUint8);
@@ -51,26 +87,27 @@ export class PackageScriptsFeature implements IFeature {
         const scripts = packageJson.scripts || {};
         const scriptNames = Object.keys(scripts);
 
+        // The directory containing package.json
+        const packageDirUri = vscode.Uri.joinPath(packageJsonUri, '..');
+        projectRootStr = packageDirUri.fsPath;
+
         if (scriptNames.length > 0) {
           items.push({
-            label: 'NPM Scripts (package.json)',
+            label: `NPM Scripts (${packageJson.name || 'Project'})`,
+            description: vscode.workspace.asRelativePath(packageDirUri), // Show relative path for clarity
             kind: vscode.QuickPickItemKind.Separator,
           });
 
           scriptNames.forEach((name) => {
-            // 注意：这里 cwd 依然传 string (fsPath)，因为 ScriptItem 接口和终端创建需要 string
-            items.push(this.createScriptItem(name, scripts[name], name, rootUri.fsPath, true, undefined, false));
+            items.push(this.createScriptItem(name, scripts[name], name, projectRootStr, true, undefined, false));
           });
         }
       } catch (e: any) {
-        // 文件不存在 (FileNotFound) 忽略，其他错误打印
-        if (e.code !== 'FileNotFound' && e.code !== 'ENOENT') {
-          console.error('Error parsing package.json', e);
-        }
+        console.error('Error parsing package.json', e);
       }
 
-      // 2. 读取工作区自定义配置
-      const workspaceScripts = this.loadWorkspaceScripts(rootUri.fsPath, ctx);
+      // Load workspace custom scripts (associated with the found project root)
+      const workspaceScripts = this.loadWorkspaceScripts(projectRootStr, ctx);
       if (workspaceScripts.length > 0) {
         items.push({
           label: 'Workspace Custom Scripts',
@@ -80,13 +117,12 @@ export class PackageScriptsFeature implements IFeature {
       }
     }
 
-    // 3. 读取插件内置资源 (使用 VS Code FS)
+    // 3. Read built-in resources (Extension Scripts)
     const shellResourceUri = vscode.Uri.joinPath(this.extensionUri, 'resources', 'shell');
 
     try {
       const entries = await vscode.workspace.fs.readDirectory(shellResourceUri);
 
-      // 优化：并发读取
       const fileReadPromises = entries
         .filter(([name, type]) => type === vscode.FileType.File && name.endsWith('.json'))
         .map(async ([name]) => {
@@ -97,7 +133,8 @@ export class PackageScriptsFeature implements IFeature {
 
             const jsonItems: ShellConfigItem[] = JSON.parse(content);
             if (Array.isArray(jsonItems) && jsonItems.length > 0) {
-              const validShellItems = this.processShellItems(jsonItems, ctx, rootUri ? rootUri.fsPath : this.extensionUri.fsPath);
+              // Use projectRootStr if found, otherwise extension path as fallback for CWD
+              const validShellItems = this.processShellItems(jsonItems, ctx, projectRootStr || this.extensionUri.fsPath);
               if (validShellItems.length > 0) {
                 return { file: name, items: validShellItems };
               }
@@ -117,17 +154,17 @@ export class PackageScriptsFeature implements IFeature {
         }
       });
     } catch (err) {
-      // 目录不存在忽略
+      // Ignore if directory doesn't exist
     }
 
     if (items.length === 0) {
-      vscode.window.showInformationMessage('未找到任何可执行脚本');
+      vscode.window.showInformationMessage('No executable scripts found.');
       return;
     }
 
     const quickPick = vscode.window.createQuickPick<ScriptItem>();
     quickPick.items = items as ScriptItem[];
-    quickPick.placeholder = '选择要执行的指令';
+    quickPick.placeholder = 'Select a script to execute';
     quickPick.matchOnDescription = true;
     quickPick.ignoreFocusOut = true;
 
@@ -195,19 +232,18 @@ export class PackageScriptsFeature implements IFeature {
       { name: 'npm', lock: 'package-lock.json' },
     ];
 
-    // 辅助函数：尝试将 cwd 字符串转回 Uri，以支持远程环境检查
     const getCwdUri = (cwdPath: string): vscode.Uri => {
+      // cwdPath is likely fsPath string, convert to Uri
+      // Try to match with workspace folder to get correct scheme if possible
       const ws = vscode.workspace.workspaceFolders?.find((w) => w.uri.fsPath === cwdPath);
       return ws ? ws.uri : vscode.Uri.file(cwdPath);
     };
 
     const cwdUri = getCwdUri(cwd);
 
-    // 优化：使用 Promise.all 并发检查，替换 fs.existsSync
     const checkPromises = managers.map(async (m) => {
       try {
         const lockUri = vscode.Uri.joinPath(cwdUri, m.lock);
-        // 使用 stat 检查文件是否存在
         await vscode.workspace.fs.stat(lockUri);
         return m;
       } catch {
@@ -221,21 +257,21 @@ export class PackageScriptsFeature implements IFeature {
     const items: vscode.QuickPickItem[] = [];
 
     if (detected.length > 0) {
-      detected.forEach((m) => items.push({ label: m.name, description: `检测到 ${m.lock} (推荐)`, picked: true }));
+      detected.forEach((m) => items.push({ label: m.name, description: `Detected ${m.lock}`, picked: true }));
       items.push({ label: '', kind: vscode.QuickPickItemKind.Separator });
     }
 
     const detectedNames = detected.map((d) => d.name);
-    if (!detectedNames.includes('npm')) items.push({ label: 'npm', description: '默认工具' });
+    if (!detectedNames.includes('npm')) items.push({ label: 'npm', description: 'Default' });
 
     ['pnpm', 'yarn', 'bun'].forEach((name) => {
-      if (!detectedNames.includes(name)) items.push({ label: name, description: '强制使用' });
+      if (!detectedNames.includes(name)) items.push({ label: name, description: 'Force use' });
     });
 
     if (detected.length === 0) return 'npm';
 
     const selected = await vscode.window.showQuickPick(items, {
-      placeHolder: '选择要使用的包管理器执行脚本',
+      placeHolder: 'Select package manager',
       ignoreFocusOut: true,
     });
 
@@ -249,7 +285,7 @@ export class PackageScriptsFeature implements IFeature {
       for (const [key, value] of Object.entries(item.payload)) {
         if (Array.isArray(value)) {
           const choice = await vscode.window.showQuickPick(value.map(String), {
-            placeHolder: `请选择 ${key} 的值`,
+            placeHolder: `Select value for ${key}`,
             ignoreFocusOut: true,
           });
           if (!choice) return;
@@ -273,7 +309,7 @@ export class PackageScriptsFeature implements IFeature {
     } else {
       if (vscode.window.activeTerminal) {
         terminal = vscode.window.activeTerminal;
-        terminal.sendText('\u0003'); // Ctrl+C
+        terminal.sendText('\u0003'); // Ctrl+C to stop running process
       } else {
         terminal = vscode.window.createTerminal({
           name: 'Terminal',

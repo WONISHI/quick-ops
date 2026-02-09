@@ -2,7 +2,7 @@
   "name": "quick-ops",
   "displayName": "Quick Ops: Code Utils & Anchors",
   "description": "Boost productivity with Code Anchors, SCSS structure generation, and essential navigation shortcuts.",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "engines": {
     "vscode": "^1.73.0"
   },
