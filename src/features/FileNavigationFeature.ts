@@ -6,14 +6,26 @@ export class FileNavigationFeature implements IFeature {
 
   public activate(context: vscode.ExtensionContext): void {
     // 定位文件
-    const disposable = vscode.commands.registerCommand('quickOps.revealInExplorer', () => {
+    const disposable = vscode.commands.registerCommand('quickOps.revealInExplorer', async () => {
       const activeEditor = vscode.window.activeTextEditor;
       if (!activeEditor) {
         vscode.window.showInformationMessage('当前没有打开的文件');
         return;
       }
-      // 核心逻辑：调用 VS Code 内置命令
-      vscode.commands.executeCommand('revealInExplorer', activeEditor.document.uri);
+
+      const uri = activeEditor.document.uri;
+
+      if (uri.scheme !== 'file' && uri.scheme !== 'vscode-remote') {
+        vscode.window.setStatusBarMessage('Quick Ops: 该文件无法在资源管理器中定位', 3000);
+        return;
+      }
+
+      try {
+        await vscode.commands.executeCommand('revealInExplorer', uri);
+      } catch (error) {
+        console.warn('[QuickOps] Reveal failed:', error);
+        vscode.window.showWarningMessage('无法在当前工作区找到该文件');
+      }
     });
 
     context.subscriptions.push(disposable);
