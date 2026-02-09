@@ -6,6 +6,10 @@
   "engines": {
     "vscode": "^1.73.0"
   },
+  "galleryBanner": {
+    "color": "#1e3c59",
+    "theme": "light"
+  },
   "sideEffects": false,
   "publisher": "quick-ops",
   "keywords": [
