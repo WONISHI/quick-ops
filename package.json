@@ -66,7 +66,35 @@
       "allowScripts": true,
       "allowLinks": true
     },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "quick-ops-view-container",
+          "title": "Quick Ops",
+          "icon": "$(server)"
+        }
+      ]
+    },
+    "views": {
+      "quick-ops-view-container": [
+        {
+          "id": "quickOps.mockView",
+          "name": "Mock Server",
+          "icon": "$(server)"
+        }
+      ]
+    },
     "commands": [
+      {
+        "command": "quick-ops.mock.start",
+        "title": "启动 Mock 服务",
+        "icon": "$(play)"
+      },
+      {
+        "command": "quick-ops.mock.stop",
+        "title": "停止 Mock 服务",
+        "icon": "$(debug-stop)"
+      },
       {
         "command": "quickOps.revealInExplorer",
         "title": "定位当前文件 (Reveal File)",
@@ -166,6 +194,11 @@
         "command": "quick-ops.switchPreviousEditor",
         "title": "Quick Ops: Switch to Previous Editor",
         "category": "Quick Ops"
+      },
+      {
+        "command": "quick-ops.mock.openManager",
+        "title": "Open Mock Manager",
+        "icon": "$(server)"
       }
     ],
     "keybindings": [
@@ -228,6 +261,10 @@
           "command": "quickOps.scrollToBottom",
           "group": "navigation@3",
           "when": "editorTextFocus"
+        },
+        {
+          "command": "quick-ops.mock.openManager",
+          "group": "navigation@4"
         }
       ],
       "explorer/context": [
@@ -264,6 +301,18 @@
           "command": "quick-ops.anchor.add",
           "group": "1_modification"
         }
+      ],
+      "view/title": [
+        {
+          "command": "quick-ops.mock.start",
+          "when": "view == quickOps.mockView",
+          "group": "navigation"
+        },
+        {
+          "command": "quick-ops.mock.stop",
+          "when": "view == quickOps.mockView",
+          "group": "navigation"
+        }
       ]
     }
   },
@@ -283,9 +332,12 @@
     "@types/babel__core": "^7.20.5",
     "@types/babel__traverse": "^7.28.0",
     "@types/cheerio": "^1.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/glob": "^9.0.0",
     "@types/lodash-es": "^4",
     "@types/mocha": "^10.0.10",
+    "@types/mockjs": "^1.0.10",
     "@types/node": "22.x",
     "@types/vscode": "^1.54.0",
     "@typescript-eslint/eslint-plugin": "^8.39.0",
@@ -316,10 +368,15 @@
     "@babel/traverse": "^7.28.6",
     "@babel/types": "^7.28.6",
     "@vue/compiler-sfc": "^3.5.20",
+    "body-parser": "^2.2.2",
     "change-case": "^5.4.4",
     "cheerio": "^1.1.2",
+    "cors": "^2.8.6",
     "dayjs": "^1.11.13",
+    "express": "^5.2.1",
+    "http-proxy-middleware": "^3.0.5",
     "lodash-es": "^4.17.23",
+    "mockjs": "^1.1.0",
     "nanoid": "^5.1.6",
     "terser-webpack-plugin": "^5.3.14"
   }

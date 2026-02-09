@@ -4,26 +4,11 @@ import { EventEmitter } from 'events';
 import { merge } from 'lodash-es';
 import { exec } from 'child_process';
 import { promisify } from 'util';
-import { TextDecoder, TextEncoder } from 'util'; // 引入转换工具
+import { TextDecoder, TextEncoder } from 'util';
 import { IService } from '../core/interfaces/IService';
+import type { ILogrcConfig } from '../core/types/config';
 
 const execAsync = promisify(exec);
-
-export interface ILogrcConfig {
-  general: {
-    debug: boolean;
-    excludeConfigFiles: boolean;
-    excludeTelemetryFile?: boolean;
-    anchorViewMode?: 'menu' | 'mindmap';
-    mindMapPosition?: 'left' | 'right';
-  };
-  logger: { template: string; dateFormat: string };
-  utils: { uuidLength: number };
-  mock: { port: number; asyncMode: boolean; workerCount: number };
-  git: { ignoreList: string[] };
-  project: { alias: Record<string, string>; marks: Record<string, any> };
-  [key: string]: any;
-}
 
 export class ConfigurationService extends EventEmitter implements IService {
   public readonly serviceId = 'ConfigurationService';
@@ -94,6 +79,59 @@ export class ConfigurationService extends EventEmitter implements IService {
       this.emit('configChanged', this._config);
     } catch (error) {
       console.error(`[${this.serviceId}] Error loading config:`, error);
+    }
+  }
+
+  /**
+   * [新增] 通用配置更新方法
+   * 用于 Mock Server 等功能模块更新配置并持久化到 .quickopsrc
+   * @param section 配置节点 (e.g., 'mock', 'general')
+   * @param value 新的配置值
+   */
+  public async updateConfig<K extends keyof ILogrcConfig>(section: K, value: ILogrcConfig[K]): Promise<void> {
+    const configUri = this.workspaceConfigUri;
+
+    // 1. 如果配置文件不存在，询问是否创建
+    if (!configUri || !(await this.pathExists(configUri))) {
+      const create = await vscode.window.showInformationMessage('配置文件 .quickopsrc 不存在，是否立即创建？', '创建', '取消');
+      if (create === '创建') {
+        await this.createDefaultConfig();
+        // 如果创建失败或仍未找到，直接返回
+        if (!this.workspaceConfigUri || !(await this.pathExists(this.workspaceConfigUri))) return;
+      } else {
+        return;
+      }
+    }
+
+    // 再次确认 URI 存在（因为 createDefaultConfig 可能会失败）
+    const targetUri = this.workspaceConfigUri;
+    if (!targetUri) return;
+
+    try {
+      // 2. 读取现有配置
+      const content = await this.readFile(targetUri);
+      let currentConfig: any = {};
+      try {
+        currentConfig = JSON.parse(content);
+      } catch (e) {
+        // 如果文件为空或格式错误，尝试保留原内容或重置
+        console.warn('Config file parse error, overwriting with new config structure.');
+        currentConfig = {};
+      }
+
+      // 3. 更新指定节点
+      currentConfig[section] = value;
+
+      // 4. 更新内存中的配置 (Watcher 稍后会触发完全重载，这里先更新内存以保证响应速度)
+      (this._config as any)[section] = value;
+
+      // 5. 写回文件
+      await this.writeFile(targetUri, JSON.stringify(currentConfig, null, 2));
+
+      this.emit('configChanged', this._config);
+    } catch (error: any) {
+      vscode.window.showErrorMessage(`更新配置失败: ${error.message}`);
+      console.error(`[${this.serviceId}] updateConfig error:`, error);
     }
   }
 
