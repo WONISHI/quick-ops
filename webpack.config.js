@@ -20,10 +20,12 @@ function stripJsonComments(jsonString) {
 const extensionConfig = {
   target: 'node16',
   mode: 'production',
-  entry: './src/extension.ts',
+  entry: {
+    extension: './src/extension.ts',
+  },
   output: {
     path: path.resolve(__dirname, 'dist'),
-    filename: 'extension.js',
+    filename: '[name].js',
     libraryTarget: 'commonjs',
   },
   externalsPresets: { node: true },
@@ -58,6 +60,17 @@ const extensionConfig = {
     concatenateModules: true,
     minimize: true,
     usedExports: true,
+    splitChunks: {
+      chunks: 'all',
+      cacheGroups: {
+        vendor: {
+          test: /[\\/]node_modules[\\/]/,
+          name: 'vendor',
+          priority: 10,
+          enforce: true,
+        },
+      },
+    },
     minimizer: [
       new TerserPlugin({
         parallel: true,
