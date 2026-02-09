@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-// import * as path from 'path'; // 移除 path
 import { TextDecoder, TextEncoder } from 'util';
 import { AnchorConfig, AnchorData } from '../core/types/anchor';
 import { debounce } from 'lodash-es';
@@ -34,12 +33,7 @@ export class AnchorService {
     return AnchorService.instance;
   }
 
-  // 1. init 接收 rootPath (字符串) 或 rootUri (Uri)
-  // 为了兼容之前的调用，我们可以保留 rootPath 参数，但内部转为 Uri
   public init(rootPath: string) {
-    // 假设 rootPath 是 fsPath，我们将其转为 Uri
-    // 更好的做法是直接让 init 接收 Uri，但这需要修改调用方
-    // 这里使用简单的 file uri 转换，如果是远程环境，建议调用方传 workspaceFolder.uri
     const ws = vscode.workspace.workspaceFolders?.find((w) => w.uri.fsPath === rootPath);
     const rootUri = ws ? ws.uri : vscode.Uri.file(rootPath);
 
@@ -51,7 +45,6 @@ export class AnchorService {
     if (!this.storageUri) return;
 
     try {
-      // 使用 VS Code FS 读取
       const contentUint8 = await vscode.workspace.fs.readFile(this.storageUri);
       const content = new TextDecoder('utf-8').decode(contentUint8);
       const data: AnchorConfig = JSON.parse(content);
@@ -61,7 +54,6 @@ export class AnchorService {
       this.itemGroups = data.children || [];
 
       this.refreshFlotAnchors();
-      // 首次加载后通知视图更新
       this._onDidChangeAnchors.fire();
     } catch (e: any) {
       // 文件不存在是正常情况，初始化为空

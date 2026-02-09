@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-// import * as path from 'path'; // 可以移除或减少使用
 import { TextDecoder } from 'util'; // 用于将 Uint8Array 转为 string
 import type { ISnippetItem } from '../core/types/snippet';
 import { IFeature } from '../core/interfaces/IFeature';
@@ -99,7 +98,6 @@ export class CodeSnippetFeature implements IFeature {
   private async loadAllSnippets(context: vscode.ExtensionContext) {
     this.cachedSnippets = [];
 
-    // 优化：使用 Uri.joinPath 替代 path.join，更安全且支持 Web 环境
     const snippetsUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'snippets');
     const decoder = new TextDecoder('utf-8');
 
@@ -113,14 +111,11 @@ export class CodeSnippetFeature implements IFeature {
         .map(async ([name]) => {
           try {
             const fileUri = vscode.Uri.joinPath(snippetsUri, name);
-            // 优化：fs.readFile 返回 Uint8Array，需转换
             const contentBytes = await vscode.workspace.fs.readFile(fileUri);
             const content = decoder.decode(contentBytes);
-            
+
             const jsonData = JSON.parse(content);
-            // 这里使用 name 而不是 path.parse(name).name，因为 name 本身就是文件名(如 vue.json)
-            // 如果需要去除后缀，可以用简单的字符串处理
-            const fileName = name.replace(/\.json$/, ''); 
+            const fileName = name.replace(/\.json$/, '');
 
             if (Array.isArray(jsonData) && jsonData.length) {
               return jsonData.map((item: any) => ({ ...item, origin: fileName }));
@@ -135,7 +130,7 @@ export class CodeSnippetFeature implements IFeature {
       results.forEach((items) => this.cachedSnippets.push(...items));
     } catch (e) {
       // 目录不存在或读取失败，忽略
-      // console.warn('Snippets directory load failed or empty', e);
+      console.warn('Snippets directory load failed or empty', e);
     }
 
     const userSnippets = this.configService.config['snippets'];
