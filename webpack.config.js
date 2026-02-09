@@ -53,10 +53,11 @@ const extensionConfig = {
       },
     ],
   },
-  devtool: process.env.NODE_ENV === 'production' ? false : 'source-map',
+  devtool: process.env.NODE_ENV === 'production' ? 'hidden-source-map' : 'source-map',
   optimization: {
     concatenateModules: true,
     minimize: true,
+    usedExports: true,
     minimizer: [
       new TerserPlugin({
         parallel: true,
@@ -96,10 +97,8 @@ const extensionConfig = {
                 const jsonObj = JSON.parse(jsonStr);
                 const minified = JSON.stringify(jsonObj);
                 console.log(`[Minified] ${path.basename(absoluteFrom)}`);
-
                 return minified;
               } catch (e) {
-                // 如果还是解析失败，打印错误原因
                 // @ts-ignore
                 console.error(`[Minify Failed] ${absoluteFrom}: ${e.message}`);
                 return content;
