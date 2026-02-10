@@ -10,6 +10,13 @@ import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { MockWebviewProvider } from '../providers/MockWebviewProvider';
 
+// 定义接口结构，方便类型提示
+interface IMockConfigItem {
+  port: number;
+  target: string;
+  rules: any[];
+}
+
 export class MockServerFeature implements IFeature {
   public readonly id = 'MockServerFeature';
   private server: any;
@@ -17,7 +24,7 @@ export class MockServerFeature implements IFeature {
 
   private webviewProvider!: MockWebviewProvider;
   private _isRunning: boolean = false;
-  private _currentPort: number = 3000;
+  private _currentPort: number = 443;
 
   constructor(private configService: ConfigurationService = ConfigurationService.getInstance()) {}
 
@@ -44,20 +51,37 @@ export class MockServerFeature implements IFeature {
       return;
     }
 
-    const config = this.configService.config.mock || { port: 3000, target: '', rules: [] };
+    // 1. 读取配置：适配数组结构
+    // 假设我们启动列表中的第一个配置，或者你可以遍历启动所有（这里演示启动第一个）
+    const mockConfigs = this.configService.config.mock;
+    let config: IMockConfigItem;
+
+    if (Array.isArray(mockConfigs) && mockConfigs.length > 0) {
+      config = mockConfigs[0]; // 默认取第一个配置
+    } else if (typeof mockConfigs === 'object' && !Array.isArray(mockConfigs)) {
+      // 兼容旧的对象结构
+      config = mockConfigs as any;
+    } else {
+      // 默认初始化
+      config = { port: 443, target: '', rules: [] };
+    }
+
     this._currentPort = config.port;
 
+    // 2. 校验 Target
     if (!config.target) {
       const target = await vscode.window.showInputBox({
-        prompt: '未配置目标域名 (Target)，请输入真实后端地址',
+        prompt: '未配置全局转发目标 (Target)，请输入真实后端地址',
         placeHolder: 'http://example.com',
       });
       if (target) {
         config.target = target;
-        await this.configService.updateConfig('mock', config);
+        // 注意：这里保存时要小心，如果是数组，需要更新数组中的那一项
+        // 为简化，这里暂时只更新内存，持久化保存建议在 Webview 侧完成
+        // await this.configService.updateConfig('mock', [config]);
       } else {
-        vscode.window.showWarningMessage('无法启动：未配置转发目标地址');
-        return;
+        vscode.window.showWarningMessage('未配置 Target，所有未命中的接口将无法转发');
+        // 不 return，允许仅运行 Mock 模式
       }
     }
 
@@ -66,45 +90,84 @@ export class MockServerFeature implements IFeature {
     this.app.use(bodyParser.json());
     this.app.use(bodyParser.urlencoded({ extended: true }));
 
-    // --- 拦截中间件 ---
+    // --- 3. 核心拦截中间件 (处理 Mock 返回) ---
     this.app.use(async (req: any, res: any, next: any) => {
-      // 动态读取配置，支持热更新
-      const currentConfig = this.configService.config.mock;
-      const rules = currentConfig?.rules || [];
+      // 动态读取最新配置 (支持热更新)
+      const requestHost = req.get('host');
+      const protocol = req.protocol;
+      const currentConfigs = this.configService.config.mock;
+      const fullOrigin = `${protocol}://${requestHost}`;
+      let currentRules: any[] = [];
 
-      const matchedRule = rules.find((r) => r.enabled && req.method.toUpperCase() === r.method.toUpperCase() && (req.path === r.url || req.path.includes(r.url)));
+      // 从数组中找到当前端口对应的配置
+      if (Array.isArray(currentConfigs)) {
+        const activeConfig = currentConfigs.find((c: any) => {
+          return c.port === this._currentPort || c.target === fullOrigin || c.target.includes(requestHost);
+        });
+        currentRules = activeConfig?.rules || [];
+      } else {
+        currentRules = (currentConfigs as any)?.rules || [];
+      }
+
+      // 查找匹配的规则
+      const matchedRule = currentRules.find((r) => r.enabled && req.method.toUpperCase() === r.method.toUpperCase() && (req.path === r.url || req.path.includes(r.url)));
 
       if (matchedRule) {
-        console.log(`[Mock] Hit: ${req.path}`);
-        try {
-          const templateObj = typeof matchedRule.template === 'string' ? JSON.parse(matchedRule.template) : matchedRule.template;
-          const mockData = Mock.mock(templateObj);
+        console.log(`[Mock] Hit Rule: ${req.path}`);
+
+        // 情况 A: 静态数据 (data 字段存在)
+        if (matchedRule.data) {
+          console.log(`  -> Static JSON Mode`);
           res.set('Content-Type', matchedRule.contentType || 'application/json');
-          res.send(mockData);
-        } catch (e: any) {
-          res.status(500).json({ error: 'Mock Failed', details: e.message });
+          try {
+            const responseData = typeof matchedRule.data === 'string' ? JSON.parse(matchedRule.data) : matchedRule.data;
+            res.send(responseData);
+          } catch (e: any) {
+            res.status(500).json({ error: 'Invalid Static JSON', details: e.message });
+          }
+          return;
         }
-        return;
+
+        // 情况 B: 动态 Mock (template 字段存在)
+        if (matchedRule.template) {
+          console.log(`  -> Mock Template Mode`);
+          try {
+            const templateObj = typeof matchedRule.template === 'string' ? JSON.parse(matchedRule.template) : matchedRule.template;
+            const mockData = Mock.mock(templateObj);
+            res.set('Content-Type', matchedRule.contentType || 'application/json');
+            res.send(mockData);
+          } catch (e: any) {
+            res.status(500).json({ error: 'Mock Generation Failed', details: e.message });
+          }
+          return;
+        }
+
+        // 情况 C: 规则开启但无数据 -> 纯转发规则 (Pass through to Proxy)
+        console.log(`  -> Forwarding Mode (Specific Rule)`);
       }
+
       next();
     });
 
-    // --- 代理中间件 ---
+    // --- 4. 代理转发中间件 ---
     const proxyConfig: any = {
-      target: config.target,
+      target: config.target || 'http://localhost', // 默认兜底
       changeOrigin: true,
       secure: false,
       logLevel: 'debug',
       timeout: 5000,
       proxyTimeout: 6000,
       on: {
+        proxyReq: async () => {
+          console.log('onProxyReq - 请求被代理前');
+        },
         error: (err: any) => {
           console.log('error', err);
         },
       },
     };
 
-    this.app.use('/', createProxyMiddleware(proxyConfig));
+    this.app.use('/nfplus-nephogram-admin', createProxyMiddleware(proxyConfig));
 
     try {
       this.server = this.app.listen(config.port, () => {

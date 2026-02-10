@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { EventEmitter } from 'events';
-import { merge } from 'lodash-es';
+import { merge, isString } from 'lodash-es';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { TextDecoder, TextEncoder } from 'util';
 import { IService } from '../core/interfaces/IService';
 import type { ILogrcConfig } from '../core/types/config';
+import { AstParser } from '../utils/PathHelper';
 
 const execAsync = promisify(exec);
 
@@ -69,6 +70,12 @@ export class ConfigurationService extends EventEmitter implements IService {
     try {
       const defaultConfig = await this.loadInternalConfig();
       const userConfig = await this.loadUserConfig();
+
+      if (userConfig.mock?.length) {
+        const mockPath = userConfig.mock.filter((path) => AstParser.isValidAddress(path));
+        if (mockPath.length) {
+        }
+      }
 
       this._config = merge(defaultConfig, userConfig);
 

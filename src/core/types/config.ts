@@ -18,15 +18,16 @@ export interface IMockRule {
   url: string;
   method: string;
   contentType: string;
-  template: object;
+  template?: object;
+  data?: object;
   enabled: boolean;
   description?: string;
 }
 
 export interface IMockConfig {
-  port: number; // 本地代理服务器端口 (默认 3000)
-  target: string; // 默认转发的真实后端地址 (e.g. https://api.real-server.com)
-  rules: IMockRule[]; // 规则列表
+  port: number;
+  target: string;
+  rules: IMockRule[];
 }
 
 export interface ILogrcConfig {
@@ -39,7 +40,7 @@ export interface ILogrcConfig {
   };
   logger: { template: string; dateFormat: string };
   utils: { uuidLength: number };
-  mock?: IMockConfig;
+  mock?: IMockConfig[];
   git: { ignoreList: string[] };
   project: { alias: Record<string, string>; marks: Record<string, any> };
   [key: string]: any;
