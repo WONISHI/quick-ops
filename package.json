@@ -80,21 +80,12 @@
         {
           "id": "quickOps.mockView",
           "name": "Mock Server",
-          "icon": "$(server)"
+          "icon": "$(server)",
+          "type": "webview"
         }
       ]
     },
     "commands": [
-      {
-        "command": "quick-ops.mock.start",
-        "title": "启动 Mock 服务",
-        "icon": "$(play)"
-      },
-      {
-        "command": "quick-ops.mock.stop",
-        "title": "停止 Mock 服务",
-        "icon": "$(debug-stop)"
-      },
       {
         "command": "quickOps.revealInExplorer",
         "title": "定位当前文件 (Reveal File)",
@@ -261,10 +252,6 @@
           "command": "quickOps.scrollToBottom",
           "group": "navigation@3",
           "when": "editorTextFocus"
-        },
-        {
-          "command": "quick-ops.mock.openManager",
-          "group": "navigation@4"
         }
       ],
       "explorer/context": [
@@ -300,18 +287,6 @@
         {
           "command": "quick-ops.anchor.add",
           "group": "1_modification"
-        }
-      ],
-      "view/title": [
-        {
-          "command": "quick-ops.mock.start",
-          "when": "view == quickOps.mockView",
-          "group": "navigation"
-        },
-        {
-          "command": "quick-ops.mock.stop",
-          "when": "view == quickOps.mockView",
-          "group": "navigation"
         }
       ]
     }
