@@ -185,11 +185,6 @@
         "command": "quick-ops.switchPreviousEditor",
         "title": "Quick Ops: Switch to Previous Editor",
         "category": "Quick Ops"
-      },
-      {
-        "command": "quick-ops.mock.openManager",
-        "title": "Open Mock Manager",
-        "icon": "$(server)"
       }
     ],
     "keybindings": [

@@ -25,10 +25,6 @@ export class MockServerFeature implements IFeature {
     this.webviewProvider = new MockWebviewProvider(context.extensionUri, this);
 
     context.subscriptions.push(vscode.window.registerWebviewViewProvider('quickOps.mockView', this.webviewProvider));
-
-    context.subscriptions.push(
-      vscode.commands.registerCommand('quick-ops.mock.openManager', () => this.openManagerPanel(context)),
-    );
   }
 
   // 辅助方法：供 Provider 调用以获取当前状态
@@ -139,22 +135,5 @@ export class MockServerFeature implements IFeature {
       vscode.window.showInformationMessage('Mock Server 已停止');
       this.notifyStatusToWebview();
     }
-  }
-
-  private openManagerPanel(context: vscode.ExtensionContext) {
-    const panel = vscode.window.createWebviewPanel('mockManager', 'Mock Manager', vscode.ViewColumn.One, {
-      enableScripts: true,
-      localResourceRoots: [context.extensionUri],
-      retainContextWhenHidden: true,
-    });
-
-    // 调用 Provider 公开的方法获取 HTML
-    panel.webview.html = this.webviewProvider.getHtmlForWebview(panel.webview);
-
-    // 绑定消息处理
-    panel.webview.onDidReceiveMessage(async (data) => {
-      // 复用 Provider 的处理逻辑
-      await this.webviewProvider.handleMessage(data, panel.webview);
-    });
   }
 }
