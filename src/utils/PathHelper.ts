@@ -33,14 +33,14 @@ export class PathHelper {
     return str.replace(/^['"]|['"]$/g, '');
   }
 
-  isValidAddress(input: string): boolean {
+  static isValidAddress(input: string): boolean {
     try {
       const parsedUrl = new url.URL(input);
       if (parsedUrl.protocol && parsedUrl.protocol.match(/^https?:|file:|ftp:|ws:|wss:/)) {
         return true;
       }
     } catch (e) {
-      return false
+      return false;
     }
     if (path.isAbsolute(input)) {
       return true;

@@ -7,7 +7,7 @@ import { promisify } from 'util';
 import { TextDecoder, TextEncoder } from 'util';
 import { IService } from '../core/interfaces/IService';
 import type { ILogrcConfig } from '../core/types/config';
-import { AstParser } from '../utils/PathHelper';
+import ColorLog from '../utils/ColorLog';
 
 const execAsync = promisify(exec);
 
@@ -63,19 +63,13 @@ export class ConfigurationService extends EventEmitter implements IService {
       context.subscriptions.push(vscode.window.registerFileDecorationProvider(new LogrcIgnoreDecorationProvider(this)));
     }
 
-    console.log(`[${this.serviceId}] Initialized.`);
+    ColorLog.orange(`[${this.serviceId}]`, 'Initialized.');
   }
 
   public async loadConfig(): Promise<void> {
     try {
       const defaultConfig = await this.loadInternalConfig();
       const userConfig = await this.loadUserConfig();
-
-      if (userConfig.mock?.length) {
-        const mockPath = userConfig.mock.filter((path) => AstParser.isValidAddress(path));
-        if (mockPath.length) {
-        }
-      }
 
       this._config = merge(defaultConfig, userConfig);
 

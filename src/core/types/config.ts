@@ -1,4 +1,5 @@
 import { SupportedFileType } from '../constants';
+import type { Options } from 'http-proxy-middleware';
 
 export interface IExtensionConfig {
   ignoreList: string[];
@@ -40,6 +41,7 @@ export interface ILogrcConfig {
   };
   logger: { template: string; dateFormat: string };
   utils: { uuidLength: number };
+  proxy?: Options;
   mock?: IMockConfig[];
   git: { ignoreList: string[] };
   project: { alias: Record<string, string>; marks: Record<string, any> };

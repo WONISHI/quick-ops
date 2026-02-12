@@ -5,6 +5,7 @@ import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { WorkspaceContextService } from '../services/WorkspaceContextService';
 import { TemplateEngine } from '../utils/TemplateEngine';
+import ColorLog from '../utils/ColorLog';
 
 export class CodeSnippetFeature implements IFeature {
   public readonly id = 'CodeSnippetFeature';
@@ -29,7 +30,7 @@ export class CodeSnippetFeature implements IFeature {
     });
 
     context.subscriptions.push(provider);
-    console.log(`[${this.id}] Activated.`);
+    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   private provideSnippets(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {

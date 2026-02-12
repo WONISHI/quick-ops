@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
+import ColorLog from '../utils/ColorLog';
 
 export class ConfigManagementFeature implements IFeature {
   public readonly id = 'ConfigManagementFeature';
@@ -54,7 +55,7 @@ export class ConfigManagementFeature implements IFeature {
       }
     });
 
-    console.log(`[${this.id}] Activated.`);
+    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   private refreshContext(uri: vscode.Uri) {

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { IFeature } from '../core/interfaces/IFeature';
+import ColorLog from '../utils/ColorLog';
 
 export class FileNavigationFeature implements IFeature {
   public readonly id = 'FileNavigationFeature';
@@ -29,6 +30,6 @@ export class FileNavigationFeature implements IFeature {
     });
 
     context.subscriptions.push(disposable);
-    console.log(`[${this.id}] Activated.`);
+    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 }

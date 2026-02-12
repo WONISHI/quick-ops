@@ -8,6 +8,7 @@ import { EditorContextService } from '../services/EditorContextService';
 import { PathHelper } from '../utils/PathHelper';
 import { AstParser } from '../utils/AstParser';
 import type { ExportState, ParseResult } from '../core/types/export';
+import ColorLog from '../utils/ColorLog';
 
 export class ProjectExportFeature implements IFeature {
   public readonly id = 'ProjectExportFeature';
@@ -44,7 +45,7 @@ export class ProjectExportFeature implements IFeature {
     const cmdFunc = vscode.commands.registerCommand('quick-ops.onFuncSelected', this.handleFuncSelected.bind(this));
 
     context.subscriptions.push(pathProvider, funcProvider, cmdPath, cmdFunc);
-    console.log(`[${this.id}] Activated.`);
+    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   private getAliasConfig(): Record<string, string> {
