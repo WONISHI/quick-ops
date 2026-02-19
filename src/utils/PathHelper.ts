@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as url from 'url';
 
 export class PathHelper {
   /**
@@ -30,6 +31,27 @@ export class PathHelper {
    */
   static removeSurroundingQuotes(str: string): string {
     return str.replace(/^['"]|['"]$/g, '');
+  }
+
+  static isValidAddress(input: string): boolean {
+    try {
+      const parsedUrl = new url.URL(input);
+      if (parsedUrl.protocol && parsedUrl.protocol.match(/^https?:|file:|ftp:|ws:|wss:/)) {
+        return true;
+      }
+    } catch (e) {
+      return false;
+    }
+    if (path.isAbsolute(input)) {
+      return true;
+    }
+
+    // 相对路径：检查是否包含路径分隔符（注意跨平台，所以用path.sep）
+    if (input.includes(path.sep) || input.includes('/') || input.includes('\\')) {
+      return true;
+    }
+
+    return false; // 或者根据需求调整
   }
 
   /**

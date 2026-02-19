@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { TextDecoder, TextEncoder } from 'util';
 import { IFeature } from '../core/interfaces/IFeature';
 import { WorkspaceContextService } from '../services/WorkspaceContextService';
+import ColorLog from '../utils/ColorLog';
 
 export class SnippetGeneratorFeature implements IFeature {
   public readonly id = 'SnippetGeneratorFeature';
@@ -15,10 +16,10 @@ export class SnippetGeneratorFeature implements IFeature {
     context.subscriptions.push(
       vscode.commands.registerTextEditorCommand(commandId, (textEditor) => {
         this.generateAndSaveSnippet(textEditor);
-      })
+      }),
     );
 
-    console.log(`[${this.id}] Activated.`);
+    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   private async generateAndSaveSnippet(editor: vscode.TextEditor) {

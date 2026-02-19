@@ -3,6 +3,7 @@ import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { WorkspaceStateService } from '../services/WorkspaceStateService';
 import { LogHelper } from '../utils/LogHelper';
+import ColorLog from '../utils/ColorLog';
 
 export class LogEnhancerFeature implements IFeature {
   public readonly id = 'LogEnhancerFeature';
@@ -59,7 +60,7 @@ export class LogEnhancerFeature implements IFeature {
       context.subscriptions,
     );
 
-    console.log(`[${this.id}] Activated.`);
+    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   /**

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { IFeature } from '../core/interfaces/IFeature';
 import { IService } from '../core/interfaces/IService';
+import ColorLog from '../utils/ColorLog';
 
 // 1. 引入服务
 import { ConfigurationService } from '../services/ConfigurationService';
@@ -22,6 +23,7 @@ import { AnchorFeature } from '../features/AnchorFeature';
 import { SnippetGeneratorFeature } from '../features/SnippetGeneratorFeature';
 import { ClipboardTransformFeature } from '../features/ClipboardTransformFeature';
 import { EditorHistoryFeature } from '../features/EditorHistoryFeature';
+import { MockServerFeature } from '../features/MockServerFeature';
 
 export class QuickOpsApplication {
   private context: vscode.ExtensionContext;
@@ -49,6 +51,7 @@ export class QuickOpsApplication {
       new SnippetGeneratorFeature(),
       new ClipboardTransformFeature(),
       new EditorHistoryFeature(),
+      new MockServerFeature(),
     ];
   }
 
@@ -56,7 +59,7 @@ export class QuickOpsApplication {
    * 启动应用
    */
   public async start() {
-    console.log('[QuickOps] Application Starting...');
+    ColorLog.black('[QuickOps]', 'Application Starting...');
     console.time();
 
     // 1. 初始化服务 (Initialization)
@@ -81,8 +84,8 @@ export class QuickOpsApplication {
     }
 
     this.setupGlobalDisposables();
-    console.log('[QuickOps] (Refactored) is now active!');
     console.timeEnd();
+    ColorLog.black('[QuickOps]', '(Refactored) is now active!');
     vscode.window.showInformationMessage('Quick Ops (Refactored) is now active!');
   }
 
@@ -114,6 +117,6 @@ export class QuickOpsApplication {
       }
     }
 
-    console.log('[QuickOps] Application Disposed.');
+    ColorLog.black('[QuickOps]', 'Application Disposed.');
   }
 }

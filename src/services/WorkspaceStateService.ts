@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { IService } from '../core/interfaces/IService';
 import type { ICurrentFileState } from '../core/types/work-space';
+import ColorLog from '../utils/ColorLog';
 
 export class WorkspaceStateService implements IService {
   public readonly serviceId = 'WorkspaceStateService';
@@ -41,7 +42,7 @@ export class WorkspaceStateService implements IService {
       }
     });
 
-    console.log(`[${this.serviceId}] Initialized.`);
+    ColorLog.orange(`[${this.serviceId}]`, 'Initialized.');
   }
 
   public get state(): Readonly<ICurrentFileState> {

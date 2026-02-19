@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { IFeature } from '../core/interfaces/IFeature';
+import ColorLog from '../utils/ColorLog';
 
 export class EditorHistoryFeature implements IFeature {
   public readonly id = 'EditorHistoryFeature';
@@ -29,7 +30,7 @@ export class EditorHistoryFeature implements IFeature {
       }),
     );
 
-    console.log(`[${this.id}] Activated.`);
+    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   /**

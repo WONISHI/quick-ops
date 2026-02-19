@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { camelCase, upperFirst, snakeCase, kebabCase } from 'lodash-es';
 import { IFeature } from '../core/interfaces/IFeature';
+import ColorLog from '../utils/ColorLog';
 
 export class ClipboardTransformFeature implements IFeature {
   public readonly id = 'ClipboardTransformFeature';
@@ -15,7 +16,7 @@ export class ClipboardTransformFeature implements IFeature {
       vscode.commands.registerCommand('quick-ops.transformToKebab', () => this.handleTransform('kebab')),
     );
 
-    console.log(`[${this.id}] Activated.`);
+    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   private async handleTransform(type: 'camel' | 'pascal' | 'constant' | 'firstUpper' | 'lower' | 'kebab') {
@@ -66,7 +67,7 @@ export class ClipboardTransformFeature implements IFeature {
     await vscode.env.clipboard.writeText(result);
 
     const maxLength = 25;
-    const cleanResult = result.replace(/\r?\n/g, '⏎'); 
+    const cleanResult = result.replace(/\r?\n/g, '⏎');
     const displayResult = cleanResult.length > maxLength ? cleanResult.substring(0, maxLength) + '...' : cleanResult;
 
     vscode.window.setStatusBarMessage(`已转换并复制: ${displayResult}`, 3000);

@@ -6,6 +6,7 @@ import { WorkspaceContextService } from '../services/WorkspaceContextService';
 import { TemplateEngine } from '../utils/TemplateEngine';
 import { ConfigurationService } from '../services/ConfigurationService';
 import type { ShellConfigItem, ScriptItem } from '../core/types/package-script';
+import ColorLog from '../utils/ColorLog';
 
 export class PackageScriptsFeature implements IFeature {
   public readonly id = 'PackageScriptsFeature';
@@ -28,7 +29,7 @@ export class PackageScriptsFeature implements IFeature {
     this.statusBarItem.show();
     context.subscriptions.push(this.statusBarItem);
 
-    console.log(`[${this.id}] Activated.`);
+    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   private async findPackageJsonUri(startUri: vscode.Uri): Promise<vscode.Uri | undefined> {

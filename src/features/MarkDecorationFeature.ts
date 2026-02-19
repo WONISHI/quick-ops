@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
 import type { MarkStyle } from '../core/types/mark-style';
+import ColorLog from '../utils/ColorLog';
 
 export class MarkDecorationFeature implements IFeature {
   public readonly id = 'MarkDecorationFeature';
@@ -72,7 +73,7 @@ export class MarkDecorationFeature implements IFeature {
     );
     context.subscriptions.push(completionProvider);
 
-    console.log(`[${this.id}] Activated.`);
+    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   /**

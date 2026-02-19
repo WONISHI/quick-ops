@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { IFeature } from '../core/interfaces/IFeature';
 import { StyleStructureParser } from '../utils/StyleStructureParser';
+import ColorLog from '../utils/ColorLog';
 
 export class StyleGeneratorFeature implements IFeature {
   public readonly id = 'StyleGeneratorFeature';
@@ -29,11 +30,10 @@ export class StyleGeneratorFeature implements IFeature {
             vscode.window.showInformationMessage('未找到有效的 HTML/JSX 结构 (需要包含 class 或 id)');
             return;
           }
-          
+
           await vscode.env.clipboard.writeText(scssString);
-          
+
           vscode.window.showInformationMessage('✨ 样式结构已复制到剪贴板');
-          
         } catch (error) {
           console.error(error);
           vscode.window.showErrorMessage('解析结构失败，请检查语法');
@@ -41,6 +41,6 @@ export class StyleGeneratorFeature implements IFeature {
       }),
     );
 
-    console.log(`[${this.id}] Activated.`);
+    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 }
