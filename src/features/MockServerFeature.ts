@@ -1,252 +1,234 @@
 import * as vscode from 'vscode';
-// 使用 require 解决 "此表达式不可调用" 的 TypeScript 报错
+import * as path from 'path';
+import * as fs from 'fs';
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const Mock = require('mockjs');
-import { createProxyMiddleware } from 'http-proxy-middleware';
-import type { Options } from 'http-proxy-middleware';
-import { isEmpty } from 'lodash-es';
 
+import { createProxyMiddleware } from 'http-proxy-middleware';
 import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { MockWebviewProvider } from '../providers/MockWebviewProvider';
 
-// --- 类型定义（便于维护）---
-interface IMockConfigItem {
-  port: number;
-  target: string;
-  rules: any[];
-}
-
-// 代理配置项：对应 config.proxy 中的每个键值对
-// interface IProxyServiceConfig extends Options {
-//   target: string;
-//   origin?: string; // 路径前缀，自动生成
-//   on?: {
-//     proxyReq?: Function;
-//     error?: Function;
-//   };
-//   [key: string]: any;
-// }
-
 export class MockServerFeature implements IFeature {
   public readonly id = 'MockServerFeature';
-  private server: any;
-  private app: any;
-
+  
+  public servers: Map<string, any> = new Map(); 
   private webviewProvider!: MockWebviewProvider;
-  private _isRunning: boolean = false;
-  private _currentPort: number = 443;
 
   constructor(private configService: ConfigurationService = ConfigurationService.getInstance()) {}
 
-  // -------------------------------------------------------------
-  // 激活：注册 Webview
-  // -------------------------------------------------------------
   public activate(context: vscode.ExtensionContext): void {
     this.webviewProvider = new MockWebviewProvider(context.extensionUri, this);
     context.subscriptions.push(vscode.window.registerWebviewViewProvider('quickOps.mockView', this.webviewProvider));
+
+    context.subscriptions.push(
+      vscode.commands.registerCommand('quick-ops.mock.start', () => this.startAll()),
+      vscode.commands.registerCommand('quick-ops.mock.stop', () => this.stopAll())
+    );
+
+    setTimeout(() => { this.syncServers(); }, 1000);
   }
 
-  // -------------------------------------------------------------
-  // 状态通知
-  // -------------------------------------------------------------
-  public notifyStatusToWebview(webview?: vscode.Webview) {
-    const msg = { type: 'status', running: this._isRunning, port: this._currentPort };
-    if (webview) {
-      webview.postMessage(msg);
-    } else {
-      this.webviewProvider.updateStatus(this._isRunning, this._currentPort);
-    }
+  private getWorkspaceRoot(): string | undefined {
+    const folders = vscode.workspace.workspaceFolders;
+    return folders && folders.length > 0 ? folders[0].uri.fsPath : undefined;
   }
 
-  // -------------------------------------------------------------
-  // 启动 Mock 服务器
-  // -------------------------------------------------------------
-  public async startServer() {
-    if (this.server) {
-      vscode.window.showInformationMessage('Mock Server 已经在运行中');
-      this.notifyStatusToWebview();
-      return;
-    }
+  public notifyStatusToWebview() {
+    const runningProxyIds = Array.from(this.servers.keys());
+    this.webviewProvider.updateStatus(runningProxyIds);
+  }
 
-    // 1. 获取 Mock 配置（支持数组和对象两种格式）
-    const mockConfigs = this.configService.config.mock;
-    let config: IMockConfigItem;
+  public async startAll() {
+    let proxies = this.configService.config.proxy || [];
+    if (!Array.isArray(proxies)) proxies = [];
 
-    if (Array.isArray(mockConfigs) && mockConfigs.length > 0) {
-      config = mockConfigs[0]; // 默认取第一个配置
-    } else if (typeof mockConfigs === 'object' && !Array.isArray(mockConfigs)) {
-      config = mockConfigs as any;
-    } else {
-      config = { port: 443, target: '', rules: [] };
-    }
-
-    this._currentPort = config.port;
-
-    // 2. 校验 Target
-    if (!config.target) {
-      const target = await vscode.window.showInputBox({
-        prompt: '未配置全局转发目标 (Target)，请输入真实后端地址',
-        placeHolder: 'http://example.com',
-      });
-      if (target) {
-        config.target = target;
-      } else {
-        vscode.window.showWarningMessage('未配置 Target，所有未命中的接口将无法转发');
-      }
-    }
-
-    // 3. 创建 Express 实例
-    this.app = express();
-    this.app.use(cors());
-    this.app.use(bodyParser.json());
-    this.app.use(bodyParser.urlencoded({ extended: true }));
-
-    // 4. 核心拦截中间件（Mock 规则优先）
-    this.app.use(this.createMockInterceptor(config.port));
-
-    // 5. 注册所有动态代理（抽离为独立方法）
-    this.setupProxies(this.app);
-
-    // 6. 启动监听
-    try {
-      this.server = this.app.listen(config.port, () => {
-        this._isRunning = true;
-        vscode.window.showInformationMessage(`Mock Server 启动: http://localhost:${config.port}`);
+    if (proxies.length === 0) {
+        vscode.window.showWarningMessage('启动失败：请先添加代理服务！');
         this.notifyStatusToWebview();
-      });
+        return;
+    }
 
-      this.server.on('error', (e: any) => {
-        if (e.code === 'EADDRINUSE') {
-          vscode.window.showErrorMessage(`端口 ${config.port} 被占用`);
-          this.stopServer();
-        } else {
-          vscode.window.showErrorMessage(`启动失败: ${e.message}`);
+    const hasEnabled = proxies.some((c: any) => c.enabled);
+    if (!hasEnabled && proxies.length > 0) {
+        proxies[0].enabled = true;
+        await this.configService.updateConfig('proxy', proxies);
+    }
+
+    await this.syncServers();
+    
+    if (this.servers.size > 0) {
+        vscode.window.showInformationMessage(`已启动 ${this.servers.size} 个代理服务`);
+    }
+  }
+
+  public async stopAll() {
+    for (const [id, server] of this.servers.entries()) {
+        server.close();
+    }
+    this.servers.clear();
+    vscode.window.showInformationMessage('所有代理服务已停止');
+    this.notifyStatusToWebview();
+  }
+
+  public async syncServers() {
+    let proxies = this.configService.config.proxy || [];
+    if (!Array.isArray(proxies)) proxies = [];
+
+    for (const [proxyId, server] of this.servers.entries()) {
+        const conf = proxies.find((c: any) => c.id === proxyId);
+        if (!conf || !conf.enabled) {
+            server.close();
+            this.servers.delete(proxyId);
         }
-      });
-    } catch (e: any) {
-      vscode.window.showErrorMessage(`启动异常: ${e.message}`);
-    }
-  }
-
-  // -------------------------------------------------------------
-  // 停止服务器
-  // -------------------------------------------------------------
-  public stopServer() {
-    if (this.server) {
-      this.server.close();
-      this.server = null;
-      this.app = undefined;
-      this._isRunning = false;
-      vscode.window.showInformationMessage('Mock Server 已停止');
-      this.notifyStatusToWebview();
-    }
-  }
-
-  // -------------------------------------------------------------
-  // 🚀 抽离的方法：注册所有代理中间件
-  // -------------------------------------------------------------
-  private setupProxies(app: any): void {
-    const proxyConfigs = this.configService.config.proxy;
-    if (isEmpty(proxyConfigs)) {
-      console.log('[Proxy] 无代理配置，跳过');
-      return;
     }
 
-    Object.entries(proxyConfigs).forEach(([origin, services]) => {
-      // 确保路径前缀以 '/' 开头（Express 挂载要求）
-      const mountPath = origin.startsWith('/') ? origin : `/${origin}`;
-
-      // 合并默认配置 + 当前服务的特定配置
-      const proxyOptions: any = {
-        target: services.target || 'http://localhost',
-        changeOrigin: services.changeOrigin ?? true,
-        secure: services.secure ?? false,
-        logLevel: services.logLevel ?? 'debug',
-        timeout: services.timeout ?? 5000,
-        proxyTimeout: services.proxyTimeout ?? 6000,
-        // 支持 pathRewrite、router 等，直接从 services 透传
-        ...(services.pathRewrite && { pathRewrite: services.pathRewrite }),
-        ...(services.router && { router: services.router }),
-        on: {
-          proxyReq: (proxyReq: any, req: any, res: any) => {
-            console.log(`[Proxy] ${req.method} ${mountPath} → ${services.target}`);
-            services.on?.proxyReq?.(proxyReq, req, res);
-          },
-          error: (err: any, req: any, res: any) => {
-            console.error(`[Proxy Error] ${mountPath}:`, err.message);
-            services.on?.error?.(err, req, res);
-          },
-        },
-      };
-
-      // 注册代理中间件
-      app.use(mountPath, createProxyMiddleware(proxyOptions));
-      console.log(`[Proxy] 已注册: ${mountPath} → ${services.target}`);
-    });
-  }
-
-  // -------------------------------------------------------------
-  // 内部方法：创建 Mock 拦截中间件（保持原逻辑，仅提取）
-  // -------------------------------------------------------------
-  private createMockInterceptor(currentPort: number) {
-    return async (req: any, res: any, next: any) => {
-      const requestHost = req.get('host');
-      const protocol = req.protocol;
-      const currentConfigs = this.configService.config.mock;
-      const fullOrigin = `${protocol}://${requestHost}`;
-      let currentRules: any[] = [];
-
-      // 从数组中找到当前端口对应的配置
-      if (Array.isArray(currentConfigs)) {
-        const activeConfig = currentConfigs.find((c: any) => {
-          return c.port === currentPort || c.target === fullOrigin || c.target?.includes(requestHost);
-        });
-        currentRules = activeConfig?.rules || [];
-      } else {
-        currentRules = (currentConfigs as any)?.rules || [];
-      }
-
-      // 查找匹配的规则
-      const matchedRule = currentRules.find((r) => r.enabled && req.method.toUpperCase() === r.method?.toUpperCase() && (req.path === r.url || req.path.includes(r.url)));
-
-      if (matchedRule) {
-        console.log(`[Mock] 命中规则: ${req.path}`);
-
-        // 静态数据
-        if (matchedRule.data) {
-          console.log(`  -> 静态 JSON 模式`);
-          res.set('Content-Type', matchedRule.contentType || 'application/json');
-          try {
-            const responseData = typeof matchedRule.data === 'string' ? JSON.parse(matchedRule.data) : matchedRule.data;
-            res.send(responseData);
-          } catch (e: any) {
-            res.status(500).json({ error: '无效的静态 JSON', details: e.message });
-          }
-          return;
+    for (const conf of proxies) {
+        if (conf.enabled && !this.servers.has(conf.id)) {
+            if (!conf.port || !conf.target) continue; 
+            this.startProxyInstance(conf);
         }
+    }
 
-        // 动态 Mock (mockjs)
-        if (matchedRule.template) {
-          console.log(`  -> Mock 模板模式`);
-          try {
-            const templateObj = typeof matchedRule.template === 'string' ? JSON.parse(matchedRule.template) : matchedRule.template;
-            const mockData = Mock.mock(templateObj);
+    this.notifyStatusToWebview();
+  }
+
+  private startProxyInstance(proxyConfig: any) {
+    const app = express();
+    app.use(cors());
+    app.use(bodyParser.json({ limit: '50mb' }));
+    app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
+
+    // 1. Mock 拦截层
+    app.use(async (req: any, res: any, next: any) => {
+        let allMocks = this.configService.config.mock || [];
+        if (!Array.isArray(allMocks)) allMocks = [];
+        
+        const rules = allMocks.filter((m: any) => m.proxyId === proxyConfig.id);
+        const matchedRule = rules.find((r: any) => 
+            r.enabled && 
+            req.method.toUpperCase() === r.method.toUpperCase() && 
+            (req.path === r.url || req.path.includes(r.url))
+        );
+
+        if (matchedRule) {
+            if (matchedRule.target && !matchedRule.dataPath && !matchedRule.data && !matchedRule.template) {
+                 return next(); // 仅配置了转发，没有 Mock 数据，放行给代理层
+            }
+
+            console.log(`[Proxy:${proxyConfig.port}] Mock Hit: ${req.path}`);
             res.set('Content-Type', matchedRule.contentType || 'application/json');
-            res.send(mockData);
-          } catch (e: any) {
-            res.status(500).json({ error: 'Mock 生成失败', details: e.message });
-          }
-          return;
+            
+            // 读取文件数据
+            if (matchedRule.dataPath) {
+                let absPath = matchedRule.dataPath;
+                
+                // 如果是相对路径，拼上根目录
+                if (!path.isAbsolute(absPath)) {
+                    const root = this.getWorkspaceRoot();
+                    if (root) {
+                        absPath = path.join(root, absPath);
+                    }
+                }
+
+                if (fs.existsSync(absPath)) {
+                    try {
+                        const fileContent = fs.readFileSync(absPath, 'utf8');
+                        const parsedData = JSON.parse(fileContent);
+                        if (matchedRule.isTemplate) {
+                            return res.send(Mock.mock(parsedData));
+                        } else {
+                            return res.send(parsedData);
+                        }
+                    } catch (e: any) {
+                        return res.status(500).json({ error: '读取 Mock 文件失败', details: e.message });
+                    }
+                } else {
+                    console.warn(`[Proxy:${proxyConfig.port}] Mock 文件不存在: ${absPath}`);
+                }
+            }
+            
+            // 兼容旧的行内数据
+            if (matchedRule.data) { 
+                const responseData = typeof matchedRule.data === 'string' ? JSON.parse(matchedRule.data) : matchedRule.data;
+                return res.send(responseData);
+            }
+            if (matchedRule.template) { 
+                try {
+                    const templateObj = typeof matchedRule.template === 'string' ? JSON.parse(matchedRule.template) : matchedRule.template;
+                    return res.send(Mock.mock(templateObj));
+                } catch (e: any) {
+                    return res.status(500).json({ error: 'Mock Parse Error', details: e.message });
+                }
+            }
         }
+        next();
+    });
 
-        // 规则开启但无数据 -> 纯转发（由后续代理处理）
-        console.log(`  -> 转发模式（命中规则但无数据）`);
-      }
-
-      next();
+    // 🛡️ 核心修复：强制格式化 URL 协议头，防止引发 null.split 致命崩溃
+    const formatUrl = (url: string) => {
+        if (!url || typeof url !== 'string' || url.trim() === '') return undefined;
+        let trimmed = url.trim();
+        // 如果没有协议头，强制加上 http:// (这样 target 解析才不会报 protocol null)
+        if (!/^https?:\/\//i.test(trimmed)) {
+            trimmed = trimmed.replace(/^\/+/, ''); // 去除意外开头的双斜杠
+            trimmed = `http://${trimmed}`;
+        }
+        return trimmed;
     };
+
+    const defaultTarget = formatUrl(proxyConfig.target);
+    if (!defaultTarget) return; // 配置异常则不启动代理
+
+    const proxyOptions: any = {
+        target: defaultTarget,
+        changeOrigin: true,
+        secure: false, // 允许自签名 HTTPS
+        logLevel: 'error',
+        
+        router: (req: any) => {
+            let allMocks = this.configService.config.mock || [];
+            if (!Array.isArray(allMocks)) allMocks = [];
+            const rules = allMocks.filter((m: any) => m.proxyId === proxyConfig.id);
+            
+            const matchedRule = rules.find((r: any) => 
+                r.enabled && req.method.toUpperCase() === r.method.toUpperCase() && (req.path === r.url || req.path.includes(r.url))
+            );
+
+            if (matchedRule && matchedRule.target) {
+                const ruleTarget = formatUrl(matchedRule.target);
+                if (ruleTarget) return ruleTarget;
+            }
+            return defaultTarget;
+        },
+
+        onError: (err: any, req: any, res: any) => {
+            console.error(`[Proxy Error - Port ${proxyConfig.port}]`, err.message);
+            if (!res.headersSent) res.status(502).send(`Proxy Error: ${err.message}`);
+        }
+    };
+
+    app.use('/', createProxyMiddleware(proxyOptions));
+
+    try {
+        const server = app.listen(proxyConfig.port, () => {
+            this.servers.set(proxyConfig.id, server);
+            this.notifyStatusToWebview();
+        });
+
+        server.on('error', (e: any) => {
+            if (e.code === 'EADDRINUSE') {
+                vscode.window.showErrorMessage(`启动失败：端口 ${proxyConfig.port} 被占用！`);
+            } else {
+                vscode.window.showErrorMessage(`代理异常: ${e.message}`);
+            }
+            this.servers.delete(proxyConfig.id);
+            this.notifyStatusToWebview();
+        });
+    } catch (e: any) {
+        vscode.window.showErrorMessage(`创建服务异常: ${e.message}`);
+    }
   }
 }
