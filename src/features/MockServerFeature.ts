@@ -107,11 +107,15 @@ export class MockServerFeature implements IFeature {
         if (!Array.isArray(allMocks)) allMocks = [];
         
         const rules = allMocks.filter((m: any) => m.proxyId === proxyConfig.id);
-        const matchedRule = rules.find((r: any) => 
-            r.enabled && 
-            req.method.toUpperCase() === r.method.toUpperCase() && 
-            (req.path === r.url || req.path.includes(r.url))
-        );
+        
+        // 🌟 核心修复：严格匹配路径（忽略参数）
+        const matchedRule = rules.find((r: any) => {
+            if (!r.enabled) return false;
+            // 去除配置里可能误填的参数部分 (例如 /api/user?id=1 变成 /api/user)
+            const rulePath = (r.url || '').split('?')[0];
+            // req.path 是 Express 自动剥离了查询参数的纯路径
+            return req.method.toUpperCase() === r.method.toUpperCase() && req.path === rulePath;
+        });
 
         if (matchedRule) {
             if (matchedRule.target && !matchedRule.dataPath && !matchedRule.data && !matchedRule.template) {
@@ -193,9 +197,12 @@ export class MockServerFeature implements IFeature {
             if (!Array.isArray(allMocks)) allMocks = [];
             const rules = allMocks.filter((m: any) => m.proxyId === proxyConfig.id);
             
-            const matchedRule = rules.find((r: any) => 
-                r.enabled && req.method.toUpperCase() === r.method.toUpperCase() && (req.path === r.url || req.path.includes(r.url))
-            );
+            // 🌟 核心修复：独立代理转发的路由也使用严格匹配
+            const matchedRule = rules.find((r: any) => {
+                if (!r.enabled) return false;
+                const rulePath = (r.url || '').split('?')[0];
+                return req.method.toUpperCase() === r.method.toUpperCase() && req.path === rulePath;
+            });
 
             if (matchedRule && matchedRule.target) {
                 const ruleTarget = formatUrl(matchedRule.target);
