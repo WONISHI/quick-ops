@@ -24,6 +24,7 @@ import { SnippetGeneratorFeature } from '../features/SnippetGeneratorFeature';
 import { ClipboardTransformFeature } from '../features/ClipboardTransformFeature';
 import { EditorHistoryFeature } from '../features/EditorHistoryFeature';
 import { MockServerFeature } from '../features/MockServerFeature';
+import { DebugConsoleFeature } from '../features/DebugConsoleFeature'
 
 export class QuickOpsApplication {
   private context: vscode.ExtensionContext;
@@ -52,6 +53,7 @@ export class QuickOpsApplication {
       new ClipboardTransformFeature(),
       new EditorHistoryFeature(),
       new MockServerFeature(),
+      new DebugConsoleFeature()
     ];
   }
 

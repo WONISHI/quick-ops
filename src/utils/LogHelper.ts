@@ -1,7 +1,7 @@
 import * as path from 'path';
 import dayjs from 'dayjs';
 import { nanoid } from 'nanoid';
-import { ILogrcConfig } from '../services/ConfigurationService';
+import type { ILogrcConfig } from '../core/types/config';
 
 export class LogHelper {
   /**
