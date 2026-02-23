@@ -421,8 +421,9 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         .tab-pane { display: none; }
         .tab-pane.active { display: block; }
         
-        .mock-builder-row { display: flex; gap: 10px; margin-bottom: 8px; align-items: center; background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px; border: 1px solid var(--border); }
-        .mock-builder-row input, .mock-builder-row select { padding: 4px 6px; font-size: 12px; }
+        .mock-builder-container { background: rgba(0,0,0,0.15); padding: 10px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 12px; }
+        .mock-builder-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .mock-row-container { border-left: 2px solid var(--border); padding-left: 8px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px dashed rgba(150,150,150,0.2); }
         
         #previewArea { display: none; margin-top: 15px; }
         #previewBox { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 150px; overflow: auto; border: 1px solid var(--border); }
@@ -505,8 +506,8 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                  </select>
                </div>
                <div class="form-group" style="flex: 3">
-                 <label class="form-label">独立 Target (可选覆盖)</label>
-                 <input type="text" id="rule_target" list="targetOptions" placeholder="留空则使用所属 Proxy 的 Target">
+                 <label class="form-label">独立 Target <span style="color:var(--error)">*</span></label>
+                 <input type="text" id="rule_target" list="targetOptions" placeholder="输入需转发的目标地址">
                  <datalist id="targetOptions"></datalist>
                </div>
             </div>
@@ -529,22 +530,20 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
 
             <div class="tab-content">
                 <div id="pane-mock" class="tab-pane active">
-                    <div class="mock-builder-row">
-                        <span style="font-size:12px; font-weight:bold; white-space:nowrap;">快捷生成器:</span>
-                        <input type="text" id="mb_field" placeholder="字段名(如 list)" style="width:110px;">
-                        <select id="mb_type" style="width:110px;" onchange="toggleArrayCount(this.value)">
-                            <option value="@cname">中文名</option>
-                            <option value="@title">标题</option>
-                            <option value="@integer(1, 100)">数字(1-100)</option>
-                            <option value="@boolean">布尔值</option>
-                            <option value="@date">日期</option>
-                            <option value="@image('200x100')">图片</option>
-                            <option value="ARRAY">生成数组列表</option>
-                        </select>
-                        <input type="number" id="mb_count" placeholder="条数" style="width:60px; display:none;" min="1" value="5">
-                        <button onclick="appendMockField()" class="btn-sec" style="padding: 4px 10px; font-size:12px;">追加字段</button>
+                    
+                    <div class="mock-builder-container">
+                        <div class="mock-builder-header">
+                            <span style="font-size:12px; font-weight:bold;"><i class="fa-solid fa-list-ul"></i> 快捷字段生成器</span>
+                            <div style="display:flex; gap: 8px;">
+                               <button onclick="applyMockFields()" class="btn-pri" style="padding: 2px 8px; font-size:11px; width:auto;" title="收集下方所有表单，一次性生成完整结构"><i class="fa-solid fa-bolt"></i> 生成全量 JSON</button>
+                               <button onclick="addMockRow()" class="btn-sec" style="padding: 2px 8px; font-size:11px;"><i class="fa-solid fa-plus"></i> 新增空行</button>
+                            </div>
+                        </div>
+                        <div id="mock-builder-rows" style="max-height: 200px; overflow-y: auto; padding-right: 5px;">
+                            </div>
                     </div>
-                    <textarea id="mockTemplate" style="height: 140px;" placeholder='{ "code": 200, "data": {} }'></textarea>
+
+                    <textarea id="mockTemplate" style="height: 120px;" placeholder='{ "code": 200, "data": {} }'></textarea>
                 </div>
                 
                 <div id="pane-custom" class="tab-pane">
@@ -610,7 +609,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
            if(msg.type === 'ruleDirSelected') {
                let p = msg.path;
                if (!p.endsWith('/')) p += '/';
-               // 安全赋值，如果元素存在
                const pathEl = document.getElementById('rule_dataPath');
                if (pathEl) pathEl.value = p;
            }
@@ -641,32 +639,251 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             vscode.postMessage({ type: 'selectRuleMockDir' });
         };
 
-        window.toggleArrayCount = (val) => {
-            document.getElementById('mb_count').style.display = val === 'ARRAY' ? 'inline-block' : 'none';
+        // 🌟 下拉框切换：如果是 ARRAY 或 OBJECT，显示添加子字段按钮和子容器
+        window.handleTypeChange = (select) => {
+            const container = select.closest('.mock-row-container');
+            const val = select.value;
+            const isArray = val === 'ARRAY';
+            const isObject = val === 'OBJECT';
+            const hasChildren = isArray || isObject;
+            
+            container.querySelector('.mb-count').style.display = isArray ? 'inline-block' : 'none';
+            container.querySelector('.mb-add-child').style.display = hasChildren ? 'inline-block' : 'none';
+            
+            const childrenDiv = container.querySelector('.mock-builder-children');
+            childrenDiv.style.display = hasChildren ? 'block' : 'none';
+            
+            // 如果刚切换为 ARRAY/OBJECT 且没子项，默认给个空子项
+            if (hasChildren && childrenDiv.children.length === 0) {
+                addChildRowToContainer(childrenDiv);
+            }
         };
 
-        window.appendMockField = () => {
-            const field = document.getElementById('mb_field').value.trim() || 'demoField';
-            const type = document.getElementById('mb_type').value;
-            const tplArea = document.getElementById('mockTemplate');
+        // 🌟 添加一行父级配置（新增了 OBJECT 支持）
+        window.addMockRow = (initField = '', initType = '@cname', initCount = 5, children = null) => {
+            const container = document.getElementById('mock-builder-rows');
+            const rowWrapper = document.createElement('div');
+            rowWrapper.className = 'mock-row-container';
             
-            let currentJson;
-            try {
-                currentJson = JSON.parse(tplArea.value || '{}');
-            } catch(e) {
-                vscode.postMessage({ type: 'error', message: '当前模板不是合法 JSON，无法追加' });
-                return;
+            const isArray = initType === 'ARRAY';
+            const isObject = initType === 'OBJECT';
+            const hasChildren = isArray || isObject;
+            
+            const extraOpt = !['@cname', '@title', '@integer(1, 100)', '@boolean', '@date', "@image('200x100')", 'ARRAY', 'OBJECT'].includes(initType);
+
+            rowWrapper.innerHTML = \`
+                <div class="mock-builder-row" style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" class="mb-field" placeholder="字段名(如 data)" value="\${initField}" style="width:110px; padding: 4px 6px; font-size: 12px;">
+                    <select class="mb-type" style="width:140px; padding: 4px 6px; font-size: 12px;" onchange="handleTypeChange(this)">
+                        <option value="@cname" \${initType === '@cname' ? 'selected' : ''}>中文名 (@cname)</option>
+                        <option value="@title" \${initType === '@title' ? 'selected' : ''}>标题 (@title)</option>
+                        <option value="@integer(1, 100)" \${initType === '@integer(1, 100)' ? 'selected' : ''}>数字 (@integer)</option>
+                        <option value="@boolean" \${initType === '@boolean' ? 'selected' : ''}>布尔值 (@boolean)</option>
+                        <option value="@date" \${initType === '@date' ? 'selected' : ''}>日期 (@date)</option>
+                        <option value="@image('200x100')" \${initType === "@image('200x100')" ? 'selected' : ''}>图片 (@image)</option>
+                        <option value="ARRAY" \${isArray ? 'selected' : ''}>【生成数组列表】</option>
+                        <option value="OBJECT" \${isObject ? 'selected' : ''}>【生成嵌套对象】</option>
+                        \${extraOpt ? \`<option value='\${initType}' selected hidden>\${initType}</option>\` : ''}
+                    </select>
+                    <input type="number" class="mb-count" placeholder="条数" style="width:60px; display:\${isArray ? 'inline-block' : 'none'}; padding: 4px 6px; font-size: 12px;" min="1" value="\${initCount}">
+                    
+                    <button class="mb-add-child btn-sec" style="display:\${hasChildren ? 'inline-block' : 'none'}; padding: 3px 6px; font-size:11px;" onclick="addChildRow(this)">添加单项字段</button>
+                    
+                    <button onclick="insertSingleField(this)" class="btn-sec" style="padding: 3px 8px; font-size:11px; white-space:nowrap; border-color:var(--primary); color:var(--primary);" title="只把这一行的数据独立写入">写入 JSON</button>
+                    <i class="fa-solid fa-trash" style="cursor:pointer; opacity:0.6; font-size:14px; margin-left: 5px; color: var(--error);" onclick="this.closest('.mock-row-container').remove()" title="删除此行"></i>
+                </div>
+                <div class="mock-builder-children" style="margin-left: 15px; display: \${hasChildren ? 'block' : 'none'}; padding-top: 6px;"></div>
+            \`;
+            
+            container.appendChild(rowWrapper);
+
+            if (children && children.length > 0) {
+                const childContainer = rowWrapper.querySelector('.mock-builder-children');
+                children.forEach(c => addChildRowToContainer(childContainer, c.field, c.type));
             }
+        };
+
+        // 🌟 往某个父级下面添加子字段
+        window.addChildRowToContainer = (container, field = '', type = '@cname') => {
+            const row = document.createElement('div');
+            row.className = 'mock-builder-row child-row';
+            row.style.cssText = 'display: flex; gap: 8px; margin-bottom: 6px; align-items: center;';
+            const extraOpt = !['@id', '@cname', '@title', '@integer(1, 100)', '@boolean', '@date', "@image('200x100')"].includes(type);
+
+            row.innerHTML = \`
+                <i class="fa-solid fa-turn-up" style="transform: rotate(90deg); opacity:0.4; font-size:10px;"></i>
+                <input type="text" class="mb-child-field" placeholder="子字段名(如 id)" value="\${field}" style="width:100px; padding: 4px 6px; font-size: 12px;">
+                <select class="mb-child-type" style="width:120px; padding: 4px 6px; font-size: 12px;">
+                    <option value="@id" \${type === '@id' ? 'selected' : ''}>自增ID (@id)</option>
+                    <option value="@cname" \${type === '@cname' ? 'selected' : ''}>中文名 (@cname)</option>
+                    <option value="@title" \${type === '@title' ? 'selected' : ''}>标题 (@title)</option>
+                    <option value="@integer(1, 100)" \${type === '@integer(1, 100)' ? 'selected' : ''}>数字 (@integer)</option>
+                    <option value="@boolean" \${type === '@boolean' ? 'selected' : ''}>布尔值 (@boolean)</option>
+                    <option value="@date" \${type === '@date' ? 'selected' : ''}>日期 (@date)</option>
+                    <option value="@image('200x100')" \${type === "@image('200x100')" ? 'selected' : ''}>图片 (@image)</option>
+                    \${extraOpt ? \`<option value='\${type}' selected hidden>\${type}</option>\` : ''}
+                </select>
+                <i class="fa-solid fa-xmark" style="cursor:pointer; opacity:0.6; font-size:14px; margin-left: 5px; color: var(--error);" onclick="this.parentElement.remove()" title="删除子字段"></i>
+            \`;
+            container.appendChild(row);
+        };
+
+        window.addChildRow = (btn) => {
+            const container = btn.closest('.mock-row-container').querySelector('.mock-builder-children');
+            addChildRowToContainer(container);
+        };
+
+        // 🌟 读取现有 JSON 解析回多行表单，增加 Object 解析支持
+        window.parseJsonToRows = (jsonStr) => {
+            const container = document.getElementById('mock-builder-rows');
+            container.innerHTML = ''; 
+            
+            try {
+                const jsonObj = JSON.parse(jsonStr);
+                const dataObj = jsonObj.data;
+                
+                if (dataObj && typeof dataObj === 'object') {
+                    let hasFields = false;
+                    Object.keys(dataObj).forEach(key => {
+                        hasFields = true;
+                        const value = dataObj[key];
+                        const arrMatch = key.match(/^(.+)\\|(\\d+)$/); 
+                        
+                        if (arrMatch && Array.isArray(value) && value.length > 0) {
+                            const fieldName = arrMatch[1];
+                            const count = arrMatch[2];
+                            const itemObj = value[0];
+                            
+                            let childrenList = [];
+                            if (itemObj && typeof itemObj === 'object') {
+                                Object.keys(itemObj).forEach(cKey => {
+                                    let cFieldName = cKey;
+                                    let cType = itemObj[cKey];
+                                    if (cKey.endsWith('|+1')) {
+                                        cFieldName = cKey.replace('|+1', '');
+                                        cType = '@id';
+                                    }
+                                    childrenList.push({ field: cFieldName, type: cType });
+                                });
+                            }
+                            addMockRow(fieldName, 'ARRAY', parseInt(count), childrenList);
+                        } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                            // 纯对象解析
+                            let childrenList = [];
+                            Object.keys(value).forEach(cKey => {
+                                let cFieldName = cKey;
+                                let cType = value[cKey];
+                                if (cKey.endsWith('|+1')) {
+                                    cFieldName = cKey.replace('|+1', '');
+                                    cType = '@id';
+                                }
+                                childrenList.push({ field: cFieldName, type: cType });
+                            });
+                            addMockRow(key, 'OBJECT', 5, childrenList);
+                        } else {
+                            // 简单类型
+                            let typeStr = typeof value === 'string' ? value : JSON.stringify(value);
+                            addMockRow(key, typeStr);
+                        }
+                    });
+                    
+                    if (!hasFields) addMockRow();
+                } else {
+                    addMockRow();
+                }
+            } catch(e) {
+                addMockRow();
+            }
+        };
+
+        // 获取单行的数据结构，区分 ARRAY 和 OBJECT
+        function getContainerValue(container) {
+            const type = container.querySelector('.mb-type').value;
+            
+            if (type === 'ARRAY' || type === 'OBJECT') {
+                let itemTemplate = {};
+                const childRows = container.querySelectorAll('.child-row');
+                if (childRows.length > 0) {
+                    childRows.forEach(cr => {
+                        const cField = cr.querySelector('.mb-child-field').value.trim();
+                        const cType = cr.querySelector('.mb-child-type').value;
+                        if (cField) {
+                            if (cType === '@id') {
+                                itemTemplate[cField + '|+1'] = 1; 
+                            } else {
+                                itemTemplate[cField] = cType;
+                            }
+                        }
+                    });
+                } else {
+                    itemTemplate = { "id|+1": 1, "name": "@cname" }; 
+                }
+                
+                if (type === 'ARRAY') {
+                    const countInput = container.querySelector('.mb-count');
+                    const count = countInput && countInput.value ? countInput.value : 5;
+                    return { isComplex: true, isArray: true, count, value: [itemTemplate] };
+                } else {
+                    // OBJECT 类型
+                    return { isComplex: true, isArray: false, value: itemTemplate };
+                }
+            } else {
+                return { isComplex: false, value: type };
+            }
+        }
+
+        window.insertSingleField = (btn) => {
+            const container = btn.closest('.mock-row-container');
+            const field = container.querySelector('.mb-field').value.trim();
+            
+            if (!field) return vscode.postMessage({ type: 'error', message: '请填写主字段名！' });
+
+            const tplArea = document.getElementById('mockTemplate');
+            let currentJson;
+            try { currentJson = JSON.parse(tplArea.value || '{}'); } 
+            catch(e) { return vscode.postMessage({ type: 'error', message: 'JSON框解析失败' }); }
 
             if (!currentJson.data) currentJson.data = {};
 
-            if (type === 'ARRAY') {
-                const count = document.getElementById('mb_count').value || 5;
-                const arrKey = field + '|' + count;
-                currentJson.data[arrKey] = [ { "id|+1": 1, "name": "@cname" } ];
+            const data = getContainerValue(container);
+            if (data.isComplex && data.isArray) {
+                currentJson.data[\`\${field}|\${data.count}\`] = data.value;
             } else {
-                currentJson.data[field] = type;
+                currentJson.data[field] = data.value;
             }
+
+            tplArea.value = JSON.stringify(currentJson, null, 2);
+            simulate();
+            
+            const originalText = btn.innerText;
+            btn.innerText = '成功';
+            setTimeout(() => { btn.innerText = originalText; }, 1000);
+        };
+
+        window.applyMockFields = () => {
+            const tplArea = document.getElementById('mockTemplate');
+            let currentJson;
+            try { currentJson = JSON.parse(tplArea.value || '{}'); } 
+            catch(e) { return vscode.postMessage({ type: 'error', message: 'JSON 解析异常！' }); }
+
+            currentJson.data = {};
+            const containers = document.querySelectorAll('.mock-row-container');
+            let hasAdded = false;
+
+            containers.forEach(container => {
+                const field = container.querySelector('.mb-field').value.trim();
+                if (!field) return; 
+                hasAdded = true;
+
+                const data = getContainerValue(container);
+                if (data.isComplex && data.isArray) {
+                    currentJson.data[\`\${field}|\${data.count}\`] = data.value;
+                } else {
+                    currentJson.data[field] = data.value;
+                }
+            });
+
+            if (!hasAdded) return vscode.postMessage({ type: 'error', message: '请至少填写一个字段名后再生成！' });
 
             tplArea.value = JSON.stringify(currentJson, null, 2);
             simulate();
@@ -723,11 +940,9 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                rule = mocks.find(r => r.id === ruleId);
            }
            
-           // 🛡️ 每一个 getElementById 后面都加个小保护，如果报错也能知道是哪一行
            const safelySetValue = (id, value) => {
                const el = document.getElementById(id);
                if (el) el.value = value;
-               else console.error('MISSING ID IN HTML:', id);
            };
 
            document.getElementById('ruleModalTitle').innerText = rule ? '编辑拦截规则' : '新增拦截规则';
@@ -749,14 +964,21 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                safelySetValue('customJson', valStr);
                safelySetValue('mockTemplate', '{ "code": 200, "data": {} }'); 
                switchTab('custom');
+               
+               document.getElementById('mock-builder-rows').innerHTML = '';
+               addMockRow();
            } else {
                const tpl = rule?.template || { "code": 200, "data": {} };
                const valStr = typeof tpl === 'string' ? tpl : JSON.stringify(tpl, null, 2);
                safelySetValue('mockTemplate', valStr);
                safelySetValue('customJson', '[]');
                switchTab('mock');
+               
+               parseJsonToRows(valStr);
+               
                simulate(); 
            }
+
            document.getElementById('ruleModal').classList.add('active');
         };
 
@@ -770,6 +992,10 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
            const dataPath = document.getElementById('rule_dataPath').value;
            
            if(!url) return vscode.postMessage({ type: 'error', message: 'API Path 不能为空' });
+           
+           if (!target || target.trim() === '') {
+               return vscode.postMessage({ type: 'error', message: '独立 Target 不能为空！' });
+           }
 
            const isMockMode = document.getElementById('tab-mock').classList.contains('active');
            let template = undefined;
