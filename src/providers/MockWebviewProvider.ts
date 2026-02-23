@@ -95,7 +95,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         });
         break;
 
-      case 'selectRuleMockDir': {
+      case 'selectGlobalMockDir': {
         const rootPath = this.getWorkspaceRoot();
         const defaultUri = rootPath ? vscode.Uri.file(rootPath) : undefined;
 
@@ -104,7 +104,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             canSelectFolders: true,
             canSelectMany: false,
             defaultUri: defaultUri,
-            openLabel: '选择数据存放文件夹'
+            openLabel: '选择全局 Mock 数据存放目录'
         });
 
         if (uri && uri[0]) {
@@ -120,6 +120,34 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             let general = configService.config.general || {};
             general.mockDir = savePath;
             await configService.updateConfig('general', general);
+
+            const newConf = await this.getFullConfig();
+            this.sendConfigToWebview(webview, newConf.proxyList, newConf.mockList, newConf.mockDir);
+        }
+        break;
+      }
+
+      case 'selectRuleMockDir': {
+        const rootPath = this.getWorkspaceRoot();
+        const defaultUri = rootPath ? vscode.Uri.file(rootPath) : undefined;
+
+        const uri = await vscode.window.showOpenDialog({
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+            defaultUri: defaultUri,
+            openLabel: '选择此规则的数据存放目录'
+        });
+
+        if (uri && uri[0]) {
+            const selectedAbsPath = uri[0].fsPath;
+            let savePath = selectedAbsPath;
+            
+            if (rootPath && selectedAbsPath.startsWith(rootPath)) {
+                savePath = path.relative(rootPath, selectedAbsPath);
+                if (savePath === '') savePath = '.';
+            }
+            savePath = savePath.replace(/\\/g, '/');
 
             webview.postMessage({ type: 'ruleDirSelected', path: savePath });
         }
@@ -192,44 +220,13 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         const rootPath = this.getWorkspaceRoot();
 
         let ruleDataPath = newRuleData.dataPath;
-        
         if (!ruleDataPath || ruleDataPath.trim() === '') {
-            let globalMockDir = configService.config.general?.mockDir;
-            if (!globalMockDir) {
-                const defaultUri = rootPath ? vscode.Uri.file(rootPath) : undefined;
-                const uri = await vscode.window.showOpenDialog({
-                    canSelectFiles: false,
-                    canSelectFolders: true,
-                    canSelectMany: false,
-                    defaultUri: defaultUri,
-                    openLabel: '请先选择 Mock 数据存放目录'
-                });
+            vscode.window.showErrorMessage('保存失败：Mock 数据存放路径不能为空！');
+            return;
+        }
 
-                if (uri && uri[0]) {
-                    const selectedAbsPath = uri[0].fsPath;
-                    let savePath = selectedAbsPath;
-                    
-                    if (rootPath && selectedAbsPath.startsWith(rootPath)) {
-                        savePath = path.relative(rootPath, selectedAbsPath);
-                        if (savePath === '') savePath = '.';
-                    }
-                    savePath = savePath.replace(/\\/g, '/');
-
-                    let general = configService.config.general || {};
-                    general.mockDir = savePath;
-                    await configService.updateConfig('general', general);
-                    globalMockDir = savePath;
-                } else {
-                    vscode.window.showWarningMessage('保存已取消：必须配置数据存放目录才能保存规则。');
-                    return; 
-                }
-            }
-            const dataFileName = `${newRuleData.id}.json`;
-            ruleDataPath = path.join(globalMockDir, dataFileName).replace(/\\/g, '/');
-        } else {
-             if(!ruleDataPath.endsWith('.json')) {
-                 ruleDataPath = path.posix.join(ruleDataPath.replace(/\\/g, '/'), `${newRuleData.id}.json`);
-             }
+        if (!ruleDataPath.endsWith('.json')) {
+             ruleDataPath = path.posix.join(ruleDataPath.replace(/\\/g, '/'), `${newRuleData.id}.json`);
         }
 
         let absPath = ruleDataPath;
@@ -351,14 +348,19 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         }
         body { font-family: var(--vscode-font-family); padding: 0; margin: 0; color: var(--text); background: var(--bg); display: flex; flex-direction: column; height: 100vh; font-size: 13px; }
         
-        .header { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--vscode-sideBar-background); display: flex; justify-content: space-between; align-items: center; }
-        /* 🌟 修改点：字体改小为 13px，字重变轻为 600 */
+        /* 🌟 修改点：改变 header 的布局为垂直排列，上下分行 */
+        .header { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--vscode-sideBar-background); display: flex; flex-direction: column; gap: 10px; }
+        .header-top { display: flex; justify-content: space-between; align-items: center; }
         .header-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; }
         
         .server-status { font-size: 12px; padding: 4px 10px; border-radius: 20px; background: #444; color: #ccc; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; transition: all 0.2s; border: 1px solid transparent; }
         .server-status:hover { filter: brightness(1.1); }
         .server-status.on { background: rgba(76, 175, 80, 0.15); color: var(--success); border-color: var(--success); }
         .server-status i { font-size: 8px; }
+
+        .mock-dir-setting { font-size: 11px; padding: 4px 8px; border-radius: 4px; background: transparent; color: var(--text-sub); border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
+        .mock-dir-setting:hover { border-color: var(--primary); color: var(--text); }
+        .mock-dir-setting.empty { color: var(--error); border-color: var(--error); }
 
         .content { flex: 1; overflow-y: auto; padding: 16px 12px; }
         .empty-tip { text-align: center; padding: 40px; opacity: 0.5; color: var(--text-sub); }
@@ -444,9 +446,15 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     <body>
       
       <div class="header">
-        <div class="header-title"><i class="fa-solid fa-network-wired"></i> 代理与 Mock</div>
-        <div id="globalServerBtn" class="server-status" title="点击一键启停所有启用的服务">
-           <i class="fa-solid fa-circle"></i> <span id="globalStatusText">已停止</span>
+        <div class="header-top">
+            <div class="header-title"><i class="fa-solid fa-network-wired"></i> 代理与 Mock 管理</div>
+            <div id="globalServerBtn" class="server-status" title="点击一键启停所有启用的服务">
+               <i class="fa-solid fa-circle"></i> <span id="globalStatusText">已停止</span>
+            </div>
+        </div>
+        <div id="mockDirBtn" class="mock-dir-setting" title="设置全局默认 Mock 数据存放目录" onclick="selectGlobalMockDir()" style="align-self: flex-start; max-width: 100%; box-sizing: border-box;">
+           <i class="fa-regular fa-folder-open" style="flex-shrink: 0;"></i> 
+           <span id="mockDirDisplay" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">加载中...</span>
         </div>
       </div>
 
@@ -493,7 +501,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             
             <div class="form-row">
               <div class="form-group" style="flex: 0 0 110px;">
-                <label class="form-label">Method</label>
+                <label class="form-label">Method <span style="color:var(--error)">*</span></label>
                 <select id="rule_method">
                   <option value="GET">GET</option>
                   <option value="POST">POST</option>
@@ -503,7 +511,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                 </select>
               </div>
               <div class="form-group">
-                <label class="form-label">API Path</label>
+                <label class="form-label">API Path <span style="color:var(--error)">*</span></label>
                 <input type="text" id="rule_url" placeholder="e.g. /xy/app/theme/list">
               </div>
             </div>
@@ -526,10 +534,10 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             
             <div class="form-row">
                 <div class="form-group">
-                  <label class="form-label">Mock数据存放路径 (基于根目录)</label>
+                  <label class="form-label">Mock数据存放路径 (基于根目录) <span style="color:var(--error)">*</span></label>
                   <div style="display:flex; gap:8px;">
-                     <input type="text" id="rule_dataPath" placeholder="默认: .quickops/mocks/xxx.json">
-                     <button onclick="selectRuleMockDir()" class="btn-sec" style="padding: 0 10px; white-space:nowrap;" title="选择文件夹"><i class="fa-regular fa-folder-open"></i></button>
+                     <input type="text" id="rule_dataPath" placeholder="请选择或输入存放路径">
+                     <button onclick="selectRuleMockDir()" class="btn-sec" style="padding: 0 10px; white-space:nowrap;" title="浏览文件夹"><i class="fa-regular fa-folder-open"></i></button>
                   </div>
                </div>
             </div>
@@ -542,7 +550,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
 
             <div class="tab-content">
                 <div id="pane-mock" class="tab-pane active">
-                    
                     <div class="mock-builder-container">
                         <div class="mock-builder-header">
                             <span style="font-size:12px; font-weight:bold;"><i class="fa-solid fa-list-ul"></i> 快捷字段生成器</span>
@@ -552,12 +559,10 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                             </div>
                         </div>
                         <div id="mock-builder-rows" style="max-height: 200px; overflow-y: auto; padding-right: 5px;">
-                            </div>
+                        </div>
                     </div>
-
                     <textarea id="mockTemplate" style="height: 120px;" placeholder='{ "code": 200, "data": {} }'></textarea>
                 </div>
-                
                 <div id="pane-custom" class="tab-pane">
                     <textarea id="customJson" style="height: 200px;" placeholder='[ { "id": 1, "name": "Item 1" } ]'></textarea>
                 </div>
@@ -585,14 +590,25 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         let mocks = [];
         let runningProxies = []; 
         let isGlobalRunning = false;
-        let globalMockDir = '.quickops/mocks'; 
+        let globalMockDir = ''; 
 
         window.addEventListener('message', e => {
            const msg = e.data;
            if(msg.type === 'config') {
              proxies = msg.proxy || [];
              mocks = msg.mock || [];
-             if(msg.mockDir) globalMockDir = msg.mockDir;
+             
+             globalMockDir = msg.mockDir || '';
+             const dirDisplay = document.getElementById('mockDirDisplay');
+             const dirBtn = document.getElementById('mockDirBtn');
+             if(globalMockDir) {
+                 dirDisplay.innerText = globalMockDir;
+                 dirBtn.classList.remove('empty');
+             } else {
+                 dirDisplay.innerText = '未设置全局路径';
+                 dirBtn.classList.add('empty');
+             }
+
              updateTargetDatalist(); 
              render();
            }
@@ -601,7 +617,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
              isGlobalRunning = runningProxies.length > 0;
              const btn = document.getElementById('globalServerBtn');
              const txt = document.getElementById('globalStatusText');
-             // 🌟 修改点：状态文本字数缩减
              if(isGlobalRunning) {
                btn.className = 'server-status on';
                txt.innerText = \`运行中 (\${runningProxies.length})\`;
@@ -646,6 +661,10 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
 
         document.getElementById('globalServerBtn').onclick = () => {
             vscode.postMessage({ type: 'toggleServer', value: !isGlobalRunning });
+        };
+
+        window.selectGlobalMockDir = () => {
+            vscode.postMessage({ type: 'selectGlobalMockDir' });
         };
         
         window.selectRuleMockDir = () => {
