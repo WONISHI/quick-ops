@@ -18,6 +18,9 @@
 
 ---
 
+## Translations
+- [中文文档](https://github.com/WONISHI/quick-ops/blob/master/README_zh.md)
+
 ## 🚀 Features
 
 ### 1. Local Proxy & Mock Server 🔥
