@@ -89,6 +89,12 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         }
         break;
 
+      case 'copyText':
+        vscode.env.clipboard.writeText(data.payload).then(() => {
+          vscode.window.showInformationMessage('复制成功：' + data.payload);
+        });
+        break;
+
       case 'selectRuleMockDir': {
         const rootPath = this.getWorkspaceRoot();
         const defaultUri = rootPath ? vscode.Uri.file(rootPath) : undefined;
@@ -346,7 +352,8 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         body { font-family: var(--vscode-font-family); padding: 0; margin: 0; color: var(--text); background: var(--bg); display: flex; flex-direction: column; height: 100vh; font-size: 13px; }
         
         .header { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--vscode-sideBar-background); display: flex; justify-content: space-between; align-items: center; }
-        .header-title { font-weight: bold; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+        /* 🌟 修改点：字体改小为 13px，字重变轻为 600 */
+        .header-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; }
         
         .server-status { font-size: 12px; padding: 4px 10px; border-radius: 20px; background: #444; color: #ccc; cursor: pointer; user-select: none; display: flex; align-items: center; gap: 6px; transition: all 0.2s; border: 1px solid transparent; }
         .server-status:hover { filter: brightness(1.1); }
@@ -357,12 +364,17 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         .empty-tip { text-align: center; padding: 40px; opacity: 0.5; color: var(--text-sub); }
 
         .proxy-container { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; background: var(--bg); overflow: hidden; }
-        .proxy-header { background: var(--vscode-sideBar-background); padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .proxy-info { display: flex; align-items: center; gap: 8px; font-weight: bold; }
-        .port-badge { background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
-        .proxy-target { font-family: monospace; font-size: 12px; opacity: 0.8; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .proxy-actions { display: flex; align-items: center; gap: 10px; }
+        .proxy-header { background: var(--vscode-sideBar-background); padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;}
         
+        .proxy-info { display: flex; align-items: center; gap: 8px; font-weight: bold; flex-wrap: wrap; flex: 1; min-width: 0; }
+        .target-wrapper { display: flex; align-items: center; gap: 6px; position: relative; flex: 1; min-width: 150px; overflow: hidden;}
+        .port-badge { background: var(--primary); color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+        .proxy-target { font-family: monospace; font-size: 12px; opacity: 0.8; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .proxy-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        
+        .copy-icon { opacity: 0; pointer-events: none; transition: opacity 0.2s; cursor: pointer; color: var(--primary); font-size: 13px; flex-shrink: 0; }
+        .copy-icon:hover { opacity: 1 !important; filter: brightness(1.2); }
+
         .rule-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
         .rule-card { border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; align-items: center; gap: 12px; background: var(--vscode-editor-background); position: relative; overflow: hidden; }
         .rule-card.disabled { opacity: 0.6; filter: grayscale(0.8); }
@@ -432,9 +444,9 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     <body>
       
       <div class="header">
-        <div class="header-title"><i class="fa-solid fa-network-wired"></i> 代理与 Mock 管理</div>
+        <div class="header-title"><i class="fa-solid fa-network-wired"></i> 代理与 Mock</div>
         <div id="globalServerBtn" class="server-status" title="点击一键启停所有启用的服务">
-           <i class="fa-solid fa-circle"></i> <span id="globalStatusText">全部停止</span>
+           <i class="fa-solid fa-circle"></i> <span id="globalStatusText">已停止</span>
         </div>
       </div>
 
@@ -589,12 +601,13 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
              isGlobalRunning = runningProxies.length > 0;
              const btn = document.getElementById('globalServerBtn');
              const txt = document.getElementById('globalStatusText');
+             // 🌟 修改点：状态文本字数缩减
              if(isGlobalRunning) {
                btn.className = 'server-status on';
-               txt.innerText = \`运行中: \${runningProxies.length} 个服务\`;
+               txt.innerText = \`运行中 (\${runningProxies.length})\`;
              } else {
                btn.className = 'server-status';
-               txt.innerText = '全部停止';
+               txt.innerText = '已停止';
              }
              render();
            }
@@ -639,7 +652,25 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             vscode.postMessage({ type: 'selectRuleMockDir' });
         };
 
-        // 🌟 下拉框切换：如果是 ARRAY 或 OBJECT，显示添加子字段按钮和子容器
+        window.showCopyIcon = (el) => {
+            const icon = el.querySelector('.copy-icon');
+            if(!icon) return;
+            
+            icon.style.opacity = '1';
+            icon.style.pointerEvents = 'auto';
+            
+            if (el.copyTimer) clearTimeout(el.copyTimer);
+            
+            el.copyTimer = setTimeout(() => {
+                icon.style.opacity = '0';
+                icon.style.pointerEvents = 'none';
+            }, 3000);
+        };
+
+        window.copyTargetUrl = (url) => {
+            vscode.postMessage({ type: 'copyText', payload: url });
+        };
+
         window.handleTypeChange = (select) => {
             const container = select.closest('.mock-row-container');
             const val = select.value;
@@ -653,13 +684,11 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             const childrenDiv = container.querySelector('.mock-builder-children');
             childrenDiv.style.display = hasChildren ? 'block' : 'none';
             
-            // 如果刚切换为 ARRAY/OBJECT 且没子项，默认给个空子项
             if (hasChildren && childrenDiv.children.length === 0) {
                 addChildRowToContainer(childrenDiv);
             }
         };
 
-        // 🌟 添加一行父级配置（新增了 OBJECT 支持）
         window.addMockRow = (initField = '', initType = '@cname', initCount = 5, children = null) => {
             const container = document.getElementById('mock-builder-rows');
             const rowWrapper = document.createElement('div');
@@ -703,7 +732,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             }
         };
 
-        // 🌟 往某个父级下面添加子字段
         window.addChildRowToContainer = (container, field = '', type = '@cname') => {
             const row = document.createElement('div');
             row.className = 'mock-builder-row child-row';
@@ -733,7 +761,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             addChildRowToContainer(container);
         };
 
-        // 🌟 读取现有 JSON 解析回多行表单，增加 Object 解析支持
         window.parseJsonToRows = (jsonStr) => {
             const container = document.getElementById('mock-builder-rows');
             container.innerHTML = ''; 
@@ -768,7 +795,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                             }
                             addMockRow(fieldName, 'ARRAY', parseInt(count), childrenList);
                         } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-                            // 纯对象解析
                             let childrenList = [];
                             Object.keys(value).forEach(cKey => {
                                 let cFieldName = cKey;
@@ -781,7 +807,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                             });
                             addMockRow(key, 'OBJECT', 5, childrenList);
                         } else {
-                            // 简单类型
                             let typeStr = typeof value === 'string' ? value : JSON.stringify(value);
                             addMockRow(key, typeStr);
                         }
@@ -796,7 +821,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             }
         };
 
-        // 获取单行的数据结构，区分 ARRAY 和 OBJECT
         function getContainerValue(container) {
             const type = container.querySelector('.mb-type').value;
             
@@ -824,7 +848,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                     const count = countInput && countInput.value ? countInput.value : 5;
                     return { isComplex: true, isArray: true, count, value: [itemTemplate] };
                 } else {
-                    // OBJECT 类型
                     return { isComplex: true, isArray: false, value: itemTemplate };
                 }
             } else {
@@ -1052,10 +1075,15 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             groupDiv.innerHTML = \`
                 <div class="proxy-header">
                     <div class="proxy-info" title="状态: \${isProxyRunning ? '运行中' : '已停止'}">
-                        <i class="fa-solid fa-circle" style="color: \${proxyStatusColor}; font-size: 10px;"></i>
-                        <span class="port-badge">:\${p.port}</span> 
-                        <i class="fa-solid fa-arrow-right-long" style="opacity:0.5;"></i> 
-                        <span class="proxy-target">\${p.target}</span>
+                        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+                            <i class="fa-solid fa-circle" style="color: \${proxyStatusColor}; font-size: 10px;"></i>
+                            <span class="port-badge">:\${p.port}</span> 
+                            <i class="fa-solid fa-arrow-right-long" style="opacity:0.5;"></i> 
+                        </div>
+                        <div class="target-wrapper" onmouseenter="showCopyIcon(this)">
+                            <span class="proxy-target" title="\${p.target}">\${p.target}</span>
+                            <i class="fa-regular fa-copy copy-icon" title="点击复制" onclick="copyTargetUrl('\${p.target}')"></i>
+                        </div>
                     </div>
                     <div class="proxy-actions">
                         <label class="switch" title="启停此代理服务">
