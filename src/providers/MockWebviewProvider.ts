@@ -89,7 +89,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         }
         break;
 
-      case 'selectMockDir': {
+      case 'selectRuleMockDir': {
         const rootPath = this.getWorkspaceRoot();
         const defaultUri = rootPath ? vscode.Uri.file(rootPath) : undefined;
 
@@ -98,7 +98,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             canSelectFolders: true,
             canSelectMany: false,
             defaultUri: defaultUri,
-            openLabel: '选择此文件夹存放 Mock 数据'
+            openLabel: '选择数据存放文件夹'
         });
 
         if (uri && uri[0]) {
@@ -114,10 +114,8 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             let general = configService.config.general || {};
             general.mockDir = savePath;
             await configService.updateConfig('general', general);
-            
-            const newConf = await this.getFullConfig();
-            this.sendConfigToWebview(webview, newConf.proxyList, newConf.mockList, savePath);
-            vscode.window.showInformationMessage(`Mock 数据存放目录已更改为: ${savePath}`);
+
+            webview.postMessage({ type: 'ruleDirSelected', path: savePath });
         }
         break;
       }
@@ -181,48 +179,51 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         break;
       }
 
-      // 🛡️ 核心：添加规则时强制拦截选择目录
       case 'saveRule': {
         const newRuleData = data.payload;
         if (!newRuleData.id) newRuleData.id = nanoid();
         
         const rootPath = this.getWorkspaceRoot();
 
-        let globalMockDir = configService.config.general?.mockDir;
-        if (!globalMockDir) {
-            const defaultUri = rootPath ? vscode.Uri.file(rootPath) : undefined;
-            const uri = await vscode.window.showOpenDialog({
-                canSelectFiles: false,
-                canSelectFolders: true,
-                canSelectMany: false,
-                defaultUri: defaultUri,
-                openLabel: '请先选择 Mock 数据存放目录'
-            });
-
-            if (uri && uri[0]) {
-                const selectedAbsPath = uri[0].fsPath;
-                let savePath = selectedAbsPath;
-                
-                if (rootPath && selectedAbsPath.startsWith(rootPath)) {
-                    savePath = path.relative(rootPath, selectedAbsPath);
-                    if (savePath === '') savePath = '.';
-                }
-                savePath = savePath.replace(/\\/g, '/');
-
-                let general = configService.config.general || {};
-                general.mockDir = savePath;
-                await configService.updateConfig('general', general);
-                globalMockDir = savePath;
-            } else {
-                vscode.window.showWarningMessage('保存已取消：必须配置数据存放目录才能保存规则。');
-                return; 
-            }
-        }
-
         let ruleDataPath = newRuleData.dataPath;
-        if (!ruleDataPath) {
+        
+        if (!ruleDataPath || ruleDataPath.trim() === '') {
+            let globalMockDir = configService.config.general?.mockDir;
+            if (!globalMockDir) {
+                const defaultUri = rootPath ? vscode.Uri.file(rootPath) : undefined;
+                const uri = await vscode.window.showOpenDialog({
+                    canSelectFiles: false,
+                    canSelectFolders: true,
+                    canSelectMany: false,
+                    defaultUri: defaultUri,
+                    openLabel: '请先选择 Mock 数据存放目录'
+                });
+
+                if (uri && uri[0]) {
+                    const selectedAbsPath = uri[0].fsPath;
+                    let savePath = selectedAbsPath;
+                    
+                    if (rootPath && selectedAbsPath.startsWith(rootPath)) {
+                        savePath = path.relative(rootPath, selectedAbsPath);
+                        if (savePath === '') savePath = '.';
+                    }
+                    savePath = savePath.replace(/\\/g, '/');
+
+                    let general = configService.config.general || {};
+                    general.mockDir = savePath;
+                    await configService.updateConfig('general', general);
+                    globalMockDir = savePath;
+                } else {
+                    vscode.window.showWarningMessage('保存已取消：必须配置数据存放目录才能保存规则。');
+                    return; 
+                }
+            }
             const dataFileName = `${newRuleData.id}.json`;
             ruleDataPath = path.join(globalMockDir, dataFileName).replace(/\\/g, '/');
+        } else {
+             if(!ruleDataPath.endsWith('.json')) {
+                 ruleDataPath = path.posix.join(ruleDataPath.replace(/\\/g, '/'), `${newRuleData.id}.json`);
+             }
         }
 
         let absPath = ruleDataPath;
@@ -237,7 +238,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         const dir = path.dirname(absPath);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-        const contentToSave = newRuleData.template !== undefined ? newRuleData.template : newRuleData.data;
+        const contentToSave = newRuleData.template !== undefined ? newRuleData.template : (newRuleData.data || {});
         const isTemplate = newRuleData.template !== undefined;
         fs.writeFileSync(absPath, JSON.stringify(contentToSave, null, 2), 'utf8');
 
@@ -261,7 +262,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
 
         await configService.updateConfig('mock', pureMockList);
         
-        // 关键修复：直接在这里通知前端关闭弹窗，避免后端成功后前端还需要手动关
         webview.postMessage({ type: 'closeRuleModal' });
         
         const newConf = await this.getFullConfig();
@@ -353,14 +353,9 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         .server-status.on { background: rgba(76, 175, 80, 0.15); color: var(--success); border-color: var(--success); }
         .server-status i { font-size: 8px; }
 
-        .mock-dir-setting { font-size: 11px; padding: 4px 8px; border-radius: 4px; background: var(--vscode-editor-background); color: var(--text-sub); border: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s; }
-        .mock-dir-setting:hover { border-color: var(--primary); color: var(--text); }
-        .mock-dir-setting.empty { color: var(--error); border-color: var(--error); }
-
         .content { flex: 1; overflow-y: auto; padding: 16px 12px; }
         .empty-tip { text-align: center; padding: 40px; opacity: 0.5; color: var(--text-sub); }
 
-        /* Proxy Container */
         .proxy-container { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; background: var(--bg); overflow: hidden; }
         .proxy-header { background: var(--vscode-sideBar-background); padding: 12px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
         .proxy-info { display: flex; align-items: center; gap: 8px; font-weight: bold; }
@@ -368,7 +363,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         .proxy-target { font-family: monospace; font-size: 12px; opacity: 0.8; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .proxy-actions { display: flex; align-items: center; gap: 10px; }
         
-        /* Rule List */
         .rule-list { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
         .rule-card { border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; align-items: center; gap: 12px; background: var(--vscode-editor-background); position: relative; overflow: hidden; }
         .rule-card.disabled { opacity: 0.6; filter: grayscale(0.8); }
@@ -390,7 +384,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         .icon-btn:hover { background: var(--bg-hover); color: var(--text); }
         .icon-btn.del:hover { color: var(--error); background: rgba(255,0,0,0.1); }
 
-        /* Switch UI */
         .switch { position: relative; display: inline-block; width: 32px; height: 18px; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #555; transition: .3s; border-radius: 18px; }
@@ -407,10 +400,9 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 14px; border-radius: 4px; cursor: pointer; }
         .btn-sec:hover { background: var(--bg-hover); }
 
-        /* Modals */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; justify-content: center; align-items: center; }
         .modal.active { display: flex; }
-        .modal-box { background: var(--bg); width: 650px; max-width: 90%; max-height: 90vh; border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .modal-box { background: var(--bg); width: 680px; max-width: 95%; max-height: 95vh; border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--border); font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
         .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
         .modal-footer { padding: 15px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; background: var(--vscode-sideBar-background); border-radius: 0 0 8px 8px; }
@@ -422,13 +414,15 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         input, select, textarea { background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--input-border); padding: 8px; border-radius: 4px; outline: none; font-family: inherit; font-size: 13px; }
         input:focus, select:focus, textarea:focus { border-color: var(--primary); }
 
-        /* Tabs */
         .tabs { display: flex; margin-bottom: 0; border-bottom: 1px solid var(--border); }
         .tab { padding: 8px 16px; cursor: pointer; font-size: 12px; border-bottom: 2px solid transparent; opacity: 0.6; display: flex; align-items: center; gap: 6px; }
         .tab.active { opacity: 1; border-bottom-color: var(--primary); color: var(--primary); font-weight: bold; }
         .tab-content { border: 1px solid var(--border); border-top: none; padding: 15px; background: var(--vscode-sideBar-background); border-radius: 0 0 4px 4px; }
         .tab-pane { display: none; }
         .tab-pane.active { display: block; }
+        
+        .mock-builder-row { display: flex; gap: 10px; margin-bottom: 8px; align-items: center; background: rgba(0,0,0,0.1); padding: 8px; border-radius: 4px; border: 1px solid var(--border); }
+        .mock-builder-row input, .mock-builder-row select { padding: 4px 6px; font-size: 12px; }
         
         #previewArea { display: none; margin-top: 15px; }
         #previewBox { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 150px; overflow: auto; border: 1px solid var(--border); }
@@ -438,13 +432,8 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
       
       <div class="header">
         <div class="header-title"><i class="fa-solid fa-network-wired"></i> 代理与 Mock 管理</div>
-        <div style="display:flex; gap:10px; align-items:center;">
-            <div id="mockDirBtn" class="mock-dir-setting" title="修改数据文件存放目录" onclick="selectMockDir()">
-               <i class="fa-regular fa-folder-open"></i> <span id="mockDirDisplay">加载中...</span>
-            </div>
-            <div id="globalServerBtn" class="server-status" title="点击一键启停">
-               <i class="fa-solid fa-circle"></i> <span id="globalStatusText">全部停止</span>
-            </div>
+        <div id="globalServerBtn" class="server-status" title="点击一键启停所有启用的服务">
+           <i class="fa-solid fa-circle"></i> <span id="globalStatusText">全部停止</span>
         </div>
       </div>
 
@@ -488,7 +477,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
           <div class="modal-body">
             <input type="hidden" id="rule_id">
             <input type="hidden" id="rule_proxyId">
-            <input type="hidden" id="rule_dataPath">
             
             <div class="form-row">
               <div class="form-group" style="flex: 0 0 110px;">
@@ -508,33 +496,59 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             </div>
 
             <div class="form-row">
-              <div class="form-group">
+               <div class="form-group" style="flex: 2">
                  <label class="form-label">Content-Type</label>
                  <select id="rule_contentType">
                    <option value="application/json">application/json</option>
                    <option value="text/plain">text/plain</option>
                    <option value="text/html">text/html</option>
                  </select>
-              </div>
-              <div class="form-group">
+               </div>
+               <div class="form-group" style="flex: 3">
                  <label class="form-label">独立 Target (可选覆盖)</label>
                  <input type="text" id="rule_target" list="targetOptions" placeholder="留空则使用所属 Proxy 的 Target">
                  <datalist id="targetOptions"></datalist>
-              </div>
+               </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Mock数据存放路径 (基于根目录)</label>
+                  <div style="display:flex; gap:8px;">
+                     <input type="text" id="rule_dataPath" placeholder="默认: .quickops/mocks/xxx.json">
+                     <button onclick="selectRuleMockDir()" class="btn-sec" style="padding: 0 10px; white-space:nowrap;" title="选择文件夹"><i class="fa-regular fa-folder-open"></i></button>
+                  </div>
+               </div>
             </div>
 
             <label class="form-label">Response Body (响应数据)</label>
             <div class="tabs">
-              <div id="tab-mock" class="tab active" onclick="switchTab('mock')"><i class="fa-solid fa-wand-magic-sparkles"></i> Mock 模板</div>
+              <div id="tab-mock" class="tab active" onclick="switchTab('mock')"><i class="fa-solid fa-wand-magic-sparkles"></i> Mock 模板构建</div>
               <div id="tab-custom" class="tab" onclick="switchTab('custom')"><i class="fa-solid fa-code"></i> 静态 JSON</div>
             </div>
 
             <div class="tab-content">
                 <div id="pane-mock" class="tab-pane active">
-                    <textarea id="mockTemplate" style="height: 160px;" placeholder='{ "code": 0, "data": { "list|10": [{"id|+1":1, "name":"@cname"}] } }'></textarea>
+                    <div class="mock-builder-row">
+                        <span style="font-size:12px; font-weight:bold; white-space:nowrap;">快捷生成器:</span>
+                        <input type="text" id="mb_field" placeholder="字段名(如 list)" style="width:110px;">
+                        <select id="mb_type" style="width:110px;" onchange="toggleArrayCount(this.value)">
+                            <option value="@cname">中文名</option>
+                            <option value="@title">标题</option>
+                            <option value="@integer(1, 100)">数字(1-100)</option>
+                            <option value="@boolean">布尔值</option>
+                            <option value="@date">日期</option>
+                            <option value="@image('200x100')">图片</option>
+                            <option value="ARRAY">生成数组列表</option>
+                        </select>
+                        <input type="number" id="mb_count" placeholder="条数" style="width:60px; display:none;" min="1" value="5">
+                        <button onclick="appendMockField()" class="btn-sec" style="padding: 4px 10px; font-size:12px;">追加字段</button>
+                    </div>
+                    <textarea id="mockTemplate" style="height: 140px;" placeholder='{ "code": 200, "data": {} }'></textarea>
                 </div>
+                
                 <div id="pane-custom" class="tab-pane">
-                    <textarea id="customJson" style="height: 160px;" placeholder='[ { "id": 1, "name": "Item 1" } ]'></textarea>
+                    <textarea id="customJson" style="height: 200px;" placeholder='[ { "id": 1, "name": "Item 1" } ]'></textarea>
                 </div>
             </div>
 
@@ -560,25 +574,14 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         let mocks = [];
         let runningProxies = []; 
         let isGlobalRunning = false;
-        let currentMockDir = '';
+        let globalMockDir = '.quickops/mocks'; 
 
         window.addEventListener('message', e => {
            const msg = e.data;
            if(msg.type === 'config') {
              proxies = msg.proxy || [];
              mocks = msg.mock || [];
-             
-             currentMockDir = msg.mockDir || '';
-             const dirBtn = document.getElementById('mockDirBtn');
-             const dirDisplay = document.getElementById('mockDirDisplay');
-             if (currentMockDir) {
-                 dirDisplay.innerText = currentMockDir;
-                 dirBtn.classList.remove('empty');
-             } else {
-                 dirDisplay.innerText = '请点击设置存放目录';
-                 dirBtn.classList.add('empty');
-             }
-             
+             if(msg.mockDir) globalMockDir = msg.mockDir;
              updateTargetDatalist(); 
              render();
            }
@@ -601,10 +604,15 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
              box.innerText = msg.error ? 'Error: ' + msg.error : JSON.stringify(msg.result, null, 2);
              box.style.color = msg.error ? 'var(--error)' : 'var(--text)';
            }
-           
-           // 🌟 监听后端传来的关闭指令
            if(msg.type === 'closeRuleModal') {
                closeModal('ruleModal');
+           }
+           if(msg.type === 'ruleDirSelected') {
+               let p = msg.path;
+               if (!p.endsWith('/')) p += '/';
+               // 安全赋值，如果元素存在
+               const pathEl = document.getElementById('rule_dataPath');
+               if (pathEl) pathEl.value = p;
            }
         });
         
@@ -612,6 +620,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
 
         function updateTargetDatalist() {
             const datalist = document.getElementById('targetOptions');
+            if(!datalist) return;
             datalist.innerHTML = '';
             const targetSet = new Set();
             proxies.forEach(p => { if (p.target) targetSet.add(p.target) });
@@ -628,8 +637,39 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             vscode.postMessage({ type: 'toggleServer', value: !isGlobalRunning });
         };
         
-        window.selectMockDir = () => {
-            vscode.postMessage({ type: 'selectMockDir' });
+        window.selectRuleMockDir = () => {
+            vscode.postMessage({ type: 'selectRuleMockDir' });
+        };
+
+        window.toggleArrayCount = (val) => {
+            document.getElementById('mb_count').style.display = val === 'ARRAY' ? 'inline-block' : 'none';
+        };
+
+        window.appendMockField = () => {
+            const field = document.getElementById('mb_field').value.trim() || 'demoField';
+            const type = document.getElementById('mb_type').value;
+            const tplArea = document.getElementById('mockTemplate');
+            
+            let currentJson;
+            try {
+                currentJson = JSON.parse(tplArea.value || '{}');
+            } catch(e) {
+                vscode.postMessage({ type: 'error', message: '当前模板不是合法 JSON，无法追加' });
+                return;
+            }
+
+            if (!currentJson.data) currentJson.data = {};
+
+            if (type === 'ARRAY') {
+                const count = document.getElementById('mb_count').value || 5;
+                const arrKey = field + '|' + count;
+                currentJson.data[arrKey] = [ { "id|+1": 1, "name": "@cname" } ];
+            } else {
+                currentJson.data[field] = type;
+            }
+
+            tplArea.value = JSON.stringify(currentJson, null, 2);
+            simulate();
         };
 
         window.switchTab = (mode) => {
@@ -640,7 +680,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             const previewArea = document.getElementById('previewArea');
             if (mode === 'mock') {
                 previewArea.style.display = 'block';
-                document.getElementById('previewBox').innerText = ''; 
             } else {
                 previewArea.style.display = 'none';
             }
@@ -648,13 +687,15 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
 
         window.closeModal = (id) => document.getElementById(id).classList.remove('active');
 
-        window.openProxyModal = (id = null) => {
-           if (id) {
+        window.openProxyModal = (id) => {
+           if (typeof id === 'string' && id.trim() !== '') {
                const p = proxies.find(x => x.id === id);
-               document.getElementById('proxyModalTitle').innerText = '编辑代理服务';
-               document.getElementById('proxy_id').value = p.id;
-               document.getElementById('proxy_port').value = p.port;
-               document.getElementById('proxy_target').value = p.target;
+               if(p) {
+                 document.getElementById('proxyModalTitle').innerText = '编辑代理服务';
+                 document.getElementById('proxy_id').value = p.id;
+                 document.getElementById('proxy_port').value = p.port;
+                 document.getElementById('proxy_target').value = p.target;
+               }
            } else {
                document.getElementById('proxyModalTitle').innerText = '新增代理服务';
                document.getElementById('proxy_id').value = '';
@@ -676,28 +717,45 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         window.toggleProxy = (id, enabled) => vscode.postMessage({ type: 'toggleProxy', id, enabled });
         window.delProxy = (id) => vscode.postMessage({ type: 'deleteProxy', id });
 
-        window.openRuleModal = (proxyId, ruleId = null) => {
+        window.openRuleModal = (proxyId, ruleId) => {
            let rule = null;
-           if (ruleId) rule = mocks.find(r => r.id === ruleId);
+           if (typeof ruleId === 'string' && ruleId.trim() !== '') {
+               rule = mocks.find(r => r.id === ruleId);
+           }
            
+           // 🛡️ 每一个 getElementById 后面都加个小保护，如果报错也能知道是哪一行
+           const safelySetValue = (id, value) => {
+               const el = document.getElementById(id);
+               if (el) el.value = value;
+               else console.error('MISSING ID IN HTML:', id);
+           };
+
            document.getElementById('ruleModalTitle').innerText = rule ? '编辑拦截规则' : '新增拦截规则';
-           document.getElementById('rule_proxyId').value = proxyId;
-           document.getElementById('rule_id').value = rule ? rule.id : '';
-           document.getElementById('rule_method').value = rule ? rule.method : 'GET';
-           document.getElementById('rule_url').value = rule ? rule.url : '';
-           document.getElementById('rule_contentType').value = rule?.contentType || 'application/json';
-           document.getElementById('rule_target').value = rule?.target || '';
-           document.getElementById('rule_dataPath').value = rule?.dataPath || '';
+           safelySetValue('rule_proxyId', proxyId);
+           safelySetValue('rule_id', rule ? rule.id : '');
+           safelySetValue('rule_method', rule ? rule.method : 'GET');
+           safelySetValue('rule_url', rule ? rule.url : '');
+           safelySetValue('rule_contentType', rule?.contentType || 'application/json');
+           safelySetValue('rule_target', rule?.target || '');
+           
+           let pPath = rule?.dataPath || '';
+           if(!pPath) {
+               pPath = globalMockDir.endsWith('/') ? globalMockDir : globalMockDir + '/';
+           }
+           safelySetValue('rule_dataPath', pPath);
 
            if (rule && !rule.isTemplate && rule.data) {
-               document.getElementById('customJson').value = typeof rule.data === 'string' ? rule.data : JSON.stringify(rule.data, null, 2);
-               document.getElementById('mockTemplate').value = '{}'; 
+               const valStr = typeof rule.data === 'string' ? rule.data : JSON.stringify(rule.data, null, 2);
+               safelySetValue('customJson', valStr);
+               safelySetValue('mockTemplate', '{ "code": 200, "data": {} }'); 
                switchTab('custom');
            } else {
-               const tpl = rule?.template || {};
-               document.getElementById('mockTemplate').value = typeof tpl === 'string' ? tpl : JSON.stringify(tpl, null, 2);
-               document.getElementById('customJson').value = '{}';
+               const tpl = rule?.template || { "code": 200, "data": {} };
+               const valStr = typeof tpl === 'string' ? tpl : JSON.stringify(tpl, null, 2);
+               safelySetValue('mockTemplate', valStr);
+               safelySetValue('customJson', '[]');
                switchTab('mock');
+               simulate(); 
            }
            document.getElementById('ruleModal').classList.add('active');
         };
@@ -732,7 +790,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                };
 
                vscode.postMessage({ type: 'saveRule', payload });
-               // 🚨注意：这里移除了 closeModal()，关闭操作交给后端校验通过后触发
            } catch(e) {
                vscode.postMessage({ type: 'error', message: 'JSON 格式错误: ' + e.message });
            }

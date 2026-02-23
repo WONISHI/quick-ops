@@ -66,10 +66,10 @@ export interface ILogrcConfig {
   };
   logger: { template: string; dateFormat: string };
   utils: { uuidLength: number };
-  
+
   proxy?: IProxyConfig[];      // 【修改】改为代理配置数组
   mock?: IMockRuleConfig[];    // 【修改】明确 Mock 规则数组的类型
-  
+
   git: { ignoreList: string[] };
   project: { alias: Record<string, string>; marks: Record<string, any> };
   [key: string]: any;
