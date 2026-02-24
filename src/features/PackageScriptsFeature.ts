@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { TextDecoder } from 'util';
-import * as path from 'path'; // Need path for directory traversal logic
 import { IFeature } from '../core/interfaces/IFeature';
 import { WorkspaceContextService } from '../services/WorkspaceContextService';
 import { TemplateEngine } from '../utils/TemplateEngine';
