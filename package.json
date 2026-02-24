@@ -339,7 +339,6 @@
     "@babel/types": "^7.28.6",
     "@vue/compiler-sfc": "^3.5.20",
     "body-parser": "^2.2.2",
-    "change-case": "^5.4.4",
     "cheerio": "^1.1.2",
     "cors": "^2.8.6",
     "dayjs": "^1.11.13",

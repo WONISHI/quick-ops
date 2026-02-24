@@ -2104,13 +2104,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"change-case@npm:^5.4.4":
-  version: 5.4.4
-  resolution: "change-case@npm:5.4.4"
-  checksum: 10c0/2a9c2b9c9ad6ab2491105aaf506db1a9acaf543a18967798dcce20926c6a173aa63266cb6189f3086e3c14bf7ae1f8ea4f96ecc466fcd582310efa00372f3734
-  languageName: node
-  linkType: hard
-
 "character-parser@npm:^2.2.0":
   version: 2.2.0
   resolution: "character-parser@npm:2.2.0"
@@ -5588,7 +5581,6 @@ __metadata:
     "@vscode/vsce": "npm:^3.6.0"
     "@vue/compiler-sfc": "npm:^3.5.20"
     body-parser: "npm:^2.2.2"
-    change-case: "npm:^5.4.4"
     cheerio: "npm:^1.1.2"
     copy-webpack-plugin: "npm:^13.0.1"
     cors: "npm:^2.8.6"
