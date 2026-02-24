@@ -24,7 +24,7 @@ export class PackageScriptsFeature implements IFeature {
 
     this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
     this.statusBarItem.command = commandId;
-    this.statusBarItem.text = '$(play) Scripts';
+    this.statusBarItem.text = '$(terminal-powershell) Scripts';
     this.statusBarItem.tooltip = 'View and execute scripts';
     this.statusBarItem.show();
     context.subscriptions.push(this.statusBarItem);
