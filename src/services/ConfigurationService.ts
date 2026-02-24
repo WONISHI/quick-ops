@@ -378,7 +378,7 @@ export class ConfigurationService extends EventEmitter implements IService {
 
       const count = filesToAdd.length + filesToRemove.length;
       if (count > 0) {
-        console.log(`[${this.serviceId}] Synced ${count} files to Git config.`);
+        ColorLog.green(`[${this.serviceId}]`, `Synced ${count} files to Git config.`);
       }
     } catch (e) {
       console.error(`[${this.serviceId}] Batch process failed:`, e);
