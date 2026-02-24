@@ -193,7 +193,7 @@ export class MockServerFeature implements IFeature {
     const proxyOptions: any = {
       target: defaultTarget,
       changeOrigin: true,
-      secure: false,
+      secure: false, // 允许自签名 HTTPS
       logLevel: 'error',
 
       router: (req: any) => {
@@ -230,7 +230,7 @@ export class MockServerFeature implements IFeature {
       },
     };
 
-    app.use('/xy', createProxyMiddleware(proxyOptions));
+    app.use('/', createProxyMiddleware(proxyOptions));
 
     try {
       const server = app.listen(proxyConfig.port, () => {
