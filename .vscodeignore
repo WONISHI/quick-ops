@@ -9,7 +9,7 @@ src/test/**
 .git/**
 packages/**
 **/node_modules/**
-dist/test**
+dist/test/**
 .zip
 .markdownlint.json
 
@@ -28,3 +28,4 @@ dist/*.map
 dist/*.txt
 **/*.tsbuildinfo
 PERFORMANCE.md
+README_zh.md
