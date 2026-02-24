@@ -9,10 +9,14 @@ import { MockServerFeature } from '../features/MockServerFeature';
 export class MockWebviewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
 
+  // 🌟 管理独立打开的面板，防止重复开启
+  private proxyPanel: vscode.WebviewPanel | undefined;
+  private rulePanel: vscode.WebviewPanel | undefined;
+
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly _mockFeature: MockServerFeature,
-  ) {}
+  ) { }
 
   public resolveWebviewView(webviewView: vscode.WebviewView, context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken) {
     this._view = webviewView;
@@ -30,7 +34,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
 
   private getMockDataPath(dataPath: string): string | undefined {
     if (path.isAbsolute(dataPath)) {
-        return dataPath;
+      return dataPath;
     }
     const root = this.getWorkspaceRoot();
     if (!root) return undefined;
@@ -38,35 +42,36 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
   }
 
   private async getFullConfig() {
-      const configService = ConfigurationService.getInstance();
-      await configService.loadConfig();
-      
-      let proxyList = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
-      let mockList = Array.isArray(configService.config.mock) ? configService.config.mock : [];
-      const mockDir = configService.config.general?.mockDir || '';
+    const configService = ConfigurationService.getInstance();
+    await configService.loadConfig();
 
-      const fullMockList = mockList.map(rule => {
-          const fullRule = { ...rule };
-          if (rule.dataPath) {
-              const absPath = this.getMockDataPath(rule.dataPath);
-              if (absPath && fs.existsSync(absPath)) {
-                  try {
-                      const fileContent = fs.readFileSync(absPath, 'utf8');
-                      const parsedContent = JSON.parse(fileContent);
-                      if (rule.isTemplate) {
-                          fullRule.template = parsedContent;
-                      } else {
-                          fullRule.data = parsedContent;
-                      }
-                  } catch (e) {}
-              }
-          }
-          return fullRule;
-      });
+    let proxyList = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
+    let mockList = Array.isArray(configService.config.mock) ? configService.config.mock : [];
+    const mockDir = configService.config.general?.mockDir || '';
 
-      return { proxyList, mockList: fullMockList, mockDir };
+    const fullMockList = mockList.map(rule => {
+      const fullRule = { ...rule };
+      if (rule.dataPath) {
+        const absPath = this.getMockDataPath(rule.dataPath);
+        if (absPath && fs.existsSync(absPath)) {
+          try {
+            const fileContent = fs.readFileSync(absPath, 'utf8');
+            const parsedContent = JSON.parse(fileContent);
+            if (rule.isTemplate) {
+              fullRule.template = parsedContent;
+            } else {
+              fullRule.data = parsedContent;
+            }
+          } catch (e) { }
+        }
+      }
+      return fullRule;
+    });
+
+    return { proxyList, mockList: fullMockList, mockDir };
   }
 
+  // 🌟 侧边栏消息处理
   public async handleMessage(data: any, webview: vscode.Webview) {
     const configService = ConfigurationService.getInstance();
     const { proxyList, mockList: fullMockList, mockDir } = await this.getFullConfig();
@@ -77,16 +82,12 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         break;
 
       case 'refresh':
-        this.sendConfigToWebview(webview, proxyList, fullMockList, mockDir);
-        this._mockFeature.notifyStatusToWebview();
+        this.refreshSidebar();
         break;
 
       case 'toggleServer':
-        if (data.value) {
-          await this._mockFeature.startAll();
-        } else {
-          await this._mockFeature.stopAll();
-        }
+        if (data.value) await this._mockFeature.startAll();
+        else await this._mockFeature.stopAll();
         break;
 
       case 'copyText':
@@ -98,90 +99,41 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
       case 'selectGlobalMockDir': {
         const rootPath = this.getWorkspaceRoot();
         const defaultUri = rootPath ? vscode.Uri.file(rootPath) : undefined;
-
         const uri = await vscode.window.showOpenDialog({
-            canSelectFiles: false,
-            canSelectFolders: true,
-            canSelectMany: false,
-            defaultUri: defaultUri,
-            openLabel: '选择全局 Mock 数据存放目录'
+          canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: defaultUri, openLabel: '选择全局 Mock 数据存放目录'
         });
-
         if (uri && uri[0]) {
-            const selectedAbsPath = uri[0].fsPath;
-            let savePath = selectedAbsPath;
-            
-            if (rootPath && selectedAbsPath.startsWith(rootPath)) {
-                savePath = path.relative(rootPath, selectedAbsPath);
-                if (savePath === '') savePath = '.';
-            }
-            savePath = savePath.replace(/\\/g, '/');
-
-            let general = configService.config.general || {};
-            general.mockDir = savePath;
-            await configService.updateConfig('general', general);
-
-            const newConf = await this.getFullConfig();
-            this.sendConfigToWebview(webview, newConf.proxyList, newConf.mockList, newConf.mockDir);
+          const selectedAbsPath = uri[0].fsPath;
+          let savePath = selectedAbsPath;
+          if (rootPath && selectedAbsPath.startsWith(rootPath)) {
+            savePath = path.relative(rootPath, selectedAbsPath);
+            if (savePath === '') savePath = '.';
+          }
+          savePath = savePath.replace(/\\/g, '/');
+          let general = configService.config.general || {};
+          general.mockDir = savePath;
+          await configService.updateConfig('general', general);
+          this.refreshSidebar();
         }
         break;
       }
 
-      case 'selectRuleMockDir': {
-        const rootPath = this.getWorkspaceRoot();
-        const defaultUri = rootPath ? vscode.Uri.file(rootPath) : undefined;
-
-        const uri = await vscode.window.showOpenDialog({
-            canSelectFiles: false,
-            canSelectFolders: true,
-            canSelectMany: false,
-            defaultUri: defaultUri,
-            openLabel: '选择此规则的数据存放目录'
-        });
-
-        if (uri && uri[0]) {
-            const selectedAbsPath = uri[0].fsPath;
-            let savePath = selectedAbsPath;
-            
-            if (rootPath && selectedAbsPath.startsWith(rootPath)) {
-                savePath = path.relative(rootPath, selectedAbsPath);
-                if (savePath === '') savePath = '.';
-            }
-            savePath = savePath.replace(/\\/g, '/');
-
-            webview.postMessage({ type: 'ruleDirSelected', path: savePath });
-        }
+      // 🌟 唤起独立面板
+      case 'openProxyPanel':
+        this.showProxyPanel(data.id);
         break;
-      }
 
-      case 'saveProxy': {
-        const newProxy = data.payload;
-        if (!newProxy.id) {
-            newProxy.id = nanoid();
-            proxyList.push(newProxy);
-        } else {
-            const idx = proxyList.findIndex(p => p.id === newProxy.id);
-            if (idx > -1) {
-                proxyList[idx].port = newProxy.port;
-                proxyList[idx].target = newProxy.target;
-            }
-        }
-        await configService.updateConfig('proxy', proxyList);
-        await this._mockFeature.syncServers(); 
-        
-        const newConf = await this.getFullConfig();
-        this.sendConfigToWebview(webview, newConf.proxyList, newConf.mockList, newConf.mockDir);
+      case 'openRulePanel':
+        this.showRulePanel(data.proxyId, data.ruleId);
         break;
-      }
 
       case 'toggleProxy': {
         const pGroup = proxyList.find(p => p.id === data.id);
         if (pGroup) {
-            pGroup.enabled = data.enabled;
-            await configService.updateConfig('proxy', proxyList);
-            await this._mockFeature.syncServers();
-            const newConf = await this.getFullConfig();
-            this.sendConfigToWebview(webview, newConf.proxyList, newConf.mockList, newConf.mockDir);
+          pGroup.enabled = data.enabled;
+          await configService.updateConfig('proxy', proxyList);
+          await this._mockFeature.syncServers();
+          this.refreshSidebar();
         }
         break;
       }
@@ -189,104 +141,37 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
       case 'deleteProxy': {
         const ansProxy = await vscode.window.showWarningMessage(`确定要删除此代理吗？相关的规则也会被移除。`, { modal: true }, '删除');
         if (ansProxy === '删除') {
-            const newProxyList = proxyList.filter(p => p.id !== data.id);
-            const rulesToDelete = fullMockList.filter(m => m.proxyId === data.id);
-            rulesToDelete.forEach(r => {
-                if (r.dataPath) {
-                    const absPath = this.getMockDataPath(r.dataPath);
-                    if (absPath && fs.existsSync(absPath)) fs.unlinkSync(absPath);
-                }
-            });
-
-            const newMockList = fullMockList.filter(m => m.proxyId !== data.id).map(r => {
-                const { data, template, ...rest } = r;
-                return rest;
-            });
-            
-            await configService.updateConfig('proxy', newProxyList);
-            await configService.updateConfig('mock', newMockList);
-            await this._mockFeature.syncServers();
-            
-            const newConf = await this.getFullConfig();
-            this.sendConfigToWebview(webview, newConf.proxyList, newConf.mockList, newConf.mockDir);
-        }
-        break;
-      }
-
-      case 'saveRule': {
-        const newRuleData = data.payload;
-        if (!newRuleData.id) newRuleData.id = nanoid();
-        
-        const rootPath = this.getWorkspaceRoot();
-
-        let ruleDataPath = newRuleData.dataPath;
-        if (!ruleDataPath || ruleDataPath.trim() === '') {
-            vscode.window.showErrorMessage('保存失败：Mock 数据存放路径不能为空！');
-            return;
-        }
-
-        if (!ruleDataPath.endsWith('.json')) {
-             ruleDataPath = path.posix.join(ruleDataPath.replace(/\\/g, '/'), `${newRuleData.id}.json`);
-        }
-
-        let absPath = ruleDataPath;
-        if (!path.isAbsolute(ruleDataPath)) {
-            if (!rootPath) {
-                vscode.window.showErrorMessage('未打开工作区，无法保存相对路径规则！');
-                return;
+          const newProxyList = proxyList.filter(p => p.id !== data.id);
+          const rulesToDelete = fullMockList.filter(m => m.proxyId === data.id);
+          rulesToDelete.forEach(r => {
+            if (r.dataPath) {
+              const absPath = this.getMockDataPath(r.dataPath);
+              if (absPath && fs.existsSync(absPath)) fs.unlinkSync(absPath);
             }
-            absPath = path.join(rootPath, ruleDataPath);
+          });
+          const newMockList = fullMockList.filter(m => m.proxyId !== data.id).map(r => {
+            const { data, template, ...rest } = r; return rest;
+          });
+          await configService.updateConfig('proxy', newProxyList);
+          await configService.updateConfig('mock', newMockList);
+          await this._mockFeature.syncServers();
+          this.refreshSidebar();
         }
-
-        const dir = path.dirname(absPath);
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-        const contentToSave = newRuleData.template !== undefined ? newRuleData.template : (newRuleData.data || {});
-        const isTemplate = newRuleData.template !== undefined;
-        fs.writeFileSync(absPath, JSON.stringify(contentToSave, null, 2), 'utf8');
-
-        const ruleToSaveConfig = {
-            id: newRuleData.id,
-            proxyId: newRuleData.proxyId,
-            method: newRuleData.method,
-            url: newRuleData.url,
-            contentType: newRuleData.contentType,
-            target: newRuleData.target,
-            enabled: newRuleData.enabled,
-            dataPath: ruleDataPath,
-            isTemplate: isTemplate
-        };
-
-        let pureMockList = Array.isArray(configService.config.mock) ? configService.config.mock : [];
-        const rIdx = pureMockList.findIndex((r: any) => r.id === newRuleData.id);
-        
-        if (rIdx > -1) pureMockList[rIdx] = ruleToSaveConfig;
-        else pureMockList.push(ruleToSaveConfig);
-
-        await configService.updateConfig('mock', pureMockList);
-        
-        webview.postMessage({ type: 'closeRuleModal' });
-        
-        const newConf = await this.getFullConfig();
-        this.sendConfigToWebview(webview, newConf.proxyList, newConf.mockList, newConf.mockDir);
         break;
       }
 
       case 'deleteRule': {
         const ansRule = await vscode.window.showWarningMessage(`确定要删除此规则吗？`, { modal: true }, '删除');
         if (ansRule === '删除') {
-            const ruleToDelete = fullMockList.find((r: any) => r.id === data.ruleId);
-            if (ruleToDelete && ruleToDelete.dataPath) {
-                const absPath = this.getMockDataPath(ruleToDelete.dataPath);
-                if (absPath && fs.existsSync(absPath)) fs.unlinkSync(absPath);
-            }
-
-            let pureMockList = Array.isArray(configService.config.mock) ? configService.config.mock : [];
-            pureMockList = pureMockList.filter((r: any) => r.id !== data.ruleId);
-            await configService.updateConfig('mock', pureMockList);
-            
-            const newConf = await this.getFullConfig();
-            this.sendConfigToWebview(webview, newConf.proxyList, newConf.mockList, newConf.mockDir);
+          const ruleToDelete = fullMockList.find((r: any) => r.id === data.ruleId);
+          if (ruleToDelete && ruleToDelete.dataPath) {
+            const absPath = this.getMockDataPath(ruleToDelete.dataPath);
+            if (absPath && fs.existsSync(absPath)) fs.unlinkSync(absPath);
+          }
+          let pureMockList = Array.isArray(configService.config.mock) ? configService.config.mock : [];
+          pureMockList = pureMockList.filter((r: any) => r.id !== data.ruleId);
+          await configService.updateConfig('mock', pureMockList);
+          this.refreshSidebar();
         }
         break;
       }
@@ -295,24 +180,12 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         let pureMockList = Array.isArray(configService.config.mock) ? configService.config.mock : [];
         const rule = pureMockList.find((r: any) => r.id === data.ruleId);
         if (rule) {
-            rule.enabled = data.enabled;
-            await configService.updateConfig('mock', pureMockList);
-            
-            const newConf = await this.getFullConfig();
-            this.sendConfigToWebview(webview, newConf.proxyList, newConf.mockList, newConf.mockDir);
+          rule.enabled = data.enabled;
+          await configService.updateConfig('mock', pureMockList);
+          this.refreshSidebar();
         }
         break;
       }
-
-      case 'simulate':
-        try {
-          const template = typeof data.template === 'string' ? JSON.parse(data.template) : data.template;
-          const result = Mock.mock(template);
-          webview.postMessage({ type: 'simulateResult', result });
-        } catch (e: any) {
-          webview.postMessage({ type: 'simulateResult', error: e.message });
-        }
-        break;
     }
   }
 
@@ -320,10 +193,176 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ type: 'status', runningProxies: runningProxyIds });
   }
 
-  private sendConfigToWebview(webview: vscode.Webview, proxyList: any[], mockList: any[], mockDir: string) {
-    webview.postMessage({ type: 'config', proxy: proxyList, mock: mockList, mockDir });
+  private async refreshSidebar() {
+    if (this._view) {
+      const { proxyList, mockList, mockDir } = await this.getFullConfig();
+      this._view.webview.postMessage({ type: 'config', proxy: proxyList, mock: mockList, mockDir });
+      this._mockFeature.notifyStatusToWebview();
+    }
   }
 
+  // ==========================================
+  // 🌟 独立代理设置面板 (WebviewPanel)
+  // ==========================================
+  public async showProxyPanel(proxyId?: string) {
+    if (this.proxyPanel) {
+      this.proxyPanel.reveal(vscode.ViewColumn.One);
+    } else {
+      this.proxyPanel = vscode.window.createWebviewPanel('proxyPanel', proxyId ? '编辑代理服务' : '新增代理服务', vscode.ViewColumn.One, { enableScripts: true });
+      this.proxyPanel.onDidDispose(() => { this.proxyPanel = undefined; });
+      this.proxyPanel.webview.html = this.getProxyPanelHtml();
+
+      this.proxyPanel.webview.onDidReceiveMessage(async (data) => {
+        if (data.type === 'error') {
+          vscode.window.showErrorMessage(data.message);
+        } else if (data.type === 'cancel') {
+          this.proxyPanel?.dispose();
+        } else if (data.type === 'saveProxy') {
+          const configService = ConfigurationService.getInstance();
+          await configService.loadConfig();
+          let proxyList = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
+
+          const newProxy = data.payload;
+          if (!newProxy.id) {
+            newProxy.id = nanoid();
+            newProxy.enabled = true;
+            proxyList.push(newProxy);
+          } else {
+            const idx = proxyList.findIndex((p: any) => p.id === newProxy.id);
+            if (idx > -1) {
+              proxyList[idx].port = newProxy.port;
+              proxyList[idx].target = newProxy.target;
+            }
+          }
+          await configService.updateConfig('proxy', proxyList);
+          await this._mockFeature.syncServers();
+          this.proxyPanel?.dispose();
+          this.refreshSidebar();
+        }
+      });
+    }
+
+    const configService = ConfigurationService.getInstance();
+    await configService.loadConfig();
+    const proxies = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
+    const proxy = proxies.find((p: any) => p.id === proxyId);
+
+    this.proxyPanel.webview.postMessage({ type: 'init', proxy });
+  }
+
+  // ==========================================
+  // 🌟 独立拦截规则设置面板 (WebviewPanel)
+  // ==========================================
+  public async showRulePanel(proxyId: string, ruleId?: string) {
+    if (this.rulePanel) {
+      this.rulePanel.reveal(vscode.ViewColumn.One);
+    } else {
+      this.rulePanel = vscode.window.createWebviewPanel('rulePanel', ruleId ? '编辑拦截规则' : '新增拦截规则', vscode.ViewColumn.One, { enableScripts: true });
+      this.rulePanel.onDidDispose(() => { this.rulePanel = undefined; });
+      this.rulePanel.webview.html = this.getRulePanelHtml();
+
+      this.rulePanel.webview.onDidReceiveMessage(async (data) => {
+        if (data.type === 'error') {
+          vscode.window.showErrorMessage(data.message);
+        } else if (data.type === 'cancel') {
+          this.rulePanel?.dispose();
+        } else if (data.type === 'simulate') {
+          try {
+            const template = typeof data.template === 'string' ? JSON.parse(data.template) : data.template;
+            const result = Mock.mock(template);
+            this.rulePanel?.webview.postMessage({ type: 'simulateResult', result });
+          } catch (e: any) {
+            this.rulePanel?.webview.postMessage({ type: 'simulateResult', error: e.message });
+          }
+        } else if (data.type === 'selectRuleMockDir') {
+          const rootPath = this.getWorkspaceRoot();
+          const defaultUri = rootPath ? vscode.Uri.file(rootPath) : undefined;
+          const uri = await vscode.window.showOpenDialog({
+            canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri, openLabel: '选择此规则的数据存放目录'
+          });
+          if (uri && uri[0]) {
+            const selectedAbsPath = uri[0].fsPath;
+            let savePath = selectedAbsPath;
+            if (rootPath && selectedAbsPath.startsWith(rootPath)) {
+              savePath = path.relative(rootPath, selectedAbsPath);
+              if (savePath === '') savePath = '.';
+            }
+            savePath = savePath.replace(/\\/g, '/');
+            this.rulePanel?.webview.postMessage({ type: 'ruleDirSelected', path: savePath });
+          }
+        } else if (data.type === 'saveRule') {
+          const newRuleData = data.payload;
+          if (!newRuleData.id) newRuleData.id = nanoid();
+
+          const rootPath = this.getWorkspaceRoot();
+          let ruleDataPath = newRuleData.dataPath;
+
+          if (!ruleDataPath || ruleDataPath.trim() === '') return vscode.window.showErrorMessage('保存失败：Mock 数据存放路径不能为空！');
+          if (!ruleDataPath.endsWith('.json')) ruleDataPath = path.posix.join(ruleDataPath.replace(/\\/g, '/'), `${newRuleData.id}.json`);
+
+          let absPath = ruleDataPath;
+          if (!path.isAbsolute(ruleDataPath)) {
+            if (!rootPath) return vscode.window.showErrorMessage('未打开工作区，无法保存相对路径规则！');
+            absPath = path.join(rootPath, ruleDataPath);
+          }
+
+          const dir = path.dirname(absPath);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+          const contentToSave = newRuleData.template !== undefined ? newRuleData.template : (newRuleData.data || {});
+          const isTemplate = newRuleData.template !== undefined;
+          fs.writeFileSync(absPath, JSON.stringify(contentToSave, null, 2), 'utf8');
+
+          const ruleToSaveConfig = {
+            id: newRuleData.id, proxyId: newRuleData.proxyId, method: newRuleData.method, url: newRuleData.url,
+            contentType: newRuleData.contentType, target: newRuleData.target, enabled: newRuleData.enabled,
+            dataPath: ruleDataPath, isTemplate: isTemplate
+          };
+
+          const configService = ConfigurationService.getInstance();
+          await configService.loadConfig();
+          let pureMockList = Array.isArray(configService.config.mock) ? configService.config.mock : [];
+          const rIdx = pureMockList.findIndex((r: any) => r.id === newRuleData.id);
+
+          if (rIdx > -1) pureMockList[rIdx] = ruleToSaveConfig;
+          else pureMockList.push(ruleToSaveConfig);
+
+          await configService.updateConfig('mock', pureMockList);
+          this.rulePanel?.dispose();
+          this.refreshSidebar();
+        }
+      });
+    }
+
+    // 初始化数据注入
+    const configService = ConfigurationService.getInstance();
+    await configService.loadConfig();
+    const proxies = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
+    const mocks = Array.isArray(configService.config.mock) ? configService.config.mock : [];
+    const rule = mocks.find((r: any) => r.id === ruleId);
+
+    let fullRule = rule ? { ...rule } : null;
+    if (fullRule && fullRule.dataPath) {
+      const absPath = this.getMockDataPath(fullRule.dataPath);
+      if (absPath && fs.existsSync(absPath)) {
+        try {
+          const parsed = JSON.parse(fs.readFileSync(absPath, 'utf8'));
+          if (fullRule.isTemplate) fullRule.template = parsed;
+          else fullRule.data = parsed;
+        } catch (e) { }
+      }
+    }
+
+    const globalMockDir = configService.config.general?.mockDir || '';
+
+    this.rulePanel.webview.postMessage({
+      type: 'init', proxyId, rule: fullRule, globalMockDir, proxies, mocks
+    });
+  }
+
+  // ==========================================
+  // 🌟 侧边栏 HTML (极简)
+  // ==========================================
   public getHtmlForWebview(webview: vscode.Webview) {
     return `<!DOCTYPE html>
     <html lang="en">
@@ -342,13 +381,9 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
           --text-sub: var(--vscode-descriptionForeground);
           --error: var(--vscode-errorForeground);
           --success: #4caf50;
-          --input-bg: var(--vscode-input-background);
-          --input-fg: var(--vscode-input-foreground);
-          --input-border: var(--vscode-input-border);
         }
         body { font-family: var(--vscode-font-family); padding: 0; margin: 0; color: var(--text); background: var(--bg); display: flex; flex-direction: column; height: 100vh; font-size: 13px; }
         
-        /* 🌟 修改点：改变 header 的布局为垂直排列，上下分行 */
         .header { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--vscode-sideBar-background); display: flex; flex-direction: column; gap: 10px; }
         .header-top { display: flex; justify-content: space-between; align-items: center; }
         .header-title { font-weight: 600; font-size: 13px; display: flex; align-items: center; gap: 8px; }
@@ -411,36 +446,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         .footer { padding: 12px; border-top: 1px solid var(--border); background: var(--vscode-sideBar-background); }
         .btn-pri { background: var(--primary); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; font-size: 13px; }
         .btn-pri:hover { opacity: 0.9; }
-        .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text); padding: 6px 14px; border-radius: 4px; cursor: pointer; }
-        .btn-sec:hover { background: var(--bg-hover); }
-
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100; justify-content: center; align-items: center; }
-        .modal.active { display: flex; }
-        .modal-box { background: var(--bg); width: 680px; max-width: 95%; max-height: 95vh; border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .modal-header { padding: 15px 20px; border-bottom: 1px solid var(--border); font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
-        .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
-        .modal-footer { padding: 15px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 10px; background: var(--vscode-sideBar-background); border-radius: 0 0 8px 8px; }
-        
-        .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 15px; }
-        .form-row { display: flex; gap: 15px; }
-        .form-row .form-group { flex: 1; }
-        .form-label { font-size: 12px; font-weight: 600; color: var(--text); }
-        input, select, textarea { background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--input-border); padding: 8px; border-radius: 4px; outline: none; font-family: inherit; font-size: 13px; }
-        input:focus, select:focus, textarea:focus { border-color: var(--primary); }
-
-        .tabs { display: flex; margin-bottom: 0; border-bottom: 1px solid var(--border); }
-        .tab { padding: 8px 16px; cursor: pointer; font-size: 12px; border-bottom: 2px solid transparent; opacity: 0.6; display: flex; align-items: center; gap: 6px; }
-        .tab.active { opacity: 1; border-bottom-color: var(--primary); color: var(--primary); font-weight: bold; }
-        .tab-content { border: 1px solid var(--border); border-top: none; padding: 15px; background: var(--vscode-sideBar-background); border-radius: 0 0 4px 4px; }
-        .tab-pane { display: none; }
-        .tab-pane.active { display: block; }
-        
-        .mock-builder-container { background: rgba(0,0,0,0.15); padding: 10px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 12px; }
-        .mock-builder-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .mock-row-container { border-left: 2px solid var(--border); padding-left: 8px; margin-bottom: 10px; padding-bottom: 5px; border-bottom: 1px dashed rgba(150,150,150,0.2); }
-        
-        #previewArea { display: none; margin-top: 15px; }
-        #previewBox { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 4px; font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 150px; overflow: auto; border: 1px solid var(--border); }
       </style>
     </head>
     <body>
@@ -462,126 +467,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
 
       <div class="footer">
         <button onclick="openProxyModal()" class="btn-pri"><i class="fa-solid fa-plus"></i> 添加代理服务 (Proxy)</button>
-      </div>
-
-      <div id="proxyModal" class="modal">
-        <div class="modal-box" style="width: 400px;">
-          <div class="modal-header">
-            <span id="proxyModalTitle">配置代理服务</span>
-            <i class="fa-solid fa-xmark" onclick="closeModal('proxyModal')" style="cursor:pointer; opacity:0.6;"></i>
-          </div>
-          <div class="modal-body">
-            <input type="hidden" id="proxy_id">
-            <div class="form-group">
-               <label class="form-label">本地服务端口 (Port) <span style="color:var(--error)">*</span></label>
-               <input type="number" id="proxy_port" placeholder="e.g. 8080">
-            </div>
-            <div class="form-group">
-               <label class="form-label">全局代理目标 (Target) <span style="color:var(--error)">*</span></label>
-               <input type="text" id="proxy_target" placeholder="e.g. https://devcms.nfnews.com">
-               <div style="font-size:11px; opacity:0.6; margin-top:4px;">未命中 Mock 规则的请求将默认转发至此地址</div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button onclick="closeModal('proxyModal')" class="btn-sec">取消</button>
-            <button onclick="saveProxy()" class="btn-pri" style="width: auto;">保存</button>
-          </div>
-        </div>
-      </div>
-
-      <div id="ruleModal" class="modal">
-        <div class="modal-box">
-          <div class="modal-header">
-            <span id="ruleModalTitle">配置拦截规则</span>
-            <i class="fa-solid fa-xmark" onclick="closeModal('ruleModal')" style="cursor: pointer; opacity: 0.6;"></i>
-          </div>
-          <div class="modal-body">
-            <input type="hidden" id="rule_id">
-            <input type="hidden" id="rule_proxyId">
-            
-            <div class="form-row">
-              <div class="form-group" style="flex: 0 0 110px;">
-                <label class="form-label">Method <span style="color:var(--error)">*</span></label>
-                <select id="rule_method">
-                  <option value="GET">GET</option>
-                  <option value="POST">POST</option>
-                  <option value="PUT">PUT</option>
-                  <option value="DELETE">DELETE</option>
-                  <option value="PATCH">PATCH</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">API Path <span style="color:var(--error)">*</span></label>
-                <input type="text" id="rule_url" placeholder="e.g. /xy/app/theme/list">
-              </div>
-            </div>
-
-            <div class="form-row">
-               <div class="form-group" style="flex: 2">
-                 <label class="form-label">Content-Type</label>
-                 <select id="rule_contentType">
-                   <option value="application/json">application/json</option>
-                   <option value="text/plain">text/plain</option>
-                   <option value="text/html">text/html</option>
-                 </select>
-               </div>
-               <div class="form-group" style="flex: 3">
-                 <label class="form-label">独立 Target <span style="color:var(--error)">*</span></label>
-                 <input type="text" id="rule_target" list="targetOptions" placeholder="输入需转发的目标地址">
-                 <datalist id="targetOptions"></datalist>
-               </div>
-            </div>
-            
-            <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label">Mock数据存放路径 (基于根目录) <span style="color:var(--error)">*</span></label>
-                  <div style="display:flex; gap:8px;">
-                     <input type="text" id="rule_dataPath" placeholder="请选择或输入存放路径">
-                     <button onclick="selectRuleMockDir()" class="btn-sec" style="padding: 0 10px; white-space:nowrap;" title="浏览文件夹"><i class="fa-regular fa-folder-open"></i></button>
-                  </div>
-               </div>
-            </div>
-
-            <label class="form-label">Response Body (响应数据)</label>
-            <div class="tabs">
-              <div id="tab-mock" class="tab active" onclick="switchTab('mock')"><i class="fa-solid fa-wand-magic-sparkles"></i> Mock 模板构建</div>
-              <div id="tab-custom" class="tab" onclick="switchTab('custom')"><i class="fa-solid fa-code"></i> 静态 JSON</div>
-            </div>
-
-            <div class="tab-content">
-                <div id="pane-mock" class="tab-pane active">
-                    <div class="mock-builder-container">
-                        <div class="mock-builder-header">
-                            <span style="font-size:12px; font-weight:bold;"><i class="fa-solid fa-list-ul"></i> 快捷字段生成器</span>
-                            <div style="display:flex; gap: 8px;">
-                               <button onclick="applyMockFields()" class="btn-pri" style="padding: 2px 8px; font-size:11px; width:auto;" title="收集下方所有表单，一次性生成完整结构"><i class="fa-solid fa-bolt"></i> 生成全量 JSON</button>
-                               <button onclick="addMockRow()" class="btn-sec" style="padding: 2px 8px; font-size:11px;"><i class="fa-solid fa-plus"></i> 新增空行</button>
-                            </div>
-                        </div>
-                        <div id="mock-builder-rows" style="max-height: 200px; overflow-y: auto; padding-right: 5px;">
-                        </div>
-                    </div>
-                    <textarea id="mockTemplate" style="height: 120px;" placeholder='{ "code": 200, "data": {} }'></textarea>
-                </div>
-                <div id="pane-custom" class="tab-pane">
-                    <textarea id="customJson" style="height: 200px;" placeholder='[ { "id": 1, "name": "Item 1" } ]'></textarea>
-                </div>
-            </div>
-
-            <div id="previewArea">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                    <label class="form-label">Mock 预览结果</label>
-                    <button onclick="simulate()" class="btn-sec" style="font-size: 11px; padding: 2px 8px;"><i class="fa-solid fa-play"></i> 刷新</button>
-                </div>
-                <div id="previewBox"></div>
-            </div>
-
-          </div>
-          <div class="modal-footer">
-            <button onclick="closeModal('ruleModal')" class="btn-sec">取消</button>
-            <button onclick="saveRule()" class="btn-pri" style="width: auto;">保存规则</button>
-          </div>
-        </div>
       </div>
 
       <script>
@@ -608,8 +493,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                  dirDisplay.innerText = '未设置全局路径';
                  dirBtn.classList.add('empty');
              }
-
-             updateTargetDatalist(); 
              render();
            }
            if(msg.type === 'status') {
@@ -626,448 +509,36 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
              }
              render();
            }
-           if(msg.type === 'simulateResult') {
-             const box = document.getElementById('previewBox');
-             box.innerText = msg.error ? 'Error: ' + msg.error : JSON.stringify(msg.result, null, 2);
-             box.style.color = msg.error ? 'var(--error)' : 'var(--text)';
-           }
-           if(msg.type === 'closeRuleModal') {
-               closeModal('ruleModal');
-           }
-           if(msg.type === 'ruleDirSelected') {
-               let p = msg.path;
-               if (!p.endsWith('/')) p += '/';
-               const pathEl = document.getElementById('rule_dataPath');
-               if (pathEl) pathEl.value = p;
-           }
         });
         
         vscode.postMessage({ type: 'refresh' });
-
-        function updateTargetDatalist() {
-            const datalist = document.getElementById('targetOptions');
-            if(!datalist) return;
-            datalist.innerHTML = '';
-            const targetSet = new Set();
-            proxies.forEach(p => { if (p.target) targetSet.add(p.target) });
-            mocks.forEach(m => { if (m.target) targetSet.add(m.target) });
-
-            targetSet.forEach(t => {
-                const option = document.createElement('option');
-                option.value = t;
-                datalist.appendChild(option);
-            });
-        }
 
         document.getElementById('globalServerBtn').onclick = () => {
             vscode.postMessage({ type: 'toggleServer', value: !isGlobalRunning });
         };
 
-        window.selectGlobalMockDir = () => {
-            vscode.postMessage({ type: 'selectGlobalMockDir' });
-        };
+        window.selectGlobalMockDir = () => vscode.postMessage({ type: 'selectGlobalMockDir' });
         
-        window.selectRuleMockDir = () => {
-            vscode.postMessage({ type: 'selectRuleMockDir' });
-        };
-
         window.showCopyIcon = (el) => {
             const icon = el.querySelector('.copy-icon');
             if(!icon) return;
-            
             icon.style.opacity = '1';
             icon.style.pointerEvents = 'auto';
-            
             if (el.copyTimer) clearTimeout(el.copyTimer);
-            
             el.copyTimer = setTimeout(() => {
                 icon.style.opacity = '0';
                 icon.style.pointerEvents = 'none';
             }, 3000);
         };
 
-        window.copyTargetUrl = (url) => {
-            vscode.postMessage({ type: 'copyText', payload: url });
-        };
+        window.copyTargetUrl = (url) => vscode.postMessage({ type: 'copyText', payload: url });
 
-        window.handleTypeChange = (select) => {
-            const container = select.closest('.mock-row-container');
-            const val = select.value;
-            const isArray = val === 'ARRAY';
-            const isObject = val === 'OBJECT';
-            const hasChildren = isArray || isObject;
-            
-            container.querySelector('.mb-count').style.display = isArray ? 'inline-block' : 'none';
-            container.querySelector('.mb-add-child').style.display = hasChildren ? 'inline-block' : 'none';
-            
-            const childrenDiv = container.querySelector('.mock-builder-children');
-            childrenDiv.style.display = hasChildren ? 'block' : 'none';
-            
-            if (hasChildren && childrenDiv.children.length === 0) {
-                addChildRowToContainer(childrenDiv);
-            }
-        };
-
-        window.addMockRow = (initField = '', initType = '@cname', initCount = 5, children = null) => {
-            const container = document.getElementById('mock-builder-rows');
-            const rowWrapper = document.createElement('div');
-            rowWrapper.className = 'mock-row-container';
-            
-            const isArray = initType === 'ARRAY';
-            const isObject = initType === 'OBJECT';
-            const hasChildren = isArray || isObject;
-            
-            const extraOpt = !['@cname', '@title', '@integer(1, 100)', '@boolean', '@date', "@image('200x100')", 'ARRAY', 'OBJECT'].includes(initType);
-
-            rowWrapper.innerHTML = \`
-                <div class="mock-builder-row" style="display: flex; gap: 8px; align-items: center;">
-                    <input type="text" class="mb-field" placeholder="字段名(如 data)" value="\${initField}" style="width:110px; padding: 4px 6px; font-size: 12px;">
-                    <select class="mb-type" style="width:140px; padding: 4px 6px; font-size: 12px;" onchange="handleTypeChange(this)">
-                        <option value="@cname" \${initType === '@cname' ? 'selected' : ''}>中文名 (@cname)</option>
-                        <option value="@title" \${initType === '@title' ? 'selected' : ''}>标题 (@title)</option>
-                        <option value="@integer(1, 100)" \${initType === '@integer(1, 100)' ? 'selected' : ''}>数字 (@integer)</option>
-                        <option value="@boolean" \${initType === '@boolean' ? 'selected' : ''}>布尔值 (@boolean)</option>
-                        <option value="@date" \${initType === '@date' ? 'selected' : ''}>日期 (@date)</option>
-                        <option value="@image('200x100')" \${initType === "@image('200x100')" ? 'selected' : ''}>图片 (@image)</option>
-                        <option value="ARRAY" \${isArray ? 'selected' : ''}>【生成数组列表】</option>
-                        <option value="OBJECT" \${isObject ? 'selected' : ''}>【生成嵌套对象】</option>
-                        \${extraOpt ? \`<option value='\${initType}' selected hidden>\${initType}</option>\` : ''}
-                    </select>
-                    <input type="number" class="mb-count" placeholder="条数" style="width:60px; display:\${isArray ? 'inline-block' : 'none'}; padding: 4px 6px; font-size: 12px;" min="1" value="\${initCount}">
-                    
-                    <button class="mb-add-child btn-sec" style="display:\${hasChildren ? 'inline-block' : 'none'}; padding: 3px 6px; font-size:11px;" onclick="addChildRow(this)">添加单项字段</button>
-                    
-                    <button onclick="insertSingleField(this)" class="btn-sec" style="padding: 3px 8px; font-size:11px; white-space:nowrap; border-color:var(--primary); color:var(--primary);" title="只把这一行的数据独立写入">写入 JSON</button>
-                    <i class="fa-solid fa-trash" style="cursor:pointer; opacity:0.6; font-size:14px; margin-left: 5px; color: var(--error);" onclick="this.closest('.mock-row-container').remove()" title="删除此行"></i>
-                </div>
-                <div class="mock-builder-children" style="margin-left: 15px; display: \${hasChildren ? 'block' : 'none'}; padding-top: 6px;"></div>
-            \`;
-            
-            container.appendChild(rowWrapper);
-
-            if (children && children.length > 0) {
-                const childContainer = rowWrapper.querySelector('.mock-builder-children');
-                children.forEach(c => addChildRowToContainer(childContainer, c.field, c.type));
-            }
-        };
-
-        window.addChildRowToContainer = (container, field = '', type = '@cname') => {
-            const row = document.createElement('div');
-            row.className = 'mock-builder-row child-row';
-            row.style.cssText = 'display: flex; gap: 8px; margin-bottom: 6px; align-items: center;';
-            const extraOpt = !['@id', '@cname', '@title', '@integer(1, 100)', '@boolean', '@date', "@image('200x100')"].includes(type);
-
-            row.innerHTML = \`
-                <i class="fa-solid fa-turn-up" style="transform: rotate(90deg); opacity:0.4; font-size:10px;"></i>
-                <input type="text" class="mb-child-field" placeholder="子字段名(如 id)" value="\${field}" style="width:100px; padding: 4px 6px; font-size: 12px;">
-                <select class="mb-child-type" style="width:120px; padding: 4px 6px; font-size: 12px;">
-                    <option value="@id" \${type === '@id' ? 'selected' : ''}>自增ID (@id)</option>
-                    <option value="@cname" \${type === '@cname' ? 'selected' : ''}>中文名 (@cname)</option>
-                    <option value="@title" \${type === '@title' ? 'selected' : ''}>标题 (@title)</option>
-                    <option value="@integer(1, 100)" \${type === '@integer(1, 100)' ? 'selected' : ''}>数字 (@integer)</option>
-                    <option value="@boolean" \${type === '@boolean' ? 'selected' : ''}>布尔值 (@boolean)</option>
-                    <option value="@date" \${type === '@date' ? 'selected' : ''}>日期 (@date)</option>
-                    <option value="@image('200x100')" \${type === "@image('200x100')" ? 'selected' : ''}>图片 (@image)</option>
-                    \${extraOpt ? \`<option value='\${type}' selected hidden>\${type}</option>\` : ''}
-                </select>
-                <i class="fa-solid fa-xmark" style="cursor:pointer; opacity:0.6; font-size:14px; margin-left: 5px; color: var(--error);" onclick="this.parentElement.remove()" title="删除子字段"></i>
-            \`;
-            container.appendChild(row);
-        };
-
-        window.addChildRow = (btn) => {
-            const container = btn.closest('.mock-row-container').querySelector('.mock-builder-children');
-            addChildRowToContainer(container);
-        };
-
-        window.parseJsonToRows = (jsonStr) => {
-            const container = document.getElementById('mock-builder-rows');
-            container.innerHTML = ''; 
-            
-            try {
-                const jsonObj = JSON.parse(jsonStr);
-                const dataObj = jsonObj.data;
-                
-                if (dataObj && typeof dataObj === 'object') {
-                    let hasFields = false;
-                    Object.keys(dataObj).forEach(key => {
-                        hasFields = true;
-                        const value = dataObj[key];
-                        const arrMatch = key.match(/^(.+)\\|(\\d+)$/); 
-                        
-                        if (arrMatch && Array.isArray(value) && value.length > 0) {
-                            const fieldName = arrMatch[1];
-                            const count = arrMatch[2];
-                            const itemObj = value[0];
-                            
-                            let childrenList = [];
-                            if (itemObj && typeof itemObj === 'object') {
-                                Object.keys(itemObj).forEach(cKey => {
-                                    let cFieldName = cKey;
-                                    let cType = itemObj[cKey];
-                                    if (cKey.endsWith('|+1')) {
-                                        cFieldName = cKey.replace('|+1', '');
-                                        cType = '@id';
-                                    }
-                                    childrenList.push({ field: cFieldName, type: cType });
-                                });
-                            }
-                            addMockRow(fieldName, 'ARRAY', parseInt(count), childrenList);
-                        } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-                            let childrenList = [];
-                            Object.keys(value).forEach(cKey => {
-                                let cFieldName = cKey;
-                                let cType = value[cKey];
-                                if (cKey.endsWith('|+1')) {
-                                    cFieldName = cKey.replace('|+1', '');
-                                    cType = '@id';
-                                }
-                                childrenList.push({ field: cFieldName, type: cType });
-                            });
-                            addMockRow(key, 'OBJECT', 5, childrenList);
-                        } else {
-                            let typeStr = typeof value === 'string' ? value : JSON.stringify(value);
-                            addMockRow(key, typeStr);
-                        }
-                    });
-                    
-                    if (!hasFields) addMockRow();
-                } else {
-                    addMockRow();
-                }
-            } catch(e) {
-                addMockRow();
-            }
-        };
-
-        function getContainerValue(container) {
-            const type = container.querySelector('.mb-type').value;
-            
-            if (type === 'ARRAY' || type === 'OBJECT') {
-                let itemTemplate = {};
-                const childRows = container.querySelectorAll('.child-row');
-                if (childRows.length > 0) {
-                    childRows.forEach(cr => {
-                        const cField = cr.querySelector('.mb-child-field').value.trim();
-                        const cType = cr.querySelector('.mb-child-type').value;
-                        if (cField) {
-                            if (cType === '@id') {
-                                itemTemplate[cField + '|+1'] = 1; 
-                            } else {
-                                itemTemplate[cField] = cType;
-                            }
-                        }
-                    });
-                } else {
-                    itemTemplate = { "id|+1": 1, "name": "@cname" }; 
-                }
-                
-                if (type === 'ARRAY') {
-                    const countInput = container.querySelector('.mb-count');
-                    const count = countInput && countInput.value ? countInput.value : 5;
-                    return { isComplex: true, isArray: true, count, value: [itemTemplate] };
-                } else {
-                    return { isComplex: true, isArray: false, value: itemTemplate };
-                }
-            } else {
-                return { isComplex: false, value: type };
-            }
-        }
-
-        window.insertSingleField = (btn) => {
-            const container = btn.closest('.mock-row-container');
-            const field = container.querySelector('.mb-field').value.trim();
-            
-            if (!field) return vscode.postMessage({ type: 'error', message: '请填写主字段名！' });
-
-            const tplArea = document.getElementById('mockTemplate');
-            let currentJson;
-            try { currentJson = JSON.parse(tplArea.value || '{}'); } 
-            catch(e) { return vscode.postMessage({ type: 'error', message: 'JSON框解析失败' }); }
-
-            if (!currentJson.data) currentJson.data = {};
-
-            const data = getContainerValue(container);
-            if (data.isComplex && data.isArray) {
-                currentJson.data[\`\${field}|\${data.count}\`] = data.value;
-            } else {
-                currentJson.data[field] = data.value;
-            }
-
-            tplArea.value = JSON.stringify(currentJson, null, 2);
-            simulate();
-            
-            const originalText = btn.innerText;
-            btn.innerText = '成功';
-            setTimeout(() => { btn.innerText = originalText; }, 1000);
-        };
-
-        window.applyMockFields = () => {
-            const tplArea = document.getElementById('mockTemplate');
-            let currentJson;
-            try { currentJson = JSON.parse(tplArea.value || '{}'); } 
-            catch(e) { return vscode.postMessage({ type: 'error', message: 'JSON 解析异常！' }); }
-
-            currentJson.data = {};
-            const containers = document.querySelectorAll('.mock-row-container');
-            let hasAdded = false;
-
-            containers.forEach(container => {
-                const field = container.querySelector('.mb-field').value.trim();
-                if (!field) return; 
-                hasAdded = true;
-
-                const data = getContainerValue(container);
-                if (data.isComplex && data.isArray) {
-                    currentJson.data[\`\${field}|\${data.count}\`] = data.value;
-                } else {
-                    currentJson.data[field] = data.value;
-                }
-            });
-
-            if (!hasAdded) return vscode.postMessage({ type: 'error', message: '请至少填写一个字段名后再生成！' });
-
-            tplArea.value = JSON.stringify(currentJson, null, 2);
-            simulate();
-        };
-
-        window.switchTab = (mode) => {
-            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
-            document.getElementById('tab-' + mode).classList.add('active');
-            document.getElementById('pane-' + mode).classList.add('active');
-            const previewArea = document.getElementById('previewArea');
-            if (mode === 'mock') {
-                previewArea.style.display = 'block';
-            } else {
-                previewArea.style.display = 'none';
-            }
-        };
-
-        window.closeModal = (id) => document.getElementById(id).classList.remove('active');
-
-        window.openProxyModal = (id) => {
-           if (typeof id === 'string' && id.trim() !== '') {
-               const p = proxies.find(x => x.id === id);
-               if(p) {
-                 document.getElementById('proxyModalTitle').innerText = '编辑代理服务';
-                 document.getElementById('proxy_id').value = p.id;
-                 document.getElementById('proxy_port').value = p.port;
-                 document.getElementById('proxy_target').value = p.target;
-               }
-           } else {
-               document.getElementById('proxyModalTitle').innerText = '新增代理服务';
-               document.getElementById('proxy_id').value = '';
-               document.getElementById('proxy_port').value = '';
-               document.getElementById('proxy_target').value = '';
-           }
-           document.getElementById('proxyModal').classList.add('active');
-        };
-
-        window.saveProxy = () => {
-            const id = document.getElementById('proxy_id').value;
-            const port = parseInt(document.getElementById('proxy_port').value);
-            const target = document.getElementById('proxy_target').value;
-            if(!port || !target) return vscode.postMessage({ type: 'error', message: '端口和目标地址为必填项！' });
-            vscode.postMessage({ type: 'saveProxy', payload: { id, port, target, enabled: true } });
-            closeModal('proxyModal');
-        };
-
+        // 🌟 将唤起面板的指令发给后端
+        window.openProxyModal = (id) => vscode.postMessage({ type: 'openProxyPanel', id });
+        window.openRuleModal = (proxyId, ruleId) => vscode.postMessage({ type: 'openRulePanel', proxyId, ruleId });
+        
         window.toggleProxy = (id, enabled) => vscode.postMessage({ type: 'toggleProxy', id, enabled });
         window.delProxy = (id) => vscode.postMessage({ type: 'deleteProxy', id });
-
-        window.openRuleModal = (proxyId, ruleId) => {
-           let rule = null;
-           if (typeof ruleId === 'string' && ruleId.trim() !== '') {
-               rule = mocks.find(r => r.id === ruleId);
-           }
-           
-           const safelySetValue = (id, value) => {
-               const el = document.getElementById(id);
-               if (el) el.value = value;
-           };
-
-           document.getElementById('ruleModalTitle').innerText = rule ? '编辑拦截规则' : '新增拦截规则';
-           safelySetValue('rule_proxyId', proxyId);
-           safelySetValue('rule_id', rule ? rule.id : '');
-           safelySetValue('rule_method', rule ? rule.method : 'GET');
-           safelySetValue('rule_url', rule ? rule.url : '');
-           safelySetValue('rule_contentType', rule?.contentType || 'application/json');
-           safelySetValue('rule_target', rule?.target || '');
-           
-           let pPath = rule?.dataPath || '';
-           if(!pPath) {
-               pPath = globalMockDir.endsWith('/') ? globalMockDir : globalMockDir + '/';
-           }
-           safelySetValue('rule_dataPath', pPath);
-
-           if (rule && !rule.isTemplate && rule.data) {
-               const valStr = typeof rule.data === 'string' ? rule.data : JSON.stringify(rule.data, null, 2);
-               safelySetValue('customJson', valStr);
-               safelySetValue('mockTemplate', '{ "code": 200, "data": {} }'); 
-               switchTab('custom');
-               
-               document.getElementById('mock-builder-rows').innerHTML = '';
-               addMockRow();
-           } else {
-               const tpl = rule?.template || { "code": 200, "data": {} };
-               const valStr = typeof tpl === 'string' ? tpl : JSON.stringify(tpl, null, 2);
-               safelySetValue('mockTemplate', valStr);
-               safelySetValue('customJson', '[]');
-               switchTab('mock');
-               
-               parseJsonToRows(valStr);
-               
-               simulate(); 
-           }
-
-           document.getElementById('ruleModal').classList.add('active');
-        };
-
-        window.saveRule = () => {
-           const proxyId = document.getElementById('rule_proxyId').value;
-           const id = document.getElementById('rule_id').value;
-           const method = document.getElementById('rule_method').value;
-           const url = document.getElementById('rule_url').value;
-           const contentType = document.getElementById('rule_contentType').value;
-           const target = document.getElementById('rule_target').value;
-           const dataPath = document.getElementById('rule_dataPath').value;
-           
-           if(!url) return vscode.postMessage({ type: 'error', message: 'API Path 不能为空' });
-           
-           if (!target || target.trim() === '') {
-               return vscode.postMessage({ type: 'error', message: '独立 Target 不能为空！' });
-           }
-
-           const isMockMode = document.getElementById('tab-mock').classList.contains('active');
-           let template = undefined;
-           let staticData = undefined;
-
-           try {
-               if (isMockMode) {
-                   const raw = document.getElementById('mockTemplate').value;
-                   template = raw ? JSON.parse(raw) : {};
-               } else {
-                   const raw = document.getElementById('customJson').value;
-                   staticData = raw ? JSON.parse(raw) : {};
-               }
-
-               const payload = {
-                   id: id || null, proxyId, method, url, contentType, target, enabled: true,
-                   template: template, data: staticData, dataPath: dataPath || undefined
-               };
-
-               vscode.postMessage({ type: 'saveRule', payload });
-           } catch(e) {
-               vscode.postMessage({ type: 'error', message: 'JSON 格式错误: ' + e.message });
-           }
-        };
-
-        window.simulate = () => {
-           const raw = document.getElementById('mockTemplate').value;
-           vscode.postMessage({ type: 'simulate', template: raw });
-        };
-
         window.toggleRule = (ruleId, val) => vscode.postMessage({ type: 'toggleRule', ruleId, enabled: val });
         window.delRule = (ruleId) => vscode.postMessage({ type: 'deleteRule', ruleId });
 
@@ -1159,6 +630,508 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             rulesContainer.appendChild(addBtn);
           });
         }
+      </script>
+    </body>
+    </html>`;
+  }
+
+  // ==========================================
+  // 🌟 代理面板 HTML
+  // ==========================================
+  private getProxyPanelHtml() {
+    return `<!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            :root {
+                --primary: var(--vscode-button-background);
+                --primary-hover: var(--vscode-button-hoverBackground);
+                --bg: var(--vscode-editor-background);
+                --text: var(--vscode-editor-foreground);
+                --border: var(--vscode-panel-border);
+                --input-bg: var(--vscode-input-background);
+                --input-fg: var(--vscode-input-foreground);
+                --input-border: var(--vscode-input-border);
+                --error: var(--vscode-errorForeground);
+            }
+            body { font-family: var(--vscode-font-family); background: var(--vscode-editor-background); color: var(--text); padding: 40px; }
+            .panel-container { max-width: 600px; margin: 0 auto; background: var(--vscode-sideBar-background); padding: 30px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
+            h2 { margin-top: 0; border-bottom: 1px solid var(--border); padding-bottom: 15px; margin-bottom: 25px; }
+            .form-group { margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px; }
+            label { font-weight: 600; font-size: 13px; }
+            input { padding: 10px; background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--input-border); border-radius: 4px; outline: none; font-size: 14px; width: 100%; box-sizing: border-box; }
+            input:focus { border-color: var(--vscode-focusBorder); }
+            .footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border); }
+            button { padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; border: none; }
+            .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text); }
+            .btn-sec:hover { background: var(--vscode-list-hoverBackground); }
+            .btn-pri { background: var(--primary); color: var(--vscode-button-foreground); }
+            .btn-pri:hover { background: var(--primary-hover); }
+        </style>
+    </head>
+    <body>
+        <div class="panel-container">
+            <h2 id="panelTitle">新增代理服务</h2>
+            <input type="hidden" id="proxy_id">
+            <div class="form-group">
+               <label>本地服务端口 (Port) <span style="color:var(--error)">*</span></label>
+               <input type="number" id="proxy_port" placeholder="e.g. 8080">
+            </div>
+            <div class="form-group">
+               <label>全局代理目标 (Target) <span style="color:var(--error)">*</span></label>
+               <input type="text" id="proxy_target" placeholder="e.g. https://devcms.nfnews.com">
+               <div style="font-size:12px; opacity:0.6; margin-top:4px;">未命中 Mock 规则的请求将默认转发至此地址</div>
+            </div>
+            <div class="footer">
+                <button class="btn-sec" onclick="cancel()">取消</button>
+                <button class="btn-pri" onclick="save()">保存配置</button>
+            </div>
+        </div>
+        <script>
+            const vscode = acquireVsCodeApi();
+            window.addEventListener('message', e => {
+                if (e.data.type === 'init' && e.data.proxy) {
+                    const p = e.data.proxy;
+                    document.getElementById('proxy_id').value = p.id || '';
+                    document.getElementById('proxy_port').value = p.port || '';
+                    document.getElementById('proxy_target').value = p.target || '';
+                    document.getElementById('panelTitle').innerText = '编辑代理服务';
+                }
+            });
+            function save() {
+                const id = document.getElementById('proxy_id').value;
+                const port = parseInt(document.getElementById('proxy_port').value);
+                const target = document.getElementById('proxy_target').value;
+                if(!port || !target) return vscode.postMessage({ type: 'error', message: '端口和目标地址为必填项！' });
+                vscode.postMessage({ type: 'saveProxy', payload: { id, port, target } });
+            }
+            function cancel() { vscode.postMessage({ type: 'cancel' }); }
+        </script>
+    </body>
+    </html>`;
+  }
+
+  // ==========================================
+  // 🌟 规则面板 HTML (强大的 Mock 生成器)
+  // ==========================================
+  private getRulePanelHtml() {
+    return `<!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+      <style>
+        :root {
+          --primary: var(--vscode-button-background);
+          --primary-hover: var(--vscode-button-hoverBackground);
+          --bg: var(--vscode-editor-background);
+          --text: var(--vscode-editor-foreground);
+          --border: var(--vscode-panel-border);
+          --input-bg: var(--vscode-input-background);
+          --input-fg: var(--vscode-input-foreground);
+          --input-border: var(--vscode-input-border);
+          --error: var(--vscode-errorForeground);
+          --success: #4caf50;
+        }
+        body { font-family: var(--vscode-font-family); background: var(--vscode-editor-background); color: var(--text); padding: 20px; }
+        .panel-container { max-width: 900px; margin: 0 auto; background: var(--vscode-sideBar-background); padding: 30px; border-radius: 8px; border: 1px solid var(--border); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        h2 { margin-top: 0; border-bottom: 1px solid var(--border); padding-bottom: 15px; margin-bottom: 20px; }
+        
+        .form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+        .form-row { display: flex; gap: 20px; }
+        .form-row .form-group { flex: 1; }
+        label { font-weight: 600; font-size: 13px; }
+        input, select, textarea { padding: 10px; background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--input-border); border-radius: 4px; outline: none; font-size: 13px; width: 100%; box-sizing: border-box; }
+        input:focus, select:focus, textarea:focus { border-color: var(--vscode-focusBorder); }
+        
+        .tabs { display: flex; border-bottom: 1px solid var(--border); margin-top: 10px; }
+        .tab { padding: 10px 20px; cursor: pointer; font-size: 13px; border-bottom: 2px solid transparent; opacity: 0.6; display: flex; align-items: center; gap: 8px; }
+        .tab.active { opacity: 1; border-bottom-color: var(--primary); color: var(--vscode-textLink-activeForeground); font-weight: bold; }
+        .tab-content { border: 1px solid var(--border); border-top: none; padding: 20px; background: rgba(0,0,0,0.1); border-radius: 0 0 6px 6px; }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+        
+        .mock-builder-container { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 15px; }
+        .mock-builder-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .mock-row-container { border-left: 2px solid var(--border); padding-left: 12px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px dashed rgba(150,150,150,0.2); }
+        
+        #previewArea { margin-top: 20px; }
+        #previewBox { background: rgba(0,0,0,0.3); padding: 15px; border-radius: 6px; font-family: monospace; font-size: 13px; white-space: pre-wrap; max-height: 250px; overflow: auto; border: 1px solid var(--border); }
+        
+        .footer { display: flex; justify-content: flex-end; gap: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--border); }
+        button { padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; border: none; }
+        .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text); }
+        .btn-sec:hover { background: var(--vscode-list-hoverBackground); }
+        .btn-pri { background: var(--primary); color: var(--vscode-button-foreground); }
+        .btn-pri:hover { background: var(--primary-hover); }
+      </style>
+    </head>
+    <body>
+      <div class="panel-container">
+        <h2 id="panelTitle">配置拦截规则</h2>
+        <input type="hidden" id="rule_id">
+        <input type="hidden" id="rule_proxyId">
+        
+        <div class="form-row">
+            <div class="form-group" style="flex: 0 0 120px;">
+                <label>Method <span style="color:var(--error)">*</span></label>
+                <select id="rule_method">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                    <option value="PATCH">PATCH</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>API Path <span style="color:var(--error)">*</span></label>
+                <input type="text" id="rule_url" placeholder="e.g. /xy/app/theme/list">
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group" style="flex: 2">
+                <label>Content-Type</label>
+                <select id="rule_contentType">
+                    <option value="application/json">application/json</option>
+                    <option value="text/plain">text/plain</option>
+                    <option value="text/html">text/html</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex: 3">
+                <label>独立 Target <span style="color:var(--error)">*</span></label>
+                <input type="text" id="rule_target" list="targetOptions" placeholder="输入需转发的目标地址">
+                <datalist id="targetOptions"></datalist>
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label>Mock 数据存放路径 (基于根目录) <span style="color:var(--error)">*</span></label>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="rule_dataPath" placeholder="请选择或输入存放路径">
+                    <button onclick="selectRuleMockDir()" class="btn-sec" style="white-space:nowrap;"><i class="fa-regular fa-folder-open"></i> 浏览</button>
+                </div>
+            </div>
+        </div>
+
+        <label style="margin-top:10px; display:block;">Response Body (响应数据)</label>
+        <div class="tabs">
+            <div id="tab-mock" class="tab active" onclick="switchTab('mock')"><i class="fa-solid fa-wand-magic-sparkles"></i> Mock 模板构建</div>
+            <div id="tab-custom" class="tab" onclick="switchTab('custom')"><i class="fa-solid fa-code"></i> 静态 JSON</div>
+        </div>
+
+        <div class="tab-content">
+            <div id="pane-mock" class="tab-pane active">
+                <div class="mock-builder-container">
+                    <div class="mock-builder-header">
+                        <span style="font-weight:bold;"><i class="fa-solid fa-list-ul"></i> 快捷字段生成器</span>
+                        <div style="display:flex; gap: 8px;">
+                            <button onclick="applyMockFields()" class="btn-pri" style="padding: 4px 10px;"><i class="fa-solid fa-bolt"></i> 生成全量 JSON</button>
+                            <button onclick="addMockRow()" class="btn-sec" style="padding: 4px 10px;"><i class="fa-solid fa-plus"></i> 新增空行</button>
+                        </div>
+                    </div>
+                    <div id="mock-builder-rows" style="max-height: 300px; overflow-y: auto; padding-right: 5px;"></div>
+                </div>
+                <textarea id="mockTemplate" style="height: 150px;" placeholder='{ "code": 200, "data": {} }'></textarea>
+            </div>
+            <div id="pane-custom" class="tab-pane">
+                <textarea id="customJson" style="height: 250px;" placeholder='[ { "id": 1, "name": "Item 1" } ]'></textarea>
+            </div>
+        </div>
+
+        <div id="previewArea">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <label>Mock 预览结果</label>
+                <button onclick="simulate()" class="btn-sec" style="padding: 4px 10px;"><i class="fa-solid fa-play"></i> 刷新</button>
+            </div>
+            <div id="previewBox"></div>
+        </div>
+
+        <div class="footer">
+            <button class="btn-sec" onclick="cancel()">取消</button>
+            <button class="btn-pri" onclick="save()">保存拦截规则</button>
+        </div>
+      </div>
+
+      <script>
+        const vscode = acquireVsCodeApi();
+        let currentProxyId = '';
+
+        window.addEventListener('message', e => {
+            const msg = e.data;
+            if (msg.type === 'init') {
+                currentProxyId = msg.proxyId;
+                const rule = msg.rule;
+                
+                document.getElementById('rule_id').value = rule ? rule.id : '';
+                document.getElementById('rule_method').value = rule ? rule.method : 'GET';
+                document.getElementById('rule_url').value = rule ? rule.url : '';
+                document.getElementById('rule_contentType').value = rule?.contentType || 'application/json';
+                document.getElementById('rule_target').value = rule?.target || '';
+                
+                let pPath = rule?.dataPath || '';
+                if(!pPath && msg.globalMockDir) {
+                   pPath = msg.globalMockDir.endsWith('/') ? msg.globalMockDir : msg.globalMockDir + '/';
+                }
+                document.getElementById('rule_dataPath').value = pPath;
+                document.getElementById('panelTitle').innerText = rule ? '编辑拦截规则' : '新增拦截规则';
+
+                // Populate datalist
+                const datalist = document.getElementById('targetOptions');
+                datalist.innerHTML = '';
+                const targetSet = new Set();
+                (msg.proxies || []).forEach(p => { if (p.target) targetSet.add(p.target) });
+                (msg.mocks || []).forEach(m => { if (m.target) targetSet.add(m.target) });
+                targetSet.forEach(t => { const opt = document.createElement('option'); opt.value = t; datalist.appendChild(opt); });
+
+                if (rule && !rule.isTemplate && rule.data) {
+                    const valStr = typeof rule.data === 'string' ? rule.data : JSON.stringify(rule.data, null, 2);
+                    document.getElementById('customJson').value = valStr;
+                    document.getElementById('mockTemplate').value = '{ "code": 200, "data": {} }'; 
+                    switchTab('custom');
+                    document.getElementById('mock-builder-rows').innerHTML = '';
+                    addMockRow();
+                } else {
+                    const tpl = rule?.template || { "code": 200, "data": {} };
+                    const valStr = typeof tpl === 'string' ? tpl : JSON.stringify(tpl, null, 2);
+                    document.getElementById('mockTemplate').value = valStr;
+                    document.getElementById('customJson').value = '[]';
+                    switchTab('mock');
+                    parseJsonToRows(valStr);
+                    simulate(); 
+                }
+            } else if (msg.type === 'ruleDirSelected') {
+                let p = msg.path;
+                if (!p.endsWith('/')) p += '/';
+                document.getElementById('rule_dataPath').value = p;
+            } else if (msg.type === 'simulateResult') {
+                const box = document.getElementById('previewBox');
+                box.innerText = msg.error ? 'Error: ' + msg.error : JSON.stringify(msg.result, null, 2);
+                box.style.color = msg.error ? 'var(--error)' : 'var(--text)';
+            }
+        });
+
+        window.selectRuleMockDir = () => vscode.postMessage({ type: 'selectRuleMockDir' });
+        window.cancel = () => vscode.postMessage({ type: 'cancel' });
+
+        window.save = () => {
+           const id = document.getElementById('rule_id').value;
+           const method = document.getElementById('rule_method').value;
+           const url = document.getElementById('rule_url').value;
+           const contentType = document.getElementById('rule_contentType').value;
+           const target = document.getElementById('rule_target').value;
+           const dataPath = document.getElementById('rule_dataPath').value;
+           
+           if(!url || url.trim() === '') return vscode.postMessage({ type: 'error', message: '保存失败：API Path 不能为空！' });
+           if (!target || target.trim() === '') return vscode.postMessage({ type: 'error', message: '保存失败：独立 Target 不能为空！' });
+           if (!dataPath || dataPath.trim() === '') return vscode.postMessage({ type: 'error', message: '保存失败：Mock数据存放路径 不能为空！' });
+
+           const isMockMode = document.getElementById('tab-mock').classList.contains('active');
+           let template = undefined;
+           let staticData = undefined;
+
+           try {
+               if (isMockMode) {
+                   const raw = document.getElementById('mockTemplate').value;
+                   template = raw ? JSON.parse(raw) : {};
+               } else {
+                   const raw = document.getElementById('customJson').value;
+                   staticData = raw ? JSON.parse(raw) : {};
+               }
+
+               const payload = {
+                   id: id || null, proxyId: currentProxyId, method, url, contentType, target, enabled: true,
+                   template: template, data: staticData, dataPath: dataPath
+               };
+               vscode.postMessage({ type: 'saveRule', payload });
+           } catch(e) {
+               vscode.postMessage({ type: 'error', message: 'JSON 格式错误: ' + e.message });
+           }
+        };
+
+        window.simulate = () => {
+           const raw = document.getElementById('mockTemplate').value;
+           vscode.postMessage({ type: 'simulate', template: raw });
+        };
+
+        window.switchTab = (mode) => {
+            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+            document.getElementById('tab-' + mode).classList.add('active');
+            document.getElementById('pane-' + mode).classList.add('active');
+            document.getElementById('previewArea').style.display = mode === 'mock' ? 'block' : 'none';
+        };
+
+        window.handleTypeChange = (select) => {
+            const container = select.closest('.mock-row-container');
+            const val = select.value;
+            const hasChildren = val === 'ARRAY' || val === 'OBJECT';
+            container.querySelector('.mb-count').style.display = val === 'ARRAY' ? 'inline-block' : 'none';
+            container.querySelector('.mb-add-child').style.display = hasChildren ? 'inline-block' : 'none';
+            const childrenDiv = container.querySelector('.mock-builder-children');
+            childrenDiv.style.display = hasChildren ? 'block' : 'none';
+            if (hasChildren && childrenDiv.children.length === 0) addChildRowToContainer(childrenDiv);
+        };
+
+        window.addMockRow = (initField = '', initType = '@cname', initCount = 5, children = null) => {
+            const container = document.getElementById('mock-builder-rows');
+            const rowWrapper = document.createElement('div');
+            rowWrapper.className = 'mock-row-container';
+            const isArray = initType === 'ARRAY';
+            const isObject = initType === 'OBJECT';
+            const hasChildren = isArray || isObject;
+            const extraOpt = !['@cname', '@title', '@integer(1, 100)', '@boolean', '@date', "@image('200x100')", 'ARRAY', 'OBJECT'].includes(initType);
+
+            rowWrapper.innerHTML = \`
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" class="mb-field" placeholder="字段名(如 data)" value="\${initField}" style="width:120px;">
+                    <select class="mb-type" style="width:150px;" onchange="handleTypeChange(this)">
+                        <option value="@cname" \${initType === '@cname' ? 'selected' : ''}>中文名 (@cname)</option>
+                        <option value="@title" \${initType === '@title' ? 'selected' : ''}>标题 (@title)</option>
+                        <option value="@integer(1, 100)" \${initType === '@integer(1, 100)' ? 'selected' : ''}>数字 (@integer)</option>
+                        <option value="@boolean" \${initType === '@boolean' ? 'selected' : ''}>布尔值 (@boolean)</option>
+                        <option value="@date" \${initType === '@date' ? 'selected' : ''}>日期 (@date)</option>
+                        <option value="@image('200x100')" \${initType === "@image('200x100')" ? 'selected' : ''}>图片 (@image)</option>
+                        <option value="ARRAY" \${isArray ? 'selected' : ''}>【生成数组列表】</option>
+                        <option value="OBJECT" \${isObject ? 'selected' : ''}>【生成嵌套对象】</option>
+                        \${extraOpt ? \`<option value='\${initType}' selected hidden>\${initType}</option>\` : ''}
+                    </select>
+                    <input type="number" class="mb-count" placeholder="条数" style="width:70px; display:\${isArray ? 'inline-block' : 'none'};" min="1" value="\${initCount}">
+                    <button class="mb-add-child btn-sec" style="display:\${hasChildren ? 'inline-block' : 'none'}; padding: 6px 10px;" onclick="addChildRow(this)">添加单项字段</button>
+                    <button onclick="insertSingleField(this)" class="btn-sec" style="padding: 6px 10px; color:var(--vscode-textLink-activeForeground); border-color:var(--vscode-textLink-activeForeground);">写入 JSON</button>
+                    <i class="fa-solid fa-trash" style="cursor:pointer; opacity:0.6; font-size:16px; margin-left: 8px; color: var(--error);" onclick="this.closest('.mock-row-container').remove()"></i>
+                </div>
+                <div class="mock-builder-children" style="margin-left: 20px; display: \${hasChildren ? 'block' : 'none'}; padding-top: 8px;"></div>
+            \`;
+            container.appendChild(rowWrapper);
+            if (children && children.length > 0) {
+                const childContainer = rowWrapper.querySelector('.mock-builder-children');
+                children.forEach(c => addChildRowToContainer(childContainer, c.field, c.type));
+            }
+        };
+
+        window.addChildRowToContainer = (container, field = '', type = '@cname') => {
+            const row = document.createElement('div');
+            row.className = 'child-row';
+            row.style.cssText = 'display: flex; gap: 8px; margin-bottom: 8px; align-items: center;';
+            const extraOpt = !['@id', '@cname', '@title', '@integer(1, 100)', '@boolean', '@date', "@image('200x100')"].includes(type);
+            row.innerHTML = \`
+                <i class="fa-solid fa-turn-up" style="transform: rotate(90deg); opacity:0.4; font-size:12px;"></i>
+                <input type="text" class="mb-child-field" placeholder="子字段名" value="\${field}" style="width:110px;">
+                <select class="mb-child-type" style="width:130px;">
+                    <option value="@id" \${type === '@id' ? 'selected' : ''}>自增ID (@id)</option>
+                    <option value="@cname" \${type === '@cname' ? 'selected' : ''}>中文名 (@cname)</option>
+                    <option value="@title" \${type === '@title' ? 'selected' : ''}>标题 (@title)</option>
+                    <option value="@integer(1, 100)" \${type === '@integer(1, 100)' ? 'selected' : ''}>数字 (@integer)</option>
+                    <option value="@boolean" \${type === '@boolean' ? 'selected' : ''}>布尔值 (@boolean)</option>
+                    <option value="@date" \${type === '@date' ? 'selected' : ''}>日期 (@date)</option>
+                    <option value="@image('200x100')" \${type === "@image('200x100')" ? 'selected' : ''}>图片 (@image)</option>
+                    \${extraOpt ? \`<option value='\${type}' selected hidden>\${type}</option>\` : ''}
+                </select>
+                <i class="fa-solid fa-xmark" style="cursor:pointer; opacity:0.6; font-size:16px; margin-left: 8px; color: var(--error);" onclick="this.parentElement.remove()"></i>
+            \`;
+            container.appendChild(row);
+        };
+
+        window.addChildRow = (btn) => {
+            addChildRowToContainer(btn.closest('.mock-row-container').querySelector('.mock-builder-children'));
+        };
+
+        window.parseJsonToRows = (jsonStr) => {
+            const container = document.getElementById('mock-builder-rows');
+            container.innerHTML = ''; 
+            try {
+                const jsonObj = JSON.parse(jsonStr);
+                const dataObj = jsonObj.data;
+                if (dataObj && typeof dataObj === 'object') {
+                    let hasFields = false;
+                    Object.keys(dataObj).forEach(key => {
+                        hasFields = true;
+                        const value = dataObj[key];
+                        const arrMatch = key.match(/^(.+)\\|(\\d+)$/); 
+                        if (arrMatch && Array.isArray(value) && value.length > 0) {
+                            let childrenList = [];
+                            if (value[0] && typeof value[0] === 'object') {
+                                Object.keys(value[0]).forEach(cKey => {
+                                    childrenList.push({ field: cKey.replace('|+1', ''), type: cKey.endsWith('|+1') ? '@id' : value[0][cKey] });
+                                });
+                            }
+                            addMockRow(arrMatch[1], 'ARRAY', parseInt(arrMatch[2]), childrenList);
+                        } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+                            let childrenList = [];
+                            Object.keys(value).forEach(cKey => {
+                                childrenList.push({ field: cKey.replace('|+1', ''), type: cKey.endsWith('|+1') ? '@id' : value[cKey] });
+                            });
+                            addMockRow(key, 'OBJECT', 5, childrenList);
+                        } else {
+                            addMockRow(key, typeof value === 'string' ? value : JSON.stringify(value));
+                        }
+                    });
+                    if (!hasFields) addMockRow();
+                } else addMockRow();
+            } catch(e) { addMockRow(); }
+        };
+
+        function getContainerValue(container) {
+            const type = container.querySelector('.mb-type').value;
+            if (type === 'ARRAY' || type === 'OBJECT') {
+                let itemTemplate = {};
+                const childRows = container.querySelectorAll('.child-row');
+                if (childRows.length > 0) {
+                    childRows.forEach(cr => {
+                        const cField = cr.querySelector('.mb-child-field').value.trim();
+                        if (cField) {
+                            const cType = cr.querySelector('.mb-child-type').value;
+                            itemTemplate[cType === '@id' ? cField + '|+1' : cField] = cType;
+                        }
+                    });
+                } else itemTemplate = { "id|+1": 1, "name": "@cname" }; 
+                
+                if (type === 'ARRAY') {
+                    const count = container.querySelector('.mb-count').value || 5;
+                    return { isComplex: true, isArray: true, count, value: [itemTemplate] };
+                } else return { isComplex: true, isArray: false, value: itemTemplate };
+            } else return { isComplex: false, value: type };
+        }
+
+        window.insertSingleField = (btn) => {
+            const container = btn.closest('.mock-row-container');
+            const field = container.querySelector('.mb-field').value.trim();
+            if (!field) return vscode.postMessage({ type: 'error', message: '请填写主字段名！' });
+            const tplArea = document.getElementById('mockTemplate');
+            let currentJson;
+            try { currentJson = JSON.parse(tplArea.value || '{}'); } catch(e) { return; }
+            if (!currentJson.data) currentJson.data = {};
+            const data = getContainerValue(container);
+            if (data.isComplex && data.isArray) currentJson.data[\`\${field}|\${data.count}\`] = data.value;
+            else currentJson.data[field] = data.value;
+            tplArea.value = JSON.stringify(currentJson, null, 2);
+            simulate();
+            const originalText = btn.innerText;
+            btn.innerText = '成功';
+            setTimeout(() => { btn.innerText = originalText; }, 1000);
+        };
+
+        window.applyMockFields = () => {
+            const tplArea = document.getElementById('mockTemplate');
+            let currentJson;
+            try { currentJson = JSON.parse(tplArea.value || '{}'); } catch(e) { return; }
+            currentJson.data = {};
+            let hasAdded = false;
+            document.querySelectorAll('.mock-row-container').forEach(container => {
+                const field = container.querySelector('.mb-field').value.trim();
+                if (!field) return; 
+                hasAdded = true;
+                const data = getContainerValue(container);
+                if (data.isComplex && data.isArray) currentJson.data[\`\${field}|\${data.count}\`] = data.value;
+                else currentJson.data[field] = data.value;
+            });
+            if (!hasAdded) return vscode.postMessage({ type: 'error', message: '请至少填写一个字段名后再生成！' });
+            tplArea.value = JSON.stringify(currentJson, null, 2);
+            simulate();
+        };
       </script>
     </body>
     </html>`;
