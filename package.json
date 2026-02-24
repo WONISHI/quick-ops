@@ -90,27 +90,18 @@
         "command": "quickOps.revealInExplorer",
         "title": "定位当前文件 (Reveal File)",
         "category": "Quick Ops",
-        "icon": {
-          "light": "resources/svg/position-dark.svg",
-          "dark": "resources/svg/position-light.svg"
-        }
+        "icon": "$(record)"
       },
       {
         "command": "quickOps.scrollToTop",
         "title": "回到顶部 (Scroll to Top)",
-        "icon": {
-          "light": "resources/svg/top-dark.svg",
-          "dark": "resources/svg/top-light.svg"
-        }
+        "icon": "$(fold-up)"
       },
       {
         "command": "quickOps.scrollToBottom",
         "title": "回到底部 (Scroll to Bottom)",
         "category": "Quick Ops",
-        "icon": {
-          "light": "resources/svg/bottom-dark.svg",
-          "dark": "resources/svg/bottom-light.svg"
-        }
+        "icon": "$(fold-down)"
       },
       {
         "command": "quickOps.createConfigFile",
