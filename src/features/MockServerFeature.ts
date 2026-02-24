@@ -193,7 +193,7 @@ export class MockServerFeature implements IFeature {
     const proxyOptions: any = {
       target: defaultTarget,
       changeOrigin: true,
-      secure: false, // 允许自签名 HTTPS
+      secure: false,
       logLevel: 'error',
 
       router: (req: any) => {
@@ -219,9 +219,18 @@ export class MockServerFeature implements IFeature {
         console.error(`[Proxy Error - Port ${proxyConfig.port}]`, err.message);
         if (!res.headersSent) res.status(502).send(`Proxy Error: ${err.message}`);
       },
+
+      onProxyReq: (proxyReq: any, req: any, res: any) => {
+        if (req.body) {
+          const bodyData = JSON.stringify(req.body);
+          proxyReq.setHeader('Content-Type', 'application/json');
+          proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+          proxyReq.write(bodyData);
+        }
+      },
     };
 
-    app.use('/', createProxyMiddleware(proxyOptions));
+    app.use('/xy', createProxyMiddleware(proxyOptions));
 
     try {
       const server = app.listen(proxyConfig.port, () => {
