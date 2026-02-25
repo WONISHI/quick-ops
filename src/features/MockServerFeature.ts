@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 const express = require('express');
-const cors = require('cors');
 const bodyParser = require('body-parser');
 const Mock = require('mockjs');
 
@@ -101,64 +100,61 @@ export class MockServerFeature implements IFeature {
 
   private startProxyInstance(proxyConfig: any) {
     const app = express();
-    app.use(cors());
+
+    app.use((req: any, res: any, next: any) => {
+      res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+      res.header('Access-Control-Allow-Credentials', 'true');
+      res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+      res.header('Access-Control-Allow-Headers', req.headers['access-control-request-headers'] || '*');
+
+      if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+      }
+      next();
+    });
+
     app.use(bodyParser.json({ limit: '50mb' }));
     app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
-    // 1. Mock 拦截层
+    // 🌟 1. Mock 拦截层
     app.use(async (req: any, res: any, next: any) => {
       let allMocks = this.configService.config.mock || [];
       if (!Array.isArray(allMocks)) allMocks = [];
 
       const rules = allMocks.filter((m: any) => m.proxyId === proxyConfig.id);
 
-      // 🌟 核心修复：严格匹配路径（忽略参数）
       const matchedRule = rules.find((r: any) => {
         if (!r.enabled) return false;
-        // 去除配置里可能误填的参数部分 (例如 /api/user?id=1 变成 /api/user)
         const rulePath = (r.url || '').split('?')[0];
-        // req.path 是 Express 自动剥离了查询参数的纯路径
         return req.method.toUpperCase() === r.method.toUpperCase() && req.path === rulePath;
       });
 
       if (matchedRule) {
         if (matchedRule.target && !matchedRule.dataPath && !matchedRule.data && !matchedRule.template) {
-          return next(); // 仅配置了转发，没有 Mock 数据，放行给代理层
+          return next();
         }
 
-        console.log(`[Proxy:${proxyConfig.port}] Mock Hit: ${req.path}`);
+        console.log(`[Mock Hit] ${req.method} ${req.path}`);
         res.set('Content-Type', matchedRule.contentType || 'application/json');
 
-        // 读取文件数据
         if (matchedRule.dataPath) {
           let absPath = matchedRule.dataPath;
-
-          // 如果是相对路径，拼上根目录
           if (!path.isAbsolute(absPath)) {
             const root = this.getWorkspaceRoot();
-            if (root) {
-              absPath = path.join(root, absPath);
-            }
+            if (root) absPath = path.join(root, absPath);
           }
 
           if (fs.existsSync(absPath)) {
             try {
               const fileContent = fs.readFileSync(absPath, 'utf8');
               const parsedData = JSON.parse(fileContent);
-              if (matchedRule.isTemplate) {
-                return res.send(Mock.mock(parsedData));
-              } else {
-                return res.send(parsedData);
-              }
+              return res.send(matchedRule.isTemplate ? Mock.mock(parsedData) : parsedData);
             } catch (e: any) {
               return res.status(500).json({ error: '读取 Mock 文件失败', details: e.message });
             }
-          } else {
-            console.warn(`[Proxy:${proxyConfig.port}] Mock 文件不存在: ${absPath}`);
           }
         }
 
-        // 兼容旧的行内数据
         if (matchedRule.data) {
           const responseData = typeof matchedRule.data === 'string' ? JSON.parse(matchedRule.data) : matchedRule.data;
           return res.send(responseData);
@@ -175,33 +171,42 @@ export class MockServerFeature implements IFeature {
       next();
     });
 
-    // 🛡️ 核心修复：强制格式化 URL 协议头，防止引发 null.split 致命崩溃
     const formatUrl = (url: string) => {
       if (!url || typeof url !== 'string' || url.trim() === '') return undefined;
       let trimmed = url.trim();
-      // 如果没有协议头，强制加上 http:// (这样 target 解析才不会报 protocol null)
       if (!/^https?:\/\//i.test(trimmed)) {
-        trimmed = trimmed.replace(/^\/+/, ''); // 去除意外开头的双斜杠
+        trimmed = trimmed.replace(/^\/+/, '');
         trimmed = `http://${trimmed}`;
       }
       return trimmed;
     };
 
-    const defaultTarget = formatUrl(proxyConfig.target);
-    if (!defaultTarget) return; // 配置异常则不启动代理
+    // 如果配置了前端代理目标，默认 Target 指向前端，否则指向后端
+    const defaultTarget = formatUrl(proxyConfig.frontendTarget) || formatUrl(proxyConfig.target);
+    if (!defaultTarget) return;
 
+    // 🌟 2. 终极网关与代理配置层
     const proxyOptions: any = {
       target: defaultTarget,
-      changeOrigin: true,
-      secure: false, // 允许自签名 HTTPS
-      logLevel: 'error',
+      changeOrigin: proxyConfig.changeOrigin !== false,
+      secure: !!proxyConfig.secure,
+      ws: proxyConfig.ws !== false,
+      proxyTimeout: proxyConfig.timeout || 30000,
+      timeout: proxyConfig.timeout || 30000,
+      logLevel: 'silent',
+
+      // 处理可选的路径重写
+      pathRewrite: proxyConfig.pathRewrite || undefined,
+
+      cookieDomainRewrite: { '*': '' },
+      autoRewrite: true,
 
       router: (req: any) => {
+        // 规则 1：如果命中 Mock，且该 Mock 配置了单独的 Target 转发
         let allMocks = this.configService.config.mock || [];
         if (!Array.isArray(allMocks)) allMocks = [];
         const rules = allMocks.filter((m: any) => m.proxyId === proxyConfig.id);
 
-        // 🌟 核心修复：独立代理转发的路由也使用严格匹配
         const matchedRule = rules.find((r: any) => {
           if (!r.enabled) return false;
           const rulePath = (r.url || '').split('?')[0];
@@ -212,21 +217,100 @@ export class MockServerFeature implements IFeature {
           const ruleTarget = formatUrl(matchedRule.target);
           if (ruleTarget) return ruleTarget;
         }
-        return defaultTarget;
+
+        // 规则 2 🌟：网关模式 (API 智能分发)
+        if (proxyConfig.apiPrefix && proxyConfig.target) {
+          // 支持配置多个前缀，如 "/api, /xy, /v1"
+          const prefixes = proxyConfig.apiPrefix
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+          if (prefixes.some((p: string) => req.path.startsWith(p))) {
+            // 发现是 API 请求，引流到后端的真实服务器
+            return formatUrl(proxyConfig.target);
+          }
+        }
+
+        // 规则 3：非 API 请求，且配置了本地前端服务，引流到本地开发服务
+        if (proxyConfig.frontendTarget) {
+          return formatUrl(proxyConfig.frontendTarget);
+        }
+
+        // 兜底：去后端 Target
+        return formatUrl(proxyConfig.target);
+      },
+
+      onProxyReq: (proxyReq: any, req: any, res: any) => {
+        // 🌟 极致伪装：当我们判断出这个请求是要发给真实后端时，强制修改它的 Host / Origin 伪装成浏览器正常访问
+        let isBackendRequest = false;
+        if (proxyConfig.apiPrefix) {
+          const prefixes = proxyConfig.apiPrefix
+            .split(',')
+            .map((s: string) => s.trim())
+            .filter(Boolean);
+          if (prefixes.some((p: string) => req.path.startsWith(p))) {
+            isBackendRequest = true;
+          }
+        } else {
+          // 如果没配置网关，默认全部去后端
+          isBackendRequest = true;
+        }
+
+        if (isBackendRequest && proxyConfig.changeOrigin !== false) {
+          try {
+            const targetUrl = new URL(formatUrl(proxyConfig.target)!);
+            proxyReq.setHeader('Origin', targetUrl.origin);
+            proxyReq.setHeader('Referer', targetUrl.origin + req.path);
+          } catch (e) {}
+        }
+
+        // 还原被 body-parser 吞掉的流
+        if (!req.body || !Object.keys(req.body).length) return;
+        if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return;
+
+        const contentType = proxyReq.getHeader('Content-Type') || req.headers['content-type'] || '';
+        let bodyData;
+
+        if (contentType.includes('application/json')) {
+          bodyData = JSON.stringify(req.body);
+        } else if (contentType.includes('application/x-www-form-urlencoded')) {
+          bodyData = new URLSearchParams(req.body).toString();
+        } else {
+          bodyData = JSON.stringify(req.body);
+        }
+
+        if (bodyData) {
+          proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
+          proxyReq.write(bodyData);
+        }
+      },
+
+      onProxyRes: (proxyRes: any, req: any, res: any) => {
+        const headersToRemove = [
+          'content-security-policy',
+          'content-security-policy-report-only',
+          'x-frame-options',
+          'clear-site-data',
+          'strict-transport-security',
+          'access-control-allow-origin',
+          'access-control-allow-credentials',
+          'access-control-allow-methods',
+          'access-control-allow-headers',
+        ];
+
+        headersToRemove.forEach((header) => {
+          delete proxyRes.headers[header];
+        });
+
+        proxyRes.headers['access-control-allow-origin'] = req.headers.origin || '*';
+        proxyRes.headers['access-control-allow-credentials'] = 'true';
+        proxyRes.headers['access-control-allow-methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
+        proxyRes.headers['access-control-allow-headers'] = req.headers['access-control-request-headers'] || '*';
       },
 
       onError: (err: any, req: any, res: any) => {
         console.error(`[Proxy Error - Port ${proxyConfig.port}]`, err.message);
-        if (!res.headersSent) res.status(502).send(`Proxy Error: ${err.message}`);
-      },
-
-      onProxyReq: (proxyReq: any, req: any, res: any) => {
-        if (req.body) {
-          const bodyData = JSON.stringify(req.body);
-          proxyReq.setHeader('Content-Type', 'application/json');
-          proxyReq.setHeader('Content-Length', Buffer.byteLength(bodyData));
-          proxyReq.write(bodyData);
-        }
+        if (!res.headersSent) res.status(502).json({ error: 'Proxy Request Failed', details: err.message });
       },
     };
 
