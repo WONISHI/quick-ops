@@ -80,17 +80,24 @@ export class MockServerFeature implements IFeature {
     let proxies = this.configService.config.proxy || [];
     if (!Array.isArray(proxies)) proxies = [];
 
+    // 🌟 1. 核心修复：清理过期服务
+    // 遍历所有正在运行的服务，如果服务被禁用、被删除，或者【端口号发生了修改】，立即 close 它
     for (const [proxyId, server] of this.servers.entries()) {
       const conf = proxies.find((c: any) => c.id === proxyId);
-      if (!conf || !conf.enabled) {
-        server.close();
-        this.servers.delete(proxyId);
+      
+      // server._port 是我们在服务启动时绑定的实际端口
+      if (!conf || !conf.enabled || server._port !== Number(conf.port)) {
+        server.close(); // 优雅关闭底层的 HTTP Server
+        this.servers.delete(proxyId); // 从运行队列中剔除
+        console.log(`[MockServer] Stopped server for proxyId: ${proxyId}`);
       }
     }
 
+    // 🌟 2. 启动服务
+    // 如果是新服务，或者是刚才因为改端口被我们关闭的服务，就会在这里重新创建并启动
     for (const conf of proxies) {
       if (conf.enabled && !this.servers.has(conf.id)) {
-        if (!conf.port) continue; // 移除了 target 检查
+        if (!conf.port) continue; 
         this.startServerInstance(conf);
       }
     }
@@ -104,7 +111,6 @@ export class MockServerFeature implements IFeature {
     app.use(bodyParser.json({ limit: '50mb' }));
     app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
-    // 🌟 核心拦截器：使用 app.use 替代 app.all('*')
     app.use(async (req: any, res: any) => {
       let allMocks = this.configService.config.mock || [];
       if (!Array.isArray(allMocks)) allMocks = [];
@@ -120,8 +126,6 @@ export class MockServerFeature implements IFeature {
       if (matchedRule) {
         console.log(`[MockServer:${serverConfig.port}] Mock Hit: ${req.path}`);
 
-        // 🌟 1. 处理文件返回模式 (新增逻辑)
-        // 兼容旧的 isFile 字段以及新的 mode 字段
         if (matchedRule.mode === 'file') {
           if (matchedRule.filePath) {
             let absFilePath = matchedRule.filePath;
@@ -131,7 +135,6 @@ export class MockServerFeature implements IFeature {
             }
             
             if (fs.existsSync(absFilePath)) {
-              // 关键：设置是浏览器直接打开预览(inline)还是下载(attachment)
               const disposition = matchedRule.fileDisposition === 'attachment' ? 'attachment' : 'inline';
               res.set('Content-Disposition', `${disposition}; filename="${path.basename(absFilePath)}"`);
               
@@ -139,7 +142,6 @@ export class MockServerFeature implements IFeature {
                 res.set('Content-Type', matchedRule.contentType);
               }
               
-              // 使用 express 原生的 sendFile 发送文件流
               return res.sendFile(absFilePath);
             } else {
               return res.status(404).json({ error: '配置返回的文件不存在', path: absFilePath });
@@ -149,10 +151,8 @@ export class MockServerFeature implements IFeature {
           }
         }
 
-        // 🌟 2. 处理普通的 JSON 返回模式
         res.set('Content-Type', matchedRule.contentType || 'application/json');
 
-        // 读取由 Webview 配置保存的本地 JSON 数据文件
         if (matchedRule.dataPath) {
           let absPath = matchedRule.dataPath;
           if (!path.isAbsolute(absPath)) {
@@ -167,7 +167,6 @@ export class MockServerFeature implements IFeature {
               const fileContent = fs.readFileSync(absPath, 'utf8');
               const parsedData = JSON.parse(fileContent);
               
-              // 兼容新的 mode 字段和旧的 isTemplate 字段
               const isMockTemplate = matchedRule.mode === 'mock' || matchedRule.isTemplate;
               if (isMockTemplate) {
                 return res.send(Mock.mock(parsedData));
@@ -182,7 +181,6 @@ export class MockServerFeature implements IFeature {
           }
         }
 
-        // 🌟 3. 兼容极端情况下只有行内数据的情况
         if (matchedRule.data) {
           const responseData = typeof matchedRule.data === 'string' ? JSON.parse(matchedRule.data) : matchedRule.data;
           return res.send(responseData);
@@ -196,16 +194,17 @@ export class MockServerFeature implements IFeature {
           }
         }
         
-        // 如果数据都为空，返回空对象防止挂起
         return res.send({});
       } else {
-        // 未命中任何规则，返回 404
         return res.status(404).json({ error: `Mock Rule Not Found for ${req.path}` });
       }
     });
 
     try {
       const server = app.listen(serverConfig.port, () => {
+        // 🌟 核心标记：在 HTTP Server 实例上挂载当前绑定的真实端口
+        // 这让我们可以在 syncServers() 中判断它是不是被改过了
+        server._port = Number(serverConfig.port);
         this.servers.set(serverConfig.id, server);
         this.notifyStatusToWebview();
       });
