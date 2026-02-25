@@ -42,16 +42,32 @@ export interface IProxyConfig {
 // 2. 定义独立的 Mock 拦截规则配置
 export interface IMockRuleConfig {
   id: string;           // 规则唯一标识
-  proxyId: string;      // 所属的代理服务 ID
+  proxyId: string;      // 所属的 Mock 服务 ID（之前保留的字段名，现代表本地服务分组）
   method: string;       // 请求方法 (GET, POST 等)
   url: string;          // 拦截的接口路径
   contentType?: string; // 响应头 Content-Type
-  target?: string;      // 独立覆盖的代理地址（为空则使用所属 proxy 的 target）
   enabled: boolean;     // 是否启用此规则
-  dataPath?: string;    // 数据存放的相对路径 (如 .quickops/mocks/xxx.json)
-  isTemplate?: boolean; // 标识存的是 Mock 模板(true) 还是 静态JSON(false)
-  data?: any;           // 运行时承载的静态 JSON 数据（保存到文件后配置里可能不存）
-  template?: any;       // 运行时承载的 Mock 模板数据（保存到文件后配置里可能不存）
+  dataPath?: string;    // 规则配置存放的相对路径 (如 .quickops/mocks/xxx.json)
+  
+  /** * 数据响应模式 
+   * 'mock': 动态 Mock.js 模板
+   * 'custom': 静态 JSON 数据
+   * 'file': 本地文件下发
+   */
+  mode: 'mock' | 'custom' | 'file'; 
+
+  // ================= 运行时承载数据 =================
+  data?: any;           // 运行时承载的静态 JSON 数据（保存到文件后，主配置里不存此庞大对象）
+  template?: any;       // 运行时承载的 Mock 模板数据（保存到文件后，主配置里不存此庞大对象）
+
+  // ================= 文件模式专属配置 =================
+  filePath?: string;    // 要下发的本地文件相对/绝对路径
+  fileDisposition?: 'inline' | 'attachment'; // 响应方式：浏览器内预览(inline) 或 下载(attachment)
+  
+  /** @deprecated 请使用 mode === 'mock' 替代 */
+  isTemplate?: boolean; 
+  /** @deprecated 已彻底移除代理转发功能 */
+  target?: string;      
 }
 
 // 3. 更新主配置接口

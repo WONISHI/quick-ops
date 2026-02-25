@@ -48,13 +48,14 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
 
     const fullMockList = mockList.map(rule => {
       const fullRule = { ...rule };
-      if (rule.dataPath) {
+      // 🌟 根据 mode 字段判断是否需要读取 JSON 文件内容
+      if (rule.dataPath && rule.mode !== 'file') { 
         const absPath = this.getMockDataPath(rule.dataPath);
         if (absPath && fs.existsSync(absPath)) {
           try {
             const parsedContent = JSON.parse(fs.readFileSync(absPath, 'utf8'));
-            if (rule.isTemplate) fullRule.template = parsedContent;
-            else fullRule.data = parsedContent;
+            if (rule.mode === 'custom') fullRule.data = parsedContent;
+            else fullRule.template = parsedContent; // 默认为 mock 模板
           } catch (e) { }
         }
       }
@@ -93,6 +94,20 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
           general.mockDir = savePath;
           await configService.updateConfig('general', general);
           this.refreshSidebar();
+        }
+        break;
+      }
+      case 'selectFileReturnPath': {
+        const rootPath = this.getWorkspaceRoot();
+        const uri = await vscode.window.showOpenDialog({
+          canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: rootPath ? vscode.Uri.file(rootPath) : undefined, openLabel: '选择要返回的文件'
+        });
+        if (uri && uri[0]) {
+          let savePath = uri[0].fsPath;
+          if (rootPath && savePath.startsWith(rootPath)) {
+            savePath = path.relative(rootPath, savePath);
+          }
+          this.rulePanel?.webview.postMessage({ type: 'fileReturnPathSelected', path: savePath.replace(/\\/g, '/') });
         }
         break;
       }
@@ -165,9 +180,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // ==========================================
-  // 🌟 独立代理设置面板 (已去除 Target)
-  // ==========================================
   public async showProxyPanel(proxyId?: string) {
     if (this.proxyPanel) {
       this.proxyPanel.reveal(vscode.ViewColumn.One);
@@ -190,7 +202,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             proxyList.push(newProxy);
           } else {
             const idx = proxyList.findIndex((p: any) => p.id === newProxy.id);
-            if (idx > -1) proxyList[idx].port = newProxy.port; // 🌟 移除了 target 的更新
+            if (idx > -1) proxyList[idx].port = newProxy.port;
           }
           await configService.updateConfig('proxy', proxyList);
           await this._mockFeature.syncServers();
@@ -206,9 +218,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     this.proxyPanel.webview.postMessage({ type: 'init', proxy: proxies.find((p: any) => p.id === proxyId) });
   }
 
-  // ==========================================
-  // 🌟 独立拦截规则设置面板 (保留强大的 Mock UI，仅去 target)
-  // ==========================================
   public async showRulePanel(proxyId: string, ruleId?: string) {
     if (this.rulePanel) {
       this.rulePanel.reveal(vscode.ViewColumn.One);
@@ -240,6 +249,8 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
              }
              this.rulePanel?.webview.postMessage({ type: 'ruleDirSelected', path: savePath.replace(/\\/g, '/') });
            }
+        } else if (data.type === 'selectFileReturnPath') { 
+           await this.handleMessage(data, this.rulePanel!.webview);
         } else if (data.type === 'saveRule') {
           const newRuleData = data.payload;
           if (!newRuleData.id) newRuleData.id = nanoid();
@@ -258,14 +269,32 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
           const dir = path.dirname(absPath);
           if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
-          const isTemplate = newRuleData.template !== undefined;
-          fs.writeFileSync(absPath, JSON.stringify(isTemplate ? newRuleData.template : (newRuleData.data || {}), null, 2), 'utf8');
+          // 🌟 统一判断：只有 mock 和 custom 模式才生成 JSON 文件数据
+          if (newRuleData.mode === 'mock') {
+            fs.writeFileSync(absPath, JSON.stringify(newRuleData.template || {}, null, 2), 'utf8');
+          } else if (newRuleData.mode === 'custom') {
+            fs.writeFileSync(absPath, JSON.stringify(newRuleData.data || {}, null, 2), 'utf8');
+          } else if (newRuleData.mode === 'file') {
+            fs.writeFileSync(absPath, JSON.stringify({ type: "file_mock", file: newRuleData.filePath, disposition: newRuleData.fileDisposition }, null, 2), 'utf8');
+          }
 
-          // 🌟 移除了 target 字段
-          const ruleToSaveConfig = {
-            id: newRuleData.id, proxyId: newRuleData.proxyId, method: newRuleData.method, url: newRuleData.url,
-            contentType: newRuleData.contentType, enabled: newRuleData.enabled, dataPath: ruleDataPath, isTemplate: isTemplate
+          // 🌟 统一配置保存，使用 mode 字段代替之前的 isFile / isTemplate
+          const ruleToSaveConfig: any = {
+            id: newRuleData.id, 
+            proxyId: newRuleData.proxyId, 
+            method: newRuleData.method, 
+            url: newRuleData.url,
+            contentType: newRuleData.contentType, 
+            enabled: newRuleData.enabled, 
+            dataPath: ruleDataPath,
+            mode: newRuleData.mode // 👈 核心字段：记录是 'mock' | 'custom' | 'file'
           };
+          
+          // 如果是文件模式，把文件路径存到配置中方便读取
+          if (newRuleData.mode === 'file') {
+             ruleToSaveConfig.filePath = newRuleData.filePath;
+             ruleToSaveConfig.fileDisposition = newRuleData.fileDisposition;
+          }
 
           const configService = ConfigurationService.getInstance();
           await configService.loadConfig();
@@ -285,18 +314,18 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     const mocks = Array.isArray(configService.config.mock) ? configService.config.mock : [];
     let fullRule = mocks.find((r: any) => r.id === ruleId) ? { ...mocks.find((r: any) => r.id === ruleId) } : null;
     
-    if (fullRule && fullRule.dataPath) {
+    if (fullRule && fullRule.dataPath && fullRule.mode !== 'file') {
       const absPath = this.getMockDataPath(fullRule.dataPath);
       if (absPath && fs.existsSync(absPath)) {
         try {
           const parsed = JSON.parse(fs.readFileSync(absPath, 'utf8'));
-          if (fullRule.isTemplate) fullRule.template = parsed; else fullRule.data = parsed;
+          if (fullRule.mode === 'custom') fullRule.data = parsed; 
+          else fullRule.template = parsed;
         } catch (e) { }
       }
     }
     this.rulePanel.webview.postMessage({ type: 'init', proxyId, rule: fullRule, globalMockDir: configService.config.general?.mockDir || '' });
   }
-
 
   public getHtmlForWebview(webview: vscode.Webview) {
     return `<!DOCTYPE html>
@@ -323,13 +352,11 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         .rule-card.disabled { opacity: 0.6; filter: grayscale(0.8); }
         .rule-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
         
-        /* 🌟 URL 行复制悬浮样式 */
         .url-container { display: flex; align-items: center; gap: 6px; width: 100%; }
         .url-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .copy-icon { opacity: 0; cursor: pointer; color: var(--primary); transition: opacity 0.2s; font-size: 12px; }
         .url-container:hover .copy-icon { opacity: 1; }
         
-        /* 🌟 数据存放路径样式（超长省略，设置最小宽保证 flex 下正常截断） */
         .data-path { font-size: 11px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 50px; }
 
         .tag { font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 3px; flex-shrink: 0; }
@@ -392,7 +419,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         window.toggleRule = (ruleId, val) => vscode.postMessage({ type: 'toggleRule', ruleId, enabled: val });
         window.delRule = (ruleId) => vscode.postMessage({ type: 'deleteRule', ruleId });
 
-        // 🌟 点击复制事件，显示提示语，3秒后恢复
         window.copyMockUrl = (url, iconEl) => {
             vscode.postMessage({ type: 'copyText', payload: url });
             const feedbackEl = iconEl.nextElementSibling;
@@ -432,16 +458,22 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             mocks.filter(m => m.proxyId === p.id).forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'rule-card ' + (item.enabled ? 'active' : 'disabled');
+                
+                // 🌟 利用 mode 字段来判断是否为文件
+                const isFile = item.mode === 'file';
+                const fileTag = isFile ? '<span class="tag" style="background:#8e44ad; color:#fff; margin-left:4px;">FILE</span>' : '';
+                
                 card.innerHTML = \`
                     <div class="rule-main">
                         <div class="url-container">
                             <span class="tag \${item.method}">\${item.method}</span> 
+                            \${fileTag}
                             <strong class="url-text" title="\${item.url}">\${item.url}</strong>
                             <i class="fa-regular fa-copy copy-icon" title="复制路径" onclick="copyMockUrl('\${item.url}', this)"></i>
                             <span class="copy-feedback" style="display:none; color:var(--success); font-size:11px; flex-shrink:0;">已复制!</span>
                         </div>
-                        <div class="data-path" title="\${item.dataPath}">
-                            <i class="fa-solid fa-file-code"></i> \${item.dataPath}
+                        <div class="data-path" title="\${isFile ? item.filePath : item.dataPath}">
+                            <i class="\${isFile ? 'fa-regular fa-file' : 'fa-solid fa-file-code'}"></i> \${isFile ? item.filePath : item.dataPath}
                         </div>
                     </div>
                     <div>
@@ -524,7 +556,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
   }
 
   // ==========================================
-  // 🌟 规则面板 HTML (原生 VS Code 风格)
+  // 🌟 规则面板 HTML
   // ==========================================
   private getRulePanelHtml() {
     return `<!DOCTYPE html>
@@ -598,13 +630,14 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                     <option value="application/xml">application/xml</option>
                     <option value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</option>
                     <option value="multipart/form-data">multipart/form-data</option>
+                    <option value="application/octet-stream">application/octet-stream (文件流)</option>
                 </select>
             </div>
         </div>
         
         <div class="form-row">
             <div class="form-group">
-                <label>数据存放路径 (必填)</label>
+                <label>规则配置存放路径 (必填)</label>
                 <div style="display:flex; gap:6px;">
                     <input type="text" id="rule_dataPath" placeholder="相对于工作区的路径">
                     <button onclick="vscode.postMessage({ type: 'selectRuleMockDir' })" class="btn-sec" title="选择目录">
@@ -617,6 +650,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         <div class="tabs">
             <div id="tab-mock" class="tab active" onclick="switchTab('mock')">Mock 模板配置</div>
             <div id="tab-custom" class="tab" onclick="switchTab('custom')">静态 JSON</div>
+            <div id="tab-file" class="tab" onclick="switchTab('file')">文件下发</div>
         </div>
 
         <div class="tab-content">
@@ -629,8 +663,28 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                 <div id="mock-builder-rows" style="max-height: 250px; overflow-y: auto; padding-right: 10px;"></div>
                 <textarea id="mockTemplate" style="height: 180px; margin-top:12px; font-family: var(--vscode-editor-font-family, monospace);"></textarea>
             </div>
+            
             <div id="pane-custom" class="tab-pane">
                 <textarea id="customJson" style="height: 250px; font-family: var(--vscode-editor-font-family, monospace);"></textarea>
+            </div>
+
+            <div id="pane-file" class="tab-pane">
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label>选择要作为接口返回的本地文件</label>
+                    <div style="display:flex; gap:6px;">
+                        <input type="text" id="rule_filePath" placeholder="例如: public/logo.png 或 绝对路径">
+                        <button onclick="vscode.postMessage({ type: 'selectFileReturnPath' })" class="btn-sec" title="浏览文件">
+                            <i class="fa-regular fa-file"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>响应方式 (Content-Disposition)</label>
+                    <select id="rule_fileDisposition">
+                        <option value="inline">浏览器内预览 (Inline)</option>
+                        <option value="attachment">作为附件下载 (Attachment)</option>
+                    </select>
+                </div>
             </div>
         </div>
 
@@ -663,15 +717,31 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                 document.getElementById('rule_contentType').value = rule?.contentType || 'application/json';
                 document.getElementById('rule_dataPath').value = rule?.dataPath || (msg.globalMockDir ? msg.globalMockDir + '/' : '');
 
-                if (rule && !rule.isTemplate && rule.data) {
-                    document.getElementById('customJson').value = typeof rule.data === 'string' ? rule.data : JSON.stringify(rule.data, null, 2);
-                    switchTab('custom');
-                } else {
+                document.getElementById('rule_filePath').value = rule?.filePath || '';
+                document.getElementById('rule_fileDisposition').value = rule?.fileDisposition || 'inline';
+
+                // 🌟 使用新增的 mode 字段直接判断当前应该激活的 Tab
+                let currentMode = rule?.mode;
+                // 为了兼容旧配置，如果没有 mode，则推断一下
+                if (!currentMode) {
+                   if (rule?.isFile) currentMode = 'file';
+                   else if (rule && !rule.isTemplate && rule.data) currentMode = 'custom';
+                   else currentMode = 'mock';
+                }
+
+                switchTab(currentMode);
+                
+                if (currentMode === 'custom') {
+                    document.getElementById('customJson').value = typeof rule?.data === 'string' ? rule.data : JSON.stringify(rule?.data || {}, null, 2);
+                } else if (currentMode === 'mock') {
                     document.getElementById('mockTemplate').value = typeof rule?.template === 'object' ? JSON.stringify(rule.template, null, 2) : (rule?.template || '{ "code": 200, "data": {} }');
-                    switchTab('mock'); parseJsonToRows(document.getElementById('mockTemplate').value); simulate(); 
+                    parseJsonToRows(document.getElementById('mockTemplate').value); 
+                    simulate(); 
                 }
             } else if (msg.type === 'ruleDirSelected') {
                 document.getElementById('rule_dataPath').value = msg.path.endsWith('/') ? msg.path : msg.path + '/';
+            } else if (msg.type === 'fileReturnPathSelected') {
+                document.getElementById('rule_filePath').value = msg.path;
             } else if (msg.type === 'simulateResult') {
                 document.getElementById('previewBox').innerText = msg.error ? 'Error: ' + msg.error : JSON.stringify(msg.result, null, 2);
             }
@@ -683,15 +753,30 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
            const dataPath = document.getElementById('rule_dataPath').value;
            if(!url) return vscode.postMessage({ type: 'error', message: 'API Path 不能为空！' });
            
-           const isMock = document.getElementById('tab-mock').classList.contains('active');
+           // 🌟 获取当前激活的 Tab 作为 mode 保存
+           const activeTabId = document.querySelector('.tab.active').id;
+           let mode = 'mock';
+           if (activeTabId === 'tab-custom') mode = 'custom';
+           else if (activeTabId === 'tab-file') mode = 'file';
+
            let tpl = undefined, data = undefined;
+           let filePath = ''; let fileDisposition = 'inline';
+
            try {
-               if (isMock) tpl = JSON.parse(document.getElementById('mockTemplate').value || '{}');
-               else data = JSON.parse(document.getElementById('customJson').value || '{}');
+               if (mode === 'mock') {
+                   tpl = JSON.parse(document.getElementById('mockTemplate').value || '{}');
+               } else if (mode === 'custom') {
+                   data = JSON.parse(document.getElementById('customJson').value || '{}');
+               } else if (mode === 'file') {
+                   filePath = document.getElementById('rule_filePath').value;
+                   fileDisposition = document.getElementById('rule_fileDisposition').value;
+                   if(!filePath) return vscode.postMessage({ type: 'error', message: '请选择要返回的文件！' });
+               }
                
                vscode.postMessage({ type: 'saveRule', payload: {
                    id, proxyId: currentProxyId, method: document.getElementById('rule_method').value,
-                   url, contentType: document.getElementById('rule_contentType').value, enabled: true, dataPath, template: tpl, data
+                   url, contentType: document.getElementById('rule_contentType').value, enabled: true, dataPath, 
+                   template: tpl, data, mode, filePath, fileDisposition
                }});
            } catch(e) { vscode.postMessage({ type: 'error', message: 'JSON 格式错误: ' + e.message }); }
         };
@@ -701,7 +786,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             document.querySelectorAll('.tab, .tab-pane').forEach(el => el.classList.remove('active'));
             document.getElementById('tab-' + mode).classList.add('active');
             document.getElementById('pane-' + mode).classList.add('active');
-            document.getElementById('previewArea').style.display = mode === 'mock' ? 'block' : 'none';
+            document.getElementById('previewArea').style.display = mode === 'file' ? 'none' : 'block';
         };
 
         window.handleTypeChange = (sel) => {
@@ -856,7 +941,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             document.getElementById('mockTemplate').value = JSON.stringify(cj, null, 2); simulate();
         };
 
-        // 🌟 新增的重置逻辑
         window.resetMockFields = () => {
             document.getElementById('mock-builder-rows').innerHTML = '';
             document.getElementById('mockTemplate').value = '{\\n  "code": 200,\\n  "data": {}\\n}';

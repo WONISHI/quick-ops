@@ -104,7 +104,7 @@ export class MockServerFeature implements IFeature {
     app.use(bodyParser.json({ limit: '50mb' }));
     app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
-    // 🌟 修复点：使用 app.use 替代 app.all('*')，拦截所有请求且不会触发路由通配符报错
+    // 🌟 核心拦截器：使用 app.use 替代 app.all('*')
     app.use(async (req: any, res: any) => {
       let allMocks = this.configService.config.mock || [];
       if (!Array.isArray(allMocks)) allMocks = [];
@@ -119,9 +119,40 @@ export class MockServerFeature implements IFeature {
 
       if (matchedRule) {
         console.log(`[MockServer:${serverConfig.port}] Mock Hit: ${req.path}`);
+
+        // 🌟 1. 处理文件返回模式 (新增逻辑)
+        // 兼容旧的 isFile 字段以及新的 mode 字段
+        if (matchedRule.mode === 'file') {
+          if (matchedRule.filePath) {
+            let absFilePath = matchedRule.filePath;
+            if (!path.isAbsolute(absFilePath)) {
+              const root = this.getWorkspaceRoot();
+              if (root) absFilePath = path.join(root, absFilePath);
+            }
+            
+            if (fs.existsSync(absFilePath)) {
+              // 关键：设置是浏览器直接打开预览(inline)还是下载(attachment)
+              const disposition = matchedRule.fileDisposition === 'attachment' ? 'attachment' : 'inline';
+              res.set('Content-Disposition', `${disposition}; filename="${path.basename(absFilePath)}"`);
+              
+              if (matchedRule.contentType) {
+                res.set('Content-Type', matchedRule.contentType);
+              }
+              
+              // 使用 express 原生的 sendFile 发送文件流
+              return res.sendFile(absFilePath);
+            } else {
+              return res.status(404).json({ error: '配置返回的文件不存在', path: absFilePath });
+            }
+          } else {
+             return res.status(400).json({ error: '文件路径未配置' });
+          }
+        }
+
+        // 🌟 2. 处理普通的 JSON 返回模式
         res.set('Content-Type', matchedRule.contentType || 'application/json');
 
-        // 读取文件数据
+        // 读取由 Webview 配置保存的本地 JSON 数据文件
         if (matchedRule.dataPath) {
           let absPath = matchedRule.dataPath;
           if (!path.isAbsolute(absPath)) {
@@ -135,20 +166,23 @@ export class MockServerFeature implements IFeature {
             try {
               const fileContent = fs.readFileSync(absPath, 'utf8');
               const parsedData = JSON.parse(fileContent);
-              if (matchedRule.isTemplate) {
+              
+              // 兼容新的 mode 字段和旧的 isTemplate 字段
+              const isMockTemplate = matchedRule.mode === 'mock' || matchedRule.isTemplate;
+              if (isMockTemplate) {
                 return res.send(Mock.mock(parsedData));
               } else {
                 return res.send(parsedData);
               }
             } catch (e: any) {
-              return res.status(500).json({ error: '读取 Mock 文件失败', details: e.message });
+              return res.status(500).json({ error: '读取 Mock 配置文件失败', details: e.message });
             }
           } else {
             console.warn(`[MockServer:${serverConfig.port}] Mock 文件不存在: ${absPath}`);
           }
         }
 
-        // 兼容行内数据
+        // 🌟 3. 兼容极端情况下只有行内数据的情况
         if (matchedRule.data) {
           const responseData = typeof matchedRule.data === 'string' ? JSON.parse(matchedRule.data) : matchedRule.data;
           return res.send(responseData);
@@ -161,8 +195,11 @@ export class MockServerFeature implements IFeature {
             return res.status(500).json({ error: 'Mock Parse Error', details: e.message });
           }
         }
+        
+        // 如果数据都为空，返回空对象防止挂起
+        return res.send({});
       } else {
-        // 移除了 target 转发，未命中规则直接返回 404
+        // 未命中任何规则，返回 404
         return res.status(404).json({ error: `Mock Rule Not Found for ${req.path}` });
       }
     });
