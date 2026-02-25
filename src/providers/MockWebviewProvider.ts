@@ -297,11 +297,8 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     this.rulePanel.webview.postMessage({ type: 'init', proxyId, rule: fullRule, globalMockDir: configService.config.general?.mockDir || '' });
   }
 
-  // ==========================================
-  // 🌟 侧边栏 HTML 
-  // ==========================================
+
   public getHtmlForWebview(webview: vscode.Webview) {
-    // 🌟 与原版一致，仅去除了 UI 中的 proxy-target 显示区
     return `<!DOCTYPE html>
     <html lang="en">
     <head>
@@ -309,6 +306,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
       <style>
         :root { --primary: var(--vscode-textLink-activeForeground); --border: var(--vscode-panel-border); --bg: var(--vscode-editor-background); --bg-hover: var(--vscode-list-hoverBackground); --text: var(--vscode-editor-foreground); --text-sub: var(--vscode-descriptionForeground); --error: var(--vscode-errorForeground); --success: #4caf50; }
+        html { min-width: 298px }
         body { font-family: var(--vscode-font-family); padding: 0; margin: 0; color: var(--text); background: var(--bg); display: flex; flex-direction: column; height: 100vh; font-size: 13px; }
         .header { padding: 12px 16px; border-bottom: 1px solid var(--border); background: var(--vscode-sideBar-background); display: flex; flex-direction: column; gap: 10px; }
         .header-top { display: flex; justify-content: space-between; align-items: center; }
@@ -324,9 +322,22 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         .rule-card { border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; align-items: center; gap: 12px; position: relative; }
         .rule-card.disabled { opacity: 0.6; filter: grayscale(0.8); }
         .rule-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-        .tag { font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 3px; }
+        
+        /* 🌟 URL 行复制悬浮样式 */
+        .url-container { display: flex; align-items: center; gap: 6px; width: 100%; }
+        .url-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .copy-icon { opacity: 0; cursor: pointer; color: var(--primary); transition: opacity 0.2s; font-size: 12px; }
+        .url-container:hover .copy-icon { opacity: 1; }
+        
+        /* 🌟 数据存放路径样式（超长省略，设置最小宽保证 flex 下正常截断） */
+        .data-path { font-size: 11px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 50px; }
+
+        .tag { font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 3px; flex-shrink: 0; }
         .tag.GET { background: rgba(52, 152, 219, 0.1); color: #3498db; }
         .tag.POST { background: rgba(46, 204, 113, 0.1); color: #2ecc71; }
+        .tag.PUT { background: rgba(243, 156, 18, 0.1); color: #f39c12; }
+        .tag.DELETE { background: rgba(231, 76, 60, 0.1); color: #e74c3c; }
+
         .icon-btn { background: transparent; border: none; color: var(--text-sub); cursor: pointer; padding: 4px 6px; }
         .switch { position: relative; display: inline-block; width: 32px; height: 18px; }
         .switch input { opacity: 0; width: 0; height: 0; }
@@ -381,6 +392,19 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         window.toggleRule = (ruleId, val) => vscode.postMessage({ type: 'toggleRule', ruleId, enabled: val });
         window.delRule = (ruleId) => vscode.postMessage({ type: 'deleteRule', ruleId });
 
+        // 🌟 点击复制事件，显示提示语，3秒后恢复
+        window.copyMockUrl = (url, iconEl) => {
+            vscode.postMessage({ type: 'copyText', payload: url });
+            const feedbackEl = iconEl.nextElementSibling;
+            iconEl.style.display = 'none';
+            feedbackEl.style.display = 'inline-block';
+            
+            setTimeout(() => {
+                feedbackEl.style.display = 'none';
+                iconEl.style.display = 'inline-block';
+            }, 3000);
+        };
+
         function render() {
           const list = document.getElementById('proxyList');
           list.innerHTML = '';
@@ -410,8 +434,15 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
                 card.className = 'rule-card ' + (item.enabled ? 'active' : 'disabled');
                 card.innerHTML = \`
                     <div class="rule-main">
-                        <div><span class="tag \${item.method}">\${item.method}</span> <strong>\${item.url}</strong></div>
-                        <div style="font-size:11px; color:var(--text-sub);"><i class="fa-solid fa-file-code"></i> \${item.dataPath}</div>
+                        <div class="url-container">
+                            <span class="tag \${item.method}">\${item.method}</span> 
+                            <strong class="url-text" title="\${item.url}">\${item.url}</strong>
+                            <i class="fa-regular fa-copy copy-icon" title="复制路径" onclick="copyMockUrl('\${item.url}', this)"></i>
+                            <span class="copy-feedback" style="display:none; color:var(--success); font-size:11px; flex-shrink:0;">已复制!</span>
+                        </div>
+                        <div class="data-path" title="\${item.dataPath}">
+                            <i class="fa-solid fa-file-code"></i> \${item.dataPath}
+                        </div>
                     </div>
                     <div>
                         <label class="switch"><input type="checkbox" \${item.enabled ? 'checked' : ''} onchange="toggleRule('\${item.id}', this.checked)"><span class="slider"></span></label>
@@ -433,9 +464,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     </html>`;
   }
 
-  // ==========================================
-  // 🌟 代理面板 HTML (原生 VS Code 风格)
-  // ==========================================
   private getProxyPanelHtml() {
     return `<!DOCTYPE html>
     <html lang="en">
