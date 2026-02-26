@@ -334,7 +334,6 @@
     "cors": "^2.8.6",
     "dayjs": "^1.11.13",
     "express": "^5.2.1",
-    "http-proxy-middleware": "^3.0.5",
     "lodash-es": "^4.17.23",
     "mockjs": "^1.1.0",
     "nanoid": "^5.1.6",

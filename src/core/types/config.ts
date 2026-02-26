@@ -1,5 +1,4 @@
 import { SupportedFileType } from '../constants';
-import type { Options } from 'http-proxy-middleware';
 
 export interface IExtensionConfig {
   ignoreList: string[];
