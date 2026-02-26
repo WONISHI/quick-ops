@@ -39,7 +39,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     return path.join(root, dataPath);
   }
 
-  // 🌟 新增：智能解析默认打开路径（向上寻找最近存在的文件或目录）
   private getDefaultUri(currentPath?: string): vscode.Uri | undefined {
     const rootPath = this.getWorkspaceRoot();
     if (currentPath && currentPath.trim() !== '') {
@@ -50,7 +49,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
       }
       
       let currentSearch = absPath;
-      // 循环向上找，直到找到存在的目录/文件，或者到了磁盘根目录
       while (currentSearch && currentSearch !== path.dirname(currentSearch)) {
         if (fs.existsSync(currentSearch)) {
           return vscode.Uri.file(currentSearch);
@@ -101,13 +99,12 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         vscode.env.clipboard.writeText(data.payload).then(() => vscode.window.showInformationMessage('复制成功：' + data.payload));
         break;
       case 'selectGlobalMockDir': {
-        const rootPath = this.getWorkspaceRoot();
-        // 🌟 应用智能路径
         const defaultUri = this.getDefaultUri(data.currentPath);
         const uri = await vscode.window.showOpenDialog({
           canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri, openLabel: '选择全局 Mock 数据存放目录'
         });
         if (uri && uri[0]) {
+          const rootPath = this.getWorkspaceRoot();
           let savePath = uri[0].fsPath;
           if (rootPath && savePath.startsWith(rootPath)) {
             savePath = path.relative(rootPath, savePath);
@@ -122,18 +119,26 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         break;
       }
       case 'selectFileReturnPath': {
-        const rootPath = this.getWorkspaceRoot();
-        // 🌟 应用智能路径
         const defaultUri = this.getDefaultUri(data.currentPath);
-        const uri = await vscode.window.showOpenDialog({
-          canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri, openLabel: '选择要返回的文件'
+        // 🌟 动态判断系统弹窗是否允许多选文件
+        const uris = await vscode.window.showOpenDialog({
+          canSelectFiles: true, 
+          canSelectFolders: false, 
+          canSelectMany: data.multiple === true, 
+          defaultUri, 
+          openLabel: data.multiple ? '选择文件 (支持多选)' : '选择文件'
         });
-        if (uri && uri[0]) {
-          let savePath = uri[0].fsPath;
-          if (rootPath && savePath.startsWith(rootPath)) {
-            savePath = path.relative(rootPath, savePath);
-          }
-          this.rulePanel?.webview.postMessage({ type: 'fileReturnPathSelected', path: savePath.replace(/\\/g, '/') });
+        
+        if (uris && uris.length > 0) {
+          const rootPath = this.getWorkspaceRoot();
+          const paths = uris.map(uri => {
+            let savePath = uri.fsPath;
+            if (rootPath && savePath.startsWith(rootPath)) {
+              savePath = path.relative(rootPath, savePath);
+            }
+            return savePath.replace(/\\/g, '/');
+          });
+          this.rulePanel?.webview.postMessage({ type: 'fileReturnPathSelected', path: paths.join('\n') });
         }
         break;
       }
@@ -269,13 +274,12 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             this.rulePanel?.webview.postMessage({ type: 'simulateResult', error: e.message });
           }
         } else if (data.type === 'selectRuleMockDir') {
-           const rootPath = this.getWorkspaceRoot();
-           // 🌟 应用智能路径
            const defaultUri = this.getDefaultUri(data.currentPath);
            const uri = await vscode.window.showOpenDialog({
              canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri, openLabel: '选择此规则的数据存放目录'
            });
            if (uri && uri[0]) {
+             const rootPath = this.getWorkspaceRoot();
              let savePath = uri[0].fsPath;
              if (rootPath && savePath.startsWith(rootPath)) {
                savePath = path.relative(rootPath, savePath);

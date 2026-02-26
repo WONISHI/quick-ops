@@ -284,6 +284,13 @@ export function getRulePanelHtml(): string {
       .textarea-header label { margin: 0; }
       .copy-btn { font-size: 11px; padding: 2px 6px; cursor: pointer; color: var(--vscode-textLink-activeForeground); background: transparent; border: none; }
       .copy-btn:hover { text-decoration: underline; }
+      
+      /* 🌟 新增文件多选 Tags 的样式 */
+      .file-tags-container { border: 1px solid var(--vscode-input-border); background: var(--vscode-input-background); min-height: 28px; padding: 4px; border-radius: 2px; }
+      .file-tags-list { display: flex; flex-wrap: wrap; gap: 4px; }
+      .file-tag { display: inline-flex; align-items: center; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); padding: 2px 6px; border-radius: 3px; font-size: 11px; word-break: break-all; max-width: 100%;}
+      .file-tag-close { margin-left: 6px; cursor: pointer; opacity: 0.7; }
+      .file-tag-close:hover { opacity: 1; color: var(--vscode-errorForeground); }
     </style>
   </head>
   <body>
@@ -374,11 +381,23 @@ export function getRulePanelHtml(): string {
 
           <div id="pane-file" class="tab-pane">
               <div class="form-group" style="margin-bottom: 20px;">
-                  <label>选择要作为接口返回的本地文件</label>
-                  <div style="display:flex; gap:6px;">
-                      <input type="text" id="rule_filePath" placeholder="例如: public/logo.png 或 绝对路径" title="要返回的真实文件的路径">
-                      <button onclick="vscode.postMessage({ type: 'selectFileReturnPath', currentPath: document.getElementById('rule_filePath').value })" class="btn-sec" title="浏览并选择要返回的文件">
-                          <i class="fa-regular fa-file"></i>
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                      <label style="margin:0;">选择要作为接口返回的本地文件</label>
+                      <select id="rule_fileMode" onchange="toggleFileMode()" style="width: 100px; padding: 2px 4px; font-size: 11px; height: 22px;" title="切换单文件/多文件模式">
+                          <option value="single">单文件</option>
+                          <option value="multiple">多文件分发</option>
+                      </select>
+                  </div>
+                  
+                  <div style="display:flex; gap:6px; align-items: flex-start;">
+                      <input type="text" id="rule_filePath_single" placeholder="例如: public/logo.png 或 绝对路径" title="要返回的真实文件的路径" style="flex:1;">
+                      
+                      <div id="rule_filePath_multiple" class="file-tags-container" style="display:none; flex:1;">
+                          <div id="fileTagsList" class="file-tags-list"></div>
+                      </div>
+                      
+                      <button onclick="browseFile()" class="btn-sec" title="浏览本地文件" style="height: 28px;">
+                          <i class="fa-regular fa-folder-open"></i>
                       </button>
                   </div>
               </div>
@@ -402,6 +421,7 @@ export function getRulePanelHtml(): string {
       const vscode = acquireVsCodeApi();
       let currentProxyId = '';
       let currentMode = 'mock'; 
+      let filePathsState = []; // 🌟 用于存放文件多选的数据池
 
       window.addEventListener('message', e => {
           const msg = e.data;
@@ -414,8 +434,18 @@ export function getRulePanelHtml(): string {
               document.getElementById('rule_contentType').value = rule?.contentType || 'application/json';
               document.getElementById('rule_dataPath').value = rule?.dataPath || (msg.globalMockDir ? msg.globalMockDir + '/' : '');
 
-              document.getElementById('rule_filePath').value = rule?.filePath || '';
               document.getElementById('rule_fileDisposition').value = rule?.fileDisposition || 'inline';
+
+              // 🌟 初始化解析 filePath (支持换行多选)
+              let paths = (rule?.filePath || '').split('\\n').map(p => p.trim()).filter(Boolean);
+              filePathsState = paths;
+              if (paths.length > 1) {
+                  document.getElementById('rule_fileMode').value = 'multiple';
+              } else {
+                  document.getElementById('rule_fileMode').value = 'single';
+                  document.getElementById('rule_filePath_single').value = paths[0] || '';
+              }
+              toggleFileMode();
 
               currentMode = rule?.mode;
               if (!currentMode) {
@@ -437,11 +467,68 @@ export function getRulePanelHtml(): string {
           } else if (msg.type === 'ruleDirSelected') {
               document.getElementById('rule_dataPath').value = msg.path.endsWith('/') ? msg.path : msg.path + '/';
           } else if (msg.type === 'fileReturnPathSelected') {
-              document.getElementById('rule_filePath').value = msg.path;
+              // 🌟 处理从系统弹窗选择的文件数据
+              const mode = document.getElementById('rule_fileMode').value;
+              const newPaths = msg.path.split('\\n').map(p => p.trim()).filter(Boolean);
+              if (mode === 'single') {
+                  document.getElementById('rule_filePath_single').value = newPaths[0] || '';
+              } else {
+                  newPaths.forEach(p => {
+                      if (!filePathsState.includes(p)) filePathsState.push(p);
+                  });
+                  renderFileTags();
+              }
           } else if (msg.type === 'simulateResult') {
               document.getElementById('previewBox').innerText = msg.error ? 'Error: ' + msg.error : JSON.stringify(msg.result, null, 2);
           }
       });
+
+      // 🌟 文件单选/多选逻辑控制区 =======================
+      window.toggleFileMode = () => {
+          const mode = document.getElementById('rule_fileMode').value;
+          if (mode === 'single') {
+              document.getElementById('rule_filePath_single').style.display = 'block';
+              document.getElementById('rule_filePath_multiple').style.display = 'none';
+              if (filePathsState.length > 0) {
+                  document.getElementById('rule_filePath_single').value = filePathsState[0];
+              }
+          } else {
+              document.getElementById('rule_filePath_single').style.display = 'none';
+              document.getElementById('rule_filePath_multiple').style.display = 'block';
+              const singleVal = document.getElementById('rule_filePath_single').value.trim();
+              if (singleVal && !filePathsState.includes(singleVal)) {
+                  filePathsState.push(singleVal);
+              }
+              renderFileTags();
+          }
+      };
+
+      window.browseFile = () => {
+          const mode = document.getElementById('rule_fileMode').value;
+          const currentPath = mode === 'single' ? document.getElementById('rule_filePath_single').value : (filePathsState[0] || '');
+          vscode.postMessage({ type: 'selectFileReturnPath', currentPath, multiple: mode === 'multiple' });
+      };
+
+      window.removeFileTag = (index) => {
+          filePathsState.splice(index, 1);
+          renderFileTags();
+      };
+
+      window.renderFileTags = () => {
+          const list = document.getElementById('fileTagsList');
+          list.innerHTML = '';
+          if (filePathsState.length === 0) {
+              list.innerHTML = '<span style="color:var(--text-sub); font-size:11px; padding:2px;">尚未选择文件...</span>';
+              return;
+          }
+          filePathsState.forEach((path, idx) => {
+              const tag = document.createElement('div');
+              tag.className = 'file-tag';
+              tag.innerHTML = '<span title="' + path + '">' + path + '</span> <i class="fa-solid fa-xmark file-tag-close" onclick="removeFileTag(' + idx + ')"></i>';
+              list.appendChild(tag);
+          });
+      };
+      // ===============================================
 
       const mockInput = document.getElementById('mockTemplate');
       function updateSimulateBtnState() {
@@ -488,7 +575,13 @@ export function getRulePanelHtml(): string {
              } else if (currentMode === 'custom') {
                  data = JSON.parse(document.getElementById('customJson').value || '{}');
              } else if (currentMode === 'file') {
-                 filePath = document.getElementById('rule_filePath').value;
+                 // 🌟 核心：收集待保存的文件路径
+                 const mode = document.getElementById('rule_fileMode').value;
+                 if (mode === 'single') {
+                     filePath = document.getElementById('rule_filePath_single').value.trim();
+                 } else {
+                     filePath = filePathsState.join('\\n');
+                 }
                  fileDisposition = document.getElementById('rule_fileDisposition').value;
                  if(!filePath) return vscode.postMessage({ type: 'error', message: '请选择要返回的文件！' });
              }

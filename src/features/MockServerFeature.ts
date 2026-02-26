@@ -104,11 +104,19 @@ export class MockServerFeature implements IFeature {
 
   private startServerInstance(serverConfig: any) {
     const app = express();
-    app.use(cors());
+    
+    // 🌟 开启全方位 CORS 允许前端跨域
+    app.use(cors({
+        origin: true,
+        credentials: true,
+        allowedHeaders: '*', 
+        exposedHeaders: '*', 
+    }));
+    
     app.use(bodyParser.json({ limit: '50mb' }));
     app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
-    app.use(async (req: any, res: any) => {
+    app.use(async (req: any, res: any, next: any) => {
       let allMocks = this.configService.config.mock || [];
       if (!Array.isArray(allMocks)) allMocks = [];
 
@@ -125,7 +133,36 @@ export class MockServerFeature implements IFeature {
 
         if (matchedRule.mode === 'file') {
           if (matchedRule.filePath) {
-            let absFilePath = matchedRule.filePath;
+            const filePaths = matchedRule.filePath.split('\n').map((p: string) => p.trim()).filter(Boolean);
+
+            if (filePaths.length === 0) {
+              return res.status(400).json({ error: '文件路径未配置或为空' });
+            }
+
+            let targetFile = '';
+
+            if (filePaths.length > 1) {
+              const fileIdx = req.query.fileIdx;
+              
+              if (fileIdx === undefined) {
+                const protocol = req.protocol || 'http';
+                const host = req.get('host');
+                const baseUrl = `${protocol}://${host}${req.path}`;
+                
+                const urls = filePaths.map((_: any, idx: number) => `${baseUrl}?fileIdx=${idx}`);
+                return res.json(urls);
+              }
+              
+              const idx = Number(fileIdx);
+              if (isNaN(idx) || idx < 0 || idx >= filePaths.length) {
+                return res.status(404).json({ error: '文件索引不存在或越界' });
+              }
+              targetFile = filePaths[idx];
+            } else {
+              targetFile = filePaths[0];
+            }
+
+            let absFilePath = targetFile;
             if (!path.isAbsolute(absFilePath)) {
               const root = this.getWorkspaceRoot();
               if (root) absFilePath = path.join(root, absFilePath);
@@ -145,7 +182,6 @@ export class MockServerFeature implements IFeature {
                 res.set('Content-Type', matchedRule.contentType);
               }
 
-              // 🚨 终极修复 3：加入文件流传输的异常捕获，防止服务静默挂掉
               return res.sendFile(absFilePath, (err: any) => {
                 if (err) {
                   console.error(`[MockServer] Send File Error:`, err);
@@ -205,8 +241,17 @@ export class MockServerFeature implements IFeature {
 
         return res.send({});
       } else {
-        return res.status(404).json({ error: `Mock Rule Not Found for ${req.path}` });
+        return next();
       }
+    });
+
+    // 🌟 兜底路由：如果没有命中任何 Mock 规则，直接返回友好的 404
+    app.use((req: any, res: any) => {
+      res.status(404).json({ 
+          error: 'Not Found in Mock Rules', 
+          path: req.path,
+          message: '请求的接口没有匹配到任何已启用的拦截规则'
+      });
     });
 
     try {
