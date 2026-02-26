@@ -5,8 +5,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { MockServerFeature } from '../features/MockServerFeature';
-
-// 🌟 引入刚刚抽离出去的 HTML 模板函数
 import { getSidebarHtml, getProxyPanelHtml, getRulePanelHtml } from '../views/MockWebviewHtml';
 
 export class MockWebviewProvider implements vscode.WebviewViewProvider {
@@ -23,7 +21,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
   public resolveWebviewView(webviewView: vscode.WebviewView, context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken) {
     this._view = webviewView;
     webviewView.webview.options = { enableScripts: true, localResourceRoots: [this._extensionUri] };
-    // 🌟 直接调用函数获取 Sidebar HTML
     webviewView.webview.html = getSidebarHtml();
     webviewView.webview.onDidReceiveMessage(async (data) => {
       await this.handleMessage(data, webviewView.webview);
@@ -42,6 +39,28 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     return path.join(root, dataPath);
   }
 
+  // 🌟 新增：智能解析默认打开路径（向上寻找最近存在的文件或目录）
+  private getDefaultUri(currentPath?: string): vscode.Uri | undefined {
+    const rootPath = this.getWorkspaceRoot();
+    if (currentPath && currentPath.trim() !== '') {
+      let absPath = currentPath;
+      if (!path.isAbsolute(currentPath)) {
+        if (!rootPath) return undefined;
+        absPath = path.join(rootPath, currentPath);
+      }
+      
+      let currentSearch = absPath;
+      // 循环向上找，直到找到存在的目录/文件，或者到了磁盘根目录
+      while (currentSearch && currentSearch !== path.dirname(currentSearch)) {
+        if (fs.existsSync(currentSearch)) {
+          return vscode.Uri.file(currentSearch);
+        }
+        currentSearch = path.dirname(currentSearch);
+      }
+    }
+    return rootPath ? vscode.Uri.file(rootPath) : undefined;
+  }
+
   private async getFullConfig() {
     const configService = ConfigurationService.getInstance();
     await configService.loadConfig();
@@ -52,7 +71,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
 
     const fullMockList = mockList.map(rule => {
       const fullRule = { ...rule };
-      if (rule.dataPath && rule.mode !== 'file') {
+      if (rule.dataPath && rule.mode !== 'file') { 
         const absPath = this.getMockDataPath(rule.dataPath);
         if (absPath && fs.existsSync(absPath)) {
           try {
@@ -83,8 +102,10 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         break;
       case 'selectGlobalMockDir': {
         const rootPath = this.getWorkspaceRoot();
+        // 🌟 应用智能路径
+        const defaultUri = this.getDefaultUri(data.currentPath);
         const uri = await vscode.window.showOpenDialog({
-          canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: rootPath ? vscode.Uri.file(rootPath) : undefined, openLabel: '选择全局 Mock 数据存放目录'
+          canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri, openLabel: '选择全局 Mock 数据存放目录'
         });
         if (uri && uri[0]) {
           let savePath = uri[0].fsPath;
@@ -102,8 +123,10 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
       }
       case 'selectFileReturnPath': {
         const rootPath = this.getWorkspaceRoot();
+        // 🌟 应用智能路径
+        const defaultUri = this.getDefaultUri(data.currentPath);
         const uri = await vscode.window.showOpenDialog({
-          canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri: rootPath ? vscode.Uri.file(rootPath) : undefined, openLabel: '选择要返回的文件'
+          canSelectFiles: true, canSelectFolders: false, canSelectMany: false, defaultUri, openLabel: '选择要返回的文件'
         });
         if (uri && uri[0]) {
           let savePath = uri[0].fsPath;
@@ -189,7 +212,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     } else {
       this.proxyPanel = vscode.window.createWebviewPanel('proxyPanel', proxyId ? '编辑 Mock 服务' : '新增 Mock 服务', vscode.ViewColumn.One, { enableScripts: true });
       this.proxyPanel.onDidDispose(() => { this.proxyPanel = undefined; });
-      // 🌟 直接调用函数获取 Proxy Panel HTML
       this.proxyPanel.webview.html = getProxyPanelHtml();
 
       this.proxyPanel.webview.onDidReceiveMessage(async (data) => {
@@ -228,7 +250,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     } else {
       this.rulePanel = vscode.window.createWebviewPanel('rulePanel', ruleId ? '编辑规则' : '新增规则', vscode.ViewColumn.One, { enableScripts: true });
       this.rulePanel.onDidDispose(() => { this.rulePanel = undefined; });
-      // 🌟 直接调用函数获取 Rule Panel HTML
       this.rulePanel.webview.html = getRulePanelHtml();
 
       this.rulePanel.webview.onDidReceiveMessage(async (data) => {
@@ -241,27 +262,29 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             if (data.mode === 'mock') {
               result = Mock.mock(parsedTemplate);
             } else {
-              result = parsedTemplate;
+              result = parsedTemplate; 
             }
             this.rulePanel?.webview.postMessage({ type: 'simulateResult', result });
           } catch (e: any) {
             this.rulePanel?.webview.postMessage({ type: 'simulateResult', error: e.message });
           }
         } else if (data.type === 'selectRuleMockDir') {
-          const rootPath = this.getWorkspaceRoot();
-          const uri = await vscode.window.showOpenDialog({
-            canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri: rootPath ? vscode.Uri.file(rootPath) : undefined, openLabel: '选择此规则的数据存放目录'
-          });
-          if (uri && uri[0]) {
-            let savePath = uri[0].fsPath;
-            if (rootPath && savePath.startsWith(rootPath)) {
-              savePath = path.relative(rootPath, savePath);
-              if (savePath === '') savePath = '.';
-            }
-            this.rulePanel?.webview.postMessage({ type: 'ruleDirSelected', path: savePath.replace(/\\/g, '/') });
-          }
-        } else if (data.type === 'selectFileReturnPath') {
-          await this.handleMessage(data, this.rulePanel!.webview);
+           const rootPath = this.getWorkspaceRoot();
+           // 🌟 应用智能路径
+           const defaultUri = this.getDefaultUri(data.currentPath);
+           const uri = await vscode.window.showOpenDialog({
+             canSelectFiles: false, canSelectFolders: true, canSelectMany: false, defaultUri, openLabel: '选择此规则的数据存放目录'
+           });
+           if (uri && uri[0]) {
+             let savePath = uri[0].fsPath;
+             if (rootPath && savePath.startsWith(rootPath)) {
+               savePath = path.relative(rootPath, savePath);
+               if (savePath === '') savePath = '.';
+             }
+             this.rulePanel?.webview.postMessage({ type: 'ruleDirSelected', path: savePath.replace(/\\/g, '/') });
+           }
+        } else if (data.type === 'selectFileReturnPath') { 
+           await this.handleMessage(data, this.rulePanel!.webview);
         } else if (data.type === 'saveRule') {
           const newRuleData = data.payload;
           if (!newRuleData.id) newRuleData.id = nanoid();
@@ -289,19 +312,19 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           const ruleToSaveConfig: any = {
-            id: newRuleData.id,
-            proxyId: newRuleData.proxyId,
-            method: newRuleData.method,
+            id: newRuleData.id, 
+            proxyId: newRuleData.proxyId, 
+            method: newRuleData.method, 
             url: newRuleData.url,
-            contentType: newRuleData.contentType,
-            enabled: newRuleData.enabled,
+            contentType: newRuleData.contentType, 
+            enabled: newRuleData.enabled, 
             dataPath: ruleDataPath,
-            mode: newRuleData.mode
+            mode: newRuleData.mode 
           };
-
+          
           if (newRuleData.mode === 'file') {
-            ruleToSaveConfig.filePath = newRuleData.filePath;
-            ruleToSaveConfig.fileDisposition = newRuleData.fileDisposition;
+             ruleToSaveConfig.filePath = newRuleData.filePath;
+             ruleToSaveConfig.fileDisposition = newRuleData.fileDisposition;
           }
 
           const configService = ConfigurationService.getInstance();
@@ -321,13 +344,13 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     await configService.loadConfig();
     const mocks = Array.isArray(configService.config.mock) ? configService.config.mock : [];
     let fullRule = mocks.find((r: any) => r.id === ruleId) ? { ...mocks.find((r: any) => r.id === ruleId) } : null;
-
+    
     if (fullRule && fullRule.dataPath && fullRule.mode !== 'file') {
       const absPath = this.getMockDataPath(fullRule.dataPath);
       if (absPath && fs.existsSync(absPath)) {
         try {
           const parsed = JSON.parse(fs.readFileSync(absPath, 'utf8'));
-          if (fullRule.mode === 'custom') fullRule.data = parsed;
+          if (fullRule.mode === 'custom') fullRule.data = parsed; 
           else fullRule.template = parsed;
         } catch (e) { }
       }

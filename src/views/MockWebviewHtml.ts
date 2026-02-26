@@ -83,7 +83,8 @@ export function getSidebarHtml(): string {
       vscode.postMessage({ type: 'refresh' });
 
       document.getElementById('globalServerBtn').onclick = () => vscode.postMessage({ type: 'toggleServer', value: !isGlobalRunning });
-      window.selectGlobalMockDir = () => vscode.postMessage({ type: 'selectGlobalMockDir' });
+      // 🌟 新增：带上当前的 globalMockDir 路径
+      window.selectGlobalMockDir = () => vscode.postMessage({ type: 'selectGlobalMockDir', currentPath: globalMockDir });
       window.openProxyModal = (id) => vscode.postMessage({ type: 'openProxyPanel', id });
       window.openRuleModal = (proxyId, ruleId) => vscode.postMessage({ type: 'openRulePanel', proxyId, ruleId });
       window.toggleProxy = (id, enabled) => vscode.postMessage({ type: 'toggleProxy', id, enabled });
@@ -170,7 +171,6 @@ export function getSidebarHtml(): string {
   </html>`;
 }
 
-// 导出新增/编辑服务端口的 HTML
 export function getProxyPanelHtml(): string {
   return `<!DOCTYPE html>
   <html lang="en">
@@ -230,7 +230,6 @@ export function getProxyPanelHtml(): string {
   </html>`;
 }
 
-// 导出拦截规则面板的 HTML
 export function getRulePanelHtml(): string {
   return `<!DOCTYPE html>
   <html lang="en">
@@ -273,7 +272,6 @@ export function getRulePanelHtml(): string {
       .tab-pane { display: none; }
       .tab-pane.active { display: block; }
 
-      /* 统一的节点样式，支持无限层级嵌套 */
       .mock-node { margin-bottom: 8px; }
       .node-self:hover { background: var(--vscode-list-hoverBackground); border-radius: 2px; }
       .node-children { margin-left: 10px; padding-left: 10px; border-left: 1px dashed var(--vscode-tree-indentGuidesStroke); padding-top: 8px; }
@@ -324,7 +322,7 @@ export function getRulePanelHtml(): string {
               <label>规则配置存放路径 (必填)</label>
               <div style="display:flex; gap:6px;">
                   <input type="text" id="rule_dataPath" placeholder="相对于工作区的路径" title="生成的 JSON 配置存放的相对路径">
-                  <button onclick="vscode.postMessage({ type: 'selectRuleMockDir' })" class="btn-sec" title="浏览并选择存放目录">
+                  <button onclick="vscode.postMessage({ type: 'selectRuleMockDir', currentPath: document.getElementById('rule_dataPath').value })" class="btn-sec" title="浏览并选择存放目录">
                       <i class="fa-regular fa-folder-open"></i>
                   </button>
               </div>
@@ -379,7 +377,7 @@ export function getRulePanelHtml(): string {
                   <label>选择要作为接口返回的本地文件</label>
                   <div style="display:flex; gap:6px;">
                       <input type="text" id="rule_filePath" placeholder="例如: public/logo.png 或 绝对路径" title="要返回的真实文件的路径">
-                      <button onclick="vscode.postMessage({ type: 'selectFileReturnPath' })" class="btn-sec" title="浏览并选择要返回的文件">
+                      <button onclick="vscode.postMessage({ type: 'selectFileReturnPath', currentPath: document.getElementById('rule_filePath').value })" class="btn-sec" title="浏览并选择要返回的文件">
                           <i class="fa-regular fa-file"></i>
                       </button>
                   </div>
@@ -588,7 +586,6 @@ export function getRulePanelHtml(): string {
           return html;
       }
 
-      // 🌟 安全的节点移除函数，彻底避免转义报错
       window.removeMockNode = (el) => {
           const node = el.closest('.mock-node');
           if (node) node.remove();
@@ -603,7 +600,6 @@ export function getRulePanelHtml(): string {
           const addBtn = '<button class="btn-sec mb-add-child" style="display:' + (hasChildren ? 'inline-flex' : 'none') + '; padding: 4px 8px; font-size: 11px;" onclick="addChildNode(this)" title="添加子节点"><i class="fa-solid fa-plus"></i></button>';
           const insertBtn = isRoot ? '<button class="btn-icon-only" style="margin-left:auto; color:var(--vscode-textLink-activeForeground);" onclick="insertSingleField(this)" title="仅将此行结构写入下方模板"><i class="fa-solid fa-arrow-down"></i></button>' : '';
           
-          // 🚨 将内联复杂的 JS 代码替换为干净的函数调用
           const delBtn = '<i class="fa-solid ' + (isRoot ? 'fa-trash' : 'fa-xmark') + ' delete-icon" ' + (!isRoot ? 'style="margin-left:auto;"' : '') + ' onclick="removeMockNode(this)" title="删除节点"></i>';
           
           const rootStyle = isRoot ? 'border-left: 2px solid var(--vscode-tree-indentGuidesStroke); padding-left: 10px;' : '';
