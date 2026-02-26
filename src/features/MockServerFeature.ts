@@ -81,23 +81,20 @@ export class MockServerFeature implements IFeature {
     if (!Array.isArray(proxies)) proxies = [];
 
     // 🌟 1. 核心修复：清理过期服务
-    // 遍历所有正在运行的服务，如果服务被禁用、被删除，或者【端口号发生了修改】，立即 close 它
     for (const [proxyId, server] of this.servers.entries()) {
       const conf = proxies.find((c: any) => c.id === proxyId);
-      
-      // server._port 是我们在服务启动时绑定的实际端口
+
       if (!conf || !conf.enabled || server._port !== Number(conf.port)) {
-        server.close(); // 优雅关闭底层的 HTTP Server
-        this.servers.delete(proxyId); // 从运行队列中剔除
+        server.close();
+        this.servers.delete(proxyId);
         console.log(`[MockServer] Stopped server for proxyId: ${proxyId}`);
       }
     }
 
     // 🌟 2. 启动服务
-    // 如果是新服务，或者是刚才因为改端口被我们关闭的服务，就会在这里重新创建并启动
     for (const conf of proxies) {
       if (conf.enabled && !this.servers.has(conf.id)) {
-        if (!conf.port) continue; 
+        if (!conf.port) continue;
         this.startServerInstance(conf);
       }
     }
@@ -133,21 +130,33 @@ export class MockServerFeature implements IFeature {
               const root = this.getWorkspaceRoot();
               if (root) absFilePath = path.join(root, absFilePath);
             }
-            
+
             if (fs.existsSync(absFilePath)) {
               const disposition = matchedRule.fileDisposition === 'attachment' ? 'attachment' : 'inline';
-              res.set('Content-Disposition', `${disposition}; filename="${path.basename(absFilePath)}"`);
-              
-              if (matchedRule.contentType) {
+
+              // 🚨 终极修复 1：解决中文文件名导致 500 崩溃的问题！
+              // HTTP Header 严格限制字符集，必须对文件名进行 UTF-8 编码
+              const encodedFileName = encodeURIComponent(path.basename(absFilePath));
+              res.set('Content-Disposition', `${disposition}; filename*=UTF-8''${encodedFileName}`);
+
+              // 🚨 终极修复 2：防止强行把图片识别为 JSON
+              // 如果配置里是 application/json，我们直接忽略它，让 Express 的 sendFile 自动根据后缀（.png）推断出 image/png
+              if (matchedRule.contentType && matchedRule.contentType !== 'application/json') {
                 res.set('Content-Type', matchedRule.contentType);
               }
-              
-              return res.sendFile(absFilePath);
+
+              // 🚨 终极修复 3：加入文件流传输的异常捕获，防止服务静默挂掉
+              return res.sendFile(absFilePath, (err: any) => {
+                if (err) {
+                  console.error(`[MockServer] Send File Error:`, err);
+                  if (!res.headersSent) res.status(500).json({ error: '文件传输失败', details: err.message });
+                }
+              });
             } else {
               return res.status(404).json({ error: '配置返回的文件不存在', path: absFilePath });
             }
           } else {
-             return res.status(400).json({ error: '文件路径未配置' });
+            return res.status(400).json({ error: '文件路径未配置' });
           }
         }
 
@@ -166,7 +175,7 @@ export class MockServerFeature implements IFeature {
             try {
               const fileContent = fs.readFileSync(absPath, 'utf8');
               const parsedData = JSON.parse(fileContent);
-              
+
               const isMockTemplate = matchedRule.mode === 'mock' || matchedRule.isTemplate;
               if (isMockTemplate) {
                 return res.send(Mock.mock(parsedData));
@@ -193,7 +202,7 @@ export class MockServerFeature implements IFeature {
             return res.status(500).json({ error: 'Mock Parse Error', details: e.message });
           }
         }
-        
+
         return res.send({});
       } else {
         return res.status(404).json({ error: `Mock Rule Not Found for ${req.path}` });
@@ -202,8 +211,6 @@ export class MockServerFeature implements IFeature {
 
     try {
       const server = app.listen(serverConfig.port, () => {
-        // 🌟 核心标记：在 HTTP Server 实例上挂载当前绑定的真实端口
-        // 这让我们可以在 syncServers() 中判断它是不是被改过了
         server._port = Number(serverConfig.port);
         this.servers.set(serverConfig.id, server);
         this.notifyStatusToWebview();
