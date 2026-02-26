@@ -47,13 +47,15 @@ export interface IMockRuleConfig {
   contentType?: string; // 响应头 Content-Type
   enabled: boolean;     // 是否启用此规则
   dataPath?: string;    // 规则配置存放的相对路径 (如 .quickops/mocks/xxx.json)
-  
+  reqHeaders?: any;
+  delay?: number;
+
   /** * 数据响应模式 
    * 'mock': 动态 Mock.js 模板
    * 'custom': 静态 JSON 数据
    * 'file': 本地文件下发
    */
-  mode: 'mock' | 'custom' | 'file'; 
+  mode: 'mock' | 'custom' | 'file';
 
   // ================= 运行时承载数据 =================
   data?: any;           // 运行时承载的静态 JSON 数据（保存到文件后，主配置里不存此庞大对象）
@@ -62,11 +64,11 @@ export interface IMockRuleConfig {
   // ================= 文件模式专属配置 =================
   filePath?: string;    // 要下发的本地文件相对/绝对路径
   fileDisposition?: 'inline' | 'attachment'; // 响应方式：浏览器内预览(inline) 或 下载(attachment)
-  
+
   /** @deprecated 请使用 mode === 'mock' 替代 */
-  isTemplate?: boolean; 
+  isTemplate?: boolean;
   /** @deprecated 已彻底移除代理转发功能 */
-  target?: string;      
+  target?: string;
 }
 
 // 3. 更新主配置接口

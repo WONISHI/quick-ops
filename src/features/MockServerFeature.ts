@@ -80,7 +80,7 @@ export class MockServerFeature implements IFeature {
     let proxies = this.configService.config.proxy || [];
     if (!Array.isArray(proxies)) proxies = [];
 
-    // 🌟 1. 核心修复：清理过期服务
+    // 🌟 1. 清理过期服务
     for (const [proxyId, server] of this.servers.entries()) {
       const conf = proxies.find((c: any) => c.id === proxyId);
 
@@ -105,7 +105,6 @@ export class MockServerFeature implements IFeature {
   private startServerInstance(serverConfig: any) {
     const app = express();
     
-    // 🌟 开启全方位 CORS 允许前端跨域
     app.use(cors({
         origin: true,
         credentials: true,
@@ -131,6 +130,19 @@ export class MockServerFeature implements IFeature {
       if (matchedRule) {
         console.log(`[MockServer:${serverConfig.port}] Mock Hit: ${req.path}`);
 
+        // 🌟 1. 注入自定义请求头 (是请求头不是响应头)
+        if (matchedRule.reqHeaders && typeof matchedRule.reqHeaders === 'object') {
+          Object.assign(req.headers, matchedRule.reqHeaders);
+        }
+
+        // 🌟 2. 延时响应阻塞
+        if (matchedRule.delay && matchedRule.delay > 0) {
+          await new Promise(resolve => setTimeout(resolve, matchedRule.delay));
+        }
+
+        // ======================================
+        // 📁 文件流及多文件列表模式
+        // ======================================
         if (matchedRule.mode === 'file') {
           if (matchedRule.filePath) {
             const filePaths = matchedRule.filePath.split('\n').map((p: string) => p.trim()).filter(Boolean);
@@ -170,14 +182,9 @@ export class MockServerFeature implements IFeature {
 
             if (fs.existsSync(absFilePath)) {
               const disposition = matchedRule.fileDisposition === 'attachment' ? 'attachment' : 'inline';
-
-              // 🚨 终极修复 1：解决中文文件名导致 500 崩溃的问题！
-              // HTTP Header 严格限制字符集，必须对文件名进行 UTF-8 编码
               const encodedFileName = encodeURIComponent(path.basename(absFilePath));
               res.set('Content-Disposition', `${disposition}; filename*=UTF-8''${encodedFileName}`);
 
-              // 🚨 终极修复 2：防止强行把图片识别为 JSON
-              // 如果配置里是 application/json，我们直接忽略它，让 Express 的 sendFile 自动根据后缀（.png）推断出 image/png
               if (matchedRule.contentType && matchedRule.contentType !== 'application/json') {
                 res.set('Content-Type', matchedRule.contentType);
               }
@@ -196,6 +203,9 @@ export class MockServerFeature implements IFeature {
           }
         }
 
+        // ======================================
+        // 📝 JSON 数据模式
+        // ======================================
         res.set('Content-Type', matchedRule.contentType || 'application/json');
 
         if (matchedRule.dataPath) {
@@ -245,7 +255,7 @@ export class MockServerFeature implements IFeature {
       }
     });
 
-    // 🌟 兜底路由：如果没有命中任何 Mock 规则，直接返回友好的 404
+    // 🌟 兜底路由
     app.use((req: any, res: any) => {
       res.status(404).json({ 
           error: 'Not Found in Mock Rules', 
@@ -255,7 +265,7 @@ export class MockServerFeature implements IFeature {
     });
 
     try {
-      const server = app.listen(serverConfig.port, () => {
+      const server = app.listen(serverConfig.port, '127.0.0.1', () => {
         server._port = Number(serverConfig.port);
         this.servers.set(serverConfig.id, server);
         this.notifyStatusToWebview();

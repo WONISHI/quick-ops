@@ -83,7 +83,6 @@ export function getSidebarHtml(): string {
       vscode.postMessage({ type: 'refresh' });
 
       document.getElementById('globalServerBtn').onclick = () => vscode.postMessage({ type: 'toggleServer', value: !isGlobalRunning });
-      // 🌟 新增：带上当前的 globalMockDir 路径
       window.selectGlobalMockDir = () => vscode.postMessage({ type: 'selectGlobalMockDir', currentPath: globalMockDir });
       window.openProxyModal = (id) => vscode.postMessage({ type: 'openProxyPanel', id });
       window.openRuleModal = (proxyId, ruleId) => vscode.postMessage({ type: 'openRulePanel', proxyId, ruleId });
@@ -285,7 +284,6 @@ export function getRulePanelHtml(): string {
       .copy-btn { font-size: 11px; padding: 2px 6px; cursor: pointer; color: var(--vscode-textLink-activeForeground); background: transparent; border: none; }
       .copy-btn:hover { text-decoration: underline; }
       
-      /* 🌟 新增文件多选 Tags 的样式 */
       .file-tags-container { border: 1px solid var(--vscode-input-border); background: var(--vscode-input-background); min-height: 28px; padding: 4px; border-radius: 2px; }
       .file-tags-list { display: flex; flex-wrap: wrap; gap: 4px; }
       .file-tag { display: inline-flex; align-items: center; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); padding: 2px 6px; border-radius: 3px; font-size: 11px; word-break: break-all; max-width: 100%;}
@@ -324,6 +322,17 @@ export function getRulePanelHtml(): string {
           </div>
       </div>
       
+      <div class="form-row">
+          <div class="form-group" style="flex: 0 0 100px;">
+              <label>延时返回(ms)</label>
+              <input type="number" id="rule_delay" placeholder="如: 6000" title="设置接口延迟返回的时间（毫秒）" value="0" min="0">
+          </div>
+          <div class="form-group">
+              <label>注入请求头 (合法 JSON 格式，非响应头)</label>
+              <input type="text" id="rule_reqHeaders" placeholder='{"X-Custom-Auth": "token123"}' title="配置需要强制附加到该请求(req.headers)的自定义头部">
+          </div>
+      </div>
+
       <div class="form-row">
           <div class="form-group">
               <label>规则配置存放路径 (必填)</label>
@@ -391,11 +400,9 @@ export function getRulePanelHtml(): string {
                   
                   <div style="display:flex; gap:6px; align-items: flex-start;">
                       <input type="text" id="rule_filePath_single" placeholder="例如: public/logo.png 或 绝对路径" title="要返回的真实文件的路径" style="flex:1;">
-                      
                       <div id="rule_filePath_multiple" class="file-tags-container" style="display:none; flex:1;">
                           <div id="fileTagsList" class="file-tags-list"></div>
                       </div>
-                      
                       <button onclick="browseFile()" class="btn-sec" title="浏览本地文件" style="height: 28px;">
                           <i class="fa-regular fa-folder-open"></i>
                       </button>
@@ -421,7 +428,7 @@ export function getRulePanelHtml(): string {
       const vscode = acquireVsCodeApi();
       let currentProxyId = '';
       let currentMode = 'mock'; 
-      let filePathsState = []; // 🌟 用于存放文件多选的数据池
+      let filePathsState = []; 
 
       window.addEventListener('message', e => {
           const msg = e.data;
@@ -434,9 +441,12 @@ export function getRulePanelHtml(): string {
               document.getElementById('rule_contentType').value = rule?.contentType || 'application/json';
               document.getElementById('rule_dataPath').value = rule?.dataPath || (msg.globalMockDir ? msg.globalMockDir + '/' : '');
 
+              // 🌟 初始化解析延时和请求头配置
+              document.getElementById('rule_delay').value = rule?.delay || 0;
+              document.getElementById('rule_reqHeaders').value = rule?.reqHeaders ? JSON.stringify(rule.reqHeaders) : '';
+
               document.getElementById('rule_fileDisposition').value = rule?.fileDisposition || 'inline';
 
-              // 🌟 初始化解析 filePath (支持换行多选)
               let paths = (rule?.filePath || '').split('\\n').map(p => p.trim()).filter(Boolean);
               filePathsState = paths;
               if (paths.length > 1) {
@@ -467,7 +477,6 @@ export function getRulePanelHtml(): string {
           } else if (msg.type === 'ruleDirSelected') {
               document.getElementById('rule_dataPath').value = msg.path.endsWith('/') ? msg.path : msg.path + '/';
           } else if (msg.type === 'fileReturnPathSelected') {
-              // 🌟 处理从系统弹窗选择的文件数据
               const mode = document.getElementById('rule_fileMode').value;
               const newPaths = msg.path.split('\\n').map(p => p.trim()).filter(Boolean);
               if (mode === 'single') {
@@ -483,7 +492,6 @@ export function getRulePanelHtml(): string {
           }
       });
 
-      // 🌟 文件单选/多选逻辑控制区 =======================
       window.toggleFileMode = () => {
           const mode = document.getElementById('rule_fileMode').value;
           if (mode === 'single') {
@@ -528,7 +536,6 @@ export function getRulePanelHtml(): string {
               list.appendChild(tag);
           });
       };
-      // ===============================================
 
       const mockInput = document.getElementById('mockTemplate');
       function updateSimulateBtnState() {
@@ -566,6 +573,19 @@ export function getRulePanelHtml(): string {
          const dataPath = document.getElementById('rule_dataPath').value;
          if(!url) return vscode.postMessage({ type: 'error', message: 'API Path 不能为空！' });
          
+         // 🌟 新增：获取并解析延时与请求头
+         let delay = parseInt(document.getElementById('rule_delay').value) || 0;
+         let reqHeadersStr = document.getElementById('rule_reqHeaders').value.trim();
+         let reqHeaders = null;
+         if (reqHeadersStr) {
+             try {
+                 reqHeaders = JSON.parse(reqHeadersStr);
+                 if (typeof reqHeaders !== 'object' || Array.isArray(reqHeaders)) throw new Error();
+             } catch(e) {
+                 return vscode.postMessage({ type: 'error', message: '注入请求头必须是合法的 JSON 对象格式！' });
+             }
+         }
+
          let tpl = undefined, data = undefined;
          let filePath = ''; let fileDisposition = 'inline';
 
@@ -575,7 +595,6 @@ export function getRulePanelHtml(): string {
              } else if (currentMode === 'custom') {
                  data = JSON.parse(document.getElementById('customJson').value || '{}');
              } else if (currentMode === 'file') {
-                 // 🌟 核心：收集待保存的文件路径
                  const mode = document.getElementById('rule_fileMode').value;
                  if (mode === 'single') {
                      filePath = document.getElementById('rule_filePath_single').value.trim();
@@ -589,7 +608,8 @@ export function getRulePanelHtml(): string {
              vscode.postMessage({ type: 'saveRule', payload: {
                  id, proxyId: currentProxyId, method: document.getElementById('rule_method').value,
                  url, contentType: document.getElementById('rule_contentType').value, enabled: true, dataPath, 
-                 template: tpl, data, mode: currentMode, filePath, fileDisposition
+                 template: tpl, data, mode: currentMode, filePath, fileDisposition,
+                 delay, reqHeaders // 🌟 包含新增参数
              }});
          } catch(e) { vscode.postMessage({ type: 'error', message: 'JSON 格式错误: ' + e.message }); }
       };

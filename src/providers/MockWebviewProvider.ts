@@ -120,13 +120,8 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
       }
       case 'selectFileReturnPath': {
         const defaultUri = this.getDefaultUri(data.currentPath);
-        // 🌟 动态判断系统弹窗是否允许多选文件
         const uris = await vscode.window.showOpenDialog({
-          canSelectFiles: true, 
-          canSelectFolders: false, 
-          canSelectMany: data.multiple === true, 
-          defaultUri, 
-          openLabel: data.multiple ? '选择文件 (支持多选)' : '选择文件'
+          canSelectFiles: true, canSelectFolders: false, canSelectMany: data.multiple === true, defaultUri, openLabel: data.multiple ? '选择文件 (支持多选)' : '选择文件'
         });
         
         if (uris && uris.length > 0) {
@@ -315,6 +310,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             fs.writeFileSync(absPath, JSON.stringify({ type: "file_mock", file: newRuleData.filePath, disposition: newRuleData.fileDisposition }, null, 2), 'utf8');
           }
 
+          // 🌟 保存配置包含 delay 和 reqHeaders
           const ruleToSaveConfig: any = {
             id: newRuleData.id, 
             proxyId: newRuleData.proxyId, 
@@ -323,7 +319,9 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             contentType: newRuleData.contentType, 
             enabled: newRuleData.enabled, 
             dataPath: ruleDataPath,
-            mode: newRuleData.mode 
+            mode: newRuleData.mode,
+            delay: newRuleData.delay,           // 🌟 延时毫秒
+            reqHeaders: newRuleData.reqHeaders  // 🌟 自定义请求头
           };
           
           if (newRuleData.mode === 'file') {
