@@ -273,10 +273,12 @@ export function getRulePanelHtml(): string {
       .tab-pane { display: none; }
       .tab-pane.active { display: block; }
 
-      .mock-row-container { border-left: 1px solid var(--vscode-tree-indentGuidesStroke); padding-left: 12px; margin-bottom: 8px; padding-bottom: 8px; position: relative;}
-      .mock-row-container:hover { border-left-color: var(--vscode-focusBorder); }
+      /* 统一的节点样式，支持无限层级嵌套 */
+      .mock-node { margin-bottom: 8px; }
+      .node-self:hover { background: var(--vscode-list-hoverBackground); border-radius: 2px; }
+      .node-children { margin-left: 10px; padding-left: 10px; border-left: 1px dashed var(--vscode-tree-indentGuidesStroke); padding-top: 8px; }
+      
       .actions-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--vscode-panel-border); }
-
       .delete-icon { cursor: pointer; color: var(--vscode-icon-foreground); padding: 4px; opacity: 0.6; }
       .delete-icon:hover { opacity: 1; color: var(--vscode-errorForeground); }
       
@@ -338,8 +340,8 @@ export function getRulePanelHtml(): string {
       <div class="tab-content">
           <div id="pane-mock" class="tab-pane active">
               <div style="margin-bottom:12px; display:flex; gap:8px;">
-                  <button onclick="applyMockFields()" class="btn-pri" title="将上方配置转换为 JSON 模板并刷新预览"><i class="fa-solid fa-wand-magic-sparkles"></i> 生成模板</button>
-                  <button onclick="addMockRow()" class="btn-sec" title="在末尾新增一个字段行"><i class="fa-solid fa-plus"></i> 新增字段</button>
+                  <button onclick="applyMockFields()" class="btn-pri" title="将上方结构转为 JSON 模板并刷新预览"><i class="fa-solid fa-wand-magic-sparkles"></i> 生成模板</button>
+                  <button onclick="addMockRow()" class="btn-sec" title="在根节点新增一个字段"><i class="fa-solid fa-plus"></i> 新增字段</button>
                   <button onclick="resetMockFields()" class="btn-sec" style="margin-left: auto; color: var(--vscode-errorForeground); border-color: var(--vscode-errorForeground);" title="清空当前所有字段并重置为初始状态"><i class="fa-solid fa-rotate-right"></i> 重置数据结构</button>
               </div>
               <div id="mock-builder-rows" style="max-height: 250px; overflow-y: auto; padding-right: 10px;"></div>
@@ -429,7 +431,7 @@ export function getRulePanelHtml(): string {
               if (currentMode === 'custom') {
                   document.getElementById('customJson').value = typeof rule?.data === 'string' ? rule.data : JSON.stringify(rule?.data || {}, null, 2);
               } else if (currentMode === 'mock') {
-                  document.getElementById('mockTemplate').value = typeof rule?.template === 'object' ? JSON.stringify(rule.template, null, 2) : (rule?.template || '{ "code": 200, "data": {} }');
+                  document.getElementById('mockTemplate').value = typeof rule?.template === 'object' ? JSON.stringify(rule.template, null, 2) : (rule?.template || '{\\n  "code": 200,\\n  "data": {}\\n}');
                   parseJsonToRows(document.getElementById('mockTemplate').value); 
                   updateSimulateBtnState();
                   simulate();
@@ -443,7 +445,6 @@ export function getRulePanelHtml(): string {
           }
       });
 
-      // 🌟 仅仅监听 Mock 模版的输入变化
       const mockInput = document.getElementById('mockTemplate');
       function updateSimulateBtnState() {
          const btn = document.getElementById('simulateBtn');
@@ -467,11 +468,8 @@ export function getRulePanelHtml(): string {
           } else {
               textToCopy = el.innerText;
           }
-          
           if(!textToCopy.trim()) return;
-
           vscode.postMessage({ type: 'copyText', payload: textToCopy });
-          
           const originalHTML = btn.innerHTML;
           btn.innerHTML = '<i class="fa-solid fa-check" style="color:var(--success)"></i> 已复制';
           setTimeout(() => { btn.innerHTML = originalHTML; }, 2000);
@@ -506,15 +504,11 @@ export function getRulePanelHtml(): string {
       };
 
       window.simulate = () => {
-          // 只有 mock 模式才允许 simulate
           if(currentMode !== 'mock') return;
           const btn = document.getElementById('simulateBtn');
           if(btn && btn.disabled) return;
-
           let rawData = mockInput.value;
-          if(rawData.trim()) {
-             vscode.postMessage({ type: 'simulate', template: rawData, mode: 'mock' });
-          }
+          if(rawData.trim()) vscode.postMessage({ type: 'simulate', template: rawData, mode: 'mock' });
       };
 
       window.switchTab = (mode) => {
@@ -522,7 +516,6 @@ export function getRulePanelHtml(): string {
           document.querySelectorAll('.tab, .tab-pane').forEach(el => el.classList.remove('active'));
           document.getElementById('tab-' + mode).classList.add('active');
           document.getElementById('pane-' + mode).classList.add('active');
-          
           if(mode === 'mock') {
               updateSimulateBtnState();
               simulate(); 
@@ -530,17 +523,28 @@ export function getRulePanelHtml(): string {
       };
 
       window.handleTypeChange = (sel) => {
-          const container = sel.closest('.mock-row-container');
-          const val = sel.value; const hc = val === 'ARRAY' || val === 'OBJECT';
-          container.querySelector('.mb-count').style.display = val === 'ARRAY' ? 'inline-block' : 'none';
-          container.querySelector('.mb-add-child').style.display = hc ? 'inline-block' : 'none';
-          container.querySelector('.mock-builder-children').style.display = hc ? 'block' : 'none';
+          const selfDiv = sel.closest('.node-self');
+          const val = sel.value; 
+          const hc = val === 'ARRAY' || val === 'OBJECT';
+          
+          selfDiv.querySelector('.mb-count').style.display = val === 'ARRAY' ? 'inline-block' : 'none';
+          selfDiv.querySelector('.mb-add-child').style.display = hc ? 'inline-flex' : 'none';
+          
+          const nodeDiv = sel.closest('.mock-node');
+          const childrenDiv = nodeDiv.querySelector(':scope > .node-children');
+          if (childrenDiv) {
+              childrenDiv.style.display = hc ? 'block' : 'none';
+              if (hc && Array.from(childrenDiv.children).filter(e => e.classList.contains('mock-node')).length === 0) {
+                  const wrapper = document.createElement('div');
+                  wrapper.innerHTML = createNodeHtml('', '@cname', 5, false);
+                  childrenDiv.appendChild(wrapper.firstElementChild);
+              }
+          }
       };
 
       function getMockTypeOptions(selectedType) {
           const isArray = selectedType === 'ARRAY';
           const isObject = selectedType === 'OBJECT';
-          
           const knownTypes = [
               'ARRAY', 'OBJECT', '@id', '@guid', '@boolean', '@integer(1, 100)', '@float(0, 100, 2, 2)',
               '@cname', '@ctitle', '@cparagraph', '@name', '@title',
@@ -580,92 +584,167 @@ export function getRulePanelHtml(): string {
               '<option value="@color" ' + (selectedType === '@color' ? 'selected' : '') + '>颜色代码 (@color)</option>' +
               '</optgroup>';
           
-          if (extraOpt) {
-              html += '<option value="' + selectedType + '" selected hidden>' + selectedType + '</option>';
-          }
+          if (extraOpt) html += '<option value="' + selectedType + '" selected hidden>' + selectedType + '</option>';
           return html;
       }
 
-      window.addMockRow = (initField = '', initType = '@cname', initCount = 5, children = null) => {
+      // 🌟 安全的节点移除函数，彻底避免转义报错
+      window.removeMockNode = (el) => {
+          const node = el.closest('.mock-node');
+          if (node) node.remove();
+      };
+
+      window.createNodeHtml = (initField, initType, initCount, isRoot) => {
+          const isArray = initType === 'ARRAY';
+          const isObject = initType === 'OBJECT';
+          const hasChildren = isArray || isObject;
+          
+          const arrow = isRoot ? '' : '<i class="fa-solid fa-turn-up" style="transform: rotate(90deg); color: var(--vscode-descriptionForeground); font-size: 10px; margin-right: 4px;"></i>';
+          const addBtn = '<button class="btn-sec mb-add-child" style="display:' + (hasChildren ? 'inline-flex' : 'none') + '; padding: 4px 8px; font-size: 11px;" onclick="addChildNode(this)" title="添加子节点"><i class="fa-solid fa-plus"></i></button>';
+          const insertBtn = isRoot ? '<button class="btn-icon-only" style="margin-left:auto; color:var(--vscode-textLink-activeForeground);" onclick="insertSingleField(this)" title="仅将此行结构写入下方模板"><i class="fa-solid fa-arrow-down"></i></button>' : '';
+          
+          // 🚨 将内联复杂的 JS 代码替换为干净的函数调用
+          const delBtn = '<i class="fa-solid ' + (isRoot ? 'fa-trash' : 'fa-xmark') + ' delete-icon" ' + (!isRoot ? 'style="margin-left:auto;"' : '') + ' onclick="removeMockNode(this)" title="删除节点"></i>';
+          
+          const rootStyle = isRoot ? 'border-left: 2px solid var(--vscode-tree-indentGuidesStroke); padding-left: 10px;' : '';
+          const childrenIndent = isRoot ? '12px' : '22px';
+
+          return '<div class="mock-node" style="' + rootStyle + '">' +
+                  '<div class="node-self" style="display: flex; gap: 8px; align-items: center; padding: 4px 0;">' +
+                      arrow +
+                      '<input type="text" class="mb-field" placeholder="字段名(Key)" value="' + initField + '" style="width:' + (isRoot ? 140 : 110) + 'px;">' +
+                      '<select class="mb-type" style="width:170px;" onchange="handleTypeChange(this)">' +
+                          getMockTypeOptions(initType) +
+                      '</select>' +
+                      '<input type="number" class="mb-count" placeholder="条数" style="width:70px; display:' + (isArray ? 'inline-block' : 'none') + ';" min="1" value="' + initCount + '" title="生成数组的条数">' +
+                      addBtn +
+                      insertBtn +
+                      delBtn +
+                  '</div>' +
+                  '<div class="node-children" style="display: ' + (hasChildren ? 'block' : 'none') + '; margin-left: ' + childrenIndent + ';"></div>' +
+              '</div>';
+      };
+
+      window.addMockRow = () => {
           const container = document.getElementById('mock-builder-rows');
-          const rowWrapper = document.createElement('div');
-          rowWrapper.className = 'mock-row-container';
-          const isArray = initType === 'ARRAY'; const isObject = initType === 'OBJECT'; const hasChildren = isArray || isObject;
-
-          rowWrapper.innerHTML = \`
-              <div style="display: flex; gap: 8px; align-items: center;">
-                  <input type="text" class="mb-field" placeholder="字段名(Key)" value="\${initField}" style="width:130px;" title="生成 JSON 数据中的 Key">
-                  <select class="mb-type" style="width:170px;" onchange="handleTypeChange(this)" title="选择生成的数据类型或结构">
-                      \${getMockTypeOptions(initType)}
-                  </select>
-                  <input type="number" class="mb-count" placeholder="条数" style="width:70px; display:\${isArray ? 'inline-block' : 'none'};" min="1" value="\${initCount}" title="生成数组的条数">
-                  <button class="btn-sec mb-add-child" style="display:\${hasChildren ? 'inline-flex' : 'none'}; padding: 4px 8px; font-size: 11px;" onclick="addChildRow(this)" title="添加一个子节点"><i class="fa-solid fa-plus"></i></button>
-                  <button class="btn-icon-only" style="margin-left:auto; color:var(--vscode-textLink-activeForeground);" onclick="insertSingleField(this)" title="仅将此行的配置写入到下方的模板中"><i class="fa-solid fa-arrow-down"></i></button>
-                  <i class="fa-solid fa-trash delete-icon" onclick="this.closest('.mock-row-container').remove()" title="删除此行"></i>
-              </div>
-              <div class="mock-builder-children" style="margin-left: 10px; padding-left: 10px; border-left: 1px dashed var(--vscode-tree-indentGuidesStroke); display: \${hasChildren ? 'block' : 'none'}; padding-top: 8px;"></div>
-          \`;
-          container.appendChild(rowWrapper);
-          if (children && children.length > 0) children.forEach(c => addChildRowToContainer(rowWrapper.querySelector('.mock-builder-children'), c.field, c.type));
+          const wrapper = document.createElement('div');
+          wrapper.innerHTML = createNodeHtml('', '@cname', 5, true);
+          container.appendChild(wrapper.firstElementChild);
       };
 
-      window.addChildRowToContainer = (container, field = '', type = '@cname') => {
-          const row = document.createElement('div'); row.className = 'child-row'; row.style.cssText = 'display: flex; gap: 8px; margin-bottom: 8px; align-items: center;';
-          row.innerHTML = \`
-              <i class="fa-solid fa-turn-up" style="transform: rotate(90deg); color: var(--vscode-descriptionForeground); font-size: 10px; margin-right: 4px;"></i>
-              <input type="text" class="mb-child-field" placeholder="子字段名" value="\${field}" style="width:106px;" title="子节点字段名">
-              <select class="mb-child-type" style="width:170px;" title="子节点数据类型">
-                  \${getMockTypeOptions(type)}
-              </select>
-              <i class="fa-solid fa-xmark delete-icon" style="margin-left:auto;" onclick="this.parentElement.remove()" title="移除此子节点"></i>
-          \`;
-          container.appendChild(row);
+      window.addChildNode = (btn) => {
+          const childrenContainer = btn.closest('.mock-node').querySelector(':scope > .node-children');
+          if(childrenContainer) {
+             const wrapper = document.createElement('div');
+             wrapper.innerHTML = createNodeHtml('', '@cname', 5, false);
+             childrenContainer.appendChild(wrapper.firstElementChild);
+          }
       };
-      
-      window.addChildRow = (btn) => addChildRowToContainer(btn.closest('.mock-row-container').querySelector('.mock-builder-children'));
+
+      function renderTree(container, obj, isRoot) {
+          if(typeof obj !== 'object' || obj === null) return;
+          Object.keys(obj).forEach(key => {
+              let field = key;
+              let type = obj[key];
+              let count = 5;
+              let childrenObj = null;
+
+              const arrMatch = key.match(/^(.+)\\|(\\d+)$/);
+              if (arrMatch && Array.isArray(type)) {
+                  field = arrMatch[1];
+                  count = parseInt(arrMatch[2]) || 5;
+                  type = 'ARRAY';
+                  childrenObj = obj[key][0]; 
+              } else if (Array.isArray(type)) {
+                  type = 'ARRAY';
+                  childrenObj = type[0];
+              } else if (typeof type === 'object') {
+                  type = 'OBJECT';
+                  childrenObj = type;
+              }
+
+              let typeStr = typeof type === 'string' ? type : (type==='ARRAY'?'ARRAY':'OBJECT');
+              if (typeStr === '@id' && field.endsWith('|+1')) {
+                  field = field.replace('|+1', '');
+              }
+
+              const wrapper = document.createElement('div');
+              wrapper.innerHTML = createNodeHtml(field, typeStr, count, isRoot);
+              const nodeEl = wrapper.firstElementChild;
+              container.appendChild(nodeEl);
+
+              if (childrenObj && typeof childrenObj === 'object') {
+                  renderTree(nodeEl.querySelector(':scope > .node-children'), childrenObj, false);
+              }
+          });
+      }
 
       window.parseJsonToRows = (jsonStr) => {
-          const container = document.getElementById('mock-builder-rows'); container.innerHTML = ''; 
+          const container = document.getElementById('mock-builder-rows'); 
+          container.innerHTML = ''; 
           try {
-              const jsonObj = JSON.parse(jsonStr); const dataObj = jsonObj.data;
-              if (dataObj && typeof dataObj === 'object') {
-                  let hasFields = false;
-                  Object.keys(dataObj).forEach(key => {
-                      hasFields = true; const value = dataObj[key]; const arrMatch = key.match(/^(.+)\\|(\\d+)$/); 
-                      if (arrMatch && Array.isArray(value) && value.length > 0) {
-                          let cl = [];
-                          if (value[0] && typeof value[0] === 'object') Object.keys(value[0]).forEach(cKey => cl.push({ field: cKey.replace('|+1', ''), type: cKey.endsWith('|+1') ? '@id' : value[0][cKey] }));
-                          addMockRow(arrMatch[1], 'ARRAY', parseInt(arrMatch[2]), cl);
-                      } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-                          let cl = []; Object.keys(value).forEach(cKey => cl.push({ field: cKey.replace('|+1', ''), type: cKey.endsWith('|+1') ? '@id' : value[cKey] }));
-                          addMockRow(key, 'OBJECT', 5, cl);
-                      } else addMockRow(key, typeof value === 'string' ? value : JSON.stringify(value));
-                  });
-                  if (!hasFields) addMockRow();
-              } else addMockRow();
+              const jsonObj = JSON.parse(jsonStr); 
+              const dataObj = jsonObj.data;
+              if (dataObj && typeof dataObj === 'object' && Object.keys(dataObj).length > 0) {
+                  renderTree(container, dataObj, true);
+              } else {
+                  addMockRow();
+              }
           } catch(e) { addMockRow(); }
       };
 
-      function getContainerValue(container) {
-          const type = container.querySelector('.mb-type').value;
+      function buildNodeValue(nodeEl) {
+          const selfDiv = nodeEl.children[0]; 
+          const typeSelect = selfDiv.querySelector('.mb-type');
+          if(!typeSelect) return {};
+
+          const type = typeSelect.value;
+          const fieldInput = selfDiv.querySelector('.mb-field').value.trim();
+          const count = selfDiv.querySelector('.mb-count').value || 5;
+
+          if (!fieldInput) return {}; 
+
+          let finalField = fieldInput;
+          let finalValue = type;
+
           if (type === 'ARRAY' || type === 'OBJECT') {
-              let itemTemplate = {}; const childRows = container.querySelectorAll('.child-row');
-              if (childRows.length > 0) childRows.forEach(cr => {
-                  const cField = cr.querySelector('.mb-child-field').value.trim();
-                  if (cField) { const cType = cr.querySelector('.mb-child-type').value; itemTemplate[cType === '@id' ? cField + '|+1' : cField] = cType; }
-              }); else itemTemplate = { "id|+1": 1, "name": "@cname" }; 
-              if (type === 'ARRAY') return { isComplex: true, isArray: true, count: container.querySelector('.mb-count').value || 5, value: [itemTemplate] };
-              else return { isComplex: true, isArray: false, value: itemTemplate };
-          } else return { isComplex: false, value: type };
+              let childrenObj = {};
+              const childrenContainer = nodeEl.children[1]; 
+              const childNodes = Array.from(childrenContainer.children).filter(el => el.classList.contains('mock-node'));
+              
+              if (childNodes.length > 0) {
+                  childNodes.forEach(child => {
+                      const res = buildNodeValue(child);
+                      if (res.field) childrenObj[res.field] = res.value;
+                  });
+              } else {
+                  childrenObj = { "id|+1": 1, "name": "@cname" };
+              }
+
+              if (type === 'ARRAY') {
+                  finalField = \`\${fieldInput}|\${count}\`;
+                  finalValue = [childrenObj];
+              } else {
+                  finalValue = childrenObj;
+              }
+          } else {
+              if (type === '@id' && !fieldInput.endsWith('|+1')) {
+                  finalField = fieldInput + '|+1';
+              }
+          }
+
+          return { field: finalField, value: finalValue };
       }
 
       window.insertSingleField = (btn) => {
-          const container = btn.closest('.mock-row-container'); const field = container.querySelector('.mb-field').value.trim();
-          if (!field) return vscode.postMessage({ type: 'error', message: '请填写主字段名！' });
+          const nodeEl = btn.closest('.mock-node');
+          const res = buildNodeValue(nodeEl);
+          if (!res.field) return vscode.postMessage({ type: 'error', message: '请填写字段名！' });
+          
           let cj; try { cj = JSON.parse(document.getElementById('mockTemplate').value || '{}'); } catch(e) { return; }
           if (!cj.data) cj.data = {};
-          const data = getContainerValue(container);
-          if (data.isComplex && data.isArray) cj.data[\`\${field}|\${data.count}\`] = data.value; else cj.data[field] = data.value;
+          
+          cj.data[res.field] = res.value;
           document.getElementById('mockTemplate').value = JSON.stringify(cj, null, 2); 
           updateSimulateBtnState();
           simulate();
@@ -673,13 +752,18 @@ export function getRulePanelHtml(): string {
 
       window.applyMockFields = () => {
           let cj; try { cj = JSON.parse(document.getElementById('mockTemplate').value || '{}'); } catch(e) { return; }
-          cj.data = {}; let hasAdded = false;
-          document.querySelectorAll('.mock-row-container').forEach(container => {
-              const field = container.querySelector('.mb-field').value.trim(); if (!field) return; 
-              hasAdded = true; const data = getContainerValue(container);
-              if (data.isComplex && data.isArray) cj.data[\`\${field}|\${data.count}\`] = data.value; else cj.data[field] = data.value;
+          cj.data = {}; 
+          let hasAdded = false;
+          
+          document.querySelectorAll('#mock-builder-rows > .mock-node').forEach(nodeEl => {
+              const res = buildNodeValue(nodeEl);
+              if (res.field) {
+                  hasAdded = true;
+                  cj.data[res.field] = res.value;
+              }
           });
-          if (!hasAdded) return vscode.postMessage({ type: 'error', message: '请填写字段！' });
+          
+          if (!hasAdded) return vscode.postMessage({ type: 'error', message: '请至少填写一个有效字段的配置！' });
           document.getElementById('mockTemplate').value = JSON.stringify(cj, null, 2); 
           updateSimulateBtnState();
           simulate();
