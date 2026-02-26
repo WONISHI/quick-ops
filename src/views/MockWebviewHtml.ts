@@ -1,3 +1,4 @@
+// 导出侧边栏界面的 HTML
 export function getSidebarHtml(): string {
   return `<!DOCTYPE html>
   <html lang="en">
@@ -348,7 +349,18 @@ export function getRulePanelHtml(): string {
                     <label>Mock.js 模板代码</label>
                     <button class="copy-btn" onclick="copyContent('mockTemplate', this)"><i class="fa-regular fa-copy"></i> 复制</button>
                 </div>
-                <textarea id="mockTemplate" style="height: 180px; font-family: var(--vscode-editor-font-family, monospace);" title="可直接编辑此处的 Mock.js 模板代码"></textarea>
+                <textarea id="mockTemplate" style="height: 160px; font-family: var(--vscode-editor-font-family, monospace);" title="可直接编辑此处的 Mock.js 模板代码"></textarea>
+              </div>
+              
+              <div id="previewArea" style="margin-top:16px; border-top: 1px dashed var(--vscode-panel-border); padding-top: 16px;">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                      <label>实时预览 (Preview)</label>
+                      <div style="display:flex; gap:8px;">
+                         <button class="copy-btn" onclick="copyContent('previewBox', this)"><i class="fa-regular fa-copy"></i> 复制</button>
+                         <button id="simulateBtn" onclick="simulate()" class="btn-icon-only" title="重新执行 Mock 生成预览结果"><i class="fa-solid fa-arrows-rotate"></i></button>
+                      </div>
+                  </div>
+                  <div id="previewBox" style="background:var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius:2px; padding:12px; font-family:var(--vscode-editor-font-family, monospace); font-size:12px; max-height:180px; overflow:auto; white-space: pre-wrap;"></div>
               </div>
           </div>
           
@@ -357,7 +369,7 @@ export function getRulePanelHtml(): string {
                   <label>静态 JSON 数据</label>
                   <button class="copy-btn" onclick="copyContent('customJson', this)"><i class="fa-regular fa-copy"></i> 复制</button>
               </div>
-              <textarea id="customJson" style="height: 250px; font-family: var(--vscode-editor-font-family, monospace);" title="在此处编写或粘贴纯静态 JSON 数据"></textarea>
+              <textarea id="customJson" style="height: 420px; font-family: var(--vscode-editor-font-family, monospace);" title="在此处编写或粘贴纯静态 JSON 数据"></textarea>
           </div>
 
           <div id="pane-file" class="tab-pane">
@@ -380,17 +392,6 @@ export function getRulePanelHtml(): string {
           </div>
       </div>
 
-      <div id="previewArea" style="margin-top:20px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-              <label>实时预览 (Preview)</label>
-              <div style="display:flex; gap:8px;">
-                 <button class="copy-btn" onclick="copyContent('previewBox', this)"><i class="fa-regular fa-copy"></i> 复制</button>
-                 <button id="simulateBtn" onclick="simulate()" class="btn-icon-only" title="重新执行 Mock 生成预览结果"><i class="fa-solid fa-arrows-rotate"></i></button>
-              </div>
-          </div>
-          <div id="previewBox" style="background:var(--vscode-input-background); border: 1px solid var(--vscode-input-border); border-radius:2px; padding:12px; font-family:var(--vscode-editor-font-family, monospace); font-size:12px; max-height:200px; overflow:auto; white-space: pre-wrap;"></div>
-      </div>
-
       <div class="actions-footer">
           <button class="btn-sec" onclick="vscode.postMessage({ type: 'cancel' })" title="取消编辑">取消</button>
           <button class="btn-pri" onclick="save()" title="保存此规则配置">保存规则</button>
@@ -400,7 +401,7 @@ export function getRulePanelHtml(): string {
     <script>
       const vscode = acquireVsCodeApi();
       let currentProxyId = '';
-      let currentMode = 'mock'; // Track active tab for simulate
+      let currentMode = 'mock'; 
 
       window.addEventListener('message', e => {
           const msg = e.data;
@@ -430,11 +431,9 @@ export function getRulePanelHtml(): string {
               } else if (currentMode === 'mock') {
                   document.getElementById('mockTemplate').value = typeof rule?.template === 'object' ? JSON.stringify(rule.template, null, 2) : (rule?.template || '{ "code": 200, "data": {} }');
                   parseJsonToRows(document.getElementById('mockTemplate').value); 
+                  updateSimulateBtnState();
+                  simulate();
               }
-              
-              updateSimulateBtnState();
-              if(currentMode !== 'file') simulate();
-
           } else if (msg.type === 'ruleDirSelected') {
               document.getElementById('rule_dataPath').value = msg.path.endsWith('/') ? msg.path : msg.path + '/';
           } else if (msg.type === 'fileReturnPathSelected') {
@@ -444,15 +443,12 @@ export function getRulePanelHtml(): string {
           }
       });
 
+      // 🌟 仅仅监听 Mock 模版的输入变化
       const mockInput = document.getElementById('mockTemplate');
-      const customInput = document.getElementById('customJson');
-      
       function updateSimulateBtnState() {
          const btn = document.getElementById('simulateBtn');
-         let val = '';
-         if (currentMode === 'mock') val = mockInput.value.trim();
-         else if (currentMode === 'custom') val = customInput.value.trim();
-         
+         if(!btn) return;
+         let val = mockInput.value.trim();
          if (!val) {
              btn.disabled = true;
              btn.title = "内容为空，无法预览";
@@ -461,9 +457,7 @@ export function getRulePanelHtml(): string {
              btn.title = "重新执行 Mock 生成预览结果";
          }
       }
-      
       mockInput.addEventListener('input', updateSimulateBtnState);
-      customInput.addEventListener('input', updateSimulateBtnState);
 
       window.copyContent = (elementId, btn) => {
           let textToCopy = '';
@@ -512,18 +506,14 @@ export function getRulePanelHtml(): string {
       };
 
       window.simulate = () => {
+          // 只有 mock 模式才允许 simulate
+          if(currentMode !== 'mock') return;
           const btn = document.getElementById('simulateBtn');
-          if(btn.disabled) return;
+          if(btn && btn.disabled) return;
 
-          let rawData = '';
-          if (currentMode === 'mock') {
-              rawData = document.getElementById('mockTemplate').value;
-          } else if (currentMode === 'custom') {
-              rawData = document.getElementById('customJson').value;
-          }
-          
+          let rawData = mockInput.value;
           if(rawData.trim()) {
-             vscode.postMessage({ type: 'simulate', template: rawData, mode: currentMode });
+             vscode.postMessage({ type: 'simulate', template: rawData, mode: 'mock' });
           }
       };
 
@@ -532,10 +522,11 @@ export function getRulePanelHtml(): string {
           document.querySelectorAll('.tab, .tab-pane').forEach(el => el.classList.remove('active'));
           document.getElementById('tab-' + mode).classList.add('active');
           document.getElementById('pane-' + mode).classList.add('active');
-          document.getElementById('previewArea').style.display = mode === 'file' ? 'none' : 'block';
           
-          updateSimulateBtnState();
-          if(mode !== 'file') simulate(); 
+          if(mode === 'mock') {
+              updateSimulateBtnState();
+              simulate(); 
+          }
       };
 
       window.handleTypeChange = (sel) => {
