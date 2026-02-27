@@ -87,6 +87,12 @@
     },
     "commands": [
       {
+        "command": "quick-ops.anchor.showMenu",
+        "title": "显示冒点 (Show Anchors)",
+        "category": "Quick Ops",
+        "icon": "$(bookmark)" 
+      },
+      {
         "command": "quickOps.revealInExplorer",
         "title": "定位当前文件 (Reveal File)",
         "category": "Quick Ops",
@@ -127,10 +133,6 @@
         "command": "quick-ops.anchor.add",
         "title": "Add Anchor Point (添加锚点)",
         "icon": "$(bookmark)"
-      },
-      {
-        "command": "quick-ops.anchor.showMenu",
-        "title": "Show Anchors"
       },
       {
         "command": "quick-ops.anchor.listByGroup",
@@ -225,18 +227,23 @@
     "menus": {
       "editor/title": [
         {
+          "command": "quick-ops.anchor.showMenu",
+          "group": "navigation@1",
+          "when": "quickOps.hasAnchorsInCurrentFile"
+        },
+        {
           "command": "quickOps.revealInExplorer",
           "when": "resourceLangId != ''",
-          "group": "navigation@1"
+          "group": "navigation@2"
         },
         {
           "command": "quickOps.scrollToTop",
-          "group": "navigation@2",
+          "group": "navigation@3",
           "when": "editorTextFocus"
         },
         {
           "command": "quickOps.scrollToBottom",
-          "group": "navigation@3",
+          "group": "navigation@4",
           "when": "editorTextFocus"
         }
       ],

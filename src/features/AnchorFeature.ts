@@ -7,14 +7,12 @@ import { AnchorCodeLensProvider } from '../providers/AnchorCodeLensProvider';
 import { ColorUtils } from '../utils/ColorUtils';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { TOOLTIPS } from '../core/constants';
-// 🌟 引入拆分出去的 Webview 模板
 import { getAnchorMindMapHtml } from '../views/AnchorWebviewHtml';
 
 export class AnchorFeature implements IFeature {
   public readonly id = 'AnchorFeature';
   private service: AnchorService;
   private configService: ConfigurationService;
-  private statusBarItem: vscode.StatusBarItem | undefined;
   private decorationTypes: Map<string, vscode.TextEditorDecorationType> = new Map();
   private currentPanel: vscode.WebviewPanel | undefined;
 
@@ -34,22 +32,24 @@ export class AnchorFeature implements IFeature {
     const codeLensProvider = new AnchorCodeLensProvider();
     context.subscriptions.push(vscode.languages.registerCodeLensProvider({ scheme: 'file' }, codeLensProvider));
 
-    this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    this.statusBarItem.text = '$(bookmark) Anchors';
-    this.statusBarItem.command = 'quick-ops.anchor.showMenu';
-    this.statusBarItem.show();
-    context.subscriptions.push(this.statusBarItem);
+    // 初始检查当前文件是否有锚点，以决定是否在右上角显示按钮
+    this.updateEditorContextKey();
 
     // 监听事件
     context.subscriptions.push(
       this.service.onDidChangeAnchors(() => {
         this.updateDecorations();
+        this.updateEditorContextKey(); // 🌟 数据变化时更新按钮显示状态
+        
         // 如果 Webview 打开，实时刷新数据
         if (this.currentPanel) {
           this.currentPanel.webview.postMessage({ command: 'refresh', data: this.service.getMindMapData() });
         }
       }),
-      vscode.window.onDidChangeActiveTextEditor(() => this.debouncedUpdate()),
+      vscode.window.onDidChangeActiveTextEditor(() => {
+        this.debouncedUpdate();
+        this.updateEditorContextKey(); // 🌟 切换文件时更新按钮显示状态
+      }),
       vscode.workspace.onDidSaveTextDocument((doc) => this.syncAnchorsWithContent(doc)),
     );
 
@@ -78,6 +78,23 @@ export class AnchorFeature implements IFeature {
     );
   }
 
+  // --- 🌟 核心：判断当前文件是否有锚点并控制右上角按钮显示 ---
+  private updateEditorContextKey() {
+    const editor = vscode.window.activeTextEditor;
+    let hasAnchors = false;
+    
+    if (editor) {
+      const rootPath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
+      const docPath = editor.document.uri.fsPath;
+      const relativePath = path.relative(rootPath, docPath).replace(/\\/g, '/');
+      const fileAnchors = this.service.getAnchors().filter(a => a.filePath === relativePath);
+      hasAnchors = fileAnchors.length > 0;
+    }
+    
+    // 设置 context 变量，控制 package.json 中的 when 条件
+    vscode.commands.executeCommand('setContext', 'quickOps.hasAnchorsInCurrentFile', hasAnchors);
+  }
+
   // --- 1. 核心分流逻辑 ---
   private handleShowMenuCommand() {
     // 读取 .quickopsrc 配置
@@ -97,7 +114,6 @@ export class AnchorFeature implements IFeature {
     const mode = config.mindMapPosition || 'right';
 
     if (this.currentPanel) {
-      // 如果面板已存在，尝试根据配置位置 reveal
       const revealColumn = mode === 'left' ? vscode.ViewColumn.One : vscode.ViewColumn.Beside;
       this.currentPanel.reveal(revealColumn);
       return;
@@ -105,7 +121,6 @@ export class AnchorFeature implements IFeature {
 
     let targetColumn = vscode.ViewColumn.Beside;
 
-    // 如果配置为 left，执行向左拆分命令
     if (mode === 'left') {
       await vscode.commands.executeCommand('workbench.action.splitEditorLeft');
       targetColumn = vscode.ViewColumn.Active;
@@ -116,7 +131,6 @@ export class AnchorFeature implements IFeature {
       retainContextWhenHidden: true,
     });
 
-    // 🌟 核心：使用抽离的 HTML 模板函数
     this.currentPanel.webview.html = getAnchorMindMapHtml(this.currentPanel.webview);
 
     this.currentPanel.webview.onDidReceiveMessage(async (message) => {
@@ -138,7 +152,6 @@ export class AnchorFeature implements IFeature {
             await vscode.commands.executeCommand('workbench.action.minimizeOtherEditors');
           }
           break;
-        // 🌟 新增：处理 Tooltip 内部的按钮点击事件
         case 'anchorAction':
           if (message.action === 'delete') {
             this.service.removeAnchor(message.anchorId);
