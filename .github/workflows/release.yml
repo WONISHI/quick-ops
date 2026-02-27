@@ -24,7 +24,7 @@ jobs:
       run: npm install
 
     - name: Package Extension
-      run: npx vsce package
+      run: npm run build
 
     - name: Get Version
       id: get_version
