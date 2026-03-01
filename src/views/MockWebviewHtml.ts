@@ -53,7 +53,7 @@ export function getSidebarHtml(): string {
     <div class="header">
       <div class="header-top">
           <div class="header-title"><i class="fa-solid fa-server"></i> Mock 服务管理</div>
-          <div id="globalServerBtn" class="server-status" title="点击切换全局服务状态"><i class="fa-solid fa-circle"></i> <span id="globalStatusText">已停止</span></div>
+          <div id="globalServerBtn" class="server-status" title="点击一键开启/关闭所有端口"><i class="fa-solid fa-circle"></i> <span id="globalStatusText">已停止</span></div>
       </div>
       <div id="mockDirBtn" class="mock-dir-setting" onclick="selectGlobalMockDir()" title="设置全局数据存放目录">
          <i class="fa-regular fa-folder-open"></i> <span id="mockDirDisplay">加载中...</span>
@@ -66,23 +66,34 @@ export function getSidebarHtml(): string {
       const vscode = acquireVsCodeApi();
       let proxies = []; let mocks = []; let runningProxies = []; let isGlobalRunning = false; let globalMockDir = ''; 
 
+      // 🌟 核心：提炼全局按钮的状态更新逻辑
+      function updateGlobalBtnStatus() {
+          // 只要有任何一个端口的开关被开启，全局就视作 "ON"
+          isGlobalRunning = proxies.some(p => p.enabled);
+          document.getElementById('globalServerBtn').className = isGlobalRunning ? 'server-status on' : 'server-status';
+          document.getElementById('globalStatusText').innerText = isGlobalRunning ? \`运行中 (\${runningProxies.length})\` : '已停止';
+      }
+
       window.addEventListener('message', e => {
          if(e.data.type === 'config') {
            proxies = e.data.proxy || []; mocks = e.data.mock || []; globalMockDir = e.data.mockDir || '';
            document.getElementById('mockDirDisplay').innerText = globalMockDir || '未设置全局路径';
+           updateGlobalBtnStatus(); // 数据变化时同步全局按钮
            render();
          }
          if(e.data.type === 'status') {
            runningProxies = e.data.runningProxies || [];
-           isGlobalRunning = runningProxies.length > 0;
-           document.getElementById('globalServerBtn').className = isGlobalRunning ? 'server-status on' : 'server-status';
-           document.getElementById('globalStatusText').innerText = isGlobalRunning ? \`运行中 (\${runningProxies.length})\` : '已停止';
+           updateGlobalBtnStatus(); // 服务状态变化时同步全局按钮
            render();
          }
       });
       vscode.postMessage({ type: 'refresh' });
 
-      document.getElementById('globalServerBtn').onclick = () => vscode.postMessage({ type: 'toggleServer', value: !isGlobalRunning });
+      // 🌟 全局按钮点击事件：发送目标状态给后端处理
+      document.getElementById('globalServerBtn').onclick = () => {
+          vscode.postMessage({ type: 'toggleServer', value: !isGlobalRunning });
+      };
+
       window.selectGlobalMockDir = () => vscode.postMessage({ type: 'selectGlobalMockDir', currentPath: globalMockDir });
       window.openProxyModal = (id) => vscode.postMessage({ type: 'openProxyPanel', id });
       window.openRuleModal = (proxyId, ruleId) => vscode.postMessage({ type: 'openRulePanel', proxyId, ruleId });
@@ -170,6 +181,10 @@ export function getSidebarHtml(): string {
   </html>`;
 }
 
+// ==============================================================================
+// 下面两个面板代码没有任何改动，依然原样保留
+// ==============================================================================
+
 export function getProxyPanelHtml(): string {
   return `<!DOCTYPE html>
   <html lang="en">
@@ -180,7 +195,7 @@ export function getProxyPanelHtml(): string {
               font-family: var(--vscode-font-family); font-size: var(--vscode-font-size, 13px);
               background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); padding: 30px; 
           }
-          .panel-container { max-width: 500px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+          .panel-container { max-width: 500px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
           h2 { font-weight: 400; font-size: 20px; margin: 0 0 10px 0; color: var(--vscode-editor-foreground); }
           label { display: block; margin-bottom: 6px; color: var(--vscode-descriptionForeground); font-size: 12px; }
           input { 
@@ -308,7 +323,11 @@ export function getRulePanelHtml(): string {
               <label>API Path</label>
               <input type="text" id="rule_url" placeholder="/api/user/info" title="拦截的接口路径，如 /api/user">
           </div>
-          <div class="form-group" style="flex: 0 0 200px;">
+          <div class="form-group" style="flex: 0 0 80px;">
+              <label>状态码</label>
+              <input type="number" id="rule_statusCode" placeholder="200" value="200" title="HTTP 返回状态码 (默认200)">
+          </div>
+          <div class="form-group" style="flex: 0 0 160px;">
               <label>Content-Type</label>
               <select id="rule_contentType" title="接口响应的 Content-Type">
                   <option value="application/json">application/json</option>

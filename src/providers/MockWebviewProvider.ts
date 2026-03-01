@@ -50,14 +50,12 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
 
       let currentSearch = absPath;
       while (currentSearch && currentSearch !== path.dirname(currentSearch)) {
-        // Fallback to minimal path checks if needed, using uri
         return vscode.Uri.file(currentSearch);
       }
     }
     return rootPath ? vscode.Uri.file(rootPath) : undefined;
   }
 
-  // 🌟 性能优化：将同步的 map 改为异步 Promise.all，杜绝主线程卡顿
   private async getFullConfig() {
     const configService = ConfigurationService.getInstance();
     await configService.loadConfig();
@@ -72,13 +70,12 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         const absPath = this.getMockDataPath(rule.dataPath);
         if (absPath) {
           try {
-            // 使用异步文件读取替换 fs.readFileSync
             const fileUri = vscode.Uri.file(absPath);
             const fileData = await vscode.workspace.fs.readFile(fileUri);
             const parsedContent = JSON.parse(Buffer.from(fileData).toString('utf8'));
             if (rule.mode === 'custom') fullRule.data = parsedContent;
             else fullRule.template = parsedContent;
-          } catch (e) { } // 文件不存在直接忽略，取代 fs.existsSync
+          } catch (e) { }
         }
       }
       return fullRule;
@@ -95,10 +92,22 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     switch (data.type) {
       case 'error': vscode.window.showErrorMessage(data.message); break;
       case 'refresh': this.refreshSidebar(); break;
-      case 'toggleServer':
-        if (data.value) await this._mockFeature.startAll();
-        else await this._mockFeature.stopAll();
+
+      // 🌟 核心：处理全局按钮的点击事件，一键切换所有端口的 enabled 状态并保存
+      case 'toggleServer': {
+        if (proxyList.length === 0) {
+          vscode.window.showWarningMessage('操作失败：请先添加 Mock 服务！');
+          break;
+        }
+        const newStatus = data.value; // true 为全开，false 为全关
+        let pList = proxyList.map((p: IProxyConfig) => ({ ...p, enabled: newStatus }));
+
+        await configService.updateConfig('proxy', pList);
+        await this._mockFeature.syncServers(); // 触发实际的服务器实例关闭/开启
+        this.refreshSidebar(); // 刷新界面以同步按钮样式
         break;
+      }
+
       case 'copyText':
         vscode.env.clipboard.writeText(data.payload).then(() => vscode.window.showInformationMessage('复制成功：' + data.payload));
         break;
@@ -158,7 +167,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         if (ansProxy === '删除') {
           const newProxyList = proxyList.filter((p: IProxyConfig) => p.id !== data.id);
 
-          // 🌟 性能优化：异步并行删除文件
           const deletePromises = fullMockList.filter(m => m.proxyId === data.id).map(async r => {
             if (r.dataPath) {
               const absPath = this.getMockDataPath(r.dataPath);
@@ -184,7 +192,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
           if (ruleToDelete && ruleToDelete.dataPath) {
             const absPath = this.getMockDataPath(ruleToDelete.dataPath);
             if (absPath) {
-              // 异步删除
               try { await vscode.workspace.fs.delete(vscode.Uri.file(absPath)); } catch (e) { }
             }
           }
@@ -272,7 +279,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         else if (data.type === 'cancel') this.rulePanel?.dispose();
         else if (data.type === 'simulate') {
           try {
-            // 🌟 动态引入 mockjs
             const Mock = require('mockjs');
 
             let parsedTemplate = typeof data.template === 'string' ? JSON.parse(data.template) : data.template;
@@ -313,7 +319,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           const dir = path.dirname(absPath);
-          // 🌟 纯异步创建文件夹
           try {
             await vscode.workspace.fs.createDirectory(vscode.Uri.file(dir));
           } catch (e) { }
@@ -327,7 +332,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
             contentToWrite = JSON.stringify({ type: "file_mock", file: newRuleData.filePath, disposition: newRuleData.fileDisposition }, null, 2);
           }
 
-          // 🌟 纯异步写入文件
           await vscode.workspace.fs.writeFile(vscode.Uri.file(absPath), Buffer.from(contentToWrite, 'utf8'));
 
           const ruleToSaveConfig: any = {
