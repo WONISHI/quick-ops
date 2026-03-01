@@ -1,10 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const Mock = require('mockjs');
 
 import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
@@ -28,9 +24,10 @@ export class MockServerFeature implements IFeature {
       vscode.commands.registerCommand('quick-ops.mock.stop', () => this.stopAll()),
     );
 
+    // 🌟 性能优化：延后服务同步，让出主线程给 VS Code 渲染 UI
     setTimeout(() => {
       this.syncServers();
-    }, 1000);
+    }, 1500);
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
@@ -80,7 +77,6 @@ export class MockServerFeature implements IFeature {
     let proxies = this.configService.config.proxy || [];
     if (!Array.isArray(proxies)) proxies = [];
 
-    // 🌟 1. 清理过期服务
     for (const [proxyId, server] of this.servers.entries()) {
       const conf = proxies.find((c: any) => c.id === proxyId);
 
@@ -91,7 +87,6 @@ export class MockServerFeature implements IFeature {
       }
     }
 
-    // 🌟 2. 启动服务
     for (const conf of proxies) {
       if (conf.enabled && !this.servers.has(conf.id)) {
         if (!conf.port) continue;
@@ -103,6 +98,12 @@ export class MockServerFeature implements IFeature {
   }
 
   private startServerInstance(serverConfig: any) {
+    // 🌟 性能优化：按需加载重量级 Node 服务端依赖
+    const express = require('express');
+    const cors = require('cors');
+    const bodyParser = require('body-parser');
+    const Mock = require('mockjs');
+
     const app = express();
     
     app.use(cors({
@@ -130,19 +131,14 @@ export class MockServerFeature implements IFeature {
       if (matchedRule) {
         console.log(`[MockServer:${serverConfig.port}] Mock Hit: ${req.path}`);
 
-        // 🌟 1. 注入自定义请求头 (是请求头不是响应头)
         if (matchedRule.reqHeaders && typeof matchedRule.reqHeaders === 'object') {
           Object.assign(req.headers, matchedRule.reqHeaders);
         }
 
-        // 🌟 2. 延时响应阻塞
         if (matchedRule.delay && matchedRule.delay > 0) {
           await new Promise(resolve => setTimeout(resolve, matchedRule.delay));
         }
 
-        // ======================================
-        // 📁 文件流及多文件列表模式
-        // ======================================
         if (matchedRule.mode === 'file') {
           if (matchedRule.filePath) {
             const filePaths = matchedRule.filePath.split('\n').map((p: string) => p.trim()).filter(Boolean);
@@ -160,7 +156,6 @@ export class MockServerFeature implements IFeature {
                 const protocol = req.protocol || 'http';
                 const host = req.get('host');
                 const baseUrl = `${protocol}://${host}${req.path}`;
-                
                 const urls = filePaths.map((_: any, idx: number) => `${baseUrl}?fileIdx=${idx}`);
                 return res.json(urls);
               }
@@ -203,9 +198,6 @@ export class MockServerFeature implements IFeature {
           }
         }
 
-        // ======================================
-        // 📝 JSON 数据模式
-        // ======================================
         res.set('Content-Type', matchedRule.contentType || 'application/json');
 
         if (matchedRule.dataPath) {
@@ -255,7 +247,6 @@ export class MockServerFeature implements IFeature {
       }
     });
 
-    // 🌟 兜底路由
     app.use((req: any, res: any) => {
       res.status(404).json({ 
           error: 'Not Found in Mock Rules', 

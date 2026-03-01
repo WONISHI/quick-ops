@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import { IFeature } from '../core/interfaces/IFeature';
-import { StyleStructureParser } from '../utils/StyleStructureParser';
 import ColorLog from '../utils/ColorLog';
 
 export class StyleGeneratorFeature implements IFeature {
@@ -9,7 +8,7 @@ export class StyleGeneratorFeature implements IFeature {
   public activate(context: vscode.ExtensionContext): void {
     const commandId = 'quick-ops.generateStyleStructure';
 
-    // 1. 注册命令
+    // 1. 注册命令 (轻量操作，瞬间完成)
     context.subscriptions.push(
       vscode.commands.registerCommand(commandId, async () => {
         const editor = vscode.window.activeTextEditor;
@@ -22,8 +21,9 @@ export class StyleGeneratorFeature implements IFeature {
         const text = document.getText();
         const langId = document.languageId;
 
-        // 2. 调用解析工具
         try {
+          const { StyleStructureParser } = await import('../utils/StyleStructureParser');
+          
           const scssString = StyleStructureParser.parse(text, langId);
 
           if (!scssString) {

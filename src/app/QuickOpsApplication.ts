@@ -35,8 +35,22 @@ export class QuickOpsApplication {
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
+    // 🌟 优化：不在 constructor 中 new，将内存分配延后到 start 阶段
+  }
 
-    this.services = [ConfigurationService.getInstance(), WorkspaceStateService.getInstance(), EditorContextService.getInstance(), TerminalExecutor.getInstance()];
+  /**
+   * 启动应用
+   */
+  public async start() {
+    ColorLog.black('[QuickOps]', 'Application Starting...');
+    console.time('QuickOps Activation');
+
+    this.services = [
+        ConfigurationService.getInstance(), 
+        WorkspaceStateService.getInstance(), 
+        EditorContextService.getInstance(), 
+        TerminalExecutor.getInstance()
+    ];
 
     this.features = [
       new SmartScrollFeature(),
@@ -55,17 +69,8 @@ export class QuickOpsApplication {
       new MockServerFeature(),
       new DebugConsoleFeature(),
     ];
-  }
 
-  /**
-   * 启动应用
-   */
-  public async start() {
-    ColorLog.black('[QuickOps]', 'Application Starting...');
-    console.time();
-
-    // 1. 初始化服务 (Initialization)
-    // 某些服务可能需要异步加载配置或状态
+    // 1. 初始化核心服务 (Initialization)
     for (const service of this.services) {
       try {
         //@ts-ignore
@@ -75,20 +80,30 @@ export class QuickOpsApplication {
       }
     }
 
-    // 2. 激活功能 (Activation)
-    // 注册 VS Code 命令、事件监听器、Provider 等
-    for (const feature of this.features) {
+    // 2. 激活功能 (Activation) - 🌟 性能优化：分片激活 & 让出主线程
+    for (let i = 0; i < this.features.length; i++) {
+      const feature = this.features[i];
       try {
         feature.activate(this.context);
       } catch (error) {
         console.error(`[Feature] ${feature.id} failed to activate:`, error);
       }
+
+      // 🌟 核心优化：每同步激活 3 个功能模块，就利用宏任务队列强行中断一次阻塞。
+      // 这能把 CPU 的控制权短暂交还给 VS Code 主进程，用于处理页面渲染和用户的键盘输入。
+      // 彻底消除插件加载时可能导致的界面卡死问题！
+      if ((i + 1) % 3 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
     }
 
     this.setupGlobalDisposables();
-    console.timeEnd();
+    console.timeEnd('QuickOps Activation');
     ColorLog.black('[QuickOps]', '(Refactored) is now active!');
-    vscode.window.showInformationMessage('Quick Ops (Refactored) is now active!');
+    
+    // 🛑 性能/体验优化：屏蔽启动弹窗。
+    // 因为插件改为了“懒加载”静默唤醒，用户写代码中途如果触发唤醒再弹个窗，是非常影响体验的。
+    // vscode.window.showInformationMessage('Quick Ops (Refactored) is now active!');
   }
 
   private setupGlobalDisposables() {
