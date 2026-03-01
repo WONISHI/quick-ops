@@ -115,13 +115,8 @@
         "category": "Quick Ops"
       },
       {
-        "command": "quickOps.addToIgnore",
-        "title": "添加到 QuickOps 忽略列表 (Ignore in QuickOps)",
-        "category": "Quick Ops"
-      },
-      {
-        "command": "quickOps.removeFromIgnore",
-        "title": "从 QuickOps 忽略列表移除 (Unignore in QuickOps)",
+        "command": "quickOps.toggleIgnore",
+        "title": "添加/移除 QuickOps 忽略 (Toggle Ignore)",
         "category": "Quick Ops"
       },
       {
@@ -131,7 +126,12 @@
       },
       {
         "command": "quick-ops.anchor.add",
-        "title": "Add Anchor Point (添加锚点)",
+        "title": "添加锚点",
+        "icon": "$(bookmark)"
+      },
+      {
+        "command": "quick-ops.anchor.showMenu",
+        "title": "显示锚点菜单 (Show Anchors)",
         "icon": "$(bookmark)"
       },
       {
@@ -254,14 +254,9 @@
           "when": "quickOps.context.configMissing"
         },
         {
-          "command": "quickOps.addToIgnore",
+          "command": "quickOps.toggleIgnore",
           "group": "quickOps@5",
-          "when": "!quickOps.context.configMissing && !quickOps.isCurrentResourceIgnored && resourceScheme == file"
-        },
-        {
-          "command": "quickOps.removeFromIgnore",
-          "group": "quickOps@5",
-          "when": "!quickOps.context.configMissing && quickOps.isCurrentResourceIgnored && resourceScheme == file"
+          "when": "!quickOps.context.configMissing && resourceScheme == file"
         },
         {
           "command": "quick-ops.generateStyleStructure",

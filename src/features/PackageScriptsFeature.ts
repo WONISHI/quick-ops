@@ -34,19 +34,15 @@ export class PackageScriptsFeature implements IFeature {
   private async findPackageJsonUri(startUri: vscode.Uri): Promise<vscode.Uri | undefined> {
     let currentUri = startUri;
 
-    // Safety check loop to prevent infinite loops, though file system root check should suffice
     while (true) {
       const packageJsonUri = vscode.Uri.joinPath(currentUri, 'package.json');
       try {
         await vscode.workspace.fs.stat(packageJsonUri);
-        return packageJsonUri; // Found it
-      } catch {
-        // Not found in current directory
-      }
+        return packageJsonUri;
+      } catch {}
 
       const parentUri = vscode.Uri.joinPath(currentUri, '..');
 
-      // If we have reached the root (parent is same as current), stop
       if (parentUri.toString() === currentUri.toString()) {
         return undefined;
       }
@@ -59,26 +55,21 @@ export class PackageScriptsFeature implements IFeature {
     const ctx = this.contextService.context;
     const decoder = new TextDecoder('utf-8');
 
-    // 1. Determine the starting point for finding package.json
     let startUri: vscode.Uri | undefined;
 
-    // Priority 1: Active Text Editor's folder
     if (vscode.window.activeTextEditor) {
       startUri = vscode.Uri.joinPath(vscode.window.activeTextEditor.document.uri, '..');
-    }
-    // Priority 2: Workspace Root
-    else if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+    } else if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
       startUri = vscode.workspace.workspaceFolders[0].uri;
     }
 
     let packageJsonUri: vscode.Uri | undefined;
-    let projectRootStr = ''; // Used for cwd in scripts
+    let projectRootStr = '';
 
     if (startUri) {
       packageJsonUri = await this.findPackageJsonUri(startUri);
     }
 
-    // 2. Read package.json if found
     if (packageJsonUri) {
       try {
         const contentUint8 = await vscode.workspace.fs.readFile(packageJsonUri);
@@ -87,14 +78,13 @@ export class PackageScriptsFeature implements IFeature {
         const scripts = packageJson.scripts || {};
         const scriptNames = Object.keys(scripts);
 
-        // The directory containing package.json
         const packageDirUri = vscode.Uri.joinPath(packageJsonUri, '..');
         projectRootStr = packageDirUri.fsPath;
 
         if (scriptNames.length > 0) {
           items.push({
             label: `NPM Scripts (${packageJson.name || 'Project'})`,
-            description: vscode.workspace.asRelativePath(packageDirUri), // Show relative path for clarity
+            description: vscode.workspace.asRelativePath(packageDirUri),
             kind: vscode.QuickPickItemKind.Separator,
           });
 
@@ -106,7 +96,6 @@ export class PackageScriptsFeature implements IFeature {
         console.error('Error parsing package.json', e);
       }
 
-      // Load workspace custom scripts (associated with the found project root)
       const workspaceScripts = this.loadWorkspaceScripts(projectRootStr, ctx);
       if (workspaceScripts.length > 0) {
         items.push({
@@ -117,7 +106,6 @@ export class PackageScriptsFeature implements IFeature {
       }
     }
 
-    // 3. Read built-in resources (Extension Scripts)
     const shellResourceUri = vscode.Uri.joinPath(this.extensionUri, 'resources', 'shell');
 
     try {
@@ -133,7 +121,6 @@ export class PackageScriptsFeature implements IFeature {
 
             const jsonItems: ShellConfigItem[] = JSON.parse(content);
             if (Array.isArray(jsonItems) && jsonItems.length > 0) {
-              // Use projectRootStr if found, otherwise extension path as fallback for CWD
               const validShellItems = this.processShellItems(jsonItems, ctx, projectRootStr || this.extensionUri.fsPath);
               if (validShellItems.length > 0) {
                 return { file: name, items: validShellItems };
@@ -153,9 +140,7 @@ export class PackageScriptsFeature implements IFeature {
           items.push(...res.items);
         }
       });
-    } catch (err) {
-      // Ignore if directory doesn't exist
-    }
+    } catch (err) {}
 
     if (items.length === 0) {
       vscode.window.showInformationMessage('No executable scripts found.');
@@ -233,8 +218,6 @@ export class PackageScriptsFeature implements IFeature {
     ];
 
     const getCwdUri = (cwdPath: string): vscode.Uri => {
-      // cwdPath is likely fsPath string, convert to Uri
-      // Try to match with workspace folder to get correct scheme if possible
       const ws = vscode.workspace.workspaceFolders?.find((w) => w.uri.fsPath === cwdPath);
       return ws ? ws.uri : vscode.Uri.file(cwdPath);
     };
@@ -301,24 +284,37 @@ export class PackageScriptsFeature implements IFeature {
     }
 
     let terminal: vscode.Terminal;
+
     if (newTerminal) {
       terminal = vscode.window.createTerminal({
         name: `Ops: ${item.label.replace('$(terminal) ', '')}`,
         cwd: item.cwd,
       });
+      terminal.show();
+      terminal.sendText(finalCommand);
     } else {
       if (vscode.window.activeTerminal) {
         terminal = vscode.window.activeTerminal;
-        terminal.sendText('\u0003'); // Ctrl+C to stop running process
+        terminal.show();
+
+        // 🌟 1. 发送一次 Ctrl+C
+        terminal.sendText('\u0003', false);
+
+        // 🌟 2. 利用 setTimeout 和 Promise 阻塞执行，增加双重中断彻底绕过批处理 Y/N 询问
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        terminal.sendText('\u0003', false); // 再次发送 Ctrl+C (对付顽固的批处理阻塞)
+
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        // 🌟 3. 发送真实的命令
+        terminal.sendText(finalCommand);
       } else {
         terminal = vscode.window.createTerminal({
           name: 'Terminal',
           cwd: item.cwd,
         });
+        terminal.show();
+        terminal.sendText(finalCommand);
       }
     }
-
-    terminal.show();
-    terminal.sendText(finalCommand);
   }
 }
