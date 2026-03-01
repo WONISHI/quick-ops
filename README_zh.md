@@ -14,39 +14,42 @@
     <img src="https://img.shields.io/badge/License-MIT-orange.svg?style=flat-square" alt="License">
 </p>
 
-quickOps 是一个多功能的 VS Code 扩展，集成了代码标记、本地文件忽略、路径补全、本地 Mock 代理、调试辅助以及项目上下文导出等功能。旨在补充 VS Code 原生功能的不足，通过快捷指令和配置文件极大地优化前端及全栈的开发流程。
+**quickOps** 是一个多功能、高性能的 VS Code 扩展，集成了代码锚点、交互式思维导图、本地 Mock 服务器、路径补全、调试辅助以及项目上下文导出等功能。旨在补充 VS Code 原生功能的不足，极大地优化前端及全栈的开发流程。
 
 ---
 
+## Translations
+- [English Documentation](https://github.com/WONISHI/quick-ops/blob/master/README.md)
+
 ## 🚀 功能列表
 
-### 1. 本地代理与 Mock 服务 (Proxy & Mock Server) 🔥
-内置强大的可视化 Webview 面板，无需配置复杂的 Nginx 或跨域插件，直接在 VS Code 内管理 API 代理与数据 Mock。
-- **全局代理转发**：一键配置本地端口与目标服务器，无缝解决本地开发跨域问题。
-- **精准路由拦截**：通过严格路径匹配拦截特定 API 请求。
+### 1. 高性能本地 Mock 与文件服务 (Mock & File Server) 🔥
+内置强大的可视化 Webview 面板，在 VS Code 内直接管理 Mock 数据和下发本地文件。极度轻量纯粹，自动解决本地开发跨域问题。
 - **动态 Mock 数据**：支持静态 JSON 返回，同时深度集成 `Mock.js` 语法，提供多行快捷字段生成器，支持复杂嵌套对象和数组的自动生成。
-- **文件持久化**：Mock 数据自动保存为本地独立 JSON 文件，方便团队共享或二次编辑。
+- **智能响应包裹 (Wrapper)**：自动将内层 Mock 数据包裹在标准格式（如 `{ code, msg, data }`）、分页格式或完全自定义的模板中，支持 `${data}` 和 `${statusCode}` 占位符。
+- **本地文件下发**：将 API 接口映射到本地真实文件（图片、文档等）。支持按顺序下发多个文件列表，并可配置 `Content-Disposition`（内联浏览器预览 / 作为附件下载）。
+- **高级模拟**：精准模拟网络延迟 (Delay)、强行注入自定义请求头 (`req.headers`)，以及自定义 HTTP 返回状态码。
+- **文件持久化**：Mock 规则和数据自动保存为工作区本地文件，方便团队共享和版本控制。
 
-### 2. 调试面板与全局日志拦截 (Debug Console Interceptor)
-在状态栏提供一个集成的调试入口，让你在不打开完整终端的情况下掌控日志。
-- **状态栏调试中心**：悬停可展示包含“刷新窗口”、“打开开发者工具”、“打开输出面板”的快捷操作台。
-- **Console 弹窗拦截**：可动态勾选是否拦截全局的 `console.log`、`info`、`warn`、`error`，将其以右下角系统弹窗的形式展示，极大方便 Webview 或隐藏进程的调试。
+### 2. 代码锚点与交互式思维导图 (Code Anchors & Mind Map) 🧠
+在代码行中添加可视化标记，用于记录关键逻辑位置或待办事项。
+- **交互式思维导图**：在 Webview 中将所有代码锚点可视化为可拖拽的 D3.js 动态思维导图。悬停节点可预览代码片段及快捷操作，点击即可瞬间跳转至源码位置。
+- **分组管理**：支持对当前行添加标记，并归类到自定义分组（如 TODO, FIXME, Default）。
+- **CodeLens 导航**：在锚点行的上方显示操作栏，支持跳转至同组的上一个/下一个锚点。
 
 ### 3. 项目上下文导出 (Project Context Export) 🤖
 一键将当前项目的文件树结构和文本内容导出为 Markdown 或纯文本格式。
-- 自动读取并遵守 `.gitignore`，过滤无关文件（如 `node_modules`、`dist` 等）。
-- **AI 辅助利器**：极其适合将项目上下文一键复制并喂给 ChatGPT、Claude 等大语言模型，让 AI 更好地理解你的项目结构。
+- 自动读取并遵守 `.gitignore`、`.vscodeignore` 以及 `.quickopsrc` 的忽略列表，过滤无关文件（如 `node_modules`、`dist` 等）。
+- **AI 辅助利器**：极其适合将项目上下文一键复制并喂给 ChatGPT、Claude 等大语言模型，让 AI 瞬间理解你的项目代码库。
 
-### 4. Git 本地文件忽略 (File Isolation)
-在本地忽略对**已跟踪文件**的修改，而无需更改 `.gitignore`。适用于需要修改本地配置文件（如数据库配置、API 端点）但禁止提交该修改的场景。
-- 被忽略的文件在 Git 状态中显示为未修改，且不影响远程仓库。
-- 在资源管理器中，被隔离的文件会显示 `IG` (Ignored) 徽章以便识别。
+### 4. QuickOps 忽略列表 (QuickOps Ignore List)
+智能切换文件或文件夹被 QuickOps 功能（如项目上下文导出）忽略的状态。
+- 在左侧资源管理器中，右键点击任意文件或文件夹（支持批量多选），选择 "Toggle Ignore"，即可无缝将其添加至或移出 `.quickopsrc` 的忽略列表。
 
-### 5. 代码锚点与书签 (Code Anchors)
-在代码行中添加可视化标记，用于记录关键逻辑位置或待办事项。
-- 支持对当前行添加标记，并归类到自定义分组（如 TODO, FIXME, Default）。
-- **CodeLens 导航**：在锚点行的上方显示操作栏，支持跳转至同组的上一个/下一个锚点。
-- 锚点数据持久化存储于工作区根目录的 `.telemetryrc` 文件中。
+### 5. 调试面板与全局日志拦截 (Debug Console Interceptor)
+在状态栏提供一个集成的调试入口，让你在不打开完整终端的情况下掌控日志。
+- **状态栏调试中心**：悬停可展示包含“刷新窗口”、“打开开发者工具”、“打开输出面板”的快捷操作台。
+- **Console 弹窗拦截**：可动态勾选是否拦截全局的 `console.log`、`info`、`warn`、`error`，将其以右下角系统弹窗的形式展示，极大方便 Webview 或隐藏进程的调试。
 
 ### 6. 智能导入辅助 (Auto Import)
 增强现有的导入路径补全功能，支持解析项目别名及 AST 语法树。
@@ -67,7 +70,7 @@ quickOps 是一个多功能的 VS Code 扩展，集成了代码标记、本地�
 - **定位文件**：一键在左侧资源管理器树中高亮并展开当前正在编辑的文件。
 
 ### 10. 脚本执行器 (Script Runner)
-- **NPM 脚本**：自动读取 `package.json` 中的 `scripts` 字段，提供下拉列表供选择执行。
+- **NPM 脚本**：自动读取 `package.json` 中的 `scripts` 字段，提供下拉列表供选择执行。内置智能拦截机制，完美绕过 Windows 批处理脚本烦人的 `(Y/N)` 终止询问。
 - **自定义脚本**：支持在 `.quickopsrc` 中定义项目专属的 Shell 快捷命令。
 
 ### 11. 剪贴板变量转换 (Smart Clipboard)
@@ -91,8 +94,13 @@ quickOps 是一个多功能的 VS Code 扩展，集成了代码标记、本地�
 ```json
 {
   "general": {
-    "debug": true, // 开启状态栏调试面板与 Console 拦截
-    "mockDir": ".quickops/mocks" // 代理请求的 Mock 数据存放目录
+    "debug": true,
+    "mockDir": ".quickops/mocks",
+    "ignores": [
+      "src/config.local.js",
+      ".env",
+      "node_modules/**"
+    ]
   },
   "project": {
     "alias": {
@@ -100,19 +108,13 @@ quickOps 是一个多功能的 VS Code 扩展，集成了代码标记、本地�
       "components": "./src/components"
     }
   },
-  "git": {
-    // 本地隔离文件列表 (相对路径)
-    "ignoreList": ["src/config.local.js", ".env"]
-  },
   "logger": {
-    // 调试日志的插入模板 (${file}, ${line}, ${selection})
     "template": "console.log('[${file}:${line}]', ${selection})"
   },
   "proxy": [
     {
       "id": "proxy-1",
       "port": 8080,
-      "target": "[https://api.example.com](https://api.example.com)",
       "enabled": true
     }
   ]
