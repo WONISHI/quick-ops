@@ -1,139 +1,503 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { EventEmitter } from 'events';
+import { merge } from 'lodash-es';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { IService } from '../core/interfaces/IService';
+import type { ILogrcConfig } from '../core/types/config';
+import ColorLog from '../utils/ColorLog';
+
+const execAsync = promisify(exec);
 
 export class ConfigurationService extends EventEmitter implements IService {
   public readonly serviceId = 'ConfigurationService';
-  private static instance: ConfigurationService;
-  
-  // 🌟 内存缓存，获取配置时直接读内存，速度极快
-  public config: any = {};
-  private configUri: vscode.Uri | undefined;
-  private watcher: vscode.FileSystemWatcher | undefined;
+  private static _instance: ConfigurationService;
+
+  private readonly _configFileName = '.quickopsrc';
+  private readonly _templateConfigPath = 'resources/template/.quickopsrc.json';
+
+  private _config: ILogrcConfig = {} as ILogrcConfig;
+  private _lastConfig: ILogrcConfig | null = null;
+  private _watcher: vscode.FileSystemWatcher | null = null;
+  private _context?: vscode.ExtensionContext;
+
+  private readonly _alwaysIgnoreFiles: string[] = [];
+  private readonly _configFile: string = '.quickopsrc';
+  private readonly _telemetryFile: string = '.telemetryrc';
+
+  private _ignoredAbsolutePaths: Set<string> = new Set();
 
   private constructor() {
     super();
-    // 🌟 性能优化：构造函数内绝对不进行任何磁盘读写！
   }
 
   public static getInstance(): ConfigurationService {
-    if (!ConfigurationService.instance) {
-      ConfigurationService.instance = new ConfigurationService();
-    }
-    return ConfigurationService.instance;
+    if (!this._instance) this._instance = new ConfigurationService();
+    return this._instance;
   }
 
-  // 🌟 1. 异步初始化阶段
-  public async init(context?: vscode.ExtensionContext): Promise<void> {
-    const folders = vscode.workspace.workspaceFolders;
-    if (!folders || folders.length === 0) return;
-
-    this.configUri = vscode.Uri.joinPath(folders[0].uri, '.quickopsrc');
-    
-    // 初始化时异步把配置文件加载到内存
-    await this.loadConfig();
-
-    // 使用 VS Code 原生的非阻塞文件监听器
-    this.watcher = vscode.workspace.createFileSystemWatcher(this.configUri.fsPath);
-    this.watcher.onDidChange(() => this.loadConfig());
-    this.watcher.onDidCreate(() => this.loadConfig());
-    this.watcher.onDidDelete(() => {
-      this.config = {};
-      this.emit('configChanged', this.config);
-    });
+  public get config(): Readonly<ILogrcConfig> {
+    return this._config;
   }
 
-  // 🌟 2. 纯异步读取：使用 Buffer 代替报错的 TextDecoder
-  public async loadConfig(): Promise<void> {
-    if (!this.configUri) return;
-    try {
-      const fileData = await vscode.workspace.fs.readFile(this.configUri);
-      const content = Buffer.from(fileData).toString('utf-8');
-      this.config = JSON.parse(content || '{}');
-    } catch (error) {
-      // 文件不存在时，重置为空配置
-      this.config = {}; 
-    }
-    this.emit('configChanged', this.config);
-  }
-
-  // 🌟 3. 纯异步写入：使用 Buffer 编码
-  public async updateConfig(key: string, value: any): Promise<void> {
-    if (!this.configUri) return;
-    this.config[key] = value;
-    try {
-      const content = JSON.stringify(this.config, null, 2);
-      const fileData = Buffer.from(content, 'utf-8');
-      await vscode.workspace.fs.writeFile(this.configUri, fileData);
-    } catch (error) {
-      vscode.window.showErrorMessage(`配置保存失败: ${error}`);
-    }
+  public get workspaceConfigUri(): vscode.Uri | null {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || workspaceFolders.length === 0) return null;
+    return vscode.Uri.joinPath(workspaceFolders[0].uri, this._configFileName);
   }
 
   public isIgnoredByExtension(filePath: string): boolean {
-    const ignores = this.config?.general?.ignores || [];
-    const normalizedPath = filePath.replace(/\\/g, '/');
-    return ignores.some((ignorePattern: string) => {
-      const pattern = ignorePattern.replace(/\/\*\*$/, '');
-      return normalizedPath.includes(pattern);
-    });
+    const normalized = filePath.replace(/\\/g, '/');
+    return this._ignoredAbsolutePaths.has(normalized);
   }
 
-  public async modifyIgnoreList(targetUri: vscode.Uri, action: 'add' | 'remove'): Promise<void> {
-    if (!this.configUri) return;
-    const rootPath = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-    if (!rootPath) return;
+  public init(context?: vscode.ExtensionContext): void {
+    this._context = context;
+    this.loadConfig().catch((err) => console.error(`[${this.serviceId}] Init load failed:`, err));
+    this.setupWatcher();
+    this.updateContextKey();
 
-    let relativePath = path.relative(rootPath, targetUri.fsPath).replace(/\\/g, '/');
-    
-    // 使用异步 stat 判断是否为目录
-    try {
-      const stat = await vscode.workspace.fs.stat(targetUri);
-      if (stat.type === vscode.FileType.Directory) {
-        relativePath += '/**';
-      }
-    } catch (e) {}
-
-    if (!this.config.general) this.config.general = {};
-    if (!this.config.general.ignores) this.config.general.ignores = [];
-
-    const ignores: string[] = this.config.general.ignores;
-
-    if (action === 'add' && !ignores.includes(relativePath)) {
-      ignores.push(relativePath);
-    } else if (action === 'remove') {
-      const idx = ignores.indexOf(relativePath);
-      if (idx > -1) ignores.splice(idx, 1);
+    if (context) {
+      context.subscriptions.push(vscode.window.registerFileDecorationProvider(new LogrcIgnoreDecorationProvider(this)));
     }
 
-    await this.updateConfig('general', this.config.general);
+    ColorLog.orange(`[${this.serviceId}]`, 'Initialized.');
+  }
+
+  public async loadConfig(): Promise<void> {
+    try {
+      const defaultConfig = await this.loadInternalConfig();
+      const userConfig = await this.loadUserConfig();
+
+      this._config = merge(defaultConfig, userConfig);
+
+      this.handleGitConfiguration().catch((e) => console.warn(`[${this.serviceId}] Git sync warning:`, e));
+
+      this._lastConfig = JSON.parse(JSON.stringify(this._config));
+      this.emit('configChanged', this._config);
+    } catch (error) {
+      console.error(`[${this.serviceId}] Error loading config:`, error);
+    }
+  }
+
+  public async updateConfig<K extends keyof ILogrcConfig>(section: K, value: ILogrcConfig[K]): Promise<void> {
+    const configUri = this.workspaceConfigUri;
+
+    if (!configUri || !(await this.pathExists(configUri))) {
+      const create = await vscode.window.showInformationMessage('配置文件 .quickopsrc 不存在，是否立即创建？', '创建', '取消');
+      if (create === '创建') {
+        await this.createDefaultConfig();
+        if (!this.workspaceConfigUri || !(await this.pathExists(this.workspaceConfigUri))) return;
+      } else {
+        return;
+      }
+    }
+
+    const targetUri = this.workspaceConfigUri;
+    if (!targetUri) return;
+
+    try {
+      const content = await this.readFile(targetUri);
+      let currentConfig: any = {};
+      try {
+        currentConfig = JSON.parse(content);
+      } catch (e) {
+        console.warn('Config file parse error, overwriting with new config structure.');
+        currentConfig = {};
+      }
+
+      currentConfig[section] = value;
+      (this._config as any)[section] = value;
+
+      await this.writeFile(targetUri, JSON.stringify(currentConfig, null, 2));
+
+      this.emit('configChanged', this._config);
+    } catch (error: any) {
+      vscode.window.showErrorMessage(`更新配置失败: ${error.message}`);
+      console.error(`[${this.serviceId}] updateConfig error:`, error);
+    }
+  }
+
+  public async modifyIgnoreList(fileUri: vscode.Uri, type: 'add' | 'remove'): Promise<void> {
+    const configUri = this.workspaceConfigUri;
+
+    if (!configUri || !(await this.pathExists(configUri))) {
+      vscode.window.showErrorMessage('未找到 .quickopsrc 配置文件，请先创建。');
+      return;
+    }
+
+    try {
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+      if (!workspaceRoot) return;
+
+      let relativePath = path.relative(workspaceRoot, fileUri.fsPath).replace(/\\/g, '/');
+
+      try {
+        const stat = await vscode.workspace.fs.stat(fileUri);
+        if (stat.type === vscode.FileType.Directory) {
+          relativePath += '/**';
+        }
+      } catch (e) {}
+
+      const content = await this.readFile(configUri);
+      const json = JSON.parse(content);
+
+      if (!json.general) json.general = {};
+      if (!json.git) json.git = {};
+      if (!Array.isArray(json.git.ignoreList)) json.git.ignoreList = [];
+
+      if (relativePath === this._configFile || relativePath === this._telemetryFile) {
+        json.git.ignoreList = json.git.ignoreList.filter((p: string) => p !== relativePath);
+      }
+
+      if (relativePath === this._configFile) {
+        json.general.excludeConfigFiles = type === 'add';
+      } else if (relativePath === this._telemetryFile) {
+        json.general.excludeTelemetryFile = type === 'add';
+      } else {
+        if (type === 'add') {
+          if (!json.git.ignoreList.includes(relativePath)) {
+            json.git.ignoreList.push(relativePath);
+          } else {
+            return;
+          }
+        } else {
+          json.git.ignoreList = json.git.ignoreList.filter((p: string) => p !== relativePath);
+        }
+      }
+
+      await this.writeFile(configUri, JSON.stringify(json, null, 2));
+
+      const absPath = fileUri.fsPath.replace(/\\/g, '/');
+      if (type === 'add') {
+        this._ignoredAbsolutePaths.add(absPath);
+      } else {
+        this._ignoredAbsolutePaths.delete(absPath);
+      }
+      this.emit('configChanged', this._config);
+    } catch (e: any) {
+      vscode.window.showErrorMessage(`更新配置文件失败: ${e.message}`);
+    }
+  }
+
+  public async updateContextKey() {
+    const uri = this.workspaceConfigUri;
+    let exists = false;
+    try {
+      exists = !!uri && (await this.pathExists(uri));
+    } catch (e) {}
+    vscode.commands.executeCommand('setContext', 'quickOps.context.configState', exists ? 'exists' : 'missing');
+  }
+
+  private async loadInternalConfig(): Promise<ILogrcConfig> {
+    if (this._context) {
+      const templateUri = vscode.Uri.joinPath(this._context.extensionUri, this._templateConfigPath);
+      if (await this.pathExists(templateUri)) {
+        try {
+          const content = await this.readFile(templateUri);
+          return JSON.parse(content);
+        } catch (e) {
+          console.error(`[${this.serviceId}] Failed to load template config:`, e);
+        }
+      }
+    }
+    return {} as ILogrcConfig;
+  }
+
+  private async loadUserConfig(): Promise<Partial<ILogrcConfig>> {
+    const uri = this.workspaceConfigUri;
+    if (!uri) return {};
+
+    try {
+      if (!(await this.pathExists(uri))) return {};
+      const content = await this.readFile(uri);
+      if (!content.trim()) return {};
+      return JSON.parse(content);
+    } catch (error) {
+      return {};
+    }
+  }
+
+  private setupWatcher() {
+    if (this._watcher) {
+      this._watcher.dispose();
+    }
+
+    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+    if (!workspaceFolder) return;
+
+    // 🌟 修复：改回最精准的 RelativePattern。VS Code 对这个 API 在根目录的监听支持最好！
+    const pattern = new vscode.RelativePattern(workspaceFolder, this._configFileName);
+    this._watcher = vscode.workspace.createFileSystemWatcher(pattern);
+
+    const syncUIContextInstant = () => {
+      this.updateContextKey();
+    };
+
+    let debounceTimer: NodeJS.Timeout;
+    const reloadDataDebounced = () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        this.loadConfig();
+      }, 300);
+    };
+
+    this._watcher.onDidChange(() => {
+      syncUIContextInstant();
+      reloadDataDebounced();
+    });
+    this._watcher.onDidCreate(() => {
+      syncUIContextInstant();
+      reloadDataDebounced();
+    });
+    this._watcher.onDidDelete(() => {
+      syncUIContextInstant();
+      reloadDataDebounced();
+    });
+
+    if (this._context) {
+      this._context.subscriptions.push(this._watcher);
+
+      // 🌟 终极双重保险：直接拦截左侧资源管理器级别的文件删除/新建行为！
+      this._context.subscriptions.push(
+        vscode.workspace.onDidDeleteFiles((e) => {
+          if (e.files.some((f) => f.fsPath.endsWith(this._configFileName))) {
+            syncUIContextInstant();
+            reloadDataDebounced();
+          }
+        }),
+        vscode.workspace.onDidCreateFiles((e) => {
+          if (e.files.some((f) => f.fsPath.endsWith(this._configFileName))) {
+            syncUIContextInstant();
+            reloadDataDebounced();
+          }
+        }),
+      );
+    }
   }
 
   public async createDefaultConfig(): Promise<void> {
-    if (!this.configUri) {
-      vscode.window.showWarningMessage('请先打开一个工作区！');
+    const targetUri = this.workspaceConfigUri;
+    if (!targetUri) {
+      vscode.window.showErrorMessage('Quick Ops: 请先打开一个文件夹。');
       return;
     }
+
+    if (await this.pathExists(targetUri)) {
+      const doc = await vscode.workspace.openTextDocument(targetUri);
+      await vscode.window.showTextDocument(doc);
+      return;
+    }
+
     try {
-      await vscode.workspace.fs.stat(this.configUri);
-      vscode.window.showInformationMessage('.quickopsrc 已存在');
-    } catch (e) {
-      const defaultConfig = {
-        general: { ignores: [] },
-        proxy: [],
-        mock: []
-      };
-      const fileData = Buffer.from(JSON.stringify(defaultConfig, null, 2), 'utf-8');
-      await vscode.workspace.fs.writeFile(this.configUri, fileData);
-      vscode.window.showInformationMessage('✨ .quickopsrc 配置文件已创建！');
+      let contentToWrite = '{}';
+      if (this._context) {
+        const templateUri = vscode.Uri.joinPath(this._context.extensionUri, this._templateConfigPath);
+        if (await this.pathExists(templateUri)) {
+          contentToWrite = await this.readFile(templateUri);
+        }
+      }
+
+      await this.writeFile(targetUri, contentToWrite);
+      vscode.window.showInformationMessage(`✨ 已创建 ${this._configFileName}`);
+
+      await this.updateContextKey();
+      await this.loadConfig();
+
+      const doc = await vscode.workspace.openTextDocument(targetUri);
+      await vscode.window.showTextDocument(doc);
+    } catch (error: any) {
+      vscode.window.showErrorMessage(`创建配置文件失败: ${error.message}`);
     }
   }
 
-  public dispose() {
-    if (this.watcher) {
-      this.watcher.dispose();
+  public dispose(): void {
+    if (this._watcher) {
+      this._watcher.dispose();
     }
     this.removeAllListeners();
+  }
+
+  private async handleGitConfiguration() {
+    try {
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+      if (!workspaceRoot) return;
+
+      const currentFilesToIgnore = new Set<string>();
+
+      this._alwaysIgnoreFiles.forEach((f) => currentFilesToIgnore.add(f));
+
+      if (this._config.general?.excludeConfigFiles) currentFilesToIgnore.add(this._configFile);
+      if (this._config.general?.excludeTelemetryFile) currentFilesToIgnore.add(this._telemetryFile);
+
+      if (this._config.git?.ignoreList && Array.isArray(this._config.git.ignoreList)) {
+        this._config.git.ignoreList.forEach((f) => currentFilesToIgnore.add(f));
+      }
+
+      this._ignoredAbsolutePaths.clear();
+      for (const relativePath of currentFilesToIgnore) {
+        const absPath = path.join(workspaceRoot, relativePath).replace(/\\/g, '/');
+        this._ignoredAbsolutePaths.add(absPath);
+      }
+
+      const lastFilesToIgnore = new Set<string>();
+      if (this._lastConfig) {
+        this._alwaysIgnoreFiles.forEach((f) => lastFilesToIgnore.add(f));
+        if (this._lastConfig.general?.excludeConfigFiles) lastFilesToIgnore.add(this._configFile);
+        if (this._lastConfig.general?.excludeTelemetryFile) lastFilesToIgnore.add(this._telemetryFile);
+        if (this._lastConfig.git?.ignoreList) this._lastConfig.git.ignoreList.forEach((f) => lastFilesToIgnore.add(f));
+      }
+
+      const toAdd = [...currentFilesToIgnore].filter((x) => !lastFilesToIgnore.has(x));
+      const toRemove = [...lastFilesToIgnore].filter((x) => !currentFilesToIgnore.has(x));
+
+      if (toAdd.length > 0 || toRemove.length > 0) {
+        await this.batchProcessIgnoreFiles(toAdd, toRemove, workspaceRoot);
+      }
+    } catch (e) {
+      console.warn(`[${this.serviceId}] Git config sync failed:`, e);
+    }
+  }
+
+  private async batchProcessIgnoreFiles(filesToAdd: string[], filesToRemove: string[], cwd: string) {
+    try {
+      await this.batchUpdateGitInfoExclude(filesToAdd, filesToRemove, cwd);
+
+      if (filesToAdd.length > 0) {
+        const trackedToAdd = await this.filterTrackedFiles(filesToAdd, cwd);
+        if (trackedToAdd.length > 0) {
+          await this.runGitUpdateIndex(trackedToAdd, true, cwd);
+        }
+      }
+
+      if (filesToRemove.length > 0) {
+        const trackedToRemove = await this.filterTrackedFiles(filesToRemove, cwd);
+        if (trackedToRemove.length > 0) {
+          await this.runGitUpdateIndex(trackedToRemove, false, cwd);
+        }
+      }
+
+      const count = filesToAdd.length + filesToRemove.length;
+      if (count > 0) {
+        ColorLog.green(`[${this.serviceId}]`, `Synced ${count} files to Git config.`);
+      }
+    } catch (e) {
+      console.error(`[${this.serviceId}] Batch process failed:`, e);
+    }
+  }
+
+  private async batchUpdateGitInfoExclude(toAdd: string[], toRemove: string[], cwd: string) {
+    try {
+      const gitDir = path.join(cwd, '.git');
+      const excludePath = path.join(gitDir, 'info', 'exclude');
+      const excludeUri = vscode.Uri.file(excludePath);
+
+      if (!(await this.pathExists(vscode.Uri.file(gitDir)))) return;
+
+      const infoDir = path.dirname(excludePath);
+      const infoDirUri = vscode.Uri.file(infoDir);
+      if (!(await this.pathExists(infoDirUri))) {
+        await vscode.workspace.fs.createDirectory(infoDirUri);
+      }
+
+      let content = '';
+      if (await this.pathExists(excludeUri)) {
+        content = await this.readFile(excludeUri);
+      }
+
+      let lines = content.split(/\r?\n/).filter((line) => line.trim() !== '');
+      const originalCount = lines.length;
+
+      const toRemoveSet = new Set(toRemove.map((p) => p.replace(/\\/g, '/')));
+
+      lines = lines.filter((line) => !toRemoveSet.has(line));
+
+      toAdd.forEach((file) => {
+        const normalized = file.replace(/\\/g, '/');
+        if (!lines.includes(normalized)) {
+          lines.push(normalized);
+        }
+      });
+
+      if (lines.length !== originalCount || toRemove.length > 0) {
+        await this.writeFile(excludeUri, lines.join('\n') + '\n');
+      }
+    } catch (e) {
+      console.warn('Failed to batch update git info/exclude', e);
+    }
+  }
+
+  private async filterTrackedFiles(files: string[], cwd: string): Promise<string[]> {
+    if (files.length === 0) return [];
+    try {
+      const fileArgs = files.map((f) => `"${f}"`).join(' ');
+      const { stdout } = await execAsync(`git ls-files ${fileArgs}`, { cwd });
+
+      const tracked = new Set(
+        stdout
+          .split(/\r?\n/)
+          .map((s) => s.trim())
+          .filter(Boolean),
+      );
+      return files.filter((f) => {
+        const normalized = f.replace(/\\/g, '/');
+        return tracked.has(normalized) || tracked.has(f);
+      });
+    } catch (e) {
+      return [];
+    }
+  }
+
+  private async runGitUpdateIndex(files: string[], skip: boolean, cwd: string) {
+    try {
+      const flag = skip ? '--skip-worktree' : '--no-skip-worktree';
+      const fileArgs = files.map((f) => `"${f}"`).join(' ');
+      await execAsync(`git update-index ${flag} ${fileArgs}`, { cwd });
+    } catch (e) {
+      console.warn('Git update-index failed', e);
+    }
+  }
+
+  private async pathExists(uri: vscode.Uri): Promise<boolean> {
+    try {
+      await vscode.workspace.fs.stat(uri);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async readFile(uri: vscode.Uri): Promise<string> {
+    const uint8Array = await vscode.workspace.fs.readFile(uri);
+    return Buffer.from(uint8Array).toString('utf-8');
+  }
+
+  private async writeFile(uri: vscode.Uri, content: string): Promise<void> {
+    const uint8Array = Buffer.from(content, 'utf-8');
+    await vscode.workspace.fs.writeFile(uri, uint8Array);
+  }
+}
+
+class LogrcIgnoreDecorationProvider implements vscode.FileDecorationProvider {
+  private _onDidChangeFileDecorations = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
+  public readonly onDidChangeFileDecorations = this._onDidChangeFileDecorations.event;
+
+  constructor(private configService: ConfigurationService) {
+    this.configService.on('configChanged', () => {
+      this._onDidChangeFileDecorations.fire(undefined);
+    });
+  }
+
+  provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
+    if (this.configService.isIgnoredByExtension(uri.fsPath)) {
+      return {
+        badge: 'IG',
+        tooltip: '该文件已被 QuickOps Git隔离 功能忽略',
+        color: new vscode.ThemeColor('gitDecoration.ignoredResourceForeground'),
+        propagate: false,
+      };
+    }
+    return undefined;
   }
 }

@@ -2,7 +2,7 @@
   "name": "quick-ops",
   "displayName": "Quick Ops: Code Utils & Anchors",
   "description": "Boost productivity with Code Anchors, SCSS structure generation, and essential navigation shortcuts.",
-  "version": "0.0.27",
+  "version": "0.0.28",
   "engines": {
     "vscode": "^1.73.0"
   },
@@ -89,7 +89,7 @@
         "command": "quick-ops.anchor.showMenu",
         "title": "显示冒点 (Show Anchors)",
         "category": "Quick Ops",
-        "icon": "$(bookmark)" 
+        "icon": "$(bookmark)"
       },
       {
         "command": "quickOps.revealInExplorer",
@@ -250,7 +250,7 @@
         {
           "command": "quickOps.createConfigFile",
           "group": "quickOps@1",
-          "when": "quickOps.context.configMissing"
+          "when": "quickOps.context.configState != 'exists'"
         },
         {
           "command": "quickOps.toggleIgnore",

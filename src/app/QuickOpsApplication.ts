@@ -101,9 +101,6 @@ export class QuickOpsApplication {
     console.timeEnd('QuickOps Activation');
     ColorLog.black('[QuickOps]', '(Refactored) is now active!');
     
-    // 🛑 性能/体验优化：屏蔽启动弹窗。
-    // 因为插件改为了“懒加载”静默唤醒，用户写代码中途如果触发唤醒再弹个窗，是非常影响体验的。
-    // vscode.window.showInformationMessage('Quick Ops (Refactored) is now active!');
   }
 
   private setupGlobalDisposables() {
