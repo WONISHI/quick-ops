@@ -29,13 +29,11 @@ import { DebugConsoleFeature } from '../features/DebugConsoleFeature';
 export class QuickOpsApplication {
   private context: vscode.ExtensionContext;
 
-  // 维护服务和功能的列表，方便统一管理生命周期
   private services: IService[] = [];
   private features: IFeature[] = [];
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
-    // 🌟 优化：不在 constructor 中 new，将内存分配延后到 start 阶段
   }
 
   /**
@@ -45,75 +43,86 @@ export class QuickOpsApplication {
     ColorLog.black('[QuickOps]', 'Application Starting...');
     console.time('QuickOps Activation');
 
-    this.services = [
-        ConfigurationService.getInstance(), 
-        WorkspaceStateService.getInstance(), 
-        EditorContextService.getInstance(), 
-        TerminalExecutor.getInstance()
-    ];
+    // ==========================================
+    // 第一阶段：核心服务并发初始化 (极大缩短 I/O 等待)
+    // ==========================================
+    this.services = [ConfigurationService.getInstance(), WorkspaceStateService.getInstance(), EditorContextService.getInstance(), TerminalExecutor.getInstance()];
 
-    this.features = [
-      new SmartScrollFeature(),
-      new CodeSnippetFeature(),
-      new ProjectExportFeature(),
-      new FileNavigationFeature(),
-      new ConfigManagementFeature(),
-      new LogEnhancerFeature(),
-      new PackageScriptsFeature(),
-      new MarkDecorationFeature(),
-      new StyleGeneratorFeature(),
-      new AnchorFeature(),
-      new SnippetGeneratorFeature(),
-      new ClipboardTransformFeature(),
-      new EditorHistoryFeature(),
-      new MockServerFeature(),
-      new DebugConsoleFeature(),
-    ];
-
-    // 1. 初始化核心服务 (Initialization)
-    for (const service of this.services) {
+    // 🌟 性能优化：Promise.all 保证所有服务同时去读取本地配置/环境，总耗时取决于最慢的一个
+    const initPromises = this.services.map(async (service) => {
       try {
         //@ts-ignore
-        await service.init(this.context);
+        if (service.init) await service.init(this.context);
       } catch (error) {
         console.error(`[Service] ${service.serviceId} failed to init:`, error);
       }
-    }
+    });
+    await Promise.all(initPromises);
 
-    // 2. 激活功能 (Activation) - 🌟 性能优化：分片激活 & 让出主线程
-    for (let i = 0; i < this.features.length; i++) {
-      const feature = this.features[i];
+    // ==========================================
+    // 第二阶段：核心功能瞬间激活 (UI/右键菜单强相关)
+    // ==========================================
+    // 🌟 性能优化：这些功能只做轻量级的注册，必须瞬间完成以保证用户一打开 VS Code 菜单立即可用
+    const criticalFeatures = [
+      new ConfigManagementFeature(), // 维护右键 Toggle Ignore 状态，最重要
+      new FileNavigationFeature(), // 文件定位
+      new SmartScrollFeature(), // 滚动辅助
+      new ClipboardTransformFeature(), // 剪贴板文本转换 (纯正则，极快)
+      new LogEnhancerFeature(), // 日志快捷键
+      new EditorHistoryFeature(), // 编辑历史
+      new MarkDecorationFeature(), // 文本高亮
+      new DebugConsoleFeature(), // Debug 按钮
+    ];
+
+    for (const feature of criticalFeatures) {
+      this.features.push(feature);
       try {
         feature.activate(this.context);
       } catch (error) {
-        console.error(`[Feature] ${feature.id} failed to activate:`, error);
-      }
-
-      // 🌟 核心优化：每同步激活 3 个功能模块，就利用宏任务队列强行中断一次阻塞。
-      // 这能把 CPU 的控制权短暂交还给 VS Code 主进程，用于处理页面渲染和用户的键盘输入。
-      // 彻底消除插件加载时可能导致的界面卡死问题！
-      if ((i + 1) % 3 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 0));
+        console.error(`[Critical Feature] ${feature.id} failed to activate:`, error);
       }
     }
 
     this.setupGlobalDisposables();
     console.timeEnd('QuickOps Activation');
-    ColorLog.black('[QuickOps]', '(Refactored) is now active!');
-    
+    ColorLog.black('[QuickOps]', 'Critical Core is now active!');
+
+    // ==========================================
+    // 第三阶段：重量级功能延后激活 (彻底让出启动主线程)
+    // ==========================================
+    // 🌟 性能优化：将扫描文件、读取 Package、开启服务等重型任务推迟 2 秒执行
+    setTimeout(() => {
+      const deferredFeatures = [
+        new AnchorFeature(), // 涉及遍历文件树寻找锚点
+        new MockServerFeature(), // 涉及 Webview Provider 和大量 JSON 规则加载
+        new PackageScriptsFeature(), // 涉及扫描 package.json 和 workspace
+        new StyleGeneratorFeature(), // 涉及庞大 AST 解析引擎预热
+        new ProjectExportFeature(), // 涉及 Git 忽略状态和文件树扫描
+        new CodeSnippetFeature(),
+        new SnippetGeneratorFeature(),
+      ];
+
+      for (let i = 0; i < deferredFeatures.length; i++) {
+        const feature = deferredFeatures[i];
+        this.features.push(feature);
+        try {
+          feature.activate(this.context);
+        } catch (error) {
+          console.error(`[Deferred Feature] ${feature.id} failed to activate:`, error);
+        }
+      }
+      ColorLog.black('[QuickOps]', 'Deferred Features loaded seamlessly.');
+    }, 2000);
   }
 
   private setupGlobalDisposables() {
-    // 如果有一些不属于特定 Feature 的全局清理逻辑放这里
+    // 全局清理逻辑
   }
 
   /**
    * 销毁应用
    */
   public dispose() {
-    // 遵循 "先注册后销毁" 的逆序原则 (LIFO)
-
-    // 1. 销毁功能
     for (let i = this.features.length - 1; i >= 0; i--) {
       try {
         this.features[i].dispose?.();
@@ -122,7 +131,6 @@ export class QuickOpsApplication {
       }
     }
 
-    // 2. 销毁服务
     for (let i = this.services.length - 1; i >= 0; i--) {
       try {
         this.services[i].dispose?.();

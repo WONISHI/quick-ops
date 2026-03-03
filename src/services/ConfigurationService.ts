@@ -52,17 +52,30 @@ export class ConfigurationService extends EventEmitter implements IService {
     return this._ignoredAbsolutePaths.has(normalized);
   }
 
-  public init(context?: vscode.ExtensionContext): void {
+  // 🌟 修复：将 context 改为可选参数 context?: vscode.ExtensionContext 满足 IService 接口契约
+  public async init(context?: vscode.ExtensionContext): Promise<void> {
     this._context = context;
+
+    // 1. [缓存优先] 如果有 context，瞬间从 VS Code 底层数据库读取上次的配置缓存
+    if (context) {
+      const cachedConfig = context.workspaceState.get<ILogrcConfig>('quickops.config.cache');
+      if (cachedConfig) {
+        this._config = cachedConfig;
+        this._lastConfig = JSON.parse(JSON.stringify(this._config));
+        this.emit('configChanged', this._config);
+        ColorLog.green(`[${this.serviceId}]`, 'Loaded from Workspace Cache instantly.');
+      }
+    }
+
+    // 2. 后台静默读取真实配置并覆盖，成功后由 loadConfig 更新缓存以备下次秒开
     this.loadConfig().catch((err) => console.error(`[${this.serviceId}] Init load failed:`, err));
+
     this.setupWatcher();
     this.updateContextKey();
 
     if (context) {
       context.subscriptions.push(vscode.window.registerFileDecorationProvider(new LogrcIgnoreDecorationProvider(this)));
     }
-
-    ColorLog.orange(`[${this.serviceId}]`, 'Initialized.');
   }
 
   public async loadConfig(): Promise<void> {
@@ -76,6 +89,11 @@ export class ConfigurationService extends EventEmitter implements IService {
 
       this._lastConfig = JSON.parse(JSON.stringify(this._config));
       this.emit('configChanged', this._config);
+
+      // 🌟 成功读取最新配置后，同步更新到本地缓存
+      if (this._context) {
+        this._context.workspaceState.update('quickops.config.cache', this._config);
+      }
     } catch (error) {
       console.error(`[${this.serviceId}] Error loading config:`, error);
     }
@@ -113,6 +131,10 @@ export class ConfigurationService extends EventEmitter implements IService {
       await this.writeFile(targetUri, JSON.stringify(currentConfig, null, 2));
 
       this.emit('configChanged', this._config);
+
+      if (this._context) {
+        this._context.workspaceState.update('quickops.config.cache', this._config);
+      }
     } catch (error: any) {
       vscode.window.showErrorMessage(`更新配置失败: ${error.message}`);
       console.error(`[${this.serviceId}] updateConfig error:`, error);
@@ -176,6 +198,7 @@ export class ConfigurationService extends EventEmitter implements IService {
         this._ignoredAbsolutePaths.delete(absPath);
       }
       this.emit('configChanged', this._config);
+      if (this._context) this._context.workspaceState.update('quickops.config.cache', this._config);
     } catch (e: any) {
       vscode.window.showErrorMessage(`更新配置文件失败: ${e.message}`);
     }
@@ -227,7 +250,6 @@ export class ConfigurationService extends EventEmitter implements IService {
     const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
     if (!workspaceFolder) return;
 
-    // 🌟 修复：改回最精准的 RelativePattern。VS Code 对这个 API 在根目录的监听支持最好！
     const pattern = new vscode.RelativePattern(workspaceFolder, this._configFileName);
     this._watcher = vscode.workspace.createFileSystemWatcher(pattern);
 
@@ -259,7 +281,6 @@ export class ConfigurationService extends EventEmitter implements IService {
     if (this._context) {
       this._context.subscriptions.push(this._watcher);
 
-      // 🌟 终极双重保险：直接拦截左侧资源管理器级别的文件删除/新建行为！
       this._context.subscriptions.push(
         vscode.workspace.onDidDeleteFiles((e) => {
           if (e.files.some((f) => f.fsPath.endsWith(this._configFileName))) {
