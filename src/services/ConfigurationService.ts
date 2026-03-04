@@ -56,7 +56,6 @@ export class ConfigurationService extends EventEmitter implements IService {
   public async init(context?: vscode.ExtensionContext): Promise<void> {
     this._context = context;
 
-    // 1. [缓存优先] 如果有 context，瞬间从 VS Code 底层数据库读取上次的配置缓存
     if (context) {
       const cachedConfig = context.workspaceState.get<ILogrcConfig>('quickops.config.cache');
       if (cachedConfig) {
@@ -160,7 +159,7 @@ export class ConfigurationService extends EventEmitter implements IService {
         if (stat.type === vscode.FileType.Directory) {
           relativePath += '/**';
         }
-      } catch (e) {}
+      } catch (e) { }
 
       const content = await this.readFile(configUri);
       const json = JSON.parse(content);
@@ -209,7 +208,7 @@ export class ConfigurationService extends EventEmitter implements IService {
     let exists = false;
     try {
       exists = !!uri && (await this.pathExists(uri));
-    } catch (e) {}
+    } catch (e) { }
     vscode.commands.executeCommand('setContext', 'quickOps.context.configState', exists ? 'exists' : 'missing');
   }
 
@@ -283,17 +282,17 @@ export class ConfigurationService extends EventEmitter implements IService {
 
       this._context.subscriptions.push(
         vscode.workspace.onDidDeleteFiles((e) => {
-          if (e.files.some((f) => f.fsPath.endsWith(this._configFileName))) {
+          if (e.files.some(f => path.basename(f.fsPath) === this._configFileName)) {
             syncUIContextInstant();
             reloadDataDebounced();
           }
         }),
         vscode.workspace.onDidCreateFiles((e) => {
-          if (e.files.some((f) => f.fsPath.endsWith(this._configFileName))) {
+          if (e.files.some(f => path.basename(f.fsPath) === this._configFileName)) {
             syncUIContextInstant();
             reloadDataDebounced();
           }
-        }),
+        })
       );
     }
   }
