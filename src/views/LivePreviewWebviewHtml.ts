@@ -1,4 +1,7 @@
 export function getLivePreviewHtml(defaultUrl: string): string {
+  // 判断是否有传入初始 URL
+  const hasUrl = !!defaultUrl;
+
   return `<!DOCTYPE html>
   <html lang="en">
   <head>
@@ -21,6 +24,7 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         --menu-hover-bg: var(--vscode-menu-selectionBackground);
         --menu-hover-fg: var(--vscode-menu-selectionForeground);
         --focus-border: var(--vscode-focusBorder);
+        --link-fg: var(--vscode-textLink-foreground);
       }
       html, body { margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; background-color: var(--vscode-editorPane-background, #1e1e1e); color: var(--fg); user-select: none; }
       
@@ -29,7 +33,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         border-bottom: 1px solid var(--border); gap: 6px; align-items: center; flex-shrink: 0;
       }
       
-      /* 🌟 联合地址栏：包含 Icon 和 输入框 */
       .address-bar-wrapper {
         flex: 1; min-width: 150px; padding: 4px 8px; border: 1px solid var(--input-border); 
         background: var(--input-bg); border-radius: 2px; 
@@ -59,12 +62,15 @@ export function getLivePreviewHtml(defaultUrl: string): string {
 
       .preview-container { 
         flex: 1; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 20px; 
+        position: relative;
       }
       
       #deviceWrapper { 
+        /* 初始根据是否有 URL 决定是否隐藏 iframe */
+        display: ${hasUrl ? 'block' : 'none'}; 
         background: #fff; transition: width 0.3s ease, height 0.3s ease; 
         box-shadow: 0 4px 16px rgba(0,0,0,0.4); border-radius: 2px; overflow: hidden;
-        position: relative;
+        position: relative; z-index: 2;
       }
       
       .device-responsive { width: 100%; height: 100%; box-shadow: none; border-radius: 0; }
@@ -81,6 +87,28 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       .device-surface-pro-7 { width: 912px; height: 1368px; }
       
       iframe { width: 100%; height: 100%; border: none; background: #fff; display: block; }
+
+      /* 🌟 引导页样式设计 (完全贴合 VS Code 的空面板样式) */
+      .welcome-page {
+        display: ${hasUrl ? 'none' : 'flex'}; 
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        flex-direction: column; align-items: center; justify-content: center;
+        background-color: var(--bg); z-index: 1; padding: 20px; box-sizing: border-box;
+      }
+      .welcome-icon { font-size: 56px; color: var(--vscode-descriptionForeground); margin-bottom: 24px; opacity: 0.5; }
+      .welcome-title { font-size: 24px; font-weight: 300; margin-bottom: 12px; color: var(--fg); }
+      .welcome-subtitle { font-size: 13px; color: var(--vscode-descriptionForeground); margin-bottom: 32px; text-align: center; max-width: 400px; line-height: 1.6; }
+      
+      .quick-links { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 300px; }
+      .quick-link-btn {
+        display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+        background: var(--vscode-button-secondaryBackground, rgba(255,255,255,0.05)); 
+        color: var(--vscode-button-secondaryForeground, var(--fg)); 
+        border: 1px solid var(--border); border-radius: 4px; cursor: pointer;
+        font-size: 13px; transition: all 0.15s; outline: none; text-align: left;
+      }
+      .quick-link-btn i { font-size: 16px; opacity: 0.8; width: 20px; text-align: center; }
+      .quick-link-btn:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(255,255,255,0.1)); border-color: var(--focus-border); }
 
       /* 右键菜单 */
       .context-menu {
@@ -144,6 +172,24 @@ export function getLivePreviewHtml(defaultUrl: string): string {
     </div>
     
     <div class="preview-container" id="previewContainer">
+      <div class="welcome-page" id="welcomePage">
+        <i class="fa-solid fa-layer-group welcome-icon"></i>
+        <h1 class="welcome-title">Live Preview</h1>
+        <p class="welcome-subtitle">在上方地址栏输入您的本地开发服务器地址 (如 <b>localhost:5173</b>) 以开始实时预览。<br/>您也可以点击下方快捷选项快速填入：</p>
+        
+        <div class="quick-links">
+          <button class="quick-link-btn" onclick="fillAndGo('localhost:5173')">
+            <i class="fa-brands fa-vuejs" style="color: #42b883;"></i> <span>Vite 默认端口 (5173)</span>
+          </button>
+          <button class="quick-link-btn" onclick="fillAndGo('localhost:8080')">
+            <i class="fa-brands fa-node-js" style="color: #8cc84b;"></i> <span>Vue CLI / Webpack (8080)</span>
+          </button>
+          <button class="quick-link-btn" onclick="fillAndGo('localhost:3000')">
+            <i class="fa-brands fa-react" style="color: #61dafb;"></i> <span>React / Next.js (3000)</span>
+          </button>
+        </div>
+      </div>
+
       <div id="deviceWrapper" class="device-responsive">
         <iframe id="previewFrame" src="${defaultUrl}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads" allow="clipboard-read; clipboard-write;"></iframe>
       </div>
@@ -178,6 +224,9 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       
       const siteFavicon = document.getElementById('siteFavicon');
       const defaultFavicon = document.getElementById('defaultFavicon');
+      
+      // 🌟 新增：欢迎页的 DOM 元素
+      const welcomePage = document.getElementById('welcomePage');
 
       const moreBtn = document.getElementById('moreBtn');
       const actionMenu = document.getElementById('actionMenu');
@@ -186,7 +235,12 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       const actionVConsole = document.getElementById('actionVConsole');
       const fontSelect = document.getElementById('fontSelect');
 
-      // 🌟 解析并加载 Favicon 逻辑
+      // 🌟 供欢迎页快捷按钮调用的全局函数
+      window.fillAndGo = function(targetUrl) {
+        urlInput.value = targetUrl;
+        loadUrl();
+      };
+
       function updateFavicon(urlStr) {
         try {
           const urlObj = new URL(urlStr);
@@ -200,8 +254,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
             siteFavicon.style.display = 'none';
             defaultFavicon.style.display = 'block';
           };
-          
-          // 加上时间戳防止强缓存
           siteFavicon.src = iconUrl + '?t=' + new Date().getTime();
         } catch(e) {
           siteFavicon.style.display = 'none';
@@ -211,19 +263,32 @@ export function getLivePreviewHtml(defaultUrl: string): string {
 
       function loadUrl() {
         let url = urlInput.value.trim();
-        if (!url) return;
+        if (!url) {
+          // 如果地址被清空了，恢复显示引导页
+          welcomePage.style.display = 'flex';
+          deviceWrapper.style.display = 'none';
+          previewFrame.src = 'about:blank';
+          updateFavicon('');
+          vscode.postMessage({ type: 'saveUrl', url: '' });
+          return;
+        }
         
         if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('file://')) {
           url = 'http://' + url;
           urlInput.value = url;
         }
         
+        // 隐藏引导页，显示 iframe
+        welcomePage.style.display = 'none';
+        deviceWrapper.style.display = 'block';
+        
         previewFrame.src = url;
-        updateFavicon(url); // 触发加载图标
+        updateFavicon(url); 
         vscode.postMessage({ type: 'saveUrl', url: url });
       }
 
       function doRefresh() {
+        if (!urlInput.value.trim()) return; // 空白页不刷新
         const currentUrl = previewFrame.src;
         previewFrame.src = 'about:blank';
         setTimeout(() => { previewFrame.src = currentUrl; }, 10);
@@ -240,7 +305,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         }
       }
 
-      // 🌟 vConsole 注入逻辑重构：失败直接走剪贴板回退
       function doInjectVConsole() {
         try {
           const frameDoc = previewFrame.contentDocument || previewFrame.contentWindow.document;
@@ -262,7 +326,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
           };
           frameDoc.head.appendChild(script);
         } catch (e) {
-          // 核心：捕获跨域报错，抛给外层 VS Code 插件代码去复制脚本
           vscode.postMessage({ type: 'vConsoleFallback' });
         }
         closeMenu();
@@ -325,13 +388,15 @@ export function getLivePreviewHtml(defaultUrl: string): string {
             deviceSelect.value = message.device;
             deviceWrapper.className = message.device;
           }
-          // 初始化时也尝试加载一下 Icon
-          updateFavicon(urlInput.value);
+          if (urlInput.value.trim()) {
+            updateFavicon(urlInput.value);
+          }
         }
       });
       
-      // 首次加载初始化 Icon
-      updateFavicon('${defaultUrl}');
+      if ('${defaultUrl}'.trim()) {
+        updateFavicon('${defaultUrl}');
+      }
     </script>
   </body>
   </html>`;
