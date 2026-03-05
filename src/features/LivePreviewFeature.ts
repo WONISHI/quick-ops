@@ -31,7 +31,7 @@ export class LivePreviewFeature implements IFeature {
       this.panel = undefined;
     });
 
-    // 🌟 默认值改为 空字符串，触发引导页逻辑
+    // 🌟 默认值改为空字符串，触发引导页逻辑
     const lastUrl = context.workspaceState.get<string>('quickOps.lastPreviewUrl') || '';
     const lastDevice = context.workspaceState.get<string>('quickOps.lastPreviewDevice') || 'device-responsive';
 

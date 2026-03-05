@@ -24,9 +24,8 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         --menu-hover-bg: var(--vscode-menu-selectionBackground);
         --menu-hover-fg: var(--vscode-menu-selectionForeground);
         --focus-border: var(--vscode-focusBorder);
-        --link-fg: var(--vscode-textLink-foreground);
       }
-      html, body { margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; background-color: var(--vscode-editorPane-background, #1e1e1e); color: var(--fg); user-select: none; }
+      html, body { margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; background-color: var(--vscode-editorPane-background, #1e1e1e); color: var(--fg); user-select: none; overflow: hidden; }
       
       .toolbar { 
         display: flex; padding: 6px 10px; background: var(--bg); 
@@ -42,8 +41,14 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       
       .address-bar { 
         flex: 1; border: none; background: transparent; color: var(--input-fg); 
-        outline: none; font-family: var(--vscode-editor-font-family, monospace); font-size: 12px; padding: 0;
+        outline: none; font-family: var(--vscode-editor-font-family, monospace); font-size: 12px; padding: 0; min-width: 0;
       }
+
+      .clear-btn {
+        color: var(--vscode-icon-foreground); cursor: pointer; font-size: 14px; 
+        padding: 0 4px; display: none; opacity: 0.7; transition: opacity 0.2s;
+      }
+      .clear-btn:hover { opacity: 1; color: var(--fg); }
       
       .icon-btn { 
         background: transparent; color: var(--vscode-icon-foreground); border: none; 
@@ -62,18 +67,20 @@ export function getLivePreviewHtml(defaultUrl: string): string {
 
       .preview-container { 
         flex: 1; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 20px; 
-        position: relative;
+        position: relative; transition: padding 0.3s ease;
+      }
+      .preview-container.no-padding {
+        padding: 0 !important;
       }
       
       #deviceWrapper { 
-        /* 初始根据是否有 URL 决定是否隐藏 iframe */
         display: ${hasUrl ? 'block' : 'none'}; 
         background: #fff; transition: width 0.3s ease, height 0.3s ease; 
         box-shadow: 0 4px 16px rgba(0,0,0,0.4); border-radius: 2px; overflow: hidden;
         position: relative; z-index: 2;
       }
       
-      .device-responsive { width: 100%; height: 100%; box-shadow: none; border-radius: 0; }
+      .device-responsive { width: 100%; height: 100%; box-shadow: none !important; border-radius: 0 !important; }
       .device-iphone-se { width: 375px; height: 667px; }
       .device-iphone-xr { width: 414px; height: 896px; }
       .device-iphone-12-pro { width: 390px; height: 844px; }
@@ -88,7 +95,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       
       iframe { width: 100%; height: 100%; border: none; background: #fff; display: block; }
 
-      /* 🌟 引导页样式设计 (完全贴合 VS Code 的空面板样式) */
       .welcome-page {
         display: ${hasUrl ? 'none' : 'flex'}; 
         position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -110,7 +116,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       .quick-link-btn i { font-size: 16px; opacity: 0.8; width: 20px; text-align: center; }
       .quick-link-btn:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(255,255,255,0.1)); border-color: var(--focus-border); }
 
-      /* 右键菜单 */
       .context-menu {
         display: none; position: absolute; z-index: 9999;
         background: var(--menu-bg); border: 1px solid var(--menu-border);
@@ -136,10 +141,11 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       <div class="address-bar-wrapper">
         <img id="siteFavicon" src="" style="display:none; width:14px; height:14px; border-radius:2px; object-fit:contain;" />
         <i id="defaultFavicon" class="fa-solid fa-globe" style="font-size:13px; color:var(--vscode-descriptionForeground);"></i>
-        <input type="text" id="urlInput" class="address-bar" value="${defaultUrl}" placeholder="例如: localhost:5173 (可省略 http://)" autocomplete="off" spellcheck="false" />
+        <input type="text" id="urlInput" class="address-bar" value="${defaultUrl}" placeholder="输入网址 或 搜索内容" autocomplete="off" spellcheck="false" />
+        <i class="fa-solid fa-xmark clear-btn" id="clearBtn" title="清除"></i>
       </div>
 
-      <button class="icon-btn" id="goBtn" title="访问"><i class="fa-solid fa-arrow-right"></i></button>
+      <button class="icon-btn" id="goBtn" title="访问 / 搜索"><i class="fa-solid fa-arrow-right"></i></button>
       
       <div class="divider"></div>
 
@@ -167,7 +173,7 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       </select>
 
       <div class="divider"></div>
-
+      <button class="icon-btn" id="externalBtn" title="在外部默认浏览器中打开"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
       <button class="icon-btn" id="moreBtn" title="更多操作"><i class="fa-solid fa-ellipsis"></i></button>
     </div>
     
@@ -175,7 +181,7 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       <div class="welcome-page" id="welcomePage">
         <i class="fa-solid fa-layer-group welcome-icon"></i>
         <h1 class="welcome-title">Live Preview</h1>
-        <p class="welcome-subtitle">在上方地址栏输入您的本地开发服务器地址 (如 <b>localhost:5173</b>) 以开始实时预览。<br/>您也可以点击下方快捷选项快速填入：</p>
+        <p class="welcome-subtitle">在上方地址栏输入您的本地开发服务器地址或搜索关键字。<br/>您也可以点击下方快捷选项快速填入：</p>
         
         <div class="quick-links">
           <button class="quick-link-btn" onclick="fillAndGo('localhost:5173')">
@@ -191,7 +197,7 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       </div>
 
       <div id="deviceWrapper" class="device-responsive">
-        <iframe id="previewFrame" src="${defaultUrl}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads" allow="clipboard-read; clipboard-write;"></iframe>
+        <iframe id="previewFrame" src="${defaultUrl}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation allow-modals allow-downloads" allow="clipboard-read; clipboard-write;"></iframe>
       </div>
     </div>
 
@@ -216,16 +222,17 @@ export function getLivePreviewHtml(defaultUrl: string): string {
     <script>
       const vscode = acquireVsCodeApi();
       const urlInput = document.getElementById('urlInput');
+      const clearBtn = document.getElementById('clearBtn');
+      const previewContainer = document.getElementById('previewContainer');
       const previewFrame = document.getElementById('previewFrame');
       const goBtn = document.getElementById('goBtn');
       const refreshBtn = document.getElementById('refreshBtn');
+      const externalBtn = document.getElementById('externalBtn');
       const deviceSelect = document.getElementById('deviceSelect');
       const deviceWrapper = document.getElementById('deviceWrapper');
       
       const siteFavicon = document.getElementById('siteFavicon');
       const defaultFavicon = document.getElementById('defaultFavicon');
-      
-      // 🌟 新增：欢迎页的 DOM 元素
       const welcomePage = document.getElementById('welcomePage');
 
       const moreBtn = document.getElementById('moreBtn');
@@ -235,9 +242,27 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       const actionVConsole = document.getElementById('actionVConsole');
       const fontSelect = document.getElementById('fontSelect');
 
-      // 🌟 供欢迎页快捷按钮调用的全局函数
+      // 智能判断是否是域名或 IP
+      function isUrlLike(str) {
+        const urlPattern = /^(https?:\\/\\/|file:\\/\\/)?(localhost|\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|([a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,})(:\\d+)?(\\/.*)?$/i;
+        return urlPattern.test(str);
+      }
+
+      // 删除按钮显示隐藏逻辑
+      function toggleClearBtn() {
+        clearBtn.style.display = urlInput.value.length > 0 ? 'block' : 'none';
+      }
+      urlInput.addEventListener('input', toggleClearBtn);
+      
+      clearBtn.addEventListener('click', () => {
+        urlInput.value = '';
+        toggleClearBtn();
+        urlInput.focus(); 
+      });
+
       window.fillAndGo = function(targetUrl) {
         urlInput.value = targetUrl;
+        toggleClearBtn();
         loadUrl();
       };
 
@@ -245,26 +270,17 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         try {
           const urlObj = new URL(urlStr);
           const iconUrl = urlObj.origin + '/favicon.ico';
-          
-          siteFavicon.onload = () => {
-            siteFavicon.style.display = 'block';
-            defaultFavicon.style.display = 'none';
-          };
-          siteFavicon.onerror = () => {
-            siteFavicon.style.display = 'none';
-            defaultFavicon.style.display = 'block';
-          };
+          siteFavicon.onload = () => { siteFavicon.style.display = 'block'; defaultFavicon.style.display = 'none'; };
+          siteFavicon.onerror = () => { siteFavicon.style.display = 'none'; defaultFavicon.style.display = 'block'; };
           siteFavicon.src = iconUrl + '?t=' + new Date().getTime();
         } catch(e) {
-          siteFavicon.style.display = 'none';
-          defaultFavicon.style.display = 'block';
+          siteFavicon.style.display = 'none'; defaultFavicon.style.display = 'block';
         }
       }
 
       function loadUrl() {
-        let url = urlInput.value.trim();
-        if (!url) {
-          // 如果地址被清空了，恢复显示引导页
+        let rawInput = urlInput.value.trim();
+        if (!rawInput) {
           welcomePage.style.display = 'flex';
           deviceWrapper.style.display = 'none';
           previewFrame.src = 'about:blank';
@@ -273,27 +289,50 @@ export function getLivePreviewHtml(defaultUrl: string): string {
           return;
         }
         
-        if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('file://')) {
-          url = 'http://' + url;
-          urlInput.value = url;
+        let finalUrl = rawInput;
+        
+        // 🌟 核心：如果是链接自动补全；如果不是，无缝使用对 iframe 友好的 Bing 搜索！
+        if (isUrlLike(rawInput)) {
+          if (!rawInput.startsWith('http://') && !rawInput.startsWith('https://') && !rawInput.startsWith('file://')) {
+            finalUrl = 'http://' + rawInput;
+            urlInput.value = finalUrl;
+          }
+        } else {
+          finalUrl = 'https://www.bing.com/search?q=' + encodeURIComponent(rawInput);
         }
         
-        // 隐藏引导页，显示 iframe
         welcomePage.style.display = 'none';
         deviceWrapper.style.display = 'block';
         
-        previewFrame.src = url;
-        updateFavicon(url); 
-        vscode.postMessage({ type: 'saveUrl', url: url });
+        previewFrame.src = finalUrl;
+        updateFavicon(finalUrl); 
+        vscode.postMessage({ type: 'saveUrl', url: finalUrl });
       }
 
       function doRefresh() {
-        if (!urlInput.value.trim()) return; // 空白页不刷新
+        if (!urlInput.value.trim()) return; 
         const currentUrl = previewFrame.src;
         previewFrame.src = 'about:blank';
         setTimeout(() => { previewFrame.src = currentUrl; }, 10);
         closeMenu();
       }
+
+      // 外部浏览器打开逻辑
+      externalBtn.addEventListener('click', () => {
+        let url = urlInput.value.trim();
+        if (!url) return;
+        
+        if (isUrlLike(url)) {
+          if (!url.startsWith('http://') && !url.startsWith('https://')) {
+            url = 'http://' + url;
+          }
+        } else {
+          // 外部搜索也统一走 Bing
+          url = 'https://www.bing.com/search?q=' + encodeURIComponent(url);
+        }
+        
+        vscode.postMessage({ type: 'openExternalBrowser', url: url });
+      });
 
       function doInjectFont() {
         try {
@@ -336,7 +375,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         closeMenu();
       }
 
-      // --- 菜单交互逻辑 ---
       function openMenu(x, y) {
         actionMenu.style.display = 'block';
         const menuWidth = actionMenu.offsetWidth;
@@ -365,7 +403,7 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         if (!e.target.closest('#actionMenu') && !e.target.closest('#moreBtn')) closeMenu();
       });
 
-      // --- 事件绑定 ---
+      // 绑定核心事件
       goBtn.addEventListener('click', loadUrl);
       urlInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') loadUrl(); });
       
@@ -376,8 +414,14 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       actionVConsole.addEventListener('click', doInjectVConsole);
       fontSelect.addEventListener('change', doInjectFont);
 
+      // 动态控制全屏模式下的边距
       deviceSelect.addEventListener('change', (e) => {
         deviceWrapper.className = e.target.value;
+        if (e.target.value === 'device-responsive') {
+          previewContainer.classList.add('no-padding');
+        } else {
+          previewContainer.classList.remove('no-padding');
+        }
         vscode.postMessage({ type: 'saveDevice', device: e.target.value });
       });
 
@@ -387,15 +431,21 @@ export function getLivePreviewHtml(defaultUrl: string): string {
           if (message.device) {
             deviceSelect.value = message.device;
             deviceWrapper.className = message.device;
+            if (message.device === 'device-responsive') {
+              previewContainer.classList.add('no-padding');
+            }
           }
           if (urlInput.value.trim()) {
             updateFavicon(urlInput.value);
+            toggleClearBtn();
           }
         }
       });
       
+      // 初始化状态
       if ('${defaultUrl}'.trim()) {
         updateFavicon('${defaultUrl}');
+        toggleClearBtn();
       }
     </script>
   </body>
