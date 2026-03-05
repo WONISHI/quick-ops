@@ -95,7 +95,7 @@
         "command": "quickOps.openLivePreview",
         "title": "网页预览台 (Live Preview)",
         "category": "Quick Ops",
-        "icon": "$(browser)"
+        "icon": "$(vm-small)"
       },
       {
         "command": "quick-ops.anchor.showMenu",
