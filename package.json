@@ -86,6 +86,18 @@
     },
     "commands": [
       {
+        "command": "quick-ops.showPackageScripts",
+        "title": "运行快捷脚本 (Scripts)",
+        "category": "Quick Ops",
+        "icon": "$(terminal-powershell)"
+      },
+      {
+        "command": "quickOps.openLivePreview",
+        "title": "网页预览台 (Live Preview)",
+        "category": "Quick Ops",
+        "icon": "$(browser)"
+      },
+      {
         "command": "quick-ops.anchor.showMenu",
         "title": "显示冒点 (Show Anchors)",
         "category": "Quick Ops",
@@ -226,23 +238,33 @@
     "menus": {
       "editor/title": [
         {
-          "command": "quick-ops.anchor.showMenu",
+          "command": "quick-ops.showPackageScripts",
           "group": "navigation@1",
+          "when": "resourceScheme == file"
+        },
+        {
+          "command": "quickOps.openLivePreview",
+          "group": "navigation@2",
+          "when": "resourceScheme == file"
+        },
+        {
+          "command": "quick-ops.anchor.showMenu",
+          "group": "navigation@3",
           "when": "quickOps.hasAnchorsInCurrentFile"
         },
         {
           "command": "quickOps.revealInExplorer",
           "when": "resourceLangId != ''",
-          "group": "navigation@2"
+          "group": "navigation@4"
         },
         {
           "command": "quickOps.scrollToTop",
-          "group": "navigation@3",
+          "group": "navigation@5",
           "when": "editorTextFocus"
         },
         {
           "command": "quickOps.scrollToBottom",
-          "group": "navigation@4",
+          "group": "navigation@6",
           "when": "editorTextFocus"
         }
       ],

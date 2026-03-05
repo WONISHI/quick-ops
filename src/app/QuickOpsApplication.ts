@@ -25,6 +25,7 @@ import { ClipboardTransformFeature } from '../features/ClipboardTransformFeature
 import { EditorHistoryFeature } from '../features/EditorHistoryFeature';
 import { MockServerFeature } from '../features/MockServerFeature';
 import { DebugConsoleFeature } from '../features/DebugConsoleFeature';
+import { LivePreviewFeature } from '../features/LivePreviewFeature';
 
 export class QuickOpsApplication {
   private context: vscode.ExtensionContext;
@@ -72,6 +73,7 @@ export class QuickOpsApplication {
       new EditorHistoryFeature(), // 编辑历史
       new MarkDecorationFeature(), // 文本高亮
       new DebugConsoleFeature(), // Debug 按钮
+      new LivePreviewFeature(),
     ];
 
     for (const feature of criticalFeatures) {

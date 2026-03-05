@@ -9,7 +9,6 @@ import ColorLog from '../utils/ColorLog';
 
 export class PackageScriptsFeature implements IFeature {
   public readonly id = 'PackageScriptsFeature';
-  private statusBarItem: vscode.StatusBarItem | undefined;
   private extensionUri!: vscode.Uri;
   private configService: ConfigurationService = ConfigurationService.getInstance();
 
@@ -19,14 +18,9 @@ export class PackageScriptsFeature implements IFeature {
     this.extensionUri = context.extensionUri;
 
     const commandId = 'quick-ops.showPackageScripts';
-    context.subscriptions.push(vscode.commands.registerCommand(commandId, this.showScripts.bind(this)));
 
-    this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    this.statusBarItem.command = commandId;
-    this.statusBarItem.text = '$(terminal-powershell) Scripts';
-    this.statusBarItem.tooltip = 'View and execute scripts';
-    this.statusBarItem.show();
-    context.subscriptions.push(this.statusBarItem);
+    // 🌟 只保留命令注册，移除状态栏相关代码
+    context.subscriptions.push(vscode.commands.registerCommand(commandId, this.showScripts.bind(this)));
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
