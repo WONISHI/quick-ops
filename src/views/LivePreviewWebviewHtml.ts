@@ -197,7 +197,9 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       </div>
 
       <div id="deviceWrapper" class="device-responsive">
+        <!-- 测试 -->
         <iframe id="previewFrame" src="${defaultUrl}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation allow-modals allow-downloads" allow="clipboard-read; clipboard-write;"></iframe>
+        <!-- <iframe id="previewFrame" src="${defaultUrl}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation allow-modals allow-downloads" allow="clipboard-read; clipboard-write;"></iframe>-->
       </div>
     </div>
 
@@ -291,14 +293,25 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         
         let finalUrl = rawInput;
         
-        // 🌟 核心：如果是链接自动补全；如果不是，无缝使用对 iframe 友好的 Bing 搜索！
+        // 🌟 判断是网址还是搜索关键词
         if (isUrlLike(rawInput)) {
           if (!rawInput.startsWith('http://') && !rawInput.startsWith('https://') && !rawInput.startsWith('file://')) {
             finalUrl = 'http://' + rawInput;
-            urlInput.value = finalUrl;
           }
+          
+          // 🌟【核心修复】拦截 PC 版百度，强制转为移动版，彻底解决点击报错！
+          try {
+            const urlObj = new URL(finalUrl);
+            if (urlObj.hostname.includes('baidu.com') && !urlObj.hostname.includes('m.baidu.com')) {
+              // 悄悄把 www.baidu.com 或 baidu.com 替换成 m.baidu.com
+              finalUrl = finalUrl.replace(urlObj.hostname, 'm.baidu.com');
+            }
+          } catch(e) {}
+
+          urlInput.value = finalUrl;
         } else {
-          finalUrl = 'https://www.bing.com/search?q=' + encodeURIComponent(rawInput);
+          // 🌟 搜索功能也全部统一使用移动版百度，拒绝弹窗！
+          finalUrl = 'https://m.baidu.com/s?word=' + encodeURIComponent(rawInput);
         }
         
         welcomePage.style.display = 'none';
