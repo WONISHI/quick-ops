@@ -7,7 +7,7 @@
     "vscode": "^1.73.0"
   },
   "galleryBanner": {
-    "color": "#1e3c59",
+    "color": "#3c3c3c",
     "theme": "light"
   },
   "sideEffects": false,
