@@ -1,5 +1,4 @@
 export function getLivePreviewHtml(defaultUrl: string): string {
-  // 判断是否有传入初始 URL
   const hasUrl = !!defaultUrl;
 
   return `<!DOCTYPE html>
@@ -197,9 +196,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       </div>
 
       <div id="deviceWrapper" class="device-responsive">
-        <!-- 测试 -->
-        <!-- <iframe id="previewFrame" src="${defaultUrl}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation allow-modals allow-downloads" allow="clipboard-read; clipboard-write;"></iframe> -->
-        <!-- <iframe id="previewFrame" src="${defaultUrl}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation allow-modals allow-downloads" allow="clipboard-read; clipboard-write;"></iframe> -->
         <iframe id="previewFrame" src="${defaultUrl}" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads" allow="clipboard-read; clipboard-write;"></iframe>
       </div>
     </div>
@@ -251,7 +247,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         return urlPattern.test(str);
       }
 
-      // 删除按钮显示隐藏逻辑
       function toggleClearBtn() {
         clearBtn.style.display = urlInput.value.length > 0 ? 'block' : 'none';
       }
@@ -281,6 +276,12 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         }
       }
 
+      // 🌟 终极防白屏黑名单
+      const blockedDomains = [
+        'baidu.com', 'google.com', 'github.com', 
+        'stackoverflow.com', 'zhihu.com', 'larousse.fr'
+      ];
+
       function loadUrl() {
         let rawInput = urlInput.value.trim();
         if (!rawInput) {
@@ -294,14 +295,29 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         
         let finalUrl = rawInput;
         
-        // 判断是网址还是搜索关键词
         if (isUrlLike(rawInput)) {
           if (!rawInput.startsWith('http://') && !rawInput.startsWith('https://') && !rawInput.startsWith('file://')) {
             finalUrl = 'http://' + rawInput;
+            urlInput.value = finalUrl;
           }
-          urlInput.value = finalUrl;
+          
+          // 🌟 核心拦截逻辑：碰到不给 iframe 嵌套的站，直接拦截并提示，防止恶心报错！
+          try {
+            const urlObj = new URL(finalUrl);
+            const isBlocked = blockedDomains.some(domain => urlObj.hostname.includes(domain));
+            if (isBlocked) {
+              vscode.postMessage({ 
+                type: 'showWarning', 
+                message: '⚠️ 目标网站 (' + urlObj.hostname + ') 禁止被嵌套在预览工具中。请点击工具栏右上角的【在外部浏览器中打开】按钮查看。' 
+              });
+              // 把 URL 保存，但不加载它，避免报错白屏
+              vscode.postMessage({ type: 'saveUrl', url: finalUrl });
+              return; 
+            }
+          } catch(e) {} 
+          
         } else {
-          // 🌟 终极方案：使用对 iframe 完美兼容的 Bing 搜索！
+          // 🌟 搜索关键字一律使用绝对稳健的 Bing (必应)
           finalUrl = 'https://www.bing.com/search?q=' + encodeURIComponent(rawInput);
         }
         
@@ -321,7 +337,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         closeMenu();
       }
 
-      // 外部浏览器打开逻辑
       externalBtn.addEventListener('click', () => {
         let url = urlInput.value.trim();
         if (!url) return;
@@ -407,7 +422,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         if (!e.target.closest('#actionMenu') && !e.target.closest('#moreBtn')) closeMenu();
       });
 
-      // 绑定核心事件
       goBtn.addEventListener('click', loadUrl);
       urlInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') loadUrl(); });
       
@@ -418,7 +432,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       actionVConsole.addEventListener('click', doInjectVConsole);
       fontSelect.addEventListener('change', doInjectFont);
 
-      // 动态控制全屏模式下的边距
       deviceSelect.addEventListener('change', (e) => {
         deviceWrapper.className = e.target.value;
         if (e.target.value === 'device-responsive') {
@@ -446,7 +459,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         }
       });
       
-      // 初始化状态
       if ('${defaultUrl}'.trim()) {
         updateFavicon('${defaultUrl}');
         toggleClearBtn();
