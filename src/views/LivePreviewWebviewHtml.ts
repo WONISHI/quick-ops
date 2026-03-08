@@ -166,7 +166,7 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         padding: 4px 0; min-width: 170px; margin-right: 4px;
       }
 
-      /* 收藏夹 Modal */
+      /* 弹窗通用样式 (收藏夹、历史记录共用) */
       .fav-overlay {
         display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
         background: rgba(0,0,0,0.6); z-index: 100000; justify-content: center; align-items: center;
@@ -205,6 +205,10 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         justify-content: space-between; align-items: center; cursor: pointer; gap: 12px;
       }
       .fav-item:hover { background: var(--menu-hover-bg); }
+      
+      /* 历史记录当前项的高亮 */
+      .fav-item.current-history { border-left: 3px solid #3498db; background: rgba(255, 255, 255, 0.03); padding-left: 13px; }
+      
       .fav-item-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
       .fav-actions { display: flex; gap: 8px; opacity: 0; transition: opacity 0.2s; }
       .fav-item:hover .fav-actions { opacity: 1; }
@@ -312,16 +316,26 @@ export function getLivePreviewHtml(defaultUrl: string): string {
             <button class="fav-btn primary" id="favFormSave">保存</button>
           </div>
         </div>
-
         <div class="fav-list" id="favListContainer"></div>
+      </div>
+    </div>
+
+    <div class="fav-overlay" id="historyOverlay">
+      <div class="fav-modal">
+        <div class="fav-header">
+          <h3><i class="fa-solid fa-clock-rotate-left" style="color: #3498db;"></i> 历史记录</h3>
+          <i class="fa-solid fa-xmark fav-close" id="historyCloseBtn" title="关闭"></i>
+        </div>
+        <div class="fav-list" id="historyListContainer"></div>
       </div>
     </div>
 
     <div id="actionMenu" class="context-menu">
       <div class="menu-item" id="actionMenuRefresh"><i class="fa-solid fa-rotate-right" style="width:16px;"></i> 刷新页面</div>
       <div class="menu-item" id="actionFavorites"><i class="fa-solid fa-star" style="width:16px; color:#f1c40f;"></i> 打开收藏夹</div>
-      <div class="menu-divider"></div>
+      <div class="menu-item" id="actionHistory"><i class="fa-solid fa-clock-rotate-left" style="width:16px;"></i> 历史记录</div>
       
+      <div class="menu-divider"></div>
       <div class="menu-item has-submenu" id="cacheMenuParent">
         <i class="fa-solid fa-broom" style="width:16px;"></i> 清理页面缓存
         <i class="fa-solid fa-chevron-right" style="margin-left:auto; font-size:10px; opacity:0.7;"></i>
@@ -362,6 +376,7 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       const actionMenu = document.getElementById('actionMenu');
       const actionMenuRefresh = document.getElementById('actionMenuRefresh');
       const actionFavorites = document.getElementById('actionFavorites');
+      const actionHistory = document.getElementById('actionHistory');
       const actionDevTools = document.getElementById('actionDevTools');
       const actionVConsole = document.getElementById('actionVConsole');
 
@@ -370,29 +385,125 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       const favListContainer = document.getElementById('favListContainer');
       const favAddBtn = document.getElementById('favAddBtn');
       const favSortSelect = document.getElementById('favSortSelect');
-      
       const favForm = document.getElementById('favForm');
       const favFormTitle = document.getElementById('favFormTitle');
       const favFormUrl = document.getElementById('favFormUrl');
       const favFormCancel = document.getElementById('favFormCancel');
       const favFormSave = document.getElementById('favFormSave');
 
+      const historyOverlay = document.getElementById('historyOverlay');
+      const historyCloseBtn = document.getElementById('historyCloseBtn');
+      const historyListContainer = document.getElementById('historyListContainer');
+
       let globalFavorites = [];
-      let historyStack = [];
-      let currentHistoryIdx = -1;
-      let isInternalNav = false;
       let isRotated = false;
       let editingOriginalUrl = null; 
 
-      // ================= 🌟 智能下拉联想逻辑 =================
+      // ================= 🌟 历史记录栈逻辑 =================
+      let historyStack = [];
+      let currentHistoryIdx = -1;
+      let isInternalNav = false;
+
+      function getFrameTitleFromUrl(url) {
+        try { return new URL(url).hostname; } 
+        catch(e) { return url; }
+      }
+
+      function pushHistory(url) {
+        if (isInternalNav) { isInternalNav = false; return; }
+        if (currentHistoryIdx > -1 && historyStack[currentHistoryIdx].url === url) return;
+
+        historyStack = historyStack.slice(0, currentHistoryIdx + 1);
+        historyStack.push({ url: url, title: 'Navigating...', timestamp: Date.now() });
+        currentHistoryIdx++;
+        updateBackBtn();
+
+        setTimeout(() => {
+          try {
+             const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
+             if(doc && doc.title) historyStack[currentHistoryIdx].title = doc.title;
+             else historyStack[currentHistoryIdx].title = getFrameTitleFromUrl(url);
+          } catch(e) {
+             historyStack[currentHistoryIdx].title = getFrameTitleFromUrl(url);
+          }
+        }, 150); 
+      }
+
+      function updateBackBtn() {
+        if (currentHistoryIdx > 0) backBtn.removeAttribute('disabled');
+        else backBtn.setAttribute('disabled', 'true');
+      }
+
+      function navigateToHistoryIndex(index) {
+        if (index < 0 || index >= historyStack.length) return;
+        currentHistoryIdx = index;
+        isInternalNav = true;
+        const targetUrl = historyStack[currentHistoryIdx].url;
+        urlInput.value = targetUrl;
+        updateBackBtn();
+        toggleClearBtn();
+        executeNavigation(targetUrl);
+      }
+
+      backBtn.addEventListener('click', () => {
+        if (currentHistoryIdx > 0) {
+          navigateToHistoryIndex(currentHistoryIdx - 1);
+        }
+      });
+
+      // 历史记录弹窗渲染
+      function renderHistoryList() {
+        historyListContainer.innerHTML = '';
+        if (historyStack.length === 0) {
+          historyListContainer.innerHTML = '<div class="fav-empty">暂无历史记录</div>';
+          return;
+        }
+
+        // 倒序渲染，最新的在最上面
+        for (let i = historyStack.length - 1; i >= 0; i--) {
+          const entry = historyStack[i];
+          const div = document.createElement('div');
+          div.className = 'fav-item';
+          
+          if (i === currentHistoryIdx) {
+            div.classList.add('current-history');
+          }
+          
+          div.innerHTML = \`
+            <div class="fav-item-info">
+              <div class="fav-title" title="\${entry.title}">\${entry.title} \${i === currentHistoryIdx ? '(当前)' : ''}</div>
+              <div class="fav-url" title="\${entry.url}">\${entry.url}</div>
+            </div>
+          \`;
+
+          div.addEventListener('click', () => {
+            historyOverlay.style.display = 'none';
+            if (i !== currentHistoryIdx) {
+              navigateToHistoryIndex(i);
+            }
+          });
+          
+          historyListContainer.appendChild(div);
+        }
+      }
+
+      actionHistory.addEventListener('click', () => {
+        closeMenu();
+        renderHistoryList();
+        historyOverlay.style.display = 'flex';
+      });
+
+      historyCloseBtn.addEventListener('click', () => {
+        historyOverlay.style.display = 'none';
+      });
+
+
+      // ================= 智能下拉联想逻辑 =================
       const suggestBox = document.getElementById('suggestBox');
       let selectedSuggestIndex = -1;
       let currentSuggestions = [];
 
-      function escapeRegExp(string) {
-        return string.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&');
-      }
-
+      function escapeRegExp(string) { return string.replace(/[.*+?^\${}()|[\\]\\\\]/g, '\\\\$&'); }
       function getHighlightedText(text, query) {
         if (!query) return text;
         const regex = new RegExp(\`(\${escapeRegExp(query)})\`, 'gi');
@@ -448,44 +559,29 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       urlInput.addEventListener('input', () => {
         toggleClearBtn();
         const query = urlInput.value.trim().toLowerCase();
-        
-        if (!query || globalFavorites.length === 0) {
-          closeSuggestBox();
-          return;
-        }
+        if (!query || globalFavorites.length === 0) { closeSuggestBox(); return; }
 
         currentSuggestions = globalFavorites.filter(f => 
           f.title.toLowerCase().includes(query) || f.url.toLowerCase().includes(query)
         );
-
-        if (currentSuggestions.length === 0) {
-          closeSuggestBox();
-          return;
-        }
-
+        if (currentSuggestions.length === 0) { closeSuggestBox(); return; }
         renderSuggestBox(query);
       });
 
       urlInput.addEventListener('keydown', (e) => { 
-        if (e.isComposing || e.keyCode === 229) {
-          return;
-        }
+        if (e.isComposing || e.keyCode === 229) return;
 
         if (suggestBox.style.display === 'flex') {
           if (e.key === 'ArrowDown') {
             e.preventDefault();
             selectedSuggestIndex = (selectedSuggestIndex + 1) % currentSuggestions.length;
-            updateSuggestSelection();
-            return;
+            updateSuggestSelection(); return;
           } else if (e.key === 'ArrowUp') {
             e.preventDefault();
             selectedSuggestIndex = (selectedSuggestIndex - 1 + currentSuggestions.length) % currentSuggestions.length;
-            updateSuggestSelection();
-            return;
+            updateSuggestSelection(); return;
           } else if (e.key === 'Escape') {
-            e.preventDefault();
-            closeSuggestBox();
-            return;
+            e.preventDefault(); closeSuggestBox(); return;
           }
         }
 
@@ -502,19 +598,11 @@ export function getLivePreviewHtml(defaultUrl: string): string {
 
 
       // ================= 收藏夹增删改逻辑 =================
-      function getFrameTitle() {
-        try {
-          const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
-          return doc.title || urlInput.value;
-        } catch(e) { return urlInput.value; } 
-      }
-
       function updateFavStarState() {
         const currentUrl = previewFrame.src;
         if (!currentUrl || currentUrl === 'about:blank') {
           favStarBtn.className = 'fa-regular fa-star action-icon';
-          favStarBtn.style.color = '';
-          return;
+          favStarBtn.style.color = ''; return;
         }
         const isFav = globalFavorites.some(f => f.url === currentUrl);
         if (isFav) {
@@ -529,7 +617,9 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       favStarBtn.addEventListener('click', () => {
         const url = previewFrame.src;
         if (!url || url === 'about:blank') return;
-        vscode.postMessage({ type: 'toggleFavorite', url: url, title: getFrameTitle() });
+        let title = url;
+        try { title = previewFrame.contentDocument?.title || urlInput.value; } catch(e) {}
+        vscode.postMessage({ type: 'toggleFavorite', url: url, title: title });
       });
 
       actionFavorites.addEventListener('click', () => {
@@ -553,44 +643,32 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       favFormCancel.addEventListener('click', () => { favForm.style.display = 'none'; });
 
       function isUrlLike(str) {
-        const urlPattern = /^(https?:\\/\\/|file:\\/\\/)?(localhost|\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|([a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,})(:\\d+)?(\\/.*)?$/i;
-        return urlPattern.test(str);
+        return /^(https?:\\/\\/|file:\\/\\/)?(localhost|\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|([a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,})(:\\d+)?(\\/.*)?$/i.test(str);
       }
 
       favFormSave.addEventListener('click', () => {
         const t = favFormTitle.value.trim();
         let u = favFormUrl.value.trim();
         
-        if (!t || !u) {
-          vscode.postMessage({ type: 'showError', message: '标题和链接不能为空' });
-          return;
-        }
-        if (!isUrlLike(u)) {
-          vscode.postMessage({ type: 'showError', message: '请输入有效的网址格式' });
-          return;
-        }
-        if (!u.startsWith('http://') && !u.startsWith('https://') && !u.startsWith('file://')) {
-          u = 'http://' + u;
-        }
+        if (!t || !u) { vscode.postMessage({ type: 'showError', message: '标题和链接不能为空' }); return; }
+        if (!isUrlLike(u)) { vscode.postMessage({ type: 'showError', message: '请输入有效的网址格式' }); return; }
+        if (!u.startsWith('http://') && !u.startsWith('https://') && !u.startsWith('file://')) u = 'http://' + u;
 
         if (editingOriginalUrl) {
           const index = globalFavorites.findIndex(f => f.url === editingOriginalUrl);
           if (index > -1) {
             if (u !== editingOriginalUrl && globalFavorites.some(f => f.url === u)) {
-              vscode.postMessage({ type: 'showError', message: '该链接已存在！' });
-              return;
+              vscode.postMessage({ type: 'showError', message: '该链接已存在！' }); return;
             }
             globalFavorites[index].title = t;
             globalFavorites[index].url = u;
           }
         } else {
           if (globalFavorites.some(f => f.url === u)) {
-            vscode.postMessage({ type: 'showError', message: '该链接已存在！' });
-            return;
+            vscode.postMessage({ type: 'showError', message: '该链接已存在！' }); return;
           }
           globalFavorites.push({ url: u, title: t, timestamp: Date.now() });
         }
-
         vscode.postMessage({ type: 'saveAllFavorites', favorites: globalFavorites });
         favForm.style.display = 'none';
       });
@@ -598,19 +676,12 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       function renderFavList() {
         favListContainer.innerHTML = '';
         if (globalFavorites.length === 0) {
-          favListContainer.innerHTML = '<div class="fav-empty">暂无收藏。点击右上角 + 号，或地址栏星号添加。</div>';
-          return;
+          favListContainer.innerHTML = '<div class="fav-empty">暂无收藏。点击右上角 + 号，或地址栏星号添加。</div>'; return;
         }
         
-        let listToRender = [...globalFavorites].map(item => ({
-          ...item, timestamp: item.timestamp || 0 
-        }));
-
-        if (favSortSelect.value === 'time') {
-          listToRender.sort((a, b) => b.timestamp - a.timestamp);
-        } else if (favSortSelect.value === 'title') {
-          listToRender.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
-        }
+        let listToRender = [...globalFavorites].map(item => ({ ...item, timestamp: item.timestamp || 0 }));
+        if (favSortSelect.value === 'time') listToRender.sort((a, b) => b.timestamp - a.timestamp);
+        else if (favSortSelect.value === 'title') listToRender.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
 
         listToRender.forEach(item => {
           const div = document.createElement('div');
@@ -618,23 +689,16 @@ export function getLivePreviewHtml(defaultUrl: string): string {
           
           const infoDiv = document.createElement('div');
           infoDiv.className = 'fav-item-info';
-          infoDiv.innerHTML = \`
-            <div class="fav-title" title="\${item.title}">\${item.title}</div>
-            <div class="fav-url" title="\${item.url}">\${item.url}</div>
-          \`;
+          infoDiv.innerHTML = \`<div class="fav-title" title="\${item.title}">\${item.title}</div><div class="fav-url" title="\${item.url}">\${item.url}</div>\`;
           
           const actionsDiv = document.createElement('div');
           actionsDiv.className = 'fav-actions';
-          actionsDiv.innerHTML = \`
-            <i class="fa-solid fa-pen fav-action-btn edit" title="编辑"></i>
-            <i class="fa-solid fa-trash fav-action-btn delete" title="删除"></i>
-          \`;
+          actionsDiv.innerHTML = \`<i class="fa-solid fa-pen fav-action-btn edit" title="编辑"></i><i class="fa-solid fa-trash fav-action-btn delete" title="删除"></i>\`;
 
           infoDiv.addEventListener('click', () => {
             favOverlay.style.display = 'none';
             urlInput.value = item.url;
-            toggleClearBtn();
-            loadUrl();
+            toggleClearBtn(); loadUrl();
           });
 
           actionsDiv.querySelector('.edit').addEventListener('click', (e) => {
@@ -652,14 +716,13 @@ export function getLivePreviewHtml(defaultUrl: string): string {
             vscode.postMessage({ type: 'saveAllFavorites', favorites: globalFavorites });
           });
 
-          div.appendChild(infoDiv);
-          div.appendChild(actionsDiv);
+          div.appendChild(infoDiv); div.appendChild(actionsDiv);
           favListContainer.appendChild(div);
         });
       }
 
 
-      // ================= 缓存清理与页面逻辑 =================
+      // ================= 缓存清理与弹窗逻辑 =================
       const cacheMenuParent = document.getElementById('cacheMenuParent');
       const cacheSubmenu = document.getElementById('cacheSubmenu');
       let submenuTimer = null;
@@ -677,7 +740,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         try {
           const win = previewFrame.contentWindow;
           if (!win) throw new Error("No Access");
-
           if (type === 'local') win.localStorage.clear();
           else if (type === 'session') win.sessionStorage.clear();
           else if (type === 'cookie') {
@@ -703,66 +765,25 @@ export function getLivePreviewHtml(defaultUrl: string): string {
 
       rotateBtn.addEventListener('click', () => {
         isRotated = !isRotated;
-        if(isRotated) {
-          deviceWrapper.classList.add('rotated');
-          rotateBtn.style.color = '#3498db'; 
-        } else {
-          deviceWrapper.classList.remove('rotated');
-          rotateBtn.style.color = '';
-        }
+        if(isRotated) { deviceWrapper.classList.add('rotated'); rotateBtn.style.color = '#3498db'; } 
+        else { deviceWrapper.classList.remove('rotated'); rotateBtn.style.color = ''; }
       });
 
-      function pushHistory(url) {
-        if (isInternalNav) { isInternalNav = false; return; }
-        if (currentHistoryIdx > -1 && historyStack[currentHistoryIdx] === url) return;
-        historyStack = historyStack.slice(0, currentHistoryIdx + 1);
-        historyStack.push(url);
-        currentHistoryIdx++;
-        updateBackBtn();
-      }
-
-      function updateBackBtn() {
-        if (currentHistoryIdx > 0) backBtn.removeAttribute('disabled');
-        else backBtn.setAttribute('disabled', 'true');
-      }
-
-      backBtn.addEventListener('click', () => {
-        if (currentHistoryIdx > 0) {
-          currentHistoryIdx--;
-          isInternalNav = true;
-          urlInput.value = historyStack[currentHistoryIdx];
-          updateBackBtn();
-          toggleClearBtn();
-          executeNavigation(historyStack[currentHistoryIdx]);
-        }
-      });
-
-      // 🌟 核心修改：统一通过此方法更新清除按钮和外部链接按钮的状态
       function toggleClearBtn() {
         const val = urlInput.value;
-        // 处理 x 按钮显隐
         clearBtn.style.display = val.length > 0 ? 'block' : 'none';
-        
-        // 处理外部浏览器打开按钮置灰 (有文字才允许点击)
-        if (val.trim().length > 0) {
-          externalBtn.removeAttribute('disabled');
-        } else {
-          externalBtn.setAttribute('disabled', 'true');
-        }
+        if (val.trim().length > 0) externalBtn.removeAttribute('disabled');
+        else externalBtn.setAttribute('disabled', 'true');
       }
       
       clearBtn.addEventListener('click', () => {
         urlInput.value = '';
-        toggleClearBtn();
-        closeSuggestBox();
-        urlInput.focus(); 
+        toggleClearBtn(); closeSuggestBox(); urlInput.focus(); 
       });
 
       window.fillAndGo = function(targetUrl) {
         urlInput.value = targetUrl;
-        toggleClearBtn();
-        closeSuggestBox();
-        loadUrl();
+        toggleClearBtn(); closeSuggestBox(); loadUrl();
       };
 
       function updateFavicon(urlStr) {
@@ -780,20 +801,13 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       function loadUrl() {
         let rawInput = urlInput.value.trim();
         if (!rawInput) {
-          welcomePage.style.display = 'flex';
-          deviceWrapper.style.display = 'none';
-          previewFrame.src = 'about:blank';
-          updateFavicon('');
-          updateFavStarState();
-          vscode.postMessage({ type: 'saveUrl', url: '' });
-          return;
+          welcomePage.style.display = 'flex'; deviceWrapper.style.display = 'none'; previewFrame.src = 'about:blank';
+          updateFavicon(''); updateFavStarState(); vscode.postMessage({ type: 'saveUrl', url: '' }); return;
         }
-        
         let finalUrl = rawInput;
         if (isUrlLike(rawInput)) {
           if (!rawInput.startsWith('http://') && !rawInput.startsWith('https://') && !rawInput.startsWith('file://')) {
-            finalUrl = 'http://' + rawInput;
-            urlInput.value = finalUrl;
+            finalUrl = 'http://' + rawInput; urlInput.value = finalUrl;
           }
         } else {
           finalUrl = 'https://www.bing.com/search?q=' + encodeURIComponent(rawInput);
@@ -822,11 +836,8 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       externalBtn.addEventListener('click', () => {
         let url = urlInput.value.trim();
         if (!url) return;
-        if (isUrlLike(url)) {
-          if (!url.startsWith('http://') && !url.startsWith('https://')) { url = 'http://' + url; }
-        } else {
-          url = 'https://www.bing.com/search?q=' + encodeURIComponent(url);
-        }
+        if (isUrlLike(url)) { if (!url.startsWith('http://') && !url.startsWith('https://')) url = 'http://' + url; } 
+        else url = 'https://www.bing.com/search?q=' + encodeURIComponent(url);
         vscode.postMessage({ type: 'openExternalBrowser', url: url });
       });
 
@@ -852,19 +863,13 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         closeMenu();
       }
 
-      function doOpenDevTools() {
-        vscode.postMessage({ type: 'openDevTools' });
-        closeMenu();
-      }
+      function doOpenDevTools() { vscode.postMessage({ type: 'openDevTools' }); closeMenu(); }
 
       function openMenu(x, y) {
         actionMenu.style.display = 'block';
         const menuWidth = actionMenu.offsetWidth;
-        if (x + menuWidth > window.innerWidth) {
-          actionMenu.style.left = (window.innerWidth - menuWidth - 10) + 'px';
-        } else {
-          actionMenu.style.left = x + 'px';
-        }
+        if (x + menuWidth > window.innerWidth) actionMenu.style.left = (window.innerWidth - menuWidth - 10) + 'px';
+        else actionMenu.style.left = x + 'px';
         actionMenu.style.top = y + 'px';
       }
 
@@ -877,28 +882,17 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       moreBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         if (actionMenu.style.display === 'block') closeMenu();
-        else {
-          const rect = moreBtn.getBoundingClientRect();
-          openMenu(rect.left - 180, rect.bottom + 5);
-        }
+        else { const rect = moreBtn.getBoundingClientRect(); openMenu(rect.left - 180, rect.bottom + 5); }
       });
       
-      window.addEventListener('contextmenu', (e) => { e.preventDefault(); openMenu(e.clientX, e.clientY); });
+      // 🌟 删除了 window.addEventListener('contextmenu') 全局右键拦截
       
       window.addEventListener('click', (e) => { 
-        if (!e.target.closest('#actionMenu') && !e.target.closest('#moreBtn')) {
-          closeMenu(); 
-        }
-        if (!e.target.closest('.address-bar-wrapper')) {
-          closeSuggestBox();
-        }
+        if (!e.target.closest('#actionMenu') && !e.target.closest('#moreBtn')) closeMenu(); 
+        if (!e.target.closest('.address-bar-wrapper')) closeSuggestBox();
       });
 
-      goBtn.addEventListener('click', () => {
-        closeSuggestBox();
-        loadUrl();
-      });
-      
+      goBtn.addEventListener('click', () => { closeSuggestBox(); loadUrl(); });
       refreshBtn.addEventListener('click', doRefresh);
       actionMenuRefresh.addEventListener('click', doRefresh);
       actionDevTools.addEventListener('click', doOpenDevTools);
@@ -906,16 +900,11 @@ export function getLivePreviewHtml(defaultUrl: string): string {
 
       deviceSelect.addEventListener('change', (e) => {
         deviceWrapper.className = e.target.value;
-        if (isRotated && e.target.value !== 'device-responsive') {
-          deviceWrapper.classList.add('rotated');
-        }
-        
+        if (isRotated && e.target.value !== 'device-responsive') deviceWrapper.classList.add('rotated');
         if (e.target.value === 'device-responsive') {
-          previewContainer.classList.add('no-padding');
-          rotateBtn.setAttribute('disabled', 'true');
+          previewContainer.classList.add('no-padding'); rotateBtn.setAttribute('disabled', 'true');
         } else {
-          previewContainer.classList.remove('no-padding');
-          rotateBtn.removeAttribute('disabled');
+          previewContainer.classList.remove('no-padding'); rotateBtn.removeAttribute('disabled');
         }
         vscode.postMessage({ type: 'saveDevice', device: e.target.value });
       });
@@ -927,34 +916,24 @@ export function getLivePreviewHtml(defaultUrl: string): string {
             deviceSelect.value = message.device;
             deviceWrapper.className = message.device;
             if (message.device === 'device-responsive') {
-              previewContainer.classList.add('no-padding');
-              rotateBtn.setAttribute('disabled', 'true');
-            } else {
-              rotateBtn.removeAttribute('disabled');
-            }
+              previewContainer.classList.add('no-padding'); rotateBtn.setAttribute('disabled', 'true');
+            } else rotateBtn.removeAttribute('disabled');
           }
           if (urlInput.value.trim()) {
             updateFavicon(urlInput.value);
+            pushHistory(urlInput.value.trim()); 
           }
           vscode.postMessage({ type: 'reqSyncFavorites' });
         }
-        
         if (message.type === 'syncFavorites') {
           globalFavorites = message.favorites || [];
           updateFavStarState();
-          
           if (favOverlay.style.display === 'flex') renderFavList(); 
-          if (suggestBox.style.display === 'flex' && urlInput.value.trim()) {
-            const e = new Event('input');
-            urlInput.dispatchEvent(e);
-          }
+          if (suggestBox.style.display === 'flex' && urlInput.value.trim()) urlInput.dispatchEvent(new Event('input'));
         }
       });
       
-      // 🌟 保证页面初始化或者接收消息后，都能准确刷新这两个按钮的状态
-      if ('${defaultUrl}'.trim()) {
-        updateFavicon('${defaultUrl}');
-      }
+      if ('${defaultUrl}'.trim()) updateFavicon('${defaultUrl}');
       toggleClearBtn(); 
       
     </script>
