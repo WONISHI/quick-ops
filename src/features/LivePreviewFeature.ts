@@ -28,6 +28,8 @@ export class LivePreviewFeature implements IFeature {
       enableFindWidget: true 
     });
 
+    this.panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
+
     this.panel.onDidDispose(() => {
       this.panel = undefined;
     });
