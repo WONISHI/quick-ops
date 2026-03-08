@@ -13,12 +13,12 @@ export class SmartScrollFeature implements IFeature {
 
   public activate(context: vscode.ExtensionContext): void {
     // 注册回到顶部命令
-    const topCmd = vscode.commands.registerCommand('quickOps.scrollToTop', () => {
+    const topCmd = vscode.commands.registerCommand('quick-ops.scrollToTop', () => {
       this.scrollToTop();
     });
 
     // 注册回到底部命令
-    const bottomCmd = vscode.commands.registerCommand('quickOps.scrollToBottom', () => {
+    const bottomCmd = vscode.commands.registerCommand('quick-ops.scrollToBottom', () => {
       this.scrollToBottom();
     });
 

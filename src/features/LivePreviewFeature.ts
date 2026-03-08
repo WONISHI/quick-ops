@@ -8,7 +8,7 @@ export class LivePreviewFeature implements IFeature {
   private panel: vscode.WebviewPanel | undefined;
 
   public activate(context: vscode.ExtensionContext): void {
-    const command = vscode.commands.registerCommand('quickOps.openLivePreview', () => {
+    const command = vscode.commands.registerCommand('quick-ops.openLivePreview', () => {
       this.showPreviewPanel(context);
     });
 

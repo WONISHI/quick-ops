@@ -10,12 +10,12 @@ export class ConfigManagementFeature implements IFeature {
 
   public activate(context: vscode.ExtensionContext): void {
     // 创建配置文件命令
-    const createCmd = vscode.commands.registerCommand('quickOps.createConfigFile', () => {
+    const createCmd = vscode.commands.registerCommand('quick-ops.createConfigFile', () => {
       this.configService.createDefaultConfig();
     });
 
     // 🌟 核心：合并为一个智能 Toggle 命令。优先接收右键选中的文件 uri，支持多选
-    const toggleIgnoreCmd = vscode.commands.registerCommand('quickOps.toggleIgnore', async (uri: vscode.Uri, selectedUris?: vscode.Uri[]) => {
+    const toggleIgnoreCmd = vscode.commands.registerCommand('quick-ops.toggleIgnore', async (uri: vscode.Uri, selectedUris?: vscode.Uri[]) => {
       // 1. 获取目标文件列表（优先使用多选，其次右键单选，最后兜底当前激活的编辑器）
       let targets: vscode.Uri[] = [];
       if (selectedUris && selectedUris.length > 0) {

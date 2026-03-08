@@ -77,7 +77,7 @@
     "views": {
       "quick-ops-view-container": [
         {
-          "id": "quickOps.mockView",
+          "id": "quick-ops.mockView",
           "name": "Mock Server",
           "icon": "$(server)",
           "type": "webview"
@@ -92,7 +92,7 @@
         "icon": "$(terminal-powershell)"
       },
       {
-        "command": "quickOps.openLivePreview",
+        "command": "quick-ops.openLivePreview",
         "title": "网页预览台 (Live Preview)",
         "category": "Quick Ops",
         "icon": "$(vm-small)"
@@ -104,29 +104,29 @@
         "icon": "$(bookmark)"
       },
       {
-        "command": "quickOps.revealInExplorer",
+        "command": "quick-ops.revealInExplorer",
         "title": "定位当前文件 (Reveal File)",
         "category": "Quick Ops",
         "icon": "$(record)"
       },
       {
-        "command": "quickOps.scrollToTop",
+        "command": "quick-ops.scrollToTop",
         "title": "回到顶部 (Scroll to Top)",
         "icon": "$(fold-up)"
       },
       {
-        "command": "quickOps.scrollToBottom",
+        "command": "quick-ops.scrollToBottom",
         "title": "回到底部 (Scroll to Bottom)",
         "category": "Quick Ops",
         "icon": "$(fold-down)"
       },
       {
-        "command": "quickOps.createConfigFile",
+        "command": "quick-ops.createConfigFile",
         "title": "创建配置文件 (Create .quickopsrc)",
         "category": "Quick Ops"
       },
       {
-        "command": "quickOps.toggleIgnore",
+        "command": "quick-ops.toggleIgnore",
         "title": "添加/移除 QuickOps 忽略 (Toggle Ignore)",
         "category": "Quick Ops"
       },
@@ -239,11 +239,10 @@
       "editor/title": [
         {
           "command": "quick-ops.showPackageScripts",
-          "group": "navigation@1",
-          "when": "resourceScheme == file"
+          "group": "navigation@1"
         },
         {
-          "command": "quickOps.openLivePreview",
+          "command": "quick-ops.openLivePreview",
           "group": "navigation@2",
           "when": "resourceScheme == file"
         },
@@ -253,29 +252,29 @@
           "when": "quickOps.hasAnchorsInCurrentFile"
         },
         {
-          "command": "quickOps.revealInExplorer",
-          "when": "resourceLangId != ''",
+          "command": "quick-ops.revealInExplorer",
+          "when": "resourceScheme == file",
           "group": "navigation@4"
         },
         {
-          "command": "quickOps.scrollToTop",
+          "command": "quick-ops.scrollToTop",
           "group": "navigation@5",
           "when": "editorTextFocus"
         },
         {
-          "command": "quickOps.scrollToBottom",
+          "command": "quick-ops.scrollToBottom",
           "group": "navigation@6",
           "when": "editorTextFocus"
         }
       ],
       "explorer/context": [
         {
-          "command": "quickOps.createConfigFile",
+          "command": "quick-ops.createConfigFile",
           "group": "quickOps@1",
           "when": "quickOps.context.configState != 'exists'"
         },
         {
-          "command": "quickOps.toggleIgnore",
+          "command": "quick-ops.toggleIgnore",
           "group": "quickOps@5",
           "when": "!quickOps.context.configMissing && resourceScheme == file"
         },

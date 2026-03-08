@@ -17,7 +17,7 @@ export class MockServerFeature implements IFeature {
 
   public activate(context: vscode.ExtensionContext): void {
     this.webviewProvider = new MockWebviewProvider(context.extensionUri, this);
-    context.subscriptions.push(vscode.window.registerWebviewViewProvider('quickOps.mockView', this.webviewProvider));
+    context.subscriptions.push(vscode.window.registerWebviewViewProvider('quick-ops.mockView', this.webviewProvider));
 
     context.subscriptions.push(
       vscode.commands.registerCommand('quick-ops.mock.start', () => this.startAll()),
