@@ -85,7 +85,7 @@
         {
           "id": "quickOps.recentProjectsView",
           "name": "项目资源管理器", 
-          "type": "tree",
+          "type": "webview",
           "icon": "$(history)"
         }
       ]
@@ -268,11 +268,6 @@
     "menus": {
       "view/title": [
         {
-          "command": "quickOps.clearRecentProjects",
-          "when": "view == quickOps.recentProjectsView",
-          "group": "navigation"
-        },
-        {
           "command": "quickOps.addRecentProject",
           "when": "view == quickOps.recentProjectsView",
           "group": "navigation@1"
@@ -281,13 +276,6 @@
           "command": "quickOps.clearRecentProjects",
           "when": "view == quickOps.recentProjectsView",
           "group": "navigation@2"
-        }
-      ],
-      "view/item/context": [
-        {
-          "command": "quickOps.removeRecentProject",
-          "when": "view == quickOps.recentProjectsView && viewItem == recentProjectItem",
-          "group": "inline"
         }
       ],
       "editor/title": [
