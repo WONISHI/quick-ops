@@ -26,6 +26,7 @@ import { EditorHistoryFeature } from '../features/EditorHistoryFeature';
 import { MockServerFeature } from '../features/MockServerFeature';
 import { DebugConsoleFeature } from '../features/DebugConsoleFeature';
 import { LivePreviewFeature } from '../features/LivePreviewFeature';
+import { RecentProjectsFeature } from '../features/RecentProjectsFeature';
 
 export class QuickOpsApplication {
   private context: vscode.ExtensionContext;
@@ -72,6 +73,7 @@ export class QuickOpsApplication {
       new CodeSnippetFeature(),
       new SnippetGeneratorFeature(),
       new LivePreviewFeature(),
+      new RecentProjectsFeature(),
     ];
 
     for (const feature of this.features) {

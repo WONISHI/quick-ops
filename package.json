@@ -2,7 +2,7 @@
   "name": "quick-ops",
   "displayName": "Quick Ops: Code Utils & Anchors",
   "description": "Boost productivity with Code Anchors, SCSS structure generation, and essential navigation shortcuts.",
-  "version": "0.0.30",
+  "version": "0.0.31",
   "engines": {
     "vscode": "^1.73.0"
   },
@@ -78,13 +78,43 @@
       "quick-ops-view-container": [
         {
           "id": "quick-ops.mockView",
-          "name": "Mock Server",
+          "name": "Mock服务管理器",
           "icon": "$(server)",
           "type": "webview"
+        },
+        {
+          "id": "quickOps.recentProjectsView",
+          "name": "项目资源管理器", 
+          "type": "tree",
+          "icon": "$(history)"
         }
       ]
     },
     "commands": [
+      {
+        "command": "quickOps.addRecentProject",
+        "title": "添加项目",
+        "icon": "$(add)"
+      },
+      {
+        "command": "quickOps.openRecentProject",
+        "title": "打开历史项目"
+      },
+      {
+        "command": "quickOps.removeRecentProject",
+        "title": "移除该记录",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "quickOps.clearRecentProjects",
+        "title": "清空历史记录",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "quickOps.refreshProjectExplorer",
+        "title": "刷新资源管理器",
+        "icon": "$(refresh)"
+      },
       {
         "command": "quick-ops.showPackageScripts",
         "title": "运行快捷脚本 (Scripts)",
@@ -236,6 +266,30 @@
       }
     ],
     "menus": {
+      "view/title": [
+        {
+          "command": "quickOps.clearRecentProjects",
+          "when": "view == quickOps.recentProjectsView",
+          "group": "navigation"
+        },
+        {
+          "command": "quickOps.addRecentProject",
+          "when": "view == quickOps.recentProjectsView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "quickOps.clearRecentProjects",
+          "when": "view == quickOps.recentProjectsView",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "quickOps.removeRecentProject",
+          "when": "view == quickOps.recentProjectsView && viewItem == recentProjectItem",
+          "group": "inline"
+        }
+      ],
       "editor/title": [
         {
           "command": "quick-ops.showPackageScripts",

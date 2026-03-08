@@ -34,8 +34,14 @@ export class AnchorService {
   }
 
   public init(rootPath: string) {
-    const ws = vscode.workspace.workspaceFolders?.find((w) => w.uri.fsPath === rootPath);
-    const rootUri = ws ? ws.uri : vscode.Uri.file(rootPath);
+    // 🌟 修复 URI 解析：兼容本地路径和远程带协议的 URL
+    const ws = vscode.workspace.workspaceFolders?.find(
+      (w) => w.uri.fsPath === rootPath || w.uri.toString() === rootPath
+    );
+    
+    const rootUri = ws 
+      ? ws.uri 
+      : (rootPath.includes('://') ? vscode.Uri.parse(rootPath) : vscode.Uri.file(rootPath));
 
     this.storageUri = vscode.Uri.joinPath(rootUri, '.telemetryrc');
     this.load();
@@ -56,8 +62,9 @@ export class AnchorService {
       this.refreshFlotAnchors();
       this._onDidChangeAnchors.fire();
     } catch (e: any) {
-      // 文件不存在是正常情况，初始化为空
-      if (e.code !== 'FileNotFound' && e.code !== 'ENOENT') {
+      // 🌟 修复报错：增加对 'Unavailable' (ENOPRO) 的静默忽略
+      // 当在不支持读写的远程仓库（如纯 https 链接）中时，正常忽略
+      if (e.code !== 'FileNotFound' && e.code !== 'ENOENT' && e.code !== 'Unavailable') {
         console.error('Failed to load anchors', e);
       }
     }
@@ -84,8 +91,13 @@ export class AnchorService {
       const content = JSON.stringify(data, null, 2);
       const encoder = new TextEncoder();
       await vscode.workspace.fs.writeFile(this.storageUri, encoder.encode(content));
-    } catch (error) {
-      vscode.window.showErrorMessage('无法保存锚点文件: ' + error);
+    } catch (error: any) {
+      // 🌟 修复报错：如果当前文件系统不支持写入（如只读的 Github VFS 或纯 HTTP 链接），静默跳过
+      if (error.code === 'Unavailable' || error.code === 'NoPermissions') {
+        console.warn('当前文件系统不支持保存锚点配置文件（可能是远程只读仓库）');
+        return;
+      }
+      vscode.window.showErrorMessage('无法保存锚点文件: ' + error.message);
     }
   }
 
