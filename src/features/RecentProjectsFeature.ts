@@ -1,13 +1,17 @@
 import * as vscode from 'vscode';
 import { IFeature } from '../core/interfaces/IFeature';
 import ColorLog from '../utils/ColorLog';
-import { RecentProjectsProvider } from '../providers/RecentProjectsProvider';
+import { RecentProjectsProvider, ReadOnlyContentProvider } from '../providers/RecentProjectsProvider';
 
 export class RecentProjectsFeature implements IFeature {
   public readonly id = 'RecentProjectsFeature';
 
   public activate(context: vscode.ExtensionContext): void {
     const provider = new RecentProjectsProvider(context);
+
+    // 🌟 注册只读虚拟文档协议 quickops-ro
+    const roProvider = new ReadOnlyContentProvider();
+    context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('quickops-ro', roProvider));
 
     const webviewView = vscode.window.registerWebviewViewProvider('quickOps.recentProjectsView', provider);
 

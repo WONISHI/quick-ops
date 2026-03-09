@@ -13,7 +13,29 @@ function getNonce() {
   return text;
 }
 
-// 🌟 接口新增：branch 属性用于存储当前选中的分支
+// 🌟 新增：虚拟只读文档提供程序
+// 专门用于将本地或远程文件以“纯只读”模式渲染在编辑器中
+export class ReadOnlyContentProvider implements vscode.TextDocumentContentProvider {
+  // 当文档内容发生变化时触发（只读模式下通常不需要，但保留接口）
+  public onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
+  public onDidChange = this.onDidChangeEmitter.event;
+
+  async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
+    try {
+      // 从 query 参数中提取出真实的文件 URI
+      const targetQuery = uri.query.replace('target=', '');
+      const targetUriStr = decodeURIComponent(targetQuery);
+      const targetUri = vscode.Uri.parse(targetUriStr);
+
+      // 调用 VS Code 底层的 fs 读取文件（天然支持 file 协议和 vscode-vfs 远程协议）
+      const contentBytes = await vscode.workspace.fs.readFile(targetUri);
+      return Buffer.from(contentBytes).toString('utf8');
+    } catch (e) {
+      return `/* 无法读取该文件内容: ${e} */`;
+    }
+  }
+}
+
 export interface RecentProject {
   name: string;
   fsPath: string;
@@ -29,7 +51,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.recordCurrentProject();
   }
 
-  // ================= 🌟 Webview 核心初始化 =================
   public resolveWebviewView(webviewView: vscode.WebviewView, context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken) {
     this._view = webviewView;
 
@@ -62,24 +83,45 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'readDir':
           this.readDirectory(data.id, data.fsPath);
           break;
+        case 'openFile':
+          // 🌟 接收前端传来的文件路径，并以只读模式打开
+          this.openFileReadOnly(data.fsPath);
+          break;
       }
     });
 
     this.updateWebview();
   }
 
-  // ================= 🌟 获取与切换远程分支逻辑 (兼容 GitHub & GitLab) =================
+  // ================= 🌟 核心：以只读模式打开文件 =================
+  private async openFileReadOnly(fsPath: string) {
+    try {
+      const originalUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+
+      // 构造自定义的只读 URI
+      // Scheme 设为 quickops-ro 会触发我们上面定义的 ReadOnlyContentProvider
+      // 保留原始的 path 是为了让 VS Code 能够根据后缀名（如 .js, .ts）正确进行语法高亮
+      // 真实的地址存放在 query 参数中传递过去
+      const roUri = vscode.Uri.parse(`quickops-ro:${originalUri.path}?target=${encodeURIComponent(originalUri.toString())}`);
+
+      const doc = await vscode.workspace.openTextDocument(roUri);
+      // preview: true 表示以预览标签页（斜体）打开，点击其他文件会覆盖当前标签页，体验更好
+      await vscode.window.showTextDocument(doc, { preview: true });
+    } catch (e) {
+      vscode.window.showErrorMessage('无法打开该文件预览。');
+    }
+  }
+
   public async switchRemoteBranch(fsPath: string) {
-    // 🌟 解析平台(github/gitlab)、owner 和 repo
     const match = fsPath.match(/vscode-vfs:\/\/(github|gitlab)\/([^/]+)\/([^/]+)/);
     if (!match) {
       vscode.window.showErrorMessage('无法解析该远程仓库地址，暂不支持获取该仓库的分支。');
       return;
     }
 
-    const platform = match[1]; // 'github' 或 'gitlab'
+    const platform = match[1];
     const owner = match[2];
-    const repo = match[3].split('?')[0]; // 去除可能存在的旧 query 参数
+    const repo = match[3].split('?')[0];
 
     try {
       await vscode.window.withProgress(
@@ -92,7 +134,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           return new Promise<any[]>((resolve, reject) => {
             let options: any = {};
 
-            // 🌟 根据不同平台构造不同的 API 请求
             if (platform === 'github') {
               options = {
                 hostname: 'api.github.com',
@@ -100,7 +141,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
                 headers: { 'User-Agent': 'VSCode-QuickOps-Extension' },
               };
             } else if (platform === 'gitlab') {
-              // GitLab API 格式: /api/v4/projects/owner%2Frepo/repository/branches
               const encodedProjectPath = encodeURIComponent(`${owner}/${repo}`);
               options = {
                 hostname: 'gitlab.com',
@@ -132,7 +172,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               return;
             }
 
-            // 构建分支选项
             const items = branches.map((b) => ({
               label: `$(git-branch) ${b.name}`,
               description: platform === 'gitlab' ? 'GitLab 远程分支' : 'GitHub 远程分支',
@@ -171,7 +210,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // ================= 🌟 按需读取目录内容 =================
   private async readDirectory(id: string, fsPath: string) {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
@@ -202,7 +240,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this._view.webview.html = this.getHtmlForWebview(this._view.webview, projects, currentUriStr);
   }
 
-  // ================= 🌟 数据存取逻辑 =================
   private getRecentProjects(): RecentProject[] {
     return this.context.globalState.get<RecentProject[]>(this.stateKey) || [];
   }
@@ -230,7 +267,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.updateWebview();
   }
 
-  // ================= 🌟 添加与交互逻辑 =================
   public async addLocalProject() {
     const uri = await vscode.window.showOpenDialog({
       canSelectFiles: false,
@@ -257,7 +293,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     let repoFullName = '';
     const trimmedInput = input.trim();
 
-    // 🌟 解析 GitHub 和 GitLab 链接
     const githubUrlMatch = trimmedInput.match(/github\.com\/([^/]+\/[^/.]+)/);
     const gitlabUrlMatch = trimmedInput.match(/gitlab\.com\/([^/]+\/[^/.]+)/);
     const simpleRepoMatch = trimmedInput.match(/^([^/]+\/[^/]+)$/);
@@ -270,7 +305,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       targetUriStr = `vscode-vfs://gitlab/${repoFullName}`;
     } else if (simpleRepoMatch) {
       repoFullName = simpleRepoMatch[1].replace(/\.git$/, '');
-      targetUriStr = `vscode-vfs://github/${repoFullName}`; // 默认走 GitHub
+      targetUriStr = `vscode-vfs://github/${repoFullName}`;
     } else {
       try {
         const uri = vscode.Uri.parse(trimmedInput);
@@ -297,7 +332,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     try {
       let finalUriStr = uriStr;
 
-      // 如果是 github/gitlab VFS 且指定了分支，将其作为 query 参数挂载上去
       if (branch && (uriStr.startsWith('vscode-vfs://github') || uriStr.startsWith('vscode-vfs://gitlab'))) {
         const baseUrl = uriStr.split('?')[0];
         finalUriStr = `${baseUrl}?ref=${branch}`;
@@ -328,7 +362,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.updateWebview();
   }
 
-  // ================= 🌟 HTML 渲染核心 =================
   private getHtmlForWebview(webview: vscode.Webview, projects: RecentProject[], currentUri: string) {
     const styleSrc = `https://cdnjs.cloudflare.com https://cdn.jsdelivr.net`;
 
@@ -349,7 +382,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           }
         } catch (e) {}
 
-        // 🌟 动态分配 GitHub / GitLab 图标
         let iconClass = 'fa-solid fa-folder';
         if (isRemote) {
           iconClass = isGitlab ? 'fa-brands fa-gitlab' : 'fa-brands fa-github';
@@ -361,7 +393,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         const activeClass = isCurrent ? 'active' : '';
         const branchTagHtml = p.branch ? `<span class="branch-tag" title="当前分支: ${p.branch}"><i class="fa-solid fa-code-branch" style="font-size:10px;"></i> ${p.branch}</span>` : '';
 
-        // 🌟 核心修复：安全转义路径字符串
         const safeFsPath = p.fsPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
         return `
@@ -410,7 +441,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       })
       .join('');
 
-    // 🌟 核心修复：修改 CSP，移除 nonce，保留 'unsafe-inline'
     return `<!DOCTYPE html>
       <html lang="zh-CN">
       <head>
@@ -544,6 +574,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           function addLocal() { vscode.postMessage({ type: 'addLocal' }); }
           function addRemote() { vscode.postMessage({ type: 'addRemote' }); }
           
+          // 🌟 触发打开文件事件
+          function openFile(path, event) {
+            event.stopPropagation();
+            vscode.postMessage({ type: 'openFile', fsPath: path });
+          }
+
           function switchBranch(path, event) { 
             event.stopPropagation(); 
             vscode.postMessage({ type: 'switchBranch', fsPath: path }); 
@@ -587,13 +623,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               message.children.forEach((child, index) => {
                 const childId = message.id + '_' + index;
                 const iconClass = child.isFolder ? 'fa-solid fa-folder icon-closed sub-icon' : 'fa-regular fa-file-code file-icon sub-icon';
-                
-                // 🌟 核心修复：同样转义子文件的路径
                 const safeChildPath = child.path.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
+                
+                // 🌟 给子文件增加了点击事件，如果是文件则调用 openFile，如果是文件夹保持展开功能
+                const clickAttr = child.isFolder 
+                  ? '' 
+                  : 'onclick="openFile(\\'' + safeChildPath + '\\', event)" style="cursor:pointer;" title="点击以只读模式预览"';
                 
                 html += \`
                   <div class="tree-node">
-                    <div class="sub-item">
+                    <div class="sub-item" \${clickAttr}>
                       \${child.isFolder 
                         ? \`<div class="tree-chevron" onclick="toggleExpand('\${childId}', '\${safeChildPath}', event)">
                             <i id="chevron-right-\${childId}" class="fa-solid fa-chevron-right"></i>
