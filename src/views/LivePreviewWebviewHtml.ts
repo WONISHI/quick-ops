@@ -200,19 +200,31 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       .fav-btn.primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; }
       .fav-btn:hover { opacity: 0.9; }
       .fav-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+      
+      /* 🌟 收藏列表项样式调整 */
       .fav-item {
-        padding: 8px 16px; border-bottom: 1px solid var(--menu-border); display: flex; 
+        padding: 10px 16px; 
+        border-bottom: 1px solid var(--vscode-panel-border); /* 加深底部的横线 */
+        display: flex; 
         justify-content: space-between; align-items: center; cursor: pointer; gap: 12px;
       }
+      .fav-item:last-child { border-bottom: none; }
       .fav-item:hover { background: var(--menu-hover-bg); }
       
       /* 历史记录当前项的高亮 */
       .fav-item.current-history { border-left: 3px solid #3498db; background: rgba(255, 255, 255, 0.03); padding-left: 13px; }
       
       .fav-item-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-      .fav-actions { display: flex; gap: 8px; opacity: 0; transition: opacity 0.2s; }
+      
+      /* 🌟 标题加粗一点，文字再小一点（设定为 13px） */
+      .fav-title { font-size: 13px; font-weight: 600; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      
+      /* 🌟 下面的链接字体要小一点，颜色是灰色 */
+      .fav-url { font-size: 11px; color: var(--vscode-descriptionForeground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.8; }
+      
+      .fav-actions { display: flex; gap: 8px; opacity: 0; transition: opacity 0.2s; align-items: center; }
       .fav-item:hover .fav-actions { opacity: 1; }
-      .fav-action-btn { color: var(--vscode-icon-foreground); padding: 4px; border-radius: 4px; font-size: 13px; }
+      .fav-action-btn { color: var(--vscode-icon-foreground); padding: 4px; border-radius: 4px; font-size: 13px; transition: 0.2s; }
       .fav-action-btn:hover { background: var(--btn-hover); color: var(--fg); }
       .fav-action-btn.delete:hover { color: #e74c3c; }
       .fav-empty { padding: 30px; text-align: center; color: var(--vscode-descriptionForeground); font-size: 13px; }
@@ -426,7 +438,7 @@ export function getLivePreviewHtml(defaultUrl: string): string {
           } catch(e) {
              historyStack[currentHistoryIdx].title = getFrameTitleFromUrl(url);
           }
-        }, 150); 
+        }, 100); 
       }
 
       function updateBackBtn() {
@@ -597,7 +609,7 @@ export function getLivePreviewHtml(defaultUrl: string): string {
       });
 
 
-      // ================= 收藏夹增删改逻辑 =================
+      // ================= 🌟 收藏夹增删改与列表渲染逻辑 =================
       function updateFavStarState() {
         const currentUrl = previewFrame.src;
         if (!currentUrl || currentUrl === 'about:blank') {
@@ -693,14 +705,61 @@ export function getLivePreviewHtml(defaultUrl: string): string {
           
           const actionsDiv = document.createElement('div');
           actionsDiv.className = 'fav-actions';
-          actionsDiv.innerHTML = \`<i class="fa-solid fa-pen fav-action-btn edit" title="编辑"></i><i class="fa-solid fa-trash fav-action-btn delete" title="删除"></i>\`;
+          // 🌟 增加复制按钮
+          actionsDiv.innerHTML = \`
+            <i class="fa-regular fa-copy fav-action-btn copy" title="复制链接"></i>
+            <i class="fa-solid fa-pen fav-action-btn edit" title="编辑"></i>
+            <i class="fa-solid fa-trash fav-action-btn delete" title="删除"></i>
+          \`;
 
+          // 点击整体跳转
           infoDiv.addEventListener('click', () => {
             favOverlay.style.display = 'none';
             urlInput.value = item.url;
             toggleClearBtn(); loadUrl();
           });
+          
+          // 🌟 复制按钮事件
+          actionsDiv.querySelector('.copy').addEventListener('click', (e) => {
+            e.stopPropagation();
+            
+            // 尝试使用剪贴板API，如果失败则使用后备方案
+            const copyToClipboard = str => {
+              if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+                return navigator.clipboard.writeText(str);
+              }
+              return Promise.reject('The Clipboard API is not available.');
+            };
 
+            copyToClipboard(item.url).then(() => {
+              // 复制成功，视觉反馈：变绿对勾
+              const icon = e.target;
+              icon.className = 'fa-solid fa-check fav-action-btn copy';
+              icon.style.color = '#2ecc71';
+              setTimeout(() => {
+                icon.className = 'fa-regular fa-copy fav-action-btn copy';
+                icon.style.color = '';
+              }, 1500);
+            }).catch(() => {
+               // 降级方案
+               const input = document.createElement('input');
+               input.value = item.url;
+               document.body.appendChild(input);
+               input.select();
+               document.execCommand('copy');
+               document.body.removeChild(input);
+               
+               const icon = e.target;
+               icon.className = 'fa-solid fa-check fav-action-btn copy';
+               icon.style.color = '#2ecc71';
+               setTimeout(() => {
+                 icon.className = 'fa-regular fa-copy fav-action-btn copy';
+                 icon.style.color = '';
+               }, 1500);
+            });
+          });
+
+          // 编辑按钮事件
           actionsDiv.querySelector('.edit').addEventListener('click', (e) => {
             e.stopPropagation();
             editingOriginalUrl = item.url;
@@ -710,6 +769,7 @@ export function getLivePreviewHtml(defaultUrl: string): string {
             favFormTitle.focus();
           });
 
+          // 删除按钮事件
           actionsDiv.querySelector('.delete').addEventListener('click', (e) => {
             e.stopPropagation();
             globalFavorites = globalFavorites.filter(f => f.url !== item.url);
@@ -884,8 +944,6 @@ export function getLivePreviewHtml(defaultUrl: string): string {
         if (actionMenu.style.display === 'block') closeMenu();
         else { const rect = moreBtn.getBoundingClientRect(); openMenu(rect.left - 180, rect.bottom + 5); }
       });
-      
-      // 🌟 删除了 window.addEventListener('contextmenu') 全局右键拦截
       
       window.addEventListener('click', (e) => { 
         if (!e.target.closest('#actionMenu') && !e.target.closest('#moreBtn')) closeMenu(); 

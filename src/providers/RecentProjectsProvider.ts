@@ -1,7 +1,5 @@
 import * as vscode from 'vscode';
 import * as https from 'https';
-import { IFeature } from '../core/interfaces/IFeature';
-import ColorLog from '../utils/ColorLog';
 
 // ================= 🌟 辅助函数：生成 Nonce 随机字符串 =================
 function getNonce() {
@@ -13,21 +11,15 @@ function getNonce() {
   return text;
 }
 
-// 🌟 新增：虚拟只读文档提供程序
-// 专门用于将本地或远程文件以“纯只读”模式渲染在编辑器中
 export class ReadOnlyContentProvider implements vscode.TextDocumentContentProvider {
-  // 当文档内容发生变化时触发（只读模式下通常不需要，但保留接口）
   public onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
   public onDidChange = this.onDidChangeEmitter.event;
 
   async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
     try {
-      // 从 query 参数中提取出真实的文件 URI
       const targetQuery = uri.query.replace('target=', '');
       const targetUriStr = decodeURIComponent(targetQuery);
       const targetUri = vscode.Uri.parse(targetUriStr);
-
-      // 调用 VS Code 底层的 fs 读取文件（天然支持 file 协议和 vscode-vfs 远程协议）
       const contentBytes = await vscode.workspace.fs.readFile(targetUri);
       return Buffer.from(contentBytes).toString('utf8');
     } catch (e) {
@@ -46,6 +38,7 @@ export interface RecentProject {
 export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private stateKey = 'quickOps.recentProjectsHistory';
+  private lastOpenedPath: string = '';
 
   constructor(private context: vscode.ExtensionContext) {
     this.recordCurrentProject();
@@ -84,7 +77,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           this.readDirectory(data.id, data.fsPath);
           break;
         case 'openFile':
-          // 🌟 接收前端传来的文件路径，并以只读模式打开
           this.openFileReadOnly(data.fsPath);
           break;
       }
@@ -93,19 +85,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.updateWebview();
   }
 
-  // ================= 🌟 核心：以只读模式打开文件 =================
   private async openFileReadOnly(fsPath: string) {
     try {
       const originalUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
-
-      // 构造自定义的只读 URI
-      // Scheme 设为 quickops-ro 会触发我们上面定义的 ReadOnlyContentProvider
-      // 保留原始的 path 是为了让 VS Code 能够根据后缀名（如 .js, .ts）正确进行语法高亮
-      // 真实的地址存放在 query 参数中传递过去
       const roUri = vscode.Uri.parse(`quickops-ro:${originalUri.path}?target=${encodeURIComponent(originalUri.toString())}`);
-
       const doc = await vscode.workspace.openTextDocument(roUri);
-      // preview: true 表示以预览标签页（斜体）打开，点击其他文件会覆盖当前标签页，体验更好
       await vscode.window.showTextDocument(doc, { preview: true });
     } catch (e) {
       vscode.window.showErrorMessage('无法打开该文件预览。');
@@ -330,6 +314,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   private async executeOpen(uriStr: string, forceNewWindow: boolean, branch?: string) {
     try {
+      this.lastOpenedPath = uriStr;
+      this.updateWebview();
+
       let finalUriStr = uriStr;
 
       if (branch && (uriStr.startsWith('vscode-vfs://github') || uriStr.startsWith('vscode-vfs://gitlab'))) {
@@ -365,12 +352,74 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private getHtmlForWebview(webview: vscode.Webview, projects: RecentProject[], currentUri: string) {
     const styleSrc = `https://cdnjs.cloudflare.com https://cdn.jsdelivr.net`;
 
-    const listHtml = projects
+    const currentBaseUri = currentUri.split('?')[0];
+    let currentProject: RecentProject | undefined;
+    let otherProjects: RecentProject[] = [];
+
+    projects.forEach(p => {
+      if (p.fsPath.split('?')[0] === currentBaseUri) {
+        currentProject = p;
+      } else {
+        otherProjects.push(p);
+      }
+    });
+
+    let currentProjectHtml = '';
+    if (currentProject) {
+      const isRemote = currentProject.fsPath.startsWith('vscode-vfs');
+      const isGitlab = currentProject.fsPath.includes('vscode-vfs://gitlab');
+      
+      let displayPath = currentProject.fsPath;
+      try {
+        const uri = vscode.Uri.parse(currentProject.fsPath);
+        if (uri.scheme === 'file') {
+          displayPath = uri.fsPath;
+        } else {
+          displayPath = currentProject.fsPath.replace('vscode-vfs://github/', 'GitHub: ').replace('vscode-vfs://gitlab/', 'GitLab: ');
+        }
+      } catch (e) {}
+
+      let iconClass = 'fa-solid fa-folder-open';
+      if (isRemote) iconClass = isGitlab ? 'fa-brands fa-gitlab' : 'fa-brands fa-github';
+
+      const branchTagHtml = currentProject.branch 
+        ? `<span class="branch-tag" title="当前分支: ${currentProject.branch}"><i class="fa-solid fa-code-branch" style="font-size:10px;"></i> ${currentProject.branch}</span>` 
+        : '';
+      
+      const safeFsPath = currentProject.fsPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
+      currentProjectHtml = `
+        <div class="active-top-project" title="当前窗口正在运行的项目">
+          <div class="item-left">
+            <div class="tree-chevron" style="visibility: hidden;"></div>
+            
+            <div class="info">
+              <div class="title">
+                <i class="${iconClass} icon-opened project-icon"></i>
+                ${currentProject.name}
+                ${branchTagHtml}
+              </div>
+              <div class="path">${displayPath}</div>
+            </div>
+          </div>
+          <div class="item-actions">
+            ${isRemote ? `
+            <button class="action-btn-icon branch-btn" onclick="switchBranch('${safeFsPath}', event)" title="切换远程分支">
+              <i class="fa-solid fa-code-branch"></i>
+            </button>
+            ` : ''}
+          </div>
+        </div>
+        <div class="top-divider"></div>
+      `;
+    }
+
+    const listHtml = otherProjects
       .map((p) => {
-        const isCurrent = p.fsPath.split('?')[0] === currentUri.split('?')[0];
         const isRemote = p.fsPath.startsWith('vscode-vfs');
         const isGitlab = p.fsPath.includes('vscode-vfs://gitlab');
         const rootId = `root_${p.timestamp}`;
+        const isJustOpened = p.fsPath === this.lastOpenedPath;
 
         let displayPath = p.fsPath;
         try {
@@ -382,22 +431,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           }
         } catch (e) {}
 
-        let iconClass = 'fa-solid fa-folder';
-        if (isRemote) {
-          iconClass = isGitlab ? 'fa-brands fa-gitlab' : 'fa-brands fa-github';
-        } else if (isCurrent) {
-          iconClass = 'fa-solid fa-folder-open';
-        }
-
-        const colorClass = isCurrent ? 'icon-opened' : 'icon-closed';
-        const activeClass = isCurrent ? 'active' : '';
+        let iconClass = isRemote ? (isGitlab ? 'fa-brands fa-gitlab' : 'fa-brands fa-github') : 'fa-solid fa-folder';
+        const colorClass = 'icon-closed'; 
+        
         const branchTagHtml = p.branch ? `<span class="branch-tag" title="当前分支: ${p.branch}"><i class="fa-solid fa-code-branch" style="font-size:10px;"></i> ${p.branch}</span>` : '';
-
         const safeFsPath = p.fsPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+        const justOpenedClass = isJustOpened ? 'just-opened' : '';
 
         return `
         <li class="tree-node">
-          <div class="project-item ${activeClass}" ondblclick="openProject('${safeFsPath}')">
+          <div class="project-item ${justOpenedClass}" ondblclick="openProject('${safeFsPath}')" title="${isJustOpened ? '刚刚在此窗口中唤起过' : ''}">
             
             <div class="item-left">
               <div class="tree-chevron" onclick="toggleExpand('${rootId}', '${safeFsPath}', event)">
@@ -405,9 +448,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
                 <i id="chevron-down-${rootId}" class="fa-solid fa-chevron-down" style="display:none"></i>
               </div>
               
-              <div class="info" title="${p.fsPath}">
+              <div class="info">
                 <div class="title">
-                  <i class="${iconClass} ${colorClass}"></i>
+                  <i class="${iconClass} ${colorClass} project-icon"></i>
                   ${p.name}
                   ${branchTagHtml} </div>
                 <div class="path">${displayPath}</div>
@@ -449,6 +492,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" 
               onerror="this.onerror=null;this.href='https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css';">
         <style>
+          * { box-sizing: border-box; }
           body { 
             padding: 0; margin: 0; color: var(--vscode-foreground); 
             font-family: var(--vscode-font-family); user-select: none;
@@ -458,50 +502,62 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           .list-container { flex: 1; overflow-y: auto; padding-bottom: 20px;}
           ul { list-style: none; padding: 0; margin: 0; }
           
+          /* 🌟 精确对齐的根项目样式 */
+          .active-top-project {
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 8px 10px 8px 0px; /* 左 padding 归零，由边框占位 */
+            background-color: rgba(93, 173, 226, 0.1); 
+            border-left: 3px solid #5dade2; 
+            cursor: default; 
+          }
+          .active-top-project .path { color: var(--vscode-descriptionForeground); opacity: 0.8; }
+          
+          .top-divider {
+            height: 4px; background: rgba(0, 0, 0, 0.1);
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1); margin-bottom: 4px;
+          }
+
           .project-item { 
             display: flex; justify-content: space-between; align-items: center; 
-            padding: 6px 12px 6px 4px; cursor: pointer; border-bottom: 1px solid var(--vscode-panel-border); 
+            padding: 6px 10px 6px 3px; /* 3px 完美对齐上方的 3px 边框 */
+            cursor: pointer; border-bottom: 1px solid var(--vscode-panel-border); 
             transition: background-color 0.1s;
           }
           .project-item:hover { background-color: var(--vscode-list-hoverBackground); }
-          .project-item.active { background-color: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); }
-          .project-item.active .path { color: var(--vscode-list-activeSelectionForeground); opacity: 0.8; }
           
-          .item-left { display: flex; align-items: center; flex: 1; min-width: 0; gap: 4px; }
-          
-          .tree-chevron { 
-            width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; 
-            cursor: pointer; color: var(--vscode-icon-foreground); opacity: 0.8; border-radius: 4px; flex-shrink: 0;
+          .project-item.just-opened {
+            padding-left: 1px; /* 1px padding + 2px border = 3px total left space */
+            background-color: rgba(128, 128, 128, 0.06); 
+            box-shadow: inset 0 0 12px rgba(128, 128, 128, 0.15);
+            border-left: 2px solid var(--vscode-descriptionForeground);
           }
+          
+          .item-left { display: flex; align-items: center; flex: 1; min-width: 0; gap: 3px; }
+          
+          /* 🌟 核心修复 2：全面缩小箭头尺寸 (14px)，去除冗余间隙 */
+          .tree-chevron, .chevron-placeholder { 
+            width: 14px; height: 20px; display: flex; align-items: center; justify-content: center; 
+            flex-shrink: 0;
+          }
+          .tree-chevron { cursor: pointer; color: var(--vscode-icon-foreground); opacity: 0.8; border-radius: 4px; }
           .tree-chevron:hover { background: var(--vscode-toolbar-hoverBackground); opacity: 1; }
           .tree-chevron .fa-solid { font-size: 10px; transition: transform 0.1s; }
-          .chevron-placeholder { width: 22px; height: 22px; flex-shrink: 0; }
-          .project-item.active .tree-chevron { color: var(--vscode-list-activeSelectionForeground); }
 
-          .info { overflow: hidden; display: flex; flex-direction: column; gap: 4px; flex: 1; }
-          .title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 8px; }
-          .path { font-size: 11px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          /* 🌟 核心修复 3：严格锁死图标宽度，确保标题文字垂直对齐 */
+          .project-icon, .sub-icon { width: 16px; text-align: center; margin-right: 6px; flex-shrink: 0; display: inline-block; font-size: 14px; }
+
+          .info { overflow: hidden; display: flex; flex-direction: column; flex: 1; padding-top: 2px; padding-bottom: 2px; }
+          .title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; }
+          /* Path 文字向右推 22px (Icon的16px + marginRight的6px)，严格对齐标题文字 */
+          .path { font-size: 10px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
           
           .branch-tag {
-            font-size: 10px;
-            background: rgba(128, 128, 128, 0.15);
-            color: var(--vscode-descriptionForeground);
-            padding: 2px 6px;
-            border-radius: 10px;
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            font-weight: normal;
-          }
-          .project-item.active .branch-tag { 
-            color: var(--vscode-list-activeSelectionForeground); 
-            background: rgba(255, 255, 255, 0.2); 
+            font-size: 10px; background: rgba(128, 128, 128, 0.15); color: var(--vscode-descriptionForeground);
+            padding: 2px 6px; border-radius: 10px; display: inline-flex; align-items: center; gap: 3px; font-weight: normal; margin-left: 6px;
           }
 
-          .fa-solid, .fa-regular, .fa-brands { font-size: 14px; flex-shrink: 0; }
           .icon-opened { color: #5dade2 !important; opacity: 1 !important; } 
           .icon-closed { color: var(--vscode-icon-foreground); opacity: 0.8; } 
-          .project-item.active .icon-closed { color: var(--vscode-list-activeSelectionForeground) !important; opacity: 1; }
           
           .item-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; margin-left: 4px; }
           .action-btn-icon { background: none; border: none; color: var(--vscode-icon-foreground); cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center; transition: background-color 0.2s, color 0.2s, opacity 0.2s; }
@@ -513,36 +569,35 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           .branch-btn { opacity: 0.4; }
           .branch-btn:hover { opacity: 1; color: #3498db; background: var(--vscode-toolbar-hoverBackground); }
           .project-item:hover .branch-btn { opacity: 0.8; }
+          .active-top-project .branch-btn { opacity: 0.6; }
 
           .delete-btn { display: none; }
           .delete-btn:hover { color: var(--vscode-errorForeground); background: var(--vscode-toolbar-hoverBackground); }
           .project-item:hover .delete-btn { display: flex; }
 
-          .project-item.active .action-btn-icon { color: var(--vscode-list-activeSelectionForeground); opacity: 0.7; }
-          .project-item.active .action-btn-icon:hover { opacity: 1; background: rgba(255, 255, 255, 0.2); }
           .action-btn-icon .fa-solid { font-size: 13px; }
 
-          /* ================= 🌟 文件树列表样式调整 ================= */
-          .tree-children { padding-left: 14px; margin-left: 12px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke); }
+          /* ================= 🌟 核心修复 4：极紧凑文件树缩进模型 ================= */
+          /* 引导线落在父级箭头 (14px) 的中心，即 margin-left: 10px (加上前置 padding 3px 等于 10) */
+          .tree-children { 
+            margin-left: 10px; 
+            padding-left: 6px; /* 补偿剩余距离，使子项 Chevron 起点达到 14px 缩进量 */
+            border-left: 1px solid var(--vscode-tree-indentGuidesStroke); 
+          }
           
-          /* 🌟 将 padding 缩小至 2px 0，减小上下间隙；使用 align-items: center 完美居中 */
-          .sub-item { display: flex; align-items: center; gap: 4px; padding: 2px 0; font-size: 13px; color: var(--vscode-foreground); cursor: default; }
+          .sub-item { display: flex; align-items: center; padding: 2px 0; font-size: 13px; color: var(--vscode-foreground); cursor: default; }
           .sub-item:hover { background-color: var(--vscode-list-hoverBackground); }
           .sub-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.9;}
           
-          /* 🌟 给 icon 固定 16px 的宽度，并居中排布，保证不同文件图标不会把文字挤偏 */
-          .sub-icon { opacity: 0.8; font-size: 13px; margin: 0; width: 16px; text-align: center; display: inline-block; flex-shrink: 0; }
-          
-          /* 🌟 各类文件后缀专属颜色 */
-          .file-icon-js { color: #f1e05a; }       /* JS 黄色 */
-          .file-icon-ts { color: #3178c6; }       /* TS 蓝色 */
-          .file-icon-vue { color: #41b883; }      /* Vue 绿色 */
-          .file-icon-html { color: #e34c26; }     /* HTML 橙色 */
-          .file-icon-css { color: #563d7c; }      /* CSS 紫色 */
-          .file-icon-json { color: #cbcb41; }     /* JSON 黄绿色 */
-          .file-icon-md { color: #5dade2; }       /* Markdown 浅蓝 */
-          .file-icon-img { color: #a074c4; }      /* 图片 淡紫 */
-          .file-icon-default { color: var(--vscode-symbolIcon-fileForeground, #999); } /* 默认颜色 */
+          .file-icon-js { color: #f1e05a; } 
+          .file-icon-ts { color: #3178c6; } 
+          .file-icon-vue { color: #41b883; }
+          .file-icon-html { color: #e34c26; }
+          .file-icon-css { color: #563d7c; }
+          .file-icon-json { color: #cbcb41; }
+          .file-icon-md { color: #5dade2; } 
+          .file-icon-img { color: #a074c4; }
+          .file-icon-default { color: var(--vscode-symbolIcon-fileForeground, #999); }
 
           .empty-node { font-size: 12px; opacity: 0.5; padding: 4px 12px; font-style: italic; }
 
@@ -567,7 +622,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               <button class="action-btn secondary" onclick="addRemote()"><i class="fa-brands fa-github"></i> 添加远程仓库</button>
             </div>
           `
-              : `<ul>${listHtml}</ul>`
+              : `${currentProjectHtml}<ul>${listHtml}</ul>`
           }
         </div>
         ${
@@ -623,14 +678,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             }
           }
 
-          // 🌟 根据文件名返回不同的 FontAwesome 图标和预设的颜色类名
           function getFileIcon(filename) {
             const extMatch = filename.match(/\\.([^.]+)$/);
             const ext = extMatch ? extMatch[1].toLowerCase() : '';
             
             switch(ext) {
               case 'js': case 'jsx': return 'fa-brands fa-js file-icon-js';
-              case 'ts': case 'tsx': return 'fa-brands fa-js file-icon-ts'; // FA目前没有专门的TS图标，用JS图标替代但给蓝色
+              case 'ts': case 'tsx': return 'fa-brands fa-js file-icon-ts'; 
               case 'vue': return 'fa-brands fa-vuejs file-icon-vue';
               case 'html': return 'fa-brands fa-html5 file-icon-html';
               case 'css': case 'scss': case 'less': return 'fa-brands fa-css3-alt file-icon-css';
@@ -656,7 +710,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               message.children.forEach((child, index) => {
                 const childId = message.id + '_' + index;
                 
-                // 🌟 判断是文件夹还是具体文件，调用 getFileIcon 函数
                 const iconClass = child.isFolder 
                   ? 'fa-solid fa-folder icon-closed sub-icon' 
                   : getFileIcon(child.name) + ' sub-icon';
