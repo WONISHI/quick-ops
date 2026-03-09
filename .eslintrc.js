@@ -6,22 +6,18 @@ module.exports = {
     node: true,
   },
   parserOptions: {
-    ecmaVersion: "latest",
-    sourceType: "module",
+    ecmaVersion: 'latest',
   },
-  extends: [
-    "eslint:recommended",
-    "plugin:prettier/recommended",
-  ],
+  extends: ['eslint:recommended', 'plugin:prettier/recommended'],
   rules: {
-    "object-curly-newline": "off",
-    "prettier/prettier": [
-      "error",
+    'object-curly-newline': 'off',
+    'prettier/prettier': [
+      'error',
       {
         printWidth: 120,
         bracketSpacing: true,
         singleQuote: true,
-        trailingComma: "all",
+        trailingComma: 'all',
       },
     ],
   },

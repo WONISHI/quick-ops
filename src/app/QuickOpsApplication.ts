@@ -27,6 +27,7 @@ import { MockServerFeature } from '../features/MockServerFeature';
 import { DebugConsoleFeature } from '../features/DebugConsoleFeature';
 import { LivePreviewFeature } from '../features/LivePreviewFeature';
 import { RecentProjectsFeature } from '../features/RecentProjectsFeature';
+import { TerminalFeature } from '../features/TerminalFeature';
 
 export class QuickOpsApplication {
   private context: vscode.ExtensionContext;
@@ -41,9 +42,6 @@ export class QuickOpsApplication {
     ColorLog.black('[QuickOps]', 'Application Starting...');
     console.time('QuickOps Activation');
 
-    // ==========================================
-    // 1. 核心服务并发初始化 (极致榨取 I/O 性能)
-    // ==========================================
     this.services = [ConfigurationService.getInstance(), WorkspaceStateService.getInstance(), EditorContextService.getInstance(), TerminalExecutor.getInstance()];
 
     const initPromises = this.services.map(async (service) => {
@@ -74,6 +72,7 @@ export class QuickOpsApplication {
       new SnippetGeneratorFeature(),
       new LivePreviewFeature(),
       new RecentProjectsFeature(),
+      new TerminalFeature(),
     ];
 
     for (const feature of this.features) {

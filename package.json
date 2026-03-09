@@ -84,7 +84,7 @@
         },
         {
           "id": "quickOps.recentProjectsView",
-          "name": "项目资源管理器", 
+          "name": "项目资源管理器",
           "type": "webview",
           "icon": "$(history)"
         }
@@ -219,6 +219,16 @@
         "command": "quick-ops.switchPreviousEditor",
         "title": "Quick Ops: Switch to Previous Editor",
         "category": "Quick Ops"
+      },
+      {
+        "command": "quickOps.showTerminal",
+        "title": "显示终端",
+        "icon": "$(diff-modified)"
+      },
+      {
+        "command": "quickOps.hideTerminal",
+        "title": "隐藏终端",
+        "icon": "$(diff-ignored)"
       }
     ],
     "keybindings": [
@@ -284,28 +294,38 @@
           "group": "navigation@1"
         },
         {
+          "command": "quickOps.showTerminal",
+          "when": "!quickOps.terminalVisible",
+          "group": "navigation@2"
+        },
+        {
+          "command": "quickOps.hideTerminal",
+          "when": "quickOps.terminalVisible",
+          "group": "navigation@3"
+        },
+        {
           "command": "quick-ops.openLivePreview",
-          "group": "navigation@2",
+          "group": "navigation@4",
           "when": "resourceScheme == file"
         },
         {
           "command": "quick-ops.anchor.showMenu",
-          "group": "navigation@3",
+          "group": "navigation@5",
           "when": "quickOps.hasAnchorsInCurrentFile"
         },
         {
           "command": "quick-ops.revealInExplorer",
           "when": "resourceScheme == file",
-          "group": "navigation@4"
+          "group": "navigation@6"
         },
         {
           "command": "quick-ops.scrollToTop",
-          "group": "navigation@5",
+          "group": "navigation@7",
           "when": "editorTextFocus"
         },
         {
           "command": "quick-ops.scrollToBottom",
-          "group": "navigation@6",
+          "group": "navigation@8",
           "when": "editorTextFocus"
         }
       ],
