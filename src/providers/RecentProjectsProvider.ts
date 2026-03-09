@@ -480,7 +480,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
           .info { overflow: hidden; display: flex; flex-direction: column; gap: 4px; flex: 1; }
           .title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 8px; }
-          .path { font-size: 11px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 22px; }
+          .path { font-size: 11px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
           
           .branch-tag {
             font-size: 10px;
@@ -522,12 +522,28 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           .project-item.active .action-btn-icon:hover { opacity: 1; background: rgba(255, 255, 255, 0.2); }
           .action-btn-icon .fa-solid { font-size: 13px; }
 
+          /* ================= 🌟 文件树列表样式调整 ================= */
           .tree-children { padding-left: 14px; margin-left: 12px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke); }
-          .sub-item { display: flex; align-items: center; gap: 4px; padding: 4px 0; font-size: 13px; color: var(--vscode-foreground); cursor: default; }
+          
+          /* 🌟 将 padding 缩小至 2px 0，减小上下间隙；使用 align-items: center 完美居中 */
+          .sub-item { display: flex; align-items: center; gap: 4px; padding: 2px 0; font-size: 13px; color: var(--vscode-foreground); cursor: default; }
           .sub-item:hover { background-color: var(--vscode-list-hoverBackground); }
           .sub-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.9;}
-          .sub-icon { opacity: 0.8; font-size: 13px; margin: 0 4px; }
-          .file-icon { color: var(--vscode-symbolIcon-fileForeground, #999); }
+          
+          /* 🌟 给 icon 固定 16px 的宽度，并居中排布，保证不同文件图标不会把文字挤偏 */
+          .sub-icon { opacity: 0.8; font-size: 13px; margin: 0; width: 16px; text-align: center; display: inline-block; flex-shrink: 0; }
+          
+          /* 🌟 各类文件后缀专属颜色 */
+          .file-icon-js { color: #f1e05a; }       /* JS 黄色 */
+          .file-icon-ts { color: #3178c6; }       /* TS 蓝色 */
+          .file-icon-vue { color: #41b883; }      /* Vue 绿色 */
+          .file-icon-html { color: #e34c26; }     /* HTML 橙色 */
+          .file-icon-css { color: #563d7c; }      /* CSS 紫色 */
+          .file-icon-json { color: #cbcb41; }     /* JSON 黄绿色 */
+          .file-icon-md { color: #5dade2; }       /* Markdown 浅蓝 */
+          .file-icon-img { color: #a074c4; }      /* 图片 淡紫 */
+          .file-icon-default { color: var(--vscode-symbolIcon-fileForeground, #999); } /* 默认颜色 */
+
           .empty-node { font-size: 12px; opacity: 0.5; padding: 4px 12px; font-style: italic; }
 
           .empty-state { padding: 30px 20px; text-align: center; }
@@ -574,7 +590,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           function addLocal() { vscode.postMessage({ type: 'addLocal' }); }
           function addRemote() { vscode.postMessage({ type: 'addRemote' }); }
           
-          // 🌟 触发打开文件事件
           function openFile(path, event) {
             event.stopPropagation();
             vscode.postMessage({ type: 'openFile', fsPath: path });
@@ -608,6 +623,24 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             }
           }
 
+          // 🌟 根据文件名返回不同的 FontAwesome 图标和预设的颜色类名
+          function getFileIcon(filename) {
+            const extMatch = filename.match(/\\.([^.]+)$/);
+            const ext = extMatch ? extMatch[1].toLowerCase() : '';
+            
+            switch(ext) {
+              case 'js': case 'jsx': return 'fa-brands fa-js file-icon-js';
+              case 'ts': case 'tsx': return 'fa-brands fa-js file-icon-ts'; // FA目前没有专门的TS图标，用JS图标替代但给蓝色
+              case 'vue': return 'fa-brands fa-vuejs file-icon-vue';
+              case 'html': return 'fa-brands fa-html5 file-icon-html';
+              case 'css': case 'scss': case 'less': return 'fa-brands fa-css3-alt file-icon-css';
+              case 'json': return 'fa-solid fa-file-code file-icon-json';
+              case 'md': return 'fa-brands fa-markdown file-icon-md';
+              case 'png': case 'jpg': case 'jpeg': case 'gif': case 'svg': case 'ico': return 'fa-regular fa-image file-icon-img';
+              default: return 'fa-regular fa-file-code file-icon-default';
+            }
+          }
+
           window.addEventListener('message', event => {
             const message = event.data;
             if (message.type === 'readDirResult') {
@@ -622,10 +655,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               let html = '';
               message.children.forEach((child, index) => {
                 const childId = message.id + '_' + index;
-                const iconClass = child.isFolder ? 'fa-solid fa-folder icon-closed sub-icon' : 'fa-regular fa-file-code file-icon sub-icon';
+                
+                // 🌟 判断是文件夹还是具体文件，调用 getFileIcon 函数
+                const iconClass = child.isFolder 
+                  ? 'fa-solid fa-folder icon-closed sub-icon' 
+                  : getFileIcon(child.name) + ' sub-icon';
+                  
                 const safeChildPath = child.path.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
                 
-                // 🌟 给子文件增加了点击事件，如果是文件则调用 openFile，如果是文件夹保持展开功能
                 const clickAttr = child.isFolder 
                   ? '' 
                   : 'onclick="openFile(\\'' + safeChildPath + '\\', event)" style="cursor:pointer;" title="点击以只读模式预览"';
