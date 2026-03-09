@@ -13,11 +13,15 @@ export class MockServerFeature implements IFeature {
   public servers: Map<string, any> = new Map();
   private webviewProvider!: MockWebviewProvider;
 
-  constructor(private configService: ConfigurationService = ConfigurationService.getInstance()) {}
+  constructor(private configService: ConfigurationService = ConfigurationService.getInstance()) { }
 
   public activate(context: vscode.ExtensionContext): void {
     this.webviewProvider = new MockWebviewProvider(context.extensionUri, this);
-    context.subscriptions.push(vscode.window.registerWebviewViewProvider('quick-ops.mockView', this.webviewProvider));
+    context.subscriptions.push(vscode.window.registerWebviewViewProvider('quick-ops.mockView', this.webviewProvider, {
+      webviewOptions: {
+        retainContextWhenHidden: true
+      }
+    }));
 
     context.subscriptions.push(
       vscode.commands.registerCommand('quick-ops.mock.start', () => this.startAll()),
@@ -105,14 +109,14 @@ export class MockServerFeature implements IFeature {
     const Mock = require('mockjs');
 
     const app = express();
-    
+
     app.use(cors({
-        origin: true,
-        credentials: true,
-        allowedHeaders: '*', 
-        exposedHeaders: '*', 
+      origin: true,
+      credentials: true,
+      allowedHeaders: '*',
+      exposedHeaders: '*',
     }));
-    
+
     app.use(bodyParser.json({ limit: '50mb' }));
     app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -151,7 +155,7 @@ export class MockServerFeature implements IFeature {
 
             if (filePaths.length > 1) {
               const fileIdx = req.query.fileIdx;
-              
+
               if (fileIdx === undefined) {
                 const protocol = req.protocol || 'http';
                 const host = req.get('host');
@@ -159,7 +163,7 @@ export class MockServerFeature implements IFeature {
                 const urls = filePaths.map((_: any, idx: number) => `${baseUrl}?fileIdx=${idx}`);
                 return res.json(urls);
               }
-              
+
               const idx = Number(fileIdx);
               if (isNaN(idx) || idx < 0 || idx >= filePaths.length) {
                 return res.status(404).json({ error: '文件索引不存在或越界' });
@@ -248,10 +252,10 @@ export class MockServerFeature implements IFeature {
     });
 
     app.use((req: any, res: any) => {
-      res.status(404).json({ 
-          error: 'Not Found in Mock Rules', 
-          path: req.path,
-          message: '请求的接口没有匹配到任何已启用的拦截规则'
+      res.status(404).json({
+        error: 'Not Found in Mock Rules',
+        path: req.path,
+        message: '请求的接口没有匹配到任何已启用的拦截规则'
       });
     });
 

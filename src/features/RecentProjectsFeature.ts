@@ -13,7 +13,11 @@ export class RecentProjectsFeature implements IFeature {
     const roProvider = new ReadOnlyContentProvider();
     context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('quickops-ro', roProvider));
 
-    const webviewView = vscode.window.registerWebviewViewProvider('quickOps.recentProjectsView', provider);
+    const webviewView = vscode.window.registerWebviewViewProvider('quickOps.recentProjectsView', provider, {
+      webviewOptions: {
+        retainContextWhenHidden: true
+      }
+    });
 
     const addCmd = vscode.commands.registerCommand('quickOps.addRecentProject', async () => {
       const choice = await vscode.window.showQuickPick(
