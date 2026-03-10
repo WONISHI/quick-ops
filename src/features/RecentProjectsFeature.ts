@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import { IFeature } from '../core/interfaces/IFeature';
 import ColorLog from '../utils/ColorLog';
-import { RecentProjectsProvider, ReadOnlyContentProvider } from '../providers/RecentProjectsProvider';
+// 🌟 确保把需要用到的三个类都导入进来
+import { RecentProjectsProvider, ReadOnlyContentProvider, ReadOnlyDecorationProvider } from '../providers/RecentProjectsProvider';
 
 export class RecentProjectsFeature implements IFeature {
   public readonly id = 'RecentProjectsFeature';
@@ -9,13 +10,21 @@ export class RecentProjectsFeature implements IFeature {
   public activate(context: vscode.ExtensionContext): void {
     const provider = new RecentProjectsProvider(context);
 
+    // ================= 🌟 核心修复：注册只读文件及装饰器提供程序 =================
     const roProvider = new ReadOnlyContentProvider();
-    context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('quickops-ro', roProvider));
+    const roDecorationProvider = new ReadOnlyDecorationProvider();
 
+    const roDocRegistration = vscode.workspace.registerTextDocumentContentProvider('quickops-ro', roProvider);
+    const roDecoRegistration = vscode.window.registerFileDecorationProvider(roDecorationProvider);
+
+    // ================= 🌟 注册 Webview 视图 =================
     const webviewView = vscode.window.registerWebviewViewProvider('quickOps.recentProjectsView', provider, {
-      webviewOptions: { retainContextWhenHidden: true },
+      webviewOptions: {
+        retainContextWhenHidden: true, // 保持页面状态不重置
+      },
     });
 
+    // ================= 🌟 恢复原有命令：添加项目 =================
     const addCmd = vscode.commands.registerCommand('quickOps.addRecentProject', async () => {
       const choice = await vscode.window.showQuickPick(
         [
@@ -32,11 +41,14 @@ export class RecentProjectsFeature implements IFeature {
       }
     });
 
+    // ================= 🌟 恢复原有命令：清空项目记录 =================
     const clearCmd = vscode.commands.registerCommand('quickOps.clearRecentProjects', () => {
       provider.clearAll();
     });
 
-    context.subscriptions.push(webviewView, addCmd, clearCmd);
+    // 将所有注册的服务和命令推入订阅池中，防止内存泄漏
+    context.subscriptions.push(webviewView, roDocRegistration, roDecoRegistration, addCmd, clearCmd);
+
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 }
