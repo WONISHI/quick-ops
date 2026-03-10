@@ -9,14 +9,11 @@ export class RecentProjectsFeature implements IFeature {
   public activate(context: vscode.ExtensionContext): void {
     const provider = new RecentProjectsProvider(context);
 
-    // 🌟 注册只读虚拟文档协议 quickops-ro
     const roProvider = new ReadOnlyContentProvider();
     context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('quickops-ro', roProvider));
 
     const webviewView = vscode.window.registerWebviewViewProvider('quickOps.recentProjectsView', provider, {
-      webviewOptions: {
-        retainContextWhenHidden: true
-      }
+      webviewOptions: { retainContextWhenHidden: true },
     });
 
     const addCmd = vscode.commands.registerCommand('quickOps.addRecentProject', async () => {
