@@ -1,4 +1,4 @@
-// src/providers/RecentProjectsWebview.ts
+// src/views/RecentProjectsWebview.ts
 import * as vscode from 'vscode';
 import { RecentProject } from '../providers/RecentProjectsProvider';
 
@@ -51,6 +51,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
     const safeFsPath = currentProject.fsPath.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const displayTitle = currentProject.customName ? currentProject.customName : currentProject.name;
+    const safeProjName = currentProject.name.replace(/'/g, "\\'");
     const safeCustomName = (currentProject.customName || '').replace(/'/g, "\\'");
     const platformStr = currentProject.platform || 'github';
     const customDomainStr = currentProject.customDomain || '';
@@ -61,7 +62,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
     currentProjectHtml = `
       <div class="searchable-item" data-search="${searchStr}">
         <div class="active-top-project" title="当前窗口正在运行的项目" 
-             oncontextmenu="showContextMenu(event, '${safeFsPath}', ${isRemote}, '${currentProject.name.replace(/'/g, "\\'")}', '${safeCustomName}', '${platformStr}', '${customDomainStr}')">
+             oncontextmenu="showContextMenu(event, '${safeFsPath}', ${isRemote}, '${safeProjName}', '${safeCustomName}', '${platformStr}', '${customDomainStr}')">
           <div class="item-left">
             <div class="tree-chevron" style="visibility: hidden;"></div>
             <div class="info">
@@ -239,7 +240,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         }
         #context-menu li { padding: 6px 12px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
         #context-menu li:hover { background: var(--vscode-menu-selectionBackground); color: var(--vscode-menu-selectionForeground); }
-        #context-menu .fa-solid { width: 14px; text-align: center; opacity: 0.8; }
+        #context-menu .fa-solid, #context-menu .fa-regular { width: 14px; text-align: center; opacity: 0.8; }
         .menu-separator { height: 1px; background: var(--vscode-menu-separatorBackground); margin: 4px 0; }
       </style>
     </head>
@@ -366,9 +367,16 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           const list = document.getElementById('context-menu-list');
           list.innerHTML = '';
 
-          const displayName = customName ? customName : originalName;
+          // 防止拼接 HTML 发生单双引号截断
+          const escOriginalName = originalName.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
+          const escCustomName = customName ? customName.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'") : '';
+          const escPath = path.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
 
+          list.innerHTML += \`<li onclick="handleMenuClick('openInNewWindow')"><i class="fa-solid fa-arrow-up-right-from-square"></i> 在新窗口打开</li>\`;
+          list.innerHTML += \`<div class="menu-separator"></div>\`;
+          
           list.innerHTML += \`<li onclick="handleMenuClick('edit')"><i class="fa-solid fa-pen"></i> 编辑项目名称</li>\`;
+          list.innerHTML += \`<li onclick="handleMenuClick('changeAddress')"><i class="fa-solid fa-location-dot"></i> 更换地址</li>\`;
           
           if (isRemote) {
             list.innerHTML += \`<li onclick="handleMenuClick('switchBranch')"><i class="fa-solid fa-code-branch"></i> 切换分支</li>\`;
@@ -376,11 +384,18 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
           list.innerHTML += \`<div class="menu-separator"></div>\`;
 
-          list.innerHTML += \`<li onclick="handleMenuClick('copyName', '\${displayName}')"><i class="fa-solid fa-copy"></i> 复制项目名称</li>\`;
-          list.innerHTML += \`<li onclick="handleMenuClick('copyPath', '\${path}')"><i class="fa-solid fa-link"></i> 复制地址链接</li>\`;
+          // 🌟 核心修改逻辑：区分“文件名”和“项目名”
+          list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escOriginalName}')"><i class="fa-regular fa-copy"></i> 复制文件名</li>\`;
+          
+          // 如果用户自定义了项目名，才展示复制项目名的选项
+          if (customName) {
+             list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escCustomName}')"><i class="fa-solid fa-copy"></i> 复制项目名</li>\`;
+          }
+          
+          list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escPath}')"><i class="fa-solid fa-link"></i> 复制地址链接</li>\`;
 
           if (isRemote) {
-            list.innerHTML += \`<li onclick="handleMenuClick('openLink', '\${path}')"><i class="fa-solid fa-globe"></i> 在浏览器中打开</li>\`;
+            list.innerHTML += \`<li onclick="handleMenuClick('openLink', '\${escPath}')"><i class="fa-solid fa-globe"></i> 在浏览器中打开</li>\`;
           }
 
           list.innerHTML += \`<div class="menu-separator"></div>\`;
@@ -406,14 +421,20 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         function handleMenuClick(action, payload) {
           document.getElementById('context-menu').style.display = 'none';
           switch(action) {
+            case 'openInNewWindow':
+              vscode.postMessage({ type: 'openInNewWindow', fsPath: activeContextMenuPath });
+              break;
             case 'edit':
               vscode.postMessage({ type: 'editProjectName', fsPath: activeContextMenuPath });
+              break;
+            case 'changeAddress':
+              vscode.postMessage({ type: 'changeAddress', fsPath: activeContextMenuPath });
               break;
             case 'switchBranch':
               vscode.postMessage({ type: 'switchBranch', fsPath: activeContextMenuPath });
               break;
-            case 'copyName':
-            case 'copyPath':
+            // 🌟 合并共用同一个 action 以简化逻辑
+            case 'copyText':
               vscode.postMessage({ type: 'copyToClipboard', text: payload });
               break;
             case 'openLink':

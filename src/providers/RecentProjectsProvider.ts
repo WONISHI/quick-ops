@@ -1,21 +1,37 @@
 // src/providers/RecentProjectsProvider.ts
 import * as vscode from 'vscode';
 import * as https from 'https';
-import { getRecentProjectsHtml } from '../views/RecentProjectsWebview'; // 🌟 导入拆分的渲染函数
+import { getRecentProjectsHtml } from '../views/RecentProjectsWebview'; 
 
 export class ReadOnlyContentProvider implements vscode.TextDocumentContentProvider {
   public onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
   public onDidChange = this.onDidChangeEmitter.event;
 
+  private fileCache = new Map<string, string>();
+
   async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
     try {
       const targetQuery = uri.query.replace('target=', '');
       const targetUriStr = decodeURIComponent(targetQuery);
+      
+      if (this.fileCache.has(targetUriStr)) {
+        return this.fileCache.get(targetUriStr)!;
+      }
+
       const targetUri = vscode.Uri.parse(targetUriStr);
-      const contentBytes = await vscode.workspace.fs.readFile(targetUri);
-      return Buffer.from(contentBytes).toString('utf8');
+      
+      return await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Window,
+        title: "正在拉取远程文件内容..."
+      }, async () => {
+        const contentBytes = await vscode.workspace.fs.readFile(targetUri);
+        const content = Buffer.from(contentBytes).toString('utf8');
+        this.fileCache.set(targetUriStr, content);
+        return content;
+      });
+
     } catch (e) {
-      return `/* 无法读取该文件内容: ${e} */`;
+      return `/* 无法读取该文件内容。可能是由于网络不佳或触发了 API 请求频率限制。\n   详情：${e} */`;
     }
   }
 }
@@ -47,6 +63,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private stateKey = 'quickOps.recentProjectsHistory';
   private lastOpenedPath: string = '';
+  private dirCache = new Map<string, any[]>();
 
   constructor(private context: vscode.ExtensionContext) {
     this.recordCurrentProject();
@@ -65,10 +82,17 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'openProject':
           this.openProject(data.fsPath);
           break;
-        case 'openProjectCurrent':
+        case 'openProjectCurrent': {
           const proj = this.getRecentProjects().find((p) => p.fsPath === data.fsPath);
           this.executeOpen(data.fsPath, false, proj?.branch);
           break;
+        }
+        case 'openInNewWindow': {
+          // 🌟 监听：在新窗口打开
+          const projNew = this.getRecentProjects().find((p) => p.fsPath === data.fsPath);
+          this.executeOpen(data.fsPath, true, projNew?.branch);
+          break;
+        }
         case 'removeProject':
           this.removeProjectByPath(data.fsPath);
           break;
@@ -77,6 +101,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           break;
         case 'addRemote':
           this.addRemoteProject();
+          break;
+        case 'changeAddress':
+          // 🌟 监听：更换地址
+          this.changeProjectAddress(data.fsPath);
           break;
         case 'switchBranch':
           this.switchRemoteBranch(data.fsPath);
@@ -101,6 +129,109 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
 
     this.updateWebview();
+  }
+
+  // ================= 🌟 独立抽离的 URL 解析方法 =================
+  private parseRemoteUrlInput(input: string) {
+    let targetUriStr = '';
+    let repoFullName = '';
+    let platform: 'github' | 'gitlab' = 'github';
+    let customDomain = '';
+
+    const trimmedInput = input.trim();
+    const urlMatch = trimmedInput.match(/^(?:https?:\/\/|git@)([^/:]+)[:\/](.+?)(\.git)?$/);
+    const simpleRepoMatch = trimmedInput.match(/^([^/]+\/[^/]+)$/);
+
+    if (urlMatch) {
+      customDomain = urlMatch[1];
+      repoFullName = urlMatch[2];
+
+      if (customDomain === 'github.com') {
+        platform = 'github';
+        targetUriStr = `vscode-vfs://github/${repoFullName}`;
+        customDomain = '';
+      } else if (customDomain === 'gitlab.com') {
+        platform = 'gitlab';
+        targetUriStr = `vscode-vfs://gitlab/${repoFullName}`;
+        customDomain = '';
+      } else {
+        platform = customDomain.includes('gitlab') ? 'gitlab' : 'github';
+        targetUriStr = trimmedInput.startsWith('http') ? trimmedInput.replace(/\.git$/, '') : `https://${customDomain}/${repoFullName}`;
+      }
+    } else if (simpleRepoMatch) {
+      repoFullName = simpleRepoMatch[1];
+      platform = 'github';
+      targetUriStr = `vscode-vfs://github/${repoFullName}`;
+    } else {
+      try {
+        const uri = vscode.Uri.parse(trimmedInput);
+        if (!uri.scheme || uri.scheme === 'file') return null;
+        targetUriStr = uri.toString();
+        repoFullName = trimmedInput.split(/[/\\]/).pop() || 'Remote Project';
+      } catch (e) {
+        return null;
+      }
+    }
+    return { targetUriStr, repoFullName, platform, customDomain };
+  }
+
+  // ================= 🌟 核心：更换项目地址 =================
+  private async changeProjectAddress(fsPath: string) {
+    const projects = this.getRecentProjects();
+    const index = projects.findIndex((p) => p.fsPath === fsPath);
+    if (index === -1) return;
+
+    const project = projects[index];
+    const isRemote = project.fsPath.startsWith('vscode-vfs') || project.fsPath.startsWith('http');
+
+    if (isRemote) {
+      // 还原给用户看的可读地址
+      let displayValue = project.fsPath;
+      if (project.fsPath.startsWith('vscode-vfs://github/')) {
+        displayValue = project.fsPath.replace('vscode-vfs://github/', 'https://github.com/');
+      } else if (project.fsPath.startsWith('vscode-vfs://gitlab/')) {
+        displayValue = project.fsPath.replace('vscode-vfs://gitlab/', 'https://gitlab.com/');
+      }
+
+      const newAddress = await vscode.window.showInputBox({
+        prompt: `请输入该项目 (${project.name}) 的新远程地址`,
+        value: displayValue,
+        ignoreFocusOut: true,
+      });
+
+      if (newAddress) {
+        const parsed = this.parseRemoteUrlInput(newAddress);
+        if (parsed) {
+          project.fsPath = parsed.targetUriStr;
+          project.platform = parsed.platform;
+          project.customDomain = parsed.customDomain;
+          project.branch = undefined; // 换了地址，先清空分支，等待重新拉取
+          
+          await this.context.globalState.update(this.stateKey, projects);
+          this.updateWebview();
+          vscode.window.showInformationMessage('远程地址已更新。');
+        } else {
+          vscode.window.showErrorMessage('无效的远程地址格式。');
+        }
+      }
+    } else {
+      // 修改本地地址
+      const uri = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: '选择新的本地文件夹',
+        // 尝试定位到原来的文件夹位置
+        defaultUri: vscode.Uri.parse(project.fsPath) 
+      });
+
+      if (uri && uri[0]) {
+        project.fsPath = uri[0].toString();
+        await this.context.globalState.update(this.stateKey, projects);
+        this.updateWebview();
+        vscode.window.showInformationMessage('本地项目路径已更新。');
+      }
+    }
   }
 
   private async fetchDefaultBranch(platform: string, domain: string, repoFullName: string): Promise<string | undefined> {
@@ -344,6 +475,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private async readDirectory(id: string, fsPath: string, projectName: string) {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+      const uriStr = uri.toString();
+
+      if (this.dirCache.has(uriStr)) {
+        this._view?.webview.postMessage({ type: 'readDirResult', id, children: this.dirCache.get(uriStr), projectName });
+        return;
+      }
+
       const entries = await vscode.workspace.fs.readDirectory(uri);
 
       const children = entries
@@ -358,8 +496,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           return a.isFolder ? -1 : 1;
         });
 
+      this.dirCache.set(uriStr, children);
+
       this._view?.webview.postMessage({ type: 'readDirResult', id, children, projectName });
     } catch (e) {
+      vscode.window.showWarningMessage(`读取失败：可能是网络超时或触发了 GitHub API 限制，请稍后再试。`);
       this._view?.webview.postMessage({ type: 'readDirResult', id, children: [], projectName });
     }
   }
@@ -369,7 +510,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const projects = this.getRecentProjects();
     const currentUriStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString() || '';
 
-    // 🌟 核心：使用引入的模板函数，一句话渲染
     this._view.webview.html = getRecentProjectsHtml(this._view.webview, projects, currentUriStr, this.lastOpenedPath);
 
     this.refreshBranchesAsync();
@@ -424,46 +564,19 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     if (!input) return;
 
-    let targetUriStr = '';
-    let repoFullName = '';
-    let platform: 'github' | 'gitlab' = 'github';
-    let customDomain = '';
+    const parsed = this.parseRemoteUrlInput(input);
 
-    const trimmedInput = input.trim();
-    const urlMatch = trimmedInput.match(/^(?:https?:\/\/|git@)([^/:]+)[:\/](.+?)(\.git)?$/);
-    const simpleRepoMatch = trimmedInput.match(/^([^/]+\/[^/]+)$/);
-
-    if (urlMatch) {
-      customDomain = urlMatch[1];
-      repoFullName = urlMatch[2];
-
-      if (customDomain === 'github.com') {
-        platform = 'github';
-        targetUriStr = `vscode-vfs://github/${repoFullName}`;
-        customDomain = '';
-      } else if (customDomain === 'gitlab.com') {
-        platform = 'gitlab';
-        targetUriStr = `vscode-vfs://gitlab/${repoFullName}`;
-        customDomain = '';
-      } else {
-        platform = customDomain.includes('gitlab') ? 'gitlab' : 'github';
-        targetUriStr = trimmedInput.startsWith('http') ? trimmedInput.replace(/\.git$/, '') : `https://${customDomain}/${repoFullName}`;
-      }
-    } else if (simpleRepoMatch) {
-      repoFullName = simpleRepoMatch[1];
-      platform = 'github';
-      targetUriStr = `vscode-vfs://github/${repoFullName}`;
-    } else {
+    if (!parsed) {
       vscode.window.showErrorMessage('无效的远程地址格式，请提供规范的 Git 地址。');
       return;
     }
 
-    const projectName = await vscode.window.showInputBox({ value: repoFullName.split('/').pop() || repoFullName });
+    const projectName = await vscode.window.showInputBox({ value: parsed.repoFullName.split('/').pop() || parsed.repoFullName });
 
     if (projectName) {
-      await this.insertProjectToHistory(projectName, targetUriStr, platform, customDomain);
+      await this.insertProjectToHistory(projectName, parsed.targetUriStr, parsed.platform, parsed.customDomain);
       const choice = await vscode.window.showInformationMessage(`已添加远程项目 ${projectName}，要现在打开吗？`, '在当前窗口打开', '在新窗口打开');
-      if (choice) this.executeOpen(targetUriStr, choice === '在新窗口打开');
+      if (choice) this.executeOpen(parsed.targetUriStr, choice === '在新窗口打开');
     }
   }
 
