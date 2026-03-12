@@ -16,60 +16,73 @@ export class ClipboardTransformFeature implements IFeature {
       vscode.commands.registerCommand('quick-ops.transformToKebab', () => this.handleTransform('kebab')),
     );
 
-    ColorLog.black(`[${this.id}]`, 'Activated.');
+    ColorLog.black(`[${this.id}]`, 'Selection Transform Activated.');
   }
 
   private async handleTransform(type: 'camel' | 'pascal' | 'constant' | 'firstUpper' | 'lower' | 'kebab') {
-    const text = await vscode.env.clipboard.readText();
+    const editor = vscode.window.activeTextEditor;
 
-    if (!text || !text.trim()) {
-      vscode.window.showWarningMessage('剪贴板为空 (Clipboard is empty)');
+    if (!editor) {
+      vscode.window.showWarningMessage('没有活动的编辑器 (No active editor)');
+      return;
+    }
+
+    // 过滤出真正有选中内容的选区（排除仅仅是光标闪烁没有实际选中文本的情况）
+    const validSelections = editor.selections.filter((selection) => !selection.isEmpty);
+
+    if (validSelections.length === 0) {
+      vscode.window.showWarningMessage('请先选中要转换的英文内容 (No text selected)');
       return;
     }
 
     const validationRegex = /^[a-zA-Z0-9_\-\.\s]+$/;
 
-    if (!validationRegex.test(text)) {
-      vscode.window.showErrorMessage(`类型错误：剪贴板内容包含非法字符（如中文、特殊符号）！`);
-      return;
-    }
-
-    let result = '';
-
-    try {
-      if (type === 'lower') {
-        result = text.toLowerCase();
-      } else if (type === 'firstUpper') {
-        result = upperFirst(text);
-      } else {
-        result = text.replace(/[a-zA-Z0-9_\-\.]+/g, (word) => {
-          if (word === '.') return word;
-
-          switch (type) {
-            case 'camel':
-              return camelCase(word);
-            case 'pascal':
-              return upperFirst(camelCase(word));
-            case 'constant':
-              return snakeCase(word).toUpperCase();
-            case 'kebab':
-              return kebabCase(word);
-            default:
-              return word;
-          }
-        });
+    // 1. 预校验：检查所有选区的内容是否合法
+    for (const selection of validSelections) {
+      const text = editor.document.getText(selection);
+      if (!validationRegex.test(text)) {
+        vscode.window.showErrorMessage(`类型错误：选中内容包含非法字符（如中文、特殊符号）！`);
+        return;
       }
-    } catch (error) {
-      vscode.window.showErrorMessage('转换失败，请检查内容格式');
-      return;
     }
 
-    await vscode.env.clipboard.writeText(result);
+    // 2. 原地替换：使用 editor.edit 修改文档内容
+    await editor.edit((editBuilder) => {
+      for (const selection of validSelections) {
+        const text = editor.document.getText(selection);
+        let result = '';
 
-    const maxLength = 25;
-    const cleanResult = result.replace(/\r?\n/g, '⏎');
-    const displayResult = cleanResult.length > maxLength ? cleanResult.substring(0, maxLength) + '...' : cleanResult;
+        try {
+          if (type === 'lower') {
+            result = text.toLowerCase();
+          } else if (type === 'firstUpper') {
+            result = upperFirst(text);
+          } else {
+            result = text.replace(/[a-zA-Z0-9_\-\.]+/g, (word) => {
+              if (word === '.') return word;
 
-    vscode.window.setStatusBarMessage(`已转换并复制: ${displayResult}`, 3000);
+              switch (type) {
+                case 'camel':
+                  return camelCase(word);
+                case 'pascal':
+                  return upperFirst(camelCase(word));
+                case 'constant':
+                  return snakeCase(word).toUpperCase();
+                case 'kebab':
+                  return kebabCase(word);
+                default:
+                  return word;
+              }
+            });
+          }
+          // 执行替换动作
+          editBuilder.replace(selection, result);
+        } catch (error) {
+          console.error('Transform error:', error);
+        }
+      }
+    });
+
+    vscode.window.setStatusBarMessage(`✅ 选中内容已成功转换为 ${type} 格式`, 3000);
   }
 }

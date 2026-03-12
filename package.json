@@ -193,27 +193,27 @@
       },
       {
         "command": "quick-ops.transformToLower",
-        "title": "剪贴板转全部小写 (Clipboard to lowercase)"
+        "title": "转换选中内容为全部小写 (Selection to lowercase)"
       },
       {
         "command": "quick-ops.transformToCamel",
-        "title": "剪贴板转小驼峰 (Clipboard to camelCase)"
+        "title": "转换选中内容为小驼峰 (Selection to camelCase)"
       },
       {
         "command": "quick-ops.transformToPascal",
-        "title": "剪贴板转大驼峰 (Clipboard to PascalCase)"
+        "title": "转换选中内容为大驼峰 (Selection to PascalCase)"
       },
       {
         "command": "quick-ops.transformToConstant",
-        "title": "剪贴板转全大写常量 (Clipboard to CONSTANT_CASE)"
+        "title": "转换选中内容为全大写常量 (Selection to CONSTANT_CASE)"
       },
       {
         "command": "quick-ops.transformToFirstUpper",
-        "title": "剪贴板首字母大写 (Clipboard to UpperFirst)"
+        "title": "转换选中内容为首字母大写 (Selection to UpperFirst)"
       },
       {
         "command": "quick-ops.transformToKebab",
-        "title": "剪贴板转短横线 (Clipboard to kebab-case)"
+        "title": "转换选中内容为短横线 (Selection to kebab-case)"
       },
       {
         "command": "quick-ops.switchPreviousEditor",
