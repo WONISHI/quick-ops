@@ -116,7 +116,11 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
       const finalDisplayPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
       const searchStr = `${displayTitle} ${p.name} ${finalDisplayPath} ${p.fsPath}`.toLowerCase().replace(/'/g, "\\'");
+      
+      const safeTitleForClick = displayTitle.replace(/'/g, "\\'");
 
+      // 🌟 核心修改：将 onclick="toggleExpand(...)" 从 .tree-chevron 移动到了包裹箭头和标题的父级容器上
+      // 并在容器上增加了 cursor: pointer，使得点击整行左侧区域（包括文字）都能展开
       return `
       <li class="tree-node searchable-item" data-search="${searchStr}">
         <div class="project-item ${justOpenedClass}" 
@@ -124,8 +128,8 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
              oncontextmenu="showContextMenu(event, '${safeFsPath}', ${isRemote}, '${safeProjName}', '${safeCustomName}', '${platformStr}', '${customDomainStr}')"
              title="${isJustOpened ? '刚刚在此窗口中唤起过' : ''}">
           
-          <div class="item-left">
-            <div class="tree-chevron" onclick="toggleExpand('${rootId}', '${safeFsPath}', '${displayTitle.replace(/'/g, "\\'")}', event)">
+          <div class="item-left clickable-expand" onclick="toggleExpand('${rootId}', '${safeFsPath}', '${safeTitleForClick}', event)">
+            <div class="tree-chevron">
               <i id="chevron-right-${rootId}" class="fa-solid fa-chevron-right"></i>
               <i id="chevron-down-${rootId}" class="fa-solid fa-chevron-down" style="display:none"></i>
             </div>
@@ -190,15 +194,19 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         
         .item-left { display: flex; align-items: center; flex: 1; min-width: 0; gap: 3px; }
         
-        .tree-chevron, .chevron-placeholder { width: 14px; height: 20px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-        .tree-chevron { cursor: pointer; color: var(--vscode-icon-foreground); opacity: 0.8; border-radius: 4px; }
-        .tree-chevron:hover { background: var(--vscode-toolbar-hoverBackground); opacity: 1; }
+        /* 🌟 为可点击区域添加样式 */
+        .clickable-expand { cursor: pointer; }
+        /* 鼠标悬浮在文字上时，也让箭头的背景变色，提供统一的交互反馈 */
+        .clickable-expand:hover .tree-chevron { background: var(--vscode-toolbar-hoverBackground); opacity: 1; }
+
+        .tree-chevron, .chevron-placeholder { width: 14px; height: 20px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.2s; }
+        .tree-chevron { color: var(--vscode-icon-foreground); opacity: 0.8; border-radius: 4px; }
         .tree-chevron .fa-solid { font-size: 10px; transition: transform 0.1s; }
 
         .project-icon, .sub-icon { width: 16px; text-align: center; margin-right: 6px; flex-shrink: 0; display: inline-block; font-size: 14px; }
 
-        .info { overflow: hidden; display: flex; flex-direction: column; flex: 1; padding-top: 2px; padding-bottom: 2px; }
-        .title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; }
+        .info { overflow: hidden; display: flex; flex-direction: column; flex: 1; padding-top: 2px; padding-bottom: 2px; pointer-events: none; /* 🌟 让 info 内的元素忽略鼠标事件，统交由 item-left 处理点击和双击 */ }
+        .title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; pointer-events: auto; /* 允许分支tag等内部元素响应事件如果需要 */ }
         .path { font-size: 10px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
         .branch-tag { font-size: 10px; background: rgba(128, 128, 128, 0.15); color: var(--vscode-descriptionForeground); padding: 2px 6px; border-radius: 10px; display: inline-flex; align-items: center; gap: 3px; font-weight: normal; margin-left: 6px; }
@@ -215,9 +223,13 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         .action-btn-icon .fa-solid { font-size: 13px; }
 
         .tree-children { margin-left: 10px; padding-left: 6px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke); }
+        
+        /* 🌟 子文件夹样式调整，支持单击展开 */
         .sub-item { display: flex; align-items: center; padding: 2px 0; font-size: 13px; color: var(--vscode-foreground); cursor: default; }
+        .sub-item.clickable-sub { cursor: pointer; }
+        .sub-item.clickable-sub:hover .tree-chevron { background: var(--vscode-toolbar-hoverBackground); opacity: 1; }
         .sub-item:hover { background-color: var(--vscode-list-hoverBackground); }
-        .sub-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.9;}
+        .sub-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.9; pointer-events: none;}
         
         .file-icon-js { color: #f1e05a; } .file-icon-ts { color: #3178c6; } .file-icon-vue { color: #41b883; }
         .file-icon-html { color: #e34c26; } .file-icon-css { color: #563d7c; } .file-icon-json { color: #cbcb41; }
@@ -318,7 +330,16 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           });
         }
 
-        function openProject(path) { vscode.postMessage({ type: 'openProject', fsPath: path }); }
+        // 🌟 解决单击和双击冲突的问题
+        let clickTimer = null;
+        const DELAY = 250; // 双击判定的延时毫秒数
+
+        function openProject(path) { 
+           // 清除单击定时器，执行双击逻辑
+           clearTimeout(clickTimer);
+           vscode.postMessage({ type: 'openProject', fsPath: path }); 
+        }
+
         function openCurrent(path, event) { event.stopPropagation(); vscode.postMessage({ type: 'openProjectCurrent', fsPath: path }); }
         function addLocal() { vscode.postMessage({ type: 'addLocal' }); }
         function addRemote() { vscode.postMessage({ type: 'addRemote' }); }
@@ -330,34 +351,43 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
         function toggleExpand(id, path, projectName, event) {
           event.stopPropagation();
-          const childrenContainer = document.getElementById('children-' + id);
-          const rightIcon = document.getElementById('chevron-right-' + id);
-          const downIcon = document.getElementById('chevron-down-' + id);
+          
+          // 如果点击的元素是被屏蔽了指针事件的，需要往上找
+          const target = event.currentTarget;
+          
+          // 延迟执行单击展开，防止与双击事件冲突
+          clearTimeout(clickTimer);
+          clickTimer = setTimeout(() => {
+              const childrenContainer = document.getElementById('children-' + id);
+              const rightIcon = document.getElementById('chevron-right-' + id);
+              const downIcon = document.getElementById('chevron-down-' + id);
 
-          if (childrenContainer.style.display === 'none') {
-            rightIcon.style.display = 'none';
-            downIcon.style.display = 'inline-block';
-            childrenContainer.style.display = 'block';
+              if (childrenContainer.style.display === 'none') {
+                rightIcon.style.display = 'none';
+                downIcon.style.display = 'inline-block';
+                childrenContainer.style.display = 'block';
 
-            const isRemote = path.startsWith('vscode-vfs://') || path.startsWith('http');
+                const isRemote = path.startsWith('vscode-vfs://') || path.startsWith('http');
 
-            if (!childrenContainer.hasChildNodes()) {
-              childrenContainer.innerHTML = '<div class="empty-node"><i class="fa-solid fa-spinner fa-spin"></i> 加载中...</div>';
-              vscode.postMessage({ type: 'readDir', id: id, fsPath: path, projectName: projectName });
-            } else if (isRemote) {
-              downIcon.classList.remove('fa-chevron-down');
-              downIcon.classList.add('fa-spinner', 'fa-spin');
-              vscode.postMessage({ type: 'readDir', id: id, fsPath: path, projectName: projectName });
-            }
-          } else {
-            rightIcon.style.display = 'inline-block';
-            downIcon.style.display = 'none';
-            childrenContainer.style.display = 'none';
-          }
+                if (!childrenContainer.hasChildNodes()) {
+                  childrenContainer.innerHTML = '<div class="empty-node"><i class="fa-solid fa-spinner fa-spin"></i> 加载中...</div>';
+                  vscode.postMessage({ type: 'readDir', id: id, fsPath: path, projectName: projectName });
+                } else if (isRemote) {
+                  downIcon.classList.remove('fa-chevron-down');
+                  downIcon.classList.add('fa-spinner', 'fa-spin');
+                  vscode.postMessage({ type: 'readDir', id: id, fsPath: path, projectName: projectName });
+                }
+              } else {
+                rightIcon.style.display = 'inline-block';
+                downIcon.style.display = 'none';
+                childrenContainer.style.display = 'none';
+              }
+          }, DELAY);
         }
 
         function showContextMenu(event, path, isRemote, originalName, customName, platform, customDomain) {
           event.preventDefault();
+          event.stopPropagation(); // 阻止冒泡，避免误触单击事件
           
           activeContextMenuPath = path;
           activeContextMenuPlatform = platform;
@@ -367,7 +397,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           const list = document.getElementById('context-menu-list');
           list.innerHTML = '';
 
-          // 防止拼接 HTML 发生单双引号截断
           const escOriginalName = originalName.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
           const escCustomName = customName ? customName.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'") : '';
           const escPath = path.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
@@ -384,10 +413,8 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
           list.innerHTML += \`<div class="menu-separator"></div>\`;
 
-          // 🌟 核心修改逻辑：区分“文件名”和“项目名”
           list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escOriginalName}')"><i class="fa-regular fa-copy"></i> 复制文件名</li>\`;
           
-          // 如果用户自定义了项目名，才展示复制项目名的选项
           if (customName) {
              list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escCustomName}')"><i class="fa-solid fa-copy"></i> 复制项目名</li>\`;
           }
@@ -433,7 +460,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
             case 'switchBranch':
               vscode.postMessage({ type: 'switchBranch', fsPath: activeContextMenuPath });
               break;
-            // 🌟 合并共用同一个 action 以简化逻辑
             case 'copyText':
               vscode.postMessage({ type: 'copyToClipboard', text: payload });
               break;
@@ -494,24 +520,33 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
                 const childId = message.id + '_' + index;
                 const iconClass = child.isFolder ? 'fa-solid fa-folder icon-closed sub-icon' : getFileIcon(child.name) + ' sub-icon';
                 const safeChildPath = child.path.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
-                const clickAttr = child.isFolder ? '' : 'onclick="openFile(\\'' + safeChildPath + '\\', \\'' + safeProjName + '\\', event)" style="cursor:pointer;" title="点击以只读模式预览"';
                 
-                html += \`
-                  <div class="tree-node">
-                    <div class="sub-item" \${clickAttr}>
-                      \${child.isFolder 
-                        ? \`<div class="tree-chevron" onclick="toggleExpand('\${childId}', '\${safeChildPath}', '\${safeProjName}', event)">
-                            <i id="chevron-right-\${childId}" class="fa-solid fa-chevron-right"></i>
-                            <i id="chevron-down-\${childId}" class="fa-solid fa-chevron-down" style="display:none"></i>
-                           </div>\` 
-                        : \`<div class="chevron-placeholder"></div>\`
-                      }
-                      <i class="\${iconClass}"></i>
-                      <span class="sub-name">\${child.name}</span>
+                // 🌟 核心修改：让子文件夹也能通过单击整行文字区域来展开
+                if(child.isFolder) {
+                   html += \`
+                    <div class="tree-node">
+                      <div class="sub-item clickable-sub" onclick="toggleExpand('\${childId}', '\${safeChildPath}', '\${safeProjName}', event)">
+                        <div class="tree-chevron">
+                          <i id="chevron-right-\${childId}" class="fa-solid fa-chevron-right"></i>
+                          <i id="chevron-down-\${childId}" class="fa-solid fa-chevron-down" style="display:none"></i>
+                        </div>
+                        <i class="\${iconClass}"></i>
+                        <span class="sub-name">\${child.name}</span>
+                      </div>
+                      <div class="tree-children" id="children-\${childId}" style="display:none;"></div>
                     </div>
-                    \${child.isFolder ? \`<div class="tree-children" id="children-\${childId}" style="display:none;"></div>\` : ''}
-                  </div>
-                \`;
+                  \`;
+                } else {
+                   html += \`
+                    <div class="tree-node">
+                      <div class="sub-item" onclick="openFile(\\'' + safeChildPath + '\\', \\'' + safeProjName + '\\', event)" style="cursor:pointer;" title="点击以只读模式预览">
+                        <div class="chevron-placeholder"></div>
+                        <i class="\${iconClass}"></i>
+                        <span class="sub-name">\${child.name}</span>
+                      </div>
+                    </div>
+                  \`;
+                }
               });
               
               container.innerHTML = html;
