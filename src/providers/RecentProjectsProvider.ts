@@ -1,7 +1,7 @@
 // src/providers/RecentProjectsProvider.ts
 import * as vscode from 'vscode';
 import * as https from 'https';
-import { getRecentProjectsHtml } from '../views/RecentProjectsWebview'; 
+import { getRecentProjectsHtml } from '../views/RecentProjectsWebview';
 
 export class ReadOnlyContentProvider implements vscode.TextDocumentContentProvider {
   public onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
@@ -13,13 +13,13 @@ export class ReadOnlyContentProvider implements vscode.TextDocumentContentProvid
     try {
       const targetQuery = uri.query.replace('target=', '');
       const targetUriStr = decodeURIComponent(targetQuery);
-      
+
       if (this.fileCache.has(targetUriStr)) {
         return this.fileCache.get(targetUriStr)!;
       }
 
       const targetUri = vscode.Uri.parse(targetUriStr);
-      
+
       return await vscode.window.withProgress({
         location: vscode.ProgressLocation.Window,
         title: "正在拉取远程文件内容..."
@@ -125,6 +125,24 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'openExternalLink':
           this.openExternalLink(data.fsPath, data.platform, data.customDomain);
           break;
+        case 'revealInExplorer':
+          try {
+            // 1. 极致兼容：无论前端传来的是带有 file:// 的完整 URI，还是纯绝对路径
+            let rawPath = data.fsPath;
+            if (rawPath.startsWith('file://')) {
+               // 剥离 file://，Mac 路径保留 /Users/...，Win 保留 C:/...
+               rawPath = rawPath.replace('file://', ''); 
+            }
+            const uri = vscode.Uri.file(rawPath);
+            const success = await vscode.env.openExternal(uri);
+            
+            if (!success) {
+               vscode.window.showWarningMessage('系统拒绝了打开文件夹的请求');
+            }
+          } catch (e) {
+            vscode.window.showErrorMessage(`打开目录失败: ${e}`);
+          }
+          break;
       }
     });
 
@@ -206,7 +224,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           project.platform = parsed.platform;
           project.customDomain = parsed.customDomain;
           project.branch = undefined; // 换了地址，先清空分支，等待重新拉取
-          
+
           await this.context.globalState.update(this.stateKey, projects);
           this.updateWebview();
           vscode.window.showInformationMessage('远程地址已更新。');
@@ -222,7 +240,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         canSelectMany: false,
         openLabel: '选择新的本地文件夹',
         // 尝试定位到原来的文件夹位置
-        defaultUri: vscode.Uri.parse(project.fsPath) 
+        defaultUri: vscode.Uri.parse(project.fsPath)
       });
 
       if (uri && uri[0]) {
@@ -286,7 +304,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               try {
                 const url = new URL(p.fsPath);
                 repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
-              } catch (e) {}
+              } catch (e) { }
             }
             if (repoFullName) {
               newBranch = await this.fetchDefaultBranch(p.platform || 'github', p.customDomain || '', repoFullName);
@@ -397,7 +415,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         const url = new URL(fsPath);
         domain = url.hostname;
         repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
-      } catch (e) {}
+      } catch (e) { }
     }
 
     if (!repoFullName) return;

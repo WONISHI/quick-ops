@@ -40,7 +40,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
       } else {
         displayPath = currentProject.fsPath.replace('vscode-vfs://github/', 'GitHub: ').replace('vscode-vfs://gitlab/', 'GitLab: ');
       }
-    } catch (e) {}
+    } catch (e) { }
 
     let iconClass = 'fa-solid fa-folder-open';
     if (isRemote) iconClass = isGitlab ? 'fa-brands fa-gitlab' : 'fa-brands fa-github';
@@ -98,7 +98,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         } else {
           displayPath = p.fsPath.replace('vscode-vfs://github/', 'GitHub: ').replace('vscode-vfs://gitlab/', 'GitLab: ');
         }
-      } catch (e) {}
+      } catch (e) { }
 
       let iconClass = isRemote ? (isGitlab ? 'fa-brands fa-gitlab' : 'fa-brands fa-github') : 'fa-solid fa-folder';
       const colorClass = 'icon-closed';
@@ -116,11 +116,9 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
       const finalDisplayPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
       const searchStr = `${displayTitle} ${p.name} ${finalDisplayPath} ${p.fsPath}`.toLowerCase().replace(/'/g, "\\'");
-      
+
       const safeTitleForClick = displayTitle.replace(/'/g, "\\'");
 
-      // 🌟 核心修改：将 onclick="toggleExpand(...)" 从 .tree-chevron 移动到了包裹箭头和标题的父级容器上
-      // 并在容器上增加了 cursor: pointer，使得点击整行左侧区域（包括文字）都能展开
       return `
       <li class="tree-node searchable-item" data-search="${searchStr}">
         <div class="project-item ${justOpenedClass}" 
@@ -194,9 +192,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         
         .item-left { display: flex; align-items: center; flex: 1; min-width: 0; gap: 3px; }
         
-        /* 🌟 为可点击区域添加样式 */
         .clickable-expand { cursor: pointer; }
-        /* 鼠标悬浮在文字上时，也让箭头的背景变色，提供统一的交互反馈 */
         .clickable-expand:hover .tree-chevron { background: var(--vscode-toolbar-hoverBackground); opacity: 1; }
 
         .tree-chevron, .chevron-placeholder { width: 14px; height: 20px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.2s; }
@@ -205,8 +201,8 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
         .project-icon, .sub-icon { width: 16px; text-align: center; margin-right: 6px; flex-shrink: 0; display: inline-block; font-size: 14px; }
 
-        .info { overflow: hidden; display: flex; flex-direction: column; flex: 1; padding-top: 2px; padding-bottom: 2px; pointer-events: none; /* 🌟 让 info 内的元素忽略鼠标事件，统交由 item-left 处理点击和双击 */ }
-        .title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; pointer-events: auto; /* 允许分支tag等内部元素响应事件如果需要 */ }
+        .info { overflow: hidden; display: flex; flex-direction: column; flex: 1; padding-top: 2px; padding-bottom: 2px; pointer-events: none; }
+        .title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; pointer-events: auto; }
         .path { font-size: 10px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
         .branch-tag { font-size: 10px; background: rgba(128, 128, 128, 0.15); color: var(--vscode-descriptionForeground); padding: 2px 6px; border-radius: 10px; display: inline-flex; align-items: center; gap: 3px; font-weight: normal; margin-left: 6px; }
@@ -224,7 +220,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
         .tree-children { margin-left: 10px; padding-left: 6px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke); }
         
-        /* 🌟 子文件夹样式调整，支持单击展开 */
         .sub-item { display: flex; align-items: center; padding: 2px 0; font-size: 13px; color: var(--vscode-foreground); cursor: default; }
         .sub-item.clickable-sub { cursor: pointer; }
         .sub-item.clickable-sub:hover .tree-chevron { background: var(--vscode-toolbar-hoverBackground); opacity: 1; }
@@ -261,9 +256,8 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         <ul id="context-menu-list" style="list-style: none; padding: 0; margin: 0;"></ul>
       </div>
 
-      ${
-        projects.length > 0
-          ? `
+      ${projects.length > 0
+      ? `
       <div class="search-container">
         <div class="search-box">
           <i class="fa-solid fa-magnifying-glass"></i>
@@ -271,32 +265,30 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         </div>
       </div>
       `
-          : ''
-      }
+      : ''
+    }
 
       <div class="list-container">
-        ${
-          projects.length === 0
-            ? `
+        ${projects.length === 0
+      ? `
           <div class="empty-state">
             <div class="empty-text">暂无项目记录，请添加：</div>
             <button class="action-btn" onclick="addLocal()"><i class="fa-solid fa-folder-plus"></i> 添加本地项目</button>
             <button class="action-btn secondary" onclick="addRemote()"><i class="fa-brands fa-github"></i> 添加远程仓库</button>
           </div>
         `
-            : `${currentProjectHtml}<ul>${listHtml}</ul><div id="no-search-results">没有找到匹配的项目...</div>`
-        }
+      : `${currentProjectHtml}<ul>${listHtml}</ul><div id="no-search-results">没有找到匹配的项目...</div>`
+    }
       </div>
-      ${
-        projects.length > 0
-          ? `
+      ${projects.length > 0
+      ? `
         <div class="bottom-bar">
           <button class="action-btn" onclick="addLocal()"><i class="fa-solid fa-folder-plus"></i> 添加本地</button>
           <button class="action-btn secondary" onclick="addRemote()"><i class="fa-brands fa-github"></i> 添加远程</button>
         </div>
       `
-          : ''
-      }
+      : ''
+    }
       
       <script>
         const vscode = acquireVsCodeApi();
@@ -330,12 +322,10 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           });
         }
 
-        // 🌟 解决单击和双击冲突的问题
         let clickTimer = null;
-        const DELAY = 250; // 双击判定的延时毫秒数
+        const DELAY = 250;
 
         function openProject(path) { 
-           // 清除单击定时器，执行双击逻辑
            clearTimeout(clickTimer);
            vscode.postMessage({ type: 'openProject', fsPath: path }); 
         }
@@ -351,11 +341,8 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
         function toggleExpand(id, path, projectName, event) {
           event.stopPropagation();
-          
-          // 如果点击的元素是被屏蔽了指针事件的，需要往上找
           const target = event.currentTarget;
           
-          // 延迟执行单击展开，防止与双击事件冲突
           clearTimeout(clickTimer);
           clickTimer = setTimeout(() => {
               const childrenContainer = document.getElementById('children-' + id);
@@ -385,9 +372,10 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           }, DELAY);
         }
 
+        // ================= 🌟 原本：针对项目根节点的右键菜单 =================
         function showContextMenu(event, path, isRemote, originalName, customName, platform, customDomain) {
           event.preventDefault();
-          event.stopPropagation(); // 阻止冒泡，避免误触单击事件
+          event.stopPropagation();
           
           activeContextMenuPath = path;
           activeContextMenuPlatform = platform;
@@ -423,6 +411,9 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
           if (isRemote) {
             list.innerHTML += \`<li onclick="handleMenuClick('openLink', '\${escPath}')"><i class="fa-solid fa-globe"></i> 在浏览器中打开</li>\`;
+          } else {
+            // 本地项目根节点也可以直接“在访达中显示”
+            list.innerHTML += \`<li onclick="handleMenuClick('revealInExplorer', '\${escPath}')"><i class="fa-regular fa-folder-open"></i> 在访达/资源管理器中显示</li>\`;
           }
 
           list.innerHTML += \`<div class="menu-separator"></div>\`;
@@ -440,10 +431,60 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           menu.style.top = y + 'px';
         }
 
-        document.addEventListener('click', () => {
+        // ================= 🌟 新增：针对子文件/子文件夹的右键菜单 =================
+        function showSubItemContextMenu(event, path, name) {
+          event.preventDefault();
+          event.stopPropagation();
+          
+          activeContextMenuPath = path;
+
+          const menu = document.getElementById('context-menu');
+          const list = document.getElementById('context-menu-list');
+          list.innerHTML = '';
+
+          const escName = name.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
+          const escPath = path.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
+          
+          // 判断是不是远程文件系统
+          const isRemote = path.startsWith('vscode-vfs') || path.startsWith('http');
+
+          list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escName}')"><i class="fa-regular fa-copy"></i> 复制名称</li>\`;
+          list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escPath}')"><i class="fa-solid fa-link"></i> 复制路径</li>\`;
+
+          // 如果是本地的目录或文件，提供在文件管理器中显示的能力
+          if (!isRemote) {
+             list.innerHTML += \`<div class="menu-separator"></div>\`;
+             list.innerHTML += \`<li onclick="handleMenuClick('revealInExplorer', '\${escPath}')"><i class="fa-regular fa-folder-open"></i> 在访达/资源管理器中显示</li>\`;
+          }
+
+          let x = event.pageX;
+          let y = event.pageY;
+          
+          menu.style.display = 'block';
+          if (x + menu.offsetWidth > window.innerWidth) x = window.innerWidth - menu.offsetWidth;
+          if (y + menu.offsetHeight > window.innerHeight) y = window.innerHeight - menu.offsetHeight;
+
+          menu.style.left = x + 'px';
+          menu.style.top = y + 'px';
+        }
+
+        // ================= 🌟 隐藏右键菜单的全局处理 =================
+        function hideContextMenu() {
           const menu = document.getElementById('context-menu');
           if (menu) menu.style.display = 'none';
-        });
+        }
+
+        // 1. 点击 Webview 内部的空白处时隐藏
+        document.addEventListener('click', hideContextMenu);
+
+        // 2. 🌟 核心：Webview 失去焦点时隐藏（即点击了 VS Code 的编辑器、终端、侧边栏等区域）
+        window.addEventListener('blur', hideContextMenu);
+
+        // 3. 体验优化：在列表里滚动鼠标滚轮时，自动隐藏菜单
+        const listContainer = document.querySelector('.list-container');
+        if (listContainer) {
+          listContainer.addEventListener('scroll', hideContextMenu);
+        }
 
         function handleMenuClick(action, payload) {
           document.getElementById('context-menu').style.display = 'none';
@@ -465,6 +506,10 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
               break;
             case 'openLink':
               vscode.postMessage({ type: 'openExternalLink', fsPath: payload, platform: activeContextMenuPlatform, customDomain: activeContextMenuDomain });
+              break;
+            case 'revealInExplorer':
+              console.log(2222)
+              vscode.postMessage({ type: 'revealInExplorer', fsPath: payload });
               break;
             case 'delete':
               vscode.postMessage({ type: 'removeProject', fsPath: activeContextMenuPath });
@@ -521,11 +566,15 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
                 const iconClass = child.isFolder ? 'fa-solid fa-folder icon-closed sub-icon' : getFileIcon(child.name) + ' sub-icon';
                 const safeChildPath = child.path.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
                 
-                // 🌟 核心修改：让子文件夹也能通过单击整行文字区域来展开
+                // 为了防止拼接给 oncontextmenu 时字符串被截断，进行必要的转义
+                const escNameForMenu = child.name.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
+                
                 if(child.isFolder) {
                    html += \`
                     <div class="tree-node">
-                      <div class="sub-item clickable-sub" onclick="toggleExpand('\${childId}', '\${safeChildPath}', '\${safeProjName}', event)">
+                      <div class="sub-item clickable-sub" 
+                           onclick="toggleExpand('\${childId}', '\${safeChildPath}', '\${safeProjName}', event)"
+                           oncontextmenu="showSubItemContextMenu(event, '\${safeChildPath}', '\${escNameForMenu}')">
                         <div class="tree-chevron">
                           <i id="chevron-right-\${childId}" class="fa-solid fa-chevron-right"></i>
                           <i id="chevron-down-\${childId}" class="fa-solid fa-chevron-down" style="display:none"></i>
@@ -539,7 +588,10 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
                 } else {
                    html += \`
                     <div class="tree-node">
-                      <div class="sub-item" onclick="openFile(\\'' + safeChildPath + '\\', \\'' + safeProjName + '\\', event)" style="cursor:pointer;" title="点击以只读模式预览">
+                      <div class="sub-item" 
+                           onclick="openFile(\\'' + safeChildPath + '\\', \\'' + safeProjName + '\\', event)" 
+                           oncontextmenu="showSubItemContextMenu(event, '\${safeChildPath}', '\${escNameForMenu}')"
+                           style="cursor:pointer;" title="点击以只读模式预览">
                         <div class="chevron-placeholder"></div>
                         <i class="\${iconClass}"></i>
                         <span class="sub-name">\${child.name}</span>
