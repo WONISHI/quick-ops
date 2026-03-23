@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { EventEmitter } from 'events';
-import { merge } from 'lodash-es';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { IService } from '../core/interfaces/IService';
@@ -14,18 +13,11 @@ export class ConfigurationService extends EventEmitter implements IService {
   public readonly serviceId = 'ConfigurationService';
   private static _instance: ConfigurationService;
 
-  private readonly _configFileName = '.quickopsrc';
-  private readonly _templateConfigPath = 'resources/template/.quickopsrc.json';
-
-  private _config: ILogrcConfig = {} as ILogrcConfig;
-  private _lastConfig: ILogrcConfig | null = null;
-  private _watcher: vscode.FileSystemWatcher | null = null;
   private _context?: vscode.ExtensionContext;
-
-  private readonly _alwaysIgnoreFiles: string[] = [];
-  private readonly _configFile: string = '.quickopsrc';
-
   private _ignoredAbsolutePaths: Set<string> = new Set();
+
+  // 记录上一次的 ignoreList 以便在配置变化时做 diff 增量处理
+  private _lastIgnoreList: string[] = [];
 
   private constructor() {
     super();
@@ -36,14 +28,36 @@ export class ConfigurationService extends EventEmitter implements IService {
     return this._instance;
   }
 
+  /**
+   * 🌟 核心魔法：实时读取 VS Code 原生设置，并映射为你原有的 ILogrcConfig 接口
+   * 这样其他所有的 Feature 都不需要修改任何代码，依然可以通过 this.configService.config 访问！
+   */
   public get config(): Readonly<ILogrcConfig> {
-    return this._config;
-  }
-
-  public get workspaceConfigUri(): vscode.Uri | null {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (!workspaceFolders || workspaceFolders.length === 0) return null;
-    return vscode.Uri.joinPath(workspaceFolders[0].uri, this._configFileName);
+    const vscodeConfig = vscode.workspace.getConfiguration('quick-ops');
+    return {
+      general: {
+        debug: vscodeConfig.get<boolean>('general.debug'),
+        excludeConfigFiles: vscodeConfig.get<boolean>('general.excludeConfigFiles'),
+        anchorViewMode: vscodeConfig.get<string>('general.anchorViewMode'),
+        mindMapPosition: vscodeConfig.get<string>('general.mindMapPosition'),
+      },
+      logger: {
+        template: vscodeConfig.get<string>('logger.template'),
+        dateFormat: vscodeConfig.get<string>('logger.dateFormat'),
+      },
+      utils: {
+        uuidLength: vscodeConfig.get<number>('utils.uuidLength'),
+      },
+      git: {
+        ignoreList: vscodeConfig.get<string[]>('git.ignoreList') || [],
+      },
+      shells: vscodeConfig.get<string[]>('shells') || [],
+      project: {
+        marks: vscodeConfig.get<any>('project.marks') || {},
+        alias: vscodeConfig.get<any>('project.alias') || {},
+      },
+      snippets: [], // snippets 已经移交工作区内存管理，不再从这里读取
+    } as ILogrcConfig;
   }
 
   public isIgnoredByExtension(filePath: string): boolean {
@@ -54,98 +68,55 @@ export class ConfigurationService extends EventEmitter implements IService {
   public async init(context?: vscode.ExtensionContext): Promise<void> {
     this._context = context;
 
+    // 1. 初始化时同步一次 Git 忽略列表
+    this.handleGitConfiguration().catch((err) => console.error(`[${this.serviceId}] Init load failed:`, err));
+
+    // 2. 🌟 注册原生配置变更监听器
     if (context) {
-      const cachedConfig = context.workspaceState.get<ILogrcConfig>('quickops.config.cache');
-      if (cachedConfig) {
-        this._config = cachedConfig;
-        this._lastConfig = JSON.parse(JSON.stringify(this._config));
-        this.emit('configChanged', this._config);
-        ColorLog.green(`[${this.serviceId}]`, 'Loaded from Workspace Cache instantly.');
-      }
+      context.subscriptions.push(
+        vscode.workspace.onDidChangeConfiguration((e) => {
+          if (e.affectsConfiguration('quick-ops')) {
+            // 触发配置改变事件，通知其他 Feature 刷新
+            this.emit('configChanged', this.config);
+
+            // 如果修改了 ignoreList 或 excludeConfigFiles，重新同步 Git
+            if (e.affectsConfiguration('quick-ops.git.ignoreList') || e.affectsConfiguration('quick-ops.general.excludeConfigFiles')) {
+              this.handleGitConfiguration();
+            }
+          }
+        }),
+      );
+
+      // 注册 Git 隔离文件的高亮装饰器
+      context.subscriptions.push(vscode.window.registerFileDecorationProvider(new GitIgnoreDecorationProvider(this)));
     }
 
-    // 2. 后台静默读取真实配置并覆盖，成功后由 loadConfig 更新缓存以备下次秒开
-    this.loadConfig().catch((err) => console.error(`[${this.serviceId}] Init load failed:`, err));
+    // 为了兼容旧版右键菜单 (让 toggleIgnore 菜单始终显示)
+    vscode.commands.executeCommand('setContext', 'quickOps.context.configMissing', false);
+    vscode.commands.executeCommand('setContext', 'quickOps.context.configState', 'exists');
 
-    this.setupWatcher();
-    this.updateContextKey();
-
-    if (context) {
-      context.subscriptions.push(vscode.window.registerFileDecorationProvider(new LogrcIgnoreDecorationProvider(this)));
-    }
+    ColorLog.green(`[${this.serviceId}]`, 'Native Settings Initialized.');
   }
 
-  public async loadConfig(): Promise<void> {
+  /**
+   * 更新 VS Code 原生设置
+   * @param section 例如 'general.debug' 或 'git.ignoreList'
+   */
+  public async updateConfig(section: string, value: any): Promise<void> {
     try {
-      const defaultConfig = await this.loadInternalConfig();
-      const userConfig = await this.loadUserConfig();
-
-      this._config = merge(defaultConfig, userConfig);
-
-      this.handleGitConfiguration().catch((e) => console.warn(`[${this.serviceId}] Git sync warning:`, e));
-
-      this._lastConfig = JSON.parse(JSON.stringify(this._config));
-      this.emit('configChanged', this._config);
-
-      // 🌟 成功读取最新配置后，同步更新到本地缓存
-      if (this._context) {
-        this._context.workspaceState.update('quickops.config.cache', this._config);
-      }
-    } catch (error) {
-      console.error(`[${this.serviceId}] Error loading config:`, error);
-    }
-  }
-
-  public async updateConfig<K extends keyof ILogrcConfig>(section: K, value: ILogrcConfig[K]): Promise<void> {
-    const configUri = this.workspaceConfigUri;
-
-    if (!configUri || !(await this.pathExists(configUri))) {
-      const create = await vscode.window.showInformationMessage('配置文件 .quickopsrc 不存在，是否立即创建？', '创建', '取消');
-      if (create === '创建') {
-        await this.createDefaultConfig();
-        if (!this.workspaceConfigUri || !(await this.pathExists(this.workspaceConfigUri))) return;
-      } else {
-        return;
-      }
-    }
-
-    const targetUri = this.workspaceConfigUri;
-    if (!targetUri) return;
-
-    try {
-      const content = await this.readFile(targetUri);
-      let currentConfig: any = {};
-      try {
-        currentConfig = JSON.parse(content);
-      } catch (e) {
-        console.warn('Config file parse error, overwriting with new config structure.');
-        currentConfig = {};
-      }
-
-      currentConfig[section] = value;
-      (this._config as any)[section] = value;
-
-      await this.writeFile(targetUri, JSON.stringify(currentConfig, null, 2));
-
-      this.emit('configChanged', this._config);
-
-      if (this._context) {
-        this._context.workspaceState.update('quickops.config.cache', this._config);
-      }
+      const vscodeConfig = vscode.workspace.getConfiguration('quick-ops');
+      // ConfigurationTarget.Workspace 表示优先保存在当前工作区 (.vscode/settings.json)
+      await vscodeConfig.update(section, value, vscode.ConfigurationTarget.Workspace);
     } catch (error: any) {
       vscode.window.showErrorMessage(`更新配置失败: ${error.message}`);
       console.error(`[${this.serviceId}] updateConfig error:`, error);
     }
   }
 
+  /**
+   * 动态添加或移除 Git 忽略文件
+   */
   public async modifyIgnoreList(fileUri: vscode.Uri, type: 'add' | 'remove'): Promise<void> {
-    const configUri = this.workspaceConfigUri;
-
-    if (!configUri || !(await this.pathExists(configUri))) {
-      vscode.window.showErrorMessage('未找到 .quickopsrc 配置文件，请先创建。');
-      return;
-    }
-
     try {
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
       if (!workspaceRoot) return;
@@ -159,178 +130,34 @@ export class ConfigurationService extends EventEmitter implements IService {
         }
       } catch (e) {}
 
-      const content = await this.readFile(configUri);
-      const json = JSON.parse(content);
+      const vscodeConfig = vscode.workspace.getConfiguration('quick-ops');
+      let currentIgnoreList = vscodeConfig.get<string[]>('git.ignoreList') || [];
 
-      if (!json.general) json.general = {};
-      if (!json.git) json.git = {};
-      if (!Array.isArray(json.git.ignoreList)) json.git.ignoreList = [];
-
-      if (relativePath === this._configFile) {
-        json.git.ignoreList = json.git.ignoreList.filter((p: string) => p !== relativePath);
-        json.general.excludeConfigFiles = type === 'add';
-      } else {
-        if (type === 'add') {
-          if (!json.git.ignoreList.includes(relativePath)) {
-            json.git.ignoreList.push(relativePath);
-          } else {
-            return;
-          }
-        } else {
-          json.git.ignoreList = json.git.ignoreList.filter((p: string) => p !== relativePath);
-        }
-      }
-
-      await this.writeFile(configUri, JSON.stringify(json, null, 2));
-
-      const absPath = fileUri.fsPath.replace(/\\/g, '/');
       if (type === 'add') {
-        this._ignoredAbsolutePaths.add(absPath);
+        if (!currentIgnoreList.includes(relativePath)) {
+          currentIgnoreList.push(relativePath);
+        } else {
+          return; // 已存在，无需修改
+        }
       } else {
-        this._ignoredAbsolutePaths.delete(absPath);
+        currentIgnoreList = currentIgnoreList.filter((p) => p !== relativePath);
       }
-      this.emit('configChanged', this._config);
-      if (this._context) this._context.workspaceState.update('quickops.config.cache', this._config);
+
+      // 将更新后的数组写入 VS Code 设置
+      // 这会自动触发 onDidChangeConfiguration，从而去同步底层的 Git info/exclude
+      await vscodeConfig.update('git.ignoreList', currentIgnoreList, vscode.ConfigurationTarget.Workspace);
     } catch (e: any) {
-      vscode.window.showErrorMessage(`更新配置文件失败: ${e.message}`);
-    }
-  }
-
-  public async updateContextKey() {
-    const uri = this.workspaceConfigUri;
-    let exists = false;
-    try {
-      exists = !!uri && (await this.pathExists(uri));
-    } catch (e) {}
-    vscode.commands.executeCommand('setContext', 'quickOps.context.configState', exists ? 'exists' : 'missing');
-  }
-
-  private async loadInternalConfig(): Promise<ILogrcConfig> {
-    if (this._context) {
-      const templateUri = vscode.Uri.joinPath(this._context.extensionUri, this._templateConfigPath);
-      if (await this.pathExists(templateUri)) {
-        try {
-          const content = await this.readFile(templateUri);
-          return JSON.parse(content);
-        } catch (e) {
-          console.error(`[${this.serviceId}] Failed to load template config:`, e);
-        }
-      }
-    }
-    return {} as ILogrcConfig;
-  }
-
-  private async loadUserConfig(): Promise<Partial<ILogrcConfig>> {
-    const uri = this.workspaceConfigUri;
-    if (!uri) return {};
-
-    try {
-      if (!(await this.pathExists(uri))) return {};
-      const content = await this.readFile(uri);
-      if (!content.trim()) return {};
-      return JSON.parse(content);
-    } catch (error) {
-      return {};
-    }
-  }
-
-  private setupWatcher() {
-    if (this._watcher) {
-      this._watcher.dispose();
-    }
-
-    const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-    if (!workspaceFolder) return;
-
-    const pattern = new vscode.RelativePattern(workspaceFolder, this._configFileName);
-    this._watcher = vscode.workspace.createFileSystemWatcher(pattern);
-
-    const syncUIContextInstant = () => {
-      this.updateContextKey();
-    };
-
-    let debounceTimer: NodeJS.Timeout;
-    const reloadDataDebounced = () => {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => {
-        this.loadConfig();
-      }, 300);
-    };
-
-    this._watcher.onDidChange(() => {
-      syncUIContextInstant();
-      reloadDataDebounced();
-    });
-    this._watcher.onDidCreate(() => {
-      syncUIContextInstant();
-      reloadDataDebounced();
-    });
-    this._watcher.onDidDelete(() => {
-      syncUIContextInstant();
-      reloadDataDebounced();
-    });
-
-    if (this._context) {
-      this._context.subscriptions.push(this._watcher);
-
-      this._context.subscriptions.push(
-        vscode.workspace.onDidDeleteFiles((e) => {
-          if (e.files.some((f) => path.basename(f.fsPath) === this._configFileName)) {
-            syncUIContextInstant();
-            reloadDataDebounced();
-          }
-        }),
-        vscode.workspace.onDidCreateFiles((e) => {
-          if (e.files.some((f) => path.basename(f.fsPath) === this._configFileName)) {
-            syncUIContextInstant();
-            reloadDataDebounced();
-          }
-        }),
-      );
-    }
-  }
-
-  public async createDefaultConfig(): Promise<void> {
-    const targetUri = this.workspaceConfigUri;
-    if (!targetUri) {
-      vscode.window.showErrorMessage('Quick Ops: 请先打开一个文件夹。');
-      return;
-    }
-
-    if (await this.pathExists(targetUri)) {
-      const doc = await vscode.workspace.openTextDocument(targetUri);
-      await vscode.window.showTextDocument(doc);
-      return;
-    }
-
-    try {
-      let contentToWrite = '{}';
-      if (this._context) {
-        const templateUri = vscode.Uri.joinPath(this._context.extensionUri, this._templateConfigPath);
-        if (await this.pathExists(templateUri)) {
-          contentToWrite = await this.readFile(templateUri);
-        }
-      }
-
-      await this.writeFile(targetUri, contentToWrite);
-      vscode.window.showInformationMessage(`✨ 已创建 ${this._configFileName}`);
-
-      await this.updateContextKey();
-      await this.loadConfig();
-
-      const doc = await vscode.workspace.openTextDocument(targetUri);
-      await vscode.window.showTextDocument(doc);
-    } catch (error: any) {
-      vscode.window.showErrorMessage(`创建配置文件失败: ${error.message}`);
+      vscode.window.showErrorMessage(`更新 Git 忽略列表失败: ${e.message}`);
     }
   }
 
   public dispose(): void {
-    if (this._watcher) {
-      this._watcher.dispose();
-    }
     this.removeAllListeners();
   }
+
+  // ============================================================================
+  // 以下是 Git 底层 `info/exclude` 以及 `skip-worktree` 的核心同步逻辑 (保持原有强大能力)
+  // ============================================================================
 
   private async handleGitConfiguration() {
     try {
@@ -339,26 +166,24 @@ export class ConfigurationService extends EventEmitter implements IService {
 
       const currentFilesToIgnore = new Set<string>();
 
-      this._alwaysIgnoreFiles.forEach((f) => currentFilesToIgnore.add(f));
+      // 读取当前最新的 settings 配置
+      const ignoreList = this.config.git?.ignoreList || [];
+      ignoreList.forEach((f) => currentFilesToIgnore.add(f));
 
-      if (this._config.general?.excludeConfigFiles) currentFilesToIgnore.add(this._configFile);
-
-      if (this._config.git?.ignoreList && Array.isArray(this._config.git.ignoreList)) {
-        this._config.git.ignoreList.forEach((f) => currentFilesToIgnore.add(f));
+      // 如果用户勾选了屏蔽配置文件，则将 VS Code 的 settings.json 等加入幽灵忽略
+      if (this.config.general?.excludeConfigFiles) {
+        currentFilesToIgnore.add('.vscode/settings.json');
+        currentFilesToIgnore.add('.vscode/extensions.json');
       }
 
+      // 更新内存中的绝对路径 Set，供 Decoration UI 高亮使用
       this._ignoredAbsolutePaths.clear();
       for (const relativePath of currentFilesToIgnore) {
         const absPath = path.join(workspaceRoot, relativePath).replace(/\\/g, '/');
         this._ignoredAbsolutePaths.add(absPath);
       }
 
-      const lastFilesToIgnore = new Set<string>();
-      if (this._lastConfig) {
-        this._alwaysIgnoreFiles.forEach((f) => lastFilesToIgnore.add(f));
-        if (this._lastConfig.general?.excludeConfigFiles) lastFilesToIgnore.add(this._configFile);
-        if (this._lastConfig.git?.ignoreList) this._lastConfig.git.ignoreList.forEach((f) => lastFilesToIgnore.add(f));
-      }
+      const lastFilesToIgnore = new Set<string>(this._lastIgnoreList);
 
       const toAdd = [...currentFilesToIgnore].filter((x) => !lastFilesToIgnore.has(x));
       const toRemove = [...lastFilesToIgnore].filter((x) => !currentFilesToIgnore.has(x));
@@ -366,6 +191,9 @@ export class ConfigurationService extends EventEmitter implements IService {
       if (toAdd.length > 0 || toRemove.length > 0) {
         await this.batchProcessIgnoreFiles(toAdd, toRemove, workspaceRoot);
       }
+
+      // 更新上一次的缓存
+      this._lastIgnoreList = Array.from(currentFilesToIgnore);
     } catch (e) {
       console.warn(`[${this.serviceId}] Git config sync failed:`, e);
     }
@@ -373,8 +201,10 @@ export class ConfigurationService extends EventEmitter implements IService {
 
   private async batchProcessIgnoreFiles(filesToAdd: string[], filesToRemove: string[], cwd: string) {
     try {
+      // 1. 修改 .git/info/exclude
       await this.batchUpdateGitInfoExclude(filesToAdd, filesToRemove, cwd);
 
+      // 2. 如果文件已经被 Git 追踪过，强制执行 skip-worktree，让修改在工作区隐身
       if (filesToAdd.length > 0) {
         const trackedToAdd = await this.filterTrackedFiles(filesToAdd, cwd);
         if (trackedToAdd.length > 0) {
@@ -382,6 +212,7 @@ export class ConfigurationService extends EventEmitter implements IService {
         }
       }
 
+      // 3. 如果移除了忽略，恢复文件的追踪状态
       if (filesToRemove.length > 0) {
         const trackedToRemove = await this.filterTrackedFiles(filesToRemove, cwd);
         if (trackedToRemove.length > 0) {
@@ -414,14 +245,14 @@ export class ConfigurationService extends EventEmitter implements IService {
 
       let content = '';
       if (await this.pathExists(excludeUri)) {
-        content = await this.readFile(excludeUri);
+        const uint8Array = await vscode.workspace.fs.readFile(excludeUri);
+        content = Buffer.from(uint8Array).toString('utf-8');
       }
 
       let lines = content.split(/\r?\n/).filter((line) => line.trim() !== '');
       const originalCount = lines.length;
 
       const toRemoveSet = new Set(toRemove.map((p) => p.replace(/\\/g, '/')));
-
       lines = lines.filter((line) => !toRemoveSet.has(line));
 
       toAdd.forEach((file) => {
@@ -432,7 +263,8 @@ export class ConfigurationService extends EventEmitter implements IService {
       });
 
       if (lines.length !== originalCount || toRemove.length > 0) {
-        await this.writeFile(excludeUri, lines.join('\n') + '\n');
+        const uint8Array = Buffer.from(lines.join('\n') + '\n', 'utf-8');
+        await vscode.workspace.fs.writeFile(excludeUri, uint8Array);
       }
     } catch (e) {
       console.warn('Failed to batch update git info/exclude', e);
@@ -478,19 +310,12 @@ export class ConfigurationService extends EventEmitter implements IService {
       return false;
     }
   }
-
-  private async readFile(uri: vscode.Uri): Promise<string> {
-    const uint8Array = await vscode.workspace.fs.readFile(uri);
-    return Buffer.from(uint8Array).toString('utf-8');
-  }
-
-  private async writeFile(uri: vscode.Uri, content: string): Promise<void> {
-    const uint8Array = Buffer.from(content, 'utf-8');
-    await vscode.workspace.fs.writeFile(uri, uint8Array);
-  }
 }
 
-class LogrcIgnoreDecorationProvider implements vscode.FileDecorationProvider {
+/**
+ * 用于将 Git 幽灵隔离的文件在资源管理器中染成灰色并打上 IG 标签
+ */
+class GitIgnoreDecorationProvider implements vscode.FileDecorationProvider {
   private _onDidChangeFileDecorations = new vscode.EventEmitter<vscode.Uri | vscode.Uri[] | undefined>();
   public readonly onDidChangeFileDecorations = this._onDidChangeFileDecorations.event;
 
@@ -504,7 +329,7 @@ class LogrcIgnoreDecorationProvider implements vscode.FileDecorationProvider {
     if (this.configService.isIgnoredByExtension(uri.fsPath)) {
       return {
         badge: 'IG',
-        tooltip: '该文件已被 QuickOps Git隔离 功能忽略',
+        tooltip: '该文件已被 QuickOps Git隔离功能 忽略',
         color: new vscode.ThemeColor('gitDecoration.ignoredResourceForeground'),
         propagate: false,
       };

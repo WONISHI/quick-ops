@@ -42,6 +42,98 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "Quick Ops 设置",
+      "properties": {
+        "quick-ops.general.debug": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否开启调试模式"
+        },
+        "quick-ops.general.excludeConfigFiles": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否将配置文件添加到 Git 忽略列表中"
+        },
+        "quick-ops.general.anchorViewMode": {
+          "type": "string",
+          "enum": [
+            "mindmap",
+            "menu",
+            "list"
+          ],
+          "default": "mindmap",
+          "description": "锚点视图的展示模式 (思维导图或列表菜单)"
+        },
+        "quick-ops.general.mindMapPosition": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right"
+          ],
+          "default": "right",
+          "description": "思维导图视图在编辑器中打开的位置"
+        },
+        "quick-ops.general.excludeTelemetryFile": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否将 telemetry 文件添加到 Git 忽略列表中"
+        },
+        "quick-ops.logger.template": {
+          "type": "string",
+          "default": "[icon]-[~/^/^/name]-[line]-[$0]",
+          "description": "快捷日志输出的模板格式"
+        },
+        "quick-ops.logger.dateFormat": {
+          "type": "string",
+          "default": "YYYY-MM-DD HH:mm:ss",
+          "description": "日志输出的时间格式"
+        },
+        "quick-ops.utils.uuidLength": {
+          "type": "number",
+          "default": 12,
+          "description": "生成的 UUID 长度"
+        },
+        "quick-ops.git.ignoreList": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Git 幽灵隔离的文件/目录列表"
+        },
+        "quick-ops.shells": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "预定义的 Shell 快捷脚本列表"
+        },
+        "quick-ops.project.marks": {
+          "type": "object",
+          "default": {
+            "@FIXME": {
+              "backgroundColor": "#9c27b0",
+              "color": "#fff",
+              "borderRadius": "2px"
+            },
+            "@OPTIMIZE": {
+              "backgroundColor": "#00bcd4",
+              "color": "#fff"
+            }
+          },
+          "description": "自定义代码高亮标记的样式配置"
+        },
+        "quick-ops.project.alias": {
+          "type": "object",
+          "default": {
+            "@/": "./src/"
+          },
+          "description": "项目路径别名映射 (用于正确解析文件跳转)"
+        }
+      }
+    },
     "languages": [
       {
         "id": "json",
@@ -152,8 +244,9 @@
       },
       {
         "command": "quick-ops.createConfigFile",
-        "title": "创建配置文件 (Create .quickopsrc)",
-        "category": "Quick Ops"
+        "title": "打开设置面板 (Open Settings)",
+        "category": "Quick Ops",
+        "icon": "$(settings-gear)"
       },
       {
         "command": "quick-ops.toggleIgnore",
@@ -337,8 +430,7 @@
       "explorer/context": [
         {
           "command": "quick-ops.createConfigFile",
-          "group": "quickOps@1",
-          "when": "quickOps.context.configState != 'exists'"
+          "group": "quickOps@1"
         },
         {
           "command": "quick-ops.toggleIgnore",
