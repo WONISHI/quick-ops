@@ -166,17 +166,10 @@ export class ConfigurationService extends EventEmitter implements IService {
 
       const currentFilesToIgnore = new Set<string>();
 
-      // 读取当前最新的 settings 配置
+      // 现在只需要单纯地读取用户配置的 ignoreList 即可
       const ignoreList = this.config.git?.ignoreList || [];
       ignoreList.forEach((f) => currentFilesToIgnore.add(f));
 
-      // 如果用户勾选了屏蔽配置文件，则将 VS Code 的 settings.json 等加入幽灵忽略
-      if (this.config.general?.excludeConfigFiles) {
-        currentFilesToIgnore.add('.vscode/settings.json');
-        currentFilesToIgnore.add('.vscode/extensions.json');
-      }
-
-      // 更新内存中的绝对路径 Set，供 Decoration UI 高亮使用
       this._ignoredAbsolutePaths.clear();
       for (const relativePath of currentFilesToIgnore) {
         const absPath = path.join(workspaceRoot, relativePath).replace(/\\/g, '/');
@@ -192,7 +185,6 @@ export class ConfigurationService extends EventEmitter implements IService {
         await this.batchProcessIgnoreFiles(toAdd, toRemove, workspaceRoot);
       }
 
-      // 更新上一次的缓存
       this._lastIgnoreList = Array.from(currentFilesToIgnore);
     } catch (e) {
       console.warn(`[${this.serviceId}] Git config sync failed:`, e);

@@ -50,17 +50,11 @@
           "default": true,
           "description": "是否开启调试模式"
         },
-        "quick-ops.general.excludeConfigFiles": {
-          "type": "boolean",
-          "default": false,
-          "description": "是否将配置文件添加到 Git 忽略列表中"
-        },
         "quick-ops.general.anchorViewMode": {
           "type": "string",
           "enum": [
             "mindmap",
-            "menu",
-            "list"
+            "menu"
           ],
           "default": "mindmap",
           "description": "锚点视图的展示模式 (思维导图或列表菜单)"
@@ -74,24 +68,57 @@
           "default": "right",
           "description": "思维导图视图在编辑器中打开的位置"
         },
-        "quick-ops.general.excludeTelemetryFile": {
-          "type": "boolean",
-          "default": true,
-          "description": "是否将 telemetry 文件添加到 Git 忽略列表中"
-        },
         "quick-ops.logger.template": {
           "type": "string",
           "default": "[icon]-[~/^/^/name]-[line]-[$0]",
+          "enum": [
+            "[icon]-[~/^/^/name]-[line]-[$0]",
+            "🚀 [name]-[line] : [$0]",
+            "[$time] [name]-[line] -> [$0]",
+            "[$0]"
+          ],
+          "enumItemLabels": [
+            "默认 (带图标、路径、文件名和行号)",
+            "简洁 (仅表情符号、文件名和行号)",
+            "带时间戳 (时间、文件名和行号)",
+            "极简 (仅输出变量本身)"
+          ],
           "description": "快捷日志输出的模板格式"
         },
         "quick-ops.logger.dateFormat": {
           "type": "string",
           "default": "YYYY-MM-DD HH:mm:ss",
+          "enum": [
+            "YYYY-MM-DD HH:mm:ss",
+            "YYYY/MM/DD HH:mm:ss",
+            "MM-DD HH:mm:ss",
+            "HH:mm:ss"
+          ],
+          "enumItemLabels": [
+            "完整日期和时间 (2024-05-20 14:30:00)",
+            "斜杠分隔日期 (2024/05/20 14:30:00)",
+            "短日期和时间 (05-20 14:30:00)",
+            "仅显示时间 (14:30:00)"
+          ],
           "description": "日志输出的时间格式"
         },
         "quick-ops.utils.uuidLength": {
           "type": "number",
           "default": 12,
+          "enum": [
+            8,
+            12,
+            16,
+            21,
+            32
+          ],
+          "enumItemLabels": [
+            "8位 (短 ID)",
+            "12位 (默认)",
+            "16位 (中等)",
+            "21位 (NanoID 标准长度)",
+            "32位 (长 ID / UUID)"
+          ],
           "description": "生成的 UUID 长度"
         },
         "quick-ops.git.ignoreList": {
@@ -177,6 +204,13 @@
         }
       ]
     },
+    "submenus": [
+      {
+        "id": "quick-ops.explorerSubmenu",
+        "label": "Quick Ops",
+        "icon": "$(zap)"
+      }
+    ],
     "commands": [
       {
         "command": "quickOps.addRecentProject",
@@ -441,6 +475,10 @@
           "command": "quick-ops.generateStyleStructure",
           "group": "quickOps@2",
           "when": "resourceLangId == vue || resourceLangId == html || resourceLangId == javascriptreact || resourceLangId == typescriptreact"
+        },
+        {
+          "submenu": "quick-ops.explorerSubmenu",
+          "group": "7_modification"
         }
       ],
       "editor/context": [
