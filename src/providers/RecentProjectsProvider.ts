@@ -20,16 +20,18 @@ export class ReadOnlyContentProvider implements vscode.TextDocumentContentProvid
 
       const targetUri = vscode.Uri.parse(targetUriStr);
 
-      return await vscode.window.withProgress({
-        location: vscode.ProgressLocation.Window,
-        title: "正在拉取远程文件内容..."
-      }, async () => {
-        const contentBytes = await vscode.workspace.fs.readFile(targetUri);
-        const content = Buffer.from(contentBytes).toString('utf8');
-        this.fileCache.set(targetUriStr, content);
-        return content;
-      });
-
+      return await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Window,
+          title: '正在拉取远程文件内容...',
+        },
+        async () => {
+          const contentBytes = await vscode.workspace.fs.readFile(targetUri);
+          const content = Buffer.from(contentBytes).toString('utf8');
+          this.fileCache.set(targetUriStr, content);
+          return content;
+        },
+      );
     } catch (e) {
       return `/* 无法读取该文件内容。可能是由于网络不佳或触发了 API 请求频率限制。\n   详情：${e} */`;
     }
@@ -69,6 +71,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.recordCurrentProject();
   }
 
+  public refresh() {
+    this.updateWebview();
+  }
+
   public resolveWebviewView(webviewView: vscode.WebviewView, context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken) {
     this._view = webviewView;
 
@@ -79,6 +85,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
+        case 'refresh':
+          this.refresh();
+          break;
         case 'openProject':
           this.openProject(data.fsPath);
           break;
@@ -88,7 +97,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           break;
         }
         case 'openInNewWindow': {
-          // 🌟 监听：在新窗口打开
           const projNew = this.getRecentProjects().find((p) => p.fsPath === data.fsPath);
           this.executeOpen(data.fsPath, true, projNew?.branch);
           break;
@@ -103,7 +111,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           this.addRemoteProject();
           break;
         case 'changeAddress':
-          // 🌟 监听：更换地址
           this.changeProjectAddress(data.fsPath);
           break;
         case 'switchBranch':
@@ -130,14 +137,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             // 1. 极致兼容：无论前端传来的是带有 file:// 的完整 URI，还是纯绝对路径
             let rawPath = data.fsPath;
             if (rawPath.startsWith('file://')) {
-               // 剥离 file://，Mac 路径保留 /Users/...，Win 保留 C:/...
-               rawPath = rawPath.replace('file://', ''); 
+              // 剥离 file://，Mac 路径保留 /Users/...，Win 保留 C:/...
+              rawPath = rawPath.replace('file://', '');
             }
             const uri = vscode.Uri.file(rawPath);
             const success = await vscode.env.openExternal(uri);
-            
+
             if (!success) {
-               vscode.window.showWarningMessage('系统拒绝了打开文件夹的请求');
+              vscode.window.showWarningMessage('系统拒绝了打开文件夹的请求');
             }
           } catch (e) {
             vscode.window.showErrorMessage(`打开目录失败: ${e}`);
@@ -240,7 +247,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         canSelectMany: false,
         openLabel: '选择新的本地文件夹',
         // 尝试定位到原来的文件夹位置
-        defaultUri: vscode.Uri.parse(project.fsPath)
+        defaultUri: vscode.Uri.parse(project.fsPath),
       });
 
       if (uri && uri[0]) {
@@ -304,7 +311,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               try {
                 const url = new URL(p.fsPath);
                 repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
-              } catch (e) { }
+              } catch (e) {}
             }
             if (repoFullName) {
               newBranch = await this.fetchDefaultBranch(p.platform || 'github', p.customDomain || '', repoFullName);
@@ -415,7 +422,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         const url = new URL(fsPath);
         domain = url.hostname;
         repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
-      } catch (e) { }
+      } catch (e) {}
     }
 
     if (!repoFullName) return;
