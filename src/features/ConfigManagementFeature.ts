@@ -9,12 +9,14 @@ export class ConfigManagementFeature implements IFeature {
   constructor(private configService: ConfigurationService = ConfigurationService.getInstance()) {}
 
   public activate(context: vscode.ExtensionContext): void {
-    // 创建配置文件命令
-    const createCmd = vscode.commands.registerCommand('quick-ops.createConfigFile', () => {
-      this.configService.createDefaultConfig();
+    // 🌟 核心修改 1：不再创建物理文件，而是直接打开 VS Code 的原生设置面板并定位到 quick-ops！
+    const openSettingsCmd = vscode.commands.registerCommand('quick-ops.createConfigFile', () => {
+      // 打开原生设置 UI，并自动搜索 quick-ops
+      vscode.commands.executeCommand('workbench.action.openSettings', 'quick-ops');
+      vscode.window.showInformationMessage('✨ Quick Ops 现已升级为 VS Code 原生配置，请直接在此面板中修改。');
     });
 
-    // 🌟 核心：合并为一个智能 Toggle 命令。优先接收右键选中的文件 uri，支持多选
+    // 🌟 核心修改 2：Toggle 命令底层已被 ConfigurationService 接管，逻辑保持不变
     const toggleIgnoreCmd = vscode.commands.registerCommand('quick-ops.toggleIgnore', async (uri: vscode.Uri, selectedUris?: vscode.Uri[]) => {
       // 1. 获取目标文件列表（优先使用多选，其次右键单选，最后兜底当前激活的编辑器）
       let targets: vscode.Uri[] = [];
@@ -46,14 +48,14 @@ export class ConfigManagementFeature implements IFeature {
 
       // 4. 给出明确的操作反馈，用户不需要看菜单名字，看弹窗就知道做了什么
       if (targets.length === 1) {
-        const actionMsg = removedCount > 0 ? '已从 QuickOps 忽略列表中移除' : '已添加到 QuickOps 忽略列表';
+        const actionMsg = removedCount > 0 ? '已从 QuickOps Git 隔离列表中移除' : '已添加到 QuickOps Git 隔离列表';
         vscode.window.showInformationMessage(`✨ ${actionMsg}`);
       } else {
         vscode.window.showInformationMessage(`✨ 已批量处理 ${targets.length} 个文件`);
       }
     });
 
-    context.subscriptions.push(createCmd, toggleIgnoreCmd);
+    context.subscriptions.push(openSettingsCmd, toggleIgnoreCmd);
 
     // 3. 监听编辑器变化，更新上下文 (主要用于 Editor Title 按钮的高亮显示等)
     context.subscriptions.push(

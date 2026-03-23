@@ -40,21 +40,18 @@ export class DebugConsoleFeature implements IFeature {
       }),
     );
 
-    // 3. 监听自定义配置文件 .quickopsrc 的变化
-    const configWatcher = vscode.workspace.createFileSystemWatcher('**/.quickopsrc');
-    configWatcher.onDidChange(() => this.checkConfigAndToggle());
-    configWatcher.onDidCreate(() => this.checkConfigAndToggle());
-    configWatcher.onDidDelete(() => this.checkConfigAndToggle());
-    context.subscriptions.push(configWatcher);
+    // 3. 🌟 修复：监听全局配置的变化 (不再监听物理文件)
+    this.configService.on('configChanged', () => {
+      this.checkConfigAndToggle();
+    });
 
     // 4. 初始化
     this.checkConfigAndToggle();
     this.hijackConsole();
   }
 
-  // 检查配置并控制显示/隐藏
-  private async checkConfigAndToggle() {
-    await this.configService.loadConfig();
+  // 🌟 修复：直接读取内存中的原生配置，无需 async 和 loadConfig
+  private checkConfigAndToggle() {
     const isDebug = this.configService.config.general?.debug === true;
 
     if (isDebug) {
@@ -65,7 +62,7 @@ export class DebugConsoleFeature implements IFeature {
     }
   }
 
-  // 🌟 核心：绘制“迷你控制面板”形式的 Hover 悬浮菜单
+  // 核心：绘制“迷你控制面板”形式的 Hover 悬浮菜单
   private updateTooltip() {
     const md = new vscode.MarkdownString();
     md.isTrusted = true; // 允许执行命令
