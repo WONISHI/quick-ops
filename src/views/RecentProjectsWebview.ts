@@ -1,4 +1,3 @@
-// src/views/RecentProjectsWebview.ts
 import * as vscode from 'vscode';
 import { RecentProject } from '../providers/RecentProjectsProvider';
 
@@ -40,7 +39,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
       } else {
         displayPath = currentProject.fsPath.replace('vscode-vfs://github/', 'GitHub: ').replace('vscode-vfs://gitlab/', 'GitLab: ');
       }
-    } catch (e) { }
+    } catch (e) {}
 
     let iconClass = 'fa-solid fa-folder-open';
     if (isRemote) iconClass = isGitlab ? 'fa-brands fa-gitlab' : 'fa-brands fa-github';
@@ -98,7 +97,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         } else {
           displayPath = p.fsPath.replace('vscode-vfs://github/', 'GitHub: ').replace('vscode-vfs://gitlab/', 'GitLab: ');
         }
-      } catch (e) { }
+      } catch (e) {}
 
       let iconClass = isRemote ? (isGitlab ? 'fa-brands fa-gitlab' : 'fa-brands fa-github') : 'fa-solid fa-folder';
       const colorClass = 'icon-closed';
@@ -256,8 +255,9 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         <ul id="context-menu-list" style="list-style: none; padding: 0; margin: 0;"></ul>
       </div>
 
-      ${projects.length > 0
-      ? `
+      ${
+        projects.length > 0
+          ? `
       <div class="search-container">
         <div class="search-box">
           <i class="fa-solid fa-magnifying-glass"></i>
@@ -265,30 +265,32 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         </div>
       </div>
       `
-      : ''
-    }
+          : ''
+      }
 
       <div class="list-container">
-        ${projects.length === 0
-      ? `
+        ${
+          projects.length === 0
+            ? `
           <div class="empty-state">
             <div class="empty-text">暂无项目记录，请添加：</div>
             <button class="action-btn" onclick="addLocal()"><i class="fa-solid fa-folder-plus"></i> 添加本地项目</button>
             <button class="action-btn secondary" onclick="addRemote()"><i class="fa-brands fa-github"></i> 添加远程仓库</button>
           </div>
         `
-      : `${currentProjectHtml}<ul>${listHtml}</ul><div id="no-search-results">没有找到匹配的项目...</div>`
-    }
+            : `${currentProjectHtml}<ul>${listHtml}</ul><div id="no-search-results">没有找到匹配的项目...</div>`
+        }
       </div>
-      ${projects.length > 0
-      ? `
+      ${
+        projects.length > 0
+          ? `
         <div class="bottom-bar">
           <button class="action-btn" onclick="addLocal()"><i class="fa-solid fa-folder-plus"></i> 添加本地</button>
           <button class="action-btn secondary" onclick="addRemote()"><i class="fa-brands fa-github"></i> 添加远程</button>
         </div>
       `
-      : ''
-    }
+          : ''
+      }
       
       <script>
         const vscode = acquireVsCodeApi();
@@ -508,7 +510,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
               vscode.postMessage({ type: 'openExternalLink', fsPath: payload, platform: activeContextMenuPlatform, customDomain: activeContextMenuDomain });
               break;
             case 'revealInExplorer':
-              console.log(2222)
               vscode.postMessage({ type: 'revealInExplorer', fsPath: payload });
               break;
             case 'delete':
