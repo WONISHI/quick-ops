@@ -35,10 +35,7 @@
     "url": "https://github.com/WONISHI/quick-ops.git"
   },
   "activationEvents": [
-    "onLanguage:vue",
-    "onLanguage:html",
-    "onLanguage:javascriptreact",
-    "onLanguage:typescriptreact"
+    "onLanguage"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -463,6 +460,12 @@
       ],
       "explorer/context": [
         {
+          "submenu": "quick-ops.explorerSubmenu",
+          "group": "7_modification"
+        }
+      ],
+      "quick-ops.explorerSubmenu": [
+        {
           "command": "quick-ops.createConfigFile",
           "group": "quickOps@1"
         },
@@ -475,10 +478,6 @@
           "command": "quick-ops.generateStyleStructure",
           "group": "quickOps@2",
           "when": "resourceLangId == vue || resourceLangId == html || resourceLangId == javascriptreact || resourceLangId == typescriptreact"
-        },
-        {
-          "submenu": "quick-ops.explorerSubmenu",
-          "group": "7_modification"
         }
       ],
       "editor/context": [
@@ -496,7 +495,7 @@
       ]
     }
   },
-  "scripts": {
+"scripts": {
     "build": "npx vsce package --no-yarn --no-dependencies",
     "vscode:prepublish": "pnpm run package",
     "compile": "tsc -p ./",

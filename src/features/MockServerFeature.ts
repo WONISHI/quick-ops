@@ -28,10 +28,15 @@ export class MockServerFeature implements IFeature {
       vscode.commands.registerCommand('quick-ops.mock.stop', () => this.stopAll()),
     );
 
-    // 🌟 性能优化：延后服务同步，让出主线程给 VS Code 渲染 UI
-    setTimeout(() => {
+    // 🌟 优化 1：监听原生设置变化！如果用户修改了配置，自动同步开启/关闭服务
+    this.configService.on('configChanged', () => {
       this.syncServers();
-    }, 1500);
+    });
+
+    // 🌟 优化 2：直接异步检查状态，干掉死板的 setTimeout。
+    // 如果没有开启的服务，它只会做一次极轻量的数组检查就结束了，开销几乎为 0
+    this.syncServers();
+
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
@@ -81,6 +86,7 @@ export class MockServerFeature implements IFeature {
     let proxies = this.configService.config.proxy || [];
     if (!Array.isArray(proxies)) proxies = [];
 
+    // 1. 停止被禁用或端口被修改的服务
     for (const [proxyId, server] of this.servers.entries()) {
       const conf = proxies.find((c: any) => c.id === proxyId);
 
@@ -91,6 +97,14 @@ export class MockServerFeature implements IFeature {
       }
     }
 
+    // 🌟 优化 3：零开销防线。如果没有需要启动的服务，直接 return！绝对不去碰 express
+    const hasEnabled = proxies.some((conf: any) => conf.enabled);
+    if (!hasEnabled) {
+      this.notifyStatusToWebview();
+      return;
+    }
+
+    // 2. 启动需要开启的服务
     for (const conf of proxies) {
       if (conf.enabled && !this.servers.has(conf.id)) {
         if (!conf.port) continue;
@@ -102,7 +116,7 @@ export class MockServerFeature implements IFeature {
   }
 
   private startServerInstance(serverConfig: any) {
-    // 🌟 性能优化：按需加载重量级 Node 服务端依赖
+    // 🌟 按需加载重量级 Node 服务端依赖 (Node 的 require 有极速缓存，多次调用只加载一次，非常安全)
     const express = require('express');
     const cors = require('cors');
     const bodyParser = require('body-parser');

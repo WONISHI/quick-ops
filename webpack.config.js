@@ -89,13 +89,13 @@ const extensionConfig = {
     // @ts-ignore
     ...(!isBuild
       ? [
-          new BundleAnalyzerPlugin({
-            analyzerMode: 'static',
-            openAnalyzer: false,
-            reportFilename: 'bundle-report.html',
-            logLevel: 'error',
-          }),
-        ]
+        new BundleAnalyzerPlugin({
+          analyzerMode: 'static',
+          openAnalyzer: false,
+          reportFilename: 'bundle-report.html',
+          logLevel: 'error',
+        }),
+      ]
       : []),
     // @ts-ignore
     new webpack.IgnorePlugin({

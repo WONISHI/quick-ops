@@ -24,7 +24,7 @@ export class StyleGeneratorFeature implements IFeature {
         try {
           const { StyleStructureParser } = await import('../utils/StyleStructureParser');
           
-          const scssString = StyleStructureParser.parse(text, langId);
+          const scssString = await StyleStructureParser.parse(text, langId);
 
           if (!scssString) {
             vscode.window.showInformationMessage('未找到有效的 HTML/JSX 结构 (需要包含 class 或 id)');

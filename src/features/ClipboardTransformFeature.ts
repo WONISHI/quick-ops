@@ -35,17 +35,6 @@ export class ClipboardTransformFeature implements IFeature {
       return;
     }
 
-    const validationRegex = /^[a-zA-Z0-9_\-\.\s]+$/;
-
-    // 1. 预校验：检查所有选区的内容是否合法
-    for (const selection of validSelections) {
-      const text = editor.document.getText(selection);
-      if (!validationRegex.test(text)) {
-        vscode.window.showErrorMessage(`类型错误：选中内容包含非法字符（如中文、特殊符号）！`);
-        return;
-      }
-    }
-
     // 2. 原地替换：使用 editor.edit 修改文档内容
     await editor.edit((editBuilder) => {
       for (const selection of validSelections) {

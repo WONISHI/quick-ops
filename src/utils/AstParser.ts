@@ -1,11 +1,8 @@
-import { parse as vueParse } from '@vue/compiler-sfc';
-import { parse as babelParse } from '@babel/parser';
-import traverse from '@babel/traverse';
-import * as t from '@babel/types';
+// 🌟 优化 1：使用 type-only import 导入 @babel/types，这在编译为 JS 后会完全消失，零运行时开销！
+import type * as tTypes from '@babel/types';
 import type { ExportItem, ParseResult } from '../core/types/export';
 
 // 缓存 Key 改为 fileUri (字符串) + version (或 content hash)，这里简化为 uri 字符串
-// 为了避免内存无限增长，建议使用 LRU 策略，或者简单的 Map
 const exportsCache = new Map<string, { contentHash: number; result: ParseResult }>();
 const vueNameCache = new Map<string, { contentHash: number; result: string | null }>();
 
@@ -30,10 +27,8 @@ export class AstParser {
    * @param code 文件内容字符串
    */
   public static parseExports(fileKey: string, code: string): ParseResult {
-    // 1. 计算内容哈希
     const currentHash = this.stringHash(code);
 
-    // 2. 检查缓存
     const cached = exportsCache.get(fileKey);
     if (cached && cached.contentHash === currentHash) {
       return cached.result;
@@ -41,6 +36,12 @@ export class AstParser {
 
     // --- 开始解析 ---
     try {
+      // 🌟 优化 2：在这里执行按需引入！只有真正触发解析时，才会加载 Babel
+      const { parse: babelParse } = require('@babel/parser');
+      const traverseModule = require('@babel/traverse');
+      const traverse = traverseModule.default || traverseModule; // 兼容 Babel 默认导出的特殊情况
+      const t = require('@babel/types');
+
       const ast = babelParse(code, {
         sourceType: 'module',
         plugins: ['typescript', 'jsx'],
@@ -50,12 +51,12 @@ export class AstParser {
       const defaultExport: string[] = [];
 
       traverse(ast, {
-        ExportNamedDeclaration(path) {
+        ExportNamedDeclaration(path: any) {
           if (path.node.declaration) {
             const declaration = path.node.declaration;
 
             if (t.isVariableDeclaration(declaration)) {
-              declaration.declarations.forEach((decl) => {
+              declaration.declarations.forEach((decl: any) => {
                 if (t.isIdentifier(decl.id)) {
                   const start = path.node.start ?? 0;
                   const end = path.node.end ?? 0;
@@ -76,7 +77,7 @@ export class AstParser {
             }
           }
         },
-        ExportDefaultDeclaration(path) {
+        ExportDefaultDeclaration(path: any) {
           const decl = path.node.declaration;
           if (t.isIdentifier(decl)) {
             defaultExport.push(decl.name);
@@ -112,6 +113,12 @@ export class AstParser {
     }
 
     try {
+      // 🌟 优化 3：同样在这里按需引入 vueParse 和 Babel
+      const { parse: vueParse } = require('@vue/compiler-sfc');
+      const { parse: babelParse } = require('@babel/parser');
+      const traverseModule = require('@babel/traverse');
+      const traverse = traverseModule.default || traverseModule;
+
       const { descriptor } = vueParse(code);
       let componentName: string | null = null;
 
@@ -121,7 +128,7 @@ export class AstParser {
           plugins: ['typescript', 'jsx'],
         });
         traverse(ast, {
-          CallExpression(path) {
+          CallExpression(path: any) {
             if (path.node.callee.type === 'Identifier' && path.node.callee.name === 'defineOptions' && path.node.arguments.length > 0) {
               const arg = path.node.arguments[0];
               if (arg.type === 'ObjectExpression') {
@@ -139,7 +146,7 @@ export class AstParser {
           plugins: ['typescript', 'jsx'],
         });
         traverse(ast, {
-          ExportDefaultDeclaration(path) {
+          ExportDefaultDeclaration(path: any) {
             const decl = path.node.declaration;
             if (decl.type === 'ObjectExpression') {
               const nameProp = AstParser.findPropertyByName(decl, 'name');
@@ -164,7 +171,8 @@ export class AstParser {
     }
   }
 
-  private static findPropertyByName(node: t.ObjectExpression, keyName: string): string | null {
+  // 🌟 优化 4：这里使用前面仅做类型导入的 tTypes
+  private static findPropertyByName(node: tTypes.ObjectExpression, keyName: string): string | null {
     const prop = node.properties.find((p) => {
       if (p.type !== 'ObjectProperty') return false;
       if (p.key.type === 'Identifier' && p.key.name === keyName) return true;

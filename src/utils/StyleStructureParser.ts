@@ -1,23 +1,20 @@
-import * as cheerio from 'cheerio';
-import { parse } from '@babel/parser';
-import traverse from '@babel/traverse';
 import type { StyleNode } from '../core/types/style-generator';
 
 export class StyleStructureParser {
-  static parse(content: string, languageId: string): string {
+  static async parse(content: string, languageId: string): Promise<string> {
     let nodes: StyleNode[] = [];
 
     if (languageId === 'vue' || languageId === 'html') {
-      nodes = this.parseHtmlOrVue(content, languageId === 'vue');
+      nodes = await this.parseHtmlOrVue(content, languageId === 'vue');
     } else if (languageId === 'javascriptreact' || languageId === 'typescriptreact') {
-      nodes = this.parseJsx(content);
+      nodes = await this.parseJsx(content);
     }
 
     if (nodes.length === 0) return '';
     return this.generateScss(nodes);
   }
 
-  private static parseHtmlOrVue(content: string, isVue: boolean): StyleNode[] {
+  private static async parseHtmlOrVue(content: string, isVue: boolean): Promise<StyleNode[]> {
     let htmlContent = content;
 
     if (isVue) {
@@ -27,13 +24,13 @@ export class StyleStructureParser {
 
     if (!htmlContent.trim()) return [];
 
-    // @ts-ignore
+    const cheerio = require('cheerio');
+    
     const $ = cheerio.load(htmlContent, { xmlMode: false, decodeEntities: false });
     const rootNodes: StyleNode[] = [];
 
-    // 递归函数：返回当前元素及其子孙生成的节点列表
-    // @ts-ignore
-    const traverseFlat = (element: cheerio.Element): StyleNode[] => {
+    // 使用 any 替代原先满篇的 @ts-ignore，让代码更清爽
+    const traverseFlat = (element: any): StyleNode[] => {
       if (element.type !== 'tag') return [];
       const $el = $(element);
 
@@ -46,15 +43,14 @@ export class StyleStructureParser {
         selector += className
           .split(/\s+/)
           .filter(Boolean)
-          .map((c) => `.${c}`)
+          .map((c: string) => `.${c}`)
           .join('');
       }
 
       // 递归获取所有子节点的 StyleNode
       const childStyleNodes: StyleNode[] = [];
-      $el.children().each((_, child) => {
-        // @ts-ignore
-        childStyleNodes.push(...traverseFlat(child as cheerio.Element));
+      $el.children().each((_: any, child: any) => {
+        childStyleNodes.push(...traverseFlat(child));
       });
 
       if (selector) {
@@ -69,9 +65,8 @@ export class StyleStructureParser {
 
     $('body')
       .children()
-      .each((_, el) => {
-        // @ts-ignore
-        rootNodes.push(...traverseFlat(el as cheerio.Element));
+      .each((_: any, el: any) => {
+        rootNodes.push(...traverseFlat(el));
       });
 
     return rootNodes;
@@ -80,9 +75,15 @@ export class StyleStructureParser {
   // ==========================================
   // 2. JSX / TSX 解析 (同样支持透传)
   // ==========================================
-  private static parseJsx(content: string): StyleNode[] {
+  private static async parseJsx(content: string): Promise<StyleNode[]> {
     const rootNodes: StyleNode[] = [];
     try {
+      // 🌟 优化 3：在这里动态引入 Babel 的巨型 AST 解析库
+      const { parse } = require('@babel/parser');
+      const traverseModule = require('@babel/traverse');
+      // 兼容 Babel 默认导出的特殊情况
+      const traverse = traverseModule.default || traverseModule;
+
       const ast = parse(content, {
         sourceType: 'module',
         plugins: ['jsx', 'typescript'],
@@ -140,13 +141,15 @@ export class StyleStructureParser {
       };
 
       traverse(ast, {
-        JSXElement(path) {
+        JSXElement(path: any) {
           if (!path.parentPath.isJSXElement() && !path.parentPath.isJSXFragment()) {
             rootNodes.push(...processJsxElement(path));
           }
         },
       });
-    } catch (e) {}
+    } catch (e) {
+      console.error('JSX Parse Error:', e);
+    }
     return rootNodes;
   }
 
