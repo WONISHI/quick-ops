@@ -24,10 +24,7 @@ export class AnchorFeature implements IFeature {
   }
 
   public activate(context: vscode.ExtensionContext): void {
-    const rootPath = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-    if (rootPath) {
-      this.service.init(rootPath);
-    }
+    this.service.init(context);
 
     const codeLensProvider = new AnchorCodeLensProvider();
     context.subscriptions.push(vscode.languages.registerCodeLensProvider({ scheme: 'file' }, codeLensProvider));
@@ -40,7 +37,7 @@ export class AnchorFeature implements IFeature {
       this.service.onDidChangeAnchors(() => {
         this.updateDecorations();
         this.updateEditorContextKey(); // 🌟 数据变化时更新按钮显示状态
-        
+
         // 如果 Webview 打开，实时刷新数据
         if (this.currentPanel) {
           this.currentPanel.webview.postMessage({ command: 'refresh', data: this.service.getMindMapData() });
@@ -82,15 +79,15 @@ export class AnchorFeature implements IFeature {
   private updateEditorContextKey() {
     const editor = vscode.window.activeTextEditor;
     let hasAnchors = false;
-    
+
     if (editor) {
       const rootPath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
       const docPath = editor.document.uri.fsPath;
       const relativePath = path.relative(rootPath, docPath).replace(/\\/g, '/');
-      const fileAnchors = this.service.getAnchors().filter(a => a.filePath === relativePath);
+      const fileAnchors = this.service.getAnchors().filter((a) => a.filePath === relativePath);
       hasAnchors = fileAnchors.length > 0;
     }
-    
+
     // 设置 context 变量，控制 package.json 中的 when 条件
     vscode.commands.executeCommand('setContext', 'quickOps.hasAnchorsInCurrentFile', hasAnchors);
   }
@@ -159,15 +156,15 @@ export class AnchorFeature implements IFeature {
           } else if (message.action === 'edit') {
             const anchor = this.service.getAnchorById(message.anchorId);
             if (anchor) {
-                const input = await vscode.window.showInputBox({ 
-                    title: '修改锚点备注', 
-                    value: anchor.description || '', 
-                    validateInput: (t) => (t.trim().length === 0 ? '备注不能为空' : null) 
-                });
-                if (input !== undefined) {
-                    this.service.updateAnchor(message.anchorId, { description: input.trim() });
-                    vscode.window.showInformationMessage('备注已更新');
-                }
+              const input = await vscode.window.showInputBox({
+                title: '修改锚点备注',
+                value: anchor.description || '',
+                validateInput: (t) => (t.trim().length === 0 ? '备注不能为空' : null),
+              });
+              if (input !== undefined) {
+                this.service.updateAnchor(message.anchorId, { description: input.trim() });
+                vscode.window.showInformationMessage('备注已更新');
+              }
             }
           }
           break;
@@ -234,7 +231,6 @@ export class AnchorFeature implements IFeature {
       }
       const ctx = this.getEditorContext(argLineIndex);
       if (!ctx) return;
-      this.service.init(ctx.rootPath);
       const groups = this.service.getGroups();
       const items: vscode.QuickPickItem[] = groups.map((g) => ({
         label: g,

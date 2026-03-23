@@ -18,11 +18,6 @@
                     "default": true,
                     "description": "是否在 Git 中忽略 .quickopsrc 配置文件 (Whether to ignore .quickopsrc in Git)"
                 },
-                "excludeTelemetryFile": {
-                    "type": "boolean",
-                    "default": true,
-                    "description": "是否在 Git 中忽略 .telemetryrc 配置文件 (Whether to ignore .telemetryrc in Git)"
-                },
                 "anchorViewMode": {
                     "type": "string",
                     "default": "mindmap",
@@ -111,86 +106,6 @@
                     "description": "代码标注配置 (Code marks configuration)"
                 }
             }
-        },
-        "snippets": {
-            "type": "array",
-            "description": "自定义代码片段配置 (Custom code snippets configuration)",
-            "items": {
-                "type": "object",
-                "required": [
-                    "prefix",
-                    "body"
-                ],
-                "properties": {
-                    "style": {
-                        "type": "string",
-                        "default": "typescript",
-                        "enum": [
-                            "javascript",
-                            "typescript",
-                            "vue",
-                            "html",
-                            "css",
-                            "scss",
-                            "json",
-                            "markdown",
-                            "shellscript",
-                            "python"
-                        ],
-                        "enumDescriptions": [
-                            "JavaScript (JS)",
-                            "TypeScript (TS)",
-                            "Vue.js Component",
-                            "HTML Markup",
-                            "CSS Stylesheet",
-                            "SCSS/Sass",
-                            "JSON Data",
-                            "Markdown Document",
-                            "Shell/Bash Script",
-                            "Python Script"
-                        ],
-                        "description": "Markdown 文档中代码块的语法高亮语言 (Syntax highlighting language for Markdown code blocks)"
-                    },
-                    "prefix": {
-                        "type": "string",
-                        "description": "代码片段触发关键词 (Trigger keyword for the snippet)"
-                    },
-                    "body": {
-                        "type": [
-                            "string",
-                            "array"
-                        ],
-                        "items": {
-                            "type": "string"
-                        },
-                        "description": "代码片段内容，支持字符串或数组形式 (The content of the snippet. Can be a single string or an array of strings)"
-                    },
-                    "description": {
-                        "type": "string",
-                        "description": "代码片段的功能描述 (Description of what this snippet does)"
-                    },
-                    "scope": {
-                        "type": "array",
-                        "description": "生效范围配置。参数1: 语言ID或语言ID数组; 参数2: 依赖库名称 (Scope config. Param 1: Language ID(s); Param 2: Dependency check)",
-                        "items": {
-                            "anyOf": [
-                                {
-                                    "type": "string",
-                                    "description": "单个语言ID 或 依赖库名称 (Language ID or Dependency Name)"
-                                },
-                                {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "string"
-                                    },
-                                    "description": "语言ID数组 (Array of Language IDs)"
-                                }
-                            ]
-                        }
-                    }
-                }
-            },
-            "default": []
         },
         "shells": {
             "type": "array",

@@ -24,7 +24,6 @@ export class ConfigurationService extends EventEmitter implements IService {
 
   private readonly _alwaysIgnoreFiles: string[] = [];
   private readonly _configFile: string = '.quickopsrc';
-  private readonly _telemetryFile: string = '.telemetryrc';
 
   private _ignoredAbsolutePaths: Set<string> = new Set();
 
@@ -52,7 +51,6 @@ export class ConfigurationService extends EventEmitter implements IService {
     return this._ignoredAbsolutePaths.has(normalized);
   }
 
-  // 🌟 修复：将 context 改为可选参数 context?: vscode.ExtensionContext 满足 IService 接口契约
   public async init(context?: vscode.ExtensionContext): Promise<void> {
     this._context = context;
 
@@ -159,7 +157,7 @@ export class ConfigurationService extends EventEmitter implements IService {
         if (stat.type === vscode.FileType.Directory) {
           relativePath += '/**';
         }
-      } catch (e) { }
+      } catch (e) {}
 
       const content = await this.readFile(configUri);
       const json = JSON.parse(content);
@@ -168,14 +166,9 @@ export class ConfigurationService extends EventEmitter implements IService {
       if (!json.git) json.git = {};
       if (!Array.isArray(json.git.ignoreList)) json.git.ignoreList = [];
 
-      if (relativePath === this._configFile || relativePath === this._telemetryFile) {
-        json.git.ignoreList = json.git.ignoreList.filter((p: string) => p !== relativePath);
-      }
-
       if (relativePath === this._configFile) {
+        json.git.ignoreList = json.git.ignoreList.filter((p: string) => p !== relativePath);
         json.general.excludeConfigFiles = type === 'add';
-      } else if (relativePath === this._telemetryFile) {
-        json.general.excludeTelemetryFile = type === 'add';
       } else {
         if (type === 'add') {
           if (!json.git.ignoreList.includes(relativePath)) {
@@ -208,7 +201,7 @@ export class ConfigurationService extends EventEmitter implements IService {
     let exists = false;
     try {
       exists = !!uri && (await this.pathExists(uri));
-    } catch (e) { }
+    } catch (e) {}
     vscode.commands.executeCommand('setContext', 'quickOps.context.configState', exists ? 'exists' : 'missing');
   }
 
@@ -282,17 +275,17 @@ export class ConfigurationService extends EventEmitter implements IService {
 
       this._context.subscriptions.push(
         vscode.workspace.onDidDeleteFiles((e) => {
-          if (e.files.some(f => path.basename(f.fsPath) === this._configFileName)) {
+          if (e.files.some((f) => path.basename(f.fsPath) === this._configFileName)) {
             syncUIContextInstant();
             reloadDataDebounced();
           }
         }),
         vscode.workspace.onDidCreateFiles((e) => {
-          if (e.files.some(f => path.basename(f.fsPath) === this._configFileName)) {
+          if (e.files.some((f) => path.basename(f.fsPath) === this._configFileName)) {
             syncUIContextInstant();
             reloadDataDebounced();
           }
-        })
+        }),
       );
     }
   }
@@ -349,7 +342,6 @@ export class ConfigurationService extends EventEmitter implements IService {
       this._alwaysIgnoreFiles.forEach((f) => currentFilesToIgnore.add(f));
 
       if (this._config.general?.excludeConfigFiles) currentFilesToIgnore.add(this._configFile);
-      if (this._config.general?.excludeTelemetryFile) currentFilesToIgnore.add(this._telemetryFile);
 
       if (this._config.git?.ignoreList && Array.isArray(this._config.git.ignoreList)) {
         this._config.git.ignoreList.forEach((f) => currentFilesToIgnore.add(f));
@@ -365,7 +357,6 @@ export class ConfigurationService extends EventEmitter implements IService {
       if (this._lastConfig) {
         this._alwaysIgnoreFiles.forEach((f) => lastFilesToIgnore.add(f));
         if (this._lastConfig.general?.excludeConfigFiles) lastFilesToIgnore.add(this._configFile);
-        if (this._lastConfig.general?.excludeTelemetryFile) lastFilesToIgnore.add(this._telemetryFile);
         if (this._lastConfig.git?.ignoreList) this._lastConfig.git.ignoreList.forEach((f) => lastFilesToIgnore.add(f));
       }
 
