@@ -46,8 +46,7 @@
       {
         "id": "json",
         "filenames": [
-          ".quickopsrc",
-          ".telemetryrc"
+          ".quickopsrc"
         ]
       }
     ],
@@ -55,10 +54,6 @@
       {
         "fileMatch": ".quickopsrc",
         "url": "./resources/schema/.quickopsrc-schema.json"
-      },
-      {
-        "fileMatch": ".telemetryrc",
-        "url": "./resources/schema/.telemetryrc-schema.json"
       }
     ],
     "webviews": {

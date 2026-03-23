@@ -1,5 +1,4 @@
 import * as vscode from 'vscode';
-import { TextDecoder, TextEncoder } from 'util';
 import { AnchorConfig, AnchorData } from '../core/types/anchor';
 import { debounce } from 'lodash-es';
 
@@ -10,17 +9,16 @@ export class AnchorService {
   private groups: string[] = ['Default'];
   private itemGroups: string[] = [];
 
-  // 使用 Uri 存储配置路径
-  private storageUri: vscode.Uri | undefined;
+  // 🌟 核心修改：改为保存 VS Code 上下文，不再保存物理文件 URI
+  private context: vscode.ExtensionContext | undefined;
+  private readonly stateKey = 'quickOps.workspaceAnchors'; // 工作区存储的 Key
 
   private _onDidChangeAnchors = new vscode.EventEmitter<void>();
   public readonly onDidChangeAnchors = this._onDidChangeAnchors.event;
 
-  // 防抖保存函数引用
   private debouncedSave: () => void;
 
   private constructor() {
-    // 初始化防抖保存，500ms 内的多次保存请求合并为一次
     this.debouncedSave = debounce(async () => {
       await this.persist();
     }, 500);
@@ -33,53 +31,44 @@ export class AnchorService {
     return AnchorService.instance;
   }
 
-  public init(rootPath: string) {
-    // 🌟 修复 URI 解析：兼容本地路径和远程带协议的 URL
-    const ws = vscode.workspace.workspaceFolders?.find(
-      (w) => w.uri.fsPath === rootPath || w.uri.toString() === rootPath
-    );
-    
-    const rootUri = ws 
-      ? ws.uri 
-      : (rootPath.includes('://') ? vscode.Uri.parse(rootPath) : vscode.Uri.file(rootPath));
-
-    this.storageUri = vscode.Uri.joinPath(rootUri, '.telemetryrc');
+  // 🌟 核心修改：接收 context 而不是 rootPath
+  public init(context: vscode.ExtensionContext) {
+    this.context = context;
     this.load();
   }
 
-  private async load() {
-    if (!this.storageUri) return;
+  private load() {
+    if (!this.context) return;
 
     try {
-      const contentUint8 = await vscode.workspace.fs.readFile(this.storageUri);
-      const content = new TextDecoder('utf-8').decode(contentUint8);
-      const data: AnchorConfig = JSON.parse(content);
+      // 🌟 核心修改：直接从当前工作区的内部状态中读取数据，速度极快，不触碰硬盘文件
+      const data = this.context.workspaceState.get<AnchorConfig>(this.stateKey);
 
-      this.anchors = data.anchors || [];
-      this.groups = data.groups || ['Default'];
-      this.itemGroups = data.children || [];
+      if (data) {
+        this.anchors = data.anchors || [];
+        this.groups = data.groups || ['Default'];
+        this.itemGroups = data.children || [];
+      } else {
+        this.anchors = [];
+        this.groups = ['Default'];
+        this.itemGroups = [];
+      }
 
       this.refreshFlotAnchors();
       this._onDidChangeAnchors.fire();
     } catch (e: any) {
-      // 🌟 修复报错：增加对 'Unavailable' (ENOPRO) 的静默忽略
-      // 当在不支持读写的远程仓库（如纯 https 链接）中时，正常忽略
-      if (e.code !== 'FileNotFound' && e.code !== 'ENOENT' && e.code !== 'Unavailable') {
-        console.error('Failed to load anchors', e);
-      }
+      console.error('Failed to load anchors from workspace state', e);
     }
   }
 
-  // 公开的 save 方法只负责更新状态和触发事件，实际写入磁盘交给防抖函数
   private save() {
     this.refreshFlotAnchors();
     this._onDidChangeAnchors.fire();
     this.debouncedSave();
   }
 
-  // 真正的持久化操作
   private async persist() {
-    if (!this.storageUri) return;
+    if (!this.context) return;
 
     const data: AnchorConfig = {
       groups: this.groups,
@@ -88,16 +77,10 @@ export class AnchorService {
     };
 
     try {
-      const content = JSON.stringify(data, null, 2);
-      const encoder = new TextEncoder();
-      await vscode.workspace.fs.writeFile(this.storageUri, encoder.encode(content));
+      // 🌟 核心修改：将数据保存到 VS Code 的工作区内部状态中
+      await this.context.workspaceState.update(this.stateKey, data);
     } catch (error: any) {
-      // 🌟 修复报错：如果当前文件系统不支持写入（如只读的 Github VFS 或纯 HTTP 链接），静默跳过
-      if (error.code === 'Unavailable' || error.code === 'NoPermissions') {
-        console.warn('当前文件系统不支持保存锚点配置文件（可能是远程只读仓库）');
-        return;
-      }
-      vscode.window.showErrorMessage('无法保存锚点文件: ' + error.message);
+      vscode.window.showErrorMessage('无法保存锚点到工作区状态: ' + error.message);
     }
   }
 
@@ -148,9 +131,7 @@ export class AnchorService {
     if (targetIndex === -1) return;
 
     [list[index], list[targetIndex]] = [list[targetIndex], list[index]];
-
     list.forEach((item, i) => (item.sort = i + 1));
-
     this.save();
   }
 
@@ -347,8 +328,6 @@ export class AnchorService {
     this.groups.forEach((groupName) => {
       const groupAnchors = this.anchors.filter((a) => a.group === groupName);
       const transform = (anchor: AnchorData): any => {
-        // 在生成展示数据时，由于不再使用 path 模块，这里简单地处理路径显示
-        // 如果需要严格的 basename，可以手写 split 逻辑
         const fileName = anchor.filePath.split(/[/\\]/).pop() || anchor.filePath;
         return {
           name: anchor.description || fileName,
