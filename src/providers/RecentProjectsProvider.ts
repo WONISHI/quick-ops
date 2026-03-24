@@ -132,22 +132,21 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'openExternalLink':
           this.openExternalLink(data.fsPath, data.platform, data.customDomain);
           break;
+        case 'openFileToSide':
+          this.openFileReadOnly(data.fsPath, data.projectName || '未知项目', vscode.ViewColumn.Beside);
+          break;
         case 'revealInExplorer':
           try {
-            // 1. 极致兼容：无论前端传来的是带有 file:// 的完整 URI，还是纯绝对路径
-            let rawPath = data.fsPath;
-            if (rawPath.startsWith('file://')) {
-              // 剥离 file://，Mac 路径保留 /Users/...，Win 保留 C:/...
-              rawPath = rawPath.replace('file://', '');
+            let uri: vscode.Uri;
+            if (data.fsPath.startsWith('file://')) {
+              uri = vscode.Uri.parse(data.fsPath);
+            } else {
+              uri = vscode.Uri.file(data.fsPath);
             }
-            const uri = vscode.Uri.file(rawPath);
-            const success = await vscode.env.openExternal(uri);
 
-            if (!success) {
-              vscode.window.showWarningMessage('系统拒绝了打开文件夹的请求');
-            }
+            await vscode.commands.executeCommand('revealFileInOS', uri);
           } catch (e) {
-            vscode.window.showErrorMessage(`打开目录失败: ${e}`);
+            vscode.window.showErrorMessage(`在资源管理器中定位失败: ${e}`);
           }
           break;
       }
@@ -387,7 +386,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async openFileReadOnly(fsPath: string, projectName: string) {
+  private async openFileReadOnly(fsPath: string, projectName: string, viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active) {
     try {
       const originalUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const fileName = originalUri.path.split(/[\\/]/).pop() || 'unknown';
@@ -400,7 +399,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       const doc = await vscode.workspace.openTextDocument(roUri);
-      await vscode.window.showTextDocument(doc, { preview: true });
+      // 🌟 修改点：支持接收指定的 ViewColumn（比如侧边栏）
+      await vscode.window.showTextDocument(doc, { preview: true, viewColumn });
     } catch (e) {
       vscode.window.showErrorMessage('无法打开该文件预览。');
     }

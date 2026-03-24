@@ -61,7 +61,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
     currentProjectHtml = `
       <div class="searchable-item" data-search="${searchStr}">
         <div class="active-top-project" title="当前窗口正在运行的项目" 
-             oncontextmenu="showContextMenu(event, '${safeFsPath}', ${isRemote}, '${safeProjName}', '${safeCustomName}', '${platformStr}', '${customDomainStr}')">
+             oncontextmenu="showContextMenu(event, '${safeFsPath}', ${isRemote}, '${safeProjName}', '${safeCustomName}', '${platformStr}', '${customDomainStr}', true)">
           <div class="item-left">
             <div class="tree-chevron" style="visibility: hidden;"></div>
             <div class="info">
@@ -122,7 +122,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
       <li class="tree-node searchable-item" data-search="${searchStr}">
         <div class="project-item ${justOpenedClass}" 
              ondblclick="openProject('${safeFsPath}')" 
-             oncontextmenu="showContextMenu(event, '${safeFsPath}', ${isRemote}, '${safeProjName}', '${safeCustomName}', '${platformStr}', '${customDomainStr}')"
+             oncontextmenu="showContextMenu(event, '${safeFsPath}', ${isRemote}, '${safeProjName}', '${safeCustomName}', '${platformStr}', '${customDomainStr}', false)"
              title="${isJustOpened ? '刚刚在此窗口中唤起过' : ''}">
           
           <div class="item-left clickable-expand" onclick="toggleExpand('${rootId}', '${safeFsPath}', '${safeTitleForClick}', event)">
@@ -298,6 +298,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         let activeContextMenuPath = '';
         let activeContextMenuPlatform = '';
         let activeContextMenuDomain = '';
+        let activeContextMenuProject = '';
 
         const searchInput = document.getElementById('project-search');
         const noResultsMsg = document.getElementById('no-search-results');
@@ -375,7 +376,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         }
 
         // ================= 🌟 原本：针对项目根节点的右键菜单 =================
-        function showContextMenu(event, path, isRemote, originalName, customName, platform, customDomain) {
+        function showContextMenu(event, path, isRemote, originalName, customName, platform, customDomain, isActiveProject) {
           event.preventDefault();
           event.stopPropagation();
           
@@ -414,13 +415,14 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           if (isRemote) {
             list.innerHTML += \`<li onclick="handleMenuClick('openLink', '\${escPath}')"><i class="fa-solid fa-globe"></i> 在浏览器中打开</li>\`;
           } else {
-            // 本地项目根节点也可以直接“在访达中显示”
             list.innerHTML += \`<li onclick="handleMenuClick('revealInExplorer', '\${escPath}')"><i class="fa-regular fa-folder-open"></i> 在访达/资源管理器中显示</li>\`;
           }
 
-          list.innerHTML += \`<div class="menu-separator"></div>\`;
-
-          list.innerHTML += \`<li onclick="handleMenuClick('delete')" style="color: var(--vscode-errorForeground);"><i class="fa-solid fa-trash"></i> 移除该项目</li>\`;
+          // 🌟 修改点 1：如果是当前正在打开的项目，就不显示删除按钮
+          if (!isActiveProject) {
+            list.innerHTML += \`<div class="menu-separator"></div>\`;
+            list.innerHTML += \`<li onclick="handleMenuClick('delete')" style="color: var(--vscode-errorForeground);"><i class="fa-solid fa-trash"></i> 移除该项目</li>\`;
+          }
 
           let x = event.pageX;
           let y = event.pageY;
@@ -434,11 +436,12 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         }
 
         // ================= 🌟 新增：针对子文件/子文件夹的右键菜单 =================
-        function showSubItemContextMenu(event, path, name) {
+        function showSubItemContextMenu(event, path, name, isFolder, projectName) {
           event.preventDefault();
           event.stopPropagation();
           
           activeContextMenuPath = path;
+          activeContextMenuProject = projectName;
 
           const menu = document.getElementById('context-menu');
           const list = document.getElementById('context-menu-list');
@@ -447,13 +450,17 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           const escName = name.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
           const escPath = path.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
           
-          // 判断是不是远程文件系统
           const isRemote = path.startsWith('vscode-vfs') || path.startsWith('http');
+
+          // 🌟 修改点 2：如果点击的不是文件夹而是文件，则显示“在侧边打开”
+          if (!isFolder) {
+             list.innerHTML += \`<li onclick="handleMenuClick('openFileToSide')"><i class="fa-solid fa-columns"></i> 在侧边打开</li>\`;
+             list.innerHTML += \`<div class="menu-separator"></div>\`;
+          }
 
           list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escName}')"><i class="fa-regular fa-copy"></i> 复制名称</li>\`;
           list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escPath}')"><i class="fa-solid fa-link"></i> 复制路径</li>\`;
 
-          // 如果是本地的目录或文件，提供在文件管理器中显示的能力
           if (!isRemote) {
              list.innerHTML += \`<div class="menu-separator"></div>\`;
              list.innerHTML += \`<li onclick="handleMenuClick('revealInExplorer', '\${escPath}')"><i class="fa-regular fa-folder-open"></i> 在访达/资源管理器中显示</li>\`;
@@ -476,13 +483,9 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           if (menu) menu.style.display = 'none';
         }
 
-        // 1. 点击 Webview 内部的空白处时隐藏
         document.addEventListener('click', hideContextMenu);
-
-        // 2. 🌟 核心：Webview 失去焦点时隐藏（即点击了 VS Code 的编辑器、终端、侧边栏等区域）
         window.addEventListener('blur', hideContextMenu);
 
-        // 3. 体验优化：在列表里滚动鼠标滚轮时，自动隐藏菜单
         const listContainer = document.querySelector('.list-container');
         if (listContainer) {
           listContainer.addEventListener('scroll', hideContextMenu);
@@ -514,6 +517,10 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
               break;
             case 'delete':
               vscode.postMessage({ type: 'removeProject', fsPath: activeContextMenuPath });
+              break;
+            // 🌟 修改点 3：捕获新增的“在侧边打开”事件，并带上文件路径和项目名
+            case 'openFileToSide':
+              vscode.postMessage({ type: 'openFileToSide', fsPath: activeContextMenuPath, projectName: activeContextMenuProject });
               break;
           }
         }
@@ -567,7 +574,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
                 const iconClass = child.isFolder ? 'fa-solid fa-folder icon-closed sub-icon' : getFileIcon(child.name) + ' sub-icon';
                 const safeChildPath = child.path.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
                 
-                // 为了防止拼接给 oncontextmenu 时字符串被截断，进行必要的转义
                 const escNameForMenu = child.name.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
                 
                 if(child.isFolder) {
@@ -575,7 +581,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
                     <div class="tree-node">
                       <div class="sub-item clickable-sub" 
                            onclick="toggleExpand('\${childId}', '\${safeChildPath}', '\${safeProjName}', event)"
-                           oncontextmenu="showSubItemContextMenu(event, '\${safeChildPath}', '\${escNameForMenu}')">
+                           oncontextmenu="showSubItemContextMenu(event, '\${safeChildPath}', '\${escNameForMenu}', true, '\${safeProjName}')">
                         <div class="tree-chevron">
                           <i id="chevron-right-\${childId}" class="fa-solid fa-chevron-right"></i>
                           <i id="chevron-down-\${childId}" class="fa-solid fa-chevron-down" style="display:none"></i>
@@ -590,8 +596,8 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
                    html += \`
                     <div class="tree-node">
                       <div class="sub-item" 
-                           onclick="openFile(\\'' + safeChildPath + '\\', \\'' + safeProjName + '\\', event)" 
-                           oncontextmenu="showSubItemContextMenu(event, '\${safeChildPath}', '\${escNameForMenu}')"
+                           onclick="openFile('\${safeChildPath}', '\${safeProjName}', event)" 
+                           oncontextmenu="showSubItemContextMenu(event, '\${safeChildPath}', '\${escNameForMenu}', false, '\${safeProjName}')"
                            style="cursor:pointer;" title="点击以只读模式预览">
                         <div class="chevron-placeholder"></div>
                         <i class="\${iconClass}"></i>
