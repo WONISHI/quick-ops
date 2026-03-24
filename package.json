@@ -53,6 +53,10 @@
             "mindmap",
             "menu"
           ],
+          "enumDescriptions": [
+            "在左侧拆分出一个新编辑器组显示 (Split editor to the left)",
+            "在当前编辑器右侧/旁边显示 (Open beside active editor)"
+          ],
           "default": "mindmap",
           "description": "锚点视图的展示模式 (思维导图或列表菜单)"
         },
@@ -61,6 +65,10 @@
           "enum": [
             "left",
             "right"
+          ],
+          "enumDescriptions": [
+            "以思维导图形式可视化展示 (Visual Mind Map)",
+            "以快速选择列表形式展示 (Quick Pick Menu)"
           ],
           "default": "right",
           "description": "思维导图视图在编辑器中打开的位置"
@@ -495,7 +503,7 @@
       ]
     }
   },
-"scripts": {
+  "scripts": {
     "build": "npx vsce package --no-yarn --no-dependencies",
     "vscode:prepublish": "pnpm run package",
     "compile": "tsc -p ./",
