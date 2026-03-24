@@ -47,6 +47,16 @@
           "default": true,
           "description": "是否开启调试模式"
         },
+        "quick-ops.general.use.ElementPlus": {
+          "type": "boolean",
+          "default": false,
+          "description": "是否开启 Element Plus 组件的智能提示与校验"
+        },
+        "quick-ops.general.use.AntDesignVue": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否开启 Ant Design Vue 组件的智能提示与校验"
+        },
         "quick-ops.general.anchorViewMode": {
           "type": "string",
           "enum": [

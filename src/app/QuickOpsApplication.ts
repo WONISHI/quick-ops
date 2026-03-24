@@ -28,6 +28,7 @@ import { DebugConsoleFeature } from '../features/DebugConsoleFeature';
 import { LivePreviewFeature } from '../features/LivePreviewFeature';
 import { RecentProjectsFeature } from '../features/RecentProjectsFeature';
 import { TerminalFeature } from '../features/TerminalFeature';
+import { ComponentIntellisenseFeature } from '../features/ComponentIntellisenseFeature';
 
 export class QuickOpsApplication {
   private context: vscode.ExtensionContext;
@@ -73,6 +74,7 @@ export class QuickOpsApplication {
       new LivePreviewFeature(),
       new RecentProjectsFeature(),
       new TerminalFeature(),
+      new ComponentIntellisenseFeature(),
     ];
 
     for (const feature of this.features) {
