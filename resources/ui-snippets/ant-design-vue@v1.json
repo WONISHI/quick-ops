@@ -1,0 +1,1520 @@
+[
+    {
+        "tags": [
+            "a-button",
+            "AButton",
+            "Button"
+        ],
+        "description": "Button 按钮 (v1.x)",
+        "link": "https://1x.antdv.com/components/button-cn/",
+        "snippet": "<$TAG$1 type=\"${2|primary,dashed,danger,link,default|}\">$3</$TAG>",
+        "attributes": [
+            {
+                "name": "type",
+                "description": "设置按钮类型",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "primary",
+                        "description": "主按钮"
+                    },
+                    {
+                        "value": "dashed",
+                        "description": "虚线按钮"
+                    },
+                    {
+                        "value": "danger",
+                        "description": "危险按钮"
+                    },
+                    {
+                        "value": "link",
+                        "description": "链接按钮"
+                    },
+                    {
+                        "value": "default",
+                        "description": "默认"
+                    }
+                ]
+            },
+            {
+                "name": "shape",
+                "description": "设置按钮形状",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "circle",
+                        "description": "圆形"
+                    },
+                    {
+                        "value": "round",
+                        "description": "圆角"
+                    }
+                ]
+            },
+            {
+                "name": "size",
+                "description": "设置按钮大小",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "small",
+                        "description": "小"
+                    },
+                    {
+                        "value": "large",
+                        "description": "大"
+                    }
+                ]
+            },
+            {
+                "name": "loading",
+                "description": "设置按钮载入状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "按钮失效状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "block",
+                "description": "将按钮宽度调整为其父宽度的选项",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "ghost",
+                "description": "幽灵属性，使按钮背景透明",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "icon",
+                "description": "设置按钮的图标类型",
+                "type": "string",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击按钮时的回调",
+                "parameters": "(event: MouseEvent)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-icon",
+            "AIcon",
+            "Icon"
+        ],
+        "description": "Icon 图标 (v1.x)",
+        "link": "https://1x.antdv.com/components/icon-cn/",
+        "snippet": "<$TAG$1 type=\"${2:smile}\" />",
+        "attributes": [
+            {
+                "name": "type",
+                "description": "图标类型",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "theme",
+                "description": "图标主题风格",
+                "type": "enum",
+                "default": "outlined",
+                "options": [
+                    {
+                        "value": "filled",
+                        "description": "实心"
+                    },
+                    {
+                        "value": "outlined",
+                        "description": "描边"
+                    },
+                    {
+                        "value": "twoTone",
+                        "description": "双色"
+                    }
+                ]
+            },
+            {
+                "name": "spin",
+                "description": "是否有旋转动画",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "rotate",
+                "description": "图标旋转角度",
+                "type": "number",
+                "default": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-row",
+            "ARow",
+            "Row"
+        ],
+        "description": "Grid 栅格 - 行 (v1.x)",
+        "link": "https://1x.antdv.com/components/grid-cn/",
+        "snippet": "<$TAG$1 :gutter=\"${2:16}\">\n\t<a-col :span=\"12\">$3</a-col>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "gutter",
+                "description": "栅格间隔",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "type",
+                "description": "布局模式，可选 flex",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "justify",
+                "description": "flex 布局下的水平排列方式",
+                "type": "enum",
+                "default": "start",
+                "options": [
+                    {
+                        "value": "start",
+                        "description": "左对齐"
+                    },
+                    {
+                        "value": "end",
+                        "description": "右对齐"
+                    },
+                    {
+                        "value": "center",
+                        "description": "居中"
+                    },
+                    {
+                        "value": "space-around",
+                        "description": "等距分布"
+                    },
+                    {
+                        "value": "space-between",
+                        "description": "两端对齐"
+                    }
+                ]
+            },
+            {
+                "name": "align",
+                "description": "flex 布局下的垂直排列方式",
+                "type": "enum",
+                "default": "top",
+                "options": [
+                    {
+                        "value": "top",
+                        "description": "顶部对齐"
+                    },
+                    {
+                        "value": "middle",
+                        "description": "居中对齐"
+                    },
+                    {
+                        "value": "bottom",
+                        "description": "底部对齐"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-col",
+            "ACol",
+            "Col"
+        ],
+        "description": "Grid 栅格 - 列 (v1.x)",
+        "link": "https://1x.antdv.com/components/grid-cn/",
+        "snippet": "<$TAG$1 :span=\"${2:12}\">$3</$TAG>",
+        "attributes": [
+            {
+                "name": "span",
+                "description": "栅格占位格数",
+                "type": "number",
+                "default": "—"
+            },
+            {
+                "name": "offset",
+                "description": "栅格左侧的间隔格数",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "pull",
+                "description": "栅格向左移动格数",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "push",
+                "description": "栅格向右移动格数",
+                "type": "number",
+                "default": "0"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-layout",
+            "ALayout",
+            "Layout"
+        ],
+        "description": "Layout 布局容器 (v1.x)",
+        "link": "https://1x.antdv.com/components/layout-cn/",
+        "snippet": "<$TAG$1>\n\t<a-layout-header>Header</a-layout-header>\n\t<a-layout-content>Content</a-layout-content>\n\t<a-layout-footer>Footer</a-layout-footer>\n</$TAG>",
+        "attributes": []
+    },
+    {
+        "tags": [
+            "a-layout-sider",
+            "ALayoutSider",
+            "LayoutSider"
+        ],
+        "description": "Layout 侧边栏 (v1.x)",
+        "link": "https://1x.antdv.com/components/layout-cn/",
+        "snippet": "<$TAG$1 v-model=\"${2:collapsed}\" collapsible>\n\t$3\n</$TAG>",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "当前收起状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "collapsible",
+                "description": "是否可收起",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "theme",
+                "description": "主题颜色",
+                "type": "enum",
+                "default": "dark",
+                "options": [
+                    {
+                        "value": "light",
+                        "description": "亮色"
+                    },
+                    {
+                        "value": "dark",
+                        "description": "暗色"
+                    }
+                ]
+            },
+            {
+                "name": "width",
+                "description": "宽度",
+                "type": "number | string",
+                "default": "200"
+            },
+            {
+                "name": "collapsedWidth",
+                "description": "收缩宽度",
+                "type": "number",
+                "default": "80"
+            }
+        ],
+        "events": [
+            {
+                "name": "collapse",
+                "description": "展开-收起时的回调",
+                "parameters": "(collapsed, type)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-form",
+            "AForm",
+            "Form"
+        ],
+        "description": "Form 表单 (v1.x)",
+        "link": "https://1x.antdv.com/components/form-cn/",
+        "snippet": "<$TAG$1 :form=\"${2:form}\" @submit=\"handleSubmit\">\n\t$3\n</$TAG>",
+        "attributes": [
+            {
+                "name": "form",
+                "description": "经 Form.create() 包装过的组件会自带 this.form 属性",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "layout",
+                "description": "表单布局",
+                "type": "enum",
+                "default": "horizontal",
+                "options": [
+                    {
+                        "value": "horizontal",
+                        "description": "水平"
+                    },
+                    {
+                        "value": "vertical",
+                        "description": "垂直"
+                    },
+                    {
+                        "value": "inline",
+                        "description": "内联"
+                    }
+                ]
+            },
+            {
+                "name": "hideRequiredMark",
+                "description": "隐藏所有表单项的必选标记",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "selfUpdate",
+                "description": "是否由自身接管更新",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "submit",
+                "description": "数据验证成功后回调事件",
+                "parameters": "(e: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-form-item",
+            "AFormItem",
+            "FormItem"
+        ],
+        "description": "FormItem 表单项 (v1.x)",
+        "link": "https://1x.antdv.com/components/form-cn/",
+        "snippet": "<$TAG$1 label=\"${2:标签}\">\n\t$3\n</$TAG>",
+        "attributes": [
+            {
+                "name": "label",
+                "description": "label 标签的文本",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "labelCol",
+                "description": "label 标签布局",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "wrapperCol",
+                "description": "输入控件布局",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "help",
+                "description": "提示信息",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "extra",
+                "description": "额外的提示信息",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "validateStatus",
+                "description": "校验状态",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "success",
+                        "description": "成功"
+                    },
+                    {
+                        "value": "warning",
+                        "description": "警告"
+                    },
+                    {
+                        "value": "error",
+                        "description": "错误"
+                    },
+                    {
+                        "value": "validating",
+                        "description": "校验中"
+                    }
+                ]
+            },
+            {
+                "name": "hasFeedback",
+                "description": "配合 validateStatus 使用，展示校验状态图标",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "required",
+                "description": "是否必填",
+                "type": "boolean",
+                "default": "false"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-input",
+            "AInput",
+            "Input"
+        ],
+        "description": "Input 输入框 (v1.x)",
+        "link": "https://1x.antdv.com/components/input-cn/",
+        "snippet": "<$TAG$1 v-model=\"${2:value}\" placeholder=\"${3:请输入}\" allowClear />",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "输入框内容",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "defaultValue",
+                "description": "输入框默认内容",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "placeholder",
+                "description": "占位符",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "size",
+                "description": "控件大小",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "large",
+                        "description": "大"
+                    },
+                    {
+                        "value": "default",
+                        "description": "默认"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小"
+                    }
+                ]
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "allowClear",
+                "description": "可以点击清除图标删除内容",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "maxLength",
+                "description": "最大长度",
+                "type": "number",
+                "default": "—"
+            },
+            {
+                "name": "prefix",
+                "description": "前缀图标类型",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "suffix",
+                "description": "后缀图标类型",
+                "type": "string",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "输入框内容变化时的回调",
+                "parameters": "(e: Event)"
+            },
+            {
+                "name": "pressEnter",
+                "description": "按下回车的回调",
+                "parameters": "(e: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-select",
+            "ASelect",
+            "Select"
+        ],
+        "description": "Select 选择器 (v1.x)",
+        "link": "https://1x.antdv.com/components/select-cn/",
+        "snippet": "<$TAG$1 v-model=\"${2:value}\" style=\"width: 120px\" placeholder=\"请选择\">\n\t<a-select-option value=\"jack\">Jack</a-select-option>\n\t<a-select-option value=\"lucy\">Lucy</a-select-option>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "指定当前选中的条目",
+                "type": "string | number | array",
+                "default": "—"
+            },
+            {
+                "name": "mode",
+                "description": "设置 Select 的模式",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "multiple",
+                        "description": "多选"
+                    },
+                    {
+                        "value": "tags",
+                        "description": "标签"
+                    }
+                ]
+            },
+            {
+                "name": "allowClear",
+                "description": "支持清除",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "filterOption",
+                "description": "是否根据输入内容进行筛选",
+                "type": "boolean | function",
+                "default": "true"
+            },
+            {
+                "name": "placeholder",
+                "description": "选择框默认文字",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "showSearch",
+                "description": "使单选模式可搜索",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "选中 option，或 input 的 value 变化时回调",
+                "parameters": "(value, option)"
+            },
+            {
+                "name": "select",
+                "description": "被选中时调用",
+                "parameters": "(value, option)"
+            },
+            {
+                "name": "search",
+                "description": "文本框值变化时回调",
+                "parameters": "(value: string)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-checkbox",
+            "ACheckbox",
+            "Checkbox"
+        ],
+        "description": "Checkbox 多选框 (v1.x)",
+        "link": "https://1x.antdv.com/components/checkbox-cn/",
+        "snippet": "<$TAG$1 v-model=\"${2:checked}\">${3:Checkbox}</$TAG>",
+        "attributes": [
+            {
+                "name": "checked / v-model",
+                "description": "指定当前是否选中",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "失效状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "indeterminate",
+                "description": "设置 indeterminate 状态，只负责样式控制",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "变化时回调",
+                "parameters": "(e: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-radio-group",
+            "ARadioGroup",
+            "RadioGroup"
+        ],
+        "description": "RadioGroup 单选框组 (v1.x)",
+        "link": "https://1x.antdv.com/components/radio-cn/",
+        "snippet": "<$TAG$1 v-model=\"${2:value}\">\n\t<a-radio :value=\"1\">A</a-radio>\n\t<a-radio :value=\"2\">B</a-radio>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "用于设置当前选中的值",
+                "type": "any",
+                "default": "—"
+            },
+            {
+                "name": "size",
+                "description": "大小，只对按钮样式生效",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "large",
+                        "description": "大"
+                    },
+                    {
+                        "value": "default",
+                        "description": "中"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小"
+                    }
+                ]
+            },
+            {
+                "name": "disabled",
+                "description": "禁选所有子单选器",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "buttonStyle",
+                "description": "RadioButton 的风格样式",
+                "type": "enum",
+                "default": "outline",
+                "options": [
+                    {
+                        "value": "outline",
+                        "description": "描边"
+                    },
+                    {
+                        "value": "solid",
+                        "description": "填色"
+                    }
+                ]
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "选项变化时的回调",
+                "parameters": "(e: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-switch",
+            "ASwitch",
+            "Switch"
+        ],
+        "description": "Switch 开关 (v1.x)",
+        "link": "https://1x.antdv.com/components/switch-cn/",
+        "snippet": "<$TAG$1 v-model=\"${2:checked}\" />",
+        "attributes": [
+            {
+                "name": "checked / v-model",
+                "description": "指定当前是否选中",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "checkedChildren",
+                "description": "选中时的内容",
+                "type": "string | slot",
+                "default": "—"
+            },
+            {
+                "name": "unCheckedChildren",
+                "description": "非选中时的内容",
+                "type": "string | slot",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "loading",
+                "description": "加载中的开关",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "size",
+                "description": "开关大小",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "default",
+                        "description": "默认"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小"
+                    }
+                ]
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "变化时回调",
+                "parameters": "(checked: boolean, e: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-table",
+            "ATable",
+            "Table"
+        ],
+        "description": "Table 表格 (v1.x)",
+        "link": "https://1x.antdv.com/components/table-cn/",
+        "snippet": "<$TAG$1 :dataSource=\"${2:dataSource}\" :columns=\"${3:columns}\" rowKey=\"${4:id}\">\n\t<span slot=\"action\" slot-scope=\"text, record\">\n\t\t<a>Action</a>\n\t</span>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "dataSource",
+                "description": "数据数组",
+                "type": "array",
+                "default": "—"
+            },
+            {
+                "name": "columns",
+                "description": "表格列的配置描述",
+                "type": "array",
+                "default": "—"
+            },
+            {
+                "name": "rowKey",
+                "description": "表格行 key 的取值",
+                "type": "string | function",
+                "default": "key"
+            },
+            {
+                "name": "pagination",
+                "description": "分页器配置，设为 false 时不展示分页",
+                "type": "object | boolean",
+                "default": "—"
+            },
+            {
+                "name": "loading",
+                "description": "页面是否加载中",
+                "type": "boolean | object",
+                "default": "false"
+            },
+            {
+                "name": "bordered",
+                "description": "是否展示外边框和列边框",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "size",
+                "description": "表格大小",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "default",
+                        "description": "默认"
+                    },
+                    {
+                        "value": "middle",
+                        "description": "中"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小"
+                    }
+                ]
+            },
+            {
+                "name": "scroll",
+                "description": "设置横向或纵向滚动，如 { x: 1500, y: 300 }",
+                "type": "object",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "分页、排序、筛选变化时触发",
+                "parameters": "(pagination, filters, sorter)"
+            },
+            {
+                "name": "expand",
+                "description": "点击展开图标时触发",
+                "parameters": "(expanded, record)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-pagination",
+            "APagination",
+            "Pagination"
+        ],
+        "description": "Pagination 分页 (v1.x)",
+        "link": "https://1x.antdv.com/components/pagination-cn/",
+        "snippet": "<$TAG$1 v-model=\"${2:current}\" :total=\"${3:50}\" show-less-items />",
+        "attributes": [
+            {
+                "name": "current / v-model",
+                "description": "当前页数",
+                "type": "number",
+                "default": "1"
+            },
+            {
+                "name": "total",
+                "description": "数据总数",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "pageSize",
+                "description": "每页条数",
+                "type": "number",
+                "default": "10"
+            },
+            {
+                "name": "showSizeChanger",
+                "description": "是否展示 pageSize 切换器",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "showQuickJumper",
+                "description": "是否可以快速跳转至某页",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "simple",
+                "description": "当添加该属性时，显示为简单分页",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "size",
+                "description": "当为 small 时，是小尺寸分页",
+                "type": "string",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "页码改变的回调",
+                "parameters": "(page, pageSize)"
+            },
+            {
+                "name": "showSizeChange",
+                "description": "pageSize 变化的回调",
+                "parameters": "(current, size)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-tag",
+            "ATag",
+            "Tag"
+        ],
+        "description": "Tag 标签 (v1.x)",
+        "link": "https://1x.antdv.com/components/tag-cn/",
+        "snippet": "<$TAG$1 color=\"${2:blue}\">$3</$TAG>",
+        "attributes": [
+            {
+                "name": "color",
+                "description": "标签色",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "closable",
+                "description": "标签是否可以关闭",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "visible / v-model",
+                "description": "是否显示标签",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "close",
+                "description": "关闭时的回调",
+                "parameters": "(e: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-card",
+            "ACard",
+            "Card"
+        ],
+        "description": "Card 卡片 (v1.x)",
+        "link": "https://1x.antdv.com/components/card-cn/",
+        "snippet": "<$TAG$1 title=\"${2:Default size card}\" style=\"width: 300px\">\n\t<template slot=\"extra\"><a href=\"#\">more</a></template>\n\t<p>card content</p>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "title",
+                "description": "卡片标题",
+                "type": "string | slot",
+                "default": "—"
+            },
+            {
+                "name": "bordered",
+                "description": "是否有边框",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "hoverable",
+                "description": "鼠标移过时可浮起",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "loading",
+                "description": "当卡片内容还在加载中时，可以用 loading 展示一个占位",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "size",
+                "description": "卡片的尺寸",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "default",
+                        "description": "默认"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-tooltip",
+            "ATooltip",
+            "Tooltip"
+        ],
+        "description": "Tooltip 文字提示 (v1.x)",
+        "link": "https://1x.antdv.com/components/tooltip-cn/",
+        "snippet": "<$TAG$1 title=\"${2:prompt text}\">\n\t<span>${3:Tooltip will show on mouse enter.}</span>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "title",
+                "description": "提示文字",
+                "type": "string | slot",
+                "default": "—"
+            },
+            {
+                "name": "placement",
+                "description": "气泡框位置",
+                "type": "enum",
+                "default": "top",
+                "options": [
+                    {
+                        "value": "top",
+                        "description": "上"
+                    },
+                    {
+                        "value": "left",
+                        "description": "左"
+                    },
+                    {
+                        "value": "right",
+                        "description": "右"
+                    },
+                    {
+                        "value": "bottom",
+                        "description": "下"
+                    }
+                ]
+            },
+            {
+                "name": "trigger",
+                "description": "触发行为",
+                "type": "enum",
+                "default": "hover",
+                "options": [
+                    {
+                        "value": "hover",
+                        "description": "悬浮"
+                    },
+                    {
+                        "value": "focus",
+                        "description": "聚焦"
+                    },
+                    {
+                        "value": "click",
+                        "description": "点击"
+                    },
+                    {
+                        "value": "contextMenu",
+                        "description": "右键"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-modal",
+            "AModal",
+            "Modal"
+        ],
+        "description": "Modal 对话框 (v1.x)",
+        "link": "https://1x.antdv.com/components/modal-cn/",
+        "snippet": "<$TAG$1 :visible.sync=\"${2:visible}\" title=\"${3:Title}\" @ok=\"handleOk\">\n\t<p>${4:Contents...}</p>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "visible",
+                "description": "对话框是否可见，支持 .sync 修饰符",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "title",
+                "description": "标题",
+                "type": "string|slot",
+                "default": "—"
+            },
+            {
+                "name": "confirmLoading",
+                "description": "确定按钮 loading",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "destroyOnClose",
+                "description": "关闭时销毁 Modal 里的子元素",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "centered",
+                "description": "垂直居中展示 Modal",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "width",
+                "description": "宽度",
+                "type": "string|number",
+                "default": "520"
+            },
+            {
+                "name": "okText",
+                "description": "确认按钮文字",
+                "type": "string",
+                "default": "确定"
+            },
+            {
+                "name": "cancelText",
+                "description": "取消按钮文字",
+                "type": "string",
+                "default": "取消"
+            },
+            {
+                "name": "maskClosable",
+                "description": "点击蒙层是否允许关闭",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "ok",
+                "description": "点击确定回调",
+                "parameters": "(e)"
+            },
+            {
+                "name": "cancel",
+                "description": "点击遮罩层或右上角叉或取消按钮的回调",
+                "parameters": "(e)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "footer",
+                "description": "自定义底部内容"
+            },
+            {
+                "name": "title",
+                "description": "自定义标题"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-drawer",
+            "ADrawer",
+            "Drawer"
+        ],
+        "description": "Drawer 抽屉 (v1.x)",
+        "link": "https://1x.antdv.com/components/drawer-cn/",
+        "snippet": "<$TAG$1 title=\"${2:Basic Drawer}\" placement=\"right\" :visible.sync=\"${3:visible}\">\n\t<p>${4:Some contents...}</p>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "visible",
+                "description": "Drawer 是否可见",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "title",
+                "description": "标题",
+                "type": "string|slot",
+                "default": "—"
+            },
+            {
+                "name": "placement",
+                "description": "抽屉的方向",
+                "type": "enum",
+                "default": "right",
+                "options": [
+                    {
+                        "value": "top",
+                        "description": "上"
+                    },
+                    {
+                        "value": "right",
+                        "description": "右"
+                    },
+                    {
+                        "value": "bottom",
+                        "description": "下"
+                    },
+                    {
+                        "value": "left",
+                        "description": "左"
+                    }
+                ]
+            },
+            {
+                "name": "width",
+                "description": "宽度",
+                "type": "string|number",
+                "default": "256"
+            },
+            {
+                "name": "height",
+                "description": "高度, 在 placement 为 top 或 bottom 时使用",
+                "type": "string|number",
+                "default": "256"
+            },
+            {
+                "name": "maskClosable",
+                "description": "点击蒙层是否允许关闭",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "close",
+                "description": "点击遮罩层或右上角叉的回调",
+                "parameters": "(e)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-tabs",
+            "ATabs",
+            "Tabs"
+        ],
+        "description": "Tabs 标签页 (v1.x)",
+        "link": "https://1x.antdv.com/components/tabs-cn/",
+        "snippet": "<$TAG$1 v-model=\"${2:activeKey}\" @change=\"callback\">\n\t<a-tab-pane key=\"1\" tab=\"Tab 1\">Content of Tab Pane 1</a-tab-pane>\n\t<a-tab-pane key=\"2\" tab=\"Tab 2\">Content of Tab Pane 2</a-tab-pane>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "activeKey / v-model",
+                "description": "当前激活 tab 面板的 key",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "type",
+                "description": "页签的基本样式",
+                "type": "enum",
+                "default": "line",
+                "options": [
+                    {
+                        "value": "line",
+                        "description": "线条"
+                    },
+                    {
+                        "value": "card",
+                        "description": "卡片"
+                    },
+                    {
+                        "value": "editable-card",
+                        "description": "可编辑卡片"
+                    }
+                ]
+            },
+            {
+                "name": "tabPosition",
+                "description": "页签位置",
+                "type": "enum",
+                "default": "top",
+                "options": [
+                    {
+                        "value": "top",
+                        "description": "上"
+                    },
+                    {
+                        "value": "right",
+                        "description": "右"
+                    },
+                    {
+                        "value": "bottom",
+                        "description": "下"
+                    },
+                    {
+                        "value": "left",
+                        "description": "左"
+                    }
+                ]
+            },
+            {
+                "name": "size",
+                "description": "大小",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "large",
+                        "description": "大"
+                    },
+                    {
+                        "value": "default",
+                        "description": "中"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小"
+                    }
+                ]
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "切换面板的回调",
+                "parameters": "(activeKey)"
+            },
+            {
+                "name": "tabClick",
+                "description": "tab 被点击的回调",
+                "parameters": "(key)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-dropdown",
+            "ADropdown",
+            "Dropdown"
+        ],
+        "description": "Dropdown 下拉菜单 (v1.x)",
+        "link": "https://1x.antdv.com/components/dropdown-cn/",
+        "snippet": "<$TAG$1>\n\t<a class=\"ant-dropdown-link\" @click=\"e => e.preventDefault()\"> Hover me <a-icon type=\"down\" /> </a>\n\t<a-menu slot=\"overlay\">\n\t\t<a-menu-item> <a href=\"javascript:;\">1st menu item</a> </a-menu-item>\n\t</a-menu>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "trigger",
+                "description": "触发下拉的行为",
+                "type": "array",
+                "default": "['hover']",
+                "options": [
+                    {
+                        "value": "['click']",
+                        "description": "点击"
+                    },
+                    {
+                        "value": "['hover']",
+                        "description": "悬浮"
+                    },
+                    {
+                        "value": "['contextmenu']",
+                        "description": "右键"
+                    }
+                ]
+            },
+            {
+                "name": "placement",
+                "description": "菜单弹出位置",
+                "type": "enum",
+                "default": "bottomLeft",
+                "options": [
+                    {
+                        "value": "bottomLeft",
+                        "description": "左下"
+                    },
+                    {
+                        "value": "bottomCenter",
+                        "description": "中下"
+                    },
+                    {
+                        "value": "bottomRight",
+                        "description": "右下"
+                    },
+                    {
+                        "value": "topLeft",
+                        "description": "左上"
+                    },
+                    {
+                        "value": "topCenter",
+                        "description": "中上"
+                    },
+                    {
+                        "value": "topRight",
+                        "description": "右上"
+                    }
+                ]
+            },
+            {
+                "name": "disabled",
+                "description": "菜单是否禁用",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "slots": [
+            {
+                "name": "overlay",
+                "description": "菜单内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "a-popconfirm",
+            "APopconfirm",
+            "Popconfirm"
+        ],
+        "description": "Popconfirm 气泡确认框 (v1.x)",
+        "link": "https://1x.antdv.com/components/popconfirm-cn/",
+        "snippet": "<$TAG$1 title=\"${2:Are you sure delete this task?}\" ok-text=\"Yes\" cancel-text=\"No\" @confirm=\"confirm\">\n\t<a href=\"#\">Delete</a>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "title",
+                "description": "确认框的描述",
+                "type": "string|slot",
+                "default": "—"
+            },
+            {
+                "name": "okText",
+                "description": "确认按钮文字",
+                "type": "string",
+                "default": "确定"
+            },
+            {
+                "name": "cancelText",
+                "description": "取消按钮文字",
+                "type": "string",
+                "default": "取消"
+            },
+            {
+                "name": "placement",
+                "description": "气泡框位置",
+                "type": "enum",
+                "default": "top",
+                "options": [
+                    {
+                        "value": "top",
+                        "description": "上"
+                    },
+                    {
+                        "value": "left",
+                        "description": "左"
+                    },
+                    {
+                        "value": "right",
+                        "description": "右"
+                    },
+                    {
+                        "value": "bottom",
+                        "description": "下"
+                    }
+                ]
+            }
+        ],
+        "events": [
+            {
+                "name": "confirm",
+                "description": "点击确认的回调",
+                "parameters": "(e)"
+            },
+            {
+                "name": "cancel",
+                "description": "点击取消的回调",
+                "parameters": "(e)"
+            }
+        ]
+    }
+]
