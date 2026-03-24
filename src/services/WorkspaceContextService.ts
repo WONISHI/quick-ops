@@ -12,21 +12,29 @@ export class WorkspaceContextService {
   private _dependencies: Record<string, string> = {};
   private _initPromise: Promise<void>;
 
+  // 🌟 新增：事件广播器，用于通知外部（如智能提示引擎）“依赖发生变化，请热更新”
+  private _onDidChangeContext = new vscode.EventEmitter<void>();
+  public readonly onDidChangeContext = this._onDidChangeContext.event;
+
   // 缓存当前生效的 package.json 路径，用于 Git 命令的 cwd
   private _currentProjectRoot: string = '';
+  
+  // 🌟 新增：统一管理所有的监听器，防止内存泄漏
+  private disposables: vscode.Disposable[] = [];
 
   private constructor() {
-    // @ts-ignore
     this._initPromise = this.init();
 
     // 监听文件切换：不仅更新文件名，还要尝试更新项目上下文(应对Monorepo切换包的情况)
-    vscode.window.onDidChangeActiveTextEditor(() => {
-      this.updateFileContext();
-      // 切换文件后，重新查找最近的 package.json 并更新上下文
-      this.updateProjectContext();
-      // 更新 Git 上下文 (因为可能切换到了不同的子模块)
-      this.updateGitContext();
-    });
+    this.disposables.push(
+      vscode.window.onDidChangeActiveTextEditor(() => {
+        this.updateFileContext();
+        // 切换文件后，重新查找最近的 package.json 并更新上下文
+        this.updateProjectContext();
+        // 更新 Git 上下文 (因为可能切换到了不同的子模块)
+        this.updateGitContext();
+      })
+    );
 
     // 监听 package.json 变化 (**/package.json 会监听所有子目录)
     this.watchPackageJson();
@@ -125,10 +133,8 @@ export class WorkspaceContextService {
     let startUri: vscode.Uri | undefined;
 
     if (vscode.window.activeTextEditor) {
-      // 从当前编辑的文件所在目录开始查
       startUri = vscode.Uri.joinPath(vscode.window.activeTextEditor.document.uri, '..');
     } else if (vscode.workspace.workspaceFolders?.[0]) {
-      // 如果没打开文件，从工作区根目录开始查
       startUri = vscode.workspace.workspaceFolders[0].uri;
     }
 
@@ -138,7 +144,12 @@ export class WorkspaceContextService {
     const pkgUri = await this.findNearestPackageJson(startUri);
 
     if (!pkgUri) {
-      // 如果实在找不到，可能不是 Node 项目，保持默认或清空
+      // 🌟 如果没找到 package.json，但旧内存里有依赖，说明可能切出了前端项目范围
+      if (Object.keys(this._dependencies).length > 0) {
+        this._dependencies = {};
+        this._currentProjectRoot = '';
+        this._onDidChangeContext.fire(); // 广播：依赖清空了
+      }
       return;
     }
 
@@ -155,7 +166,12 @@ export class WorkspaceContextService {
       this._context.projectName = pkg.name || 'unknown-project';
       this._context.projectVersion = pkg.version || '0.0.0';
 
-      this._dependencies = { ...pkg.dependencies, ...pkg.devDependencies };
+      const newDependencies = { ...pkg.dependencies, ...pkg.devDependencies };
+
+      // 🌟 性能优化：深度对比。只有在新老依赖不一致时，才触发广播重载
+      const isDependenciesChanged = JSON.stringify(this._dependencies) !== JSON.stringify(newDependencies);
+
+      this._dependencies = newDependencies;
 
       // 重新判断技术栈
       this._context.isVue3 = !!(this._dependencies['vue'] && this._dependencies['vue'].match(/(^|[^0-9])3\./));
@@ -165,8 +181,15 @@ export class WorkspaceContextService {
       if (this._dependencies['less']) this._context.cssLang = 'less';
       else if (this._dependencies['sass'] || this._dependencies['scss']) this._context.cssLang = 'scss';
       else this._context.cssLang = 'css';
+
+      // 🌟 如果发现依赖确实变化了（比如刚执行完 npm install，或者在 monorepo 切换到了不同的子包）
+      if (isDependenciesChanged) {
+        this._onDidChangeContext.fire();
+      }
+
     } catch (e) {
       // 解析失败
+      console.error('[Quick Ops] 解析 package.json 失败', e);
     }
   }
 
@@ -184,64 +207,43 @@ export class WorkspaceContextService {
     watcher.onDidChange(debouncedUpdate);
     watcher.onDidCreate(debouncedUpdate);
     watcher.onDidDelete(debouncedUpdate);
+    
+    this.disposables.push(watcher);
   }
 
   private updateGitContext() {
-    // 优先使用当前识别到的项目根目录，如果没找到 package.json，则回退到工作区根目录
     const cwd = this._currentProjectRoot || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-
     if (!cwd) return;
 
-    // 1. 获取当前分支
     exec('git branch --show-current', { cwd }, (err, stdout) => {
-      if (!err && stdout) {
-        this._context.gitBranch = stdout.trim();
-      }
+      if (!err && stdout) this._context.gitBranch = stdout.trim();
     });
 
-    // 2. 获取远程上游分支
     exec('git rev-parse --abbrev-ref @{u}', { cwd }, (err, stdout) => {
-      if (!err && stdout) {
-        this._context.gitRemote = stdout.trim();
-      } else {
-        this._context.gitRemote = '';
-      }
+      if (!err && stdout) this._context.gitRemote = stdout.trim();
+      else this._context.gitRemote = '';
     });
 
-    // 3. 获取本地分支列表
     exec('git branch --format="%(refname:short)"', { cwd }, (err, stdout) => {
       if (!err && stdout) {
-        const list = stdout
-          .split('\n')
-          .map((s) => s.trim())
-          .filter(Boolean);
-        this._context.gitLocalBranch = list;
+        this._context.gitLocalBranch = stdout.split('\n').map((s) => s.trim()).filter(Boolean);
       } else {
         this._context.gitLocalBranch = [];
       }
     });
 
-    // 4. 获取远程分支列表
     exec('git branch -r --format="%(refname:short)"', { cwd }, (err, stdout) => {
       if (!err && stdout) {
-        const list = stdout
-          .split('\n')
-          .map((s) => s.trim())
-          .filter(Boolean);
-        this._context.gitRemoteBranch = list;
+        this._context.gitRemoteBranch = stdout.split('\n').map((s) => s.trim()).filter(Boolean);
       } else {
         this._context.gitRemoteBranch = [];
       }
     });
 
-    // 5. 获取用户名
     if (!this._context.userName) {
       exec('git config user.name', { cwd }, (err, stdout) => {
-        if (!err && stdout) {
-          this._context.userName = stdout.trim();
-        } else {
-          this._context.userName = os.userInfo().username;
-        }
+        if (!err && stdout) this._context.userName = stdout.trim();
+        else this._context.userName = os.userInfo().username;
       });
     }
   }
@@ -256,16 +258,25 @@ export class WorkspaceContextService {
   }
 
   private watchPackageJson() {
-    // **/package.json 会监听工作区内所有的 package.json 变动
     const watcher = vscode.workspace.createFileSystemWatcher('**/package.json');
     const update = () => this.updateProjectContext();
+    
     watcher.onDidChange(update);
     watcher.onDidCreate(update);
     watcher.onDidDelete(() => {
-      // 只有当删除的是当前生效的 package.json 时才清空，这里简化处理
       this._dependencies = {};
       this._context.cssLang = 'css';
-      this.updateProjectContext(); // 尝试重新查找上层
+      this._onDidChangeContext.fire(); // 🌟 被删除时也触发广播
+      this.updateProjectContext();
     });
+    
+    this.disposables.push(watcher);
+  }
+
+  // 🌟 新增：插件关闭时释放资源
+  public dispose() {
+    this._onDidChangeContext.dispose();
+    this.disposables.forEach(d => d.dispose());
+    this.disposables = [];
   }
 }

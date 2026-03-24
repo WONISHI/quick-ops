@@ -47,7 +47,6 @@ export class ComponentIntellisenseFeature implements IFeature {
   private components: UIComponent[] = [];
   private tagToComponentMap: Map<string, UIComponent> = new Map();
   private providerDisposable?: vscode.Disposable;
-  // 🌟 新增：悬停提示的资源清理句柄
   private hoverDisposable?: vscode.Disposable;
 
   constructor(private contextService: WorkspaceContextService = WorkspaceContextService.getInstance()) {}
@@ -55,6 +54,14 @@ export class ComponentIntellisenseFeature implements IFeature {
   public async activate(context: vscode.ExtensionContext) {
     await this.contextService.waitUntilReady();
     this.loadSnippetsFromResources(context);
+
+    // ==========================================
+    // 🌟 核心：注册热更新监听器
+    // ==========================================
+    const contextChangeDisposable = this.contextService.onDidChangeContext(() => {
+      console.log('[Quick Ops] 监听到项目依赖发生变化，正在重新挂载 UI 提示库...');
+      this.reload(context);
+    });
 
     // ==========================================
     // 注册代码补全 (Completion)
@@ -181,30 +188,26 @@ export class ComponentIntellisenseFeature implements IFeature {
     );
 
     // ==========================================
-    // 🌟 新增：注册悬停提示 (Hover)
+    // 注册悬停提示 (Hover)
     // ==========================================
     this.hoverDisposable = vscode.languages.registerHoverProvider(['vue', 'html', 'javascriptreact', 'typescriptreact'], {
       provideHover: (document: vscode.TextDocument, position: vscode.Position): vscode.Hover | undefined => {
-        // 获取鼠标当前悬停的单词（支持匹配 v-model:prop, @click, #header 等格式）
         const wordRange = document.getWordRangeAtPosition(position, /[@#]?[\w:-]+/);
         if (!wordRange) return undefined;
 
         const word = document.getText(wordRange);
 
-        // 1. 如果悬停的是组件标签自身 (例如 el-button)
         let comp = this.tagToComponentMap.get(word);
         if (comp) {
           return new vscode.Hover(this.buildFullComponentMarkdown(comp, word), wordRange);
         }
 
-        // 2. 如果悬停的是属性/事件/插槽，我们需要找到它所属的组件标签
         const currentTag = this.getCurrentTagForHover(document, position);
         if (!currentTag) return undefined;
 
         comp = this.tagToComponentMap.get(currentTag);
         if (!comp) return undefined;
 
-        // 剥离修饰符，提取纯粹的属性名/事件名/插槽名
         let cleanWord = word;
         let isEvent = false,
           isSlot = false;
@@ -216,11 +219,9 @@ export class ComponentIntellisenseFeature implements IFeature {
           isSlot = true;
           cleanWord = word.replace(/^#|v-slot:/, '');
         } else {
-          // 移除 :, v-bind:, v-model: 提取核心属性名
           cleanWord = word.replace(/^:|v-bind:|v-model:/, '');
         }
 
-        // 匹配事件
         if (isEvent && comp.events) {
           const ev = comp.events.find((e) => e.name === cleanWord);
           if (ev) {
@@ -229,7 +230,6 @@ export class ComponentIntellisenseFeature implements IFeature {
           }
         }
 
-        // 匹配插槽
         if (isSlot && comp.slots) {
           const slot = comp.slots.find((s) => s.name === cleanWord);
           if (slot) {
@@ -238,7 +238,6 @@ export class ComponentIntellisenseFeature implements IFeature {
           }
         }
 
-        // 匹配属性
         if (comp.attributes && !isEvent && !isSlot) {
           const attr = comp.attributes.find((a) => a.name === cleanWord);
           if (attr) {
@@ -249,6 +248,22 @@ export class ComponentIntellisenseFeature implements IFeature {
         return undefined;
       },
     });
+
+    const exportCommand = vscode.commands.registerCommand('quick-ops.exportSnippets', async () => {
+      await this.exportSnippetsToWorkspace();
+    });
+
+    // 🌟 别忘了将热更新的监听器 push 进去注销
+    context.subscriptions.push(this.providerDisposable, this.hoverDisposable, exportCommand, contextChangeDisposable);
+  }
+
+  // ==========================================
+  // 🌟 新增：热更新专用的重载方法
+  // ==========================================
+  private reload(context: vscode.ExtensionContext) {
+    this.components = [];
+    this.tagToComponentMap.clear();
+    this.loadSnippetsFromResources(context);
   }
 
   // 构建属性 Markdown 表格
@@ -299,12 +314,10 @@ export class ComponentIntellisenseFeature implements IFeature {
     return mds;
   }
 
-  // 🌟 新增：为 Hover 专门设计的闭包标签查找器
   private getCurrentTagForHover(document: vscode.TextDocument, position: vscode.Position): string | null {
     let lineNum = position.line;
     let charNum = position.character;
 
-    // 从当前行往前找最近的 "<"
     for (let i = lineNum; i >= Math.max(0, lineNum - 10); i--) {
       const lineText = document.lineAt(i).text;
       const endChar = i === lineNum ? charNum : lineText.length;
@@ -313,12 +326,10 @@ export class ComponentIntellisenseFeature implements IFeature {
       const lastOpenIdx = chunk.lastIndexOf('<');
       const lastCloseIdx = chunk.lastIndexOf('>');
 
-      // 如果 "<" 出现在 ">" 之后，说明我们正身处一个标签的内部
       if (lastOpenIdx > lastCloseIdx) {
         const tagMatch = chunk.substring(lastOpenIdx).match(/<([\w-]+)/);
         if (tagMatch) {
           const tagName = tagMatch[1];
-          // 如果悬停在 template 内的属性上，向上寻找真实的父组件
           if (tagName.toLowerCase() === 'template') {
             return this.getNearestTag(document, new vscode.Position(i, lastOpenIdx));
           }
@@ -327,11 +338,9 @@ export class ComponentIntellisenseFeature implements IFeature {
       }
     }
 
-    // 如果没有处于标签内部，则可能是悬停在包裹元素内的 slot 上，使用经典 getNearestTag 往外找
     return this.getNearestTag(document, position);
   }
 
-  // 向上寻找父组件（支持嵌套插槽推断）
   private getNearestTag(document: vscode.TextDocument, position: vscode.Position): string | null {
     const startLine = Math.max(0, position.line - 30);
     const text = document.getText(new vscode.Range(new vscode.Position(startLine, 0), position));
@@ -366,15 +375,11 @@ export class ComponentIntellisenseFeature implements IFeature {
     if (!fs.existsSync(snippetsDir)) return;
 
     const files = fs.readdirSync(snippetsDir);
-
-    // 1. 将文件按组件库基础名称进行分组
-    // 数据结构示例: { 'ant-design-vue': { unversioned: 'ant-design-vue.json', versions: { '4': 'ant-design-vue@v4.json' } } }
     const libraryGroups: Record<string, { unversioned?: string; versions: Record<string, string> }> = {};
 
     files.forEach((file) => {
       if (!file.endsWith('.json')) return;
 
-      // 使用正则提取基础库名和大版本号，例如 "ant-design-vue@v4.json" -> baseName: "ant-design-vue", version: "4"
       const match = file.match(/^(.+?)(?:@v(\d+))?\.json$/);
       if (!match) return;
 
@@ -385,61 +390,53 @@ export class ComponentIntellisenseFeature implements IFeature {
       }
 
       if (version) {
-        libraryGroups[baseName].versions[version] = file; // 记录带版本的文件
+        libraryGroups[baseName].versions[version] = file;
       } else {
-        libraryGroups[baseName].unversioned = file; // 记录不带版本的兜底文件
+        libraryGroups[baseName].unversioned = file;
       }
     });
 
     const ctx = this.contextService.context;
-    // 2. 获取当前项目安装的所有依赖
     const dependencies = ctx.dependencies || {};
 
-    // 3. 遍历分组，根据依赖和配置决定加载哪个文件
     for (const [baseName, group] of Object.entries(libraryGroups)) {
-      // 组装配置项的 Key (例: ant-design-vue -> AntDesignVue)
       const configKey = baseName
         .split('-')
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join('');
 
-      // 检查全局设置是否开启了该组件库的提示
       const isEnabled = vscode.workspace.getConfiguration('quick-ops.general.use').get<boolean>(configKey, true);
       if (!isEnabled) {
-        console.log(`[Quick Ops] 已拦截加载: ${baseName} (因为全局配置项 ${configKey} 未开启)`);
-        continue; // 直接跳过这个库，处理下一个
+        console.log(`[Quick Ops] 已拦截加载: ${baseName} (全局配置项 ${configKey} 未开启)`);
+        continue;
       }
 
-      // 解析当前项目安装的该依赖的大版本号
-      let installedMajorVersion: string | null = null;
       const depVersionString = dependencies[baseName];
-
-      if (depVersionString) {
-        // 使用正则提取版本号中的第一个主数字 (例如 "^4.2.1" -> "4", "~2.0.0" -> "2", "3.1.2" -> "3")
-        const majorMatch = depVersionString.match(/(?:^|[^\d])(\d+)\./);
-        if (majorMatch) {
-          installedMajorVersion = majorMatch[1];
-        }
+      if (!depVersionString) {
+        console.log(`[Quick Ops] 已拦截加载: ${baseName} (当前项目 package.json 中未安装该依赖)`);
+        continue;
       }
 
-      // 核心逻辑：决定最终使用哪个 JSON 文件
+      let installedMajorVersion: string | null = null;
+
+      const majorMatch = depVersionString.match(/(?:^|[^\d])(\d+)\./);
+      if (majorMatch) {
+        installedMajorVersion = majorMatch[1];
+      }
+
       let targetFileToLoad: string | undefined;
 
       if (installedMajorVersion && group.versions[installedMajorVersion]) {
-        // 场景 A: 成功匹配到对应大版本的专属文件 (如 ant-design-vue@v4.json)
         targetFileToLoad = group.versions[installedMajorVersion];
       } else if (group.unversioned) {
-        // 场景 B: 没匹配上大版本，或者项目中根本没装这个依赖，降级使用兜底文件 (如 ant-design-vue.json)
         targetFileToLoad = group.unversioned;
       }
 
-      // 如果连兜底文件都没有，或者啥也没匹配上，直接不处理该组件库
       if (!targetFileToLoad) {
         console.log(`[Quick Ops] 未加载 ${baseName}，因为既没有匹配的版本文件，也没有兜底的默认文件。`);
         continue;
       }
 
-      // 4. 读取并解析最终选定的 JSON 文件
       const content = fs.readFileSync(path.join(snippetsDir, targetFileToLoad), 'utf8');
       try {
         const parsed: UIComponent[] = JSON.parse(content);
@@ -451,10 +448,39 @@ export class ComponentIntellisenseFeature implements IFeature {
       }
     }
   }
+  
+  private async exportSnippetsToWorkspace() {
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    if (!workspaceFolders || this.components.length === 0) return;
+
+    try {
+      const targetFile = vscode.Uri.joinPath(workspaceFolders[0].uri, '.vscode', 'quick-ops-ui.code-snippets');
+      const vsCodeNativeSnippets: Record<string, any> = {};
+      
+      for (const comp of this.components) {
+        for (const tag of comp.tags) {
+          vsCodeNativeSnippets[`${comp.description} (${tag})`] = {
+            prefix: tag,
+            body: comp.snippet.replace(/\$TAG/g, tag).split('\n'),
+            description: comp.description
+          };
+        }
+      }
+
+      await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(workspaceFolders[0].uri, '.vscode'));
+      await vscode.workspace.fs.writeFile(targetFile, Buffer.from(JSON.stringify(vsCodeNativeSnippets, null, 2), 'utf8'));
+
+      const doc = await vscode.workspace.openTextDocument(targetFile);
+      await vscode.window.showTextDocument(doc);
+      vscode.window.showInformationMessage('🎉 UI 库基础代码片段已成功导出！');
+    } catch (error) {
+      vscode.window.showErrorMessage(`导出失败: ${error}`);
+    }
+  }
 
   public dispose() {
     this.providerDisposable?.dispose();
-    this.hoverDisposable?.dispose(); // 清理 Hover 资源
+    this.hoverDisposable?.dispose();
     this.components = [];
     this.tagToComponentMap.clear();
   }
