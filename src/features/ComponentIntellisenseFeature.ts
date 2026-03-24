@@ -50,6 +50,8 @@ export class ComponentIntellisenseFeature implements IFeature {
   // 🌟 新增：悬停提示的资源清理句柄
   private hoverDisposable?: vscode.Disposable;
 
+  constructor(private contextService: WorkspaceContextService = WorkspaceContextService.getInstance()) {}
+
   public activate(context: vscode.ExtensionContext) {
     this.loadSnippetsFromResources(context);
 
@@ -388,8 +390,9 @@ export class ComponentIntellisenseFeature implements IFeature {
       }
     });
 
+    const ctx = this.contextService.context;
     // 2. 获取当前项目安装的所有依赖
-    const dependencies = WorkspaceContextService.getInstance().context.dependencies || {};
+    const dependencies = ctx.dependencies || {};
 
     // 3. 遍历分组，根据依赖和配置决定加载哪个文件
     for (const [baseName, group] of Object.entries(libraryGroups)) {
