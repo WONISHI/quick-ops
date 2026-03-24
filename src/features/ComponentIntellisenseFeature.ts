@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { IFeature } from '../core/interfaces/IFeature';
+import { WorkspaceContextService } from '../services/WorkspaceContextService';
 
 // ==========================================
 // 1. 标准化数据接口
@@ -362,31 +363,89 @@ export class ComponentIntellisenseFeature implements IFeature {
     if (!fs.existsSync(snippetsDir)) return;
 
     const files = fs.readdirSync(snippetsDir);
+
+    // 1. 将文件按组件库基础名称进行分组
+    // 数据结构示例: { 'ant-design-vue': { unversioned: 'ant-design-vue.json', versions: { '4': 'ant-design-vue@v4.json' } } }
+    const libraryGroups: Record<string, { unversioned?: string; versions: Record<string, string> }> = {};
+
     files.forEach((file) => {
-      if (file.endsWith('.json')) {
-        const baseName = path.basename(file, '.json');
-        const configKey = baseName
-          .split('-')
-          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-          .join('');
+      if (!file.endsWith('.json')) return;
 
-        const isEnabled = vscode.workspace.getConfiguration('quick-ops.general.use').get<boolean>(configKey, true);
+      // 使用正则提取基础库名和大版本号，例如 "ant-design-vue@v4.json" -> baseName: "ant-design-vue", version: "4"
+      const match = file.match(/^(.+?)(?:@v(\d+))?\.json$/);
+      if (!match) return;
 
-        if (!isEnabled) {
-          console.log(`[Quick Ops] 已拦截加载: ${file} (因为配置项 ${configKey} 未开启)`);
-          return;
-        }
+      const [, baseName, version] = match;
 
-        const content = fs.readFileSync(path.join(snippetsDir, file), 'utf8');
-        try {
-          const parsed: UIComponent[] = JSON.parse(content);
-          this.components.push(...parsed);
-          parsed.forEach((c) => c.tags.forEach((t) => this.tagToComponentMap.set(t, c)));
-        } catch (e) {
-          console.error(`Fail to load: ${file}`, e);
-        }
+      if (!libraryGroups[baseName]) {
+        libraryGroups[baseName] = { versions: {} };
+      }
+
+      if (version) {
+        libraryGroups[baseName].versions[version] = file; // 记录带版本的文件
+      } else {
+        libraryGroups[baseName].unversioned = file; // 记录不带版本的兜底文件
       }
     });
+
+    // 2. 获取当前项目安装的所有依赖
+    const dependencies = WorkspaceContextService.getInstance().context.dependencies || {};
+
+    // 3. 遍历分组，根据依赖和配置决定加载哪个文件
+    for (const [baseName, group] of Object.entries(libraryGroups)) {
+      // 组装配置项的 Key (例: ant-design-vue -> AntDesignVue)
+      const configKey = baseName
+        .split('-')
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join('');
+
+      // 检查全局设置是否开启了该组件库的提示
+      const isEnabled = vscode.workspace.getConfiguration('quick-ops.general.use').get<boolean>(configKey, true);
+      if (!isEnabled) {
+        console.log(`[Quick Ops] 已拦截加载: ${baseName} (因为全局配置项 ${configKey} 未开启)`);
+        continue; // 直接跳过这个库，处理下一个
+      }
+
+      // 解析当前项目安装的该依赖的大版本号
+      let installedMajorVersion: string | null = null;
+      const depVersionString = dependencies[baseName];
+
+      if (depVersionString) {
+        // 使用正则提取版本号中的第一个主数字 (例如 "^4.2.1" -> "4", "~2.0.0" -> "2", "3.1.2" -> "3")
+        const majorMatch = depVersionString.match(/(?:^|[^\d])(\d+)\./);
+        if (majorMatch) {
+          installedMajorVersion = majorMatch[1];
+        }
+      }
+
+      // 核心逻辑：决定最终使用哪个 JSON 文件
+      let targetFileToLoad: string | undefined;
+
+      if (installedMajorVersion && group.versions[installedMajorVersion]) {
+        // 场景 A: 成功匹配到对应大版本的专属文件 (如 ant-design-vue@v4.json)
+        targetFileToLoad = group.versions[installedMajorVersion];
+      } else if (group.unversioned) {
+        // 场景 B: 没匹配上大版本，或者项目中根本没装这个依赖，降级使用兜底文件 (如 ant-design-vue.json)
+        targetFileToLoad = group.unversioned;
+      }
+
+      // 如果连兜底文件都没有，或者啥也没匹配上，直接不处理该组件库
+      if (!targetFileToLoad) {
+        console.log(`[Quick Ops] 未加载 ${baseName}，因为既没有匹配的版本文件，也没有兜底的默认文件。`);
+        continue;
+      }
+
+      // 4. 读取并解析最终选定的 JSON 文件
+      const content = fs.readFileSync(path.join(snippetsDir, targetFileToLoad), 'utf8');
+      try {
+        const parsed: UIComponent[] = JSON.parse(content);
+        this.components.push(...parsed);
+        parsed.forEach((c) => c.tags.forEach((t) => this.tagToComponentMap.set(t, c)));
+        console.log(`[Quick Ops] 成功加载 ${baseName} 的片段库: ${targetFileToLoad}`);
+      } catch (e) {
+        console.error(`[Quick Ops] 解析文件失败: ${targetFileToLoad}`, e);
+      }
+    }
   }
 
   public dispose() {
