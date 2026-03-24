@@ -1,0 +1,2659 @@
+[
+    {
+        "tags": [
+            "el-button",
+            "ElButton"
+        ],
+        "description": "Button 按钮",
+        "link": "https://element.eleme.cn/#/zh-CN/component/button",
+        "snippet": "<$TAG$1 type=\"${2|primary,success,warning,danger,info,text|}\">$3</$TAG>",
+        "attributes": [
+            {
+                "name": "size",
+                "description": "尺寸",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "medium",
+                        "description": "中等"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小型"
+                    },
+                    {
+                        "value": "mini",
+                        "description": "超小"
+                    }
+                ]
+            },
+            {
+                "name": "type",
+                "description": "类型",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "primary",
+                        "description": "主要按钮"
+                    },
+                    {
+                        "value": "success",
+                        "description": "成功按钮"
+                    },
+                    {
+                        "value": "warning",
+                        "description": "警告按钮"
+                    },
+                    {
+                        "value": "danger",
+                        "description": "危险按钮"
+                    },
+                    {
+                        "value": "info",
+                        "description": "信息按钮"
+                    },
+                    {
+                        "value": "text",
+                        "description": "文字按钮"
+                    }
+                ]
+            },
+            {
+                "name": "plain",
+                "description": "是否朴素按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "round",
+                "description": "是否圆角按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "circle",
+                "description": "是否圆形按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "loading",
+                "description": "是否加载中状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "icon",
+                "description": "图标类名",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "autofocus",
+                "description": "是否默认聚焦",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "native-type",
+                "description": "原生 type 属性",
+                "type": "enum",
+                "default": "button",
+                "options": [
+                    {
+                        "value": "button",
+                        "description": "普通按钮"
+                    },
+                    {
+                        "value": "submit",
+                        "description": "提交按钮"
+                    },
+                    {
+                        "value": "reset",
+                        "description": "重置按钮"
+                    }
+                ]
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击按钮时的回调",
+                "parameters": "(evt: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-link",
+            "ElLink"
+        ],
+        "description": "Link 文字链接",
+        "link": "https://element.eleme.cn/#/zh-CN/component/link",
+        "snippet": "<$TAG$1 type=\"${2|primary,success,warning,danger,info|}\">$3</$TAG>",
+        "attributes": [
+            {
+                "name": "type",
+                "description": "类型",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "primary",
+                        "description": "主要链接"
+                    },
+                    {
+                        "value": "success",
+                        "description": "成功链接"
+                    },
+                    {
+                        "value": "warning",
+                        "description": "警告链接"
+                    },
+                    {
+                        "value": "danger",
+                        "description": "危险链接"
+                    },
+                    {
+                        "value": "info",
+                        "description": "信息链接"
+                    }
+                ]
+            },
+            {
+                "name": "underline",
+                "description": "是否下划线",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "href",
+                "description": "原生 href 属性",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "icon",
+                "description": "图标类名",
+                "type": "string",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击链接时触发",
+                "parameters": "(evt: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-icon",
+            "ElIcon"
+        ],
+        "description": "Icon 图标",
+        "link": "https://element.eleme.cn/#/zh-CN/component/icon",
+        "snippet": "<i class=\"el-icon-${1:edit}\"></i>",
+        "attributes": []
+    },
+    {
+        "tags": [
+            "el-row",
+            "ElRow"
+        ],
+        "description": "Row 栅格布局-行",
+        "link": "https://element.eleme.cn/#/zh-CN/component/layout",
+        "snippet": "<$TAG$1 :gutter=\"${2:20}\">\n\t<el-col :span=\"12\">$3</el-col>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "gutter",
+                "description": "栅格间隔",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "type",
+                "description": "布局模式，可选 flex，现代浏览器下有效",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "justify",
+                "description": "flex 布局下的水平排列方式",
+                "type": "enum",
+                "default": "start",
+                "options": [
+                    {
+                        "value": "start",
+                        "description": "左对齐"
+                    },
+                    {
+                        "value": "end",
+                        "description": "右对齐"
+                    },
+                    {
+                        "value": "center",
+                        "description": "居中"
+                    },
+                    {
+                        "value": "space-around",
+                        "description": "两侧间隔相等"
+                    },
+                    {
+                        "value": "space-between",
+                        "description": "两端对齐"
+                    }
+                ]
+            },
+            {
+                "name": "align",
+                "description": "flex 布局下的垂直排列方式",
+                "type": "enum",
+                "default": "top",
+                "options": [
+                    {
+                        "value": "top",
+                        "description": "顶部对齐"
+                    },
+                    {
+                        "value": "middle",
+                        "description": "居中对齐"
+                    },
+                    {
+                        "value": "bottom",
+                        "description": "底部对齐"
+                    }
+                ]
+            },
+            {
+                "name": "tag",
+                "description": "自定义元素标签",
+                "type": "string",
+                "default": "div"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-col",
+            "ElCol"
+        ],
+        "description": "Col 栅格布局-列",
+        "link": "https://element.eleme.cn/#/zh-CN/component/layout",
+        "snippet": "<$TAG$1 :span=\"${2:12}\">$3</$TAG>",
+        "attributes": [
+            {
+                "name": "span",
+                "description": "栅格占据的列数",
+                "type": "number",
+                "default": "24"
+            },
+            {
+                "name": "offset",
+                "description": "栅格左侧的间隔格数",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "push",
+                "description": "栅格向右移动格数",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "pull",
+                "description": "栅格向左移动格数",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "xs",
+                "description": "<768px 响应式栅格数或者栅格属性对象",
+                "type": "number | object",
+                "default": "—"
+            },
+            {
+                "name": "sm",
+                "description": "≥768px 响应式栅格数或者栅格属性对象",
+                "type": "number | object",
+                "default": "—"
+            },
+            {
+                "name": "md",
+                "description": "≥992px 响应式栅格数或者栅格属性对象",
+                "type": "number | object",
+                "default": "—"
+            },
+            {
+                "name": "lg",
+                "description": "≥1200px 响应式栅格数或者栅格属性对象",
+                "type": "number | object",
+                "default": "—"
+            },
+            {
+                "name": "xl",
+                "description": "≥1920px 响应式栅格数或者栅格属性对象",
+                "type": "number | object",
+                "default": "—"
+            },
+            {
+                "name": "tag",
+                "description": "自定义元素标签",
+                "type": "string",
+                "default": "div"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-container",
+            "ElContainer"
+        ],
+        "description": "Container 布局容器",
+        "link": "https://element.eleme.cn/#/zh-CN/component/container",
+        "snippet": "<$TAG$1>\n\t<el-header>Header</el-header>\n\t<el-main>Main</el-main>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "direction",
+                "description": "子元素的排列方向",
+                "type": "enum",
+                "default": "子元素中有 el-header 或 el-footer 时为 vertical，否则为 horizontal",
+                "options": [
+                    {
+                        "value": "horizontal",
+                        "description": "水平排列"
+                    },
+                    {
+                        "value": "vertical",
+                        "description": "垂直排列"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-header",
+            "ElHeader"
+        ],
+        "description": "Header 顶栏容器",
+        "link": "https://element.eleme.cn/#/zh-CN/component/container",
+        "snippet": "<$TAG$1 height=\"${2:60px}\">$3</$TAG>",
+        "attributes": [
+            {
+                "name": "height",
+                "description": "顶栏高度",
+                "type": "string",
+                "default": "60px"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-aside",
+            "ElAside"
+        ],
+        "description": "Aside 侧边栏容器",
+        "link": "https://element.eleme.cn/#/zh-CN/component/container",
+        "snippet": "<$TAG$1 width=\"${2:200px}\">$3</$TAG>",
+        "attributes": [
+            {
+                "name": "width",
+                "description": "侧边栏宽度",
+                "type": "string",
+                "default": "300px"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-main",
+            "ElMain"
+        ],
+        "description": "Main 主要区域容器",
+        "link": "https://element.eleme.cn/#/zh-CN/component/container",
+        "snippet": "<$TAG$1>\n\t$2\n</$TAG>",
+        "attributes": []
+    },
+    {
+        "tags": [
+            "el-footer",
+            "ElFooter"
+        ],
+        "description": "Footer 底栏容器",
+        "link": "https://element.eleme.cn/#/zh-CN/component/container",
+        "snippet": "<$TAG$1 height=\"${2:60px}\">$3</$TAG>",
+        "attributes": [
+            {
+                "name": "height",
+                "description": "底栏高度",
+                "type": "string",
+                "default": "60px"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-form",
+            "ElForm"
+        ],
+        "description": "Form 表单",
+        "link": "https://element.eleme.cn/#/zh-CN/component/form",
+        "snippet": "<$TAG$1 :model=\"${2:ruleForm}\" :rules=\"${3:rules}\" ref=\"${2:ruleForm}\" label-width=\"100px\" class=\"demo-ruleForm\">\n\t$4\n</$TAG>",
+        "attributes": [
+            {
+                "name": "model",
+                "description": "表单数据对象",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "rules",
+                "description": "表单验证规则",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "inline",
+                "description": "行内表单模式",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "label-position",
+                "description": "表单域标签的位置",
+                "type": "enum",
+                "default": "right",
+                "options": [
+                    {
+                        "value": "right",
+                        "description": "右对齐"
+                    },
+                    {
+                        "value": "left",
+                        "description": "左对齐"
+                    },
+                    {
+                        "value": "top",
+                        "description": "顶部对齐"
+                    }
+                ]
+            },
+            {
+                "name": "label-width",
+                "description": "表单域标签的宽度，例如 '50px'",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "size",
+                "description": "用于控制该表单内组件的尺寸",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "medium",
+                        "description": "中等"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小型"
+                    },
+                    {
+                        "value": "mini",
+                        "description": "超小"
+                    }
+                ]
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用该表单内的所有组件",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "validate",
+                "description": "任一表单项被校验后触发",
+                "parameters": "(prop: string, isValid: boolean, errorMessage: string)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-form-item",
+            "ElFormItem"
+        ],
+        "description": "FormItem 表单项",
+        "link": "https://element.eleme.cn/#/zh-CN/component/form",
+        "snippet": "<$TAG$1 label=\"${2:活动名称}\" prop=\"${3:name}\">\n\t$4\n</$TAG>",
+        "attributes": [
+            {
+                "name": "prop",
+                "description": "表单域 model 字段，在使用 validate、resetFields 方法的情况下，该属性是必填的",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "label",
+                "description": "标签文本",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "label-width",
+                "description": "表单域标签的的宽度，例如 '50px'",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "required",
+                "description": "是否必填，如不设置，则会根据校验规则自动生成",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "rules",
+                "description": "表单项验证规则",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "error",
+                "description": "表单域验证错误信息, 设置该值会使表单验证状态变为error",
+                "type": "string",
+                "default": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "Form Item 的内容"
+            },
+            {
+                "name": "label",
+                "description": "标签文本的内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-input",
+            "ElInput"
+        ],
+        "description": "Input 输入框",
+        "link": "https://element.eleme.cn/#/zh-CN/component/input",
+        "snippet": "<$TAG$1 v-model=\"${2:input}\" placeholder=\"${3:请输入内容}\" clearable></$TAG>",
+        "attributes": [
+            {
+                "name": "type",
+                "description": "类型",
+                "type": "enum",
+                "default": "text",
+                "options": [
+                    {
+                        "value": "text",
+                        "description": "普通文本"
+                    },
+                    {
+                        "value": "textarea",
+                        "description": "多行文本"
+                    },
+                    {
+                        "value": "password",
+                        "description": "密码框"
+                    }
+                ]
+            },
+            {
+                "name": "value / v-model",
+                "description": "绑定值",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "maxlength",
+                "description": "最大输入长度",
+                "type": "number",
+                "default": "—"
+            },
+            {
+                "name": "show-word-limit",
+                "description": "是否显示输入字数统计，只在 type = 'text' 或 type = 'textarea' 时有效",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "placeholder",
+                "description": "输入框占位文本",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "clearable",
+                "description": "是否可清空",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "show-password",
+                "description": "是否显示切换密码图标",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "size",
+                "description": "输入框尺寸",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "medium",
+                        "description": "中等"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小型"
+                    },
+                    {
+                        "value": "mini",
+                        "description": "超小"
+                    }
+                ]
+            },
+            {
+                "name": "prefix-icon",
+                "description": "输入框头部图标",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "suffix-icon",
+                "description": "输入框尾部图标",
+                "type": "string",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "blur",
+                "description": "在 Input 失去焦点时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "focus",
+                "description": "在 Input 获得焦点时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "change",
+                "description": "仅在输入框失去焦点或用户按下回车时触发",
+                "parameters": "(value: string | number)"
+            },
+            {
+                "name": "input",
+                "description": "在 Input 值改变时触发",
+                "parameters": "(value: string | number)"
+            },
+            {
+                "name": "clear",
+                "description": "在点击由 clearable 属性生成的清空按钮时触发",
+                "parameters": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "prefix",
+                "description": "输入框头部内容"
+            },
+            {
+                "name": "suffix",
+                "description": "输入框尾部内容"
+            },
+            {
+                "name": "prepend",
+                "description": "输入框前置内容"
+            },
+            {
+                "name": "append",
+                "description": "输入框后置内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-select",
+            "ElSelect"
+        ],
+        "description": "Select 选择器",
+        "link": "https://element.eleme.cn/#/zh-CN/component/select",
+        "snippet": "<$TAG$1 v-model=\"${2:value}\" placeholder=\"${3:请选择}\">\n\t<el-option\n\t\tv-for=\"item in options\"\n\t\t:key=\"item.value\"\n\t\t:label=\"item.label\"\n\t\t:value=\"item.value\">\n\t</el-option>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "绑定值",
+                "type": "any",
+                "default": "—"
+            },
+            {
+                "name": "multiple",
+                "description": "是否多选",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "size",
+                "description": "输入框尺寸",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "medium",
+                        "description": "中等"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小型"
+                    },
+                    {
+                        "value": "mini",
+                        "description": "超小"
+                    }
+                ]
+            },
+            {
+                "name": "clearable",
+                "description": "是否可以清空选项",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "collapse-tags",
+                "description": "多选时是否将选中值按文字的形式展示",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "filterable",
+                "description": "是否可搜索",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "placeholder",
+                "description": "占位符",
+                "type": "string",
+                "default": "请选择"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "选中值发生变化时触发",
+                "parameters": "(val: any)"
+            },
+            {
+                "name": "visible-change",
+                "description": "下拉框出现/隐藏时触发",
+                "parameters": "(val: boolean)"
+            },
+            {
+                "name": "remove-tag",
+                "description": "多选模式下移除tag时触发",
+                "parameters": "(val: any)"
+            },
+            {
+                "name": "clear",
+                "description": "可清空的单选模式下用户点击清空按钮时触发",
+                "parameters": "—"
+            },
+            {
+                "name": "blur",
+                "description": "当 input 失去焦点时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "focus",
+                "description": "当 input 获得焦点时触发",
+                "parameters": "(event: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-option",
+            "ElOption"
+        ],
+        "description": "Option 选项",
+        "link": "https://element.eleme.cn/#/zh-CN/component/select",
+        "snippet": "<$TAG$1 label=\"$2\" value=\"$3\"></$TAG>",
+        "attributes": [
+            {
+                "name": "value",
+                "description": "选项的值",
+                "type": "string | number | object",
+                "default": "—"
+            },
+            {
+                "name": "label",
+                "description": "选项的标签，若不设置则默认与 value 相同",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用该选项",
+                "type": "boolean",
+                "default": "false"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-radio",
+            "ElRadio"
+        ],
+        "description": "Radio 单选框",
+        "link": "https://element.eleme.cn/#/zh-CN/component/radio",
+        "snippet": "<$TAG$1 v-model=\"${2:radio}\" label=\"${3:1}\">${4:备选项}</$TAG>",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "绑定值",
+                "type": "string | number | boolean",
+                "default": "—"
+            },
+            {
+                "name": "label",
+                "description": "Radio 的 value",
+                "type": "string | number | boolean",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "border",
+                "description": "是否显示边框",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "size",
+                "description": "Radio 的尺寸，仅在 border 为真时有效",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "medium",
+                        "description": "中等"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小型"
+                    },
+                    {
+                        "value": "mini",
+                        "description": "超小"
+                    }
+                ]
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "绑定值变化时触发的事件",
+                "parameters": "(val: string | number | boolean)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-radio-group",
+            "ElRadioGroup"
+        ],
+        "description": "RadioGroup 单选框组",
+        "link": "https://element.eleme.cn/#/zh-CN/component/radio",
+        "snippet": "<$TAG$1 v-model=\"${2:radio}\">\n\t<el-radio :label=\"3\">备选项</el-radio>\n\t<el-radio :label=\"6\">备选项</el-radio>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "绑定值",
+                "type": "string | number | boolean",
+                "default": "—"
+            },
+            {
+                "name": "size",
+                "description": "单选框组尺寸，仅对按钮形式的 Radio 或带有边框的 Radio 有效",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "medium",
+                        "description": "中等"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小型"
+                    },
+                    {
+                        "value": "mini",
+                        "description": "超小"
+                    }
+                ]
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "绑定值变化时触发的事件",
+                "parameters": "(val: string | number | boolean)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-checkbox",
+            "ElCheckbox"
+        ],
+        "description": "Checkbox 多选框",
+        "link": "https://element.eleme.cn/#/zh-CN/component/checkbox",
+        "snippet": "<$TAG$1 v-model=\"${2:checked}\">${3:备选项}</$TAG>",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "绑定值",
+                "type": "string | number | boolean",
+                "default": "—"
+            },
+            {
+                "name": "label",
+                "description": "选中状态的值（只有在checkbox-group或者绑定对象类型为array时有效）",
+                "type": "string | number | boolean",
+                "default": "—"
+            },
+            {
+                "name": "true-label",
+                "description": "选中时的值",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "false-label",
+                "description": "没有选中时的值",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "border",
+                "description": "是否显示边框",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "当绑定值变化时触发的事件",
+                "parameters": "(val: boolean)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-checkbox-group",
+            "ElCheckboxGroup"
+        ],
+        "description": "CheckboxGroup 多选框组",
+        "link": "https://element.eleme.cn/#/zh-CN/component/checkbox",
+        "snippet": "<$TAG$1 v-model=\"${2:checkList}\">\n\t<el-checkbox label=\"复选框 A\"></el-checkbox>\n\t<el-checkbox label=\"复选框 B\"></el-checkbox>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "绑定值",
+                "type": "array",
+                "default": "[]"
+            },
+            {
+                "name": "size",
+                "description": "多选框组尺寸，仅对按钮形式的 Checkbox 或带有边框的 Checkbox 有效",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "medium",
+                        "description": "中等"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小型"
+                    },
+                    {
+                        "value": "mini",
+                        "description": "超小"
+                    }
+                ]
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "min",
+                "description": "可被勾选的 checkbox 的最小数量",
+                "type": "number",
+                "default": "—"
+            },
+            {
+                "name": "max",
+                "description": "可被勾选的 checkbox 的最大数量",
+                "type": "number",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "当绑定值变化时触发的事件",
+                "parameters": "(val: array)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-switch",
+            "ElSwitch"
+        ],
+        "description": "Switch 开关",
+        "link": "https://element.eleme.cn/#/zh-CN/component/switch",
+        "snippet": "<$TAG$1 v-model=\"${2:value}\" active-color=\"#13ce66\" inactive-color=\"#ff4949\"></$TAG>",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "绑定值",
+                "type": "boolean | string | number",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "active-text",
+                "description": "switch 打开时的文字描述",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "inactive-text",
+                "description": "switch 关闭时的文字描述",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "active-value",
+                "description": "switch 打开时的值",
+                "type": "boolean | string | number",
+                "default": "true"
+            },
+            {
+                "name": "inactive-value",
+                "description": "switch 关闭时的值",
+                "type": "boolean | string | number",
+                "default": "false"
+            },
+            {
+                "name": "active-color",
+                "description": "switch 打开时的背景色",
+                "type": "string",
+                "default": "#409EFF"
+            },
+            {
+                "name": "inactive-color",
+                "description": "switch 关闭时的背景色",
+                "type": "string",
+                "default": "#C0CCDA"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "switch 状态发生变化时的回调函数",
+                "parameters": "(val: boolean | string | number)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-table",
+            "ElTable"
+        ],
+        "description": "Table 表格",
+        "link": "https://element.eleme.cn/#/zh-CN/component/table",
+        "snippet": "<$TAG$1 :data=\"${2:tableData}\" style=\"width: 100%\">\n\t<el-table-column prop=\"date\" label=\"日期\" width=\"180\"></el-table-column>\n\t<el-table-column prop=\"name\" label=\"姓名\" width=\"180\"></el-table-column>\n\t<el-table-column prop=\"address\" label=\"地址\"></el-table-column>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "data",
+                "description": "显示的数据",
+                "type": "array",
+                "default": "—"
+            },
+            {
+                "name": "height",
+                "description": "Table 的高度，默认为自动高度。如果 height 为 number 类型，单位 px；如果为 string 类型，则 Table 高度受控于外部元素",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "stripe",
+                "description": "是否为斑马纹 table",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "border",
+                "description": "是否带有纵向边框",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "size",
+                "description": "Table 的尺寸",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "medium",
+                        "description": "中等"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小型"
+                    },
+                    {
+                        "value": "mini",
+                        "description": "超小"
+                    }
+                ]
+            },
+            {
+                "name": "fit",
+                "description": "列的宽度是否自撑开",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "show-header",
+                "description": "是否显示表头",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "highlight-current-row",
+                "description": "是否要高亮当前行",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "select",
+                "description": "当用户手动勾选数据行的 Checkbox 时触发的事件",
+                "parameters": "(selection, row)"
+            },
+            {
+                "name": "selection-change",
+                "description": "当选择项发生变化时会触发该事件",
+                "parameters": "(selection)"
+            },
+            {
+                "name": "cell-click",
+                "description": "当某个单元格被点击时会触发该事件",
+                "parameters": "(row, column, cell, event)"
+            },
+            {
+                "name": "row-click",
+                "description": "当某一行被点击时会触发该事件",
+                "parameters": "(row, column, event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-table-column",
+            "ElTableColumn"
+        ],
+        "description": "Table-column 表格列",
+        "link": "https://element.eleme.cn/#/zh-CN/component/table",
+        "snippet": "<$TAG$1 prop=\"${2:prop}\" label=\"${3:标签}\" width=\"${4:180}\">\n\t<template slot-scope=\"scope\">\n\t\t{{ scope.row }}\n\t</template>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "type",
+                "description": "对应列的类型",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "selection",
+                        "description": "多选框"
+                    },
+                    {
+                        "value": "index",
+                        "description": "索引"
+                    },
+                    {
+                        "value": "expand",
+                        "description": "可展开的按钮"
+                    }
+                ]
+            },
+            {
+                "name": "label",
+                "description": "显示的标题",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "prop",
+                "description": "对应列内容的字段名，也可以使用 property属性",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "width",
+                "description": "对应列的宽度",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "fixed",
+                "description": "列是否固定在左侧或者右侧，true 表示固定在左侧",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "true",
+                        "description": "左侧固定"
+                    },
+                    {
+                        "value": "left",
+                        "description": "左侧固定"
+                    },
+                    {
+                        "value": "right",
+                        "description": "右侧固定"
+                    }
+                ]
+            },
+            {
+                "name": "align",
+                "description": "对齐方式",
+                "type": "enum",
+                "default": "left",
+                "options": [
+                    {
+                        "value": "left",
+                        "description": "左对齐"
+                    },
+                    {
+                        "value": "center",
+                        "description": "居中对齐"
+                    },
+                    {
+                        "value": "right",
+                        "description": "右对齐"
+                    }
+                ]
+            },
+            {
+                "name": "sortable",
+                "description": "对应列是否可以排序",
+                "type": "boolean",
+                "default": "false"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-pagination",
+            "ElPagination"
+        ],
+        "description": "Pagination 分页",
+        "link": "https://element.eleme.cn/#/zh-CN/component/pagination",
+        "snippet": "<$TAG$1\n\t@size-change=\"handleSizeChange\"\n\t@current-change=\"handleCurrentChange\"\n\t:current-page=\"${2:currentPage}\"\n\t:page-sizes=\"[10, 20, 30, 40]\"\n\t:page-size=\"100\"\n\tlayout=\"total, sizes, prev, pager, next, jumper\"\n\t:total=\"400\">\n</$TAG>",
+        "attributes": [
+            {
+                "name": "small",
+                "description": "是否使用小型分页样式",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "background",
+                "description": "是否为分页按钮添加背景色",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "page-size",
+                "description": "每页显示条目个数，支持 .sync 修饰符",
+                "type": "number",
+                "default": "10"
+            },
+            {
+                "name": "total",
+                "description": "总条目数",
+                "type": "number",
+                "default": "—"
+            },
+            {
+                "name": "current-page",
+                "description": "当前页数，支持 .sync 修饰符",
+                "type": "number",
+                "default": "1"
+            },
+            {
+                "name": "layout",
+                "description": "组件布局，子组件名用逗号分隔",
+                "type": "string",
+                "default": "prev, pager, next, jumper, ->, total"
+            },
+            {
+                "name": "page-sizes",
+                "description": "每页显示个数选择器的选项设置",
+                "type": "array",
+                "default": "[10, 20, 30, 40, 50, 100]"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "size-change",
+                "description": "pageSize 改变时触发",
+                "parameters": "(pageSize)"
+            },
+            {
+                "name": "current-change",
+                "description": "currentPage 改变时触发",
+                "parameters": "(currentPage)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-dialog",
+            "ElDialog"
+        ],
+        "description": "Dialog 对话框",
+        "link": "https://element.eleme.cn/#/zh-CN/component/dialog",
+        "snippet": "<$TAG$1 title=\"${2:提示}\" :visible.sync=\"${3:dialogVisible}\" width=\"${4:30%}\">\n\t<span>这是一段信息</span>\n\t<span slot=\"footer\" class=\"dialog-footer\">\n\t\t<el-button @click=\"${3:dialogVisible} = false\">取 消</el-button>\n\t\t<el-button type=\"primary\" @click=\"${3:dialogVisible} = false\">确 定</el-button>\n\t</span>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "visible",
+                "description": "是否显示 Dialog，支持 .sync 修饰符",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "title",
+                "description": "Dialog 的标题，也可通过具名 slot 传入",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "width",
+                "description": "Dialog 的宽度",
+                "type": "string",
+                "default": "50%"
+            },
+            {
+                "name": "fullscreen",
+                "description": "是否为全屏 Dialog",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "top",
+                "description": "Dialog CSS 中的 margin-top 值",
+                "type": "string",
+                "default": "15vh"
+            },
+            {
+                "name": "modal",
+                "description": "是否需要遮罩层",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "close-on-click-modal",
+                "description": "是否可以通过点击 modal 关闭 Dialog",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "show-close",
+                "description": "是否显示关闭按钮",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "center",
+                "description": "是否对头部和底部采用居中布局",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "open",
+                "description": "Dialog 打开的回调",
+                "parameters": "—"
+            },
+            {
+                "name": "close",
+                "description": "Dialog 关闭的回调",
+                "parameters": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-tag",
+            "ElTag"
+        ],
+        "description": "Tag 标签",
+        "link": "https://element.eleme.cn/#/zh-CN/component/tag",
+        "snippet": "<$TAG$1 type=\"${2|success,info,warning,danger|}\">$3</$TAG>",
+        "attributes": [
+            {
+                "name": "type",
+                "description": "类型",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "success",
+                        "description": "成功"
+                    },
+                    {
+                        "value": "info",
+                        "description": "信息"
+                    },
+                    {
+                        "value": "warning",
+                        "description": "警告"
+                    },
+                    {
+                        "value": "danger",
+                        "description": "危险"
+                    }
+                ]
+            },
+            {
+                "name": "closable",
+                "description": "是否可关闭",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disable-transitions",
+                "description": "是否禁用渐变动画",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "color",
+                "description": "背景色",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "size",
+                "description": "尺寸",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "medium",
+                        "description": "中等"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小型"
+                    },
+                    {
+                        "value": "mini",
+                        "description": "超小"
+                    }
+                ]
+            },
+            {
+                "name": "effect",
+                "description": "主题样式",
+                "type": "enum",
+                "default": "light",
+                "options": [
+                    {
+                        "value": "dark",
+                        "description": "深色"
+                    },
+                    {
+                        "value": "light",
+                        "description": "浅色"
+                    },
+                    {
+                        "value": "plain",
+                        "description": "朴素"
+                    }
+                ]
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击 Tag 时触发的事件",
+                "parameters": "—"
+            },
+            {
+                "name": "close",
+                "description": "关闭 Tag 时触发的事件",
+                "parameters": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-tooltip",
+            "ElTooltip"
+        ],
+        "description": "Tooltip 文字提示",
+        "link": "https://element.eleme.cn/#/zh-CN/component/tooltip",
+        "snippet": "<$TAG$1 content=\"${2:提示文字}\" placement=\"${3:top}\">\n\t<el-button>${4:悬停}</el-button>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "effect",
+                "description": "默认提供的主题",
+                "type": "enum",
+                "default": "dark",
+                "options": [
+                    {
+                        "value": "dark",
+                        "description": "深色"
+                    },
+                    {
+                        "value": "light",
+                        "description": "浅色"
+                    }
+                ]
+            },
+            {
+                "name": "content",
+                "description": "显示的内容，也可以通过 slot#content 传入 DOM",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "placement",
+                "description": "Tooltip 的出现位置",
+                "type": "enum",
+                "default": "bottom",
+                "options": [
+                    {
+                        "value": "top",
+                        "description": "上"
+                    },
+                    {
+                        "value": "top-start",
+                        "description": "上左"
+                    },
+                    {
+                        "value": "top-end",
+                        "description": "上右"
+                    },
+                    {
+                        "value": "bottom",
+                        "description": "下"
+                    },
+                    {
+                        "value": "bottom-start",
+                        "description": "下左"
+                    },
+                    {
+                        "value": "bottom-end",
+                        "description": "下右"
+                    },
+                    {
+                        "value": "left",
+                        "description": "左"
+                    },
+                    {
+                        "value": "right",
+                        "description": "右"
+                    }
+                ]
+            },
+            {
+                "name": "disabled",
+                "description": "Tooltip 是否可用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "offset",
+                "description": "出现位置的偏移量",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "manual",
+                "description": "手动控制模式，设置为 true 后，mouseenter 和 mouseleave 事件将不会生效",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "enterable",
+                "description": "鼠标是否可进入到 tooltip 中",
+                "type": "boolean",
+                "default": "true"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-menu",
+            "ElMenu"
+        ],
+        "description": "Menu 导航菜单",
+        "link": "https://element.eleme.cn/#/zh-CN/component/menu",
+        "snippet": "<$TAG$1 :default-active=\"${2:activeIndex}\" mode=\"${3|horizontal,vertical|}\" @select=\"handleSelect\">\n\t<el-menu-item index=\"1\">处理中心</el-menu-item>\n\t<el-submenu index=\"2\">\n\t\t<template slot=\"title\">我的工作台</template>\n\t\t<el-menu-item index=\"2-1\">选项1</el-menu-item>\n\t</el-submenu>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "mode",
+                "description": "模式",
+                "type": "enum",
+                "default": "vertical",
+                "options": [
+                    {
+                        "value": "horizontal",
+                        "description": "水平"
+                    },
+                    {
+                        "value": "vertical",
+                        "description": "垂直"
+                    }
+                ]
+            },
+            {
+                "name": "collapse",
+                "description": "是否水平折叠收起菜单（仅在 mode 为 vertical 时可用）",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "background-color",
+                "description": "菜单的背景色（仅支持十六进制颜色）",
+                "type": "string",
+                "default": "#ffffff"
+            },
+            {
+                "name": "text-color",
+                "description": "菜单的文字颜色（仅支持十六进制颜色）",
+                "type": "string",
+                "default": "#303133"
+            },
+            {
+                "name": "active-text-color",
+                "description": "当前激活菜单的文字颜色（仅支持十六进制颜色）",
+                "type": "string",
+                "default": "#409EFF"
+            },
+            {
+                "name": "default-active",
+                "description": "当前激活菜单的 index",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "unique-opened",
+                "description": "是否只保持一个子菜单的展开",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "router",
+                "description": "是否使用 vue-router 的模式，启用该模式会在激活导航时以 index 作为 path 进行路由跳转",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "select",
+                "description": "菜单激活回调",
+                "parameters": "(index, indexPath)"
+            },
+            {
+                "name": "open",
+                "description": "sub-menu 展开的回调",
+                "parameters": "(index, indexPath)"
+            },
+            {
+                "name": "close",
+                "description": "sub-menu 收起的回调",
+                "parameters": "(index, indexPath)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-submenu",
+            "ElSubmenu"
+        ],
+        "description": "Submenu 子菜单",
+        "link": "https://element.eleme.cn/#/zh-CN/component/menu",
+        "snippet": "<$TAG$1 index=\"${2:1}\">\n\t<template slot=\"title\">\n\t\t<i class=\"el-icon-location\"></i>\n\t\t<span>${3:导航一}</span>\n\t</template>\n\t$4\n</$TAG>",
+        "attributes": [
+            {
+                "name": "index",
+                "description": "唯一标志",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-menu-item",
+            "ElMenuItem"
+        ],
+        "description": "MenuItem 菜单项",
+        "link": "https://element.eleme.cn/#/zh-CN/component/menu",
+        "snippet": "<$TAG$1 index=\"${2:1}\">$3</$TAG>",
+        "attributes": [
+            {
+                "name": "index",
+                "description": "唯一标志",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "route",
+                "description": "Vue Router 路径对象",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-tabs",
+            "ElTabs"
+        ],
+        "description": "Tabs 标签页",
+        "link": "https://element.eleme.cn/#/zh-CN/component/tabs",
+        "snippet": "<$TAG$1 v-model=\"${2:activeName}\" @tab-click=\"handleClick\">\n\t<el-tab-pane label=\"用户管理\" name=\"first\">用户管理</el-tab-pane>\n\t<el-tab-pane label=\"配置管理\" name=\"second\">配置管理</el-tab-pane>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "type",
+                "description": "风格类型",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "card",
+                        "description": "选项卡样"
+                    },
+                    {
+                        "value": "border-card",
+                        "description": "卡片化"
+                    }
+                ]
+            },
+            {
+                "name": "closable",
+                "description": "标签是否可关闭",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "addable",
+                "description": "标签是否可增加",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "editable",
+                "description": "标签是否同时可增加和关闭",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "tab-position",
+                "description": "选项卡所在位置",
+                "type": "enum",
+                "default": "top",
+                "options": [
+                    {
+                        "value": "top",
+                        "description": "上"
+                    },
+                    {
+                        "value": "right",
+                        "description": "右"
+                    },
+                    {
+                        "value": "bottom",
+                        "description": "下"
+                    },
+                    {
+                        "value": "left",
+                        "description": "左"
+                    }
+                ]
+            }
+        ],
+        "events": [
+            {
+                "name": "tab-click",
+                "description": "tab 被选中时触发",
+                "parameters": "(pane)"
+            },
+            {
+                "name": "tab-remove",
+                "description": "点击 tab 移除按钮后触发",
+                "parameters": "(name)"
+            },
+            {
+                "name": "tab-add",
+                "description": "点击 tabs 的新增按钮后触发",
+                "parameters": "—"
+            },
+            {
+                "name": "edit",
+                "description": "点击 tabs 的新增按钮或 tab 被关闭后触发",
+                "parameters": "(targetName, action)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-breadcrumb",
+            "ElBreadcrumb"
+        ],
+        "description": "Breadcrumb 面包屑",
+        "link": "https://element.eleme.cn/#/zh-CN/component/breadcrumb",
+        "snippet": "<$TAG$1 separator=\"${2:/}\">\n\t<el-breadcrumb-item :to=\"{ path: '/' }\">首页</el-breadcrumb-item>\n\t<el-breadcrumb-item>活动管理</el-breadcrumb-item>\n\t<el-breadcrumb-item>活动详情</el-breadcrumb-item>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "separator",
+                "description": "分隔符",
+                "type": "string",
+                "default": "/"
+            },
+            {
+                "name": "separator-class",
+                "description": "图标分隔符 class",
+                "type": "string",
+                "default": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-tree",
+            "ElTree"
+        ],
+        "description": "Tree 树形控件",
+        "link": "https://element.eleme.cn/#/zh-CN/component/tree",
+        "snippet": "<$TAG$1 :data=\"${2:data}\" :props=\"${3:defaultProps}\" @node-click=\"handleNodeClick\"></$TAG>",
+        "attributes": [
+            {
+                "name": "data",
+                "description": "展示数据",
+                "type": "array",
+                "default": "—"
+            },
+            {
+                "name": "props",
+                "description": "配置选项，具体看下表",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "node-key",
+                "description": "每个树节点用来作为唯一标识的属性，整棵树应该是唯一的",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "load",
+                "description": "加载子树数据的方法，仅当 lazy 属性为true 时生效",
+                "type": "function",
+                "default": "—"
+            },
+            {
+                "name": "lazy",
+                "description": "是否懒加载子节点，需与 load 方法结合使用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "show-checkbox",
+                "description": "节点是否可被选择",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "default-expand-all",
+                "description": "是否默认展开所有节点",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "expand-on-click-node",
+                "description": "是否在点击节点的时候展开或者收缩节点， 默认值为 true，如果为 false，则只有点箭头图标的时候才会展开或者收缩节点。",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "draggable",
+                "description": "是否开启拖拽节点功能",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "node-click",
+                "description": "节点被点击时的回调",
+                "parameters": "(data, node, component)"
+            },
+            {
+                "name": "check-change",
+                "description": "节点选中状态发生变化时的回调",
+                "parameters": "(data, checked, indeterminate)"
+            },
+            {
+                "name": "current-change",
+                "description": "当前选中节点变化时触发的事件",
+                "parameters": "(data, node)"
+            },
+            {
+                "name": "node-drag-start",
+                "description": "节点开始拖拽时触发的事件",
+                "parameters": "(node, event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-upload",
+            "ElUpload"
+        ],
+        "description": "Upload 上传",
+        "link": "https://element.eleme.cn/#/zh-CN/component/upload",
+        "snippet": "<$TAG$1\n\tclass=\"upload-demo\"\n\taction=\"${2:https://jsonplaceholder.typicode.com/posts/}\"\n\t:on-preview=\"handlePreview\"\n\t:on-remove=\"handleRemove\"\n\t:file-list=\"fileList\"\n\tlist-type=\"picture\">\n\t<el-button size=\"small\" type=\"primary\">点击上传</el-button>\n\t<div slot=\"tip\" class=\"el-upload__tip\">只能上传jpg/png文件，且不超过500kb</div>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "action",
+                "description": "必选参数，上传的地址",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "headers",
+                "description": "设置上传的请求头部",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "multiple",
+                "description": "是否支持多选文件",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "data",
+                "description": "上传时附带的额外参数",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "name",
+                "description": "上传的文件字段名",
+                "type": "string",
+                "default": "file"
+            },
+            {
+                "name": "drag",
+                "description": "是否启用拖拽上传",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "accept",
+                "description": "接受上传的文件类型（thumbnail-mode 模式下此参数无效）",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "on-preview",
+                "description": "点击文件列表中已上传的文件时的钩子",
+                "type": "function",
+                "default": "—"
+            },
+            {
+                "name": "on-remove",
+                "description": "文件列表移除文件时的钩子",
+                "type": "function",
+                "default": "—"
+            },
+            {
+                "name": "on-success",
+                "description": "文件上传成功时的钩子",
+                "type": "function",
+                "default": "—"
+            },
+            {
+                "name": "on-error",
+                "description": "文件上传失败时的钩子",
+                "type": "function",
+                "default": "—"
+            },
+            {
+                "name": "auto-upload",
+                "description": "是否在选取文件后立即进行上传",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "limit",
+                "description": "最大允许上传个数",
+                "type": "number",
+                "default": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-cascader",
+            "ElCascader"
+        ],
+        "description": "Cascader 级联选择器",
+        "link": "https://element.eleme.cn/#/zh-CN/component/cascader",
+        "snippet": "<$TAG$1 v-model=\"${2:value}\" :options=\"${3:options}\" @change=\"handleChange\"></$TAG>",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "选中项绑定值",
+                "type": "any",
+                "default": "—"
+            },
+            {
+                "name": "options",
+                "description": "可选项数据源，键名可通过 props 属性配置",
+                "type": "array",
+                "default": "—"
+            },
+            {
+                "name": "props",
+                "description": "配置选项，具体看下表",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "size",
+                "description": "尺寸",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "medium",
+                        "description": "中等"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小型"
+                    },
+                    {
+                        "value": "mini",
+                        "description": "超小"
+                    }
+                ]
+            },
+            {
+                "name": "placeholder",
+                "description": "输入框占位文本",
+                "type": "string",
+                "default": "请选择"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "clearable",
+                "description": "是否支持清空选项",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "show-all-levels",
+                "description": "输入框中是否显示选中值的完整路径",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "collapse-tags",
+                "description": "多选模式下是否折叠Tag",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "filterable",
+                "description": "是否可搜索选项",
+                "type": "boolean",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "当选中节点变化时触发",
+                "parameters": "(选中节点的值)"
+            },
+            {
+                "name": "expand-change",
+                "description": "当展开节点发生变化时触发",
+                "parameters": "(各级表单阶段)"
+            },
+            {
+                "name": "blur",
+                "description": "当失去焦点时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "focus",
+                "description": "当获得焦点时触发",
+                "parameters": "(event: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-slider",
+            "ElSlider"
+        ],
+        "description": "Slider 滑块",
+        "link": "https://element.eleme.cn/#/zh-CN/component/slider",
+        "snippet": "<$TAG$1 v-model=\"${2:value}\"></$TAG>",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "绑定值",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "min",
+                "description": "最小值",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "max",
+                "description": "最大值",
+                "type": "number",
+                "default": "100"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "step",
+                "description": "步长",
+                "type": "number",
+                "default": "1"
+            },
+            {
+                "name": "show-input",
+                "description": "是否显示输入框，仅在非范围选择时有效",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "show-stops",
+                "description": "是否显示间断点",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "range",
+                "description": "是否为范围选择",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "vertical",
+                "description": "是否竖向模式",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "height",
+                "description": "Slider 高度，竖向模式时必填",
+                "type": "string",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "值改变时触发（使用鼠标拖曳时，只在松开鼠标后触发）",
+                "parameters": "(改变后的值)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-time-picker",
+            "ElTimePicker"
+        ],
+        "description": "TimePicker 时间选择器",
+        "link": "https://element.eleme.cn/#/zh-CN/component/time-picker",
+        "snippet": "<$TAG$1 v-model=\"${2:value}\" :picker-options=\"{ selectableRange: '18:30:00 - 20:30:00' }\" placeholder=\"选择时间\"></$TAG>",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "绑定值",
+                "type": "date(TimePicker) / string(TimeSelect)",
+                "default": "—"
+            },
+            {
+                "name": "readonly",
+                "description": "完全只读",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "editable",
+                "description": "文本框可输入",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "clearable",
+                "description": "是否显示清除按钮",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "size",
+                "description": "输入框尺寸",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "medium",
+                        "description": "中等"
+                    },
+                    {
+                        "value": "small",
+                        "description": "小型"
+                    },
+                    {
+                        "value": "mini",
+                        "description": "超小"
+                    }
+                ]
+            },
+            {
+                "name": "placeholder",
+                "description": "非范围选择时的占位内容",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "is-range",
+                "description": "是否为时间范围选择，仅对 el-time-picker 有效",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "用户确认选定的值时触发",
+                "parameters": "(组件绑定值)"
+            },
+            {
+                "name": "blur",
+                "description": "当 input 失去焦点时触发",
+                "parameters": "(组件实例)"
+            },
+            {
+                "name": "focus",
+                "description": "当 input 获得焦点时触发",
+                "parameters": "(组件实例)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-card",
+            "ElCard"
+        ],
+        "description": "Card 卡片",
+        "link": "https://element.eleme.cn/#/zh-CN/component/card",
+        "snippet": "<$TAG$1>\n\t<div slot=\"header\" class=\"clearfix\">\n\t\t<span>${2:卡片名称}</span>\n\t\t<el-button style=\"float: right; padding: 3px 0\" type=\"text\">操作按钮</el-button>\n\t</div>\n\t<div v-for=\"o in 4\" :key=\"o\" class=\"text item\">\n\t\t{{'列表内容 ' + o }}\n\t</div>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "header",
+                "description": "设置 header，也可以通过 slot#header 传入 DOM",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "body-style",
+                "description": "设置 body 的样式",
+                "type": "object",
+                "default": "{ padding: '20px' }"
+            },
+            {
+                "name": "shadow",
+                "description": "设置阴影显示时机",
+                "type": "enum",
+                "default": "always",
+                "options": [
+                    {
+                        "value": "always",
+                        "description": "总是显示"
+                    },
+                    {
+                        "value": "hover",
+                        "description": "悬浮时显示"
+                    },
+                    {
+                        "value": "never",
+                        "description": "从不显示"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-carousel",
+            "ElCarousel"
+        ],
+        "description": "Carousel 走马灯",
+        "link": "https://element.eleme.cn/#/zh-CN/component/carousel",
+        "snippet": "<$TAG$1 height=\"150px\">\n\t<el-carousel-item v-for=\"item in 4\" :key=\"item\">\n\t\t<h3 class=\"small\">{{ item }}</h3>\n\t</el-carousel-item>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "height",
+                "description": "走马灯的高度",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "initial-index",
+                "description": "初始状态激活的幻灯片的索引，从 0 开始",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "trigger",
+                "description": "指示器的触发方式",
+                "type": "enum",
+                "default": "hover",
+                "options": [
+                    {
+                        "value": "hover",
+                        "description": "悬浮触发"
+                    },
+                    {
+                        "value": "click",
+                        "description": "点击触发"
+                    }
+                ]
+            },
+            {
+                "name": "autoplay",
+                "description": "是否自动切换",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "interval",
+                "description": "自动切换的时间间隔，单位为毫秒",
+                "type": "number",
+                "default": "3000"
+            },
+            {
+                "name": "indicator-position",
+                "description": "指示器的位置",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "outside",
+                        "description": "外部"
+                    },
+                    {
+                        "value": "none",
+                        "description": "不显示指示器"
+                    }
+                ]
+            },
+            {
+                "name": "arrow",
+                "description": "切换箭头的显示时机",
+                "type": "enum",
+                "default": "hover",
+                "options": [
+                    {
+                        "value": "always",
+                        "description": "一直显示"
+                    },
+                    {
+                        "value": "hover",
+                        "description": "悬浮显示"
+                    },
+                    {
+                        "value": "never",
+                        "description": "不显示"
+                    }
+                ]
+            },
+            {
+                "name": "type",
+                "description": "走马灯的类型",
+                "type": "string",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "card",
+                        "description": "卡片化"
+                    }
+                ]
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "幻灯片切换时触发",
+                "parameters": "(目前激活的幻灯片的索引, 原幻灯片的索引)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-collapse",
+            "ElCollapse"
+        ],
+        "description": "Collapse 折叠面板",
+        "link": "https://element.eleme.cn/#/zh-CN/component/collapse",
+        "snippet": "<$TAG$1 v-model=\"${2:activeNames}\" @change=\"handleChange\">\n\t<el-collapse-item title=\"${3:一致性 Consistency}\" name=\"1\">\n\t\t<div>与现实生活一致：与现实生活的流程、逻辑保持一致，遵循用户习惯的语言和概念；</div>\n\t</el-collapse-item>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "value / v-model",
+                "description": "当前激活的面板 (如果是手风琴模式，绑定值类型需要为string，否则为array)",
+                "type": "string | array",
+                "default": "—"
+            },
+            {
+                "name": "accordion",
+                "description": "是否手风琴模式",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "当前激活面板改变时触发",
+                "parameters": "(activeNames: array | string)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-timeline",
+            "ElTimeline"
+        ],
+        "description": "Timeline 时间线",
+        "link": "https://element.eleme.cn/#/zh-CN/component/timeline",
+        "snippet": "<$TAG$1>\n\t<el-timeline-item\n\t\tv-for=\"(activity, index) in activities\"\n\t\t:key=\"index\"\n\t\t:timestamp=\"activity.timestamp\">\n\t\t{{activity.content}}\n\t</el-timeline-item>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "reverse",
+                "description": "指定节点排序方向，默认为正序",
+                "type": "boolean",
+                "default": "false"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-divider",
+            "ElDivider"
+        ],
+        "description": "Divider 分割线",
+        "link": "https://element.eleme.cn/#/zh-CN/component/divider",
+        "snippet": "<$TAG$1 content-position=\"${2|left,right,center|}\">$3</$TAG>",
+        "attributes": [
+            {
+                "name": "direction",
+                "description": "设置分割线方向",
+                "type": "enum",
+                "default": "horizontal",
+                "options": [
+                    {
+                        "value": "horizontal",
+                        "description": "水平"
+                    },
+                    {
+                        "value": "vertical",
+                        "description": "垂直"
+                    }
+                ]
+            },
+            {
+                "name": "content-position",
+                "description": "设置分割线文案的位置",
+                "type": "enum",
+                "default": "center",
+                "options": [
+                    {
+                        "value": "left",
+                        "description": "靠左"
+                    },
+                    {
+                        "value": "right",
+                        "description": "靠右"
+                    },
+                    {
+                        "value": "center",
+                        "description": "居中"
+                    }
+                ]
+            }
+        ]
+    }
+]
