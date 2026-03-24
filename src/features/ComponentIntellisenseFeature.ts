@@ -5,7 +5,14 @@ import { IFeature } from '../core/interfaces/IFeature';
 import { WorkspaceContextService } from '../services/WorkspaceContextService';
 
 // ==========================================
-// 1. 标准化数据接口
+// 工具函数：驼峰转短横线 (kebab-case)
+// ==========================================
+function toKebabCase(str: string): string {
+  return str.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+}
+
+// ==========================================
+// 标准化数据接口
 // ==========================================
 export interface UIOption {
   value: string;
@@ -130,11 +137,17 @@ export class ComponentIntellisenseFeature implements IFeature {
               const prefix = isBind ? ':' : '';
 
               comp.attributes.forEach((attr) => {
-                const label = `${prefix}${attr.name}`;
+                // 🌟 修复：处理带有 "/" 的别名属性（例如 "value / v-model"），我们只取第一个来生成补全文本
+                const primaryAttrName = attr.name.split('/')[0].trim();
+                
+                // 🌟 核心：将属性名转为短横线命名 (data-source)
+                const kebabName = toKebabCase(primaryAttrName);
+                const label = `${prefix}${kebabName}`;
+                
                 const item = new vscode.CompletionItem(label, vscode.CompletionItemKind.Property);
 
                 if (attr.type === 'boolean' && !isBind) {
-                  item.insertText = attr.name;
+                  item.insertText = kebabName;
                 } else if (attr.options && attr.options.length > 0) {
                   const enumValues = attr.options.map((o) => o.value).join(',');
                   item.insertText = new vscode.SnippetString(`${label}="\${1|${enumValues}|}"`);
@@ -144,9 +157,10 @@ export class ComponentIntellisenseFeature implements IFeature {
 
                 item.range = replaceRange;
                 item.filterText = label;
-                item.sortText = `  ${attr.name}`;
+                item.sortText = `  ${kebabName}`;
                 item.documentation = this.buildAttributeMarkdown(attr);
-                item.detail = `[Prop] ${attr.description}`;
+                // 提示面板的说明里依然保留原始的属性名，方便开发者识别
+                item.detail = `[Prop] ${attr.name}`; 
                 completionItems.push(item);
               });
             }
@@ -239,7 +253,15 @@ export class ComponentIntellisenseFeature implements IFeature {
         }
 
         if (comp.attributes && !isEvent && !isSlot) {
-          const attr = comp.attributes.find((a) => a.name === cleanWord);
+          // 🌟 核心：悬停时，将鼠标所在的单词转为短横线
+          const targetKebab = toKebabCase(cleanWord);
+          
+          const attr = comp.attributes.find((a) => {
+            // 🌟 兼容 "value / v-model" 这种多别名格式，将其全部分割并转换为短横线后对比
+            const attrNamesKebab = a.name.split('/').map(n => toKebabCase(n.trim()));
+            return attrNamesKebab.includes(targetKebab);
+          });
+          
           if (attr) {
             return new vscode.Hover(this.buildAttributeMarkdown(attr), wordRange);
           }
@@ -253,12 +275,11 @@ export class ComponentIntellisenseFeature implements IFeature {
       await this.exportSnippetsToWorkspace();
     });
 
-    // 🌟 别忘了将热更新的监听器 push 进去注销
     context.subscriptions.push(this.providerDisposable, this.hoverDisposable, exportCommand, contextChangeDisposable);
   }
 
   // ==========================================
-  // 🌟 新增：热更新专用的重载方法
+  // 热更新专用的重载方法
   // ==========================================
   private reload(context: vscode.ExtensionContext) {
     this.components = [];
