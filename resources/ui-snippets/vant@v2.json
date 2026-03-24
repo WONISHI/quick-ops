@@ -1,0 +1,4784 @@
+[
+    {
+        "tags": [
+            "van-button",
+            "VanButton"
+        ],
+        "description": "Button 按钮",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/button",
+        "snippet": "<$TAG$1 type=\"${2|primary,info,default,warning,danger|}\" ${3|block,round,plain|}>${4:按钮}</$TAG>",
+        "attributes": [
+            {
+                "name": "type",
+                "description": "类型",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "primary"
+                    },
+                    {
+                        "value": "info"
+                    },
+                    {
+                        "value": "default"
+                    },
+                    {
+                        "value": "warning"
+                    },
+                    {
+                        "value": "danger"
+                    }
+                ]
+            },
+            {
+                "name": "size",
+                "description": "尺寸",
+                "type": "enum",
+                "default": "normal",
+                "options": [
+                    {
+                        "value": "large"
+                    },
+                    {
+                        "value": "normal"
+                    },
+                    {
+                        "value": "small"
+                    },
+                    {
+                        "value": "mini"
+                    }
+                ]
+            },
+            {
+                "name": "text",
+                "description": "按钮文字",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "color",
+                "description": "按钮颜色，支持传入 linear-gradient 渐变色",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "icon",
+                "description": "左侧图标名称或图片链接",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "block",
+                "description": "是否为块级元素",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "plain",
+                "description": "是否为朴素按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "round",
+                "description": "是否为圆形按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "loading",
+                "description": "是否显示为加载状态",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击按钮，且按钮状态不为加载或禁用时触发",
+                "parameters": "(event: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-cell",
+            "VanCell"
+        ],
+        "description": "Cell 单元格",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/cell",
+        "snippet": "<$TAG$1 title=\"${2:单元格}\" value=\"${3:内容}\" ${4|is-link,clickable|} />",
+        "attributes": [
+            {
+                "name": "title",
+                "description": "左侧标题",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "value",
+                "description": "右侧内容",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "label",
+                "description": "标题下方的描述信息",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "size",
+                "description": "单元格大小",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "large"
+                    }
+                ]
+            },
+            {
+                "name": "icon",
+                "description": "左侧图标名称或图片链接",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "url",
+                "description": "点击后跳转的链接地址",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "to",
+                "description": "点击后跳转的目标路由对象，同 vue-router 的 to 属性",
+                "type": "string | object",
+                "default": "—"
+            },
+            {
+                "name": "is-link",
+                "description": "是否展示右侧箭头并开启点击反馈",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "required",
+                "description": "是否显示表单必填星号",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "center",
+                "description": "是否使内容垂直居中",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击单元格时触发",
+                "parameters": "(event: Event)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义右侧 value 的内容"
+            },
+            {
+                "name": "title",
+                "description": "自定义左侧 title 的内容"
+            },
+            {
+                "name": "label",
+                "description": "自定义标题下方 label 的内容"
+            },
+            {
+                "name": "icon",
+                "description": "自定义左侧图标"
+            },
+            {
+                "name": "right-icon",
+                "description": "自定义右侧按钮，默认为 arrow"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-cell-group",
+            "VanCellGroup"
+        ],
+        "description": "CellGroup 单元格组",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/cell",
+        "snippet": "<$TAG$1 title=\"${2:分组标题}\">\n\t<van-cell title=\"${3:单元格}\" value=\"${4:内容}\" />\n</$TAG>",
+        "attributes": [
+            {
+                "name": "title",
+                "description": "分组标题",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "border",
+                "description": "是否显示外边框",
+                "type": "boolean",
+                "default": "true"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-icon",
+            "VanIcon"
+        ],
+        "description": "Icon 图标",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/icon",
+        "snippet": "<$TAG$1 name=\"${2:success}\" />",
+        "attributes": [
+            {
+                "name": "name",
+                "description": "图标名称或图片链接",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "dot",
+                "description": "是否显示图标右上角小红点",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "badge",
+                "description": "图标右上角徽标的内容",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "color",
+                "description": "图标颜色",
+                "type": "string",
+                "default": "inherit"
+            },
+            {
+                "name": "size",
+                "description": "图标大小，如 20px 2em",
+                "type": "number | string",
+                "default": "inherit"
+            },
+            {
+                "name": "class-prefix",
+                "description": "类名前缀",
+                "type": "string",
+                "default": "van-icon"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-image",
+            "VanImage"
+        ],
+        "description": "Image 图片",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/image",
+        "snippet": "<$TAG$1 width=\"${2:100}\" height=\"${3:100}\" src=\"${4:url}\" />",
+        "attributes": [
+            {
+                "name": "src",
+                "description": "图片链接",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "fit",
+                "description": "图片填充模式",
+                "type": "enum",
+                "default": "fill",
+                "options": [
+                    {
+                        "value": "contain"
+                    },
+                    {
+                        "value": "cover"
+                    },
+                    {
+                        "value": "fill"
+                    },
+                    {
+                        "value": "none"
+                    },
+                    {
+                        "value": "scale-down"
+                    }
+                ]
+            },
+            {
+                "name": "alt",
+                "description": "替代文本",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "width",
+                "description": "宽度，默认单位为 px",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "height",
+                "description": "高度，默认单位为 px",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "radius",
+                "description": "圆角大小，默认单位为 px",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "round",
+                "description": "是否显示为圆形",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "lazy-load",
+                "description": "是否开启图片懒加载，须配合 Lazyload 组件使用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "show-error",
+                "description": "是否展示图片加载失败提示",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "show-loading",
+                "description": "是否展示图片加载中提示",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击图片时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "load",
+                "description": "图片加载完毕时触发",
+                "parameters": "—"
+            },
+            {
+                "name": "error",
+                "description": "图片加载失败时触发",
+                "parameters": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "loading",
+                "description": "自定义加载中的提示内容"
+            },
+            {
+                "name": "error",
+                "description": "自定义加载失败时的提示内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-popup",
+            "VanPopup"
+        ],
+        "description": "Popup 弹出层",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/popup",
+        "snippet": "<$TAG$1 v-model=\"${2:show}\" position=\"${3|bottom,top,left,right,center|}\" :style=\"{ height: '30%' }\">\n\t${4:内容}\n</$TAG>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "是否显示弹出层",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "overlay",
+                "description": "是否显示遮罩层",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "position",
+                "description": "弹出位置",
+                "type": "enum",
+                "default": "center",
+                "options": [
+                    {
+                        "value": "center"
+                    },
+                    {
+                        "value": "top"
+                    },
+                    {
+                        "value": "bottom"
+                    },
+                    {
+                        "value": "right"
+                    },
+                    {
+                        "value": "left"
+                    }
+                ]
+            },
+            {
+                "name": "close-on-click-overlay",
+                "description": "是否在点击遮罩层后关闭",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "closeable",
+                "description": "是否显示关闭图标",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "close-icon",
+                "description": "关闭图标名称或图片链接",
+                "type": "string",
+                "default": "cross"
+            },
+            {
+                "name": "close-icon-position",
+                "description": "关闭图标位置",
+                "type": "enum",
+                "default": "top-right",
+                "options": [
+                    {
+                        "value": "top-right"
+                    },
+                    {
+                        "value": "top-left"
+                    },
+                    {
+                        "value": "bottom-left"
+                    },
+                    {
+                        "value": "bottom-right"
+                    }
+                ]
+            },
+            {
+                "name": "round",
+                "description": "是否显示圆角",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "safe-area-inset-bottom",
+                "description": "是否开启底部安全区适配",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击弹出层时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "click-overlay",
+                "description": "点击遮罩层时触发",
+                "parameters": "—"
+            },
+            {
+                "name": "click-close-icon",
+                "description": "点击关闭图标时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "open",
+                "description": "打开弹出层时触发",
+                "parameters": "—"
+            },
+            {
+                "name": "close",
+                "description": "关闭弹出层时触发",
+                "parameters": "—"
+            },
+            {
+                "name": "opened",
+                "description": "打开弹出层且动画结束后触发",
+                "parameters": "—"
+            },
+            {
+                "name": "closed",
+                "description": "关闭弹出层且动画结束后触发",
+                "parameters": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-field",
+            "VanField"
+        ],
+        "description": "Field 输入框",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/field",
+        "snippet": "<$TAG$1 v-model=\"${2:value}\" label=\"${3:文本}\" placeholder=\"${4:请输入文本}\" />",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "当前输入的值",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "label",
+                "description": "输入框左侧文本",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "name",
+                "description": "名称，提交表单的标识符",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "type",
+                "description": "输入框类型",
+                "type": "enum",
+                "default": "text",
+                "options": [
+                    {
+                        "value": "text"
+                    },
+                    {
+                        "value": "tel"
+                    },
+                    {
+                        "value": "digit"
+                    },
+                    {
+                        "value": "number"
+                    },
+                    {
+                        "value": "textarea"
+                    },
+                    {
+                        "value": "password"
+                    }
+                ]
+            },
+            {
+                "name": "size",
+                "description": "大小",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "large"
+                    }
+                ]
+            },
+            {
+                "name": "maxlength",
+                "description": "输入的最大字符数",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "placeholder",
+                "description": "输入框占位提示文字",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "border",
+                "description": "是否显示内边框",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用输入框",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "readonly",
+                "description": "是否为只读状态，只读状态下无法输入内容",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "colon",
+                "description": "是否在 label 后面添加冒号",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "required",
+                "description": "是否显示表单必填星号",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "clearable",
+                "description": "是否启用清除图标，点击清除图标后会清空输入框",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "clickable",
+                "description": "是否开启点击反馈",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "is-link",
+                "description": "是否展示右侧箭头并开启点击反馈",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "show-word-limit",
+                "description": "是否显示字数统计，需要设置 maxlength 属性",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "error",
+                "description": "是否将输入内容标红",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "error-message",
+                "description": "底部错误提示文案，为空时不展示",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "rules",
+                "description": "表单校验规则，见 Form 组件",
+                "type": "array",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "input",
+                "description": "输入内容时触发",
+                "parameters": "(value: string)"
+            },
+            {
+                "name": "focus",
+                "description": "输入框获得焦点时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "blur",
+                "description": "输入框失去焦点时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "clear",
+                "description": "点击清除按钮时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "click",
+                "description": "点击组件时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "click-input",
+                "description": "点击输入区域时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "click-left-icon",
+                "description": "点击左侧图标时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "click-right-icon",
+                "description": "点击右侧图标时触发",
+                "parameters": "(event: Event)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "label",
+                "description": "自定义左侧文本"
+            },
+            {
+                "name": "input",
+                "description": "自定义输入框，使用此插槽后，与输入框相关的属性和事件将失效"
+            },
+            {
+                "name": "left-icon",
+                "description": "自定义左侧图标"
+            },
+            {
+                "name": "right-icon",
+                "description": "自定义右侧图标"
+            },
+            {
+                "name": "button",
+                "description": "自定义输入框尾部按钮"
+            },
+            {
+                "name": "extra",
+                "description": "自定义输入框最右侧的额外内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-form",
+            "VanForm"
+        ],
+        "description": "Form 表单",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/form",
+        "snippet": "<$TAG$1 @submit=\"onSubmit\">\n\t<van-field\n\t\tv-model=\"${2:username}\"\n\t\tname=\"${3:用户名}\"\n\t\tlabel=\"${4:用户名}\"\n\t\tplaceholder=\"${5:用户名}\"\n\t\t:rules=\"[{ required: true, message: '请填写用户名' }]\"\n\t/>\n\t<div style=\"margin: 16px;\">\n\t\t<van-button round block type=\"info\" native-type=\"submit\">提交</van-button>\n\t</div>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "label-width",
+                "description": "表单项 label 宽度，默认单位为 px",
+                "type": "number | string",
+                "default": "6.2em"
+            },
+            {
+                "name": "label-align",
+                "description": "表单项 label 对齐方式",
+                "type": "enum",
+                "default": "left",
+                "options": [
+                    {
+                        "value": "left"
+                    },
+                    {
+                        "value": "center"
+                    },
+                    {
+                        "value": "right"
+                    }
+                ]
+            },
+            {
+                "name": "input-align",
+                "description": "输入框对齐方式",
+                "type": "enum",
+                "default": "left",
+                "options": [
+                    {
+                        "value": "left"
+                    },
+                    {
+                        "value": "center"
+                    },
+                    {
+                        "value": "right"
+                    }
+                ]
+            },
+            {
+                "name": "error-message-align",
+                "description": "错误提示文案对齐方式",
+                "type": "enum",
+                "default": "left",
+                "options": [
+                    {
+                        "value": "left"
+                    },
+                    {
+                        "value": "center"
+                    },
+                    {
+                        "value": "right"
+                    }
+                ]
+            },
+            {
+                "name": "validate-first",
+                "description": "是否在某一项校验不通过时停止校验",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "scroll-to-error",
+                "description": "是否在提交表单且校验不通过时滚动至错误的表单项",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "show-error",
+                "description": "是否标红输入框",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "show-error-message",
+                "description": "是否在校验不通过时标红输入框",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "validate-trigger",
+                "description": "表单校验触发时机",
+                "type": "enum",
+                "default": "onBlur",
+                "options": [
+                    {
+                        "value": "onChange"
+                    },
+                    {
+                        "value": "onBlur"
+                    },
+                    {
+                        "value": "onSubmit"
+                    }
+                ]
+            }
+        ],
+        "events": [
+            {
+                "name": "submit",
+                "description": "提交表单且验证通过后触发",
+                "parameters": "(values: object)"
+            },
+            {
+                "name": "failed",
+                "description": "提交表单且验证不通过后触发",
+                "parameters": "(errorInfo: { values: object, errors: object[] })"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-picker",
+            "VanPicker"
+        ],
+        "description": "Picker 选择器",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/picker",
+        "snippet": "<$TAG$1\n\ttitle=\"${2:标题}\"\n\tshow-toolbar\n\t:columns=\"${3:columns}\"\n\t@confirm=\"onConfirm\"\n\t@cancel=\"onCancel\"\n\t@change=\"onChange\"\n/>",
+        "attributes": [
+            {
+                "name": "columns",
+                "description": "对象数组，配置每一列显示的数据",
+                "type": "array",
+                "default": "[]"
+            },
+            {
+                "name": "show-toolbar",
+                "description": "是否显示顶部导航",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "toolbar-position",
+                "description": "顶部导航位置",
+                "type": "enum",
+                "default": "top",
+                "options": [
+                    {
+                        "value": "top"
+                    },
+                    {
+                        "value": "bottom"
+                    }
+                ]
+            },
+            {
+                "name": "title",
+                "description": "顶部导航标题",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "confirm-button-text",
+                "description": "确认按钮文字",
+                "type": "string",
+                "default": "确认"
+            },
+            {
+                "name": "cancel-button-text",
+                "description": "取消按钮文字",
+                "type": "string",
+                "default": "取消"
+            },
+            {
+                "name": "value-key",
+                "description": "选项对象中，文字对应的 key",
+                "type": "string",
+                "default": "text"
+            },
+            {
+                "name": "item-height",
+                "description": "选项高度，支持 px vw vh rem 单位，默认 px",
+                "type": "number | string",
+                "default": "44"
+            },
+            {
+                "name": "visible-item-count",
+                "description": "可见的选项个数",
+                "type": "number | string",
+                "default": "6"
+            },
+            {
+                "name": "default-index",
+                "description": "单列选择时，默认选中项的索引",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "readonly",
+                "description": "是否为只读状态，只读状态下无法切换选项",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "confirm",
+                "description": "点击完成按钮时触发",
+                "parameters": "(value, index)"
+            },
+            {
+                "name": "cancel",
+                "description": "点击取消按钮时触发",
+                "parameters": "(value, index)"
+            },
+            {
+                "name": "change",
+                "description": "选项改变时触发",
+                "parameters": "(picker, value, index)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-datetime-picker",
+            "VanDatetimePicker"
+        ],
+        "description": "DatetimePicker 时间选择",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/datetime-picker",
+        "snippet": "<$TAG$1\n\tv-model=\"${2:currentDate}\"\n\ttype=\"${3|datetime,date,time,year-month,month-day,datehour|}\"\n\ttitle=\"${4:选择时间}\"\n\t:min-date=\"minDate\"\n\t:max-date=\"maxDate\"\n/>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "当前选中值",
+                "type": "string | Date",
+                "default": "—"
+            },
+            {
+                "name": "type",
+                "description": "时间类型",
+                "type": "enum",
+                "default": "datetime",
+                "options": [
+                    {
+                        "value": "datetime"
+                    },
+                    {
+                        "value": "date"
+                    },
+                    {
+                        "value": "time"
+                    },
+                    {
+                        "value": "year-month"
+                    },
+                    {
+                        "value": "month-day"
+                    },
+                    {
+                        "value": "datehour"
+                    }
+                ]
+            },
+            {
+                "name": "title",
+                "description": "顶部导航标题",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "confirm-button-text",
+                "description": "确认按钮文字",
+                "type": "string",
+                "default": "确认"
+            },
+            {
+                "name": "cancel-button-text",
+                "description": "取消按钮文字",
+                "type": "string",
+                "default": "取消"
+            },
+            {
+                "name": "show-toolbar",
+                "description": "是否显示顶部导航",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "min-date",
+                "description": "可选的最小时间，精确到分钟",
+                "type": "Date",
+                "default": "十年前"
+            },
+            {
+                "name": "max-date",
+                "description": "可选的最大时间，精确到分钟",
+                "type": "Date",
+                "default": "十年后"
+            },
+            {
+                "name": "min-hour",
+                "description": "可选的最小小时，针对 time 类型",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "max-hour",
+                "description": "可选的最大小时，针对 time 类型",
+                "type": "number | string",
+                "default": "23"
+            },
+            {
+                "name": "min-minute",
+                "description": "可选的最小分钟，针对 time 类型",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "max-minute",
+                "description": "可选的最大分钟，针对 time 类型",
+                "type": "number | string",
+                "default": "59"
+            },
+            {
+                "name": "filter",
+                "description": "选项过滤函数",
+                "type": "(type, vals) => vals",
+                "default": "—"
+            },
+            {
+                "name": "formatter",
+                "description": "选项格式化函数",
+                "type": "(type, val) => val",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "当值变化时触发的事件",
+                "parameters": "(picker: Picker实例)"
+            },
+            {
+                "name": "confirm",
+                "description": "点击完成按钮时触发的事件",
+                "parameters": "(value: current value)"
+            },
+            {
+                "name": "cancel",
+                "description": "点击取消按钮时触发的事件",
+                "parameters": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-search",
+            "VanSearch"
+        ],
+        "description": "Search 搜索",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/search",
+        "snippet": "<$TAG$1\n\tv-model=\"${2:value}\"\n\tshow-action\n\tplaceholder=\"${3:请输入搜索关键词}\"\n\t@search=\"onSearch\"\n\t@cancel=\"onCancel\"\n/>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "当前输入的值",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "label",
+                "description": "搜索框左侧文本",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "shape",
+                "description": "搜索框形状",
+                "type": "enum",
+                "default": "square",
+                "options": [
+                    {
+                        "value": "square"
+                    },
+                    {
+                        "value": "round"
+                    }
+                ]
+            },
+            {
+                "name": "background",
+                "description": "搜索框外部背景色",
+                "type": "string",
+                "default": "#f2f2f2"
+            },
+            {
+                "name": "maxlength",
+                "description": "输入的最大字符数",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "placeholder",
+                "description": "占位提示文字",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "clearable",
+                "description": "是否启用清除控件",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "show-action",
+                "description": "是否在搜索框右侧显示取消按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "action-text",
+                "description": "取消按钮文字",
+                "type": "string",
+                "default": "取消"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用输入框",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "readonly",
+                "description": "是否将输入框设为只读",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "search",
+                "description": "确定搜索时触发",
+                "parameters": "(value: string)"
+            },
+            {
+                "name": "input",
+                "description": "输入内容时触发",
+                "parameters": "(value: string)"
+            },
+            {
+                "name": "focus",
+                "description": "输入框获得焦点时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "blur",
+                "description": "输入框失去焦点时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "clear",
+                "description": "点击清除按钮后触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "cancel",
+                "description": "点击取消按钮时触发",
+                "parameters": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "left",
+                "description": "自定义搜索框左侧内容"
+            },
+            {
+                "name": "action",
+                "description": "自定义搜索框右侧取消按钮，开启 show-action 时有效"
+            },
+            {
+                "name": "label",
+                "description": "自定义搜索框左侧文本"
+            },
+            {
+                "name": "left-icon",
+                "description": "自定义输入框左侧图标"
+            },
+            {
+                "name": "right-icon",
+                "description": "自定义输入框右侧图标"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-uploader",
+            "VanUploader"
+        ],
+        "description": "Uploader 文件上传",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/uploader",
+        "snippet": "<$TAG$1 v-model=\"${2:fileList}\" :after-read=\"afterRead\" />",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "已上传的文件列表",
+                "type": "array",
+                "default": "[]"
+            },
+            {
+                "name": "accept",
+                "description": "允许上传的文件类型",
+                "type": "string",
+                "default": "image/*"
+            },
+            {
+                "name": "multiple",
+                "description": "是否开启图片多选，部分安卓机型不支持",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用文件上传",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "capture",
+                "description": "图片选取模式，可选值为 camera (直接调起摄像头)",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "after-read",
+                "description": "文件读取完成后的回调函数",
+                "type": "Function",
+                "default": "—"
+            },
+            {
+                "name": "before-read",
+                "description": "文件读取前的回调函数，返回 false 可终止文件读取，支持返回 Promise",
+                "type": "Function",
+                "default": "—"
+            },
+            {
+                "name": "max-size",
+                "description": "文件大小限制，单位为 byte",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "max-count",
+                "description": "文件上传数量限制",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "upload-text",
+                "description": "上传区域文字提示",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "image-fit",
+                "description": "预览图和上传区域的裁剪模式，和 Image 组件一致",
+                "type": "string",
+                "default": "cover"
+            },
+            {
+                "name": "deletable",
+                "description": "是否展示删除按钮",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "show-upload",
+                "description": "是否展示上传区域",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "preview-image",
+                "description": "是否在上传完成后展示预览图",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "oversize",
+                "description": "文件大小超过限制时触发",
+                "parameters": "(file: object | array, detail: object)"
+            },
+            {
+                "name": "click-preview",
+                "description": "点击预览图时触发",
+                "parameters": "(file: object, detail: object)"
+            },
+            {
+                "name": "delete",
+                "description": "删除文件预览时触发",
+                "parameters": "(file: object, detail: object)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义上传区域"
+            },
+            {
+                "name": "preview-cover",
+                "description": "自定义覆盖在预览图正上方的内"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-action-sheet",
+            "VanActionSheet"
+        ],
+        "description": "ActionSheet 动作面板",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/action-sheet",
+        "snippet": "<$TAG$1 v-model=\"${2:show}\" :actions=\"${3:actions}\" @select=\"onSelect\" />",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "是否显示动作面板",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "actions",
+                "description": "面板选项列表",
+                "type": "array",
+                "default": "[]"
+            },
+            {
+                "name": "title",
+                "description": "顶部标题",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "cancel-text",
+                "description": "取消按钮文字",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "description",
+                "description": "选项上方的描述信息",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "closeable",
+                "description": "是否显示关闭图标",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "close-icon",
+                "description": "关闭图标名称或图片链接",
+                "type": "string",
+                "default": "cross"
+            },
+            {
+                "name": "duration",
+                "description": "动画时长，单位秒",
+                "type": "number | string",
+                "default": "0.3"
+            },
+            {
+                "name": "round",
+                "description": "是否显示圆角",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "close-on-click-action",
+                "description": "是否在点击选项后关闭",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "close-on-click-overlay",
+                "description": "是否在点击遮罩层后关闭",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "select",
+                "description": "点击选项时触发，禁用或加载状态下不会触发",
+                "parameters": "(action: object, index: number)"
+            },
+            {
+                "name": "cancel",
+                "description": "点击取消按钮时触发",
+                "parameters": "—"
+            },
+            {
+                "name": "click-overlay",
+                "description": "点击遮罩层时触发",
+                "parameters": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义面板的默认内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-nav-bar",
+            "VanNavBar"
+        ],
+        "description": "NavBar 导航栏",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/nav-bar",
+        "snippet": "<$TAG$1\n\ttitle=\"${2:标题}\"\n\tleft-text=\"返回\"\n\tright-text=\"按钮\"\n\tleft-arrow\n\t@click-left=\"onClickLeft\"\n\t@click-right=\"onClickRight\"\n/>",
+        "attributes": [
+            {
+                "name": "title",
+                "description": "标题",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "left-text",
+                "description": "左侧文案",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "right-text",
+                "description": "右侧文案",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "left-arrow",
+                "description": "是否显示左侧箭头",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "border",
+                "description": "是否显示下边框",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "fixed",
+                "description": "是否固定在顶部",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "placeholder",
+                "description": "固定在顶部时，是否在标签位置生成一个等高的占位元素",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "z-index",
+                "description": "导航栏 z-index",
+                "type": "number | string",
+                "default": "1"
+            }
+        ],
+        "events": [
+            {
+                "name": "click-left",
+                "description": "点击左侧按钮时触发",
+                "parameters": "—"
+            },
+            {
+                "name": "click-right",
+                "description": "点击右侧按钮时触发",
+                "parameters": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "title",
+                "description": "自定义标题"
+            },
+            {
+                "name": "left",
+                "description": "自定义左侧区域内容"
+            },
+            {
+                "name": "right",
+                "description": "自定义右侧区域内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-tabs",
+            "VanTabs"
+        ],
+        "description": "Tabs 标签页",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/tab",
+        "snippet": "<$TAG$1 v-model=\"${2:active}\">\n\t<van-tab title=\"${3:标签 1}\">${4:内容 1}</van-tab>\n\t<van-tab title=\"${5:标签 2}\">${6:内容 2}</van-tab>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "绑定当前选中标签的标识符",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "type",
+                "description": "样式风格类型",
+                "type": "enum",
+                "default": "line",
+                "options": [
+                    {
+                        "value": "line"
+                    },
+                    {
+                        "value": "card"
+                    }
+                ]
+            },
+            {
+                "name": "color",
+                "description": "标签主题色",
+                "type": "string",
+                "default": "#ee0a24"
+            },
+            {
+                "name": "background",
+                "description": "标签栏背景色",
+                "type": "string",
+                "default": "white"
+            },
+            {
+                "name": "duration",
+                "description": "动画时间，单位秒",
+                "type": "number | string",
+                "default": "0.3"
+            },
+            {
+                "name": "line-width",
+                "description": "底部条宽度，默认单位 px",
+                "type": "number | string",
+                "default": "40px"
+            },
+            {
+                "name": "line-height",
+                "description": "底部条高度，默认单位 px",
+                "type": "number | string",
+                "default": "3px"
+            },
+            {
+                "name": "animated",
+                "description": "是否开启切换标签内容时的转场动画",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "swipeable",
+                "description": "是否开启手势滑动切换",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "sticky",
+                "description": "是否使用粘性定位布局",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "ellipsis",
+                "description": "是否省略过长的标题文字",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击标签时触发",
+                "parameters": "(name: string | number, title: string)"
+            },
+            {
+                "name": "change",
+                "description": "当前激活的标签改变时触发",
+                "parameters": "(name: string | number, title: string)"
+            },
+            {
+                "name": "disabled",
+                "description": "点击被禁用的标签时触发",
+                "parameters": "(name: string | number, title: string)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-tab",
+            "VanTab"
+        ],
+        "description": "Tab 标签页子项",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/tab",
+        "snippet": "<$TAG$1 title=\"${2:标签名称}\">\n\t${3:内容}\n</$TAG>",
+        "attributes": [
+            {
+                "name": "title",
+                "description": "标题",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "name",
+                "description": "标签名称，作为匹配的标识符",
+                "type": "number | string",
+                "default": "标签的索引值"
+            },
+            {
+                "name": "dot",
+                "description": "是否在标题右上角显示小红点",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "badge",
+                "description": "图标右上角徽标的内容",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用标签",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "url",
+                "description": "点击后跳转的链接地址",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "to",
+                "description": "点击后跳转的目标路由对象，同 vue-router 的 to 属性",
+                "type": "string | object",
+                "default": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "标签页内容"
+            },
+            {
+                "name": "title",
+                "description": "自定义标题"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-tabbar",
+            "VanTabbar"
+        ],
+        "description": "Tabbar 标签栏",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/tabbar",
+        "snippet": "<$TAG$1 v-model=\"${2:active}\">\n\t<van-tabbar-item icon=\"home-o\">标签</van-tabbar-item>\n\t<van-tabbar-item icon=\"search\">标签</van-tabbar-item>\n\t<van-tabbar-item icon=\"friends-o\">标签</van-tabbar-item>\n\t<van-tabbar-item icon=\"setting-o\">标签</van-tabbar-item>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "当前选中标签的名称或索引值",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "fixed",
+                "description": "是否固定在底部",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "border",
+                "description": "是否显示外边框",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "z-index",
+                "description": "元素 z-index",
+                "type": "number | string",
+                "default": "1"
+            },
+            {
+                "name": "active-color",
+                "description": "选中标签的颜色",
+                "type": "string",
+                "default": "#1989fa"
+            },
+            {
+                "name": "inactive-color",
+                "description": "未选中标签的颜色",
+                "type": "string",
+                "default": "#7d7e80"
+            },
+            {
+                "name": "route",
+                "description": "是否开启路由模式",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "placeholder",
+                "description": "固定在底部时，是否在标签位置生成一个等高的占位元素",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "safe-area-inset-bottom",
+                "description": "是否开启底部安全区适配",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "切换标签时触发",
+                "parameters": "(active: number | string)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-tabbar-item",
+            "VanTabbarItem"
+        ],
+        "description": "TabbarItem 标签栏子项",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/tabbar",
+        "snippet": "<$TAG$1 icon=\"${2:home-o}\">${3:标签}</$TAG>",
+        "attributes": [
+            {
+                "name": "name",
+                "description": "标签名称，作为匹配的标识符",
+                "type": "number | string",
+                "default": "当前标签的索引值"
+            },
+            {
+                "name": "icon",
+                "description": "图标名称或图片链接",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "icon-prefix",
+                "description": "图标类名前缀",
+                "type": "string",
+                "default": "van-icon"
+            },
+            {
+                "name": "dot",
+                "description": "是否显示图标右上角小红点",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "badge",
+                "description": "图标右上角徽标的内容",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "url",
+                "description": "点击后跳转的链接地址",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "to",
+                "description": "点击后跳转的目标路由对象，同 vue-router 的 to 属性",
+                "type": "string | object",
+                "default": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义组件内容"
+            },
+            {
+                "name": "icon",
+                "description": "自定义图标，参数为 active: boolean"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-list",
+            "VanList"
+        ],
+        "description": "List 列表 (瀑布流/上拉加载)",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/list",
+        "snippet": "<$TAG$1\n\tv-model=\"${2:loading}\"\n\t:finished=\"${3:finished}\"\n\tfinished-text=\"${4:没有更多了}\"\n\t@load=\"${5:onLoad}\"\n>\n\t<van-cell v-for=\"item in list\" :key=\"item\" :title=\"item\" />\n</$TAG>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "是否处于加载状态，加载过程中不触发 load 事件",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "finished",
+                "description": "是否已加载完成，加载完成后不再触发 load 事件",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "error",
+                "description": "是否加载失败，加载失败后点击错误提示可以重新触发 load 事件",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "offset",
+                "description": "滚动条与底部距离小于 offset 时触发 load 事件",
+                "type": "number | string",
+                "default": "300"
+            },
+            {
+                "name": "loading-text",
+                "description": "加载过程中的提示文案",
+                "type": "string",
+                "default": "加载中..."
+            },
+            {
+                "name": "finished-text",
+                "description": "加载完成后的提示文案",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "error-text",
+                "description": "加载失败后的提示文案",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "immediate-check",
+                "description": "是否在初始化时立即执行滚动位置检查",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "load",
+                "description": "滚动条与底部距离小于 offset 时触发",
+                "parameters": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "列表内容"
+            },
+            {
+                "name": "loading",
+                "description": "自定义底部加载中提示"
+            },
+            {
+                "name": "finished",
+                "description": "自定义加载完成后的提示文案"
+            },
+            {
+                "name": "error",
+                "description": "自定义加载失败后的提示文案"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-pull-refresh",
+            "VanPullRefresh"
+        ],
+        "description": "PullRefresh 下拉刷新",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/pull-refresh",
+        "snippet": "<$TAG$1 v-model=\"${2:isLoading}\" @refresh=\"${3:onRefresh}\">\n\t$4\n</$TAG>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "是否处于加载中状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "pulling-text",
+                "description": "下拉过程提示文案",
+                "type": "string",
+                "default": "下拉即可刷新..."
+            },
+            {
+                "name": "loosing-text",
+                "description": "释放过程提示文案",
+                "type": "string",
+                "default": "释放即可刷新..."
+            },
+            {
+                "name": "loading-text",
+                "description": "加载过程提示文案",
+                "type": "string",
+                "default": "加载中..."
+            },
+            {
+                "name": "success-text",
+                "description": "刷新成功提示文案",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "success-duration",
+                "description": "刷新成功提示展示时长(ms)",
+                "type": "number | string",
+                "default": "500"
+            },
+            {
+                "name": "animation-duration",
+                "description": "动画时长",
+                "type": "number | string",
+                "default": "300"
+            },
+            {
+                "name": "head-height",
+                "description": "顶部内容高度",
+                "type": "number | string",
+                "default": "50"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用下拉刷新",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "refresh",
+                "description": "下拉刷新时触发",
+                "parameters": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义内容"
+            },
+            {
+                "name": "normal",
+                "description": "非下拉状态时顶部内容"
+            },
+            {
+                "name": "pulling",
+                "description": "下拉过程中顶部内容"
+            },
+            {
+                "name": "loosing",
+                "description": "释放过程中顶部内容"
+            },
+            {
+                "name": "loading",
+                "description": "加载过程中顶部内容"
+            },
+            {
+                "name": "success",
+                "description": "刷新成功提示内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-swipe-cell",
+            "VanSwipeCell"
+        ],
+        "description": "SwipeCell 滑动单元格",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/swipe-cell",
+        "snippet": "<$TAG$1>\n\t<van-cell :border=\"false\" title=\"${2:单元格}\" value=\"${3:内容}\" />\n\t<template #right>\n\t\t<van-button square type=\"danger\" text=\"删除\" />\n\t</template>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "name",
+                "description": "标识符，可以在事件参数中获取到",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "left-width",
+                "description": "指定左侧滑动区域宽度，单位为 px",
+                "type": "number | string",
+                "default": "auto"
+            },
+            {
+                "name": "right-width",
+                "description": "指定右侧滑动区域宽度，单位为 px",
+                "type": "number | string",
+                "default": "auto"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用滑动",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "stop-propagation",
+                "description": "是否阻止滑动事件冒泡",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击时触发",
+                "parameters": "(position: 'left' | 'right' | 'cell' | 'outside')"
+            },
+            {
+                "name": "open",
+                "description": "打开时触发",
+                "parameters": "({ position, name })"
+            },
+            {
+                "name": "close",
+                "description": "关闭时触发",
+                "parameters": "({ position, name })"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义显示内容"
+            },
+            {
+                "name": "left",
+                "description": "左侧滑动内容"
+            },
+            {
+                "name": "right",
+                "description": "右侧滑动内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-grid",
+            "VanGrid"
+        ],
+        "description": "Grid 宫格",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/grid",
+        "snippet": "<$TAG$1 :column-num=\"${2:3}\">\n\t<van-grid-item v-for=\"value in 6\" :key=\"value\" icon=\"photo-o\" text=\"文字\" />\n</$TAG>",
+        "attributes": [
+            {
+                "name": "column-num",
+                "description": "列数",
+                "type": "number | string",
+                "default": "4"
+            },
+            {
+                "name": "icon-size",
+                "description": "图标大小，默认单位为 px",
+                "type": "number | string",
+                "default": "28px"
+            },
+            {
+                "name": "gutter",
+                "description": "格子之间的间距，默认单位为 px",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "border",
+                "description": "是否显示边框",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "center",
+                "description": "是否将格子内容居中显示",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "square",
+                "description": "是否将格子固定为正方形",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "clickable",
+                "description": "是否开启格子点击反馈",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "direction",
+                "description": "格子内容排列的方向",
+                "type": "enum",
+                "default": "vertical",
+                "options": [
+                    {
+                        "value": "vertical"
+                    },
+                    {
+                        "value": "horizontal"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-grid-item",
+            "VanGridItem"
+        ],
+        "description": "GridItem 宫格子项",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/grid",
+        "snippet": "<$TAG$1 icon=\"${2:photo-o}\" text=\"${3:文字}\" />",
+        "attributes": [
+            {
+                "name": "text",
+                "description": "文字",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "icon",
+                "description": "图标名称或图片链接",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "icon-prefix",
+                "description": "图标类名前缀",
+                "type": "string",
+                "default": "van-icon"
+            },
+            {
+                "name": "dot",
+                "description": "是否显示图标右上角小红点",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "badge",
+                "description": "图标右上角徽标的内容",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "url",
+                "description": "点击后跳转的链接地址",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "to",
+                "description": "点击后跳转的目标路由对象，同 vue-router 的 to 属性",
+                "type": "string | object",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击格子时触发",
+                "parameters": "(event: Event)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义内容"
+            },
+            {
+                "name": "icon",
+                "description": "自定义图标"
+            },
+            {
+                "name": "text",
+                "description": "自定义文字"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-checkbox",
+            "VanCheckbox"
+        ],
+        "description": "Checkbox 复选框",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/checkbox",
+        "snippet": "<$TAG$1 v-model=\"${2:checked}\">${3:复选框}</$TAG>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "是否为选中状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "name",
+                "description": "标识符，与 CheckboxGroup 一起使用",
+                "type": "any",
+                "default": "—"
+            },
+            {
+                "name": "shape",
+                "description": "形状",
+                "type": "enum",
+                "default": "round",
+                "options": [
+                    {
+                        "value": "round"
+                    },
+                    {
+                        "value": "square"
+                    }
+                ]
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用单选框",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "label-disabled",
+                "description": "是否禁用单选框内容点击",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "label-position",
+                "description": "文本位置",
+                "type": "enum",
+                "default": "right",
+                "options": [
+                    {
+                        "value": "right"
+                    },
+                    {
+                        "value": "left"
+                    }
+                ]
+            },
+            {
+                "name": "icon-size",
+                "description": "图标大小，默认单位为 px",
+                "type": "number | string",
+                "default": "20px"
+            },
+            {
+                "name": "checked-color",
+                "description": "选中状态颜色",
+                "type": "string",
+                "default": "#1989fa"
+            },
+            {
+                "name": "bind-group",
+                "description": "是否与复选框组绑定",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "当绑定值变化时触发的事件",
+                "parameters": "(checked: boolean)"
+            },
+            {
+                "name": "click",
+                "description": "点击复选框时触发",
+                "parameters": "(event: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-checkbox-group",
+            "VanCheckboxGroup"
+        ],
+        "description": "CheckboxGroup 复选框组",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/checkbox",
+        "snippet": "<$TAG$1 v-model=\"${2:result}\">\n\t<van-checkbox name=\"a\">复选框 a</van-checkbox>\n\t<van-checkbox name=\"b\">复选框 b</van-checkbox>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "所有选中项的 name",
+                "type": "array",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用所有复选框",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "max",
+                "description": "最大可选数，0 为无限制",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "direction",
+                "description": "排列方向",
+                "type": "enum",
+                "default": "vertical",
+                "options": [
+                    {
+                        "value": "vertical"
+                    },
+                    {
+                        "value": "horizontal"
+                    }
+                ]
+            },
+            {
+                "name": "icon-size",
+                "description": "所有复选框的图标大小",
+                "type": "number | string",
+                "default": "20px"
+            },
+            {
+                "name": "checked-color",
+                "description": "所有复选框的选中状态颜色",
+                "type": "string",
+                "default": "#1989fa"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "当绑定值变化时触发的事件",
+                "parameters": "(names: any[])"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-radio",
+            "VanRadio"
+        ],
+        "description": "Radio 单选框",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/radio",
+        "snippet": "<$TAG$1 name=\"${2:1}\">${3:单选框}</$TAG>",
+        "attributes": [
+            {
+                "name": "name",
+                "description": "标识符",
+                "type": "any",
+                "default": "—"
+            },
+            {
+                "name": "shape",
+                "description": "形状",
+                "type": "enum",
+                "default": "round",
+                "options": [
+                    {
+                        "value": "round"
+                    },
+                    {
+                        "value": "square"
+                    }
+                ]
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用单选框",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "label-disabled",
+                "description": "是否禁用单选框内容点击",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "label-position",
+                "description": "文本位置",
+                "type": "enum",
+                "default": "right",
+                "options": [
+                    {
+                        "value": "right"
+                    },
+                    {
+                        "value": "left"
+                    }
+                ]
+            },
+            {
+                "name": "icon-size",
+                "description": "图标大小",
+                "type": "number | string",
+                "default": "20px"
+            },
+            {
+                "name": "checked-color",
+                "description": "选中状态颜色",
+                "type": "string",
+                "default": "#1989fa"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-radio-group",
+            "VanRadioGroup"
+        ],
+        "description": "RadioGroup 单选框组",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/radio",
+        "snippet": "<$TAG$1 v-model=\"${2:radio}\">\n\t<van-radio name=\"1\">单选框 1</van-radio>\n\t<van-radio name=\"2\">单选框 2</van-radio>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "当前选中项的标识符",
+                "type": "any",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用所有单选框",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "direction",
+                "description": "排列方向",
+                "type": "enum",
+                "default": "vertical",
+                "options": [
+                    {
+                        "value": "vertical"
+                    },
+                    {
+                        "value": "horizontal"
+                    }
+                ]
+            },
+            {
+                "name": "icon-size",
+                "description": "所有单选框的图标大小",
+                "type": "number | string",
+                "default": "20px"
+            },
+            {
+                "name": "checked-color",
+                "description": "所有单选框的选中状态颜色",
+                "type": "string",
+                "default": "#1989fa"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "当绑定值变化时触发的事件",
+                "parameters": "(name: any)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-switch",
+            "VanSwitch"
+        ],
+        "description": "Switch 开关",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/switch",
+        "snippet": "<$TAG$1 v-model=\"${2:checked}\" />",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "开关选中状态",
+                "type": "any",
+                "default": "false"
+            },
+            {
+                "name": "loading",
+                "description": "是否为加载状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "是否为禁用状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "size",
+                "description": "开关尺寸",
+                "type": "number | string",
+                "default": "30px"
+            },
+            {
+                "name": "active-color",
+                "description": "打开时的背景色",
+                "type": "string",
+                "default": "#1989fa"
+            },
+            {
+                "name": "inactive-color",
+                "description": "关闭时的背景色",
+                "type": "string",
+                "default": "white"
+            },
+            {
+                "name": "active-value",
+                "description": "打开时对应的值",
+                "type": "any",
+                "default": "true"
+            },
+            {
+                "name": "inactive-value",
+                "description": "关闭时对应的值",
+                "type": "any",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "开关状态切换时触发",
+                "parameters": "(value: any)"
+            },
+            {
+                "name": "click",
+                "description": "点击时触发",
+                "parameters": "(event: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-stepper",
+            "VanStepper"
+        ],
+        "description": "Stepper 步进器 (数字输入框)",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/stepper",
+        "snippet": "<$TAG$1 v-model=\"${2:value}\" :min=\"${3:1}\" :max=\"${4:10}\" />",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "当前输入的值",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "min",
+                "description": "最小值",
+                "type": "number | string",
+                "default": "1"
+            },
+            {
+                "name": "max",
+                "description": "最大值",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "step",
+                "description": "步长，每次点击时改变的值",
+                "type": "number | string",
+                "default": "1"
+            },
+            {
+                "name": "name",
+                "description": "标识符，可以在 change 事件回调参数中获取",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "input-width",
+                "description": "输入框宽度",
+                "type": "number | string",
+                "default": "32px"
+            },
+            {
+                "name": "button-size",
+                "description": "按钮大小以及输入框高度",
+                "type": "number | string",
+                "default": "28px"
+            },
+            {
+                "name": "decimal-length",
+                "description": "固定显示的小数位数",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "theme",
+                "description": "样式风格",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "round",
+                        "description": "圆角风格"
+                    }
+                ]
+            },
+            {
+                "name": "disable-plus",
+                "description": "是否禁用增加按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disable-minus",
+                "description": "是否禁用减少按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disable-input",
+                "description": "是否禁用输入框",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "当绑定值变化时触发的事件",
+                "parameters": "(value: string, detail: { name: string })"
+            },
+            {
+                "name": "overlimit",
+                "description": "点击不可用的按钮时触发",
+                "parameters": "—"
+            },
+            {
+                "name": "plus",
+                "description": "点击增加按钮时触发",
+                "parameters": "—"
+            },
+            {
+                "name": "minus",
+                "description": "点击减少按钮时触发",
+                "parameters": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-calendar",
+            "VanCalendar"
+        ],
+        "description": "Calendar 日历",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/calendar",
+        "snippet": "<$TAG$1 v-model=\"${2:show}\" type=\"${3|single,multiple,range|}\" @confirm=\"${4:onConfirm}\" />",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "是否显示日历弹窗",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "type",
+                "description": "选择类型",
+                "type": "enum",
+                "default": "single",
+                "options": [
+                    {
+                        "value": "single",
+                        "description": "单选"
+                    },
+                    {
+                        "value": "multiple",
+                        "description": "多选"
+                    },
+                    {
+                        "value": "range",
+                        "description": "范围"
+                    }
+                ]
+            },
+            {
+                "name": "title",
+                "description": "日历标题",
+                "type": "string",
+                "default": "日期选择"
+            },
+            {
+                "name": "color",
+                "description": "主题色，对底部按钮和选中日期生效",
+                "type": "string",
+                "default": "#ee0a24"
+            },
+            {
+                "name": "min-date",
+                "description": "可选择的最小日期",
+                "type": "Date",
+                "default": "当前日期"
+            },
+            {
+                "name": "max-date",
+                "description": "可选择的最大日期",
+                "type": "Date",
+                "default": "当前日期的六个月后"
+            },
+            {
+                "name": "default-date",
+                "description": "默认选中的日期，type 为 multiple 或 range 时为数组",
+                "type": "Date | Date[] | null",
+                "default": "今天"
+            },
+            {
+                "name": "formatter",
+                "description": "日期格式化函数",
+                "type": "(day: Day) => Day",
+                "default": "—"
+            },
+            {
+                "name": "poppable",
+                "description": "是否以弹层的形式展示日历",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "show-mark",
+                "description": "是否显示月份背景水印",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "show-confirm",
+                "description": "是否展示确认按钮",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "select",
+                "description": "点击并记住任一日期时触发",
+                "parameters": "(value: Date | Date[])"
+            },
+            {
+                "name": "confirm",
+                "description": "日期选择完成后触发",
+                "parameters": "(value: Date | Date[])"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-dropdown-menu",
+            "VanDropdownMenu"
+        ],
+        "description": "DropdownMenu 下拉菜单",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/dropdown-menu",
+        "snippet": "<$TAG$1>\n\t<van-dropdown-item v-model=\"${2:value1}\" :options=\"${3:option1}\" />\n\t<van-dropdown-item v-model=\"${4:value2}\" :options=\"${5:option2}\" />\n</$TAG>",
+        "attributes": [
+            {
+                "name": "active-color",
+                "description": "菜单标题和选项的选中态颜色",
+                "type": "string",
+                "default": "#ee0a24"
+            },
+            {
+                "name": "direction",
+                "description": "菜单展开方向",
+                "type": "enum",
+                "default": "down",
+                "options": [
+                    {
+                        "value": "down"
+                    },
+                    {
+                        "value": "up"
+                    }
+                ]
+            },
+            {
+                "name": "z-index",
+                "description": "菜单栏 z-index 层级",
+                "type": "number | string",
+                "default": "10"
+            },
+            {
+                "name": "duration",
+                "description": "动画时长，单位秒",
+                "type": "number | string",
+                "default": "0.2"
+            },
+            {
+                "name": "overlay",
+                "description": "是否显示遮罩层",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "close-on-click-overlay",
+                "description": "是否在点击遮罩层后关闭菜单",
+                "type": "boolean",
+                "default": "true"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-dropdown-item",
+            "VanDropdownItem"
+        ],
+        "description": "DropdownItem 下拉菜单项",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/dropdown-menu",
+        "snippet": "<$TAG$1 v-model=\"${2:value}\" :options=\"${3:options}\" />",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "当前选中项对应的 value",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "title",
+                "description": "菜单项标题",
+                "type": "string",
+                "default": "当前选中项的文字"
+            },
+            {
+                "name": "options",
+                "description": "选项数组，格式：[{ text: '', value: '' }]",
+                "type": "array",
+                "default": "[]"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用菜单",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "title-class",
+                "description": "标题额外类名",
+                "type": "string",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "点击选项导致 value 变化时触发",
+                "parameters": "(value: number | string)"
+            },
+            {
+                "name": "open",
+                "description": "打开菜单栏时触发",
+                "parameters": "—"
+            },
+            {
+                "name": "close",
+                "description": "关闭菜单栏时触发",
+                "parameters": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义菜单内容"
+            },
+            {
+                "name": "title",
+                "description": "自定义菜单项标题"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-submit-bar",
+            "VanSubmitBar"
+        ],
+        "description": "SubmitBar 提交订单栏",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/submit-bar",
+        "snippet": "<$TAG$1 :price=\"${2:3050}\" button-text=\"${3:提交订单}\" @submit=\"${4:onSubmit}\" />",
+        "attributes": [
+            {
+                "name": "price",
+                "description": "价格（单位分）",
+                "type": "number",
+                "default": "—"
+            },
+            {
+                "name": "label",
+                "description": "价格左侧文案",
+                "type": "string",
+                "default": "合计："
+            },
+            {
+                "name": "suffix-label",
+                "description": "价格右侧文案",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "text-align",
+                "description": "价格文案对齐方向",
+                "type": "enum",
+                "default": "right",
+                "options": [
+                    {
+                        "value": "right"
+                    },
+                    {
+                        "value": "left"
+                    }
+                ]
+            },
+            {
+                "name": "button-text",
+                "description": "按钮文字",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "button-type",
+                "description": "按钮类型",
+                "type": "enum",
+                "default": "danger",
+                "options": [
+                    {
+                        "value": "primary"
+                    },
+                    {
+                        "value": "info"
+                    },
+                    {
+                        "value": "warning"
+                    },
+                    {
+                        "value": "danger"
+                    }
+                ]
+            },
+            {
+                "name": "button-color",
+                "description": "自定义按钮颜色",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "tip",
+                "description": "在订单栏上方的提示文案",
+                "type": "string | boolean",
+                "default": "—"
+            },
+            {
+                "name": "tip-icon",
+                "description": "提示文案左侧的图标名称或图片链接",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "loading",
+                "description": "是否显示加载中的按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "currency",
+                "description": "货币符号",
+                "type": "string",
+                "default": "¥"
+            },
+            {
+                "name": "safe-area-inset-bottom",
+                "description": "是否开启底部安全区适配",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "submit",
+                "description": "按钮点击事件回调",
+                "parameters": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义订单栏左侧内容"
+            },
+            {
+                "name": "tip",
+                "description": "自定义订单栏上方提示文案"
+            },
+            {
+                "name": "button",
+                "description": "自定义右侧按钮"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-swipe",
+            "VanSwipe"
+        ],
+        "description": "Swipe 轮播",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/swipe",
+        "snippet": "<$TAG$1 class=\"${2:my-swipe}\" :autoplay=\"${3:3000}\" indicator-color=\"white\">\n\t<van-swipe-item>1</van-swipe-item>\n\t<van-swipe-item>2</van-swipe-item>\n\t<van-swipe-item>3</van-swipe-item>\n\t<van-swipe-item>4</van-swipe-item>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "autoplay",
+                "description": "自动轮播间隔，单位为 ms",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "duration",
+                "description": "动画时长，单位为 ms",
+                "type": "number | string",
+                "default": "500"
+            },
+            {
+                "name": "initial-swipe",
+                "description": "初始位置索引值",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "width",
+                "description": "滑块宽度，单位为 px",
+                "type": "number | string",
+                "default": "auto"
+            },
+            {
+                "name": "height",
+                "description": "滑块高度，单位为 px",
+                "type": "number | string",
+                "default": "auto"
+            },
+            {
+                "name": "loop",
+                "description": "是否开启底层环摇",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "show-indicators",
+                "description": "是否显示指示器",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "indicator-color",
+                "description": "指示器颜色",
+                "type": "string",
+                "default": "#1989fa"
+            },
+            {
+                "name": "vertical",
+                "description": "是否为纵向滚动",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "touchable",
+                "description": "是否可以通过手势滑动",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "每一页轮播结束后触发",
+                "parameters": "(index: number)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "轮播内容"
+            },
+            {
+                "name": "indicator",
+                "description": "自定义指示器"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-swipe-item",
+            "VanSwipeItem"
+        ],
+        "description": "SwipeItem 轮播项",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/swipe",
+        "snippet": "<$TAG$1>\n\t$2\n</$TAG>",
+        "slots": [
+            {
+                "name": "default",
+                "description": "轮播项内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-notice-bar",
+            "VanNoticeBar"
+        ],
+        "description": "NoticeBar 通知栏",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/notice-bar",
+        "snippet": "<$TAG$1\n\tleft-icon=\"volume-o\"\n\ttext=\"${2:在代码阅读过程中人们说脏话的频率是衡量代码质量的唯一标准。}\"\n/>",
+        "attributes": [
+            {
+                "name": "mode",
+                "description": "通知栏模式",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "closeable",
+                        "description": "可关闭"
+                    },
+                    {
+                        "value": "link",
+                        "description": "带链接箭头"
+                    }
+                ]
+            },
+            {
+                "name": "text",
+                "description": "通知文本内容",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "color",
+                "description": "通知文本颜色",
+                "type": "string",
+                "default": "#ed6a0c"
+            },
+            {
+                "name": "background",
+                "description": "滚动条背景",
+                "type": "string",
+                "default": "#fffbe8"
+            },
+            {
+                "name": "left-icon",
+                "description": "左侧图标名称或图片链接",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "delay",
+                "description": "动画延迟时间 (s)",
+                "type": "number | string",
+                "default": "1"
+            },
+            {
+                "name": "speed",
+                "description": "滚动速率 (px/s)",
+                "type": "number | string",
+                "default": "50"
+            },
+            {
+                "name": "scrollable",
+                "description": "是否开启滚动播放",
+                "type": "boolean",
+                "default": "内容超长时自动开启"
+            },
+            {
+                "name": "wrapable",
+                "description": "是否开启文本换行，只在禁用滚动时生效",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击通知栏时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "close",
+                "description": "关闭通知栏时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "replay",
+                "description": "每当滚动播放一轮时触发",
+                "parameters": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "通知文本内容"
+            },
+            {
+                "name": "left-icon",
+                "description": "自定义左侧图标"
+            },
+            {
+                "name": "right-icon",
+                "description": "自定义右侧图标"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-tag",
+            "VanTag"
+        ],
+        "description": "Tag 标签",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/tag",
+        "snippet": "<$TAG$1 type=\"${2|primary,success,danger,warning|}\">${3:标签}</$TAG>",
+        "attributes": [
+            {
+                "name": "type",
+                "description": "类型",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "primary"
+                    },
+                    {
+                        "value": "success"
+                    },
+                    {
+                        "value": "danger"
+                    },
+                    {
+                        "value": "warning"
+                    },
+                    {
+                        "value": "default"
+                    }
+                ]
+            },
+            {
+                "name": "size",
+                "description": "大小",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "large"
+                    },
+                    {
+                        "value": "medium"
+                    }
+                ]
+            },
+            {
+                "name": "color",
+                "description": "标签颜色",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "plain",
+                "description": "是否为空心样式",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "round",
+                "description": "是否为圆角样式",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "mark",
+                "description": "是否为标记样式(半圆角)",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "text-color",
+                "description": "文本颜色",
+                "type": "string",
+                "default": "white"
+            },
+            {
+                "name": "closeable",
+                "description": "是否为可关闭标签",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击标签时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "close",
+                "description": "关闭标签时触发",
+                "parameters": "(event: Event)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-badge",
+            "VanBadge"
+        ],
+        "description": "Badge 徽标",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/badge",
+        "snippet": "<$TAG$1 :content=\"${2:5}\">\n\t<div class=\"child\" />\n</$TAG>",
+        "attributes": [
+            {
+                "name": "content",
+                "description": "徽标内容",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "dot",
+                "description": "是否展示为小红点",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "max",
+                "description": "最大值，超过最大值会显示 {max}+",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "color",
+                "description": "徽标背景颜色",
+                "type": "string",
+                "default": "#ee0a24"
+            },
+            {
+                "name": "offset",
+                "description": "设置徽标的偏移量，数组的两项分别对应水平及垂直方向的偏移量",
+                "type": "array",
+                "default": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-empty",
+            "VanEmpty"
+        ],
+        "description": "Empty 空状态",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/empty",
+        "snippet": "<$TAG$1 description=\"${2:描述文字}\" />",
+        "attributes": [
+            {
+                "name": "image",
+                "description": "图片类型",
+                "type": "enum | string",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "default",
+                        "description": "默认"
+                    },
+                    {
+                        "value": "error",
+                        "description": "错误"
+                    },
+                    {
+                        "value": "network",
+                        "description": "网络错误"
+                    },
+                    {
+                        "value": "search",
+                        "description": "搜索为空"
+                    }
+                ]
+            },
+            {
+                "name": "image-size",
+                "description": "图片大小，默认单位为 px",
+                "type": "number | string",
+                "default": "160px"
+            },
+            {
+                "name": "description",
+                "description": "图片下方的描述文字",
+                "type": "string",
+                "default": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义底部内容"
+            },
+            {
+                "name": "image",
+                "description": "自定义图片内容"
+            },
+            {
+                "name": "description",
+                "description": "自定义描述文字"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-skeleton",
+            "VanSkeleton"
+        ],
+        "description": "Skeleton 骨架屏",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/skeleton",
+        "snippet": "<$TAG$1 title :row=\"${2:3}\" :loading=\"${3:loading}\">\n\t<div>实际内容</div>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "row",
+                "description": "段落占位图行数",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "row-width",
+                "description": "段落占位图宽度，可传数组来设置每一行的宽度",
+                "type": "number | string | array",
+                "default": "100%"
+            },
+            {
+                "name": "title",
+                "description": "是否显示标题占位图",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "title-width",
+                "description": "标题占位图宽度",
+                "type": "number | string",
+                "default": "40%"
+            },
+            {
+                "name": "avatar",
+                "description": "是否显示头像占位图",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "avatar-size",
+                "description": "头像占位图大小",
+                "type": "number | string",
+                "default": "32px"
+            },
+            {
+                "name": "avatar-shape",
+                "description": "头像占位图形状",
+                "type": "enum",
+                "default": "round",
+                "options": [
+                    {
+                        "value": "round"
+                    },
+                    {
+                        "value": "square"
+                    }
+                ]
+            },
+            {
+                "name": "loading",
+                "description": "是否显示骨架屏，传 false 时会展示子组件内容",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "animate",
+                "description": "是否开启动画",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "round",
+                "description": "是否将段落和标题显示为圆角风格",
+                "type": "boolean",
+                "default": "false"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-divider",
+            "VanDivider"
+        ],
+        "description": "Divider 分割线",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/divider",
+        "snippet": "<$TAG$1 content-position=\"${2|center,left,right|}\">${3:文字}</$TAG>",
+        "attributes": [
+            {
+                "name": "dashed",
+                "description": "是否使用虚线",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "hairline",
+                "description": "是否使用 0.5px 线",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "content-position",
+                "description": "内容位置",
+                "type": "enum",
+                "default": "center",
+                "options": [
+                    {
+                        "value": "center"
+                    },
+                    {
+                        "value": "left"
+                    },
+                    {
+                        "value": "right"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-card",
+            "VanCard"
+        ],
+        "description": "Card 商品卡片",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/card",
+        "snippet": "<$TAG$1\n\tnum=\"${2:2}\"\n\tprice=\"${3:2.00}\"\n\tdesc=\"${4:描述信息}\"\n\ttitle=\"${5:商品标题}\"\n\tthumb=\"${6:https://img01.yzcdn.cn/vant/ipad.jpeg}\"\n/>",
+        "attributes": [
+            {
+                "name": "thumb",
+                "description": "左侧图片 URL",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "title",
+                "description": "标题",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "desc",
+                "description": "描述",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "tag",
+                "description": "图片角标",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "num",
+                "description": "商品数量",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "price",
+                "description": "商品价格",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "origin-price",
+                "description": "商品划线原价",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "centered",
+                "description": "内容是否垂直居中",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "currency",
+                "description": "自定义人民币符号",
+                "type": "string",
+                "default": "¥"
+            },
+            {
+                "name": "thumb-link",
+                "description": "点击左侧图片后跳转的链接地址",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "lazy-load",
+                "description": "是否开启图片懒加载",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击时触发",
+                "parameters": "(event: Event)"
+            },
+            {
+                "name": "click-thumb",
+                "description": "点击自定义图片时触发",
+                "parameters": "(event: Event)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "title",
+                "description": "自定义标题"
+            },
+            {
+                "name": "desc",
+                "description": "自定义描述"
+            },
+            {
+                "name": "num",
+                "description": "自定义数量"
+            },
+            {
+                "name": "price",
+                "description": "自定义价格"
+            },
+            {
+                "name": "origin-price",
+                "description": "自定义商品原价"
+            },
+            {
+                "name": "price-top",
+                "description": "自定义价格上方区域"
+            },
+            {
+                "name": "bottom",
+                "description": "自定义价格下方区域"
+            },
+            {
+                "name": "thumb",
+                "description": "自定义图片"
+            },
+            {
+                "name": "tag",
+                "description": "自定义图片角标"
+            },
+            {
+                "name": "tags",
+                "description": "自定义描述下方标签区域"
+            },
+            {
+                "name": "footer",
+                "description": "自定义右下角内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-goods-action",
+            "VanGoodsAction"
+        ],
+        "description": "GoodsAction 商品导航",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/goods-action",
+        "snippet": "<$TAG$1>\n\t<van-goods-action-icon icon=\"chat-o\" text=\"客服\" />\n\t<van-goods-action-icon icon=\"cart-o\" text=\"购物车\" />\n\t<van-goods-action-button type=\"warning\" text=\"加入购物车\" />\n\t<van-goods-action-button type=\"danger\" text=\"立即购买\" />\n</$TAG>",
+        "attributes": [
+            {
+                "name": "safe-area-inset-bottom",
+                "description": "是否开启底部安全区适配",
+                "type": "boolean",
+                "default": "true"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-goods-action-icon",
+            "VanGoodsActionIcon"
+        ],
+        "description": "GoodsActionIcon 导航图标",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/goods-action",
+        "snippet": "<$TAG$1 icon=\"${2:chat-o}\" text=\"${3:客服}\" @click=\"${4:onClickIcon}\" />",
+        "attributes": [
+            {
+                "name": "text",
+                "description": "按钮文字",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "icon",
+                "description": "图标名称或图片链接",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "color",
+                "description": "图标颜色",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "dot",
+                "description": "是否显示图标右上角小红点",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "badge",
+                "description": "图标右上角徽标的内容",
+                "type": "number | string",
+                "default": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-goods-action-button",
+            "VanGoodsActionButton"
+        ],
+        "description": "GoodsActionButton 导航按钮",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/goods-action",
+        "snippet": "<$TAG$1 type=\"${2|danger,warning|}\" text=\"${3:立即购买}\" @click=\"${4:onClickButton}\" />",
+        "attributes": [
+            {
+                "name": "text",
+                "description": "按钮文字",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "type",
+                "description": "按钮类型",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "primary"
+                    },
+                    {
+                        "value": "info"
+                    },
+                    {
+                        "value": "warning"
+                    },
+                    {
+                        "value": "danger"
+                    }
+                ]
+            },
+            {
+                "name": "color",
+                "description": "按钮颜色，支持传入 linear-gradient 渐变色",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "loading",
+                "description": "是否显示为加载状态",
+                "type": "boolean",
+                "default": "false"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-area",
+            "VanArea"
+        ],
+        "description": "Area 省市区选择",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/area",
+        "snippet": "<$TAG$1 title=\"${2:标题}\" :area-list=\"${3:areaList}\" value=\"${4:110101}\" @confirm=\"onConfirm\" />",
+        "attributes": [
+            {
+                "name": "value",
+                "description": "当前选中的省市区 code",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "title",
+                "description": "顶部栏标题",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "area-list",
+                "description": "省市区数据，格式见官方文档",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "columns-num",
+                "description": "显示列数，3-省市区，2-省市，1-省",
+                "type": "number | string",
+                "default": "3"
+            },
+            {
+                "name": "columns-placeholder",
+                "description": "列占位提示文字",
+                "type": "array",
+                "default": "[]"
+            },
+            {
+                "name": "is-oversea-code",
+                "description": "包含海外数据的合法 code 参数",
+                "type": "function",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "confirm",
+                "description": "点击右上方完成按钮",
+                "parameters": "(result: array)"
+            },
+            {
+                "name": "cancel",
+                "description": "点击取消按钮时",
+                "parameters": "—"
+            },
+            {
+                "name": "change",
+                "description": "选项改变时触发",
+                "parameters": "(picker, value, index)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-password-input",
+            "VanPasswordInput"
+        ],
+        "description": "PasswordInput 密码输入框",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/password-input",
+        "snippet": "<$TAG$1\n\t:value=\"${2:value}\"\n\t:focused=\"${3:showKeyboard}\"\n\t@focus=\"${3:showKeyboard} = true\"\n/>",
+        "attributes": [
+            {
+                "name": "value",
+                "description": "密码值",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "length",
+                "description": "密码最大长度",
+                "type": "number | string",
+                "default": "6"
+            },
+            {
+                "name": "gutter",
+                "description": "输入框格子之间的间距，如 20px 2em，默认单位为 px",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "mask",
+                "description": "是否隐藏密码内容",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "focused",
+                "description": "是否已聚焦，聚焦时会显示光标",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "error-info",
+                "description": "输入框下方文字提示",
+                "type": "string",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "focus",
+                "description": "输入框获得焦点时触发",
+                "parameters": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-number-keyboard",
+            "VanNumberKeyboard"
+        ],
+        "description": "NumberKeyboard 数字键盘",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/number-keyboard",
+        "snippet": "<$TAG$1\n\t:show=\"${2:showKeyboard}\"\n\t@blur=\"${2:showKeyboard} = false\"\n\t@input=\"onInput\"\n\t@delete=\"onDelete\"\n/>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "当前输入值",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "show",
+                "description": "是否显示键盘",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "title",
+                "description": "键盘标题",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "theme",
+                "description": "键盘模式",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "default",
+                        "description": "默认"
+                    },
+                    {
+                        "value": "custom",
+                        "description": "带右侧确认键"
+                    }
+                ]
+            },
+            {
+                "name": "maxlength",
+                "description": "输入值最大长度",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "transition",
+                "description": "是否开启底部滑入动画",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "z-index",
+                "description": "键盘 z-index 层级",
+                "type": "number | string",
+                "default": "100"
+            },
+            {
+                "name": "extra-key",
+                "description": "左下角按键内容，可传数组提供两个自定义按键",
+                "type": "string | array",
+                "default": "—"
+            },
+            {
+                "name": "close-button-text",
+                "description": "关闭按钮文字，空则不展示",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "delete-button-text",
+                "description": "删除按钮文字，空则展示图标",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "show-delete-key",
+                "description": "是否展示删除图标",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "safe-area-inset-bottom",
+                "description": "是否开启底部安全区适配",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "input",
+                "description": "点击按键时触发",
+                "parameters": "(key: string)"
+            },
+            {
+                "name": "delete",
+                "description": "点击删除键时触发",
+                "parameters": "—"
+            },
+            {
+                "name": "close",
+                "description": "点击关闭按钮时触发",
+                "parameters": "—"
+            },
+            {
+                "name": "blur",
+                "description": "点击关闭按钮或非键盘区域时触发",
+                "parameters": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "delete",
+                "description": "自定义删除按键内容"
+            },
+            {
+                "name": "extra-key",
+                "description": "自定义左下角按键内容"
+            },
+            {
+                "name": "title-left",
+                "description": "自定义标题栏左侧内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-sidebar",
+            "VanSidebar"
+        ],
+        "description": "Sidebar 侧边导航",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/sidebar",
+        "snippet": "<$TAG$1 v-model=\"${2:activeKey}\">\n\t<van-sidebar-item title=\"${3:标签名称}\" />\n\t<van-sidebar-item title=\"${4:标签名称}\" />\n\t<van-sidebar-item title=\"${5:标签名称}\" />\n</$TAG>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "当前导航项的索引",
+                "type": "number | string",
+                "default": "0"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "切换导航项时触发",
+                "parameters": "(index: number)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-sidebar-item",
+            "VanSidebarItem"
+        ],
+        "description": "SidebarItem 侧边导航项",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/sidebar",
+        "snippet": "<$TAG$1 title=\"${2:标签名称}\" />",
+        "attributes": [
+            {
+                "name": "title",
+                "description": "内容",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "dot",
+                "description": "是否显示右上角小红点",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "badge",
+                "description": "图标右上角徽标的内容",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用该项",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击时触发",
+                "parameters": "(index: number)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "title",
+                "description": "自定义标题"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-index-bar",
+            "VanIndexBar"
+        ],
+        "description": "IndexBar 索引栏 (通讯录/城市选择)",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/index-bar",
+        "snippet": "<$TAG$1 :index-list=\"${2:indexList}\">\n\t<van-index-anchor index=\"A\">标题 A</van-index-anchor>\n\t<van-cell title=\"文本\" />\n\t<van-cell title=\"文本\" />\n</$TAG>",
+        "attributes": [
+            {
+                "name": "index-list",
+                "description": "索引字符列表",
+                "type": "array",
+                "default": "A-Z"
+            },
+            {
+                "name": "z-index",
+                "description": "z-index 层级",
+                "type": "number | string",
+                "default": "1"
+            },
+            {
+                "name": "sticky",
+                "description": "是否开启锚点 sticky 悬浮",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "sticky-offset-top",
+                "description": "锚点 sticky 悬浮距离顶部的距离，单位 px",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "highlight-color",
+                "description": "索引字符高亮颜色",
+                "type": "string",
+                "default": "#ee0a24"
+            }
+        ],
+        "events": [
+            {
+                "name": "select",
+                "description": "点击索引栏的字符时触发",
+                "parameters": "(index: number | string)"
+            },
+            {
+                "name": "change",
+                "description": "当前高亮的索引字符变化时触发",
+                "parameters": "(index: number | string)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-index-anchor",
+            "VanIndexAnchor"
+        ],
+        "description": "IndexAnchor 索引栏锚点",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/index-bar",
+        "snippet": "<$TAG$1 index=\"${2:A}\">${3:标题 A}</$TAG>",
+        "attributes": [
+            {
+                "name": "index",
+                "description": "索引字符",
+                "type": "number | string",
+                "default": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "锚点位置显示内容，默认为索引字符"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-tree-select",
+            "VanTreeSelect"
+        ],
+        "description": "TreeSelect 分类选择",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/tree-select",
+        "snippet": "<$TAG$1\n\t:items=\"${2:items}\"\n\t:active-id.sync=\"${3:activeId}\"\n\t:main-active-index.sync=\"${4:activeIndex}\"\n/>",
+        "attributes": [
+            {
+                "name": "items",
+                "description": "分类显示所需的数据",
+                "type": "array",
+                "default": "[]"
+            },
+            {
+                "name": "active-id",
+                "description": "左侧高亮选项的 id，支持 .sync 修饰符",
+                "type": "string | number | array",
+                "default": "0"
+            },
+            {
+                "name": "main-active-index",
+                "description": "右侧高亮选项的索引，支持 .sync 修饰符",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "height",
+                "description": "高度，默认单位为 px",
+                "type": "number | string",
+                "default": "300"
+            },
+            {
+                "name": "max",
+                "description": "右侧项最大选中个数",
+                "type": "number | string",
+                "default": "Infinity"
+            },
+            {
+                "name": "selected-icon",
+                "description": "自定义右侧选项选中状态的图标",
+                "type": "string",
+                "default": "success"
+            }
+        ],
+        "events": [
+            {
+                "name": "click-nav",
+                "description": "点击左侧导航时触发",
+                "parameters": "(index: number)"
+            },
+            {
+                "name": "click-item",
+                "description": "点击右侧选择项时触发",
+                "parameters": "(data: object)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "content",
+                "description": "自定义右侧区域内容，如果存在 items，则插入在顶部"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-share-sheet",
+            "VanShareSheet"
+        ],
+        "description": "ShareSheet 分享面板",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/share-sheet",
+        "snippet": "<$TAG$1 v-model=\"${2:showShare}\" title=\"${3:立即分享给好友}\" :options=\"${4:options}\" @select=\"onSelect\" />",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "是否显示分享面板",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "options",
+                "description": "分享选项",
+                "type": "array",
+                "default": "[]"
+            },
+            {
+                "name": "title",
+                "description": "顶部标题",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "cancel-text",
+                "description": "取消按钮文字",
+                "type": "string",
+                "default": "取消"
+            },
+            {
+                "name": "description",
+                "description": "标题下方的辅助描述文字",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "duration",
+                "description": "动画时长，单位秒",
+                "type": "number | string",
+                "default": "0.3"
+            },
+            {
+                "name": "overlay",
+                "description": "是否显示遮罩层",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "close-on-click-overlay",
+                "description": "是否在点击遮罩层后关闭",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "safe-area-inset-bottom",
+                "description": "是否开启底部安全区适配",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "select",
+                "description": "点击分享选项时触发",
+                "parameters": "(option: object, index: number)"
+            },
+            {
+                "name": "cancel",
+                "description": "点击取消按钮时触发",
+                "parameters": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-popover",
+            "VanPopover"
+        ],
+        "description": "Popover 气泡弹出框",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/popover",
+        "snippet": "<$TAG$1 v-model=\"${2:showPopover}\" trigger=\"click\" :actions=\"${3:actions}\" @select=\"onSelect\">\n\t<template #reference>\n\t\t<van-button type=\"primary\">${4:点击弹出气泡}</van-button>\n\t</template>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "是否展示气泡弹出框",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "actions",
+                "description": "选项列表",
+                "type": "array",
+                "default": "[]"
+            },
+            {
+                "name": "placement",
+                "description": "弹出位置",
+                "type": "enum",
+                "default": "bottom",
+                "options": [
+                    {
+                        "value": "top"
+                    },
+                    {
+                        "value": "bottom"
+                    },
+                    {
+                        "value": "left"
+                    },
+                    {
+                        "value": "right"
+                    },
+                    {
+                        "value": "bottom-start"
+                    },
+                    {
+                        "value": "bottom-end"
+                    }
+                ]
+            },
+            {
+                "name": "theme",
+                "description": "主题风格",
+                "type": "enum",
+                "default": "light",
+                "options": [
+                    {
+                        "value": "light"
+                    },
+                    {
+                        "value": "dark"
+                    }
+                ]
+            },
+            {
+                "name": "trigger",
+                "description": "触发方式",
+                "type": "string",
+                "default": "click"
+            },
+            {
+                "name": "offset",
+                "description": "出现位置的偏移量",
+                "type": "array",
+                "default": "[0, 8]"
+            },
+            {
+                "name": "close-on-click-action",
+                "description": "是否在点击选项后关闭",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "close-on-click-outside",
+                "description": "是否在点击外部元素后关闭菜单",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "events": [
+            {
+                "name": "select",
+                "description": "点击选项时触发",
+                "parameters": "(action: object, index: number)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义菜单内容"
+            },
+            {
+                "name": "reference",
+                "description": "触发气泡弹出框的元素"
+            },
+            {
+                "name": "action",
+                "description": "自定义选项内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-count-down",
+            "VanCountDown"
+        ],
+        "description": "CountDown 倒计时",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/count-down",
+        "snippet": "<$TAG$1 :time=\"${2:time}\" format=\"${3:DD 天 HH 时 mm 分 ss 秒}\" @finish=\"${4:onFinish}\" />",
+        "attributes": [
+            {
+                "name": "time",
+                "description": "倒计时时长，单位毫秒",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "format",
+                "description": "时间格式",
+                "type": "string",
+                "default": "HH:mm:ss"
+            },
+            {
+                "name": "auto-start",
+                "description": "是否自动开始倒计时",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "millisecond",
+                "description": "是否开启毫秒级渲染",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "finish",
+                "description": "倒计时结束时触发",
+                "parameters": "—"
+            },
+            {
+                "name": "change",
+                "description": "倒计时变化时触发",
+                "parameters": "(currentTime: object)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-steps",
+            "VanSteps"
+        ],
+        "description": "Steps 步骤条",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/steps",
+        "snippet": "<$TAG$1 :active=\"${2:active}\">\n\t<van-step>${3:买家下单}</van-step>\n\t<van-step>${4:商家接单}</van-step>\n\t<van-step>${5:买家提货}</van-step>\n\t<van-step>${6:交易完成}</van-step>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "active",
+                "description": "当前步骤",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "direction",
+                "description": "显示方向",
+                "type": "enum",
+                "default": "horizontal",
+                "options": [
+                    {
+                        "value": "horizontal"
+                    },
+                    {
+                        "value": "vertical"
+                    }
+                ]
+            },
+            {
+                "name": "active-icon",
+                "description": "激活状态图标",
+                "type": "string",
+                "default": "checked"
+            },
+            {
+                "name": "inactive-icon",
+                "description": "未激活状态图标",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "active-color",
+                "description": "激活状态颜色",
+                "type": "string",
+                "default": "#07c160"
+            },
+            {
+                "name": "inactive-color",
+                "description": "未激活状态颜色",
+                "type": "string",
+                "default": "#969799"
+            }
+        ],
+        "events": [
+            {
+                "name": "click-step",
+                "description": "点击步骤的标题或图标时触发",
+                "parameters": "(index: number)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-step",
+            "VanStep"
+        ],
+        "description": "Step 步骤条子项",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/steps",
+        "snippet": "<$TAG$1>$2</$TAG>",
+        "slots": [
+            {
+                "name": "default",
+                "description": "内容"
+            },
+            {
+                "name": "active-icon",
+                "description": "自定义激活状态图标"
+            },
+            {
+                "name": "inactive-icon",
+                "description": "自定义未激活状态图标"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-progress",
+            "VanProgress"
+        ],
+        "description": "Progress 进度条",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/progress",
+        "snippet": "<$TAG$1 :percentage=\"${2:50}\" />",
+        "attributes": [
+            {
+                "name": "percentage",
+                "description": "进度百分比",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "stroke-width",
+                "description": "进度条粗细，默认单位为 px",
+                "type": "number | string",
+                "default": "4px"
+            },
+            {
+                "name": "color",
+                "description": "进度条颜色",
+                "type": "string",
+                "default": "#1989fa"
+            },
+            {
+                "name": "track-color",
+                "description": "轨道颜色",
+                "type": "string",
+                "default": "#e5e5e5"
+            },
+            {
+                "name": "pivot-text",
+                "description": "文字显示",
+                "type": "string",
+                "default": "百分比文字"
+            },
+            {
+                "name": "pivot-color",
+                "description": "文字背景色",
+                "type": "string",
+                "default": "与进度条颜色一致"
+            },
+            {
+                "name": "text-color",
+                "description": "文字颜色",
+                "type": "string",
+                "default": "white"
+            },
+            {
+                "name": "inactive",
+                "description": "是否置灰",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "show-pivot",
+                "description": "是否显示进度文字",
+                "type": "boolean",
+                "default": "true"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "van-circle",
+            "VanCircle"
+        ],
+        "description": "Circle 环形进度条",
+        "link": "https://vant-ui.github.io/vant/v2/#/zh-CN/circle",
+        "snippet": "<$TAG$1\n\tv-model=\"${2:currentRate}\"\n\t:rate=\"${3:rate}\"\n\t:speed=\"100\"\n\ttext=\"${4:比例}\"\n/>",
+        "attributes": [
+            {
+                "name": "v-model",
+                "description": "当前进度",
+                "type": "number",
+                "default": "—"
+            },
+            {
+                "name": "rate",
+                "description": "目标进度",
+                "type": "number | string",
+                "default": "100"
+            },
+            {
+                "name": "size",
+                "description": "圆环直径，默认单位为 px",
+                "type": "number | string",
+                "default": "100px"
+            },
+            {
+                "name": "color",
+                "description": "进度条颜色，传入对象格式可以定义渐变色",
+                "type": "string | object",
+                "default": "#1989fa"
+            },
+            {
+                "name": "layer-color",
+                "description": "轨道颜色",
+                "type": "string",
+                "default": "white"
+            },
+            {
+                "name": "fill",
+                "description": "填充颜色",
+                "type": "string",
+                "default": "none"
+            },
+            {
+                "name": "speed",
+                "description": "动画速度（单位为 rate/s）",
+                "type": "number | string",
+                "default": "0"
+            },
+            {
+                "name": "text",
+                "description": "文字",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "stroke-width",
+                "description": "进度条宽度",
+                "type": "number | string",
+                "default": "40"
+            },
+            {
+                "name": "stroke-linecap",
+                "description": "进度条端点的形状",
+                "type": "enum",
+                "default": "round",
+                "options": [
+                    {
+                        "value": "round"
+                    },
+                    {
+                        "value": "square"
+                    },
+                    {
+                        "value": "butt"
+                    }
+                ]
+            },
+            {
+                "name": "clockwise",
+                "description": "是否顺时针增加",
+                "type": "boolean",
+                "default": "true"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义文字内容"
+            }
+        ]
+    }
+]
