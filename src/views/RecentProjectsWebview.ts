@@ -189,6 +189,22 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         .project-item:hover { background-color: var(--vscode-list-hoverBackground); }
         .project-item.just-opened { padding-left: 1px; background-color: rgba(128, 128, 128, 0.06); box-shadow: inset 0 0 12px rgba(128, 128, 128, 0.15); border-left: 2px solid var(--vscode-descriptionForeground); }
         
+        /* 🌟 新增：项目、文件夹和文件被选中时的高亮样式 */
+        .project-item.selected, 
+        .sub-item.selected, 
+        .active-top-project.selected {
+          background-color: var(--vscode-list-activeSelectionBackground) !important;
+          color: var(--vscode-list-activeSelectionForeground) !important;
+        }
+        /* 🌟 新增：选中状态下，描述文字和图标的颜色一并调亮，增强对比度 */
+        .project-item.selected .path, 
+        .active-top-project.selected .path,
+        .project-item.selected .icon-closed,
+        .sub-item.selected .tree-chevron {
+          color: var(--vscode-list-activeSelectionForeground) !important;
+          opacity: 0.9 !important;
+        }
+
         .item-left { display: flex; align-items: center; flex: 1; min-width: 0; gap: 3px; }
         
         .clickable-expand { cursor: pointer; }
@@ -300,6 +316,25 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         let activeContextMenuDomain = '';
         let activeContextMenuProject = '';
 
+        // 🌟 新增：记录当前高亮的元素
+        let currentSelectedElement = null;
+
+        // 🌟 新增：处理高亮逻辑的核心方法
+        function selectItemByEvent(event) {
+          if (!event || !event.currentTarget) return;
+          // 向上寻找可点击的整行容器（根项目、子文件夹、子文件）
+          const el = event.currentTarget.closest('.project-item') || 
+                     event.currentTarget.closest('.sub-item') ||
+                     event.currentTarget.closest('.active-top-project');
+          if (el) {
+            if (currentSelectedElement && currentSelectedElement !== el) {
+              currentSelectedElement.classList.remove('selected');
+            }
+            el.classList.add('selected');
+            currentSelectedElement = el;
+          }
+        }
+
         const searchInput = document.getElementById('project-search');
         const noResultsMsg = document.getElementById('no-search-results');
         
@@ -333,17 +368,23 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
            vscode.postMessage({ type: 'openProject', fsPath: path }); 
         }
 
-        function openCurrent(path, event) { event.stopPropagation(); vscode.postMessage({ type: 'openProjectCurrent', fsPath: path }); }
+        function openCurrent(path, event) { 
+          event.stopPropagation(); 
+          vscode.postMessage({ type: 'openProjectCurrent', fsPath: path }); 
+        }
+
         function addLocal() { vscode.postMessage({ type: 'addLocal' }); }
         function addRemote() { vscode.postMessage({ type: 'addRemote' }); }
         
         function openFile(path, projectName, event) {
           event.stopPropagation();
+          selectItemByEvent(event); // 🌟 触发文件点击高亮
           vscode.postMessage({ type: 'openFile', fsPath: path, projectName: projectName });
         }
 
         function toggleExpand(id, path, projectName, event) {
           event.stopPropagation();
+          selectItemByEvent(event); // 🌟 触发项目/文件夹点击高亮
           const target = event.currentTarget;
           
           clearTimeout(clickTimer);
@@ -375,11 +416,12 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           }, DELAY);
         }
 
-        // ================= 🌟 原本：针对项目根节点的右键菜单 =================
         function showContextMenu(event, path, isRemote, originalName, customName, platform, customDomain, isActiveProject) {
           event.preventDefault();
           event.stopPropagation();
           
+          selectItemByEvent(event); // 🌟 右键也触发高亮
+
           activeContextMenuPath = path;
           activeContextMenuPlatform = platform;
           activeContextMenuDomain = customDomain;
@@ -418,7 +460,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
             list.innerHTML += \`<li onclick="handleMenuClick('revealInExplorer', '\${escPath}')"><i class="fa-regular fa-folder-open"></i> 在访达/资源管理器中显示</li>\`;
           }
 
-          // 🌟 修改点 1：如果是当前正在打开的项目，就不显示删除按钮
           if (!isActiveProject) {
             list.innerHTML += \`<div class="menu-separator"></div>\`;
             list.innerHTML += \`<li onclick="handleMenuClick('delete')" style="color: var(--vscode-errorForeground);"><i class="fa-solid fa-trash"></i> 移除该项目</li>\`;
@@ -435,11 +476,12 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           menu.style.top = y + 'px';
         }
 
-        // ================= 🌟 新增：针对子文件/子文件夹的右键菜单 =================
         function showSubItemContextMenu(event, path, name, isFolder, projectName) {
           event.preventDefault();
           event.stopPropagation();
           
+          selectItemByEvent(event); // 🌟 右键也触发高亮
+
           activeContextMenuPath = path;
           activeContextMenuProject = projectName;
 
@@ -452,7 +494,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           
           const isRemote = path.startsWith('vscode-vfs') || path.startsWith('http');
 
-          // 🌟 修改点 2：如果点击的不是文件夹而是文件，则显示“在侧边打开”
           if (!isFolder) {
              list.innerHTML += \`<li onclick="handleMenuClick('openFileToSide')"><i class="fa-solid fa-columns"></i> 在侧边打开</li>\`;
              list.innerHTML += \`<div class="menu-separator"></div>\`;
@@ -477,13 +518,22 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           menu.style.top = y + 'px';
         }
 
-        // ================= 🌟 隐藏右键菜单的全局处理 =================
         function hideContextMenu() {
           const menu = document.getElementById('context-menu');
           if (menu) menu.style.display = 'none';
         }
 
-        document.addEventListener('click', hideContextMenu);
+        // 🌟 优化：点击空白处时，隐藏菜单，同时清空高亮状态
+        document.addEventListener('click', (e) => {
+          hideContextMenu();
+          if (!e.target.closest('.project-item') && !e.target.closest('.sub-item') && !e.target.closest('.active-top-project')) {
+            if (currentSelectedElement) {
+              currentSelectedElement.classList.remove('selected');
+              currentSelectedElement = null;
+            }
+          }
+        });
+        
         window.addEventListener('blur', hideContextMenu);
 
         const listContainer = document.querySelector('.list-container');
@@ -518,7 +568,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
             case 'delete':
               vscode.postMessage({ type: 'removeProject', fsPath: activeContextMenuPath });
               break;
-            // 🌟 修改点 3：捕获新增的“在侧边打开”事件，并带上文件路径和项目名
             case 'openFileToSide':
               vscode.postMessage({ type: 'openFileToSide', fsPath: activeContextMenuPath, projectName: activeContextMenuProject });
               break;
