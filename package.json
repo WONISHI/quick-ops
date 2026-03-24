@@ -40,7 +40,7 @@
   "main": "./dist/extension.js",
   "contributes": {
     "configuration": {
-      "title": "Quick Ops 设置",
+      "title": "Quick Ops",
       "properties": {
         "quick-ops.general.debug": {
           "type": "boolean",
@@ -472,6 +472,17 @@
           "group": "7_modification"
         }
       ],
+      "editor/context": [
+        {
+          "submenu": "quick-ops.explorerSubmenu",
+          "group": "7_modification"
+        },
+        {
+          "command": "quick-ops.addToSnippets",
+          "group": "1_modification",
+          "when": "editorHasSelection"
+        }
+      ],
       "quick-ops.explorerSubmenu": [
         {
           "command": "quick-ops.createConfigFile",
@@ -480,19 +491,12 @@
         {
           "command": "quick-ops.toggleIgnore",
           "group": "quickOps@5",
-          "when": "!quickOps.context.configMissing && resourceScheme == file"
+          "when": "resourceScheme == file"
         },
         {
           "command": "quick-ops.generateStyleStructure",
           "group": "quickOps@2",
           "when": "resourceLangId == vue || resourceLangId == html || resourceLangId == javascriptreact || resourceLangId == typescriptreact"
-        }
-      ],
-      "editor/context": [
-        {
-          "command": "quick-ops.addToSnippets",
-          "group": "1_modification",
-          "when": "editorHasSelection"
         }
       ],
       "editor/lineNumber/context": [
