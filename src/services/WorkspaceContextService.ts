@@ -10,12 +10,14 @@ export class WorkspaceContextService {
   private static instance: WorkspaceContextService;
   private _context: Partial<IWorkspaceContext> = {};
   private _dependencies: Record<string, string> = {};
+  private _initPromise: Promise<void>;
 
   // 缓存当前生效的 package.json 路径，用于 Git 命令的 cwd
   private _currentProjectRoot: string = '';
 
   private constructor() {
-    this.init();
+    // @ts-ignore
+    this._initPromise = this.init();
 
     // 监听文件切换：不仅更新文件名，还要尝试更新项目上下文(应对Monorepo切换包的情况)
     vscode.window.onDidChangeActiveTextEditor(() => {
@@ -30,6 +32,10 @@ export class WorkspaceContextService {
     this.watchPackageJson();
     // 监听 Git 文件变动
     this.watchGitFiles();
+  }
+
+  public async waitUntilReady(): Promise<void> {
+    return this._initPromise;
   }
 
   public static getInstance(): WorkspaceContextService {
@@ -52,10 +58,10 @@ export class WorkspaceContextService {
     } as IWorkspaceContext;
   }
 
-  private init() {
+  private async init() {
     this.updateFileContext();
     // 初始化时也尝试查找项目信息
-    this.updateProjectContext();
+    await this.updateProjectContext();
     this.updateGitContext();
     this.updateTimeContext();
   }

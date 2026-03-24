@@ -52,7 +52,8 @@ export class ComponentIntellisenseFeature implements IFeature {
 
   constructor(private contextService: WorkspaceContextService = WorkspaceContextService.getInstance()) {}
 
-  public activate(context: vscode.ExtensionContext) {
+  public async activate(context: vscode.ExtensionContext) {
+    await this.contextService.waitUntilReady();
     this.loadSnippetsFromResources(context);
 
     // ==========================================
