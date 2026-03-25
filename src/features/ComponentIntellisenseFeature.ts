@@ -1,6 +1,4 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
 import { IFeature } from '../core/interfaces/IFeature';
 import { WorkspaceContextService } from '../services/WorkspaceContextService';
 
@@ -60,15 +58,17 @@ export class ComponentIntellisenseFeature implements IFeature {
   private providerDisposable?: vscode.Disposable;
   private hoverDisposable?: vscode.Disposable;
 
-  constructor(private contextService: WorkspaceContextService = WorkspaceContextService.getInstance()) { }
+  constructor(private contextService: WorkspaceContextService = WorkspaceContextService.getInstance()) {}
 
   public async activate(context: vscode.ExtensionContext) {
     await this.contextService.waitUntilReady();
-    this.loadSnippetsFromResources(context);
+    // 🌟 修改点 1：loadSnippetsFromResources 变成了异步方法，需要 await
+    await this.loadSnippetsFromResources(context);
 
-    const contextChangeDisposable = this.contextService.onDidChangeContext(() => {
+    // 🌟 修改点 2：回调函数变成 async，处理重载
+    const contextChangeDisposable = this.contextService.onDidChangeContext(async () => {
       console.log('[Quick Ops] 监听到项目依赖发生变化，正在重新挂载 UI 提示库...');
-      this.reload(context);
+      await this.reload(context);
     });
 
     this.providerDisposable = vscode.languages.registerCompletionItemProvider(
@@ -276,10 +276,11 @@ export class ComponentIntellisenseFeature implements IFeature {
     context.subscriptions.push(this.providerDisposable, this.hoverDisposable, exportCommand, contextChangeDisposable);
   }
 
-  private reload(context: vscode.ExtensionContext) {
+  // 🌟 修改点 3：reload 变成 async
+  private async reload(context: vscode.ExtensionContext) {
     this.components = [];
     this.tagToComponentMap.clear();
-    this.loadSnippetsFromResources(context);
+    await this.loadSnippetsFromResources(context);
   }
 
   private buildAttributeMarkdown(attr: UIAttribute): vscode.MarkdownString {
@@ -296,10 +297,8 @@ export class ComponentIntellisenseFeature implements IFeature {
     return mds;
   }
 
-  // 🌟 修复 Markdown 表格被 '|' 截断的工具函数
   private escapeMarkdownTablePipe(text: string): string {
     if (!text) return '';
-    // 将 | 替换为 \| 防止 Markdown 表格断裂
     return text.replace(/\|/g, '\\|');
   }
 
@@ -316,7 +315,6 @@ export class ComponentIntellisenseFeature implements IFeature {
         const defaultStr = this.escapeMarkdownTablePipe(a.default || '—');
         const descStr = this.escapeMarkdownTablePipe(a.description);
 
-        // 移除了 <span>，直接使用 ** 加粗
         doc += `| **${a.name}** | ${descStr} | \`${typeStr}\` | ${optStr} | \`${defaultStr}\` |\n`;
       });
     }
@@ -410,17 +408,25 @@ export class ComponentIntellisenseFeature implements IFeature {
     return null;
   }
 
-  private loadSnippetsFromResources(context: vscode.ExtensionContext) {
-    const snippetsDir = path.join(context.extensionPath, 'resources', 'ui-snippets');
-    if (!fs.existsSync(snippetsDir)) return;
+  // 🌟 修改点 4：将 loadSnippetsFromResources 替换为异步 fs 方法，并移除原先的同步逻辑
+  private async loadSnippetsFromResources(context: vscode.ExtensionContext) {
+    const snippetsDirUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui-snippets');
 
-    const files = fs.readdirSync(snippetsDir);
+    let files: [string, vscode.FileType][];
+    try {
+      files = await vscode.workspace.fs.readDirectory(snippetsDirUri);
+    } catch (error) {
+      // 目录不存在或读取失败，静默返回
+      return;
+    }
+
     const libraryGroups: Record<string, { unversioned?: string; versions: Record<string, string> }> = {};
 
-    files.forEach((file) => {
-      if (!file.endsWith('.json')) return;
+    files.forEach(([fileName, type]) => {
+      if (type !== vscode.FileType.File) return;
+      if (!fileName.endsWith('.json')) return;
 
-      const match = file.match(/^(.+?)(?:@v(\d+))?\.json$/);
+      const match = fileName.match(/^(.+?)(?:@v(\d+))?\.json$/);
       if (!match) return;
 
       const [, baseName, version] = match;
@@ -430,9 +436,9 @@ export class ComponentIntellisenseFeature implements IFeature {
       }
 
       if (version) {
-        libraryGroups[baseName].versions[version] = file;
+        libraryGroups[baseName].versions[version] = fileName;
       } else {
-        libraryGroups[baseName].unversioned = file;
+        libraryGroups[baseName].unversioned = fileName;
       }
     });
 
@@ -477,9 +483,13 @@ export class ComponentIntellisenseFeature implements IFeature {
         continue;
       }
 
-      const content = fs.readFileSync(path.join(snippetsDir, targetFileToLoad), 'utf8');
+      const targetFileUri = vscode.Uri.joinPath(snippetsDirUri, targetFileToLoad);
+      
       try {
+        const fileData = await vscode.workspace.fs.readFile(targetFileUri);
+        const content = Buffer.from(fileData).toString('utf8');
         const parsed: UIComponent[] = JSON.parse(content);
+        
         this.components.push(...parsed);
         parsed.forEach((c) => c.tags.forEach((t) => this.tagToComponentMap.set(t, c)));
         console.log(`[Quick Ops] 成功加载 ${baseName} 的片段库: ${targetFileToLoad}`);

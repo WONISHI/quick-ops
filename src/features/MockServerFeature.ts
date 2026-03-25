@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
 
 import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
@@ -28,21 +27,19 @@ export class MockServerFeature implements IFeature {
       vscode.commands.registerCommand('quick-ops.mock.stop', () => this.stopAll()),
     );
 
-    // 🌟 优化 1：监听原生设置变化！如果用户修改了配置，自动同步开启/关闭服务
     this.configService.on('configChanged', () => {
       this.syncServers();
     });
 
-    // 🌟 优化 2：直接异步检查状态，干掉死板的 setTimeout。
-    // 如果没有开启的服务，它只会做一次极轻量的数组检查就结束了，开销几乎为 0
     this.syncServers();
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
-  private getWorkspaceRoot(): string | undefined {
+  // 🌟 优化 1：改为返回 vscode.Uri 以支持所有虚拟/远程文件系统
+  private getWorkspaceRootUri(): vscode.Uri | undefined {
     const folders = vscode.workspace.workspaceFolders;
-    return folders && folders.length > 0 ? folders[0].uri.fsPath : undefined;
+    return folders && folders.length > 0 ? folders[0].uri : undefined;
   }
 
   public notifyStatusToWebview() {
@@ -86,7 +83,6 @@ export class MockServerFeature implements IFeature {
     let proxies = this.configService.config.proxy || [];
     if (!Array.isArray(proxies)) proxies = [];
 
-    // 1. 停止被禁用或端口被修改的服务
     for (const [proxyId, server] of this.servers.entries()) {
       const conf = proxies.find((c: any) => c.id === proxyId);
 
@@ -97,14 +93,12 @@ export class MockServerFeature implements IFeature {
       }
     }
 
-    // 🌟 优化 3：零开销防线。如果没有需要启动的服务，直接 return！绝对不去碰 express
     const hasEnabled = proxies.some((conf: any) => conf.enabled);
     if (!hasEnabled) {
       this.notifyStatusToWebview();
       return;
     }
 
-    // 2. 启动需要开启的服务
     for (const conf of proxies) {
       if (conf.enabled && !this.servers.has(conf.id)) {
         if (!conf.port) continue;
@@ -116,7 +110,6 @@ export class MockServerFeature implements IFeature {
   }
 
   private startServerInstance(serverConfig: any) {
-    // 🌟 按需加载重量级 Node 服务端依赖 (Node 的 require 有极速缓存，多次调用只加载一次，非常安全)
     const express = require('express');
     const cors = require('cors');
     const bodyParser = require('body-parser');
@@ -187,29 +180,43 @@ export class MockServerFeature implements IFeature {
               targetFile = filePaths[0];
             }
 
-            let absFilePath = targetFile;
-            if (!path.isAbsolute(absFilePath)) {
-              const root = this.getWorkspaceRoot();
-              if (root) absFilePath = path.join(root, absFilePath);
+            // 🌟 优化 2：采用 vscode.Uri 处理绝对/相对文件路径
+            let targetUri: vscode.Uri;
+            if (path.isAbsolute(targetFile)) {
+              targetUri = vscode.Uri.file(targetFile);
+            } else {
+              const rootUri = this.getWorkspaceRootUri();
+              if (rootUri) {
+                targetUri = vscode.Uri.joinPath(rootUri, targetFile);
+              } else {
+                targetUri = vscode.Uri.file(targetFile);
+              }
             }
 
-            if (fs.existsSync(absFilePath)) {
+            try {
+              // 检查文件是否存在
+              await vscode.workspace.fs.stat(targetUri);
+
+              // 🌟 优化 3：放弃 res.sendFile，改用 Buffer 传输，完美兼容虚拟文件系统
+              const fileData = await vscode.workspace.fs.readFile(targetUri);
+              const buffer = Buffer.from(fileData);
+
               const disposition = matchedRule.fileDisposition === 'attachment' ? 'attachment' : 'inline';
-              const encodedFileName = encodeURIComponent(path.basename(absFilePath));
+              // 从 Uri 提取文件名
+              const fileName = targetUri.path.split('/').pop() || 'download_file';
+              const encodedFileName = encodeURIComponent(fileName);
               res.set('Content-Disposition', `${disposition}; filename*=UTF-8''${encodedFileName}`);
 
               if (matchedRule.contentType && matchedRule.contentType !== 'application/json') {
                 res.set('Content-Type', matchedRule.contentType);
               }
 
-              return res.sendFile(absFilePath, (err: any) => {
-                if (err) {
-                  console.error(`[MockServer] Send File Error:`, err);
-                  if (!res.headersSent) res.status(500).json({ error: '文件传输失败', details: err.message });
-                }
-              });
-            } else {
-              return res.status(404).json({ error: '配置返回的文件不存在', path: absFilePath });
+              return res.send(buffer);
+            } catch (err: any) {
+              console.error(`[MockServer] 读取发送文件失败:`, err);
+              if (!res.headersSent) {
+                return res.status(404).json({ error: '配置返回的文件不存在或无法读取', path: targetUri.toString() });
+              }
             }
           } else {
             return res.status(400).json({ error: '文件路径未配置' });
@@ -219,17 +226,25 @@ export class MockServerFeature implements IFeature {
         res.set('Content-Type', matchedRule.contentType || 'application/json');
 
         if (matchedRule.dataPath) {
-          let absPath = matchedRule.dataPath;
-          if (!path.isAbsolute(absPath)) {
-            const root = this.getWorkspaceRoot();
-            if (root) {
-              absPath = path.join(root, absPath);
+          let dataUri: vscode.Uri;
+          if (path.isAbsolute(matchedRule.dataPath)) {
+            dataUri = vscode.Uri.file(matchedRule.dataPath);
+          } else {
+            const rootUri = this.getWorkspaceRootUri();
+            if (rootUri) {
+              dataUri = vscode.Uri.joinPath(rootUri, matchedRule.dataPath);
+            } else {
+              dataUri = vscode.Uri.file(matchedRule.dataPath);
             }
           }
 
-          if (fs.existsSync(absPath)) {
+          try {
+            await vscode.workspace.fs.stat(dataUri);
+
             try {
-              const fileContent = fs.readFileSync(absPath, 'utf8');
+              // 🌟 优化 4：异步读取 Mock 配置文件
+              const fileData = await vscode.workspace.fs.readFile(dataUri);
+              const fileContent = Buffer.from(fileData).toString('utf8');
               const parsedData = JSON.parse(fileContent);
 
               const isMockTemplate = matchedRule.mode === 'mock' || matchedRule.isTemplate;
@@ -239,10 +254,10 @@ export class MockServerFeature implements IFeature {
                 return res.send(parsedData);
               }
             } catch (e: any) {
-              return res.status(500).json({ error: '读取 Mock 配置文件失败', details: e.message });
+              return res.status(500).json({ error: '读取 Mock 配置文件失败，可能是 JSON 格式错误', details: e.message });
             }
-          } else {
-            console.warn(`[MockServer:${serverConfig.port}] Mock 文件不存在: ${absPath}`);
+          } catch (e) {
+            console.warn(`[MockServer:${serverConfig.port}] Mock 配置文件不存在: ${dataUri.toString()}`);
           }
         }
 
