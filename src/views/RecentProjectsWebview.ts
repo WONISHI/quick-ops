@@ -319,6 +319,12 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         // 🌟 新增：记录当前高亮的元素
         let currentSelectedElement = null;
 
+        // 🌟 辅助：隐藏菜单方法提升到前面，供各处调用
+        function hideContextMenu() {
+          const menu = document.getElementById('context-menu');
+          if (menu) menu.style.display = 'none';
+        }
+
         // 🌟 新增：处理高亮逻辑的核心方法
         function selectItemByEvent(event) {
           if (!event || !event.currentTarget) return;
@@ -370,6 +376,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
         function openCurrent(path, event) { 
           event.stopPropagation(); 
+          hideContextMenu(); // 🌟 阻止冒泡的同时，主动隐藏遗留的右键菜单
           vscode.postMessage({ type: 'openProjectCurrent', fsPath: path }); 
         }
 
@@ -378,13 +385,15 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         
         function openFile(path, projectName, event) {
           event.stopPropagation();
-          selectItemByEvent(event); // 🌟 触发文件点击高亮
+          hideContextMenu(); // 🌟 阻止冒泡的同时，主动隐藏遗留的右键菜单
+          selectItemByEvent(event);
           vscode.postMessage({ type: 'openFile', fsPath: path, projectName: projectName });
         }
 
         function toggleExpand(id, path, projectName, event) {
           event.stopPropagation();
-          selectItemByEvent(event); // 🌟 触发项目/文件夹点击高亮
+          hideContextMenu(); // 🌟 阻止冒泡的同时，主动隐藏遗留的右键菜单
+          selectItemByEvent(event);
           const target = event.currentTarget;
           
           clearTimeout(clickTimer);
@@ -420,7 +429,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           event.preventDefault();
           event.stopPropagation();
           
-          selectItemByEvent(event); // 🌟 右键也触发高亮
+          selectItemByEvent(event);
 
           activeContextMenuPath = path;
           activeContextMenuPlatform = platform;
@@ -480,7 +489,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           event.preventDefault();
           event.stopPropagation();
           
-          selectItemByEvent(event); // 🌟 右键也触发高亮
+          selectItemByEvent(event);
 
           activeContextMenuPath = path;
           activeContextMenuProject = projectName;
@@ -516,11 +525,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
           menu.style.left = x + 'px';
           menu.style.top = y + 'px';
-        }
-
-        function hideContextMenu() {
-          const menu = document.getElementById('context-menu');
-          if (menu) menu.style.display = 'none';
         }
 
         // 🌟 优化：点击空白处时，隐藏菜单，同时清空高亮状态
