@@ -148,6 +148,18 @@
                 "name": "icon",
                 "description": "自定义图标"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取按钮焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除按钮焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -1325,6 +1337,33 @@
                 "description": "提交表单且数据验证失败后回调事件",
                 "parameters": "(errorInfo: any)"
             }
+        ],
+        "methods": [
+            {
+                "name": "validate",
+                "description": "触发表单验证，返回 Promise",
+                "parameters": "(nameList?: string[] | string)"
+            },
+            {
+                "name": "validateFields",
+                "description": "触发表单验证（同 validate）",
+                "parameters": "(nameList?: string[] | string)"
+            },
+            {
+                "name": "resetFields",
+                "description": "重置表单字段到初始值，并移除校验状态",
+                "parameters": "(nameList?: string[])"
+            },
+            {
+                "name": "clearValidate",
+                "description": "移除表单项的校验结果",
+                "parameters": "(nameList?: string[] | string)"
+            },
+            {
+                "name": "scrollToField",
+                "description": "滚动到对应验证失败的表单字段位置",
+                "parameters": "(name: string, options?: ScrollOptions)"
+            }
         ]
     },
     {
@@ -1501,6 +1540,18 @@
                 "name": "suffix",
                 "description": "带有后缀图标的 input"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取输入框焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除输入框焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -1620,6 +1671,18 @@
                 "name": "suffixIcon",
                 "description": "自定义的选择框后缀图标"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -1705,6 +1768,18 @@
                 "name": "default",
                 "description": "复选框后面的描述内容"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -1783,6 +1858,18 @@
             {
                 "name": "default",
                 "description": "描述文字"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
             }
         ]
     },
@@ -1949,6 +2036,18 @@
             {
                 "name": "unCheckedChildren",
                 "description": "自定义非选中时的内容"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
             }
         ]
     },
@@ -3194,6 +3293,18 @@
                 "description": "时间发生变化的回调",
                 "parameters": "(value: dayjs | string, dateString: string)"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点并弹出日期选择面板",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -3236,6 +3347,18 @@
                 "name": "change",
                 "description": "时间发生变化的回调",
                 "parameters": "(value, dateString)"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点并弹出日期选择面板",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
             }
         ]
     },
@@ -3304,6 +3427,18 @@
                 "description": "变化回调",
                 "parameters": "(value: number | string)"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取输入框焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除输入框焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -3358,6 +3493,18 @@
                 "name": "change",
                 "description": "输入框内容变化时的回调",
                 "parameters": "(e: Event)"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取输入框焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除输入框焦点",
+                "parameters": "()"
             }
         ]
     },
@@ -3872,6 +4019,18 @@
                 "name": "select",
                 "description": "被选中时调用",
                 "parameters": "(value, node, extra)"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
             }
         ]
     },
@@ -4487,6 +4646,18 @@
             {
                 "name": "option",
                 "description": "通过插槽自定义选项展示内容"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取输入框焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除输入框焦点",
+                "parameters": "()"
             }
         ]
     }
