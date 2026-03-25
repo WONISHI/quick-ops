@@ -533,6 +533,28 @@
                 "description": "任一表单项被校验后触发",
                 "parameters": "(prop: string, isValid: boolean, errorMessage: string)"
             }
+        ],
+        "methods": [
+            {
+                "name": "validate",
+                "description": "对整个表单进行校验的方法",
+                "parameters": "(callback: Function(boolean, object))"
+            },
+            {
+                "name": "validateField",
+                "description": "对部分表单字段进行校验的方法",
+                "parameters": "(props: array | string, callback: Function(errorMessage: string))"
+            },
+            {
+                "name": "resetFields",
+                "description": "对整个表单进行重置，将所有字段值重置为初始值并移除校验结果",
+                "parameters": "—"
+            },
+            {
+                "name": "clearValidate",
+                "description": "移除表单项的校验结果。传入待移除的 prop 属性或者数组，不传则移除整个表单的校验结果",
+                "parameters": "(props: array | string)"
+            }
         ]
     },
     {
@@ -589,6 +611,18 @@
             {
                 "name": "label",
                 "description": "标签文本的内容"
+            }
+        ],
+        "methods": [
+            {
+                "name": "resetField",
+                "description": "对该表单项进行重置，将其值重置为初始值并移除校验结果",
+                "parameters": "—"
+            },
+            {
+                "name": "clearValidate",
+                "description": "移除该表单项的校验结果",
+                "parameters": "—"
             }
         ]
     },
@@ -740,6 +774,18 @@
                 "name": "append",
                 "description": "输入框后置内容"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "使 input 获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "使 input 失去焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -844,6 +890,18 @@
                 "name": "focus",
                 "description": "当 input 获得焦点时触发",
                 "parameters": "(event: Event)"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "使 input 获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "使 input 失去焦点",
+                "parameters": "()"
             }
         ]
     },
@@ -1262,6 +1320,48 @@
                 "name": "row-click",
                 "description": "当某一行被点击时会触发该事件",
                 "parameters": "(row, column, event)"
+            }
+        ],
+        "methods": [
+            {
+                "name": "clearSelection",
+                "description": "用于多选表格，清空用户的选择",
+                "parameters": "—"
+            },
+            {
+                "name": "toggleRowSelection",
+                "description": "用于多选表格，切换某一行的选中状态",
+                "parameters": "(row, selected: boolean)"
+            },
+            {
+                "name": "toggleAllSelection",
+                "description": "用于多选表格，切换所有行的选中状态",
+                "parameters": "—"
+            },
+            {
+                "name": "toggleRowExpansion",
+                "description": "用于可展开表格，切换某一行的展开状态",
+                "parameters": "(row, expanded: boolean)"
+            },
+            {
+                "name": "setCurrentRow",
+                "description": "用于单选表格，设定某一行为选中行",
+                "parameters": "(row)"
+            },
+            {
+                "name": "clearSort",
+                "description": "用于清空排序条件，数据会恢复成未排序的状态",
+                "parameters": "—"
+            },
+            {
+                "name": "clearFilter",
+                "description": "清空过滤条件，可传入由 columnKey 组成的数组以清除指定列",
+                "parameters": "(columnKey: array)"
+            },
+            {
+                "name": "doLayout",
+                "description": "对 Table 进行重新布局（解决隐藏切显示时表格错位问题）",
+                "parameters": "—"
             }
         ]
     },
@@ -2047,6 +2147,48 @@
                 "description": "节点开始拖拽时触发的事件",
                 "parameters": "(node, event)"
             }
+        ],
+        "methods": [
+            {
+                "name": "filter",
+                "description": "对树节点进行筛选操作",
+                "parameters": "(value)"
+            },
+            {
+                "name": "getCheckedNodes",
+                "description": "若节点可被选择，则返回目前被选中的节点所组成的数组",
+                "parameters": "(leafOnly, includeHalfChecked)"
+            },
+            {
+                "name": "getCheckedKeys",
+                "description": "若节点可被选择，则返回目前被选中的节点的 key 所组成的数组",
+                "parameters": "(leafOnly)"
+            },
+            {
+                "name": "setCheckedNodes",
+                "description": "设置目前勾选的节点，必须设置 node-key",
+                "parameters": "(nodes: array)"
+            },
+            {
+                "name": "setCheckedKeys",
+                "description": "通过 keys 设置目前勾选的节点，必须设置 node-key",
+                "parameters": "(keys: array, leafOnly: boolean)"
+            },
+            {
+                "name": "getHalfCheckedKeys",
+                "description": "若节点可被选择，则返回目前半选中的节点的 key 所组成的数组",
+                "parameters": "()"
+            },
+            {
+                "name": "getCurrentKey",
+                "description": "获取当前被选中节点的 key",
+                "parameters": "()"
+            },
+            {
+                "name": "setCurrentKey",
+                "description": "通过 key 设置某个节点的当前选中状态",
+                "parameters": "(key)"
+            }
         ]
     },
     {
@@ -2135,6 +2277,23 @@
                 "description": "最大允许上传个数",
                 "type": "number",
                 "default": "—"
+            }
+        ],
+        "methods": [
+            {
+                "name": "clearFiles",
+                "description": "清空已上传的文件列表（该方法不支持在 before-upload 中调用）",
+                "parameters": "()"
+            },
+            {
+                "name": "abort",
+                "description": "取消上传请求",
+                "parameters": "(file: fileList 中的 file 对象)"
+            },
+            {
+                "name": "submit",
+                "description": "手动上传文件列表",
+                "parameters": "()"
             }
         ]
     },
@@ -2560,6 +2719,23 @@
                 "description": "幻灯片切换时触发",
                 "parameters": "(目前激活的幻灯片的索引, 原幻灯片的索引)"
             }
+        ],
+        "methods": [
+            {
+                "name": "setActiveItem",
+                "description": "手动切换幻灯片",
+                "parameters": "(index: number | string)"
+            },
+            {
+                "name": "prev",
+                "description": "切换至上一张幻灯片",
+                "parameters": "()"
+            },
+            {
+                "name": "next",
+                "description": "切换至下一张幻灯片",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -2748,6 +2924,18 @@
                 "name": "change",
                 "description": "用户确认选定的值时触发",
                 "parameters": "(组件绑定值)"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "使 input 获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "使 input 失去焦点",
+                "parameters": "()"
             }
         ]
     },
@@ -3040,6 +3228,13 @@
                 "name": "change",
                 "description": "当选中节点变化时触发",
                 "parameters": "(选中节点的值)"
+            }
+        ],
+        "methods": [
+            {
+                "name": "getCheckedNodes",
+                "description": "获取目前被选中的节点数组",
+                "parameters": "(leafOnly: boolean)"
             }
         ]
     },
@@ -3505,6 +3700,18 @@
                 "name": "append",
                 "description": "输入框后置内容"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "使 input 获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "使 input 失去焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -3793,6 +4000,13 @@
             {
                 "name": "right-footer",
                 "description": "右侧列表底部的内容"
+            }
+        ],
+        "methods": [
+            {
+                "name": "clearQuery",
+                "description": "清空某个面板的搜索条件",
+                "parameters": "('left' | 'right')"
             }
         ]
     },
