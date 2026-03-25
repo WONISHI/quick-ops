@@ -4,9 +4,6 @@ import * as path from 'path';
 import { IFeature } from '../core/interfaces/IFeature';
 import { WorkspaceContextService } from '../services/WorkspaceContextService';
 
-// ==========================================
-// 工具函数：驼峰转短横线 (kebab-case)
-// ==========================================
 function toKebabCase(str: string): string {
   return str.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 }
@@ -22,7 +19,7 @@ export interface UIOption {
 export interface UIAttribute {
   name: string;
   description: string;
-  type: 'boolean' | 'string' | 'number' | 'enum' | 'any';
+  type: 'boolean' | 'string' | 'number' | 'enum' | 'any' | string; // 允许任意 string 以支持 number | string
   default?: string;
   options?: UIOption[];
 }
@@ -63,7 +60,7 @@ export class ComponentIntellisenseFeature implements IFeature {
   private providerDisposable?: vscode.Disposable;
   private hoverDisposable?: vscode.Disposable;
 
-  constructor(private contextService: WorkspaceContextService = WorkspaceContextService.getInstance()) {}
+  constructor(private contextService: WorkspaceContextService = WorkspaceContextService.getInstance()) { }
 
   public async activate(context: vscode.ExtensionContext) {
     await this.contextService.waitUntilReady();
@@ -74,30 +71,23 @@ export class ComponentIntellisenseFeature implements IFeature {
       this.reload(context);
     });
 
-    // ==========================================
-    // 注册代码补全 (Completion)
-    // ==========================================
     this.providerDisposable = vscode.languages.registerCompletionItemProvider(
       ['vue', 'html', 'javascriptreact', 'typescriptreact'],
       {
         provideCompletionItems: (document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] | undefined => {
-          // 1. 获取当前行光标前的文本 (用于判断当前正在敲击的属性名/事件名)
           const lineTextBeforeCursor = document.lineAt(position.line).text.substring(0, position.character);
-          
-          // 2. 🌟 核心修复：向上获取最多 15 行的文本，用于跨行匹配组件标签名
+
           const startLine = Math.max(0, position.line - 15);
           const multiLineTextBeforeCursor = document.getText(new vscode.Range(new vscode.Position(startLine, 0), position));
 
           const completionItems: vscode.CompletionItem[] = [];
 
-          // 3. 🌟 跨行正则匹配：寻找最近的 <标签名，且中间没有被 > 闭合
           const insideTagMatch = multiLineTextBeforeCursor.match(/<([\w-]+)[^>]*$/);
 
           if (insideTagMatch) {
             const currentTag = insideTagMatch[1];
             let comp = this.tagToComponentMap.get(currentTag);
 
-            // 提取当前行光标前正在输入的单词 (例如 @cl, :pro, #he)
             const currentWordMatch = lineTextBeforeCursor.match(/(?:^|\s)([@#:]?[\w-]*)$/);
             const currentWord = currentWordMatch ? currentWordMatch[1] : '';
             const replaceRange = new vscode.Range(position.line, position.character - currentWord.length, position.line, position.character);
@@ -113,11 +103,11 @@ export class ComponentIntellisenseFeature implements IFeature {
                   item.range = replaceRange;
                   item.filterText = label;
                   item.sortText = `  ${ev.name}`;
-                  
+
                   const md = new vscode.MarkdownString(`**<span style="color: #409EFF;">${label}</span>**\n\n${ev.description}\n\n**回调参数**: \`${ev.parameters || '—'}\``);
                   md.supportHtml = true;
                   item.documentation = md;
-                  
+
                   item.detail = `[Event] ${ev.description}`;
                   completionItems.push(item);
                 });
@@ -139,11 +129,11 @@ export class ComponentIntellisenseFeature implements IFeature {
                   item.range = replaceRange;
                   item.filterText = label;
                   item.sortText = `  ${slot.name}`;
-                  
+
                   const md = new vscode.MarkdownString(`**<span style="color: #409EFF;">${label}</span>**\n\n${slot.description}`);
                   md.supportHtml = true;
                   item.documentation = md;
-                  
+
                   item.detail = `[Slot] ${comp?.tags[0]}`;
                   completionItems.push(item);
                 });
@@ -159,7 +149,7 @@ export class ComponentIntellisenseFeature implements IFeature {
                 const primaryAttrName = attr.name.split('/')[0].trim();
                 const kebabName = toKebabCase(primaryAttrName);
                 const label = `${prefix}${kebabName}`;
-                
+
                 const item = new vscode.CompletionItem(label, vscode.CompletionItemKind.Property);
 
                 if (attr.type === 'boolean' && !isBind) {
@@ -175,14 +165,13 @@ export class ComponentIntellisenseFeature implements IFeature {
                 item.filterText = label;
                 item.sortText = `  ${kebabName}`;
                 item.documentation = this.buildAttributeMarkdown(attr);
-                item.detail = `[Prop] ${attr.name}`; 
+                item.detail = `[Prop] ${attr.name}`;
                 completionItems.push(item);
               });
             }
             return completionItems;
           }
 
-          // 匹配组件标签自身 (<xxx)
           const tagMatch = lineTextBeforeCursor.match(/(<[a-zA-Z0-9-]*|[a-zA-Z0-9-]+)$/);
           if (tagMatch) {
             const matchString = tagMatch[1];
@@ -212,9 +201,7 @@ export class ComponentIntellisenseFeature implements IFeature {
       '<', ' ', '@', ':', '-', '#'
     );
 
-    // ==========================================
-    // 注册悬停提示 (Hover)
-    // ==========================================
+
     this.hoverDisposable = vscode.languages.registerHoverProvider(['vue', 'html', 'javascriptreact', 'typescriptreact'], {
       provideHover: (document: vscode.TextDocument, position: vscode.Position): vscode.Hover | undefined => {
         const wordRange = document.getWordRangeAtPosition(position, /[@#]?[\w:-]+/);
@@ -267,12 +254,12 @@ export class ComponentIntellisenseFeature implements IFeature {
 
         if (comp.attributes && !isEvent && !isSlot) {
           const targetKebab = toKebabCase(cleanWord);
-          
+
           const attr = comp.attributes.find((a) => {
             const attrNamesKebab = a.name.split('/').map(n => toKebabCase(n.trim()));
             return attrNamesKebab.includes(targetKebab);
           });
-          
+
           if (attr) {
             return new vscode.Hover(this.buildAttributeMarkdown(attr), wordRange);
           }
@@ -309,40 +296,57 @@ export class ComponentIntellisenseFeature implements IFeature {
     return mds;
   }
 
+  // 🌟 修复 Markdown 表格被 '|' 截断的工具函数
+  private escapeMarkdownTablePipe(text: string): string {
+    if (!text) return '';
+    // 将 | 替换为 \| 防止 Markdown 表格断裂
+    return text.replace(/\|/g, '\\|');
+  }
+
   private buildFullComponentMarkdown(comp: UIComponent, tag: string): vscode.MarkdownString {
     let doc = `## ${tag}\n${comp.description}\n\n`;
     if (comp.link) doc += `[查看官方文档](${comp.link})\n\n---\n\n`;
 
     if (comp.attributes && comp.attributes.length > 0) {
       doc += `### 属性 (Attributes)\n\n`;
-      doc += `| 参数 | 说明 | 类型 | 可选值 | 默认值 |\n| :---: | --- | --- | --- | --- |\n`;
+      doc += `| 参数 | 说明 | 类型 | 可选值 | 默认值 |\n| :---: | :---: | :---: | :---: | :---: |\n`;
       comp.attributes.forEach((a) => {
-        const optStr = a.options?.map((o) => `\`${o.value}\``).join(', ') || '—';
-        doc += `| <span style="color: #409EFF;">**${a.name}**</span> | ${a.description} | \`${a.type}\` | ${optStr} | \`${a.default || '—'}\` |\n`;
+        const optStr = a.options?.map((o) => `\`${this.escapeMarkdownTablePipe(o.value)}\``).join(', ') || '—';
+        const typeStr = this.escapeMarkdownTablePipe(String(a.type));
+        const defaultStr = this.escapeMarkdownTablePipe(a.default || '—');
+        const descStr = this.escapeMarkdownTablePipe(a.description);
+
+        // 移除了 <span>，直接使用 ** 加粗
+        doc += `| **${a.name}** | ${descStr} | \`${typeStr}\` | ${optStr} | \`${defaultStr}\` |\n`;
       });
     }
 
     if (comp.events && comp.events.length > 0) {
       doc += `\n### 事件 (Events)\n\n`;
-      doc += `| 事件名 | 说明 | 回调参数 |\n| :---: | --- | --- |\n`;
+      doc += `| 事件名 | 说明 | 回调参数 |\n| :---: | :---: | :---: |\n`;
       comp.events.forEach((e) => {
-        doc += `| <span style="color: #409EFF;">**${e.name}**</span> | ${e.description} | \`${e.parameters || '—'}\` |\n`;
+        const descStr = this.escapeMarkdownTablePipe(e.description);
+        const paramStr = this.escapeMarkdownTablePipe(e.parameters || '—');
+        doc += `| **${e.name}** | ${descStr} | \`${paramStr}\` |\n`;
       });
     }
 
     if (comp.slots && comp.slots.length > 0) {
       doc += `\n### 插槽 (Slots)\n\n`;
-      doc += `| 插槽名 | 说明 |\n| :---: | --- |\n`;
+      doc += `| 插槽名 | 说明 |\n| :---: | :---: |\n`;
       comp.slots.forEach((s) => {
-        doc += `| <span style="color: #409EFF;">**${s.name}**</span> | ${s.description} |\n`;
+        const descStr = this.escapeMarkdownTablePipe(s.description);
+        doc += `| **${s.name}** | ${descStr} |\n`;
       });
     }
 
     if (comp.methods && comp.methods.length > 0) {
       doc += `\n### 实例方法 (Methods)\n\n`;
-      doc += `| 方法名 | 说明 | 参数 |\n| :---: | --- | --- |\n`;
+      doc += `| 方法名 | 说明 | 参数 |\n| :---: | :---: | :---: |\n`;
       comp.methods.forEach((m) => {
-        doc += `| <span style="color: #409EFF;">**${m.name}**</span> | ${m.description} | \`${m.parameters || '—'}\` |\n`;
+        const descStr = this.escapeMarkdownTablePipe(m.description);
+        const paramStr = this.escapeMarkdownTablePipe(m.parameters || '—');
+        doc += `| **${m.name}** | ${descStr} | \`${paramStr}\` |\n`;
       });
     }
 
@@ -484,7 +488,7 @@ export class ComponentIntellisenseFeature implements IFeature {
       }
     }
   }
-  
+
   private async exportSnippetsToWorkspace() {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders || this.components.length === 0) return;
@@ -492,7 +496,7 @@ export class ComponentIntellisenseFeature implements IFeature {
     try {
       const targetFile = vscode.Uri.joinPath(workspaceFolders[0].uri, '.vscode', 'quick-ops-ui.code-snippets');
       const vsCodeNativeSnippets: Record<string, any> = {};
-      
+
       for (const comp of this.components) {
         for (const tag of comp.tags) {
           vsCodeNativeSnippets[`${comp.description} (${tag})`] = {
