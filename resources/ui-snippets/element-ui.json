@@ -785,6 +785,11 @@
                 "name": "blur",
                 "description": "使 input 失去焦点",
                 "parameters": "()"
+            },
+            {
+                "name": "select",
+                "description": "选中 input 中的文字",
+                "parameters": "()"
             }
         ]
     },
