@@ -131,7 +131,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           vscode.window.showInformationMessage(`已复制: ${data.text}`);
           break;
         case 'copyFile':
-          // 🌟 调用真正的复制文件逻辑
           this.copyFileEntity(data.fsPath);
           break;
         case 'openExternalLink':
@@ -160,7 +159,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.updateWebview();
   }
 
-  // 🌟 新增：执行真实的文件复制操作，产生副本文件
   private async copyFileEntity(fsPath: string) {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
@@ -170,7 +168,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       let newUri = uri.with({ path: path.join(parsedPath.dir, newFileName) });
 
       let counter = 1;
-      // 检查文件是否已存在，自动累加后缀
       while (true) {
         try {
           await vscode.workspace.fs.stat(newUri);
@@ -178,7 +175,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           newFileName = `${parsedPath.name}_copy${counter}${parsedPath.ext}`;
           newUri = uri.with({ path: path.join(parsedPath.dir, newFileName) });
         } catch (error) {
-          // File not found means we can safely copy
           break;
         }
       }
@@ -196,7 +192,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // ================= 🌟 独立抽离的 URL 解析方法 =================
   private parseRemoteUrlInput(input: string) {
     let targetUriStr = '';
     let repoFullName = '';
@@ -240,7 +235,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     return { targetUriStr, repoFullName, platform, customDomain };
   }
 
-  // ================= 🌟 核心：更换项目地址 =================
   private async changeProjectAddress(fsPath: string) {
     const projects = this.getRecentProjects();
     const index = projects.findIndex((p) => p.fsPath === fsPath);
@@ -250,7 +244,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const isRemote = project.fsPath.startsWith('vscode-vfs') || project.fsPath.startsWith('http');
 
     if (isRemote) {
-      // 还原给用户看的可读地址
       let displayValue = project.fsPath;
       if (project.fsPath.startsWith('vscode-vfs://github/')) {
         displayValue = project.fsPath.replace('vscode-vfs://github/', 'https://github.com/');
@@ -270,7 +263,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           project.fsPath = parsed.targetUriStr;
           project.platform = parsed.platform;
           project.customDomain = parsed.customDomain;
-          project.branch = undefined; // 换了地址，先清空分支，等待重新拉取
+          project.branch = undefined; 
 
           await this.context.globalState.update(this.stateKey, projects);
           this.updateWebview();
@@ -280,13 +273,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
       }
     } else {
-      // 修改本地地址
       const uri = await vscode.window.showOpenDialog({
         canSelectFiles: false,
         canSelectFolders: true,
         canSelectMany: false,
         openLabel: '选择新的本地文件夹',
-        // 尝试定位到原来的文件夹位置
         defaultUri: vscode.Uri.parse(project.fsPath),
       });
 
@@ -359,19 +350,36 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           }
         } else {
           try {
-            const headUri = vscode.Uri.joinPath(vscode.Uri.file(p.fsPath), '.git', 'HEAD');
+            let gitPath = vscode.Uri.joinPath(vscode.Uri.file(p.fsPath), '.git');
+            const stat = await vscode.workspace.fs.stat(gitPath);
+            
+            if (stat.type === vscode.FileType.File) {
+              const fileBytes = await vscode.workspace.fs.readFile(gitPath);
+              const fileContent = Buffer.from(fileBytes).toString('utf8').trim();
+              if (fileContent.startsWith('gitdir: ')) {
+                const realGitDir = fileContent.replace('gitdir: ', '').trim();
+                const realGitDirPath = path.isAbsolute(realGitDir) ? realGitDir : path.join(p.fsPath, realGitDir);
+                gitPath = vscode.Uri.file(realGitDirPath);
+              }
+            }
+
+            const headUri = vscode.Uri.joinPath(gitPath, 'HEAD');
             const contentBytes = await vscode.workspace.fs.readFile(headUri);
             const content = Buffer.from(contentBytes).toString('utf8').trim();
-            newBranch = content.startsWith('ref: ') ? content.split('/').pop() : content.substring(0, 7);
+            
+            newBranch = content.startsWith('ref: ') 
+              ? content.replace(/^ref:\s*refs\/heads\//, '') 
+              : content.substring(0, 7); 
           } catch (e) {
             newBranch = undefined;
           }
         }
 
-        if (newBranch && p.branch !== newBranch) {
+        this._view?.webview.postMessage({ type: 'updateBranchTag', fsPath: p.fsPath, branch: newBranch });
+
+        if (p.branch !== newBranch) {
           p.branch = newBranch;
           stateChanged = true;
-          this._view?.webview.postMessage({ type: 'updateBranchTag', fsPath: p.fsPath, branch: newBranch });
         }
       }),
     );

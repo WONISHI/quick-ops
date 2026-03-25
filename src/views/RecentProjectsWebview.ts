@@ -68,7 +68,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
               <div class="title">
                 <i class="${iconClass} icon-opened project-icon"></i>
                 ${displayTitle}
-                <span class="branch-wrapper" data-branch-path="${safeFsPath}">${branchTagHtml}</span>
+                <span class="branch-wrapper" data-branch-path="${encodeURIComponent(currentProject.fsPath)}">${branchTagHtml}</span>
               </div>
               <div class="path">${finalDisplayPath}</div>
             </div>
@@ -135,7 +135,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
               <div class="title">
                 <i class="${iconClass} ${colorClass} project-icon"></i>
                 ${displayTitle}
-                <span class="branch-wrapper" data-branch-path="${safeFsPath}">${branchTagHtml}</span>
+                <span class="branch-wrapper" data-branch-path="${encodeURIComponent(p.fsPath)}">${branchTagHtml}</span>
               </div>
               <div class="path">${finalDisplayPath}</div>
             </div>
@@ -218,7 +218,20 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         .title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; pointer-events: auto; }
         .path { font-size: 10px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         
-        .branch-tag { font-size: 10px; background: rgba(128, 128, 128, 0.15); color: var(--vscode-descriptionForeground); padding: 2px 6px; border-radius: 10px; display: inline-flex; align-items: center; gap: 3px; font-weight: normal; margin-left: 6px; }
+        /* 🌟 分支标签样式优化 */
+        .branch-tag { 
+          font-size: 10px; 
+          background: var(--vscode-badge-background, rgba(128, 128, 128, 0.15)); 
+          color: var(--vscode-badge-foreground, var(--vscode-descriptionForeground)); 
+          padding: 2px 6px; 
+          border-radius: 10px; 
+          display: inline-flex; 
+          align-items: center; 
+          gap: 3px; 
+          font-weight: normal; 
+          margin-left: 8px; 
+          border: 1px solid var(--vscode-panel-border);
+        }
 
         .icon-opened { color: #5dade2 !important; opacity: 1 !important; } 
         .icon-closed { color: var(--vscode-icon-foreground); opacity: 0.8; } 
@@ -316,7 +329,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
         let currentSelectedElement = null;
 
-        // 🌟 初始化恢复搜索状态机制
         const state = vscode.getState() || {};
         const searchInput = document.getElementById('project-search');
         if (searchInput && state.searchQuery) {
@@ -347,7 +359,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           }
         }
 
-        // 🌟 统一的执行过滤逻辑的方法
         function executeFilter(query) {
           const searchableItems = document.querySelectorAll('.searchable-item');
           let matchCount = 0;
@@ -368,7 +379,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           }
         }
 
-        // 绑定输入框事件，并保存状态
         if (searchInput) {
           searchInput.addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase().trim();
@@ -376,7 +386,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
             executeFilter(query);
           });
           
-          // 如果有历史记录，页面刚加载时立刻执行一次过滤
           if (state.searchQuery) {
             setTimeout(() => { executeFilter(state.searchQuery); }, 50);
           }
@@ -524,7 +533,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
           if (!isFolder) {
              list.innerHTML += \`<li onclick="handleMenuClick('openFileToSide')"><i class="fa-solid fa-columns"></i> 在侧边打开</li>\`;
-             // 🌟 核心：替换文案，触发复制文件的命令
              list.innerHTML += \`<li onclick="handleMenuClick('copyFile', '\${escPath}')"><i class="fa-regular fa-copy"></i> 复制文件</li>\`;
              list.innerHTML += \`<div class="menu-separator"></div>\`;
           }
@@ -584,7 +592,6 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
               vscode.postMessage({ type: 'copyToClipboard', text: payload });
               break;
             case 'copyFile':
-              // 🌟 发送真实文件复制的请求
               vscode.postMessage({ type: 'copyFile', fsPath: activeContextMenuPath });
               break;
             case 'openLink':
@@ -622,14 +629,14 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           const message = event.data;
           
           if (message.type === 'updateBranchTag') {
-            const safePath = message.fsPath.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
-            const wrappers = document.querySelectorAll(\`[data-branch-path="\${safePath}"]\`);
-            
+            const wrappers = document.querySelectorAll('.branch-wrapper');
             wrappers.forEach(w => {
-              if (message.branch) {
-                w.innerHTML = \`<span class="branch-tag" title="当前分支: \${message.branch}"><i class="fa-solid fa-code-branch" style="font-size:10px;"></i> \${message.branch}</span>\`;
-              } else {
-                w.innerHTML = '';
+              if (decodeURIComponent(w.dataset.branchPath) === message.fsPath) {
+                if (message.branch) {
+                  w.innerHTML = \`<span class="branch-tag" title="当前分支: \${message.branch}"><i class="fa-solid fa-code-branch" style="font-size:10px;"></i> \${message.branch}</span>\`;
+                } else {
+                  w.innerHTML = '';
+                }
               }
             });
             return;
