@@ -106,6 +106,18 @@
                 "description": "点击按钮时的回调",
                 "parameters": "(event: MouseEvent)"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -561,6 +573,18 @@
                 "description": "按下回车的回调",
                 "parameters": "(e: Event)"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -642,6 +666,18 @@
                 "description": "文本框值变化时回调",
                 "parameters": "(value: string)"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -678,6 +714,18 @@
                 "name": "change",
                 "description": "变化时回调",
                 "parameters": "(e: Event)"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
             }
         ]
     },
@@ -810,6 +858,18 @@
                 "name": "change",
                 "description": "变化时回调",
                 "parameters": "(checked: boolean, e: Event)"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
             }
         ]
     },
@@ -1835,6 +1895,18 @@
                 "description": "变化回调",
                 "parameters": "(value)"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -2133,6 +2205,18 @@
                 "type": "boolean",
                 "default": "false"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -2189,6 +2273,18 @@
                 "name": "select",
                 "description": "被选中时调用",
                 "parameters": "(value, node, extra)"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
             }
         ]
     },
@@ -2722,6 +2818,18 @@
                 "description": "当 Slider 的值发生改变时，会触发 change 事件",
                 "parameters": "(value)"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -2900,6 +3008,23 @@
                 "description": "面板切换的回调",
                 "parameters": "(current)"
             }
+        ],
+        "methods": [
+            {
+                "name": "goTo",
+                "description": "切换到指定面板",
+                "parameters": "(slideNumber: number, dontAnimate: boolean)"
+            },
+            {
+                "name": "next",
+                "description": "切换到下一面板",
+                "parameters": "()"
+            },
+            {
+                "name": "prev",
+                "description": "切换到上一面板",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -3044,6 +3169,18 @@
                 "name": "search",
                 "description": "搜索补全项的时候调用",
                 "parameters": "(value)"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "移除焦点",
+                "parameters": "()"
             }
         ]
     },
