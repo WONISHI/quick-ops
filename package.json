@@ -67,6 +67,11 @@
           "default": true,
           "description": "是否开启 Ant Design Vue 组件的智能提示与校验"
         },
+        "quick-ops.git.githubToken": {
+          "type": "string",
+          "default": "",
+          "description": "GitHub Personal Access Token,用于提升获取分支等信息的 API 频率上限 (建议填写以防 403 限制)"
+        },
         "quick-ops.general.anchorViewMode": {
           "type": "string",
           "enum": [

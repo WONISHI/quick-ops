@@ -311,6 +311,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private async fetchDefaultBranch(platform: string, domain: string, repoFullName: string): Promise<string | undefined> {
     return new Promise((resolve) => {
       let options: any = {};
+      const token = vscode.workspace.getConfiguration('quick-ops.git').get('githubToken');
+      const headers: any = { 'User-Agent': 'VSCode-QuickOps-Extension' };
+      if (token && platform !== 'gitlab') {
+        headers['Authorization'] = `token ${token}`;
+      }
       if (platform === 'gitlab') {
         const apiHostname = domain || 'gitlab.com';
         const encodedProjectPath = encodeURIComponent(repoFullName);
@@ -588,6 +593,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `正在查询 ${repoFullName.split('/').pop()} 的远程分支...`, cancellable: false }, async () => {
         return new Promise<any[]>((resolve, reject) => {
           let options: any = {};
+          const token = vscode.workspace.getConfiguration('quick-ops.git').get('githubToken');
+          const headers: any = { 'User-Agent': 'VSCode-QuickOps-Extension' };
+          if (token && platform !== 'gitlab') {
+            headers['Authorization'] = `token ${token}`;
+          }
           if (platform === 'gitlab') {
             const apiHostname = domain || 'gitlab.com';
             const encodedProjectPath = encodeURIComponent(repoFullName);
