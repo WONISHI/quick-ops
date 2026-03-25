@@ -129,6 +129,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           vscode.env.clipboard.writeText(data.text);
           vscode.window.showInformationMessage(`已复制: ${data.text}`);
           break;
+        case 'copyFileContent':
+          // 🌟 接收前端要求“复制文件内容”的事件
+          this.copyFileContent(data.fsPath);
+          break;
         case 'openExternalLink':
           this.openExternalLink(data.fsPath, data.platform, data.customDomain);
           break;
@@ -153,6 +157,19 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
 
     this.updateWebview();
+  }
+
+  // 🌟 新增：执行将远程/本地文件内容读取并丢入剪贴板
+  private async copyFileContent(fsPath: string) {
+    try {
+      const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+      const contentBytes = await vscode.workspace.fs.readFile(uri);
+      const content = Buffer.from(contentBytes).toString('utf8');
+      await vscode.env.clipboard.writeText(content);
+      vscode.window.showInformationMessage('📄 文件内容已成功复制到剪贴板！');
+    } catch (e) {
+      vscode.window.showErrorMessage(`复制文件内容失败: ${e}`);
+    }
   }
 
   // ================= 🌟 独立抽离的 URL 解析方法 =================
@@ -399,7 +416,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       const doc = await vscode.workspace.openTextDocument(roUri);
-      // 🌟 修改点：支持接收指定的 ViewColumn（比如侧边栏）
       await vscode.window.showTextDocument(doc, { preview: true, viewColumn });
     } catch (e) {
       vscode.window.showErrorMessage('无法打开该文件预览。');
