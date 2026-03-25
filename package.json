@@ -234,6 +234,10 @@
         "id": "quick-ops.explorerSubmenu",
         "label": "Quick Ops",
         "icon": "$(zap)"
+      },
+      {
+        "id": "quick-ops.transformSubmenu",
+        "label": "转换文本格式 (Transform Text)"
       }
     ],
     "commands": [
@@ -350,27 +354,23 @@
       },
       {
         "command": "quick-ops.transformToLower",
-        "title": "转换选中内容为全部小写 (Selection to lowercase)"
+        "title": "转为全小写 (lowercase)"
       },
       {
         "command": "quick-ops.transformToCamel",
-        "title": "转换选中内容为小驼峰 (Selection to camelCase)"
+        "title": "转为小驼峰 (camelCase)"
       },
       {
         "command": "quick-ops.transformToPascal",
-        "title": "转换选中内容为大驼峰 (Selection to PascalCase)"
+        "title": "转为大驼峰 (PascalCase)"
       },
       {
         "command": "quick-ops.transformToConstant",
-        "title": "转换选中内容为全大写常量 (Selection to CONSTANT_CASE)"
-      },
-      {
-        "command": "quick-ops.transformToFirstUpper",
-        "title": "转换选中内容为首字母大写 (Selection to UpperFirst)"
+        "title": "转为全大写常量 (CONSTANT_CASE)"
       },
       {
         "command": "quick-ops.transformToKebab",
-        "title": "转换选中内容为短横线 (Selection to kebab-case)"
+        "title": "转为短横线 (kebab-case)"
       },
       {
         "command": "quick-ops.switchPreviousEditor",
@@ -396,40 +396,10 @@
         "when": "editorTextFocus"
       },
       {
-        "command": "quick-ops.transformToKebab",
-        "key": "ctrl+alt+k",
-        "mac": "cmd+alt+k",
-        "when": "editorTextFocus"
-      },
-      {
-        "command": "quick-ops.transformToLower",
-        "key": "ctrl+alt+l",
-        "mac": "cmd+alt+l",
-        "when": "editorTextFocus"
-      },
-      {
-        "command": "quick-ops.transformToCamel",
-        "key": "ctrl+alt+c",
-        "mac": "cmd+alt+c",
-        "when": "editorTextFocus"
-      },
-      {
-        "command": "quick-ops.transformToPascal",
-        "key": "ctrl+alt+p",
-        "mac": "cmd+alt+p",
-        "when": "editorTextFocus"
-      },
-      {
-        "command": "quick-ops.transformToConstant",
-        "key": "ctrl+alt+u",
-        "mac": "cmd+alt+u",
-        "when": "editorTextFocus"
-      },
-      {
-        "command": "quick-ops.transformToFirstUpper",
-        "key": "ctrl+alt+f",
-        "mac": "cmd+alt+f",
-        "when": "editorTextFocus"
+        "command": "quick-ops.transformText",
+        "key": "ctrl+alt+t",
+        "mac": "cmd+alt+t",
+        "when": "editorHasSelection"
       }
     ],
     "menus": {
@@ -504,13 +474,36 @@
       ],
       "editor/context": [
         {
-          "submenu": "quick-ops.explorerSubmenu",
-          "group": "7_modification"
-        },
-        {
           "command": "quick-ops.addToSnippets",
           "group": "1_modification",
           "when": "editorHasSelection"
+        },
+        {
+          "submenu": "quick-ops.transformSubmenu",
+          "group": "1_modification@2",
+          "when": "editorHasSelection"
+        }
+      ],
+      "quick-ops.transformSubmenu": [
+        {
+          "command": "quick-ops.transformToLower",
+          "group": "1"
+        },
+        {
+          "command": "quick-ops.transformToCamel",
+          "group": "2"
+        },
+        {
+          "command": "quick-ops.transformToPascal",
+          "group": "3"
+        },
+        {
+          "command": "quick-ops.transformToKebab",
+          "group": "4"
+        },
+        {
+          "command": "quick-ops.transformToConstant",
+          "group": "5"
         }
       ],
       "quick-ops.explorerSubmenu": [
@@ -578,13 +571,7 @@
     "typescript": "^5.9.2",
     "webpack": "^5.101.0",
     "webpack-bundle-analyzer": "^5.2.0",
-    "webpack-cli": "^6.0.1"
-  },
-  "volta": {
-    "node": "22.18.0",
-    "yarn": "4.10.3"
-  },
-  "dependencies": {
+    "webpack-cli": "^6.0.1",
     "@babel/parser": "^7.28.6",
     "@babel/traverse": "^7.28.6",
     "@babel/types": "^7.28.6",
@@ -598,5 +585,10 @@
     "mockjs": "^1.1.0",
     "nanoid": "^5.1.6",
     "terser-webpack-plugin": "^5.3.14"
-  }
+  },
+  "volta": {
+    "node": "22.18.0",
+    "yarn": "4.10.3"
+  },
+  "dependencies": {}
 }
