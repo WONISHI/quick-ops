@@ -1,6 +1,7 @@
 // src/providers/RecentProjectsProvider.ts
 import * as vscode from 'vscode';
 import * as https from 'https';
+import * as path from 'path';
 import { getRecentProjectsHtml } from '../views/RecentProjectsWebview';
 
 export class ReadOnlyContentProvider implements vscode.TextDocumentContentProvider {
@@ -129,9 +130,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           vscode.env.clipboard.writeText(data.text);
           vscode.window.showInformationMessage(`已复制: ${data.text}`);
           break;
-        case 'copyFileContent':
-          // 🌟 接收前端要求“复制文件内容”的事件
-          this.copyFileContent(data.fsPath);
+        case 'copyFile':
+          // 🌟 调用真正的复制文件逻辑
+          this.copyFileEntity(data.fsPath);
           break;
         case 'openExternalLink':
           this.openExternalLink(data.fsPath, data.platform, data.customDomain);
@@ -159,16 +160,39 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.updateWebview();
   }
 
-  // 🌟 新增：执行将远程/本地文件内容读取并丢入剪贴板
-  private async copyFileContent(fsPath: string) {
+  // 🌟 新增：执行真实的文件复制操作，产生副本文件
+  private async copyFileEntity(fsPath: string) {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
-      const contentBytes = await vscode.workspace.fs.readFile(uri);
-      const content = Buffer.from(contentBytes).toString('utf8');
-      await vscode.env.clipboard.writeText(content);
-      vscode.window.showInformationMessage('📄 文件内容已成功复制到剪贴板！');
+      
+      const parsedPath = path.parse(uri.path);
+      let newFileName = `${parsedPath.name}_copy${parsedPath.ext}`;
+      let newUri = uri.with({ path: path.join(parsedPath.dir, newFileName) });
+
+      let counter = 1;
+      // 检查文件是否已存在，自动累加后缀
+      while (true) {
+        try {
+          await vscode.workspace.fs.stat(newUri);
+          counter++;
+          newFileName = `${parsedPath.name}_copy${counter}${parsedPath.ext}`;
+          newUri = uri.with({ path: path.join(parsedPath.dir, newFileName) });
+        } catch (error) {
+          // File not found means we can safely copy
+          break;
+        }
+      }
+
+      await vscode.window.withProgress(
+        { location: vscode.ProgressLocation.Notification, title: '正在复制文件...' },
+        async () => {
+          await vscode.workspace.fs.copy(uri, newUri);
+        }
+      );
+
+      vscode.window.showInformationMessage(`📄 文件已复制为: ${newFileName}`);
     } catch (e) {
-      vscode.window.showErrorMessage(`复制文件内容失败: ${e}`);
+      vscode.window.showErrorMessage(`复制文件失败，这可能是由于权限不足或当前文件系统不支持复制操作。详情: ${e}`);
     }
   }
 

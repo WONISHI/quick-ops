@@ -316,13 +316,18 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
         let currentSelectedElement = null;
 
-        // 🌟 判断当前右键菜单是否处于打开状态
+        // 🌟 初始化恢复搜索状态机制
+        const state = vscode.getState() || {};
+        const searchInput = document.getElementById('project-search');
+        if (searchInput && state.searchQuery) {
+          searchInput.value = state.searchQuery;
+        }
+
         function isContextMenuVisible() {
           const menu = document.getElementById('context-menu');
           return menu && menu.style.display === 'block';
         }
 
-        // 🌟 隐藏右键菜单
         function hideContextMenu() {
           const menu = document.getElementById('context-menu');
           if (menu) menu.style.display = 'none';
@@ -342,51 +347,53 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
           }
         }
 
-        const searchInput = document.getElementById('project-search');
-        const noResultsMsg = document.getElementById('no-search-results');
-        
+        // 🌟 统一的执行过滤逻辑的方法
+        function executeFilter(query) {
+          const searchableItems = document.querySelectorAll('.searchable-item');
+          let matchCount = 0;
+
+          searchableItems.forEach(item => {
+            const searchStr = item.getAttribute('data-search') || '';
+            if (searchStr.includes(query)) {
+              item.style.display = ''; 
+              matchCount++;
+            } else {
+              item.style.display = 'none';
+            }
+          });
+
+          const noResultsMsg = document.getElementById('no-search-results');
+          if (noResultsMsg) {
+            noResultsMsg.style.display = matchCount === 0 ? 'block' : 'none';
+          }
+        }
+
+        // 绑定输入框事件，并保存状态
         if (searchInput) {
           searchInput.addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase().trim();
-            const searchableItems = document.querySelectorAll('.searchable-item');
-            let matchCount = 0;
-
-            searchableItems.forEach(item => {
-              const searchStr = item.getAttribute('data-search') || '';
-              if (searchStr.includes(query)) {
-                item.style.display = ''; 
-                matchCount++;
-              } else {
-                item.style.display = 'none';
-              }
-            });
-
-            if (noResultsMsg) {
-              noResultsMsg.style.display = matchCount === 0 ? 'block' : 'none';
-            }
+            vscode.setState({ searchQuery: query });
+            executeFilter(query);
           });
+          
+          // 如果有历史记录，页面刚加载时立刻执行一次过滤
+          if (state.searchQuery) {
+            setTimeout(() => { executeFilter(state.searchQuery); }, 50);
+          }
         }
 
         let clickTimer = null;
         const DELAY = 250;
 
         function openProject(path) { 
-          // 🌟 拦截：如果有菜单，只负责关闭它，不触发打开操作
-          if (isContextMenuVisible()) {
-            hideContextMenu();
-            return;
-          }
+          if (isContextMenuVisible()) { hideContextMenu(); return; }
           clearTimeout(clickTimer);
           vscode.postMessage({ type: 'openProject', fsPath: path }); 
         }
 
         function openCurrent(path, event) { 
           event.stopPropagation(); 
-          // 🌟 拦截
-          if (isContextMenuVisible()) {
-            hideContextMenu();
-            return;
-          }
+          if (isContextMenuVisible()) { hideContextMenu(); return; }
           hideContextMenu(); 
           vscode.postMessage({ type: 'openProjectCurrent', fsPath: path }); 
         }
@@ -396,11 +403,7 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
         
         function openFile(path, projectName, event) {
           event.stopPropagation();
-          // 🌟 拦截：如果有菜单，只负责关闭它，不触发打开操作
-          if (isContextMenuVisible()) {
-            hideContextMenu();
-            return;
-          }
+          if (isContextMenuVisible()) { hideContextMenu(); return; }
           hideContextMenu();
           selectItemByEvent(event);
           vscode.postMessage({ type: 'openFile', fsPath: path, projectName: projectName });
@@ -408,14 +411,9 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
         function toggleExpand(id, path, projectName, event) {
           event.stopPropagation();
-          // 🌟 拦截：如果有菜单，只负责关闭它，不触发折叠展开操作
-          if (isContextMenuVisible()) {
-            hideContextMenu();
-            return;
-          }
+          if (isContextMenuVisible()) { hideContextMenu(); return; }
           hideContextMenu();
           selectItemByEvent(event);
-          const target = event.currentTarget;
           
           clearTimeout(clickTimer);
           clickTimer = setTimeout(() => {
@@ -526,12 +524,12 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
           if (!isFolder) {
              list.innerHTML += \`<li onclick="handleMenuClick('openFileToSide')"><i class="fa-solid fa-columns"></i> 在侧边打开</li>\`;
-             // 🌟 新增：对文件增加“复制文件内容”选项
-             list.innerHTML += \`<li onclick="handleMenuClick('copyFileContent', '\${escPath}')"><i class="fa-regular fa-file-code"></i> 复制文件内容</li>\`;
+             // 🌟 核心：替换文案，触发复制文件的命令
+             list.innerHTML += \`<li onclick="handleMenuClick('copyFile', '\${escPath}')"><i class="fa-regular fa-copy"></i> 复制文件</li>\`;
              list.innerHTML += \`<div class="menu-separator"></div>\`;
           }
 
-          list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escName}')"><i class="fa-regular fa-copy"></i> 复制名称</li>\`;
+          list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escName}')"><i class="fa-regular fa-clone"></i> 复制名称</li>\`;
           list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escPath}')"><i class="fa-solid fa-link"></i> 复制路径</li>\`;
 
           if (!isRemote) {
@@ -585,9 +583,9 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
             case 'copyText':
               vscode.postMessage({ type: 'copyToClipboard', text: payload });
               break;
-            case 'copyFileContent':
-              // 🌟 发送复制内容的请求
-              vscode.postMessage({ type: 'copyFileContent', fsPath: activeContextMenuPath });
+            case 'copyFile':
+              // 🌟 发送真实文件复制的请求
+              vscode.postMessage({ type: 'copyFile', fsPath: activeContextMenuPath });
               break;
             case 'openLink':
               vscode.postMessage({ type: 'openExternalLink', fsPath: payload, platform: activeContextMenuPlatform, customDomain: activeContextMenuDomain });
