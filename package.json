@@ -57,6 +57,11 @@
           "default": true,
           "description": "是否开启 Element Plus 组件的智能提示与校验"
         },
+        "quick-ops.general.use.Vant": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否开启 Vant 组件的智能提示与校验"
+        },
         "quick-ops.general.use.AntDesignVue": {
           "type": "boolean",
           "default": true,

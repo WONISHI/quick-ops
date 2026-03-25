@@ -3688,5 +3688,1515 @@
                 "description": "自定义标签文本"
             }
         ]
+    },
+    {
+        "tags": [
+            "el-button",
+            "ElButton"
+        ],
+        "description": "Button 按钮",
+        "link": "https://element-plus.org/zh-CN/component/button.html",
+        "snippet": "<$TAG$1 type=\"${2|primary,success,warning,danger,info|}\" ${3|plain,round,circle|}>${4:按钮}</$TAG>",
+        "attributes": [
+            {
+                "name": "type",
+                "description": "类型",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "primary"
+                    },
+                    {
+                        "value": "success"
+                    },
+                    {
+                        "value": "warning"
+                    },
+                    {
+                        "value": "danger"
+                    },
+                    {
+                        "value": "info"
+                    },
+                    {
+                        "value": "text"
+                    }
+                ]
+            },
+            {
+                "name": "size",
+                "description": "尺寸",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "large"
+                    },
+                    {
+                        "value": "default"
+                    },
+                    {
+                        "value": "small"
+                    }
+                ]
+            },
+            {
+                "name": "plain",
+                "description": "是否为朴素按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "text",
+                "description": "是否为文字按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "round",
+                "description": "是否为圆角按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "circle",
+                "description": "是否为圆形按钮",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "loading",
+                "description": "是否为加载中状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "icon",
+                "description": "图标组件",
+                "type": "string",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击事件",
+                "parameters": "(evt: MouseEvent)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义默认内容"
+            },
+            {
+                "name": "icon",
+                "description": "自定义图标"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-input",
+            "ElInput"
+        ],
+        "description": "Input 输入框",
+        "link": "https://element-plus.org/zh-CN/component/input.html",
+        "snippet": "<$TAG$1 v-model=\"${2:inputValue}\" placeholder=\"${3:请输入内容}\" clearable />",
+        "attributes": [
+            {
+                "name": "model-value",
+                "description": "绑定值 (支持 v-model)",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "type",
+                "description": "类型",
+                "type": "enum",
+                "default": "text",
+                "options": [
+                    {
+                        "value": "text"
+                    },
+                    {
+                        "value": "textarea"
+                    },
+                    {
+                        "value": "password"
+                    },
+                    {
+                        "value": "number"
+                    }
+                ]
+            },
+            {
+                "name": "maxlength",
+                "description": "最大输入长度",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "minlength",
+                "description": "最小输入长度",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "show-word-limit",
+                "description": "是否显示输入字数统计",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "placeholder",
+                "description": "输入框占位文本",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "clearable",
+                "description": "是否可清空",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "show-password",
+                "description": "是否显示切换密码图标",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "prefix-icon",
+                "description": "自定义前缀图标",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "suffix-icon",
+                "description": "自定义后缀图标",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "rows",
+                "description": "输入框行数，仅 type 为 'textarea' 时有效",
+                "type": "number",
+                "default": "2"
+            }
+        ],
+        "events": [
+            {
+                "name": "input",
+                "description": "在 Input 值改变时触发",
+                "parameters": "(value: string | number)"
+            },
+            {
+                "name": "change",
+                "description": "仅在输入框失去焦点或用户按下回车时触发",
+                "parameters": "(value: string | number)"
+            },
+            {
+                "name": "clear",
+                "description": "在点击由 clearable 属性生成的清空按钮时触发",
+                "parameters": "()"
+            }
+        ],
+        "slots": [
+            {
+                "name": "prefix",
+                "description": "输入框前缀内容"
+            },
+            {
+                "name": "suffix",
+                "description": "输入框后缀内容"
+            },
+            {
+                "name": "prepend",
+                "description": "输入框前置内容"
+            },
+            {
+                "name": "append",
+                "description": "输入框后置内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-select",
+            "ElSelect"
+        ],
+        "description": "Select 选择器",
+        "link": "https://element-plus.org/zh-CN/component/select.html",
+        "snippet": "<$TAG$1 v-model=\"${2:value}\" placeholder=\"${3:请选择}\">\n\t<el-option label=\"选项1\" value=\"1\" />\n\t<el-option label=\"选项2\" value=\"2\" />\n</$TAG>",
+        "attributes": [
+            {
+                "name": "model-value",
+                "description": "绑定值 (支持 v-model)",
+                "type": "boolean | string | number | array",
+                "default": "—"
+            },
+            {
+                "name": "multiple",
+                "description": "是否多选",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "clearable",
+                "description": "是否可以清空选项",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "collapse-tags",
+                "description": "多选时是否将选中值按文字的形式展示",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "collapse-tags-tooltip",
+                "description": "当鼠标悬停于折叠标签的文本时，是否显示所有选中的标签",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "filterable",
+                "description": "是否可搜索",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "placeholder",
+                "description": "占位符",
+                "type": "string",
+                "default": "请选择"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "选中值发生变化时触发",
+                "parameters": "(val: array | string | number | boolean)"
+            },
+            {
+                "name": "clear",
+                "description": "可清空的单选模式下用户点击清空按钮时触发",
+                "parameters": "()"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-option",
+            "ElOption"
+        ],
+        "description": "Option 选择器选项",
+        "link": "https://element-plus.org/zh-CN/component/select.html",
+        "snippet": "<$TAG$1 label=\"${2:label}\" value=\"${3:value}\" />",
+        "attributes": [
+            {
+                "name": "value",
+                "description": "选项的值",
+                "type": "string | number | boolean | object",
+                "default": "—"
+            },
+            {
+                "name": "label",
+                "description": "选项的标签，若不设置则默认与 value 相同",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用该选项",
+                "type": "boolean",
+                "default": "false"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-form",
+            "ElForm"
+        ],
+        "description": "Form 表单",
+        "link": "https://element-plus.org/zh-CN/component/form.html",
+        "snippet": "<$TAG$1 :model=\"${2:form}\" :rules=\"${3:rules}\" ref=\"${4:formRef}\" label-width=\"120px\">\n\t<el-form-item label=\"${5:活动名称}\" prop=\"name\">\n\t\t<el-input v-model=\"${2:form}.name\" />\n\t</el-form-item>\n\t<el-form-item>\n\t\t<el-button type=\"primary\" @click=\"onSubmit\">提交</el-button>\n\t</el-form-item>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "model",
+                "description": "表单数据对象",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "rules",
+                "description": "表单验证规则",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "inline",
+                "description": "行内表单模式",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "label-position",
+                "description": "表单域标签的位置",
+                "type": "enum",
+                "default": "right",
+                "options": [
+                    {
+                        "value": "right"
+                    },
+                    {
+                        "value": "left"
+                    },
+                    {
+                        "value": "top"
+                    }
+                ]
+            },
+            {
+                "name": "label-width",
+                "description": "标签的长度，例如 '50px'。作为 Form 直接子元素的 form-item 会继承该值",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "hide-required-asterisk",
+                "description": "是否显示必填字段的标签旁边的红色星号",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用该表单内的所有组件",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "events": [
+            {
+                "name": "validate",
+                "description": "任一表单项被校验后触发",
+                "parameters": "(prop: string, isValid: boolean, message: string)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-form-item",
+            "ElFormItem"
+        ],
+        "description": "FormItem 表单项",
+        "link": "https://element-plus.org/zh-CN/component/form.html",
+        "snippet": "<$TAG$1 label=\"${2:标签名称}\" prop=\"${3:propName}\">\n\t$4\n</$TAG>",
+        "attributes": [
+            {
+                "name": "prop",
+                "description": "model 的键名。它可以是一个在 model 中寻找深层复杂 prop 的路径（验证必填）",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "label",
+                "description": "标签文本",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "label-width",
+                "description": "标签宽度，例如 '50px'。支持 auto",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "required",
+                "description": "是否必填，如不设置，则会根据校验规则自动生成",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "rules",
+                "description": "表单项验证规则",
+                "type": "object | array",
+                "default": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "Form Item 的内容"
+            },
+            {
+                "name": "label",
+                "description": "标签位置显示的内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-table",
+            "ElTable"
+        ],
+        "description": "Table 表格",
+        "link": "https://element-plus.org/zh-CN/component/table.html",
+        "snippet": "<$TAG$1 :data=\"${2:tableData}\" style=\"width: 100%\" border>\n\t<el-table-column prop=\"date\" label=\"日期\" width=\"180\" />\n\t<el-table-column prop=\"name\" label=\"姓名\" width=\"180\" />\n\t<el-table-column prop=\"address\" label=\"地址\" />\n</$TAG>",
+        "attributes": [
+            {
+                "name": "data",
+                "description": "显示的数据",
+                "type": "array",
+                "default": "—"
+            },
+            {
+                "name": "height",
+                "description": "Table 的高度，默认为自动高度。如果 height 为 number 类型，单位 px；如果 height 为 string 类型，则这个高度会设置为 Table 的 style.height 的值",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "max-height",
+                "description": "Table 的最大高度",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "stripe",
+                "description": "是否为斑马纹 table",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "border",
+                "description": "是否带有纵向边框",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "size",
+                "description": "Table 的尺寸",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "large"
+                    },
+                    {
+                        "value": "default"
+                    },
+                    {
+                        "value": "small"
+                    }
+                ]
+            },
+            {
+                "name": "fit",
+                "description": "列的宽度是否自撑开",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "show-header",
+                "description": "是否显示表头",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "highlight-current-row",
+                "description": "是否要高亮当前行",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "empty-text",
+                "description": "空数据时显示的文本内容",
+                "type": "string",
+                "default": "No Data"
+            }
+        ],
+        "events": [
+            {
+                "name": "selection-change",
+                "description": "当选择项发生变化时会触发该事件",
+                "parameters": "(selection: any[])"
+            },
+            {
+                "name": "sort-change",
+                "description": "当表格的排序条件发生变化的时候会触发该事件",
+                "parameters": "({ column, prop, order })"
+            },
+            {
+                "name": "row-click",
+                "description": "当某一行被点击时会触发该事件",
+                "parameters": "(row, column, event)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义列的内容"
+            },
+            {
+                "name": "empty",
+                "description": "数据为空时显示的内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-table-column",
+            "ElTableColumn"
+        ],
+        "description": "TableColumn 表格列",
+        "link": "https://element-plus.org/zh-CN/component/table.html",
+        "snippet": "<$TAG$1 prop=\"${2:propName}\" label=\"${3:标签名}\" width=\"${4:180}\">\n\t<template #default=\"scope\">\n\t\t{{ scope.row.${2:propName} }}\n\t</template>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "type",
+                "description": "对应列的类型",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "selection",
+                        "description": "多选框"
+                    },
+                    {
+                        "value": "index",
+                        "description": "索引"
+                    },
+                    {
+                        "value": "expand",
+                        "description": "可展开按钮"
+                    }
+                ]
+            },
+            {
+                "name": "label",
+                "description": "显示标题",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "prop",
+                "description": "字段名称，对应列内容的字段名",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "width",
+                "description": "对应列的宽度",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "min-width",
+                "description": "对应列的最小宽度，与 width 的区别是 width 是固定的，min-width 会把剩余宽度按比例分配给设置了 min-width 的列",
+                "type": "string | number",
+                "default": "—"
+            },
+            {
+                "name": "fixed",
+                "description": "列是否固定在左侧或者右侧",
+                "type": "boolean | string",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "true"
+                    },
+                    {
+                        "value": "left"
+                    },
+                    {
+                        "value": "right"
+                    }
+                ]
+            },
+            {
+                "name": "sortable",
+                "description": "对应列是否可以排序",
+                "type": "boolean | string",
+                "default": "false",
+                "options": [
+                    {
+                        "value": "true"
+                    },
+                    {
+                        "value": "false"
+                    },
+                    {
+                        "value": "custom"
+                    }
+                ]
+            },
+            {
+                "name": "align",
+                "description": "对齐方式",
+                "type": "enum",
+                "default": "left",
+                "options": [
+                    {
+                        "value": "left"
+                    },
+                    {
+                        "value": "center"
+                    },
+                    {
+                        "value": "right"
+                    }
+                ]
+            },
+            {
+                "name": "show-overflow-tooltip",
+                "description": "当内容过长被隐藏时显示 tooltip",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义列的内容，参数为 { row, column, $index }"
+            },
+            {
+                "name": "header",
+                "description": "自定义表头的内容，参数为 { column, $index }"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-row",
+            "ElRow"
+        ],
+        "description": "Row 栅格行",
+        "link": "https://element-plus.org/zh-CN/component/layout.html",
+        "snippet": "<$TAG$1 :gutter=\"${2:20}\">\n\t<el-col :span=\"12\">$3</el-col>\n\t<el-col :span=\"12\">$4</el-col>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "gutter",
+                "description": "栅格间隔",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "justify",
+                "description": "flex 布局下的水平排列方式",
+                "type": "enum",
+                "default": "start",
+                "options": [
+                    {
+                        "value": "start"
+                    },
+                    {
+                        "value": "end"
+                    },
+                    {
+                        "value": "center"
+                    },
+                    {
+                        "value": "space-around"
+                    },
+                    {
+                        "value": "space-between"
+                    },
+                    {
+                        "value": "space-evenly"
+                    }
+                ]
+            },
+            {
+                "name": "align",
+                "description": "flex 布局下的垂直排列方式",
+                "type": "enum",
+                "default": "top",
+                "options": [
+                    {
+                        "value": "top"
+                    },
+                    {
+                        "value": "middle"
+                    },
+                    {
+                        "value": "bottom"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-col",
+            "ElCol"
+        ],
+        "description": "Col 栅格列",
+        "link": "https://element-plus.org/zh-CN/component/layout.html",
+        "snippet": "<$TAG$1 :span=\"${2:12}\">$3</$TAG>",
+        "attributes": [
+            {
+                "name": "span",
+                "description": "栅格占据的列数",
+                "type": "number",
+                "default": "24"
+            },
+            {
+                "name": "offset",
+                "description": "栅格左侧的间隔格数",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "push",
+                "description": "栅格向右移动格数",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "pull",
+                "description": "栅格向左移动格数",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "xs",
+                "description": "<768px 响应式栅格数或者栅格属性对象",
+                "type": "number | object",
+                "default": "—"
+            },
+            {
+                "name": "sm",
+                "description": "≥768px 响应式栅格数或者栅格属性对象",
+                "type": "number | object",
+                "default": "—"
+            },
+            {
+                "name": "md",
+                "description": "≥992px 响应式栅格数或者栅格属性对象",
+                "type": "number | object",
+                "default": "—"
+            },
+            {
+                "name": "lg",
+                "description": "≥1200px 响应式栅格数或者栅格属性对象",
+                "type": "number | object",
+                "default": "—"
+            },
+            {
+                "name": "xl",
+                "description": "≥1920px 响应式栅格数或者栅格属性对象",
+                "type": "number | object",
+                "default": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-icon",
+            "ElIcon"
+        ],
+        "description": "Icon 图标包装器",
+        "link": "https://element-plus.org/zh-CN/component/icon.html",
+        "snippet": "<$TAG$1 :size=\"${2:20}\" color=\"${3:#409EFC}\">\n\t<Edit />\n</$TAG>",
+        "attributes": [
+            {
+                "name": "size",
+                "description": "SVG 图标大小，相当于 css font-size",
+                "type": "number | string",
+                "default": "—"
+            },
+            {
+                "name": "color",
+                "description": "SVG 图标颜色，相当于 css color",
+                "type": "string",
+                "default": "—"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-space",
+            "ElSpace"
+        ],
+        "description": "Space 间距",
+        "link": "https://element-plus.org/zh-CN/component/space.html",
+        "snippet": "<$TAG$1 direction=\"${2|horizontal,vertical|}\" :size=\"${3|small,default,large|}\">\n\t$4\n</$TAG>",
+        "attributes": [
+            {
+                "name": "direction",
+                "description": "排列的方向",
+                "type": "enum",
+                "default": "horizontal",
+                "options": [
+                    {
+                        "value": "horizontal",
+                        "description": "水平"
+                    },
+                    {
+                        "value": "vertical",
+                        "description": "垂直"
+                    }
+                ]
+            },
+            {
+                "name": "size",
+                "description": "间距大小，支持数组 [数字, 数字] 来自定义水平和垂直间距",
+                "type": "enum | number | array",
+                "default": "small",
+                "options": [
+                    {
+                        "value": "small"
+                    },
+                    {
+                        "value": "default"
+                    },
+                    {
+                        "value": "large"
+                    }
+                ]
+            },
+            {
+                "name": "alignment",
+                "description": "对齐方式",
+                "type": "enum",
+                "default": "center",
+                "options": [
+                    {
+                        "value": "center"
+                    },
+                    {
+                        "value": "flex-start"
+                    },
+                    {
+                        "value": "flex-end"
+                    },
+                    {
+                        "value": "baseline"
+                    }
+                ]
+            },
+            {
+                "name": "wrap",
+                "description": "是否自动换行，仅在 horizontal 时有效",
+                "type": "boolean",
+                "default": "false"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "要循环或者排列的子元素"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-container",
+            "ElContainer"
+        ],
+        "description": "Container 布局容器",
+        "link": "https://element-plus.org/zh-CN/component/container.html",
+        "snippet": "<$TAG$1>\n\t<el-aside width=\"200px\">Aside</el-aside>\n\t<el-container>\n\t\t<el-header>Header</el-header>\n\t\t<el-main>Main</el-main>\n\t</el-container>\n</$TAG>",
+        "attributes": [
+            {
+                "name": "direction",
+                "description": "子元素的排列方向",
+                "type": "enum",
+                "default": "子元素中有 header 或 footer 时为 vertical，否则为 horizontal",
+                "options": [
+                    {
+                        "value": "horizontal"
+                    },
+                    {
+                        "value": "vertical"
+                    }
+                ]
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "容器内容，只能包含 header/aside/main/footer"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-header",
+            "ElHeader",
+            "el-aside",
+            "ElAside",
+            "el-main",
+            "ElMain",
+            "el-footer",
+            "ElFooter"
+        ],
+        "description": "Container 布局子节点",
+        "link": "https://element-plus.org/zh-CN/component/container.html",
+        "snippet": "<$TAG$1>\n\t$2\n</$TAG>",
+        "slots": [
+            {
+                "name": "default",
+                "description": "区域内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-image",
+            "ElImage"
+        ],
+        "description": "Image 图片",
+        "link": "https://element-plus.org/zh-CN/component/image.html",
+        "snippet": "<$TAG$1\n\tstyle=\"width: 100px; height: 100px\"\n\tsrc=\"${2:url}\"\n\t:fit=\"${3|fill,contain,cover,none,scale-down|}\"\n\t:preview-src-list=\"${4:srcList}\"\n/>",
+        "attributes": [
+            {
+                "name": "src",
+                "description": "图片源",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "fit",
+                "description": "确定图片如何适应容器框",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "fill"
+                    },
+                    {
+                        "value": "contain"
+                    },
+                    {
+                        "value": "cover"
+                    },
+                    {
+                        "value": "none"
+                    },
+                    {
+                        "value": "scale-down"
+                    }
+                ]
+            },
+            {
+                "name": "hide-on-click-modal",
+                "description": "当开启 preview 功能时，是否可以通过点击遮罩层关闭预览",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "lazy",
+                "description": "是否使用懒加载",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "preview-src-list",
+                "description": "开启图片预览功能，预览大图的链接列表",
+                "type": "array",
+                "default": "—"
+            },
+            {
+                "name": "initial-index",
+                "description": "图片预览初始图片 index",
+                "type": "number",
+                "default": "0"
+            }
+        ],
+        "events": [
+            {
+                "name": "load",
+                "description": "图片加载成功触发",
+                "parameters": "(e: Event)"
+            },
+            {
+                "name": "error",
+                "description": "图片加载失败触发",
+                "parameters": "(e: Error)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "placeholder",
+                "description": "图片未加载的占位内容"
+            },
+            {
+                "name": "error",
+                "description": "加载失败的内容"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-tree-select",
+            "ElTreeSelect"
+        ],
+        "description": "TreeSelect 树形选择",
+        "link": "https://element-plus.org/zh-CN/component/tree-select.html",
+        "snippet": "<$TAG$1\n\tv-model=\"${2:value}\"\n\t:data=\"${3:data}\"\n\t:render-after-expand=\"false\"\n\tshow-checkbox\n\tcheck-strictly\n/>",
+        "attributes": [
+            {
+                "name": "model-value",
+                "description": "绑定值",
+                "type": "string | number | array",
+                "default": "—"
+            },
+            {
+                "name": "data",
+                "description": "展示数据",
+                "type": "array",
+                "default": "—"
+            },
+            {
+                "name": "multiple",
+                "description": "是否多选",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "show-checkbox",
+                "description": "节点是否可被选择",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "check-strictly",
+                "description": "在显示复选框的情况下，是否严格的遵循父子不互相关联的做法",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "filterable",
+                "description": "是否可搜索",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "props",
+                "description": "配置选项，同 Tree 组件",
+                "type": "object",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "选中值发生变化时触发",
+                "parameters": "(value)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义树节点的内容，参数为 { node, data }"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-link",
+            "ElLink"
+        ],
+        "description": "Link 文字链接",
+        "link": "https://element-plus.org/zh-CN/component/link.html",
+        "snippet": "<$TAG$1 type=\"${2|primary,success,warning,danger,info|}\" href=\"${3:#}\" ${4:target=\"_blank\"}>${5:链接文本}</$TAG>",
+        "attributes": [
+            {
+                "name": "type",
+                "description": "类型",
+                "type": "enum",
+                "default": "default",
+                "options": [
+                    {
+                        "value": "primary"
+                    },
+                    {
+                        "value": "success"
+                    },
+                    {
+                        "value": "warning"
+                    },
+                    {
+                        "value": "danger"
+                    },
+                    {
+                        "value": "info"
+                    }
+                ]
+            },
+            {
+                "name": "underline",
+                "description": "是否下划线",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用状态",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "href",
+                "description": "原生 href 属性",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "target",
+                "description": "原生 target 属性",
+                "type": "string",
+                "default": "_blank"
+            },
+            {
+                "name": "icon",
+                "description": "图标组件",
+                "type": "string",
+                "default": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义内容"
+            },
+            {
+                "name": "icon",
+                "description": "自定义图标"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-divider",
+            "ElDivider"
+        ],
+        "description": "Divider 分割线",
+        "link": "https://element-plus.org/zh-CN/component/divider.html",
+        "snippet": "<$TAG$1 content-position=\"${2|center,left,right|}\">${3:分割线文本}</$TAG>",
+        "attributes": [
+            {
+                "name": "direction",
+                "description": "设置分割线方向",
+                "type": "enum",
+                "default": "horizontal",
+                "options": [
+                    {
+                        "value": "horizontal"
+                    },
+                    {
+                        "value": "vertical"
+                    }
+                ]
+            },
+            {
+                "name": "border-style",
+                "description": "设置分隔符样式",
+                "type": "enum",
+                "default": "solid",
+                "options": [
+                    {
+                        "value": "solid"
+                    },
+                    {
+                        "value": "dashed"
+                    },
+                    {
+                        "value": "dotted"
+                    }
+                ]
+            },
+            {
+                "name": "content-position",
+                "description": "自定义内容所在位置",
+                "type": "enum",
+                "default": "center",
+                "options": [
+                    {
+                        "value": "left"
+                    },
+                    {
+                        "value": "right"
+                    },
+                    {
+                        "value": "center"
+                    }
+                ]
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "分割线上的文字"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-color-picker",
+            "ElColorPicker"
+        ],
+        "description": "ColorPicker 颜色选择器",
+        "link": "https://element-plus.org/zh-CN/component/color-picker.html",
+        "snippet": "<$TAG$1 v-model=\"${2:color}\" ${3:show-alpha} />",
+        "attributes": [
+            {
+                "name": "model-value",
+                "description": "绑定值",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "show-alpha",
+                "description": "是否支持透明度选择",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "color-format",
+                "description": "写入 v-model 的颜色的格式",
+                "type": "enum",
+                "default": "hex (show-alpha 为 false) / rgb (show-alpha 为 true)",
+                "options": [
+                    {
+                        "value": "hsl"
+                    },
+                    {
+                        "value": "hsv"
+                    },
+                    {
+                        "value": "hex"
+                    },
+                    {
+                        "value": "rgb"
+                    }
+                ]
+            },
+            {
+                "name": "predefine",
+                "description": "预定义颜色",
+                "type": "array",
+                "default": "—"
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "当绑定值变化时触发",
+                "parameters": "(val: string)"
+            },
+            {
+                "name": "active-change",
+                "description": "面板中当前显示的颜色发生改变时触发",
+                "parameters": "(val: string)"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-statistic",
+            "ElStatistic"
+        ],
+        "description": "Statistic 统计数值",
+        "link": "https://element-plus.org/zh-CN/component/statistic.html",
+        "snippet": "<$TAG$1 title=\"${2:Daily active users}\" :value=\"${3:268500}\" />",
+        "attributes": [
+            {
+                "name": "value",
+                "description": "数值内容",
+                "type": "number | object",
+                "default": "—"
+            },
+            {
+                "name": "title",
+                "description": "标题内容",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "prefix",
+                "description": "设置数值的前缀",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "suffix",
+                "description": "设置数值的后缀",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "precision",
+                "description": "数值的精度",
+                "type": "number",
+                "default": "0"
+            },
+            {
+                "name": "group-separator",
+                "description": "设置千分位标识符",
+                "type": "string",
+                "default": "—"
+            }
+        ],
+        "slots": [
+            {
+                "name": "title",
+                "description": "标题内容"
+            },
+            {
+                "name": "prefix",
+                "description": "数值的前缀"
+            },
+            {
+                "name": "suffix",
+                "description": "数值的后缀"
+            },
+            {
+                "name": "formatter",
+                "description": "自定义数值展示"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-watermark",
+            "ElWatermark"
+        ],
+        "description": "Watermark 水印",
+        "link": "https://element-plus.org/zh-CN/component/watermark.html",
+        "snippet": "<$TAG$1 :content=\"['${2:Element Plus}', '${3:Watermark}']\">\n\t<div style=\"height: 500px\" />\n</$TAG>",
+        "attributes": [
+            {
+                "name": "content",
+                "description": "水印文字内容",
+                "type": "string | string[]",
+                "default": "—"
+            },
+            {
+                "name": "width",
+                "description": "水印的宽度",
+                "type": "number",
+                "default": "120"
+            },
+            {
+                "name": "height",
+                "description": "水印的高度",
+                "type": "number",
+                "default": "64"
+            },
+            {
+                "name": "rotate",
+                "description": "水印绘制时旋转的角度",
+                "type": "number",
+                "default": "-22"
+            },
+            {
+                "name": "z-index",
+                "description": "追加的水印元素的 z-index",
+                "type": "number",
+                "default": "9"
+            },
+            {
+                "name": "image",
+                "description": "图片源，建议导出 2x 或 3x 图",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "font",
+                "description": "文字样式，如 { color: 'rgba(0,0,0,.15)', fontSize: 16 }",
+                "type": "object",
+                "default": "—"
+            },
+            {
+                "name": "gap",
+                "description": "水印之间的间距",
+                "type": "array",
+                "default": "[100, 100]"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "被添加水印的内容区块"
+            }
+        ]
+    },
+    {
+        "tags": [
+            "el-backtop",
+            "ElBacktop"
+        ],
+        "description": "Backtop 回到顶部",
+        "link": "https://element-plus.org/zh-CN/component/backtop.html",
+        "snippet": "<$TAG$1 :right=\"${2:100}\" :bottom=\"${3:100}\" />",
+        "attributes": [
+            {
+                "name": "target",
+                "description": "触发滚动的对象",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "visibility-height",
+                "description": "滚动高度达到此参数值才出现",
+                "type": "number",
+                "default": "200"
+            },
+            {
+                "name": "right",
+                "description": "控制其显示位置, 距离页面右边距",
+                "type": "number",
+                "default": "40"
+            },
+            {
+                "name": "bottom",
+                "description": "控制其显示位置, 距离页面底部距离",
+                "type": "number",
+                "default": "40"
+            }
+        ],
+        "events": [
+            {
+                "name": "click",
+                "description": "点击按钮触发的事件",
+                "parameters": "(evt: MouseEvent)"
+            }
+        ],
+        "slots": [
+            {
+                "name": "default",
+                "description": "自定义内容"
+            }
+        ]
     }
 ]
