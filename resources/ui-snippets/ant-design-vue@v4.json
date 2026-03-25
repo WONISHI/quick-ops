@@ -4374,5 +4374,120 @@
                 "default": "false"
             }
         ]
+    },
+    {
+        "tags": [
+            "a-auto-complete",
+            "AAutoComplete",
+            "AutoComplete"
+        ],
+        "description": "AutoComplete 自动完成",
+        "link": "https://www.antdv.com/components/auto-complete-cn",
+        "snippet": "<$TAG$1\n\tv-model:value=\"${2:value}\"\n\t:options=\"${3:options}\"\n\tstyle=\"width: 200px\"\n\tplaceholder=\"${4:请输入关键词}\"\n\t@select=\"onSelect\"\n\t@search=\"onSearch\"\n/>",
+        "attributes": [
+            {
+                "name": "value",
+                "description": "选中的条目 (支持 v-model:value)",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "options",
+                "description": "自动完成的数据源",
+                "type": "array",
+                "default": "[]"
+            },
+            {
+                "name": "allowClear",
+                "description": "支持清除, 单选模式有效",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "autofocus",
+                "description": "自动获取焦点",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "backfill",
+                "description": "使用键盘选择选项的时候把选中项回填到输入框中",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "defaultActiveFirstOption",
+                "description": "是否默认高亮第一个选项",
+                "type": "boolean",
+                "default": "true"
+            },
+            {
+                "name": "disabled",
+                "description": "是否禁用",
+                "type": "boolean",
+                "default": "false"
+            },
+            {
+                "name": "filterOption",
+                "description": "是否根据输入项进行筛选",
+                "type": "boolean | function",
+                "default": "true"
+            },
+            {
+                "name": "placeholder",
+                "description": "输入框提示",
+                "type": "string",
+                "default": "—"
+            },
+            {
+                "name": "status",
+                "description": "设置校验状态",
+                "type": "enum",
+                "default": "—",
+                "options": [
+                    {
+                        "value": "error",
+                        "description": "错误"
+                    },
+                    {
+                        "value": "warning",
+                        "description": "警告"
+                    }
+                ]
+            }
+        ],
+        "events": [
+            {
+                "name": "change",
+                "description": "选中 option，或 input 的 value 变化时回调",
+                "parameters": "(value: string)"
+            },
+            {
+                "name": "dropdownVisibleChange",
+                "description": "展开下拉菜单的回调",
+                "parameters": "(open: boolean)"
+            },
+            {
+                "name": "search",
+                "description": "搜索补全项的时候调用",
+                "parameters": "(value: string)"
+            },
+            {
+                "name": "select",
+                "description": "被选中时调用",
+                "parameters": "(value: string, option: object)"
+            },
+            {
+                "name": "clear",
+                "description": "清除时的回调",
+                "parameters": "()"
+            }
+        ],
+        "slots": [
+            {
+                "name": "option",
+                "description": "通过插槽自定义选项展示内容"
+            }
+        ]
     }
 ]

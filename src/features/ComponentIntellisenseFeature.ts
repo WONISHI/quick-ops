@@ -38,6 +38,12 @@ export interface UISlot {
   description: string;
 }
 
+export interface UIMethod {
+  name: string;
+  description: string;
+  parameters?: string;
+}
+
 export interface UIComponent {
   tags: string[];
   description: string;
@@ -46,6 +52,7 @@ export interface UIComponent {
   attributes?: UIAttribute[];
   events?: UIEvent[];
   slots?: UISlot[];
+  methods?: UIMethod[]; // 支持实例方法展示
 }
 
 export class ComponentIntellisenseFeature implements IFeature {
@@ -59,20 +66,17 @@ export class ComponentIntellisenseFeature implements IFeature {
   constructor(private contextService: WorkspaceContextService = WorkspaceContextService.getInstance()) {}
 
   public async activate(context: vscode.ExtensionContext) {
+    // 1. 确保环境就绪
     await this.contextService.waitUntilReady();
     this.loadSnippetsFromResources(context);
 
-    // ==========================================
-    // 🌟 核心：注册热更新监听器
-    // ==========================================
+    // 2. 注册热更新监听器
     const contextChangeDisposable = this.contextService.onDidChangeContext(() => {
       console.log('[Quick Ops] 监听到项目依赖发生变化，正在重新挂载 UI 提示库...');
       this.reload(context);
     });
 
-    // ==========================================
-    // 注册代码补全 (Completion)
-    // ==========================================
+    // 3. 注册代码补全 (Completion)
     this.providerDisposable = vscode.languages.registerCompletionItemProvider(
       ['vue', 'html', 'javascriptreact', 'typescriptreact'],
       {
@@ -81,6 +85,7 @@ export class ComponentIntellisenseFeature implements IFeature {
           const textBeforeCursor = lineText.substring(0, position.character);
           const completionItems: vscode.CompletionItem[] = [];
 
+          // 匹配当前是否在标签内部
           const insideTagMatch = textBeforeCursor.match(/<([\w-]+)\s+[^>]*$/);
 
           if (insideTagMatch) {
@@ -91,6 +96,7 @@ export class ComponentIntellisenseFeature implements IFeature {
             const currentWord = currentWordMatch ? currentWordMatch[1] : '';
             const replaceRange = new vscode.Range(position.line, position.character - currentWord.length, position.line, position.character);
 
+            // 解析事件 (@)
             if (currentWord.startsWith('@')) {
               if (comp && comp.events) {
                 comp.events.forEach((ev) => {
@@ -102,7 +108,11 @@ export class ComponentIntellisenseFeature implements IFeature {
                   item.range = replaceRange;
                   item.filterText = label;
                   item.sortText = `  ${ev.name}`;
-                  item.documentation = new vscode.MarkdownString(`**${label}**\n\n${ev.description}\n\n**回调参数**: \`${ev.parameters || '—'}\``);
+                  
+                  const md = new vscode.MarkdownString(`**<span style="color: #409EFF;">${label}</span>**\n\n${ev.description}\n\n**回调参数**: \`${ev.parameters || '—'}\``);
+                  md.supportHtml = true;
+                  item.documentation = md;
+                  
                   item.detail = `[Event] ${ev.description}`;
                   completionItems.push(item);
                 });
@@ -110,6 +120,7 @@ export class ComponentIntellisenseFeature implements IFeature {
               return completionItems;
             }
 
+            // 解析插槽 (#)
             if (currentWord.startsWith('#')) {
               if (currentTag.toLowerCase() === 'template') {
                 const parentTag = this.getNearestTag(document, position);
@@ -124,7 +135,11 @@ export class ComponentIntellisenseFeature implements IFeature {
                   item.range = replaceRange;
                   item.filterText = label;
                   item.sortText = `  ${slot.name}`;
-                  item.documentation = new vscode.MarkdownString(`**${label}**\n\n${slot.description}`);
+                  
+                  const md = new vscode.MarkdownString(`**<span style="color: #409EFF;">${label}</span>**\n\n${slot.description}`);
+                  md.supportHtml = true;
+                  item.documentation = md;
+                  
                   item.detail = `[Slot] ${comp?.tags[0]}`;
                   completionItems.push(item);
                 });
@@ -132,15 +147,15 @@ export class ComponentIntellisenseFeature implements IFeature {
               return completionItems;
             }
 
+            // 解析属性 (及绑定 :)
             if (comp && comp.attributes) {
               const isBind = currentWord.startsWith(':');
               const prefix = isBind ? ':' : '';
 
               comp.attributes.forEach((attr) => {
-                // 🌟 修复：处理带有 "/" 的别名属性（例如 "value / v-model"），我们只取第一个来生成补全文本
+                // 处理别名（如 value / v-model）取第一个
                 const primaryAttrName = attr.name.split('/')[0].trim();
-                
-                // 🌟 核心：将属性名转为短横线命名 (data-source)
+                // 转换为官方推荐的短横线命名
                 const kebabName = toKebabCase(primaryAttrName);
                 const label = `${prefix}${kebabName}`;
                 
@@ -159,14 +174,14 @@ export class ComponentIntellisenseFeature implements IFeature {
                 item.filterText = label;
                 item.sortText = `  ${kebabName}`;
                 item.documentation = this.buildAttributeMarkdown(attr);
-                // 提示面板的说明里依然保留原始的属性名，方便开发者识别
-                item.detail = `[Prop] ${attr.name}`; 
+                item.detail = `[Prop] ${attr.name}`; // 保留原始显示
                 completionItems.push(item);
               });
             }
             return completionItems;
           }
 
+          // 匹配组件标签自身 (<xxx)
           const tagMatch = textBeforeCursor.match(/(<[a-zA-Z0-9-]*|[a-zA-Z0-9-]+)$/);
           if (tagMatch) {
             const matchString = tagMatch[1];
@@ -193,17 +208,10 @@ export class ComponentIntellisenseFeature implements IFeature {
           return undefined;
         },
       },
-      '<',
-      ' ',
-      '@',
-      ':',
-      '-',
-      '#',
+      '<', ' ', '@', ':', '-', '#'
     );
 
-    // ==========================================
-    // 注册悬停提示 (Hover)
-    // ==========================================
+    // 4. 注册悬停提示 (Hover)
     this.hoverDisposable = vscode.languages.registerHoverProvider(['vue', 'html', 'javascriptreact', 'typescriptreact'], {
       provideHover: (document: vscode.TextDocument, position: vscode.Position): vscode.Hover | undefined => {
         const wordRange = document.getWordRangeAtPosition(position, /[@#]?[\w:-]+/);
@@ -211,11 +219,13 @@ export class ComponentIntellisenseFeature implements IFeature {
 
         const word = document.getText(wordRange);
 
+        // 如果悬停的是标签自身
         let comp = this.tagToComponentMap.get(word);
         if (comp) {
           return new vscode.Hover(this.buildFullComponentMarkdown(comp, word), wordRange);
         }
 
+        // 如果悬停的是属性/事件/插槽
         const currentTag = this.getCurrentTagForHover(document, position);
         if (!currentTag) return undefined;
 
@@ -239,7 +249,8 @@ export class ComponentIntellisenseFeature implements IFeature {
         if (isEvent && comp.events) {
           const ev = comp.events.find((e) => e.name === cleanWord);
           if (ev) {
-            const md = new vscode.MarkdownString(`**@${ev.name}**\n\n${ev.description}\n\n**回调参数**: \`${ev.parameters || '—'}\``);
+            const md = new vscode.MarkdownString(`**<span style="color: #409EFF;">@${ev.name}</span>**\n\n${ev.description}\n\n**回调参数**: \`${ev.parameters || '—'}\``);
+            md.supportHtml = true;
             return new vscode.Hover(md, wordRange);
           }
         }
@@ -247,17 +258,18 @@ export class ComponentIntellisenseFeature implements IFeature {
         if (isSlot && comp.slots) {
           const slot = comp.slots.find((s) => s.name === cleanWord);
           if (slot) {
-            const md = new vscode.MarkdownString(`**#${slot.name}**\n\n${slot.description}`);
+            const md = new vscode.MarkdownString(`**<span style="color: #409EFF;">#${slot.name}</span>**\n\n${slot.description}`);
+            md.supportHtml = true;
             return new vscode.Hover(md, wordRange);
           }
         }
 
         if (comp.attributes && !isEvent && !isSlot) {
-          // 🌟 核心：悬停时，将鼠标所在的单词转为短横线
+          // 悬停时统一转短横线比对
           const targetKebab = toKebabCase(cleanWord);
           
           const attr = comp.attributes.find((a) => {
-            // 🌟 兼容 "value / v-model" 这种多别名格式，将其全部分割并转换为短横线后对比
+            // 兼容多别名
             const attrNamesKebab = a.name.split('/').map(n => toKebabCase(n.trim()));
             return attrNamesKebab.includes(targetKebab);
           });
@@ -275,11 +287,12 @@ export class ComponentIntellisenseFeature implements IFeature {
       await this.exportSnippetsToWorkspace();
     });
 
+    // 5. 注册所有可释放资源
     context.subscriptions.push(this.providerDisposable, this.hoverDisposable, exportCommand, contextChangeDisposable);
   }
 
   // ==========================================
-  // 热更新专用的重载方法
+  // 热更新专用重载方法
   // ==========================================
   private reload(context: vscode.ExtensionContext) {
     this.components = [];
@@ -287,9 +300,9 @@ export class ComponentIntellisenseFeature implements IFeature {
     this.loadSnippetsFromResources(context);
   }
 
-  // 构建属性 Markdown 表格
+  // 构建属性 Markdown 表格 (处理单独悬停属性)
   private buildAttributeMarkdown(attr: UIAttribute): vscode.MarkdownString {
-    let md = `**${attr.name}**\n\n${attr.description}\n\n`;
+    let md = `**<span style="color: #409EFF;">${attr.name}</span>**\n\n${attr.description}\n\n`;
     md += `**类型**: \`${attr.type}\` | **默认值**: \`${attr.default || '—'}\`\n\n`;
     if (attr.options && attr.options.length > 0) {
       md += `**可选值说明**:\n\n`;
@@ -297,36 +310,49 @@ export class ComponentIntellisenseFeature implements IFeature {
         md += `- \`${opt.value}\` ${opt.description ? '— ' + opt.description : ''}\n`;
       });
     }
-    return new vscode.MarkdownString(md);
+    const mds = new vscode.MarkdownString(md);
+    mds.supportHtml = true;
+    return mds;
   }
 
-  // 构建完整组件文档
+  // 构建完整组件文档 (大表单)
   private buildFullComponentMarkdown(comp: UIComponent, tag: string): vscode.MarkdownString {
     let doc = `## ${tag}\n${comp.description}\n\n`;
     if (comp.link) doc += `[查看官方文档](${comp.link})\n\n---\n\n`;
 
     if (comp.attributes && comp.attributes.length > 0) {
       doc += `### 属性 (Attributes)\n\n`;
-      doc += `| 参数 | 说明 | 类型 | 可选值 | 默认值 |\n| --- | --- | --- | --- | --- |\n`;
+      // 🌟 使用 :---: 语法使第一列居中
+      doc += `| 参数 | 说明 | 类型 | 可选值 | 默认值 |\n| :---: | --- | --- | --- | --- |\n`;
       comp.attributes.forEach((a) => {
         const optStr = a.options?.map((o) => `\`${o.value}\``).join(', ') || '—';
-        doc += `| \`${a.name}\` | ${a.description} | \`${a.type}\` | ${optStr} | \`${a.default || '—'}\` |\n`;
+        // 🌟 使用 span 为第一列添加蓝色高亮
+        doc += `| <span style="color: #409EFF;">**${a.name}**</span> | ${a.description} | \`${a.type}\` | ${optStr} | \`${a.default || '—'}\` |\n`;
       });
     }
 
     if (comp.events && comp.events.length > 0) {
       doc += `\n### 事件 (Events)\n\n`;
-      doc += `| 事件名 | 说明 | 回调参数 |\n| --- | --- | --- |\n`;
+      doc += `| 事件名 | 说明 | 回调参数 |\n| :---: | --- | --- |\n`;
       comp.events.forEach((e) => {
-        doc += `| \`${e.name}\` | ${e.description} | \`${e.parameters || '—'}\` |\n`;
+        doc += `| <span style="color: #409EFF;">**${e.name}**</span> | ${e.description} | \`${e.parameters || '—'}\` |\n`;
       });
     }
 
     if (comp.slots && comp.slots.length > 0) {
       doc += `\n### 插槽 (Slots)\n\n`;
-      doc += `| 插槽名 | 说明 |\n| --- | --- |\n`;
+      doc += `| 插槽名 | 说明 |\n| :---: | --- |\n`;
       comp.slots.forEach((s) => {
-        doc += `| \`${s.name}\` | ${s.description} |\n`;
+        doc += `| <span style="color: #409EFF;">**${s.name}**</span> | ${s.description} |\n`;
+      });
+    }
+
+    // 实例方法展示
+    if (comp.methods && comp.methods.length > 0) {
+      doc += `\n### 实例方法 (Methods)\n\n`;
+      doc += `| 方法名 | 说明 | 参数 |\n| :---: | --- | --- |\n`;
+      comp.methods.forEach((m) => {
+        doc += `| <span style="color: #409EFF;">**${m.name}**</span> | ${m.description} | \`${m.parameters || '—'}\` |\n`;
       });
     }
 
