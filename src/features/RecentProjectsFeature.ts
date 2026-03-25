@@ -52,6 +52,11 @@ export class RecentProjectsFeature implements IFeature {
       vscode.window.setStatusBarMessage('QuickOps: 项目列表已刷新', 2000);
     });
 
+    // ================= 🌟 新增：同步所有分支状态命令 =================
+    const syncCmd = vscode.commands.registerCommand('quickOps.syncBranches', async () => {
+      await provider.syncAllBranches();
+    });
+
     // ================= 🌟 新增：窗口焦点变化自动刷新 =================
     // 当用户从其他窗口（修改了 globalState）切回到当前窗口时，自动同步最新数据
     const windowFocusWatcher = vscode.window.onDidChangeWindowState((e) => {
@@ -60,8 +65,8 @@ export class RecentProjectsFeature implements IFeature {
       }
     });
 
-    // 将所有注册的服务和命令推入订阅池中，防止内存泄漏
-    context.subscriptions.push(webviewView, roDocRegistration, roDecoRegistration, addCmd, refreshCmd, windowFocusWatcher, clearCmd);
+    // 🌟 将所有注册的服务和命令推入订阅池中，防止内存泄漏 (这里加入了 syncCmd)
+    context.subscriptions.push(webviewView, roDocRegistration, roDecoRegistration, addCmd, refreshCmd, syncCmd, windowFocusWatcher, clearCmd);
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }

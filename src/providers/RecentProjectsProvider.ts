@@ -76,6 +76,21 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.updateWebview();
   }
 
+  // ================= 🌟 新增：手动触发同步所有项目分支 =================
+  public async syncAllBranches() {
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Window, // 在左下角状态栏显示加载动画
+        title: 'Quick Ops: 正在同步所有项目的最新分支...',
+        cancellable: false
+      },
+      async () => {
+        await this.refreshBranchesAsync();
+      }
+    );
+    vscode.window.showInformationMessage('🎉 所有项目分支状态已同步更新完毕！');
+  }
+
   public resolveWebviewView(webviewView: vscode.WebviewView, context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken) {
     this._view = webviewView;
 
@@ -139,6 +154,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'openFileToSide':
           this.openFileReadOnly(data.fsPath, data.projectName || '未知项目', vscode.ViewColumn.Beside);
           break;
+        case 'updateSingleBranch':
+          this.updateSingleBranch(data.fsPath);
+          break;
         case 'revealInExplorer':
           try {
             let uri: vscode.Uri;
@@ -162,7 +180,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private async copyFileEntity(fsPath: string) {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
-      
+
       const parsedPath = path.parse(uri.path);
       let newFileName = `${parsedPath.name}_copy${parsedPath.ext}`;
       let newUri = uri.with({ path: path.join(parsedPath.dir, newFileName) });
@@ -263,7 +281,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           project.fsPath = parsed.targetUriStr;
           project.platform = parsed.platform;
           project.customDomain = parsed.customDomain;
-          project.branch = undefined; 
+          project.branch = undefined;
 
           await this.context.globalState.update(this.stateKey, projects);
           this.updateWebview();
@@ -342,7 +360,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               try {
                 const url = new URL(p.fsPath);
                 repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
-              } catch (e) {}
+              } catch (e) { }
             }
             if (repoFullName) {
               newBranch = await this.fetchDefaultBranch(p.platform || 'github', p.customDomain || '', repoFullName);
@@ -350,15 +368,21 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           }
         } else {
           try {
-            let gitPath = vscode.Uri.joinPath(vscode.Uri.file(p.fsPath), '.git');
+            // 🌟 核心修复：智能判断是 URI 字符串还是普通路径
+            const baseUri = p.fsPath.includes('://') ? vscode.Uri.parse(p.fsPath) : vscode.Uri.file(p.fsPath);
+            let gitPath = vscode.Uri.joinPath(baseUri, '.git');
+
             const stat = await vscode.workspace.fs.stat(gitPath);
-            
+
             if (stat.type === vscode.FileType.File) {
               const fileBytes = await vscode.workspace.fs.readFile(gitPath);
               const fileContent = Buffer.from(fileBytes).toString('utf8').trim();
               if (fileContent.startsWith('gitdir: ')) {
                 const realGitDir = fileContent.replace('gitdir: ', '').trim();
-                const realGitDirPath = path.isAbsolute(realGitDir) ? realGitDir : path.join(p.fsPath, realGitDir);
+                // 确保对 worktree 或 submodule 的绝对/相对路径进行正确处理
+                const realGitDirPath = path.isAbsolute(realGitDir)
+                  ? realGitDir
+                  : path.join(baseUri.fsPath, realGitDir);
                 gitPath = vscode.Uri.file(realGitDirPath);
               }
             }
@@ -366,11 +390,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             const headUri = vscode.Uri.joinPath(gitPath, 'HEAD');
             const contentBytes = await vscode.workspace.fs.readFile(headUri);
             const content = Buffer.from(contentBytes).toString('utf8').trim();
-            
-            newBranch = content.startsWith('ref: ') 
-              ? content.replace(/^ref:\s*refs\/heads\//, '') 
-              : content.substring(0, 7); 
+
+            newBranch = content.startsWith('ref: ')
+              ? content.replace(/^ref:\s*refs\/heads\//, '')
+              : content.substring(0, 7);
           } catch (e) {
+            // 调试时可以把这里打开看具体的报错信息：
+            // console.error('[Quick Ops] 读取本地分支失败:', p.fsPath, e);
             newBranch = undefined;
           }
         }
@@ -387,6 +413,89 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (stateChanged) {
       await this.context.globalState.update(this.stateKey, projects);
     }
+  }
+
+  // ================= 🌟 新增：右键单独更新某个项目的分支 =================
+  public async updateSingleBranch(fsPath: string) {
+    let projects = this.getRecentProjects();
+    const index = projects.findIndex((p) => p.fsPath === fsPath);
+    if (index === -1) return;
+
+    const p = projects[index];
+    const displayName = p.customName || p.name;
+
+    // 1. 唤起进度条反馈
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Window,
+        title: `Quick Ops: 正在更新 [${displayName}] 的分支信息...`,
+      },
+      async () => {
+        let newBranch: string | undefined = undefined;
+
+        // 2. 核心判断逻辑 (兼容远程与本地项目)
+        if (p.fsPath.startsWith('vscode-vfs://') || p.fsPath.startsWith('http')) {
+          const match = p.fsPath.match(/[?&]ref=([^&]+)/);
+          if (match) {
+            newBranch = match[1];
+          } else {
+            let repoFullName = '';
+            if (p.fsPath.startsWith('vscode-vfs://')) {
+              repoFullName = p.fsPath.split('?')[0].replace('vscode-vfs://github/', '').replace('vscode-vfs://gitlab/', '');
+            } else if (p.fsPath.startsWith('http')) {
+              try {
+                const url = new URL(p.fsPath);
+                repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
+              } catch (e) { }
+            }
+            if (repoFullName) {
+              newBranch = await this.fetchDefaultBranch(p.platform || 'github', p.customDomain || '', repoFullName);
+            }
+          }
+        } else {
+          try {
+            const baseUri = p.fsPath.includes('://') ? vscode.Uri.parse(p.fsPath) : vscode.Uri.file(p.fsPath);
+            let gitPath = vscode.Uri.joinPath(baseUri, '.git');
+
+            const stat = await vscode.workspace.fs.stat(gitPath);
+
+            if (stat.type === vscode.FileType.File) {
+              const fileBytes = await vscode.workspace.fs.readFile(gitPath);
+              const fileContent = Buffer.from(fileBytes).toString('utf8').trim();
+              if (fileContent.startsWith('gitdir: ')) {
+                const realGitDir = fileContent.replace('gitdir: ', '').trim();
+                const realGitDirPath = path.isAbsolute(realGitDir)
+                  ? realGitDir
+                  : path.join(baseUri.fsPath, realGitDir);
+                gitPath = vscode.Uri.file(realGitDirPath);
+              }
+            }
+
+            const headUri = vscode.Uri.joinPath(gitPath, 'HEAD');
+            const contentBytes = await vscode.workspace.fs.readFile(headUri);
+            const content = Buffer.from(contentBytes).toString('utf8').trim();
+
+            newBranch = content.startsWith('ref: ')
+              ? content.replace(/^ref:\s*refs\/heads\//, '')
+              : content.substring(0, 7);
+          } catch (e) {
+            newBranch = undefined;
+          }
+        }
+
+        // 3. 通知前端 HTML 动态局部更新小标签
+        this._view?.webview.postMessage({ type: 'updateBranchTag', fsPath: p.fsPath, branch: newBranch });
+
+        // 4. 如果分支真的发生了变化，持久化到本地存储
+        if (p.branch !== newBranch) {
+          projects[index].branch = newBranch;
+          await this.context.globalState.update(this.stateKey, projects);
+        }
+      }
+    );
+
+    // 5. 更新完成后，弹出右下角成功提示
+    vscode.window.showInformationMessage(`🎉 项目 [${displayName}] 的分支更新成功！`);
   }
 
   private async editProjectName(fsPath: string) {
@@ -470,7 +579,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         const url = new URL(fsPath);
         domain = url.hostname;
         repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
-      } catch (e) {}
+      } catch (e) { }
     }
 
     if (!repoFullName) return;

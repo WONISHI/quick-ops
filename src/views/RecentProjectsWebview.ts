@@ -485,6 +485,8 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
 
           list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escOriginalName}')"><i class="fa-regular fa-copy"></i> 复制文件名</li>\`;
           
+          list.innerHTML += \`<li onclick="handleMenuClick('updateBranch')"><i class="fa-solid fa-rotate-right"></i> 更新分支</li>\`;
+
           if (customName) {
              list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escCustomName}')"><i class="fa-solid fa-copy"></i> 复制项目名</li>\`;
           }
@@ -605,6 +607,9 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
               break;
             case 'openFileToSide':
               vscode.postMessage({ type: 'openFileToSide', fsPath: activeContextMenuPath, projectName: activeContextMenuProject });
+              break;
+            case 'updateBranch':
+              vscode.postMessage({ type: 'updateSingleBranch', fsPath: activeContextMenuPath });
               break;
           }
         }

@@ -243,6 +243,11 @@
         "icon": "$(add)"
       },
       {
+        "command": "quickOps.syncBranches",
+        "title": "同步所有分支状态",
+        "icon": "$(repo-sync)"
+      },
+      {
         "command": "quickOps.refreshRecentProjects",
         "title": "刷新历史记录",
         "icon": "$(refresh)"
@@ -435,14 +440,19 @@
           "group": "navigation@1"
         },
         {
-          "command": "quickOps.refreshRecentProjects",
+          "command": "quickOps.syncBranches",
           "when": "view == quickOps.recentProjectsView",
           "group": "navigation@2"
         },
         {
-          "command": "quickOps.clearRecentProjects",
+          "command": "quickOps.refreshRecentProjects",
           "when": "view == quickOps.recentProjectsView",
           "group": "navigation@3"
+        },
+        {
+          "command": "quickOps.clearRecentProjects",
+          "when": "view == quickOps.recentProjectsView",
+          "group": "navigation@4"
         }
       ],
       "editor/title": [
