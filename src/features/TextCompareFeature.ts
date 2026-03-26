@@ -31,7 +31,7 @@ export class TextCompareFeature implements IFeature {
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
-  private openCompareWebview(context: vscode.ExtensionContext) {
+private openCompareWebview(context: vscode.ExtensionContext) {
     let initialText = '';
     const editor = vscode.window.activeTextEditor;
     if (editor && !editor.selection.isEmpty) {
@@ -39,11 +39,24 @@ export class TextCompareFeature implements IFeature {
     }
 
     if (this.currentPanel) {
-      this.currentPanel.reveal(vscode.ViewColumn.Beside);
-      // 如果用户再次唤起该面板且选中文本有变，可以通过 postMessage 给 Webview 发送新文本
-      // 这里为了简单，仅聚焦面板
+      // 🌟 优化 1：面板已存在时，原地唤起（不传 Beside，防止窗口乱分屏）
+      this.currentPanel.reveal();
+      
+      // 🌟 优化 2：如果有新选中的文本，通过通信发给网页，而不是重载整个 HTML！
+      if (initialText) {
+        this.currentPanel.webview.postMessage({ type: 'updateOriginal', text: initialText });
+      }
     } else {
-      this.currentPanel = vscode.window.createWebviewPanel('quickOpsTextCompare', '文本差异对比', vscode.ViewColumn.Beside, { enableScripts: true });
+      // 仅在首次打开时创建
+      this.currentPanel = vscode.window.createWebviewPanel(
+        'quickOpsTextCompare', 
+        '文本差异对比', 
+        vscode.ViewColumn.Beside, // 只有第一次放到侧边
+        { 
+          enableScripts: true,
+          retainContextWhenHidden: true // 🌟 优化 3：切到别的代码文件时，对比页面不销毁（保活），实现秒开
+        }
+      );
 
       this.currentPanel.onDidDispose(() => {
         this.currentPanel = undefined;
@@ -56,10 +69,10 @@ export class TextCompareFeature implements IFeature {
           await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
         }
       });
-    }
 
-    // 🌟 将 Webview 的生成逻辑抽离至外部文件
-    this.currentPanel.webview.html = getTextCompareWebviewHtml(this.currentPanel.webview, initialText);
+      // 🌟 HTML 赋值只在首次创建时执行一次！
+      this.currentPanel.webview.html = getTextCompareWebviewHtml(this.currentPanel.webview, initialText);
+    }
   }
 
   private async triggerNativeDiff(original: string, modified: string) {
