@@ -343,15 +343,15 @@
       },
       {
         "command": "quick-ops.anchor.listByGroup",
-        "title": "List Anchors"
+        "title": "按分组列出锚点 (List Anchors)"
       },
       {
         "command": "quick-ops.anchor.navigate",
-        "title": "Navigate Anchor"
+        "title": "跳转到锚点 (Navigate Anchor)"
       },
       {
         "command": "quick-ops.anchor.delete",
-        "title": "Delete Anchor"
+        "title": "删除锚点 (Delete Anchor)"
       },
       {
         "command": "quick-ops.addToSnippets",
@@ -378,14 +378,14 @@
         "title": "转为短横线 (kebab-case)"
       },
       {
-        "command": "quick-ops.switchPreviousEditor",
-        "title": "Quick Ops: Switch to Previous Editor",
-        "category": "Quick Ops"
-      },
-      {
         "command": "quickOps.showTerminal",
         "title": "显示终端",
-        "icon": "$(diff-modified)"
+        "icon": "$(eye)"
+      },
+      {
+        "command": "quickOps.hideTerminal",
+        "title": "隐藏终端",
+        "icon": "$(eye-closed)"
       },
       {
         "command": "quickOps.hideTerminal",
