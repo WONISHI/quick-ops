@@ -254,7 +254,7 @@ export function getTextCompareWebviewHtml(webview: vscode.Webview, initialText: 
             <span class="legend"><div class="legend-box legend-modified"></div> 整体替换 / 链接修改</span>
             
             <label class="wrap-toggle" title="开启后长文本将自动换行显示，无需横向滚动">
-                <input type="checkbox" id="wrapToggle"> 自动换行 (Wrap)
+                <input type="checkbox" id="wrapToggle" checked> 自动换行 (Wrap)
             </label>
         </div>
         <div id="diff-output" class="diff-wrapper">
