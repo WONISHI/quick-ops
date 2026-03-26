@@ -391,6 +391,11 @@
         "command": "quickOps.hideTerminal",
         "title": "隐藏终端",
         "icon": "$(diff-ignored)"
+      },
+      {
+        "command": "quick-ops.openTextCompare",
+        "title": "文本差异对比 (Text Diff Compare)",
+        "category": "Quick Ops"
       }
     ],
     "keybindings": [
@@ -480,13 +485,17 @@
       "editor/context": [
         {
           "command": "quick-ops.addToSnippets",
-          "group": "1_modification",
+          "group": "1_modification@1",
           "when": "editorHasSelection"
         },
         {
           "submenu": "quick-ops.transformSubmenu",
           "group": "1_modification@2",
           "when": "editorHasSelection"
+        },
+        {
+          "command": "quick-ops.openTextCompare",
+          "group": "1_modification@3"
         }
       ],
       "quick-ops.transformSubmenu": [
