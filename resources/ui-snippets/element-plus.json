@@ -379,6 +379,18 @@
                 "description": "在组件 Input 获得焦点时触发",
                 "parameters": "(evt: FocusEvent)"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "使输入框获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "使输入框失去焦点",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -488,6 +500,18 @@
                 "name": "change",
                 "description": "用户确认选定的值时触发",
                 "parameters": "(val: string | Date | array)"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "使输入框获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "使输入框失去焦点",
+                "parameters": "()"
             }
         ]
     },
@@ -1078,6 +1102,23 @@
                 "description": "幻灯片切换时触发",
                 "parameters": "(current: number, prev: number)"
             }
+        ],
+        "methods": [
+            {
+                "name": "setActiveItem",
+                "description": "手动切换幻灯片",
+                "parameters": "(index: number | string)"
+            },
+            {
+                "name": "prev",
+                "description": "切换至上一张幻灯片",
+                "parameters": "()"
+            },
+            {
+                "name": "next",
+                "description": "切换至下一张幻灯片",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -1309,6 +1350,18 @@
                 "name": "close",
                 "description": "sub-menu 收起的回调",
                 "parameters": "(index: string, indexPath: string[])"
+            }
+        ],
+        "methods": [
+            {
+                "name": "open",
+                "description": "展开指定的 sub-menu",
+                "parameters": "(index: string)"
+            },
+            {
+                "name": "close",
+                "description": "收起指定的 sub-menu",
+                "parameters": "(index: string)"
             }
         ]
     },
@@ -2213,6 +2266,33 @@
                 "name": "file",
                 "description": "缩略图模板的内容"
             }
+        ],
+        "methods": [
+            {
+                "name": "clearFiles",
+                "description": "清空已上传的文件列表",
+                "parameters": "()"
+            },
+            {
+                "name": "abort",
+                "description": "取消上传请求",
+                "parameters": "(file?: UploadFile)"
+            },
+            {
+                "name": "submit",
+                "description": "手动上传文件列表",
+                "parameters": "()"
+            },
+            {
+                "name": "handleStart",
+                "description": "手动选择文件",
+                "parameters": "(file: UploadRawFile)"
+            },
+            {
+                "name": "handleRemove",
+                "description": "手动移除文件",
+                "parameters": "(file: UploadFile | UploadRawFile)"
+            }
         ]
     },
     {
@@ -2340,6 +2420,68 @@
             {
                 "name": "default",
                 "description": "自定义树节点的内容，参数为 { node, data }"
+            }
+        ],
+        "methods": [
+            {
+                "name": "filter",
+                "description": "对树节点进行筛选操作",
+                "parameters": "(value: any)"
+            },
+            {
+                "name": "updateKeyChildren",
+                "description": "通过 keys 设置节点子元素",
+                "parameters": "(key: string | number, data: array)"
+            },
+            {
+                "name": "getCheckedNodes",
+                "description": "返回目前被选中的节点所组成的数组",
+                "parameters": "(leafOnly?: boolean, includeHalfChecked?: boolean)"
+            },
+            {
+                "name": "setCheckedNodes",
+                "description": "设置目前勾选的节点",
+                "parameters": "(nodes: array)"
+            },
+            {
+                "name": "getCheckedKeys",
+                "description": "返回目前被选中的节点的 key 所组成的数组",
+                "parameters": "(leafOnly?: boolean)"
+            },
+            {
+                "name": "setCheckedKeys",
+                "description": "通过 keys 设置目前勾选的节点",
+                "parameters": "(keys: array, leafOnly?: boolean)"
+            },
+            {
+                "name": "setChecked",
+                "description": "通过 node 或 key 设置某个节点的勾选状态",
+                "parameters": "(data: object | string | number, checked: boolean, deep: boolean)"
+            },
+            {
+                "name": "getCurrentKey",
+                "description": "返回当前被选中节点的 key",
+                "parameters": "()"
+            },
+            {
+                "name": "getCurrentNode",
+                "description": "返回当前被选中节点的数据",
+                "parameters": "()"
+            },
+            {
+                "name": "setCurrentKey",
+                "description": "通过 key 设置某个节点的当前选中状态",
+                "parameters": "(key: string | number)"
+            },
+            {
+                "name": "remove",
+                "description": "删除 Tree 中的一个节点",
+                "parameters": "(data: object | Node)"
+            },
+            {
+                "name": "append",
+                "description": "为 Tree 中的一个节点追加一个子节点",
+                "parameters": "(data: object, parentNode: object | Node)"
             }
         ]
     },
@@ -3932,6 +4074,28 @@
                 "name": "append",
                 "description": "输入框后置内容"
             }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "使输入框获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "使输入框失去焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "select",
+                "description": "选中 input 中的文字",
+                "parameters": "()"
+            },
+            {
+                "name": "clear",
+                "description": "清空 input 值",
+                "parameters": "()"
+            }
         ]
     },
     {
@@ -4001,6 +4165,18 @@
             {
                 "name": "clear",
                 "description": "可清空的单选模式下用户点击清空按钮时触发",
+                "parameters": "()"
+            }
+        ],
+        "methods": [
+            {
+                "name": "focus",
+                "description": "使输入框获取焦点",
+                "parameters": "()"
+            },
+            {
+                "name": "blur",
+                "description": "使输入框失去焦点",
                 "parameters": "()"
             }
         ]
@@ -4102,6 +4278,33 @@
                 "name": "validate",
                 "description": "任一表单项被校验后触发",
                 "parameters": "(prop: string, isValid: boolean, message: string)"
+            }
+        ],
+        "methods": [
+            {
+                "name": "validate",
+                "description": "对整个表单进行校验",
+                "parameters": "(callback?: (isValid: boolean, invalidFields?: ValidateFieldsError) => void) => Promise<void>"
+            },
+            {
+                "name": "validateField",
+                "description": "验证具体的某个字段",
+                "parameters": "(props?: string | string[], callback?: (isValid: boolean, invalidFields?: ValidateFieldsError) => void) => Promise<void>"
+            },
+            {
+                "name": "resetFields",
+                "description": "重置该表单项，将其值重置为初始值，并移除校验结果",
+                "parameters": "(props?: string | string[]) => void"
+            },
+            {
+                "name": "clearValidate",
+                "description": "清理某个字段的表单验证信息",
+                "parameters": "(props?: string | string[]) => void"
+            },
+            {
+                "name": "scrollToField",
+                "description": "滚动到指定的字段",
+                "parameters": "(prop: string) => void"
             }
         ]
     },
@@ -4262,6 +4465,58 @@
             {
                 "name": "empty",
                 "description": "数据为空时显示的内容"
+            }
+        ],
+        "methods": [
+            {
+                "name": "clearSelection",
+                "description": "用于多选表格，清空用户的选择",
+                "parameters": "()"
+            },
+            {
+                "name": "getSelectionRows",
+                "description": "返回当前选中的行",
+                "parameters": "() => any[]"
+            },
+            {
+                "name": "toggleRowSelection",
+                "description": "用于多选表格，切换某一行的选中状态",
+                "parameters": "(row: any, selected?: boolean)"
+            },
+            {
+                "name": "toggleAllSelection",
+                "description": "用于多选表格，切换所有行的选中状态",
+                "parameters": "()"
+            },
+            {
+                "name": "toggleRowExpansion",
+                "description": "用于可展开表格与树形表格，切换某一行的展开状态",
+                "parameters": "(row: any, expanded?: boolean)"
+            },
+            {
+                "name": "setCurrentRow",
+                "description": "用于单选表格，设定某一行为选中行",
+                "parameters": "(row?: any)"
+            },
+            {
+                "name": "clearSort",
+                "description": "用于清空排序条件",
+                "parameters": "()"
+            },
+            {
+                "name": "clearFilter",
+                "description": "清空过滤条件",
+                "parameters": "(columnKeys?: string[])"
+            },
+            {
+                "name": "doLayout",
+                "description": "对 Table 进行重新布局",
+                "parameters": "()"
+            },
+            {
+                "name": "sort",
+                "description": "手动对 Table 进行排序",
+                "parameters": "(prop: string, order: string)"
             }
         ]
     },

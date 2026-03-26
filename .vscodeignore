@@ -29,3 +29,4 @@ dist/*.txt
 **/*.tsbuildinfo
 PERFORMANCE.md
 README_zh.md
+.github/**
