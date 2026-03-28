@@ -12,6 +12,12 @@ class CompareContentProvider implements vscode.TextDocumentContentProvider {
 
   setContent(id: string, content: string) {
     this.contentMap.set(id, content);
+    if (this.contentMap.size > 20) { 
+      const firstKey = this.contentMap.keys().next().value;
+      if (firstKey) {
+        this.contentMap.delete(firstKey);
+      }
+    }
   }
 }
 

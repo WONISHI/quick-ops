@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 
 export function getTextCompareWebviewHtml(webview: vscode.Webview, initialText: string): string {
-    const safeInitialText = initialText.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
+  const safeInitialText = initialText.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$/g, '\\$');
 
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -144,14 +144,12 @@ export function getTextCompareWebviewHtml(webview: vscode.Webview, initialText: 
         }
         
         .diff-content {
-            /* 默认不换行，宽度撑满以适配长背景色 */
             min-width: max-content;
             display: flex;
             flex-direction: column;
             gap: 20px;
         }
         
-        /* 🌟 核心修复：开启换行模式时，撤销 max-content 限制，允许宽度收缩 */
         .diff-content.is-wrapped {
             min-width: 0;
             width: 100%;
@@ -182,7 +180,6 @@ export function getTextCompareWebviewHtml(webview: vscode.Webview, initialText: 
             line-height: 1.5;
         }
         
-        /* 🌟 核心修复：让被 is-wrapped 包裹的子元素实现强制换行 */
         .diff-content.is-wrapped .diff-text {
             white-space: pre-wrap;
             word-break: break-all;
@@ -275,7 +272,9 @@ export function getTextCompareWebviewHtml(webview: vscode.Webview, initialText: 
             if (message.type === 'updateOriginal') {
                 originalEl.value = message.text;
                 updateButtonState();
-                scheduleDiff(); // 自动触发一次对比渲染
+                if(!compareBtn.disabled) {
+                    compareBtn.click();
+                }
             }
         });
         
@@ -287,7 +286,7 @@ export function getTextCompareWebviewHtml(webview: vscode.Webview, initialText: 
             originalEl.focus();
         }
 
-        // 🌟 更新按钮点击状态
+        // 更新按钮状态
         function updateButtonState() {
             if (originalEl.value.trim() && modifiedEl.value.trim()) {
                 compareBtn.disabled = false;
@@ -296,12 +295,11 @@ export function getTextCompareWebviewHtml(webview: vscode.Webview, initialText: 
             }
         }
 
-        // 🌟 换行控制逻辑
+        // 换行控制逻辑
         wrapToggleEl.addEventListener('change', (e) => {
             const isWrap = e.target.checked;
             const diffContent = document.querySelector('.diff-content');
             if (diffContent) {
-                // 将 is-wrapped 类加在父级容器上，由 CSS 自动控制内部换行
                 diffContent.classList.toggle('is-wrapped', isWrap);
             }
         });
@@ -309,7 +307,6 @@ export function getTextCompareWebviewHtml(webview: vscode.Webview, initialText: 
         function clearText(id) {
             document.getElementById(id).value = '';
             updateButtonState();
-            // 清空时，重置视图
             outputEl.innerHTML = '<span style="opacity: 0.5;">请同时输入原文本和新文本，点击右上角【开始对比】按钮...</span>';
         }
 
@@ -326,14 +323,25 @@ export function getTextCompareWebviewHtml(webview: vscode.Webview, initialText: 
             return str.startsWith('http://') || str.startsWith('https://');
         }
 
-        function createSpan(text, className) {
-            const span = document.createElement('span');
-            span.textContent = text;
-            if (className) span.className = className;
-            return span;
+        // 🌟 性能优化 1：HTML 字符转义，防止 XSS，同时为字符串拼接做准备
+        function escapeHtml(unsafe) {
+            return (unsafe || '').replace(/[&<"']/g, function(m) {
+                switch (m) {
+                    case '&': return '&amp;';
+                    case '<': return '&lt;';
+                    case '"': return '&quot;';
+                    case "'": return '&#039;';
+                    default: return m;
+                }
+            });
         }
 
-        function renderModification(removedTokens, addedTokens, origFrag, modFrag) {
+        function createSpanStr(text, className) {
+            return \`<span class="\${className}">\${escapeHtml(text)}</span>\`;
+        }
+
+        // 🌟 性能优化 2：改用数组 push 后 join 拼接字符串，速度飞快
+        function renderModificationStr(removedTokens, addedTokens, origArr, modArr) {
             const maxLen = Math.max(removedTokens.length, addedTokens.length);
             
             for (let i = 0; i < maxLen; i++) {
@@ -345,43 +353,43 @@ export function getTextCompareWebviewHtml(webview: vscode.Webview, initialText: 
 
                 if (oldT !== null && newT !== null) {
                     if (oldT === "" && newT !== "") {
-                        origFrag.appendChild(createSpan(newT, 'placeholder'));
-                        modFrag.appendChild(createSpan(newT, 'diff-added'));
+                        origArr.push(createSpanStr(newT, 'placeholder'));
+                        modArr.push(createSpanStr(newT, 'diff-added'));
                     } else if (oldT !== "" && newT === "") {
-                        origFrag.appendChild(createSpan(oldT, 'diff-removed'));
-                        modFrag.appendChild(createSpan(oldT, 'placeholder'));
+                        origArr.push(createSpanStr(oldT, 'diff-removed'));
+                        modArr.push(createSpanStr(oldT, 'placeholder'));
                     } else if (oldT !== "" && newT !== "") {
                         if (isUrl(oldT) && isUrl(newT)) {
                             const charDiffs = Diff.diffChars(oldT, newT);
                             charDiffs.forEach(charPart => {
                                 if (charPart.added) {
-                                    origFrag.appendChild(createSpan(charPart.value, 'placeholder'));
-                                    modFrag.appendChild(createSpan(charPart.value, 'diff-modified-add'));
+                                    origArr.push(createSpanStr(charPart.value, 'placeholder'));
+                                    modArr.push(createSpanStr(charPart.value, 'diff-modified-add'));
                                 } else if (charPart.removed) {
-                                    origFrag.appendChild(createSpan(charPart.value, 'diff-modified-del'));
-                                    modFrag.appendChild(createSpan(charPart.value, 'placeholder'));
+                                    origArr.push(createSpanStr(charPart.value, 'diff-modified-del'));
+                                    modArr.push(createSpanStr(charPart.value, 'placeholder'));
                                 } else {
-                                    origFrag.appendChild(createSpan(charPart.value, 'diff-modified-base'));
-                                    modFrag.appendChild(createSpan(charPart.value, 'diff-modified-base'));
+                                    origArr.push(createSpanStr(charPart.value, 'diff-modified-base'));
+                                    modArr.push(createSpanStr(charPart.value, 'diff-modified-base'));
                                 }
                             });
                         } else {
-                            origFrag.appendChild(createSpan(oldT, 'diff-modified-del'));
-                            modFrag.appendChild(createSpan(newT, 'diff-modified-add'));
+                            origArr.push(createSpanStr(oldT, 'diff-modified-del'));
+                            modArr.push(createSpanStr(newT, 'diff-modified-add'));
                         }
                     } else {
-                        origFrag.appendChild(createSpan("", ""));
-                        modFrag.appendChild(createSpan("", ""));
+                        origArr.push(createSpanStr("", ""));
+                        modArr.push(createSpanStr("", ""));
                     }
                 } else if (oldT !== null) {
                     if (oldT !== "") {
-                        origFrag.appendChild(createSpan(oldT, 'diff-removed'));
-                        modFrag.appendChild(createSpan(oldT, 'placeholder'));
+                        origArr.push(createSpanStr(oldT, 'diff-removed'));
+                        modArr.push(createSpanStr(oldT, 'placeholder'));
                     }
                 } else if (newT !== null) {
                     if (newT !== "") {
-                        origFrag.appendChild(createSpan(newT, 'placeholder'));
-                        modFrag.appendChild(createSpan(newT, 'diff-added'));
+                        origArr.push(createSpanStr(newT, 'placeholder'));
+                        modArr.push(createSpanStr(newT, 'diff-added'));
                     }
                 }
             }
@@ -404,20 +412,21 @@ export function getTextCompareWebviewHtml(webview: vscode.Webview, initialText: 
             
             const diffResult = Diff.diffArrays(originalTokens, modifiedTokens);
 
-            const originalFragment = document.createDocumentFragment();
-            const modifiedFragment = document.createDocumentFragment();
+            // 🌟 使用数组收集 HTML 字符串
+            const origHtmlArr = [];
+            const modHtmlArr = [];
             
             for (let i = 0; i < diffResult.length; i++) {
                 const part = diffResult[i];
                 const nextPart = diffResult[i + 1];
 
                 if (part.removed && nextPart && nextPart.added) {
-                    renderModification(part.value, nextPart.value, originalFragment, modifiedFragment);
+                    renderModificationStr(part.value, nextPart.value, origHtmlArr, modHtmlArr);
                     i++;
                     continue;
                 }
                 if (part.added && nextPart && nextPart.removed) {
-                    renderModification(nextPart.value, part.value, originalFragment, modifiedFragment);
+                    renderModificationStr(nextPart.value, part.value, origHtmlArr, modHtmlArr);
                     i++; 
                     continue;
                 }
@@ -427,39 +436,36 @@ export function getTextCompareWebviewHtml(webview: vscode.Webview, initialText: 
                     if (textValue === "") return; 
 
                     if (part.added) {
-                        originalFragment.appendChild(createSpan(textValue, 'placeholder'));
-                        modifiedFragment.appendChild(createSpan(textValue, 'diff-added'));
+                        origHtmlArr.push(createSpanStr(textValue, 'placeholder'));
+                        modHtmlArr.push(createSpanStr(textValue, 'diff-added'));
                     } else if (part.removed) {
-                        originalFragment.appendChild(createSpan(textValue, 'diff-removed'));
-                        modifiedFragment.appendChild(createSpan(textValue, 'placeholder'));
+                        origHtmlArr.push(createSpanStr(textValue, 'diff-removed'));
+                        modHtmlArr.push(createSpanStr(textValue, 'placeholder'));
                     } else {
-                        originalFragment.appendChild(createSpan(textValue, 'diff-base'));
-                        modifiedFragment.appendChild(createSpan(textValue, 'diff-base'));
+                        origHtmlArr.push(createSpanStr(textValue, 'diff-base'));
+                        modHtmlArr.push(createSpanStr(textValue, 'diff-base'));
                     }
                 });
             }
             
             const wrapClass = wrapToggleEl.checked ? ' is-wrapped' : '';
             
+            // 🌟 一次性注入，杜绝海量 DOM 回流重绘
             outputEl.innerHTML = \`
                 <div class="diff-content\${wrapClass}">
                     <div class="diff-line-container">
                         <div class="diff-title">[- 原文]</div>
-                        <div class="diff-text" id="diff-original-content"></div>
+                        <div class="diff-text" id="diff-original-content">\${origHtmlArr.join('')}</div>
                     </div>
                     <hr style="border: 0; border-bottom: 1px dashed var(--vscode-panel-border); margin: 0; width: 100%;" />
                     <div class="diff-line-container">
                         <div class="diff-title">[+ 新文]</div>
-                        <div class="diff-text" id="diff-modified-content"></div>
+                        <div class="diff-text" id="diff-modified-content">\${modHtmlArr.join('')}</div>
                     </div>
                 </div>
             \`;
-
-            document.getElementById('diff-original-content').appendChild(originalFragment);
-            document.getElementById('diff-modified-content').appendChild(modifiedFragment);
         }
 
-        // 点击开始对比按钮才执行运算
         compareBtn.addEventListener('click', () => {
             outputEl.innerHTML = '<span style="opacity: 0.5;">正在计算差异，请稍候...</span>';
             setTimeout(() => {
@@ -475,13 +481,11 @@ export function getTextCompareWebviewHtml(webview: vscode.Webview, initialText: 
             vscode.postMessage({ type: 'toggleFullScreen' });
         });
 
-        // 🌟 监听输入，仅更新按钮状态，不执行自动对比
+        // 监听输入，仅更新按钮状态
         originalEl.addEventListener('input', updateButtonState);
         modifiedEl.addEventListener('input', updateButtonState);
 
-        // 初始化校验
         updateButtonState();
-        // 初始如果两边都有值(例如注入的情况)，可以直接触发一下对比
         if (originalEl.value && modifiedEl.value) {
             compareBtn.click();
         }
