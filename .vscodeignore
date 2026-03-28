@@ -30,3 +30,14 @@ dist/*.txt
 PERFORMANCE.md
 README_zh.md
 .github/**
+
+# 忽略 React 源代码
+webview-ui/node_modules/**
+webview-ui/src/**
+webview-ui/public/**
+webview-ui/tsconfig*.json
+webview-ui/vite.config.ts
+webview-ui/package*.json
+
+# 仅保留编译后的产物
+!webview-ui/dist/**

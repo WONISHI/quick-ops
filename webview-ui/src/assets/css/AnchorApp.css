@@ -1,0 +1,165 @@
+:root {
+    --node-text-color: var(--vscode-editor-foreground);
+    --node-hover-bg: var(--vscode-list-hoverBackground);
+    --tooltip-bg: var(--vscode-editorHoverWidget-background);
+    --tooltip-border: var(--vscode-editorHoverWidget-border);
+    --code-bg: var(--vscode-textBlockQuote-background);
+    --accent-color: var(--vscode-textLink-foreground);
+}
+
+.anchor-app {
+    background-color: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    font-family: var(--vscode-font-family, 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif);
+}
+
+/* 绘图容器 */
+#tree-container {
+    width: 100%;
+    height: 100%;
+    cursor: grab;
+}
+
+#tree-container:active {
+    cursor: grabbing;
+}
+
+/* D3 节点样式 */
+.node {
+    cursor: pointer;
+}
+
+.node circle {
+    transition: all 0.3s ease;
+    stroke-width: 2px;
+}
+
+.node circle.inner {
+    fill: var(--vscode-editor-background);
+}
+
+.node:hover circle {
+    stroke: var(--accent-color) !important;
+    r: 7px;
+}
+
+.node text.label {
+    font-size: 13px;
+    font-weight: 500;
+    fill: var(--node-text-color);
+    /* 增加文字描边，防止在复杂背景下看不清 */
+    paint-order: stroke;
+    stroke: var(--vscode-editor-background);
+    stroke-width: 3px;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.node:hover text.label {
+    fill: var(--vscode-textLink-activeForeground);
+    font-weight: 600;
+}
+
+/* 连接线样式 */
+.link {
+    fill: none;
+    stroke-width: 2px;
+    stroke-opacity: 0.4;
+    transition: all 0.5s;
+}
+
+.link:hover {
+    stroke-opacity: 0.8;
+    stroke-width: 3px;
+}
+
+/* 控制按钮通用样式 */
+.icon-btn {
+    background-color: var(--vscode-button-secondaryBackground, #ffffff);
+    color: var(--vscode-button-secondaryForeground, #444);
+    border: 1px solid var(--vscode-button-border, transparent);
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    font-size: 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: all 0.2s ease;
+}
+
+.icon-btn:hover {
+    transform: translateY(-2px);
+    background-color: var(--vscode-button-secondaryHoverBackground, #f0f0f0);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.icon-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* 悬浮窗样式 */
+.tooltip {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    background: var(--tooltip-bg);
+    border: 1px solid var(--tooltip-border);
+    color: var(--vscode-editorHoverWidget-foreground);
+    padding: 0;
+    border-radius: 6px;
+    font-size: 12px;
+    z-index: 9999;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    transition: opacity 0.2s ease-in-out;
+    min-width: 250px;
+    max-width: 500px;
+}
+
+/* 悬浮窗内部细节 */
+.tooltip-header {
+    background: var(--vscode-sideBarSectionHeader-background);
+    padding: 8px 12px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    border-top-left-radius: 6px;
+    border-top-right-radius: 6px;
+}
+
+.tooltip-body {
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.code-block {
+    background: var(--code-bg);
+    padding: 10px;
+    border-radius: 4px;
+    font-family: var(--vscode-editor-font-family, 'Courier New', monospace);
+    border-left: 3px solid var(--accent-color);
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-size: 11px;
+    color: var(--vscode-editor-foreground);
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+/* 动画：数据加载时的淡入效果 */
+#tree-container {
+    animation: fadeIn 0.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

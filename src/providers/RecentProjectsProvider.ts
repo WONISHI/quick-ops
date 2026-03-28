@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as https from 'https';
 import * as path from 'path';
-import { getRecentProjectsHtml } from '../views/RecentProjectsWebview';
+import { getReactWebviewHtml } from '../utils/WebviewHelper';
 
 export class ReadOnlyContentProvider implements vscode.TextDocumentContentProvider {
   public onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
@@ -147,6 +147,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [this.context.extensionUri],
     };
 
+    webviewView.webview.html = getReactWebviewHtml(this.context.extensionUri, webviewView.webview, '/projects');
+
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
         case 'refresh':
@@ -228,8 +230,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           break;
       }
     });
-
-    this.updateWebview();
   }
 
   private async copyFileEntity(fsPath: string) {
@@ -747,7 +747,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const projects = this.getRecentProjects();
     const currentUriStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString() || '';
 
-    this._view.webview.html = getRecentProjectsHtml(this._view.webview, projects, currentUriStr, this.lastOpenedPath);
+    this._view.webview.postMessage({
+      type: 'updateProjects',
+      data: projects,
+      currentUriStr: currentUriStr,
+      lastOpenedPath: this.lastOpenedPath
+    });
 
     this.refreshBranchesAsync();
   }
