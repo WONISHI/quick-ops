@@ -1,4 +1,3 @@
-// src/providers/RecentProjectsProvider.ts
 import * as vscode from 'vscode';
 import * as https from 'https';
 import * as path from 'path';
@@ -68,19 +67,68 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private lastOpenedPath: string = '';
   private dirCache = new Map<string, any[]>();
 
+  // 🌟 新增全局对比状态变量
+  private selectedForCompareUri?: vscode.Uri;
+  private selectedForCompareName?: string;
+
   constructor(private context: vscode.ExtensionContext) {
     this.recordCurrentProject();
   }
 
+  // ================= 🌟 对比功能核心代码 =================
+  private getReadOnlyUri(fsPath: string, projectName: string): vscode.Uri {
+    const originalUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+    const fileName = originalUri.path.split(/[\\/]/).pop() || 'unknown';
+    const virtualPath = `/🔒 ${projectName}: ${fileName}`;
+
+    return vscode.Uri.from({
+      scheme: 'quickops-ro',
+      path: virtualPath,
+      query: `target=${encodeURIComponent(originalUri.toString())}`,
+    });
+  }
+
+  public selectForCompare(fsPath: string, projectName?: string) {
+    if (projectName) {
+      this.selectedForCompareUri = this.getReadOnlyUri(fsPath, projectName);
+      this.selectedForCompareName = `${projectName} - ${path.basename(fsPath)} (只读)`;
+    } else {
+      this.selectedForCompareUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+      this.selectedForCompareName = path.basename(this.selectedForCompareUri.fsPath);
+    }
+    vscode.window.showInformationMessage(`已选择 "${this.selectedForCompareName}" 进行比较`);
+  }
+
+  public async compareWithSelected(fsPath: string, projectName?: string) {
+    if (!this.selectedForCompareUri) {
+      vscode.window.showWarningMessage('请先选择一个文件以进行比较');
+      return;
+    }
+
+    let currentUri: vscode.Uri;
+    let currentName: string;
+
+    if (projectName) {
+      currentUri = this.getReadOnlyUri(fsPath, projectName);
+      currentName = `${projectName} - ${path.basename(fsPath)} (只读)`;
+    } else {
+      currentUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+      currentName = path.basename(currentUri.fsPath);
+    }
+
+    const title = `${this.selectedForCompareName} ↔ ${currentName}`;
+    await vscode.commands.executeCommand('vscode.diff', this.selectedForCompareUri, currentUri, title);
+  }
+
+  // ================= 🌟 原有核心逻辑 =================
   public refresh() {
     this.updateWebview();
   }
 
-  // ================= 🌟 新增：手动触发同步所有项目分支 =================
   public async syncAllBranches() {
     await vscode.window.withProgress(
       {
-        location: vscode.ProgressLocation.Window, // 在左下角状态栏显示加载动画
+        location: vscode.ProgressLocation.Window,
         title: 'Quick Ops: 正在同步所有项目的最新分支...',
         cancellable: false
       },
@@ -165,11 +213,18 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             } else {
               uri = vscode.Uri.file(data.fsPath);
             }
-
             await vscode.commands.executeCommand('revealFileInOS', uri);
           } catch (e) {
             vscode.window.showErrorMessage(`在资源管理器中定位失败: ${e}`);
           }
+          break;
+
+        // 🌟 增加对比消息监听
+        case 'selectForCompare':
+          this.selectForCompare(data.fsPath, data.projectName);
+          break;
+        case 'compareWithSelected':
+          this.compareWithSelected(data.fsPath, data.projectName);
           break;
       }
     });
@@ -373,7 +428,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           }
         } else {
           try {
-            // 🌟 核心修复：智能判断是 URI 字符串还是普通路径
             const baseUri = p.fsPath.includes('://') ? vscode.Uri.parse(p.fsPath) : vscode.Uri.file(p.fsPath);
             let gitPath = vscode.Uri.joinPath(baseUri, '.git');
 
@@ -384,7 +438,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               const fileContent = Buffer.from(fileBytes).toString('utf8').trim();
               if (fileContent.startsWith('gitdir: ')) {
                 const realGitDir = fileContent.replace('gitdir: ', '').trim();
-                // 确保对 worktree 或 submodule 的绝对/相对路径进行正确处理
                 const realGitDirPath = path.isAbsolute(realGitDir)
                   ? realGitDir
                   : path.join(baseUri.fsPath, realGitDir);
@@ -400,8 +453,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               ? content.replace(/^ref:\s*refs\/heads\//, '')
               : content.substring(0, 7);
           } catch (e) {
-            // 调试时可以把这里打开看具体的报错信息：
-            // console.error('[Quick Ops] 读取本地分支失败:', p.fsPath, e);
             newBranch = undefined;
           }
         }
@@ -420,7 +471,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // ================= 🌟 新增：右键单独更新某个项目的分支 =================
   public async updateSingleBranch(fsPath: string) {
     let projects = this.getRecentProjects();
     const index = projects.findIndex((p) => p.fsPath === fsPath);
@@ -429,7 +479,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const p = projects[index];
     const displayName = p.customName || p.name;
 
-    // 1. 唤起进度条反馈
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Window,
@@ -438,7 +487,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       async () => {
         let newBranch: string | undefined = undefined;
 
-        // 2. 核心判断逻辑 (兼容远程与本地项目)
         if (p.fsPath.startsWith('vscode-vfs://') || p.fsPath.startsWith('http')) {
           const match = p.fsPath.match(/[?&]ref=([^&]+)/);
           if (match) {
@@ -488,10 +536,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           }
         }
 
-        // 3. 通知前端 HTML 动态局部更新小标签
         this._view?.webview.postMessage({ type: 'updateBranchTag', fsPath: p.fsPath, branch: newBranch });
 
-        // 4. 如果分支真的发生了变化，持久化到本地存储
         if (p.branch !== newBranch) {
           projects[index].branch = newBranch;
           await this.context.globalState.update(this.stateKey, projects);
@@ -499,7 +545,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       }
     );
 
-    // 5. 更新完成后，弹出右下角成功提示
     vscode.window.showInformationMessage(`🎉 项目 [${displayName}] 的分支更新成功！`);
   }
 

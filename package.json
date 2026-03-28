@@ -396,6 +396,16 @@
         "command": "quick-ops.openTextCompare",
         "title": "文本差异对比 (Text Diff Compare)",
         "category": "Quick Ops"
+      },
+      {
+        "command": "quickOps.selectForCompare",
+        "title": "选择以进行比较",
+        "icon": "$(check)"
+      },
+      {
+        "command": "quickOps.compareWithSelected",
+        "title": "与已选项目进行比较",
+        "icon": "$(diff)"
       }
     ],
     "keybindings": [
@@ -527,13 +537,23 @@
         },
         {
           "command": "quick-ops.toggleIgnore",
-          "group": "quickOps@5",
+          "group": "quickOps@2",
           "when": "resourceScheme == file"
         },
         {
           "command": "quick-ops.generateStyleStructure",
-          "group": "quickOps@2",
+          "group": "quickOps@3",
           "when": "resourceLangId == vue || resourceLangId == html || resourceLangId == javascriptreact || resourceLangId == typescriptreact"
+        },
+        {
+          "command": "quickOps.selectForCompare",
+          "group": "navigation@4",
+          "when": "!explorerResourceIsFolder"
+        },
+        {
+          "command": "quickOps.compareWithSelected",
+          "group": "navigation@5",
+          "when": "!explorerResourceIsFolder"
         }
       ],
       "editor/lineNumber/context": [

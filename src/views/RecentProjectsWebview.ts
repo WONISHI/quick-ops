@@ -1,16 +1,6 @@
 import * as vscode from 'vscode';
 import { RecentProject } from '../providers/RecentProjectsProvider';
 
-// ================= 🌟 辅助函数：生成 Nonce 随机字符串 =================
-function getNonce() {
-  let text = '';
-  const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  for (let i = 0; i < 32; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
-}
-
 // ================= 🌟 HTML 渲染核心抽离 =================
 export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentProject[], currentUri: string, lastOpenedPath: string): string {
   const styleSrc = `https://cdnjs.cloudflare.com https://cdn.jsdelivr.net`;
@@ -537,6 +527,11 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
              list.innerHTML += \`<li onclick="handleMenuClick('openFileToSide')"><i class="fa-solid fa-columns"></i> 在侧边打开</li>\`;
              list.innerHTML += \`<li onclick="handleMenuClick('copyFile', '\${escPath}')"><i class="fa-regular fa-copy"></i> 复制文件</li>\`;
              list.innerHTML += \`<div class="menu-separator"></div>\`;
+
+             // 🌟 新增：对比功能按钮
+             list.innerHTML += \`<li onclick="handleMenuClick('selectForCompare')"><i class="fa-regular fa-square-check"></i> 选择以进行比较</li>\`;
+             list.innerHTML += \`<li onclick="handleMenuClick('compareWithSelected')"><i class="fa-solid fa-code-compare"></i> 与已选项目进行比较</li>\`;
+             list.innerHTML += \`<div class="menu-separator"></div>\`;
           }
 
           list.innerHTML += \`<li onclick="handleMenuClick('copyText', '\${escName}')"><i class="fa-regular fa-clone"></i> 复制名称</li>\`;
@@ -610,6 +605,14 @@ export function getRecentProjectsHtml(webview: vscode.Webview, projects: RecentP
               break;
             case 'updateBranch':
               vscode.postMessage({ type: 'updateSingleBranch', fsPath: activeContextMenuPath });
+              break;
+
+            // 🌟 新增：对比命令转发
+            case 'selectForCompare':
+              vscode.postMessage({ type: 'selectForCompare', fsPath: activeContextMenuPath, projectName: activeContextMenuProject });
+              break;
+            case 'compareWithSelected':
+              vscode.postMessage({ type: 'compareWithSelected', fsPath: activeContextMenuPath, projectName: activeContextMenuProject });
               break;
           }
         }
