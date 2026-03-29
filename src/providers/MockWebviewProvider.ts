@@ -4,7 +4,7 @@ import * as path from 'path';
 
 import { ConfigurationService } from '../services/ConfigurationService';
 import { MockServerFeature } from '../features/MockServerFeature';
-import { getReactWebviewHtml } from '../utils/WebviewHelper'; // 🌟 引入 React 模板解析器
+import { getReactWebviewHtml } from '../utils/WebviewHelper';
 import type { IMockRuleConfig, IProxyConfig } from '../core/types/config';
 
 export class MockWebviewProvider implements vscode.WebviewViewProvider {
@@ -22,7 +22,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     this._view = webviewView;
     webviewView.webview.options = { enableScripts: true, localResourceRoots: [this._extensionUri] };
     
-    // 🌟 核心修改 1：侧边栏主面板，为其分配路由 '/mock'
+    // 侧边栏主面板，为其分配路由 '/mock'
     webviewView.webview.html = getReactWebviewHtml(this._extensionUri, webviewView.webview, '/mock');
     
     webviewView.webview.onDidReceiveMessage(async (data) => {
@@ -92,6 +92,11 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     const { proxyList, mockList: fullMockList, mockDir } = await this.getFullConfig();
 
     switch (data.type) {
+      // 🌟 握手机制：收到前端 React 加载完成的信号后，推送配置数据
+      case 'webviewLoaded':
+        this.refreshSidebar();
+        break;
+
       case 'error':
         vscode.window.showErrorMessage(data.message);
         break;
@@ -266,11 +271,16 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         this.proxyPanel = undefined;
       });
       
-      // 🌟 核心修改 2：服务配置面板，为其分配路由 '/mock/proxy'
       this.proxyPanel.webview.html = getReactWebviewHtml(this._extensionUri, this.proxyPanel.webview, '/mock/proxy');
 
       this.proxyPanel.webview.onDidReceiveMessage(async (data) => {
-        if (data.type === 'error') vscode.window.showErrorMessage(data.message);
+        // 🌟 握手机制：收到前端页面就绪信号后，再去查配置并发给面板
+        if (data.type === 'webviewLoaded') {
+          const configService = ConfigurationService.getInstance();
+          const proxies = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
+          this.proxyPanel?.webview.postMessage({ type: 'init', proxy: proxies.find((p: any) => p.id === proxyId) });
+        }
+        else if (data.type === 'error') vscode.window.showErrorMessage(data.message);
         else if (data.type === 'cancel') this.proxyPanel?.dispose();
         else if (data.type === 'saveProxy') {
           const configService = ConfigurationService.getInstance();
@@ -293,10 +303,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         }
       });
     }
-
-    const configService = ConfigurationService.getInstance();
-    const proxies = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
-    this.proxyPanel.webview.postMessage({ type: 'init', proxy: proxies.find((p: any) => p.id === proxyId) });
   }
 
   public async showRulePanel(proxyId: string, ruleId?: string) {
@@ -308,11 +314,29 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         this.rulePanel = undefined;
       });
       
-      // 🌟 核心修改 3：规则配置面板，为其分配路由 '/mock/rule'
       this.rulePanel.webview.html = getReactWebviewHtml(this._extensionUri, this.rulePanel.webview, '/mock/rule');
 
       this.rulePanel.webview.onDidReceiveMessage(async (data) => {
-        if (data.type === 'error') vscode.window.showErrorMessage(data.message);
+        // 🌟 握手机制：收到前端页面就绪信号后，处理文件读取并把全量数据发给规则面板
+        if (data.type === 'webviewLoaded') {
+          const configService = ConfigurationService.getInstance();
+          const mocks = Array.isArray(configService.config.mock) ? configService.config.mock : [];
+          let fullRule = mocks.find((r: any) => r.id === ruleId) ? { ...mocks.find((r: any) => r.id === ruleId) } : null;
+
+          if (fullRule && fullRule.dataPath && fullRule.mode !== 'file') {
+            const absPath = this.getMockDataPath(fullRule.dataPath);
+            if (absPath) {
+              try {
+                const fileData = await vscode.workspace.fs.readFile(vscode.Uri.file(absPath));
+                const parsed = JSON.parse(Buffer.from(fileData).toString('utf8'));
+                if (fullRule.mode === 'custom') fullRule.data = parsed;
+                else fullRule.template = parsed;
+              } catch (e) {}
+            }
+          }
+          this.rulePanel?.webview.postMessage({ type: 'init', proxyId, rule: fullRule, globalMockDir: configService.config.general?.mockDir || '' });
+        }
+        else if (data.type === 'error') vscode.window.showErrorMessage(data.message);
         else if (data.type === 'cancel') this.rulePanel?.dispose();
         else if (data.type === 'simulate') {
           try {
@@ -406,22 +430,5 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         }
       });
     }
-
-    const configService = ConfigurationService.getInstance();
-    const mocks = Array.isArray(configService.config.mock) ? configService.config.mock : [];
-    let fullRule = mocks.find((r: any) => r.id === ruleId) ? { ...mocks.find((r: any) => r.id === ruleId) } : null;
-
-    if (fullRule && fullRule.dataPath && fullRule.mode !== 'file') {
-      const absPath = this.getMockDataPath(fullRule.dataPath);
-      if (absPath) {
-        try {
-          const fileData = await vscode.workspace.fs.readFile(vscode.Uri.file(absPath));
-          const parsed = JSON.parse(Buffer.from(fileData).toString('utf8'));
-          if (fullRule.mode === 'custom') fullRule.data = parsed;
-          else fullRule.template = parsed;
-        } catch (e) {}
-      }
-    }
-    this.rulePanel.webview.postMessage({ type: 'init', proxyId, rule: fullRule, globalMockDir: configService.config.general?.mockDir || '' });
   }
 }

@@ -1,0 +1,230 @@
+/* --- 1. 基础变量与重置 (从你原来的代码中提取) --- */
+:root {
+  --primary: var(--vscode-textLink-activeForeground, #007acc);
+  --border: var(--vscode-panel-border, #444);
+  --bg: var(--vscode-editor-background, #1e1e1e);
+  --bg-hover: var(--vscode-list-hoverBackground, #2a2d2e);
+  --text: var(--vscode-editor-foreground, #ccc);
+  --text-sub: var(--vscode-descriptionForeground, #888);
+  --error: var(--vscode-errorForeground, #f48771);
+  --success: #4caf50;
+}
+
+/* 覆盖默认的 body 样式以撑满侧边栏 */
+.old-sidebar-wrapper {
+  font-family: var(--vscode-font-family);
+  color: var(--text);
+  background: var(--bg);
+  height: 100vh;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- 2. 原版 Header --- */
+.header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--vscode-sideBar-background);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header-title {
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-title {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  opacity: 0.8;
+  color: var(--text-sub);
+}
+
+.dir-path {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1pxdashed var(--border);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dir-path:hover { border-color: var(--primary); color: var(--text); }
+
+.w-full { width: 100%; }
+.mt-10 { margin-top: 10px; }
+.mb-10 { margin-bottom: 10px; }
+
+/* 按钮样式 (原版设计) */
+.btn-primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  padding: 6px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+.btn-primary:hover { background: var(--vscode-button-hoverBackground); }
+.btn-primary.is-running { background: rgba(76, 175, 80, 0.15); color: var(--success); border-color: transparent; }
+
+.icon-btn {
+  background: transparent;
+  color: var(--text-sub);
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:hover { background: var(--vscode-toolbar-hoverBackground); color: var(--text); }
+.text-danger:hover { color: var(--error); }
+
+/* --- 3. 原版服务列表区 --- */
+.proxy-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 12px;
+}
+
+.proxy-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 20px;
+  background: var(--bg);
+  overflow: hidden;
+  transition: opacity 0.2s;
+}
+.proxy-card.disabled { opacity: 0.6; filter: grayscale(0.8); }
+
+.proxy-header {
+  background: var(--vscode-sideBar-background);
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.status-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #555;
+  margin-right: 6px;
+}
+.status-dot.active {
+  background: var(--success);
+  box-shadow: 0 0 5px var(--success);
+}
+
+.proxy-port {
+  background: var(--primary);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.proxy-actions { display: flex; gap: 8px; align-items: center; }
+
+/* 规则列表 */
+.rule-list {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.rule-item {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+}
+.rule-item.disabled { opacity: 0.6; filter: grayscale(0.8); }
+
+.rule-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.url-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.method-badge {
+  font-size: 10px;
+  font-weight: bold;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.method-badge.get { background: rgba(52, 152, 219, 0.1); color: #3498db; }
+.method-badge.post { background: rgba(46, 204, 113, 0.1); color: #2ecc71; }
+.method-badge.put { background: rgba(243, 156, 18, 0.1); color: #f39c12; }
+.method-badge.delete { background: rgba(231, 76, 60, 0.1); color: #e74c3c; }
+.method-badge.patch { background: rgba(80, 227, 194, 0.1); color: #50e3c2; }
+
+.rule-url {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: bold;
+}
+.rule-url:hover { color: var(--primary); text-decoration: underline; }
+
+.rule-path {
+  font-size: 11px;
+  color: var(--text-sub);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rule-actions { display: flex; gap: 2px; }
+
+.empty-state {
+  text-align: center;
+  padding: 30px 20px;
+  color: var(--text-sub);
+  font-style: italic;
+  font-size: 12px;
+}
+.empty-state.small { padding: 10px; }

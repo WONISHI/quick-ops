@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-
-const vscode = typeof acquireVsCodeApi === 'function' ? acquireVsCodeApi() : null;
+import { vscode } from '../utils/vscode';
 
 // 定义你的项目数据结构
 interface Project {

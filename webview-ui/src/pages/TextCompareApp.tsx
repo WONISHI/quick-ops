@@ -1,10 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import * as Diff from 'diff';
 import '../assets/css/TextCompareApp.css'
-
-// 声明全局函数
-declare function acquireVsCodeApi(): any;
-const vscode = typeof acquireVsCodeApi === 'function' ? acquireVsCodeApi() : null;
+import { vscode } from '../utils/vscode';
 
 const EMPTY_TOKEN = "___EMPTY_SLOT___";
 

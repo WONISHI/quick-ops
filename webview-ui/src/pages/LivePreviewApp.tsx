@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import '../assets/css/LivePreviewApp.css'; // 我们稍后把 CSS 抽离出来
-
-const vscode = typeof acquireVsCodeApi === 'function' ? acquireVsCodeApi() : null;
+import '../assets/css/LivePreviewApp.css';
+import { vscode } from '../utils/vscode';
 
 export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
@@ -12,7 +11,7 @@ export default function LivePreviewApp() {
   
   // 弹窗与菜单状态
   const [showFavModal, setShowFavModal] = useState(false);
-  const [showMenu, setShowMenu] = useState(false);
+  const [_, setShowMenu] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
