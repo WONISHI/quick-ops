@@ -12,7 +12,6 @@ import MockSidebarApp from './pages/MockSidebarApp'
 import MockProxyPanelApp from "./pages/MockProxyPanelApp"
 import MockRulePanelApp from './pages/MockRulePanelApp'
 import './index.css';
-import '@fortawesome/fontawesome-free/css/all.min.css'
 
 // 🌟 从 VS Code 注入的全局变量中获取初始路由，如果没有则默认走 '/'
 const initialRoute = (window as any).__ROUTE__ || '/';

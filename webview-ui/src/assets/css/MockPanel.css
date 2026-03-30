@@ -32,6 +32,7 @@
 }
 
 .header-top {
+  width: 100%;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -66,11 +67,23 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.dir-path:hover { border-color: var(--primary); color: var(--text); }
 
-.w-full { width: 100%; }
-.mt-10 { margin-top: 10px; }
-.mb-10 { margin-bottom: 10px; }
+.dir-path:hover {
+  border-color: var(--primary);
+  color: var(--text);
+}
+
+.w-full {
+  width: 100%;
+}
+
+.mt-10 {
+  margin-top: 10px;
+}
+
+.mb-10 {
+  margin-bottom: 10px;
+}
 
 /* 按钮样式 (原版设计) */
 .btn-primary {
@@ -87,8 +100,16 @@
   font-size: 12px;
   transition: all 0.2s;
 }
-.btn-primary:hover { background: var(--vscode-button-hoverBackground); }
-.btn-primary.is-running { background: rgba(76, 175, 80, 0.15); color: var(--success); border-color: transparent; }
+
+.btn-primary:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.btn-primary.is-running {
+  background: rgba(76, 175, 80, 0.15);
+  color: var(--success);
+  border-color: transparent;
+}
 
 .icon-btn {
   background: transparent;
@@ -101,8 +122,15 @@
   align-items: center;
   justify-content: center;
 }
-.icon-btn:hover { background: var(--vscode-toolbar-hoverBackground); color: var(--text); }
-.text-danger:hover { color: var(--error); }
+
+.icon-btn:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--text);
+}
+
+.text-danger:hover {
+  color: var(--error);
+}
 
 /* --- 3. 原版服务列表区 --- */
 .proxy-list {
@@ -119,7 +147,11 @@
   overflow: hidden;
   transition: opacity 0.2s;
 }
-.proxy-card.disabled { opacity: 0.6; filter: grayscale(0.8); }
+
+.proxy-card.disabled {
+  opacity: 0.6;
+  filter: grayscale(0.8);
+}
 
 .proxy-header {
   background: var(--vscode-sideBar-background);
@@ -138,6 +170,7 @@
   background: #555;
   margin-right: 6px;
 }
+
 .status-dot.active {
   background: var(--success);
   box-shadow: 0 0 5px var(--success);
@@ -152,7 +185,11 @@
   font-weight: bold;
 }
 
-.proxy-actions { display: flex; gap: 8px; align-items: center; }
+.proxy-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 
 /* 规则列表 */
 .rule-list {
@@ -171,7 +208,11 @@
   gap: 12px;
   position: relative;
 }
-.rule-item.disabled { opacity: 0.6; filter: grayscale(0.8); }
+
+.rule-item.disabled {
+  opacity: 0.6;
+  filter: grayscale(0.8);
+}
 
 .rule-info {
   flex: 1;
@@ -196,11 +237,31 @@
   border-radius: 3px;
   flex-shrink: 0;
 }
-.method-badge.get { background: rgba(52, 152, 219, 0.1); color: #3498db; }
-.method-badge.post { background: rgba(46, 204, 113, 0.1); color: #2ecc71; }
-.method-badge.put { background: rgba(243, 156, 18, 0.1); color: #f39c12; }
-.method-badge.delete { background: rgba(231, 76, 60, 0.1); color: #e74c3c; }
-.method-badge.patch { background: rgba(80, 227, 194, 0.1); color: #50e3c2; }
+
+.method-badge.get {
+  background: rgba(52, 152, 219, 0.1);
+  color: #3498db;
+}
+
+.method-badge.post {
+  background: rgba(46, 204, 113, 0.1);
+  color: #2ecc71;
+}
+
+.method-badge.put {
+  background: rgba(243, 156, 18, 0.1);
+  color: #f39c12;
+}
+
+.method-badge.delete {
+  background: rgba(231, 76, 60, 0.1);
+  color: #e74c3c;
+}
+
+.method-badge.patch {
+  background: rgba(80, 227, 194, 0.1);
+  color: #50e3c2;
+}
 
 .rule-url {
   white-space: nowrap;
@@ -208,7 +269,11 @@
   text-overflow: ellipsis;
   font-weight: bold;
 }
-.rule-url:hover { color: var(--primary); text-decoration: underline; }
+
+.rule-url:hover {
+  color: var(--primary);
+  text-decoration: underline;
+}
 
 .rule-path {
   font-size: 11px;
@@ -218,7 +283,10 @@
   text-overflow: ellipsis;
 }
 
-.rule-actions { display: flex; gap: 2px; }
+.rule-actions {
+  display: flex;
+  gap: 2px;
+}
 
 .empty-state {
   text-align: center;
@@ -227,4 +295,7 @@
   font-style: italic;
   font-size: 12px;
 }
-.empty-state.small { padding: 10px; }
+
+.empty-state.small {
+  padding: 10px;
+}
