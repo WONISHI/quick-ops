@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { vscode } from '../utils/vscode';
-// 引入 FontAwesome 组件和需要的具体图标
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCheck, faArrowsRotate, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { faFolderOpen, faCopy } from '@fortawesome/free-regular-svg-icons';
