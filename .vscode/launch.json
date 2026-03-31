@@ -13,7 +13,7 @@
       "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
       "runtimeArgs": ["-r", "ts-node/register"],
       "outFiles": ["${workspaceFolder}/dist/**/*.ts"],
-      "preLaunchTask": "npm: watch"
+      "preLaunchTask": "npm: watch-all"
     },
     {
       "name": "Run Extension Tests",

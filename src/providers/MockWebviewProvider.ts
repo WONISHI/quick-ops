@@ -4,7 +4,7 @@ import * as path from 'path';
 
 import { ConfigurationService } from '../services/ConfigurationService';
 import { MockServerFeature } from '../features/MockServerFeature';
-import { getSidebarHtml, getProxyPanelHtml, getRulePanelHtml } from '../views/MockWebviewHtml';
+import { getReactWebviewHtml } from '../utils/WebviewHelper';
 import type { IMockRuleConfig, IProxyConfig } from '../core/types/config';
 
 export class MockWebviewProvider implements vscode.WebviewViewProvider {
@@ -21,7 +21,10 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
   public resolveWebviewView(webviewView: vscode.WebviewView, context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken) {
     this._view = webviewView;
     webviewView.webview.options = { enableScripts: true, localResourceRoots: [this._extensionUri] };
-    webviewView.webview.html = getSidebarHtml();
+    
+    // 侧边栏主面板，为其分配路由 '/mock'
+    webviewView.webview.html = getReactWebviewHtml(this._extensionUri, webviewView.webview, '/mock');
+    
     webviewView.webview.onDidReceiveMessage(async (data) => {
       await this.handleMessage(data, webviewView.webview);
     });
@@ -58,7 +61,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
 
   private async getFullConfig() {
     const configService = ConfigurationService.getInstance();
-    // 🌟 已移除：await configService.loadConfig();
 
     let proxyList = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
     let mockList = Array.isArray(configService.config.mock) ? configService.config.mock : [];
@@ -90,6 +92,11 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
     const { proxyList, mockList: fullMockList, mockDir } = await this.getFullConfig();
 
     switch (data.type) {
+      // 🌟 握手机制：收到前端 React 加载完成的信号后，推送配置数据
+      case 'webviewLoaded':
+        this.refreshSidebar();
+        break;
+
       case 'error':
         vscode.window.showErrorMessage(data.message);
         break;
@@ -97,18 +104,17 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         this.refreshSidebar();
         break;
 
-      // 🌟 核心：处理全局按钮的点击事件，一键切换所有端口的 enabled 状态并保存
       case 'toggleServer': {
         if (proxyList.length === 0) {
           vscode.window.showWarningMessage('操作失败：请先添加 Mock 服务！');
           break;
         }
-        const newStatus = data.value; // true 为全开，false 为全关
+        const newStatus = data.value; 
         let pList = proxyList.map((p: IProxyConfig) => ({ ...p, enabled: newStatus }));
 
         await configService.updateConfig('proxy', pList);
-        await this._mockFeature.syncServers(); // 触发实际的服务器实例关闭/开启
-        this.refreshSidebar(); // 刷新界面以同步按钮样式
+        await this._mockFeature.syncServers(); 
+        this.refreshSidebar(); 
         break;
       }
 
@@ -264,14 +270,20 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
       this.proxyPanel.onDidDispose(() => {
         this.proxyPanel = undefined;
       });
-      this.proxyPanel.webview.html = getProxyPanelHtml();
+      
+      this.proxyPanel.webview.html = getReactWebviewHtml(this._extensionUri, this.proxyPanel.webview, '/mock/proxy');
 
       this.proxyPanel.webview.onDidReceiveMessage(async (data) => {
-        if (data.type === 'error') vscode.window.showErrorMessage(data.message);
+        // 🌟 握手机制：收到前端页面就绪信号后，再去查配置并发给面板
+        if (data.type === 'webviewLoaded') {
+          const configService = ConfigurationService.getInstance();
+          const proxies = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
+          this.proxyPanel?.webview.postMessage({ type: 'init', proxy: proxies.find((p: any) => p.id === proxyId) });
+        }
+        else if (data.type === 'error') vscode.window.showErrorMessage(data.message);
         else if (data.type === 'cancel') this.proxyPanel?.dispose();
         else if (data.type === 'saveProxy') {
           const configService = ConfigurationService.getInstance();
-          // 🌟 已移除：await configService.loadConfig();
           let proxyList = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
           const newProxy = data.payload;
           if (!newProxy.id) {
@@ -291,11 +303,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         }
       });
     }
-
-    const configService = ConfigurationService.getInstance();
-    // 🌟 已移除：await configService.loadConfig();
-    const proxies = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
-    this.proxyPanel.webview.postMessage({ type: 'init', proxy: proxies.find((p: any) => p.id === proxyId) });
   }
 
   public async showRulePanel(proxyId: string, ruleId?: string) {
@@ -306,10 +313,30 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
       this.rulePanel.onDidDispose(() => {
         this.rulePanel = undefined;
       });
-      this.rulePanel.webview.html = getRulePanelHtml();
+      
+      this.rulePanel.webview.html = getReactWebviewHtml(this._extensionUri, this.rulePanel.webview, '/mock/rule');
 
       this.rulePanel.webview.onDidReceiveMessage(async (data) => {
-        if (data.type === 'error') vscode.window.showErrorMessage(data.message);
+        // 🌟 握手机制：收到前端页面就绪信号后，处理文件读取并把全量数据发给规则面板
+        if (data.type === 'webviewLoaded') {
+          const configService = ConfigurationService.getInstance();
+          const mocks = Array.isArray(configService.config.mock) ? configService.config.mock : [];
+          let fullRule = mocks.find((r: any) => r.id === ruleId) ? { ...mocks.find((r: any) => r.id === ruleId) } : null;
+
+          if (fullRule && fullRule.dataPath && fullRule.mode !== 'file') {
+            const absPath = this.getMockDataPath(fullRule.dataPath);
+            if (absPath) {
+              try {
+                const fileData = await vscode.workspace.fs.readFile(vscode.Uri.file(absPath));
+                const parsed = JSON.parse(Buffer.from(fileData).toString('utf8'));
+                if (fullRule.mode === 'custom') fullRule.data = parsed;
+                else fullRule.template = parsed;
+              } catch (e) {}
+            }
+          }
+          this.rulePanel?.webview.postMessage({ type: 'init', proxyId, rule: fullRule, globalMockDir: configService.config.general?.mockDir || '' });
+        }
+        else if (data.type === 'error') vscode.window.showErrorMessage(data.message);
         else if (data.type === 'cancel') this.rulePanel?.dispose();
         else if (data.type === 'simulate') {
           try {
@@ -392,7 +419,6 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           const configService = ConfigurationService.getInstance();
-          // 🌟 已移除：await configService.loadConfig();
           let pureMockList = Array.isArray(configService.config.mock) ? configService.config.mock : [];
           const rIdx = pureMockList.findIndex((r: any) => r.id === newRuleData.id);
           if (rIdx > -1) pureMockList[rIdx] = ruleToSaveConfig;
@@ -404,23 +430,5 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         }
       });
     }
-
-    const configService = ConfigurationService.getInstance();
-    // 🌟 已移除：await configService.loadConfig();
-    const mocks = Array.isArray(configService.config.mock) ? configService.config.mock : [];
-    let fullRule = mocks.find((r: any) => r.id === ruleId) ? { ...mocks.find((r: any) => r.id === ruleId) } : null;
-
-    if (fullRule && fullRule.dataPath && fullRule.mode !== 'file') {
-      const absPath = this.getMockDataPath(fullRule.dataPath);
-      if (absPath) {
-        try {
-          const fileData = await vscode.workspace.fs.readFile(vscode.Uri.file(absPath));
-          const parsed = JSON.parse(Buffer.from(fileData).toString('utf8'));
-          if (fullRule.mode === 'custom') fullRule.data = parsed;
-          else fullRule.template = parsed;
-        } catch (e) {}
-      }
-    }
-    this.rulePanel.webview.postMessage({ type: 'init', proxyId, rule: fullRule, globalMockDir: configService.config.general?.mockDir || '' });
   }
 }
