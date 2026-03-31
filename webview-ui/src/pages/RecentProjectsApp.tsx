@@ -22,7 +22,14 @@ function getDisplayPath(project: any) {
   try {
     const isFile = !project.fsPath.startsWith('vscode-vfs') && !project.fsPath.startsWith('http');
     if (isFile) {
-       displayPath = project.fsPath; 
+       // 1. URL 解码（防止路径里有 %3A 这种编码字符）
+       let cleanPath = decodeURIComponent(project.fsPath);
+       // 2. 移除 file:// 前缀
+       cleanPath = cleanPath.replace(/^file:\/\//i, '');
+       // 3. 移除 Windows 的盘符前缀，例如 /C:/、C:/ 或 c:\，统一替换成 /
+       cleanPath = cleanPath.replace(/^\/?[a-zA-Z]:[\\/]/i, '/');
+       
+       displayPath = cleanPath; 
     } else if (project.customDomain) {
        const pathPart = project.fsPath.split('/').slice(3).join('/');
        displayPath = `Self-Hosted: ${project.customDomain}/${pathPart}`;
@@ -76,14 +83,22 @@ export default function RecentProjectsApp() {
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       const msg = e.data;
-      if (msg.type === 'init' || msg.type === 'config') { // 根据你外层发的消息类型调整
-        setProjects(msg.projects || []);
-        setCurrentUri(msg.currentUri || '');
+      
+      // 🌟 1. 改为监听 updateProjects 消息
+      if (msg.type === 'updateProjects') { 
+        
+        // 🌟 2. 字段名对齐后端的 data 和 currentUriStr
+        setProjects(msg.data || []);
+        setCurrentUri(msg.currentUriStr || '');
         setLastOpenedPath(msg.lastOpenedPath || '');
+        
         // 初始化 branch map
         const initialBranches: Record<string, string> = {};
-        (msg.projects || []).forEach((p: any) => { if(p.branch) initialBranches[p.fsPath] = p.branch; });
+        (msg.data || []).forEach((p: any) => { 
+          if(p.branch) initialBranches[p.fsPath] = p.branch; 
+        });
         setBranchMap(initialBranches);
+        
       } else if (msg.type === 'updateBranchTag') {
         setBranchMap(prev => ({ ...prev, [msg.fsPath]: msg.branch }));
       } else if (msg.type === 'readDirResult') {
@@ -91,6 +106,7 @@ export default function RecentProjectsApp() {
         setDirChildren(prev => ({ ...prev, [msg.id]: msg.children }));
       }
     };
+
     window.addEventListener('message', handleMessage);
     vscode.postMessage({ type: 'refresh' }); // 唤起初始数据
     
@@ -206,6 +222,7 @@ export default function RecentProjectsApp() {
   // ----------- 渲染子树组件 -----------
   const renderTreeChildren = (parentId: string, projectName: string) => {
     const children = dirChildren[parentId];
+    console.log(children)
     if (loadingNodes.has(parentId)) {
       return <div className="empty-node"><FontAwesomeIcon icon={faSpinner} spin /> 加载中...</div>;
     }
@@ -285,11 +302,11 @@ export default function RecentProjectsApp() {
         .tree-chevron { color: var(--vscode-icon-foreground); opacity: 0.8; }
         .project-icon, .sub-icon { width: 16px; text-align: center; margin-right: 6px; flex-shrink: 0; display: inline-block; font-size: 14px; }
 
-        .info { overflow: hidden; display: flex; flex-direction: column; flex: 1; padding: 2px 0; pointer-events: none; }
-        .title { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; pointer-events: auto; }
-        .path { font-size: 10px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .info { gap:2px; overflow: hidden; display: flex; flex-direction: column; flex: 1; padding: 2px 0; pointer-events: none; }
+        .title { line-height:1; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; pointer-events: auto; }
+        .path { line-height:1; font-size: 10px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;text-align:left }
         
-        .branch-tag { font-size: 10px; background: var(--vscode-badge-background, rgba(128, 128, 128, 0.15)); color: var(--vscode-badge-foreground, var(--vscode-descriptionForeground)); padding: 2px 6px; border-radius: 10px; display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; border: 1px solid var(--vscode-panel-border);}
+        .branch-tag { line-height:1; font-size: 10px; background: var(--vscode-badge-background, rgba(128, 128, 128, 0.15)); color: var(--vscode-badge-foreground, var(--vscode-descriptionForeground)); padding: 2px 6px; border-radius: 10px; display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; border: 1px solid var(--vscode-panel-border);}
         .icon-opened { color: #5dade2 !important; } 
         .icon-closed { color: var(--vscode-icon-foreground); opacity: 0.8; } 
         
@@ -395,8 +412,10 @@ export default function RecentProjectsApp() {
         {projects.length === 0 ? (
           <div className="empty-state">
             <div className="empty-text">暂无项目记录，请添加：</div>
+            <div className="bottom-bar">
             <button className="action-btn" onClick={() => vscode.postMessage({ type: 'addLocal' })}><FontAwesomeIcon icon={faFolderPlus} /> 添加本地项目</button>
             <button className="action-btn secondary" onClick={() => vscode.postMessage({ type: 'addRemote' })}><FontAwesomeIcon icon={faGithub} /> 添加远程仓库</button>
+            </div>
           </div>
         ) : (
           <>
@@ -409,6 +428,7 @@ export default function RecentProjectsApp() {
                const title = p.customName || p.name;
                const displayPath = getDisplayPath(p);
                const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
+               console.log('p',p)
                const branch = branchMap[p.fsPath] || p.branch;
 
                return (
