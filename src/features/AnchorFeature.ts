@@ -7,7 +7,8 @@ import { AnchorCodeLensProvider } from '../providers/AnchorCodeLensProvider';
 import { ColorUtils } from '../utils/ColorUtils';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { TOOLTIPS } from '../core/constants';
-import { getAnchorMindMapHtml } from '../views/AnchorWebviewHtml';
+// 🌟 1. 引入 React Webview 的辅助函数
+import { getReactWebviewHtml } from '../utils/WebviewHelper';
 
 export class AnchorFeature implements IFeature {
   public readonly id = 'AnchorFeature';
@@ -15,6 +16,8 @@ export class AnchorFeature implements IFeature {
   private configService: ConfigurationService;
   private decorationTypes: Map<string, vscode.TextEditorDecorationType> = new Map();
   private currentPanel: vscode.WebviewPanel | undefined;
+  // 🌟 2. 增加 extensionUri 属性，用于获取本地静态资源路径
+  private extensionUri!: vscode.Uri;
 
   private readonly defaultGroups = ['default', 'Default', 'TODO', 'FIXME'];
 
@@ -24,6 +27,9 @@ export class AnchorFeature implements IFeature {
   }
 
   public activate(context: vscode.ExtensionContext): void {
+    // 🌟 3. 在插件激活时保存 extensionUri
+    this.extensionUri = context.extensionUri;
+    
     this.service.init(context);
 
     const codeLensProvider = new AnchorCodeLensProvider();
@@ -36,7 +42,7 @@ export class AnchorFeature implements IFeature {
     context.subscriptions.push(
       this.service.onDidChangeAnchors(() => {
         this.updateDecorations();
-        this.updateEditorContextKey(); // 🌟 数据变化时更新按钮显示状态
+        this.updateEditorContextKey(); // 数据变化时更新按钮显示状态
 
         // 如果 Webview 打开，实时刷新数据
         if (this.currentPanel) {
@@ -45,7 +51,7 @@ export class AnchorFeature implements IFeature {
       }),
       vscode.window.onDidChangeActiveTextEditor(() => {
         this.debouncedUpdate();
-        this.updateEditorContextKey(); // 🌟 切换文件时更新按钮显示状态
+        this.updateEditorContextKey(); // 切换文件时更新按钮显示状态
       }),
       vscode.workspace.onDidSaveTextDocument((doc) => this.syncAnchorsWithContent(doc)),
     );
@@ -75,7 +81,7 @@ export class AnchorFeature implements IFeature {
     );
   }
 
-  // --- 🌟 核心：判断当前文件是否有锚点并控制右上角按钮显示 ---
+  // --- 核心：判断当前文件是否有锚点并控制右上角按钮显示 ---
   private updateEditorContextKey() {
     const editor = vscode.window.activeTextEditor;
     let hasAnchors = false;
@@ -126,9 +132,12 @@ export class AnchorFeature implements IFeature {
     this.currentPanel = vscode.window.createWebviewPanel('anchorMindMap', 'Anchors Mind Map', targetColumn, {
       enableScripts: true,
       retainContextWhenHidden: true,
+      // 🌟 4. 允许加载本地资源
+      localResourceRoots: [this.extensionUri]
     });
 
-    this.currentPanel.webview.html = getAnchorMindMapHtml(this.currentPanel.webview);
+    // 🌟 5. 使用 React Webview 页面，挂载到 `/anchor` 路由
+    this.currentPanel.webview.html = getReactWebviewHtml(this.extensionUri, this.currentPanel.webview, '/anchor');
 
     this.currentPanel.webview.onDidReceiveMessage(async (message) => {
       switch (message.command) {
