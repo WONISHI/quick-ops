@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { vscode } from '../utils/vscode';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
