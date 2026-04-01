@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import * as Diff from 'diff';
 import { vscode } from '../utils/vscode';
 

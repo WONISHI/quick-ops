@@ -65,13 +65,14 @@
 
 .mock-dir-setting {
     font-size: 11px;
-    padding: 4px 8px;
+    padding: 2px 8px;
     border-radius: 4px;
     border: 1px solid var(--border);
     cursor: pointer;
     display: flex;
     align-items: center;
     gap: 6px;
+    box-sizing: border-box;
 }
 
 .content {

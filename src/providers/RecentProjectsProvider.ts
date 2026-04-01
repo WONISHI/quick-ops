@@ -404,12 +404,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     let projects = this.getRecentProjects();
     let stateChanged = false;
 
-    // 🌟 1. 拆除 Promise.all 炸弹，改为串行处理，避免瞬间挤爆 Node.js 的 I/O 和网络线程
     for (let i = 0; i < projects.length; i++) {
       const p = projects[i];
       let newBranch: string | undefined = undefined;
 
-      // ---- 保持原有的分支解析与请求逻辑完全不变 ----
       if (p.fsPath.startsWith('vscode-vfs://') || p.fsPath.startsWith('http')) {
         const match = p.fsPath.match(/[?&]ref=([^&]+)/);
         if (match) {
@@ -458,9 +456,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           newBranch = undefined;
         }
       }
-      // ---- 核心逻辑结束 ----
 
-      // 向前端发送此单个项目的最新分支
       this._view?.webview.postMessage({ type: 'updateBranchTag', fsPath: p.fsPath, branch: newBranch });
 
       if (p.branch !== newBranch) {
@@ -468,7 +464,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         stateChanged = true;
       }
 
-      // 🌟 2. 插入微小延迟，将主线程的 CPU 执行权短暂交还给 VS Code，彻底消除卡顿
       await new Promise(resolve => setTimeout(resolve, 5));
     }
 

@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
 import { vscode } from '../utils/vscode';
-// 1. 引入 FontAwesome 组件和需要的具体图标
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faServer, faCircle, faGear, faTrash, faPen, faPlus, faFileCode } from '@fortawesome/free-solid-svg-icons';
 import { faFolderOpen, faCopy, faFile } from '@fortawesome/free-regular-svg-icons';
