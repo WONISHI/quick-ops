@@ -1,6 +1,5 @@
 import React, { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
-import '../assets/css/AnchorApp.css';
 import { vscode } from '../utils/vscode';
 
 // 引入所需的 FontAwesome 图标

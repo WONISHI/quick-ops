@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import { IFeature } from '../core/interfaces/IFeature';
 import ColorLog from '../utils/ColorLog';
-import { getTextCompareWebviewHtml } from '../views/TextCompareWebviewHtml'; // 🌟 导入视图模块
+// 🌟 1. 导入 React Webview 辅助函数
+import { getReactWebviewHtml } from '../utils/WebviewHelper';
 
 class CompareContentProvider implements vscode.TextDocumentContentProvider {
   private contentMap = new Map<string, string>();
@@ -37,7 +38,7 @@ export class TextCompareFeature implements IFeature {
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
-private openCompareWebview(context: vscode.ExtensionContext) {
+  private openCompareWebview(context: vscode.ExtensionContext) {
     let initialText = '';
     const editor = vscode.window.activeTextEditor;
     if (editor && !editor.selection.isEmpty) {
@@ -45,10 +46,10 @@ private openCompareWebview(context: vscode.ExtensionContext) {
     }
 
     if (this.currentPanel) {
-      // 🌟 优化 1：面板已存在时，原地唤起（不传 Beside，防止窗口乱分屏）
+      // 面板已存在时，原地唤起（不传 Beside，防止窗口乱分屏）
       this.currentPanel.reveal();
       
-      // 🌟 优化 2：如果有新选中的文本，通过通信发给网页，而不是重载整个 HTML！
+      // 如果有新选中的文本，通过通信发给网页
       if (initialText) {
         this.currentPanel.webview.postMessage({ type: 'updateOriginal', text: initialText });
       }
@@ -60,7 +61,9 @@ private openCompareWebview(context: vscode.ExtensionContext) {
         vscode.ViewColumn.Beside, // 只有第一次放到侧边
         { 
           enableScripts: true,
-          retainContextWhenHidden: true // 🌟 优化 3：切到别的代码文件时，对比页面不销毁（保活），实现秒开
+          retainContextWhenHidden: true, // 切换时保活，实现秒开
+          // 🌟 2. 允许加载本地静态资源
+          localResourceRoots: [context.extensionUri]
         }
       );
 
@@ -69,15 +72,27 @@ private openCompareWebview(context: vscode.ExtensionContext) {
       });
 
       this.currentPanel.webview.onDidReceiveMessage(async (message) => {
-        if (message.type === 'runDiff') {
+        // 🌟 3. 监听前端 React 页面准备完毕事件，将选中的初始化文本下发
+        if (message.type === 'ready') {
+          if (initialText) {
+            this.currentPanel?.webview.postMessage({ type: 'updateOriginal', text: initialText });
+          }
+        } else if (message.type === 'runDiff') {
           await this.triggerNativeDiff(message.original, message.modified);
         } else if (message.type === 'toggleFullScreen') {
           await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
         }
       });
 
-      // 🌟 HTML 赋值只在首次创建时执行一次！
-      this.currentPanel.webview.html = getTextCompareWebviewHtml(this.currentPanel.webview, initialText);
+      // 🌟 4. 使用 React Webview 页面，挂载到 `/compare` 路由
+      this.currentPanel.webview.html = getReactWebviewHtml(context.extensionUri, this.currentPanel.webview, '/compare');
+
+      // 🌟 后备机制：防止前端没有发 'ready' 消息，延迟500ms兜底下发一次数据
+      if (initialText) {
+        setTimeout(() => {
+          this.currentPanel?.webview.postMessage({ type: 'updateOriginal', text: initialText });
+        }, 500);
+      }
     }
   }
 

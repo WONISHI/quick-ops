@@ -42,6 +42,16 @@ const extensionConfig = {
       lodash: 'lodash-es',
     },
   },
+  ignoreWarnings: [
+    {
+      module: /express[\\/]lib[\\/]view\.js/,
+      message: /Critical dependency: the request of a dependency is an expression/,
+    },
+    {
+      module: /@vue[\\/]compiler-sfc/,
+      message: /Critical dependency/,
+    }
+  ],
   module: {
     rules: [
       {
