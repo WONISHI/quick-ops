@@ -1,19 +1,10 @@
 import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { vscode } from '../utils/vscode';
-
-// 引入所需的 FontAwesome 图标
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { 
-  faExpand, faCompress, faRotateRight, faMinus, faPlus, 
-  faTag, faPenToSquare, faTrash, faLink 
-} from '@fortawesome/free-solid-svg-icons';
-import { 
-  faFolderOpen as faFolderOpenReg, 
-  faFileCode as faFileCodeReg 
-} from '@fortawesome/free-regular-svg-icons';
+import { faExpand, faCompress, faRotateRight, faMinus, faPlus, faTag, faPenToSquare, faTrash, faLink } from '@fortawesome/free-solid-svg-icons';
+import { faFolderOpen as faFolderOpenReg, faFileCode as faFileCodeReg } from '@fortawesome/free-regular-svg-icons';
 
-// ======== TypeScript 类型定义 ========
 interface AnchorData {
   id: string;
   group: string;
@@ -29,12 +20,11 @@ interface TreeNodeData {
   data?: AnchorData; // 具体的锚点数据
 }
 
-// 修复：严格使用 string 以兼容 d3 的原生类型
 interface TreeNode extends d3.HierarchyPointNode<TreeNodeData> {
-  id?: string; 
+  id?: string;
   x0?: number;
   y0?: number;
-  _children?: TreeNode[] | undefined; // 用于存储被折叠的子节点
+  _children?: TreeNode[] | undefined;
 }
 
 // 辅助函数：将 FontAwesome 对象转换为纯 SVG 字符串 (用于 D3 html tooltip 渲染)
@@ -58,9 +48,9 @@ export default function AnchorApp() {
   useEffect(() => {
     if (!containerRef.current) return;
 
-    let i = 0; 
-    let root: TreeNode | null = null; 
-    
+    let i = 0;
+    let root: TreeNode | null = null;
+
     const colorScale = d3.scaleOrdinal(d3.schemeSet2);
 
     function getNodeColor(d: TreeNode) {
@@ -69,7 +59,7 @@ export default function AnchorApp() {
       while (ancestor.depth > 1 && ancestor.parent) ancestor = ancestor.parent as TreeNode;
       return colorScale((ancestor.id || ancestor.data.name).toString());
     }
-    
+
     const zoom = d3.zoom<SVGSVGElement, unknown>().scaleExtent([0.1, 4]).on("zoom", (e) => {
       if (g) g.attr("transform", e.transform);
     });
@@ -79,7 +69,7 @@ export default function AnchorApp() {
       .attr("width", "100%")
       .attr("height", "100%")
       .call(zoom)
-      .on("dblclick.zoom", null); 
+      .on("dblclick.zoom", null);
 
     const g = svg.append("g");
     const tree = d3.tree<TreeNodeData>().nodeSize([35, 260]);
@@ -118,26 +108,26 @@ export default function AnchorApp() {
       if (!svg || !root || !containerRef.current) return;
       const w = containerRef.current.clientWidth;
       const h = containerRef.current.clientHeight;
-      
+
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-      
+
       root.descendants().forEach((d: TreeNode) => {
-          if (d.x < minX) minX = d.x;
-          if (d.x > maxX) maxX = d.x;
-          if (d.y < minY) minY = d.y;
-          if (d.y > maxY) maxY = d.y;
+        if (d.x < minX) minX = d.x;
+        if (d.x > maxX) maxX = d.x;
+        if (d.y < minY) minY = d.y;
+        if (d.y > maxY) maxY = d.y;
       });
-      
+
       if (minX === Infinity) { minX = 0; maxX = 0; minY = 0; maxY = 0; }
-      
-      const graphCenterX = (minY + maxY) / 2; 
-      const graphCenterY = (minX + maxX) / 2; 
-      
+
+      const graphCenterX = (minY + maxY) / 2;
+      const graphCenterY = (minX + maxX) / 2;
+
       const tx = (w / 2) - graphCenterX;
       const ty = (h / 2) - graphCenterY;
-      
+
       const transform = d3.zoomIdentity.translate(tx, ty).scale(1);
-      
+
       if (animate) svg.transition().duration(750).call(zoom.transform as any, transform);
       else svg.call(zoom.transform as any, transform);
     }
@@ -183,7 +173,7 @@ export default function AnchorApp() {
         .attr("fill", "var(--vscode-textLink-foreground)")
         .style("display", d => d.data.data ? "block" : "none")
         .on("click", (e, d) => {
-          if(d.data.data) vscode?.postMessage({ command: 'jump', data: d.data.data });
+          if (d.data.data) vscode?.postMessage({ command: 'jump', data: d.data.data });
           e.stopPropagation();
         });
 
@@ -195,7 +185,7 @@ export default function AnchorApp() {
         .style("text-anchor", "start")
         .text(d => d.data.data ? (d.data.data.description || d.data.name) : d.data.name)
         .on("click", (e, d) => {
-          if(d.data.data) vscode?.postMessage({ command: 'jump', data: d.data.data });
+          if (d.data.data) vscode?.postMessage({ command: 'jump', data: d.data.data });
           e.stopPropagation();
         });
 
@@ -211,16 +201,16 @@ export default function AnchorApp() {
       const tooltip = d3.select(tooltipRef.current);
       nodeEnter.on("mouseenter", (e, d) => {
         if (!d.data.data) return;
-        clearTimeout(hoverTimeout.current); 
-        
+        clearTimeout(hoverTimeout.current);
+
         const raw = d.data.data;
-        const anchorId = raw.id; 
+        const anchorId = raw.id;
         const content = raw.content ? escapeHtml(raw.content.trim()) : "";
         const group = escapeHtml(raw.group) || "Default";
         const file = raw.filePath ? escapeHtml(raw.filePath.split('/').pop() || "") : "Unknown File";
         const line = raw.line || "?";
         const desc = escapeHtml(raw.description) || "Anchor Point";
-        
+
         const htmlContent = `
             <div class="tooltip-header">${getIconSvg(faTag)} <span>${desc}</span></div>
             <div class="tooltip-body">
@@ -237,30 +227,30 @@ export default function AnchorApp() {
                 </button>
             </div>
         `;
-        
+
         tooltip.style("opacity", 1)
-               .style("pointer-events", "auto") 
-               .html(htmlContent)
-               .style("left", (e.pageX + 20) + "px")
-               .style("top", (e.pageY + 10) + "px");
+          .style("pointer-events", "auto")
+          .html(htmlContent)
+          .style("left", (e.pageX + 20) + "px")
+          .style("top", (e.pageY + 10) + "px");
       }).on("mouseleave", () => {
         hoverTimeout.current = setTimeout(() => {
-            tooltip.style("opacity", 0).style("pointer-events", "none");
+          tooltip.style("opacity", 0).style("pointer-events", "none");
         }, 300);
       });
 
       const nodeUpdate = nodeEnter.merge(node);
       nodeUpdate.transition(transition).attr("transform", (d: any) => `translate(${d.y},${d.x})`);
-      
+
       // 更新节点状态样式
       nodeUpdate.select("circle.outer")
         .attr("r", d => isGroup(d) ? 11 : 0)
-        .style("opacity", 0); 
-        
+        .style("opacity", 0);
+
       nodeUpdate.select("circle.inner")
         .attr("r", d => isGroup(d) ? 6 : 4)
         .style("fill", d => isGroup(d) ? (d._children ? getNodeColor(d) : "var(--vscode-editor-background)") : getNodeColor(d));
-        
+
       nodeUpdate.select(".badge")
         .text(d => d._children ? d._children.length : "")
         .transition(transition)
@@ -287,7 +277,7 @@ export default function AnchorApp() {
         .style("stroke", d => getNodeColor(d.target as TreeNode))
         .attr("d", () => {
           const o = { x: source.x0 || source.x, y: source.y0 || source.y };
-          return diagonal({ source: o, target: o } as any); 
+          return diagonal({ source: o, target: o } as any);
         });
 
       link.merge(linkEnter).transition(transition)
@@ -304,12 +294,12 @@ export default function AnchorApp() {
     }
 
     function toggle(d: TreeNode) {
-      if (d.children) { 
-        d._children = d.children; 
-        d.children = undefined; 
-      } else { 
-        d.children = d._children; 
-        d._children = undefined; 
+      if (d.children) {
+        d._children = d.children;
+        d.children = undefined;
+      } else {
+        d.children = d._children;
+        d._children = undefined;
       }
     }
 
@@ -317,7 +307,7 @@ export default function AnchorApp() {
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
       if (message.command === 'refresh' && message.data) {
-        
+
         // 强制隐藏由于重新渲染残留的 Tooltip
         d3.select(tooltipRef.current).style("opacity", 0).style("pointer-events", "none");
 
@@ -325,25 +315,25 @@ export default function AnchorApp() {
         const currentHeight = containerRef.current?.clientHeight || window.innerHeight;
 
         root = d3.hierarchy<TreeNodeData>(message.data) as TreeNode;
-        
+
         let idx = 0;
-        root.descendants().forEach(d => { d.id = String(idx++); }); 
-        
+        root.descendants().forEach(d => { d.id = String(idx++); });
+
         // 🌟 先进行一次不带动画的计算，获取终点坐标
         tree(root);
-        
+
         // 🌟 将节点的出生位置立刻挪到它的终点，杜绝斜线飘移的抖动
         root.x0 = root.x;
         root.y0 = root.y;
-        
+
         // 瞬间居中
         centerView(false);
-        
+
         // 开始动画渲染
         update(root);
       }
     };
-    
+
     window.addEventListener('message', handleMessage);
     const handleResize = () => {
       centerView(false);
@@ -362,12 +352,12 @@ export default function AnchorApp() {
   const handleZoomIn = () => d3.select(containerRef.current).select('svg').transition().call(d3.zoom().scaleBy as any, 1.2);
   const handleZoomOut = () => d3.select(containerRef.current).select('svg').transition().call(d3.zoom().scaleBy as any, 0.8);
   const handleZoomReset = () => {
-      window.dispatchEvent(new Event('resize')); 
+    window.dispatchEvent(new Event('resize'));
   };
   const handleRefresh = () => vscode?.postMessage({ command: 'refresh' });
   const handleFullscreen = () => {
-      vscode?.postMessage({ command: 'toggleFullscreen' });
-      isFullscreen.current = !isFullscreen.current;
+    vscode?.postMessage({ command: 'toggleFullscreen' });
+    isFullscreen.current = !isFullscreen.current;
   };
 
   return (
@@ -466,7 +456,7 @@ export default function AnchorApp() {
 
       {/* D3 SVG 容器 */}
       <div id="tree-container" ref={containerRef} style={{ width: '100%', height: '100%', cursor: 'grab' }} onMouseDown={(e) => e.currentTarget.style.cursor = 'grabbing'} onMouseUp={(e) => e.currentTarget.style.cursor = 'grab'}></div>
-      
+
       {/* 悬浮提示窗 */}
       <div id="tooltip" ref={tooltipRef} className="tooltip"></div>
     </div>

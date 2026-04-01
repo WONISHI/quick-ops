@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { vscode } from '../utils/vscode';
-
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faMagnifyingGlass, faFolderOpen, faFolderPlus, faCodeBranch, 
@@ -16,7 +15,6 @@ import {
   faGithub, faGitlab, faJs, faVuejs, faHtml5, faCss3Alt, faMarkdown 
 } from '@fortawesome/free-brands-svg-icons';
 
-// ---------------- 辅助函数 ----------------
 function getDisplayPath(project: any) {
   let displayPath = project.fsPath;
   try {

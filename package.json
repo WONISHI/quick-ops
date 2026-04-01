@@ -342,7 +342,7 @@
       {
         "command": "quick-ops.anchor.showMenu",
         "title": "显示锚点菜单 (Show Anchors)",
-        "icon": "$(bookmark)"
+        "icon": "$(tag)"
       },
       {
         "command": "quick-ops.anchor.listByGroup",
@@ -381,19 +381,9 @@
         "title": "转为短横线 (kebab-case)"
       },
       {
-        "command": "quickOps.showTerminal",
-        "title": "显示终端",
-        "icon": "$(eye)"
-      },
-      {
-        "command": "quickOps.hideTerminal",
-        "title": "隐藏终端",
-        "icon": "$(eye-closed)"
-      },
-      {
-        "command": "quickOps.hideTerminal",
-        "title": "隐藏终端",
-        "icon": "$(diff-ignored)"
+        "command": "quickOps.toggleTerminal",
+        "title": "切换终端",
+        "icon": "$(terminal-bash)"
       },
       {
         "command": "quick-ops.openTextCompare",
@@ -454,38 +444,32 @@
           "group": "navigation@1"
         },
         {
-          "command": "quickOps.showTerminal",
-          "when": "!quickOps.terminalVisible",
+          "command": "quickOps.toggleTerminal",
           "group": "navigation@2"
         },
         {
-          "command": "quickOps.hideTerminal",
-          "when": "quickOps.terminalVisible",
-          "group": "navigation@3"
-        },
-        {
           "command": "quick-ops.openLivePreview",
-          "group": "navigation@4",
+          "group": "navigation@3",
           "when": "resourceScheme == file"
         },
         {
           "command": "quick-ops.anchor.showMenu",
-          "group": "navigation@5",
+          "group": "navigation@4",
           "when": "quickOps.hasAnchorsInCurrentFile"
         },
         {
           "command": "quick-ops.revealInExplorer",
           "when": "resourceScheme == file",
-          "group": "navigation@6"
+          "group": "navigation@5"
         },
         {
           "command": "quick-ops.scrollToTop",
-          "group": "navigation@7",
+          "group": "navigation@6",
           "when": "editorTextFocus"
         },
         {
           "command": "quick-ops.scrollToBottom",
-          "group": "navigation@8",
+          "group": "navigation@7",
           "when": "editorTextFocus"
         }
       ],
