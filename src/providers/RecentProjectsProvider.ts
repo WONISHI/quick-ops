@@ -404,68 +404,75 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     let projects = this.getRecentProjects();
     let stateChanged = false;
 
-    await Promise.all(
-      projects.map(async (p) => {
-        let newBranch: string | undefined = undefined;
+    // 🌟 1. 拆除 Promise.all 炸弹，改为串行处理，避免瞬间挤爆 Node.js 的 I/O 和网络线程
+    for (let i = 0; i < projects.length; i++) {
+      const p = projects[i];
+      let newBranch: string | undefined = undefined;
 
-        if (p.fsPath.startsWith('vscode-vfs://') || p.fsPath.startsWith('http')) {
-          const match = p.fsPath.match(/[?&]ref=([^&]+)/);
-          if (match) {
-            newBranch = match[1];
-          } else {
-            let repoFullName = '';
-            if (p.fsPath.startsWith('vscode-vfs://')) {
-              repoFullName = p.fsPath.split('?')[0].replace('vscode-vfs://github/', '').replace('vscode-vfs://gitlab/', '');
-            } else if (p.fsPath.startsWith('http')) {
-              try {
-                const url = new URL(p.fsPath);
-                repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
-              } catch (e) { }
-            }
-            if (repoFullName) {
-              newBranch = await this.fetchDefaultBranch(p.platform || 'github', p.customDomain || '', repoFullName);
-            }
-          }
+      // ---- 保持原有的分支解析与请求逻辑完全不变 ----
+      if (p.fsPath.startsWith('vscode-vfs://') || p.fsPath.startsWith('http')) {
+        const match = p.fsPath.match(/[?&]ref=([^&]+)/);
+        if (match) {
+          newBranch = match[1];
         } else {
-          try {
-            const baseUri = p.fsPath.includes('://') ? vscode.Uri.parse(p.fsPath) : vscode.Uri.file(p.fsPath);
-            let gitPath = vscode.Uri.joinPath(baseUri, '.git');
-
-            const stat = await vscode.workspace.fs.stat(gitPath);
-
-            if (stat.type === vscode.FileType.File) {
-              const fileBytes = await vscode.workspace.fs.readFile(gitPath);
-              const fileContent = Buffer.from(fileBytes).toString('utf8').trim();
-              if (fileContent.startsWith('gitdir: ')) {
-                const realGitDir = fileContent.replace('gitdir: ', '').trim();
-                const realGitDirPath = path.isAbsolute(realGitDir)
-                  ? realGitDir
-                  : path.join(baseUri.fsPath, realGitDir);
-                gitPath = vscode.Uri.file(realGitDirPath);
-              }
-            }
-
-            const headUri = vscode.Uri.joinPath(gitPath, 'HEAD');
-            const contentBytes = await vscode.workspace.fs.readFile(headUri);
-            const content = Buffer.from(contentBytes).toString('utf8').trim();
-
-            newBranch = content.startsWith('ref: ')
-              ? content.replace(/^ref:\s*refs\/heads\//, '')
-              : content.substring(0, 7);
-          } catch (e) {
-            newBranch = undefined;
+          let repoFullName = '';
+          if (p.fsPath.startsWith('vscode-vfs://')) {
+            repoFullName = p.fsPath.split('?')[0].replace('vscode-vfs://github/', '').replace('vscode-vfs://gitlab/', '');
+          } else if (p.fsPath.startsWith('http')) {
+            try {
+              const url = new URL(p.fsPath);
+              repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
+            } catch (e) { }
+          }
+          if (repoFullName) {
+            newBranch = await this.fetchDefaultBranch(p.platform || 'github', p.customDomain || '', repoFullName);
           }
         }
+      } else {
+        try {
+          const baseUri = p.fsPath.includes('://') ? vscode.Uri.parse(p.fsPath) : vscode.Uri.file(p.fsPath);
+          let gitPath = vscode.Uri.joinPath(baseUri, '.git');
 
-        this._view?.webview.postMessage({ type: 'updateBranchTag', fsPath: p.fsPath, branch: newBranch });
+          const stat = await vscode.workspace.fs.stat(gitPath);
 
-        if (p.branch !== newBranch) {
-          p.branch = newBranch;
-          stateChanged = true;
+          if (stat.type === vscode.FileType.File) {
+            const fileBytes = await vscode.workspace.fs.readFile(gitPath);
+            const fileContent = Buffer.from(fileBytes).toString('utf8').trim();
+            if (fileContent.startsWith('gitdir: ')) {
+              const realGitDir = fileContent.replace('gitdir: ', '').trim();
+              const realGitDirPath = path.isAbsolute(realGitDir)
+                ? realGitDir
+                : path.join(baseUri.fsPath, realGitDir);
+              gitPath = vscode.Uri.file(realGitDirPath);
+            }
+          }
+
+          const headUri = vscode.Uri.joinPath(gitPath, 'HEAD');
+          const contentBytes = await vscode.workspace.fs.readFile(headUri);
+          const content = Buffer.from(contentBytes).toString('utf8').trim();
+
+          newBranch = content.startsWith('ref: ')
+            ? content.replace(/^ref:\s*refs\/heads\//, '')
+            : content.substring(0, 7);
+        } catch (e) {
+          newBranch = undefined;
         }
-      }),
-    );
+      }
+      // ---- 核心逻辑结束 ----
 
+      // 向前端发送此单个项目的最新分支
+      this._view?.webview.postMessage({ type: 'updateBranchTag', fsPath: p.fsPath, branch: newBranch });
+
+      if (p.branch !== newBranch) {
+        p.branch = newBranch;
+        stateChanged = true;
+      }
+
+      // 🌟 2. 插入微小延迟，将主线程的 CPU 执行权短暂交还给 VS Code，彻底消除卡顿
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+
+    // 全部处理完毕后再统一保存
     if (stateChanged) {
       await this.context.globalState.update(this.stateKey, projects);
     }
@@ -754,7 +761,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       lastOpenedPath: this.lastOpenedPath
     });
 
-    this.refreshBranchesAsync();
   }
 
   private getRecentProjects(): RecentProject[] {

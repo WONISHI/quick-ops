@@ -35,7 +35,10 @@
     "url": "https://github.com/WONISHI/quick-ops.git"
   },
   "activationEvents": [
-    "onLanguage"
+    "onLanguage:vue",
+    "onLanguage:html",
+    "onLanguage:javascriptreact",
+    "onLanguage:typescriptreact"
   ],
   "main": "./dist/extension.js",
   "contributes": {
