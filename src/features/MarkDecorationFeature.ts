@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { debounce } from 'lodash-es';
 import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
 import type { MarkStyle } from '../core/types/mark-style';
@@ -8,6 +9,34 @@ export class MarkDecorationFeature implements IFeature {
   public readonly id = 'MarkDecorationFeature';
 
   private decorationTypes: Map<string, vscode.TextEditorDecorationType> = new Map();
+
+  /**
+   * 单次扫描使用的大正则：
+   * 例如 /(@success:|@warning:|@error:|@todo:)/g
+   */
+  private markRegex: RegExp | null = null;
+
+  /**
+   * 当前 marks 缓存，避免频繁重新 getMarksConfig
+   */
+  private marksConfigCache: Record<string, MarkStyle> = {};
+
+  /**
+   * 注释前缀校验正则（复用）
+   */
+  private readonly commentPatterns: RegExp[] = [
+    /^\s*\/\/\s*$/, // // 
+    /^\s*\*\s*$/, // *
+    /^\s*\/\*\s*$/, // /*
+    /^\s*<!--\s*$/, // <!--
+  ];
+
+  /**
+   * 防抖更新（避免频繁触发）
+   */
+  private readonly debouncedUpdateDecorations = debounce(() => {
+    this.triggerUpdateDecorations();
+  }, 100);
 
   constructor(private configService: ConfigurationService = ConfigurationService.getInstance()) {}
 
@@ -20,26 +49,26 @@ export class MarkDecorationFeature implements IFeature {
 
     context.subscriptions.push(
       vscode.window.onDidChangeActiveTextEditor((editor) => {
-        if (editor) this.triggerUpdateDecorations();
+        if (editor) {
+          this.debouncedUpdateDecorations();
+        }
       }),
     );
 
-    let timeout: NodeJS.Timeout | undefined = undefined;
     context.subscriptions.push(
       vscode.workspace.onDidChangeTextDocument((event) => {
-        if (vscode.window.activeTextEditor && event.document === vscode.window.activeTextEditor.document) {
-          if (timeout) clearTimeout(timeout);
-          timeout = setTimeout(() => this.triggerUpdateDecorations(), 100);
+        const activeEditor = vscode.window.activeTextEditor;
+        if (activeEditor && event.document === activeEditor.document) {
+          this.debouncedUpdateDecorations();
         }
       }),
     );
 
     this.configService.on('configChanged', () => {
       this.reloadDecorations();
-      this.triggerUpdateDecorations();
+      this.debouncedUpdateDecorations();
     });
 
-    // 添加 HTML/XML 相关语言支持
     const selector: vscode.DocumentSelector = [
       'javascript',
       'typescript',
@@ -71,63 +100,56 @@ export class MarkDecorationFeature implements IFeature {
       },
       '@',
     );
-    context.subscriptions.push(completionProvider);
+
+    context.subscriptions.push(
+      completionProvider,
+      {
+        dispose: () => {
+          this.debouncedUpdateDecorations.cancel();
+        },
+      },
+    );
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   /**
-   * ✨ 核心补全逻辑 (已更新：支持自动补全冒号)
-   * 现在支持 HTML/XML 注释 <!-- -->
+   * 补全逻辑
    */
-  private provideMarkCompletions(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] | undefined {
+  private provideMarkCompletions(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): vscode.CompletionItem[] | undefined {
     const lineText = document.lineAt(position).text;
     const prefix = lineText.substring(0, position.character);
 
     const atIndex = prefix.lastIndexOf('@');
     if (atIndex === -1) return undefined;
 
-    // 1. 严格检查：@ 之前必须是 "空白 + 注释符 + 空白"
-    // 允许的格式： "// @", "   * @", "<!-- @"
-    // 不允许的格式： "var s = '// @", "text // @"
     const textBeforeAt = prefix.substring(0, atIndex);
 
-    // 正则解释：支持多种注释格式
-    // 1. // 单行注释
-    // 2. * 块注释中的行
-    // 3. /* 块注释开始
-    // 4. <!-- HTML/XML 注释开始
-    const commentPatterns = [
-      /^\s*\/\/\s*$/, // 单行注释: //
-      /^\s*\*\s*$/, // 块注释行: *
-      /^\s*\/\*\s*$/, // 块注释开始: /*
-      /^\s*<!--\s*$/, // HTML/XML 注释: <!--
-    ];
-
-    const isValidCommentStart = commentPatterns.some((pattern) => pattern.test(textBeforeAt));
-
-    if (!isValidCommentStart) {
+    if (!this.isValidCommentStart(textBeforeAt)) {
       return undefined;
     }
 
     const replaceRange = new vscode.Range(position.line, atIndex, position.line, position.character);
-    const marksConfig = this.getMarksConfig();
     const items: vscode.CompletionItem[] = [];
 
-    for (const [markText, style] of Object.entries(marksConfig)) {
-      const logItemObj: vscode.CompletionItemLabel = {
+    for (const [markText, style] of Object.entries(this.marksConfigCache)) {
+      const label: vscode.CompletionItemLabel = {
         label: markText,
         description: `quick-ops/${markText}`,
       };
-      const item = new vscode.CompletionItem(logItemObj, vscode.CompletionItemKind.Color);
+
+      const item = new vscode.CompletionItem(label, vscode.CompletionItemKind.Color);
 
       item.detail = `Mark: ${markText}:`;
-      item.documentation = new vscode.MarkdownString(`Preview: **${markText}:**\n\nColor: ${style.backgroundColor}`);
+      item.documentation = new vscode.MarkdownString(
+        `Preview: **${markText}:**\n\nColor: ${style.backgroundColor || '#007acc'}`,
+      );
       item.sortText = '!';
       item.range = replaceRange;
       item.filterText = markText;
-
-      // ✨ 关键修改：插入文本自动带上冒号
       item.insertText = `${markText}: `;
 
       items.push(item);
@@ -136,11 +158,15 @@ export class MarkDecorationFeature implements IFeature {
     return items;
   }
 
+  /**
+   * 重载 decorations + 预编译 mark 正则
+   */
   private reloadDecorations() {
     this.disposeDecorations();
-    const marksConfig = this.getMarksConfig();
 
-    for (const [text, style] of Object.entries(marksConfig)) {
+    this.marksConfigCache = this.getMarksConfig();
+
+    for (const [text, style] of Object.entries(this.marksConfigCache)) {
       const decorationType = vscode.window.createTextEditorDecorationType({
         color: style.color || '#ffffff',
         backgroundColor: style.backgroundColor || '#007acc',
@@ -153,53 +179,90 @@ export class MarkDecorationFeature implements IFeature {
 
       this.decorationTypes.set(text, decorationType);
     }
+
+    this.buildMarkRegex();
   }
 
   /**
-   * ✨ 核心高亮逻辑 (已更新：严格校验，支持 HTML/XML 注释)
+   * 单次扫描高亮逻辑（核心优化）
    */
   private triggerUpdateDecorations() {
     const editor = vscode.window.activeTextEditor;
-    if (!editor) return;
+    if (!editor || !this.markRegex) return;
 
-    const text = editor.document.getText();
-    const marksConfig = this.getMarksConfig();
+    const document = editor.document;
+    const text = document.getText();
 
-    for (const [markText, _] of Object.entries(marksConfig)) {
-      const decorationType = this.decorationTypes.get(markText);
-      if (!decorationType) continue;
+    /**
+     * 每个 mark 对应自己的 range 数组
+     */
+    const rangesMap: Record<string, vscode.Range[]> = {};
 
-      const ranges: vscode.Range[] = [];
-
-      // 1. 构造带冒号的正则
-      const escapedText = markText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`${escapedText}:`, 'g');
-
-      let match;
-      while ((match = regex.exec(text))) {
-        const startPos = editor.document.positionAt(match.index);
-        const endPos = editor.document.positionAt(match.index + match[0].length);
-        const lineText = editor.document.lineAt(startPos.line).text;
-
-        // 2. ✨ 严格校验：匹配项之前的内容
-        const textBeforeMatch = lineText.substring(0, startPos.character);
-
-        // 3. 校验规则：支持多种注释格式
-        const commentPatterns = [
-          /^\s*\/\/\s*$/, // 单行注释: //
-          /^\s*\*\s*$/, // 块注释行: *
-          /^\s*\/\*\s*$/, // 块注释开始: /*
-          /^\s*<!--\s*$/, // HTML/XML 注释: <!--
-        ];
-
-        const isStrictCommentStart = commentPatterns.some((pattern) => pattern.test(textBeforeMatch));
-
-        if (isStrictCommentStart) {
-          ranges.push(new vscode.Range(startPos, endPos));
-        }
-      }
-      editor.setDecorations(decorationType, ranges);
+    for (const markText of Object.keys(this.marksConfigCache)) {
+      rangesMap[markText] = [];
     }
+
+    this.markRegex.lastIndex = 0;
+
+    let match: RegExpExecArray | null;
+    while ((match = this.markRegex.exec(text))) {
+      const matchedText = match[0] as string; // 例如 "@success:"
+      const markKey = matchedText.slice(0, -1); // 去掉 ":" => "@success"
+
+      const startPos = document.positionAt(match.index);
+      const endPos = document.positionAt(match.index + matchedText.length);
+      const lineText = document.lineAt(startPos.line).text;
+      const textBeforeMatch = lineText.substring(0, startPos.character);
+
+      if (!this.isValidCommentStart(textBeforeMatch)) {
+        continue;
+      }
+
+      if (!rangesMap[markKey]) {
+        rangesMap[markKey] = [];
+      }
+
+      rangesMap[markKey].push(new vscode.Range(startPos, endPos));
+    }
+
+    for (const [markText, decorationType] of this.decorationTypes.entries()) {
+      editor.setDecorations(decorationType, rangesMap[markText] || []);
+    }
+  }
+
+  /**
+   * 构建单次扫描正则
+   * 例如 /(@success:|@warning:|@error:|@todo:)/g
+   */
+  private buildMarkRegex() {
+    const markKeys = Object.keys(this.marksConfigCache);
+
+    if (!markKeys.length) {
+      this.markRegex = null;
+      return;
+    }
+
+    const pattern = markKeys
+      .map((mark) => this.escapeRegExp(mark))
+      .sort((a, b) => b.length - a.length) // 长的优先，避免前缀冲突
+      .map((mark) => `${mark}:`)
+      .join('|');
+
+    this.markRegex = new RegExp(pattern, 'g');
+  }
+
+  /**
+   * 校验是否是合法注释开头
+   */
+  private isValidCommentStart(text: string): boolean {
+    return this.commentPatterns.some((pattern) => pattern.test(text));
+  }
+
+  /**
+   * 正则转义
+   */
+  private escapeRegExp(text: string): string {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   private getMarksConfig(): Record<string, MarkStyle> {
@@ -220,6 +283,7 @@ export class MarkDecorationFeature implements IFeature {
         finalMarks[key] = userStyle;
       }
     }
+
     return finalMarks;
   }
 
@@ -231,6 +295,7 @@ export class MarkDecorationFeature implements IFeature {
   }
 
   public deactivate() {
+    this.debouncedUpdateDecorations.cancel();
     this.disposeDecorations();
   }
 }
