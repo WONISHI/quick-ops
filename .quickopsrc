@@ -18,17 +18,6 @@
   },
   "shells": [],
   "project": {
-    "marks": {
-      "@FIXME": {
-        "backgroundColor": "#9c27b0",
-        "color": "#fff",
-        "borderRadius": "2px"
-      },
-      "@OPTIMIZE": {
-        "backgroundColor": "#00bcd4",
-        "color": "#fff"
-      }
-    },
     "alias": {
       "@/": "./src/"
     }

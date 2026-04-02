@@ -1,3 +1,4 @@
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { debounce } from 'lodash-es';
 import { IFeature } from '../core/interfaces/IFeature';
@@ -9,38 +10,27 @@ export class MarkDecorationFeature implements IFeature {
   public readonly id = 'MarkDecorationFeature';
 
   private decorationTypes: Map<string, vscode.TextEditorDecorationType> = new Map();
-
-  /**
-   * 单次扫描使用的大正则：
-   * 例如 /(@success:|@warning:|@error:|@todo:)/g
-   */
   private markRegex: RegExp | null = null;
-
-  /**
-   * 当前 marks 缓存，避免频繁重新 getMarksConfig
-   */
   private marksConfigCache: Record<string, MarkStyle> = {};
+  private extensionContext!: vscode.ExtensionContext;
 
-  /**
-   * 注释前缀校验正则（复用）
-   */
   private readonly commentPatterns: RegExp[] = [
-    /^\s*\/\/\s*$/, // // 
+    /^\s*\/\/\s*$/, // //
     /^\s*\*\s*$/, // *
     /^\s*\/\*\s*$/, // /*
     /^\s*<!--\s*$/, // <!--
+    /^\s*#\s*$/, // # (python/shell)
   ];
 
-  /**
-   * 防抖更新（避免频繁触发）
-   */
   private readonly debouncedUpdateDecorations = debounce(() => {
     this.triggerUpdateDecorations();
   }, 100);
 
-  constructor(private configService: ConfigurationService = ConfigurationService.getInstance()) {}
+  constructor(private configService: ConfigurationService = ConfigurationService.getInstance()) { }
 
   public activate(context: vscode.ExtensionContext): void {
+    this.extensionContext = context;
+
     this.reloadDecorations();
 
     if (vscode.window.activeTextEditor) {
@@ -89,6 +79,8 @@ export class MarkDecorationFeature implements IFeature {
       'tsx',
       'markdown',
       'mdx',
+      'shellscript',
+      'yaml',
     ];
 
     const completionProvider = vscode.languages.registerCompletionItemProvider(
@@ -168,13 +160,46 @@ export class MarkDecorationFeature implements IFeature {
 
     for (const [text, style] of Object.entries(this.marksConfigCache)) {
       const decorationType = vscode.window.createTextEditorDecorationType({
+        isWholeLine: true,
+
+        /**
+         * 整行荧光背景
+         */
+        backgroundColor: style.wholeLineBackgroundColor || style.backgroundColor || 'rgba(0,122,204,0.12)',
+
+        /**
+         * 文字样式
+         */
         color: style.color || '#ffffff',
-        backgroundColor: style.backgroundColor || '#007acc',
-        borderRadius: style.borderRadius || '3px',
-        fontWeight: style.fontWeight || 'bold',
-        overviewRulerColor: style.backgroundColor,
+        fontWeight: style.fontWeight || '600',
+
+        /**
+         * 圆角 + 边框 + 左侧强调线
+         */
+        borderRadius: style.borderRadius || '8px',
+        border: `1px solid ${style.borderColor || style.backgroundColor || 'rgba(0,122,204,0.35)'}`,
+
+        /**
+         * 右侧 overview ruler
+         */
+        overviewRulerColor: style.backgroundColor || '#007acc',
         overviewRulerLane: vscode.OverviewRulerLane.Right,
+
         rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+
+        /**
+         * 左侧 gutter 图标
+         */
+        gutterIconPath: this.resolveGutterIcon(style.gutterIconPath),
+        gutterIconSize: '18px',
+
+        /**
+         * 行前加一点内边距视觉效果
+         */
+        before: {
+          contentText: '',
+          margin: '0 0 0 4px',
+        },
       });
 
       this.decorationTypes.set(text, decorationType);
@@ -184,7 +209,7 @@ export class MarkDecorationFeature implements IFeature {
   }
 
   /**
-   * 单次扫描高亮逻辑（核心优化）
+   * 单次扫描高亮逻辑（整行高亮）
    */
   private triggerUpdateDecorations() {
     const editor = vscode.window.activeTextEditor;
@@ -193,9 +218,6 @@ export class MarkDecorationFeature implements IFeature {
     const document = editor.document;
     const text = document.getText();
 
-    /**
-     * 每个 mark 对应自己的 range 数组
-     */
     const rangesMap: Record<string, vscode.Range[]> = {};
 
     for (const markText of Object.keys(this.marksConfigCache)) {
@@ -206,23 +228,31 @@ export class MarkDecorationFeature implements IFeature {
 
     let match: RegExpExecArray | null;
     while ((match = this.markRegex.exec(text))) {
-      const matchedText = match[0] as string; // 例如 "@success:"
-      const markKey = matchedText.slice(0, -1); // 去掉 ":" => "@success"
+      const matchedText = match[0] as string; // 例如 "@todo:"
+      const markKey = matchedText.slice(0, -1); // @todo
 
       const startPos = document.positionAt(match.index);
-      const endPos = document.positionAt(match.index + matchedText.length);
-      const lineText = document.lineAt(startPos.line).text;
+      const line = startPos.line;
+      const lineText = document.lineAt(line).text;
       const textBeforeMatch = lineText.substring(0, startPos.character);
 
       if (!this.isValidCommentStart(textBeforeMatch)) {
         continue;
       }
 
+      /**
+       * 关键：整行高亮，而不是只高亮 @todo:
+       */
+      const fullLineRange = new vscode.Range(
+        new vscode.Position(line, 0),
+        new vscode.Position(line, lineText.length),
+      );
+
       if (!rangesMap[markKey]) {
         rangesMap[markKey] = [];
       }
 
-      rangesMap[markKey].push(new vscode.Range(startPos, endPos));
+      rangesMap[markKey].push(fullLineRange);
     }
 
     for (const [markText, decorationType] of this.decorationTypes.entries()) {
@@ -232,7 +262,6 @@ export class MarkDecorationFeature implements IFeature {
 
   /**
    * 构建单次扫描正则
-   * 例如 /(@success:|@warning:|@error:|@todo:)/g
    */
   private buildMarkRegex() {
     const markKeys = Object.keys(this.marksConfigCache);
@@ -244,7 +273,7 @@ export class MarkDecorationFeature implements IFeature {
 
     const pattern = markKeys
       .map((mark) => this.escapeRegExp(mark))
-      .sort((a, b) => b.length - a.length) // 长的优先，避免前缀冲突
+      .sort((a, b) => b.length - a.length)
       .map((mark) => `${mark}:`)
       .join('|');
 
@@ -265,12 +294,84 @@ export class MarkDecorationFeature implements IFeature {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
+  /**
+   * 解析 gutter 图标路径
+   */
+  private resolveGutterIcon(iconPath?: string): string | undefined {
+    if (!iconPath) return undefined;
+
+    if (path.isAbsolute(iconPath)) {
+      return iconPath;
+    }
+
+    return path.join(this.extensionContext.extensionPath, iconPath);
+  }
+
   private getMarksConfig(): Record<string, MarkStyle> {
     const defaultMarks: Record<string, MarkStyle> = {
-      '@success': { backgroundColor: '#4caf50', color: '#ffffff', borderRadius: '4px', fontWeight: 'bold' },
-      '@warning': { backgroundColor: '#ff9800', color: '#ffffff', borderRadius: '4px', fontWeight: 'bold' },
-      '@error': { backgroundColor: '#f44336', color: '#ffffff', borderRadius: '4px', fontWeight: 'bold' },
-      '@todo': { backgroundColor: '#ffeb3b', color: '#333333', borderRadius: '4px', fontWeight: 'bold' },
+      // 已完成 (荧光青绿)
+      '@success': {
+        backgroundColor: 'rgba(52, 211, 153, 0.15)',
+        borderColor: 'rgba(52, 211, 153, 0.4)',
+        color: '#34d399', 
+        borderRadius: '3px',
+        fontWeight: '900',
+        gutterIconPath: 'resources/icons/success.svg',
+      },
+      // 风险提醒 (亮金橙)
+      '@warning': {
+        backgroundColor: 'rgba(251, 191, 36, 0.15)',
+        borderColor: 'rgba(251, 191, 36, 0.4)',
+        color: '#fbbf24', 
+        borderRadius: '3px',
+        fontWeight: '900',
+        gutterIconPath: 'resources/icons/warning.svg',
+      },
+      // 明确问题 (纯粹霓虹红 - 鲜明警告)
+      '@error': {
+        backgroundColor: 'rgba(255, 42, 42, 0.15)',
+        borderColor: 'rgba(255, 42, 42, 0.4)',
+        color: '#ff2a2a', // 纯正亮红色
+        borderRadius: '3px',
+        fontWeight: '900',
+        gutterIconPath: 'resources/icons/error.svg',
+      },
+      // 待办 (亮天蓝)
+      '@todo': {
+        backgroundColor: 'rgba(56, 189, 248, 0.15)',
+        borderColor: 'rgba(56, 189, 248, 0.4)',
+        color: '#38bdf8', 
+        borderRadius: '3px',
+        fontWeight: '900',
+        gutterIconPath: 'resources/icons/todo.svg',
+      },
+      // 说明 / 备注 (高饱和荧光青 - 极高亮度和清晰度)
+      '@note': {
+        backgroundColor: 'rgba(0, 229, 255, 0.15)',
+        borderColor: 'rgba(0, 229, 255, 0.4)',
+        color: '#00e5ff', // 荧光青/青松色，彻底摆脱发虚的问题
+        borderRadius: '3px',
+        fontWeight: '900',
+        gutterIconPath: 'resources/icons/note.svg',
+      },
+      // 阻塞项 (致命电音紫红/亮洋红 - 与 Error 形成强烈反差)
+      '@blocker': {
+        backgroundColor: 'rgba(240, 24, 255, 0.15)',
+        borderColor: 'rgba(240, 24, 255, 0.5)',
+        color: '#f018ff', // 高亮洋红色，极具视觉冲击力
+        borderRadius: '3px',
+        fontWeight: '900',
+        gutterIconPath: 'resources/icons/blocker.svg',
+      },
+      // 有待确认 (电音紫)
+      '@xxx': {
+        backgroundColor: 'rgba(167, 139, 250, 0.15)',
+        borderColor: 'rgba(167, 139, 250, 0.4)',
+        color: '#a78bfa', 
+        borderRadius: '3px',
+        fontWeight: '900',
+        gutterIconPath: 'resources/icons/xxx.svg',
+      },
     };
 
     const userMarks = this.configService.config.project?.marks || {};

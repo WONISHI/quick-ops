@@ -172,17 +172,7 @@
         },
         "quick-ops.project.marks": {
           "type": "object",
-          "default": {
-            "@FIXME": {
-              "backgroundColor": "#9c27b0",
-              "color": "#fff",
-              "borderRadius": "2px"
-            },
-            "@OPTIMIZE": {
-              "backgroundColor": "#00bcd4",
-              "color": "#fff"
-            }
-          },
+          "default": {},
           "description": "自定义代码高亮标记的样式配置"
         },
         "quick-ops.project.alias": {
