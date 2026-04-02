@@ -2,7 +2,7 @@
   "name": "quick-ops",
   "displayName": "Quick Ops: Code Utils & Anchors",
   "description": "Boost productivity with Code Anchors, SCSS structure generation, and essential navigation shortcuts.",
-  "version": "0.0.36",
+  "version": "0.0.37",
   "engines": {
     "vscode": "^1.73.0"
   },
@@ -564,6 +564,7 @@
     "package": "npm run build:ui && webpack --mode production --devtool hidden-source-map",
     "compile-tests": "tsc -p . --outDir dist",
     "watch-tests": "tsc -p . -w --outDir dist",
+    "preinstall": "cd webview-ui && npm install",
     "pretest": "pnpm run compile-tests && pnpm run compile && pnpm run lint",
     "lint": "eslint src",
     "test": "node ./dist/test/extension.test.js"
