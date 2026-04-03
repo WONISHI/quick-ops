@@ -466,7 +466,7 @@
         {
           "command": "quick-ops.anchor.showMenu",
           "group": "navigation@4",
-          "when": "quickOps.hasAnchorsInCurrentFile"
+          "when": "quickOps.hasAnchorsInProject && resourceScheme == file"
         },
         {
           "command": "quick-ops.revealInExplorer",
