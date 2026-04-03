@@ -277,13 +277,19 @@
         "command": "quick-ops.showPackageScripts",
         "title": "运行快捷脚本 (Scripts)",
         "category": "Quick Ops",
-        "icon": "$(terminal-powershell)"
+        "icon": {
+          "light": "resources/light/code.svg",
+          "dark": "resources/dark/code.svg"
+        }
       },
       {
         "command": "quick-ops.openLivePreview",
         "title": "网页预览台 (Live Preview)",
         "category": "Quick Ops",
-        "icon": "$(vm-small)"
+        "icon": {
+          "light": "resources/light/tv-minimal.svg",
+          "dark": "resources/dark/tv-minimal.svg"
+        }
       },
       {
         "command": "quick-ops.anchor.showMenu",
@@ -295,18 +301,27 @@
         "command": "quick-ops.revealInExplorer",
         "title": "定位当前文件 (Reveal File)",
         "category": "Quick Ops",
-        "icon": "$(record)"
+        "icon": {
+          "light": "resources/light/record.svg",
+          "dark": "resources/dark/record.svg"
+        }
       },
       {
         "command": "quick-ops.scrollToTop",
         "title": "回到顶部 (Scroll to Top)",
-        "icon": "$(fold-up)"
+        "icon": {
+          "light": "resources/light/scroll-top.svg",
+          "dark": "resources/dark/scroll-top.svg"
+        }
       },
       {
         "command": "quick-ops.scrollToBottom",
         "title": "回到底部 (Scroll to Bottom)",
         "category": "Quick Ops",
-        "icon": "$(fold-down)"
+        "icon": {
+          "light": "resources/light/scroll-top.svg",
+          "dark": "resources/dark/scroll-top.svg"
+        }
       },
       {
         "command": "quick-ops.createConfigFile",
@@ -332,7 +347,10 @@
       {
         "command": "quick-ops.anchor.showMenu",
         "title": "显示锚点菜单 (Show Anchors)",
-        "icon": "$(tag)"
+        "icon": {
+          "light": "resources/light/tag.svg",
+          "dark": "resources/dark/tag.svg"
+        }
       },
       {
         "command": "quick-ops.anchor.listByGroup",
@@ -373,7 +391,10 @@
       {
         "command": "quickOps.toggleTerminal",
         "title": "切换终端",
-        "icon": "$(terminal-bash)"
+        "icon": {
+          "light": "resources/light/terminal.svg",
+          "dark": "resources/dark/terminal.svg"
+        }
       },
       {
         "command": "quick-ops.openTextCompare",

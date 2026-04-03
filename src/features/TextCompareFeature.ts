@@ -72,7 +72,6 @@ export class TextCompareFeature implements IFeature {
       });
 
       this.currentPanel.webview.onDidReceiveMessage(async (message) => {
-        // 🌟 3. 监听前端 React 页面准备完毕事件，将选中的初始化文本下发
         if (message.type === 'ready') {
           if (initialText) {
             this.currentPanel?.webview.postMessage({ type: 'updateOriginal', text: initialText });
@@ -84,10 +83,8 @@ export class TextCompareFeature implements IFeature {
         }
       });
 
-      // 🌟 4. 使用 React Webview 页面，挂载到 `/compare` 路由
       this.currentPanel.webview.html = getReactWebviewHtml(context.extensionUri, this.currentPanel.webview, '/compare');
 
-      // 🌟 后备机制：防止前端没有发 'ready' 消息，延迟500ms兜底下发一次数据
       if (initialText) {
         setTimeout(() => {
           this.currentPanel?.webview.postMessage({ type: 'updateOriginal', text: initialText });
