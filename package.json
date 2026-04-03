@@ -319,8 +319,8 @@
         "title": "回到底部 (Scroll to Bottom)",
         "category": "Quick Ops",
         "icon": {
-          "light": "resources/icons/light/scroll-top.svg",
-          "dark": "resources/icons/dark/scroll-top.svg"
+          "light": "resources/icons/light/scroll-bottom.svg",
+          "dark": "resources/icons/dark/scroll-bottom.svg"
         }
       },
       {
