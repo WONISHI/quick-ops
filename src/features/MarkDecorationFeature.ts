@@ -15,11 +15,12 @@ export class MarkDecorationFeature implements IFeature {
   private extensionContext!: vscode.ExtensionContext;
 
   private readonly commentPatterns: RegExp[] = [
-    /^\s*\/\/\s*$/, // //
-    /^\s*\*\s*$/, // *
-    /^\s*\/\*\s*$/, // /*
-    /^\s*<!--\s*$/, // <!--
-    /^\s*#\s*$/, // # (python/shell)
+    /\/\/\s*$/,      // // 
+    /\/\*\s*$/,      // /*
+    /\*\s*$/,        // *  (块注释中间行)
+    /<!--\s*$/,      // <!--
+    /#\s*$/,         // # (python/shell)
+    /\{\/\*\s*$/,    // {/*  JSX/TSX 注释
   ];
 
   private readonly debouncedUpdateDecorations = debounce(() => {
@@ -283,9 +284,10 @@ export class MarkDecorationFeature implements IFeature {
   /**
    * 校验是否是合法注释开头
    */
-  private isValidCommentStart(text: string): boolean {
-    return this.commentPatterns.some((pattern) => pattern.test(text));
-  }
+private isValidCommentStart(text: string): boolean {
+  const trimmed = text.trimEnd();
+  return this.commentPatterns.some((pattern) => pattern.test(trimmed));
+}
 
   /**
    * 正则转义
@@ -313,7 +315,7 @@ export class MarkDecorationFeature implements IFeature {
       '@success': {
         backgroundColor: 'rgba(52, 211, 153, 0.15)',
         borderColor: 'rgba(52, 211, 153, 0.4)',
-        color: '#34d399', 
+        color: '#34d399',
         borderRadius: '3px',
         fontWeight: '900',
         gutterIconPath: 'resources/icons/success.svg',
@@ -322,7 +324,7 @@ export class MarkDecorationFeature implements IFeature {
       '@warning': {
         backgroundColor: 'rgba(251, 191, 36, 0.15)',
         borderColor: 'rgba(251, 191, 36, 0.4)',
-        color: '#fbbf24', 
+        color: '#fbbf24',
         borderRadius: '3px',
         fontWeight: '900',
         gutterIconPath: 'resources/icons/warning.svg',
@@ -340,7 +342,7 @@ export class MarkDecorationFeature implements IFeature {
       '@todo': {
         backgroundColor: 'rgba(56, 189, 248, 0.15)',
         borderColor: 'rgba(56, 189, 248, 0.4)',
-        color: '#38bdf8', 
+        color: '#38bdf8',
         borderRadius: '3px',
         fontWeight: '900',
         gutterIconPath: 'resources/icons/todo.svg',
@@ -367,7 +369,7 @@ export class MarkDecorationFeature implements IFeature {
       '@xxx': {
         backgroundColor: 'rgba(167, 139, 250, 0.15)',
         borderColor: 'rgba(167, 139, 250, 0.4)',
-        color: '#a78bfa', 
+        color: '#a78bfa',
         borderRadius: '3px',
         fontWeight: '900',
         gutterIconPath: 'resources/icons/xxx.svg',
