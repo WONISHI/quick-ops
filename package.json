@@ -195,7 +195,7 @@
     "jsonValidation": [
       {
         "fileMatch": ".quickopsrc",
-        "url": "./resources/iconsschema/.quickopsrc-schema.json"
+        "url": "./resources/schema/.quickopsrc-schema.json"
       }
     ],
     "webviews": {
@@ -278,8 +278,8 @@
         "title": "运行快捷脚本 (Scripts)",
         "category": "Quick Ops",
         "icon": {
-          "light": "resources/iconslight/code.svg",
-          "dark": "resources/iconsdark/code.svg"
+          "light": "resources/icons/light/code.svg",
+          "dark": "resources/icons/dark/code.svg"
         }
       },
       {
@@ -287,8 +287,8 @@
         "title": "网页预览台 (Live Preview)",
         "category": "Quick Ops",
         "icon": {
-          "light": "resources/iconslight/tv-minimal.svg",
-          "dark": "resources/iconsdark/tv-minimal.svg"
+          "light": "resources/icons/light/tv-minimal.svg",
+          "dark": "resources/icons/dark/tv-minimal.svg"
         }
       },
       {
@@ -302,16 +302,16 @@
         "title": "定位当前文件 (Reveal File)",
         "category": "Quick Ops",
         "icon": {
-          "light": "resources/iconslight/record.svg",
-          "dark": "resources/iconsdark/record.svg"
+          "light": "resources/icons/light/record.svg",
+          "dark": "resources/icons/dark/record.svg"
         }
       },
       {
         "command": "quick-ops.scrollToTop",
         "title": "回到顶部 (Scroll to Top)",
         "icon": {
-          "light": "resources/iconslight/scroll-top.svg",
-          "dark": "resources/iconsdark/scroll-top.svg"
+          "light": "resources/icons/light/scroll-top.svg",
+          "dark": "resources/icons/dark/scroll-top.svg"
         }
       },
       {
@@ -319,8 +319,8 @@
         "title": "回到底部 (Scroll to Bottom)",
         "category": "Quick Ops",
         "icon": {
-          "light": "resources/iconslight/scroll-top.svg",
-          "dark": "resources/iconsdark/scroll-top.svg"
+          "light": "resources/icons/light/scroll-top.svg",
+          "dark": "resources/icons/dark/scroll-top.svg"
         }
       },
       {
@@ -348,8 +348,8 @@
         "command": "quick-ops.anchor.showMenu",
         "title": "显示锚点菜单 (Show Anchors)",
         "icon": {
-          "light": "resources/iconslight/tag.svg",
-          "dark": "resources/iconsdark/tag.svg"
+          "light": "resources/icons/light/tag.svg",
+          "dark": "resources/icons/dark/tag.svg"
         }
       },
       {
@@ -392,8 +392,8 @@
         "command": "quickOps.toggleTerminal",
         "title": "切换终端",
         "icon": {
-          "light": "resources/iconslight/terminal.svg",
-          "dark": "resources/iconsdark/terminal.svg"
+          "light": "resources/icons/light/terminal.svg",
+          "dark": "resources/icons/dark/terminal.svg"
         }
       },
       {
