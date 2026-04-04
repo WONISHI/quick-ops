@@ -9,7 +9,7 @@ import ColorLog from '../utils/ColorLog';
 export class MarkDecorationFeature implements IFeature {
   public readonly id = 'MarkDecorationFeature';
 
-  private decorationTypes: Map<string, vscode.TextEditorDecorationType> = new Map();
+  private decorationTypes: Map<string, { line: vscode.TextEditorDecorationType; icon: vscode.TextEditorDecorationType }> = new Map();
   private markRegex: RegExp | null = null;
   private marksConfigCache: Record<string, MarkStyle> = {};
   private extensionContext!: vscode.ExtensionContext;
@@ -154,59 +154,53 @@ export class MarkDecorationFeature implements IFeature {
   /**
    * 重载 decorations + 预编译 mark 正则
    */
-  private reloadDecorations() {
+/**
+   * 重载 decorations + 预编译 mark 正则
+   */
+  private async reloadDecorations() { // 👈 加上 async
     this.disposeDecorations();
 
     this.marksConfigCache = this.getMarksConfig();
 
+    // 🌟 这里必须用 for...of 循环，以保证 await 顺序执行
     for (const [text, style] of Object.entries(this.marksConfigCache)) {
-      const decorationType = vscode.window.createTextEditorDecorationType({
+      const targetColor = style.color || '#ffffff';
+      
+      // 👈 加上 await
+      const iconUri = await this.resolveIconUri(style.gutterIconPath, targetColor);
+
+      const lineDecoration = vscode.window.createTextEditorDecorationType({
         isWholeLine: true,
-
-        /**
-         * 整行荧光背景
-         */
         backgroundColor: style.wholeLineBackgroundColor || style.backgroundColor || 'rgba(0,122,204,0.12)',
-
-        /**
-         * 文字样式
-         */
         color: style.color || '#ffffff',
         fontWeight: style.fontWeight || '600',
-
-        /**
-         * 圆角 + 边框 + 左侧强调线
-         */
         borderRadius: style.borderRadius || '8px',
         border: `1px solid ${style.borderColor || style.backgroundColor || 'rgba(0,122,204,0.35)'}`,
-
-        /**
-         * 右侧 overview ruler
-         */
         overviewRulerColor: style.backgroundColor || '#007acc',
         overviewRulerLane: vscode.OverviewRulerLane.Right,
-
         rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
-
-        /**
-         * 左侧 gutter 图标
-         */
-        gutterIconPath: this.resolveGutterIcon(style.gutterIconPath),
-        gutterIconSize: '18px',
-
-        /**
-         * 行前加一点内边距视觉效果
-         */
         before: {
           contentText: '',
           margin: '0 0 0 4px',
         },
       });
 
-      this.decorationTypes.set(text, decorationType);
+      const iconDecoration = vscode.window.createTextEditorDecorationType({
+        before: iconUri ? {
+          contentIconPath: iconUri,
+          margin: '0 0.3em 0 0',
+          textDecoration: 'none; vertical-align: -16%;',
+        } : undefined,
+        rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+      });
+
+      this.decorationTypes.set(text, { line: lineDecoration, icon: iconDecoration });
     }
 
     this.buildMarkRegex();
+    
+    // 🌟 关键：因为现在是异步加载图标，加载完毕后必须主动触发一次页面高亮！
+    this.triggerUpdateDecorations(); 
   }
 
   /**
@@ -219,10 +213,10 @@ export class MarkDecorationFeature implements IFeature {
     const document = editor.document;
     const text = document.getText();
 
-    const rangesMap: Record<string, vscode.Range[]> = {};
+    const rangesMap: Record<string, { lineRanges: vscode.Range[]; iconRanges: vscode.Range[] }> = {};
 
     for (const markText of Object.keys(this.marksConfigCache)) {
-      rangesMap[markText] = [];
+      rangesMap[markText] = { lineRanges: [], iconRanges: [] };
     }
 
     this.markRegex.lastIndex = 0;
@@ -241,23 +235,26 @@ export class MarkDecorationFeature implements IFeature {
         continue;
       }
 
-      /**
-       * 关键：整行高亮，而不是只高亮 @todo:
-       */
+      // 1. 铺满整行的范围
       const fullLineRange = new vscode.Range(
         new vscode.Position(line, 0),
         new vscode.Position(line, lineText.length),
       );
 
+      // 2. 仅仅定位在 @ 符号前的位置 (长度为0的精准 Range)
+      const iconRange = new vscode.Range(startPos, startPos);
+
       if (!rangesMap[markKey]) {
-        rangesMap[markKey] = [];
+        rangesMap[markKey] = { lineRanges: [], iconRanges: [] };
       }
 
-      rangesMap[markKey].push(fullLineRange);
+      rangesMap[markKey].lineRanges.push(fullLineRange);
+      rangesMap[markKey].iconRanges.push(iconRange);
     }
 
-    for (const [markText, decorationType] of this.decorationTypes.entries()) {
-      editor.setDecorations(decorationType, rangesMap[markText] || []);
+    for (const [markText, decos] of this.decorationTypes.entries()) {
+      editor.setDecorations(decos.line, rangesMap[markText].lineRanges || []);
+      editor.setDecorations(decos.icon, rangesMap[markText].iconRanges || []);
     }
   }
 
@@ -284,10 +281,10 @@ export class MarkDecorationFeature implements IFeature {
   /**
    * 校验是否是合法注释开头
    */
-private isValidCommentStart(text: string): boolean {
-  const trimmed = text.trimEnd();
-  return this.commentPatterns.some((pattern) => pattern.test(trimmed));
-}
+  private isValidCommentStart(text: string): boolean {
+    const trimmed = text.trimEnd();
+    return this.commentPatterns.some((pattern) => pattern.test(trimmed));
+  }
 
   /**
    * 正则转义
@@ -297,16 +294,49 @@ private isValidCommentStart(text: string): boolean {
   }
 
   /**
-   * 解析 gutter 图标路径
+     * 解析行内图标的 URI
+     */
+/**
+   * 🌟 动态解析：使用 VS Code 原生 API，支持远程与 Web 环境
    */
-  private resolveGutterIcon(iconPath?: string): string | undefined {
+  private async resolveIconUri(iconPath: string | undefined, targetColor: string): Promise<vscode.Uri | undefined> {
     if (!iconPath) return undefined;
 
+    // 使用 VS Code 推荐的 URI 拼接方式
+    let fileUri: vscode.Uri;
     if (path.isAbsolute(iconPath)) {
-      return iconPath;
+      fileUri = vscode.Uri.file(iconPath);
+    } else {
+      fileUri = vscode.Uri.joinPath(this.extensionContext.extensionUri, iconPath);
     }
 
-    return path.join(this.extensionContext.extensionPath, iconPath);
+    try {
+      // 1. 使用 VS Code API 异步读取文件 (返回 Uint8Array)
+      const fileData = await vscode.workspace.fs.readFile(fileUri);
+      
+      // 2. 将 Uint8Array 转换为字符串 (现代 JS 原生支持)
+      let svgContent = new TextDecoder().decode(fileData);
+
+      // 3. 动态替换颜色
+      svgContent = svgContent.replace(/stroke="[^"]+"/g, `stroke="${targetColor}"`);
+      svgContent = svgContent.replace(/fill="currentColor"/g, `fill="${targetColor}"`);
+
+      // 4. 动态强行替换 SVG 内部的宽高
+      const targetSize = "14"; 
+      if (svgContent.includes('width=')) {
+        svgContent = svgContent.replace(/width="[^"]+"/, `width="${targetSize}"`);
+        svgContent = svgContent.replace(/height="[^"]+"/, `height="${targetSize}"`);
+      } else {
+        svgContent = svgContent.replace('<svg ', `<svg width="${targetSize}" height="${targetSize}" `);
+      }
+
+      const encodedSvg = encodeURIComponent(svgContent);
+      return vscode.Uri.parse(`data:image/svg+xml;utf8,${encodedSvg}`);
+    } catch (e) {
+      // 类似于 fs.existsSync 的效果：如果 readFile 抛出异常，说明文件不存在或无法读取
+      console.error('动态处理 SVG 失败或文件不存在', e);
+      return fileUri; // 返回原始路径作为降级兜底
+    }
   }
 
   private getMarksConfig(): Record<string, MarkStyle> {
@@ -391,8 +421,9 @@ private isValidCommentStart(text: string): boolean {
   }
 
   private disposeDecorations() {
-    for (const decoration of this.decorationTypes.values()) {
-      decoration.dispose();
+    for (const decos of this.decorationTypes.values()) {
+      decos.line.dispose();
+      decos.icon.dispose();
     }
     this.decorationTypes.clear();
   }
