@@ -224,6 +224,12 @@
           "name": "项目资源管理器",
           "type": "webview",
           "icon": "$(history)"
+        },
+        {
+          "id": "quickOps.gitView",
+          "name": "Git 管理器",
+          "type": "webview",
+          "icon": "$(source-control)"
         }
       ]
     },
