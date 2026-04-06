@@ -11,6 +11,7 @@ import AnchorApp from "./pages/AnchorApp"
 import MockSidebarApp from './pages/MockSidebarApp'
 import MockProxyPanelApp from "./pages/MockProxyPanelApp"
 import MockRulePanelApp from './pages/MockRulePanelApp'
+import GitApp from './pages/GitApp';
 import './index.css';
 
 // 🌟 从 VS Code 注入的全局变量中获取初始路由，如果没有则默认走 '/'
@@ -26,6 +27,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         <Route path="/projects" element={<RecentProjectsApp />} />
         <Route path="/preview" element={<LivePreviewApp />} />
         <Route path="/anchor" element={<AnchorApp />} />
+        <Route path='/git' element={<GitApp />} />
         <Route path="/mock" element={<MockSidebarApp />} />
         <Route path="/mock/proxy" element={<MockProxyPanelApp />} />
         <Route path="/mock/rule" element={<MockRulePanelApp />} />
