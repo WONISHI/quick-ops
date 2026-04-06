@@ -9,7 +9,8 @@ body {
     padding: 8px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    /* 🌟 修改点 1：将最外层的全局大间隙由 10px 缩小为 4px */
+    gap: 4px; 
     height: 100vh;
     box-sizing: border-box;
     font-size: 13px;
@@ -23,14 +24,15 @@ body {
     text-transform: uppercase;
     color: var(--vscode-sideBarTitle-foreground);
     font-weight: 600;
+    margin-bottom: 4px; /* 让标题和输入框稍微有一点呼吸空间 */
 }
 
 /* =========================================
-   🌟 工具栏图标样式优化
+   🌟 工具栏图标样式优化 (极限调小)
    ========================================= */
 .git-actions {
     display: flex;
-    gap: 4px; /* 增加一点点间距 */
+    gap: 4px;
 }
 
 .icon-btn {
@@ -38,8 +40,9 @@ body {
     color: var(--vscode-icon-foreground);
     border: none;
     cursor: pointer;
-    width: 24px;  /* 固定宽度 */
-    height: 24px; /* 固定高度 */
+    /* 🌟 修改点 2：按钮外框缩小到 18px */
+    width: 18px;  
+    height: 18px; 
     border-radius: 4px;
     display: flex;
     align-items: center;
@@ -50,8 +53,9 @@ body {
 
 /* 强制把内部的 SVG 图标设为小尺寸，去掉多余的边框和间隙 */
 .icon-btn svg {
-    width: 13px !important;
-    height: 13px !important;
+    /* 🌟 修改点 3：内部图标强行设定为 11px，跟左边的标题文字一样大！ */
+    width: 11px !important;  
+    height: 11px !important;
 }
 
 .icon-btn:hover {
@@ -67,6 +71,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 6px;
+    margin-bottom: 4px; /* 和下方文件列表保持适度距离 */
 }
 
 .commit-input {
@@ -114,7 +119,8 @@ body {
 .changes-scroll-area {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    /* 🌟 修改点 4：暂存与更改区块的间距强制等于全局间距 4px */
+    gap: 4px; 
     flex-shrink: 0;
 }
 
@@ -123,7 +129,9 @@ body {
     display: flex;
     align-items: center;
     gap: 4px;
-    margin-top: 4px;
+    /* 🌟 修改点 5：去掉 header 的 margin-top，全靠父级的 gap 控制间隙，保证绝对等距 */
+    margin-top: 0px; 
+    margin-bottom: 4px; /* 标题和下方列表的紧凑间距 */
     cursor: pointer;
     user-select: none;
 }
@@ -255,8 +263,9 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    margin-top: 4px;
-    padding-top: 4px;
+    /* 🌟 修改点 6：彻底清除图形区域上方可能造成大间隙的多余 padding 和 margin */
+    margin-top: 0px; 
+    padding-top: 0px; 
 }
 
 .git-graph-view {
@@ -345,13 +354,9 @@ body {
    历史提交展开的文件列表外框
    ========================================= */
 .commit-files-wrapper {
-    margin-top: 6px;
-    margin-bottom: 8px;
-    margin-left: 2px;
-    background: var(--vscode-editor-background);
-    border: 1px solid var(--vscode-panel-border);
-    border-radius: 4px;
-    overflow: hidden;
+    margin-top: 2px;
+    margin-bottom: 4px;
+    margin-left: 0; 
 }
 
 .commit-files-wrapper .file-list {

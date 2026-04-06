@@ -105,16 +105,14 @@ export default function GitApp() {
     return () => window.removeEventListener('message', handleMsg);
   }, []);
 
-  // 🌟 修改：加入 600ms 悬浮延迟，防止鼠标划过时闪烁弹出
   const handleMouseEnter = (e: React.MouseEvent, commit: GraphCommit) => {
     const rect = e.currentTarget.getBoundingClientRect();
     clearTimeout(hoverTimeoutRef.current);
     
     hoverTimeoutRef.current = setTimeout(() => {
-      // 防止弹窗在底部被切掉，动态计算 Y 坐标
       const safeY = Math.min(rect.bottom + 4, window.innerHeight - 120);
       setHoverInfo({ commit, x: rect.left + 24, y: safeY });
-    }, 600); // <--- 600毫秒延迟
+    }, 600);
   };
 
   const handleMouseLeave = () => {
@@ -194,7 +192,9 @@ export default function GitApp() {
             >
               {getFileIcon(fileName || '')}
               <div className="file-name">{fileName}</div>
-              {dirPath && <div className="file-dir">{dirPath}</div>}
+              
+              {/* 🌟 核心修改点：去掉判断，始终渲染，让它作为弹簧把状态图标推到最右侧 */}
+              <div className="file-dir">{dirPath}</div>
               
               <div className="file-actions" onClick={(e) => e.stopPropagation()}>
                 <button className="action-btn" title="打开文件" onClick={() => vscode.postMessage({command: 'open', file: item.file})}>
@@ -226,7 +226,6 @@ export default function GitApp() {
   }
 
   const toggleCommit = (hash: string) => {
-    // 🌟 展开时立刻清除掉 hover 的计时器和窗口，防止重叠
     clearTimeout(hoverTimeoutRef.current);
     setHoverInfo(null);
 
@@ -361,7 +360,7 @@ export default function GitApp() {
       </div>
 
       <div className="git-graph-section">
-          <div className="changes-header" onClick={() => setIsGraphOpen(!isGraphOpen)} style={{ marginTop: 0 }}>
+          <div className="changes-header" onClick={() => setIsGraphOpen(!isGraphOpen)}>
             <FontAwesomeIcon icon={isGraphOpen ? faChevronDown : faChevronRight} style={{ fontSize: '10px', width: '12px' }} />
             图形
           </div>
