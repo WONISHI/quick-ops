@@ -107,6 +107,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             const commitsRaw = await git.log({ fs, dir: cwd, ref: msg.ref, depth: 31 });
             const nextCommits = commitsRaw.slice(1).map(c => ({
               hash: c.oid,
+              parents: c.commit.parent || [], // 🌟 新增：读取父级节点信息
               author: c.commit.author.name,
               email: c.commit.author.email,
               message: c.commit.message,
@@ -127,20 +128,17 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               map: async function(filepath, entries) {
                 if (filepath === '.') return;
                 const [curr, prev] = entries;
-                
                 const currType = curr ? await curr.type() : null;
                 const prevType = prev ? await prev.type() : null;
                 if (currType === 'tree' || prevType === 'tree') return; 
 
                 const currOid = curr ? await curr.oid() : null;
                 const prevOid = prev ? await prev.oid() : null;
-
                 if (currOid === prevOid) return;
 
                 let status = 'M';
                 if (!prev) status = 'A';
                 if (!curr) status = 'D';
-
                 return { file: filepath, status };
               }
             });
@@ -152,11 +150,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           case 'diffCommitFile': {
             const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: msg.parentHash || 'empty' }));
             const leftUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${leftQuery}`);
-            
             const rightRef = msg.status === 'D' ? 'empty' : msg.hash;
             const rightQuery = encodeURIComponent(JSON.stringify({ cwd, ref: rightRef }));
             const rightUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${rightQuery}`);
-            
             const title = `${path.basename(msg.file)} (${msg.hash.substring(0, 7)})`;
             vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
             break;
@@ -165,6 +161,22 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             vscode.env.clipboard.writeText(msg.text);
             vscode.window.showInformationMessage(`已复制: ${msg.text}`);
             break;
+        // 🌟 新增：添加到 .gitignore
+          case 'ignore': {
+            const gitignorePath = path.join(cwd, '.gitignore');
+            // 如果文件不存在会自动创建，写入时加换行确保安全追加
+            fs.appendFileSync(gitignorePath, `\n${msg.file}`);
+            vscode.window.showInformationMessage(`已将 ${msg.file} 添加到 .gitignore`);
+            await this.refreshStatus(cwd);
+            break;
+          }
+          // 🌟 新增：在访达/资源管理器中显示文件
+          case 'reveal': {
+            const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
+            // 这是 VS Code 自带的底层原生 API，直接调用即可
+            vscode.commands.executeCommand('revealFileInOS', fileUri);
+            break;
+          }
           case 'openExternal':
             vscode.env.openExternal(vscode.Uri.parse(msg.url));
             break;
@@ -178,9 +190,17 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
   private async refreshStatus(cwd: string) {
     if (!this._view) return;
+    this._view.webview.postMessage({ type: 'startLoading' });
+
     try {
-      const branch = await git.currentBranch({ fs, dir: cwd, fullname: false });
-      const matrix = await git.statusMatrix({ fs, dir: cwd });
+      const branchPromise = git.currentBranch({ fs, dir: cwd, fullname: false }).catch(() => 'HEAD');
+      const remoteUrlPromise = git.getConfig({ fs, dir: cwd, path: 'remote.origin.url' }).catch(() => '');
+      const matrixPromise = git.statusMatrix({ fs, dir: cwd }).catch(() => []);
+      const logPromise = git.log({ fs, dir: cwd, depth: 30 }).catch(() => []);
+
+      const branch = await branchPromise;
+      const remoteUrl = await remoteUrlPromise as string;
+      const matrix = await matrixPromise;
       
       const stagedFiles: {status: string, file: string}[] = [];
       const unstagedFiles: {status: string, file: string}[] = [];
@@ -202,16 +222,18 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         }
       });
 
-      let remoteUrl = '';
-      try {
-        remoteUrl = await git.getConfig({ fs, dir: cwd, path: 'remote.origin.url' }) as string;
-      } catch (e) {
-        // Ignore if no remote
-      }
+      this._view.webview.postMessage({ 
+        type: 'statusData', 
+        stagedFiles, 
+        unstagedFiles, 
+        branch, 
+        remoteUrl 
+      });
 
-      const commitsRaw = await git.log({ fs, dir: cwd, depth: 30 });
+      const commitsRaw = await logPromise;
       const graphCommits = commitsRaw.map(c => ({
           hash: c.oid,
+          parents: c.commit.parent || [], // 🌟 新增：读取父级节点信息
           author: c.commit.author.name,
           email: c.commit.author.email,
           message: c.commit.message,
@@ -219,16 +241,14 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       }));
 
       this._view.webview.postMessage({ 
-        type: 'statusData', 
-        stagedFiles, 
-        unstagedFiles, 
-        branch: branch || 'HEAD', 
-        graphCommits,
-        remoteUrl 
+        type: 'graphData', 
+        graphCommits 
       });
+
     } catch (e: any) {
       if (e.code === 'NotFoundError' || e.code === 'NotADirectoryError') {
-        this._view.webview.postMessage({ type: 'statusData', stagedFiles: [], unstagedFiles: [], branch: '未初始化', graphCommits: [], remoteUrl: '' });
+        this._view.webview.postMessage({ type: 'statusData', stagedFiles: [], unstagedFiles: [], branch: '未初始化', remoteUrl: '' });
+        this._view.webview.postMessage({ type: 'graphData', graphCommits: [] });
       }
     }
   }

@@ -263,7 +263,6 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    /* 🌟 修改点 6：彻底清除图形区域上方可能造成大间隙的多余 padding 和 margin */
     margin-top: 0px; 
     padding-top: 0px; 
 }
@@ -284,47 +283,40 @@ body {
 
 .commit-timeline {
     list-style: none;
-    padding: 0 0 0 8px;
+    padding: 0;
     margin: 0;
-    position: relative;
-}
-
-.commit-timeline::before {
-    content: '';
-    position: absolute;
-    top: 4px;
-    bottom: 8px;
-    left: 3px;
-    width: 1px;
-    background: var(--vscode-editorIndentGuide-background);
 }
 
 .commit-log-item {
-    position: relative;
-    padding-bottom: 3px;
     display: flex;
     flex-direction: column;
 }
 
-.commit-node {
-    position: absolute;
-    left: -7px;
-    top: 5px;
-    width: 3px;
-    height: 3px;
-    border-radius: 50%;
-    background: var(--vscode-sideBar-background);
-    border: 1px solid var(--vscode-textLink-activeForeground);
-    z-index: 1;
+.commit-row {
+    display: flex;
+    align-items: flex-start;
+    height: 36px; /* 强制固定高度，完美对接 SVG 的画线起点和终点 */
+    width: 100%;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.1s;
 }
 
-.commit-log-item:hover .commit-node {
-    background: var(--vscode-textLink-activeForeground);
-    box-shadow: 0 0 3px var(--vscode-textLink-activeForeground);
+.commit-row:hover {
+    background-color: var(--vscode-list-hoverBackground);
 }
 
-.commit-log-item:hover .commit-message {
+.commit-row:hover .commit-message {
     color: var(--vscode-textLink-activeForeground);
+}
+
+.commit-content {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 36px;
+    overflow: hidden;
+    flex: 1;
 }
 
 .commit-message {
@@ -356,7 +348,9 @@ body {
 .commit-files-wrapper {
     margin-top: 2px;
     margin-bottom: 4px;
-    margin-left: 0; 
+    margin-left: 4px; /* 在 SVG 连线右侧留一点距离 */
+    flex: 1; /* 撑满剩余空间 */
+    overflow: hidden;
 }
 
 .commit-files-wrapper .file-list {
@@ -457,4 +451,52 @@ body {
 .hover-separator {
     color: var(--vscode-descriptionForeground);
     opacity: 0.5;
+}
+
+/* =========================================
+   🌟 新增：右键菜单 (Context Menu) 样式
+   ========================================= */
+.context-menu-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 99999; /* 保证在最上层，但比菜单低一级 */
+    cursor: default;
+}
+
+.context-menu {
+    position: fixed;
+    z-index: 100000;
+    background: var(--vscode-menu-background, #252526);
+    border: 1px solid var(--vscode-menu-border, #454545);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); /* 加深阴影使其更有立体悬浮感 */
+    border-radius: 6px; /* 更加圆润精致 */
+    padding: 6px 0; /* 上下留白更优雅 */
+    min-width: 200px; /* 稍微加宽一点，不那么局促 */
+    font-size: 13px;
+    color: var(--vscode-menu-foreground, #cccccc);
+    font-family: var(--vscode-font-family);
+    cursor: default;
+}
+
+.context-menu-item {
+    padding: 6px 20px; /* 增加左右内边距，让文字不贴边 */
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    /* VS Code 原生 hover 是没有渐变的，鼠标划过瞬间亮起更清脆 */
+    transition: none; 
+}
+
+.context-menu-item:hover {
+    background: var(--vscode-menu-selectionBackground, #094771);
+    color: var(--vscode-menu-selectionForeground, #ffffff);
+}
+
+.context-menu-divider {
+    height: 1px;
+    background: var(--vscode-menu-separatorBackground, #454545);
+    margin: 4px 10px; /* 重点：两端留一点空隙，不要贴死边缘，这是原生质感的秘诀 */
 }
