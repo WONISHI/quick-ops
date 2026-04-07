@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import simpleGit, { SimpleGit } from 'simple-git';
-import fs from 'fs';
 import path from 'path';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
 
@@ -18,7 +17,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
           if (ref === 'empty') return '';
 
-          // 🌟 使用 simple-git 读取历史版本的文件内容
+          // 使用 simple-git 读取历史版本的文件内容
           const git: SimpleGit = simpleGit(cwd);
           const content = await git.show([`${ref}:${filepath}`]);
           return content;
@@ -85,7 +84,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
           case 'discard': {
             if (msg.status === 'U') {
-              fs.unlinkSync(path.join(cwd, msg.file));
+              // 🌟 替换为 vscode 原生 fs，并且放入回收站以防误删
+              const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
+              await vscode.workspace.fs.delete(fileUri, { useTrash: true });
             } else {
               await git.checkout(['--', msg.file]);
             }
@@ -107,9 +108,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
           case 'loadMoreCommits': {
-            // 🌟 获取基于特定 Commit 继续往下的 30 条记录
             const logOptions = {
-              to: msg.ref, // 使用 to 参数，表示回溯到这个节点
+              to: msg.ref,
               maxCount: 31,
               format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct' }
             };
@@ -126,19 +126,17 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
           case 'getCommitFiles': {
-            // 🌟 使用 git diff-tree 极速获取文件的 M/A/D 变动状态
             const diffRaw = await git.raw(['diff-tree', '--no-commit-id', '--name-status', '-r', '--root', msg.hash]);
             const files = diffRaw.split('\n').filter(line => line.trim()).map(line => {
               const parts = line.split('\t');
               return { status: parts[0].charAt(0), file: parts[parts.length - 1] };
             });
 
-            // 获取父级 Hash 用于后续 Diff
             let parentOid: string | undefined;
             try {
               parentOid = (await git.raw(['rev-parse', `${msg.hash}^1`])).trim();
             } catch (e) {
-              parentOid = undefined; // 根节点没有父级
+              parentOid = undefined;
             }
 
             this._view?.webview.postMessage({ type: 'commitFilesData', hash: msg.hash, files, parentHash: parentOid });
@@ -159,8 +157,23 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             vscode.window.showInformationMessage(`已复制: ${msg.text}`);
             break;
           case 'ignore': {
-            const gitignorePath = path.join(cwd, '.gitignore');
-            fs.appendFileSync(gitignorePath, `\n${msg.file}`);
+            // 🌟 替换为 vscode 原生 fs 来追加写入 .gitignore
+            const gitignoreUri = vscode.Uri.file(path.join(cwd, '.gitignore'));
+            let existingContent = Buffer.alloc(0);
+            try {
+              // 尝试读取现有内容
+              existingContent = Buffer.from(await vscode.workspace.fs.readFile(gitignoreUri));
+            } catch (e) {
+              // 如果文件不存在，会自动创建，这里的错可以忽略
+            }
+            
+            // 拼接新内容
+            const appendStr = existingContent.length > 0 ? `\n${msg.file}` : msg.file;
+            const appendContent = Buffer.from(appendStr, 'utf8');
+            const newContent = Buffer.concat([existingContent, appendContent]);
+            
+            // 写回文件
+            await vscode.workspace.fs.writeFile(gitignoreUri, newContent);
             vscode.window.showInformationMessage(`已将 ${msg.file} 添加到 .gitignore`);
             await this.refreshStatus(cwd);
             break;
@@ -203,16 +216,13 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       const stagedFiles: {status: string, file: string}[] = [];
       const unstagedFiles: {status: string, file: string}[] = [];
 
-      // 🌟 解析 simple-git 的状态结构
       status.files.forEach(file => {
-        // file.index 代表暂存区的状态
         if (file.index !== ' ' && file.index !== '?') {
           stagedFiles.push({ status: file.index, file: file.path });
         }
-        // file.working_dir 代表工作区（未暂存）的状态
         if (file.working_dir !== ' ') {
           let s = file.working_dir;
-          if (s === '?') s = 'U'; // simple-git 用 ? 表示 Untracked，我们前端使用 U
+          if (s === '?') s = 'U';
           unstagedFiles.push({ status: s, file: file.path });
         }
       });
@@ -244,7 +254,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       this._view.webview.postMessage({ type: 'graphData', graphCommits });
 
     } catch (e: any) {
-      // 不是 Git 仓库或尚未初始化
       this._view.webview.postMessage({ type: 'statusData', stagedFiles: [], unstagedFiles: [], branch: '未初始化', remoteUrl: '' });
       this._view.webview.postMessage({ type: 'graphData', graphCommits: [] });
     }
@@ -254,7 +263,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     const git: SimpleGit = simpleGit(cwd);
     const status = await git.status();
     
-    // 如果没有任何暂存的文件，原生行为是相当于把所有的更改（新、删、改）全部 add 然后提交
     const hasStaged = status.files.some(f => f.index !== ' ' && f.index !== '?');
     if (!hasStaged) {
       await git.add(['-A']);
