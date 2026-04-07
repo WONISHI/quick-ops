@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-import git from 'isomorphic-git';
+import simpleGit, { SimpleGit } from 'simple-git';
 import fs from 'fs';
 import path from 'path';
-import http from 'isomorphic-git/http/node';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
 
 export class GitWebviewProvider implements vscode.WebviewViewProvider {
@@ -19,10 +18,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
           if (ref === 'empty') return '';
 
-          const commitOid = await git.resolveRef({ fs, dir: cwd, ref });
-          const { blob } = await git.readBlob({ fs, dir: cwd, oid: commitOid, filepath });
-          return Buffer.from(blob).toString('utf8');
+          // 🌟 使用 simple-git 读取历史版本的文件内容
+          const git: SimpleGit = simpleGit(cwd);
+          const content = await git.show([`${ref}:${filepath}`]);
+          return content;
         } catch (e) {
+          // 如果文件在某个版本被删除了，show 命令会报错，此时返回空内容
           return ''; 
         }
       }
@@ -43,6 +44,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       const cwd = this.getWorkspaceRoot();
       if (!cwd) return;
 
+      const git: SimpleGit = simpleGit(cwd);
+
       try {
         switch (msg.command) {
           case 'webviewLoaded':
@@ -54,13 +57,13 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           case 'push':
             vscode.window.showInformationMessage('正在推送到远程...');
-            await git.push({ fs, http, dir: cwd, remote: 'origin', ref: await git.currentBranch({ fs, dir: cwd }) || 'master' });
+            await git.push();
             vscode.window.showInformationMessage('🚀 推送成功！');
             await this.refreshStatus(cwd);
             break;
           case 'pull':
             vscode.window.showInformationMessage('正在拉取代码...');
-            await git.pull({ fs, http, dir: cwd, remote: 'origin', ref: await git.currentBranch({ fs, dir: cwd }) || 'master', author: { name: 'Quick Ops', email: 'quickops@plugin.com' } });
+            await git.pull();
             vscode.window.showInformationMessage('⬇️ 拉取成功！');
             await this.refreshStatus(cwd);
             break;
@@ -84,67 +87,61 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             if (msg.status === 'U') {
               fs.unlinkSync(path.join(cwd, msg.file));
             } else {
-              await git.checkout({ fs, dir: cwd, filepaths: [msg.file], force: true });
+              await git.checkout(['--', msg.file]);
             }
             await this.refreshStatus(cwd);
             break;
           }
           case 'stage': {
             if (msg.status === 'D') {
-              await git.remove({ fs, dir: cwd, filepath: msg.file });
+              await git.rm([msg.file]);
             } else {
-              await git.add({ fs, dir: cwd, filepath: msg.file });
+              await git.add([msg.file]);
             }
             await this.refreshStatus(cwd);
             break;
           }
           case 'unstage': {
-            await git.resetIndex({ fs, dir: cwd, filepath: msg.file });
+            await git.reset(['--', msg.file]);
             await this.refreshStatus(cwd);
             break;
           }
           case 'loadMoreCommits': {
-            const commitsRaw = await git.log({ fs, dir: cwd, ref: msg.ref, depth: 31 });
-            const nextCommits = commitsRaw.slice(1).map(c => ({
-              hash: c.oid,
-              parents: c.commit.parent || [], // 🌟 新增：读取父级节点信息
-              author: c.commit.author.name,
-              email: c.commit.author.email,
-              message: c.commit.message,
-              timestamp: c.commit.committer.timestamp * 1000
+            // 🌟 获取基于特定 Commit 继续往下的 30 条记录
+            const logOptions = {
+              to: msg.ref, // 使用 to 参数，表示回溯到这个节点
+              maxCount: 31,
+              format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct' }
+            };
+            const logRaw = await git.log(logOptions);
+            const nextCommits = logRaw.all.slice(1).map(c => ({
+              hash: c.hash,
+              parents: c.parents ? (c.parents as string).split(' ').filter(Boolean) : [],
+              author: c.author,
+              email: c.email,
+              message: c.message,
+              timestamp: parseInt(c.timestamp as string, 10) * 1000
             }));
             this._view?.webview.postMessage({ type: 'moreCommitsData', commits: nextCommits });
             break;
           }
           case 'getCommitFiles': {
-            const commit = await git.readCommit({ fs, dir: cwd, oid: msg.hash });
-            const parentOid = commit.commit.parent[0];
-
-            const trees = [git.TREE({ ref: msg.hash })];
-            if (parentOid) trees.push(git.TREE({ ref: parentOid }));
-
-            const files = await git.walk({
-              fs, dir: cwd, trees,
-              map: async function(filepath, entries) {
-                if (filepath === '.') return;
-                const [curr, prev] = entries;
-                const currType = curr ? await curr.type() : null;
-                const prevType = prev ? await prev.type() : null;
-                if (currType === 'tree' || prevType === 'tree') return; 
-
-                const currOid = curr ? await curr.oid() : null;
-                const prevOid = prev ? await prev.oid() : null;
-                if (currOid === prevOid) return;
-
-                let status = 'M';
-                if (!prev) status = 'A';
-                if (!curr) status = 'D';
-                return { file: filepath, status };
-              }
+            // 🌟 使用 git diff-tree 极速获取文件的 M/A/D 变动状态
+            const diffRaw = await git.raw(['diff-tree', '--no-commit-id', '--name-status', '-r', '--root', msg.hash]);
+            const files = diffRaw.split('\n').filter(line => line.trim()).map(line => {
+              const parts = line.split('\t');
+              return { status: parts[0].charAt(0), file: parts[parts.length - 1] };
             });
 
-            const validFiles = files.filter((f:any) => f); 
-            this._view?.webview.postMessage({ type: 'commitFilesData', hash: msg.hash, files: validFiles, parentHash: parentOid });
+            // 获取父级 Hash 用于后续 Diff
+            let parentOid: string | undefined;
+            try {
+              parentOid = (await git.raw(['rev-parse', `${msg.hash}^1`])).trim();
+            } catch (e) {
+              parentOid = undefined; // 根节点没有父级
+            }
+
+            this._view?.webview.postMessage({ type: 'commitFilesData', hash: msg.hash, files, parentHash: parentOid });
             break;
           }
           case 'diffCommitFile': {
@@ -161,19 +158,15 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             vscode.env.clipboard.writeText(msg.text);
             vscode.window.showInformationMessage(`已复制: ${msg.text}`);
             break;
-        // 🌟 新增：添加到 .gitignore
           case 'ignore': {
             const gitignorePath = path.join(cwd, '.gitignore');
-            // 如果文件不存在会自动创建，写入时加换行确保安全追加
             fs.appendFileSync(gitignorePath, `\n${msg.file}`);
             vscode.window.showInformationMessage(`已将 ${msg.file} 添加到 .gitignore`);
             await this.refreshStatus(cwd);
             break;
           }
-          // 🌟 新增：在访达/资源管理器中显示文件
           case 'reveal': {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
-            // 这是 VS Code 自带的底层原生 API，直接调用即可
             vscode.commands.executeCommand('revealFileInOS', fileUri);
             break;
           }
@@ -192,33 +185,35 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     if (!this._view) return;
     this._view.webview.postMessage({ type: 'startLoading' });
 
+    const git: SimpleGit = simpleGit(cwd);
+
     try {
-      const branchPromise = git.currentBranch({ fs, dir: cwd, fullname: false }).catch(() => 'HEAD');
-      const remoteUrlPromise = git.getConfig({ fs, dir: cwd, path: 'remote.origin.url' }).catch(() => '');
-      const matrixPromise = git.statusMatrix({ fs, dir: cwd }).catch(() => []);
-      const logPromise = git.log({ fs, dir: cwd, depth: 30 }).catch(() => []);
+      const isRepo = await git.checkIsRepo();
+      if (!isRepo) throw new Error('Not a git repository');
+
+      // 1. 获取基础状态
+      const branchPromise = git.branchLocal().then(b => b.current).catch(() => 'HEAD');
+      const remoteUrlPromise = git.listRemote(['--get-url']).then(r => r.trim()).catch(() => '');
+      const statusPromise = git.status();
 
       const branch = await branchPromise;
-      const remoteUrl = await remoteUrlPromise as string;
-      const matrix = await matrixPromise;
+      const remoteUrl = await remoteUrlPromise;
+      const status = await statusPromise;
       
       const stagedFiles: {status: string, file: string}[] = [];
       const unstagedFiles: {status: string, file: string}[] = [];
 
-      matrix.forEach(row => {
-        const [file, head, workdir, stage] = row;
-        if (workdir !== stage) {
-          let status = 'M';
-          if (stage === 0 && workdir === 2) status = 'U';
-          if (stage === 1 && workdir === 0) status = 'D';
-          if (stage === 2 && workdir === 0) status = 'D';
-          unstagedFiles.push({ status, file });
+      // 🌟 解析 simple-git 的状态结构
+      status.files.forEach(file => {
+        // file.index 代表暂存区的状态
+        if (file.index !== ' ' && file.index !== '?') {
+          stagedFiles.push({ status: file.index, file: file.path });
         }
-        if (head !== stage) {
-          let status = 'M';
-          if (head === 0 && stage === 2) status = 'A';
-          if (head === 1 && stage === 0) status = 'D';
-          stagedFiles.push({ status, file });
+        // file.working_dir 代表工作区（未暂存）的状态
+        if (file.working_dir !== ' ') {
+          let s = file.working_dir;
+          if (s === '?') s = 'U'; // simple-git 用 ? 表示 Untracked，我们前端使用 U
+          unstagedFiles.push({ status: s, file: file.path });
         }
       });
 
@@ -230,42 +225,42 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         remoteUrl 
       });
 
-      const commitsRaw = await logPromise;
-      const graphCommits = commitsRaw.map(c => ({
-          hash: c.oid,
-          parents: c.commit.parent || [], // 🌟 新增：读取父级节点信息
-          author: c.commit.author.name,
-          email: c.commit.author.email,
-          message: c.commit.message,
-          timestamp: c.commit.committer.timestamp * 1000
+      // 2. 获取 Log 历史记录 (分离以防卡顿)
+      const logOptions = {
+        format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct' },
+        maxCount: 30
+      };
+      
+      const logRaw = await git.log(logOptions);
+      const graphCommits = logRaw.all.map(c => ({
+          hash: c.hash,
+          parents: c.parents ? (c.parents as string).split(' ').filter(Boolean) : [],
+          author: c.author,
+          email: c.email,
+          message: c.message,
+          timestamp: parseInt(c.timestamp as string, 10) * 1000
       }));
 
-      this._view.webview.postMessage({ 
-        type: 'graphData', 
-        graphCommits 
-      });
+      this._view.webview.postMessage({ type: 'graphData', graphCommits });
 
     } catch (e: any) {
-      if (e.code === 'NotFoundError' || e.code === 'NotADirectoryError') {
-        this._view.webview.postMessage({ type: 'statusData', stagedFiles: [], unstagedFiles: [], branch: '未初始化', remoteUrl: '' });
-        this._view.webview.postMessage({ type: 'graphData', graphCommits: [] });
-      }
+      // 不是 Git 仓库或尚未初始化
+      this._view.webview.postMessage({ type: 'statusData', stagedFiles: [], unstagedFiles: [], branch: '未初始化', remoteUrl: '' });
+      this._view.webview.postMessage({ type: 'graphData', graphCommits: [] });
     }
   }
 
   private async handleCommit(cwd: string, message: string) {
-    const matrix = await git.statusMatrix({ fs, dir: cwd });
-    const hasStaged = matrix.some(row => row[1] !== row[3]);
+    const git: SimpleGit = simpleGit(cwd);
+    const status = await git.status();
+    
+    // 如果没有任何暂存的文件，原生行为是相当于把所有的更改（新、删、改）全部 add 然后提交
+    const hasStaged = status.files.some(f => f.index !== ' ' && f.index !== '?');
     if (!hasStaged) {
-      for (const row of matrix) {
-        const [filepath, , workdir, stage] = row;
-        if (workdir !== stage) {
-          if (workdir === 0) await git.remove({ fs, dir: cwd, filepath });
-          else await git.add({ fs, dir: cwd, filepath });
-        }
-      }
+      await git.add(['-A']);
     }
-    await git.commit({ fs, dir: cwd, message, author: { name: 'Quick Ops', email: 'quickops@plugin.com' } });
+    
+    await git.commit(message);
     vscode.window.showInformationMessage('🎉 提交成功！');
     await this.refreshStatus(cwd);
   }

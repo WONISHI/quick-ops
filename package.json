@@ -619,7 +619,6 @@
     "eslint-plugin-prettier": "^5.5.4",
     "express": "^5.2.1",
     "glob": "^13.0.0",
-    "isomorphic-git": "^1.37.4",
     "lodash-es": "^4.17.23",
     "mocha": "^11.7.5",
     "mockjs": "^1.1.0",
@@ -636,5 +635,8 @@
   "volta": {
     "node": "22.18.0",
     "yarn": "4.10.3"
+  },
+  "dependencies": {
+    "simple-git": "^3.35.2"
   }
 }
