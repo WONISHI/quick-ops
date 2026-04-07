@@ -3,7 +3,8 @@ import { vscode } from '../utils/vscode';
 import styles from '../assets/css/GitApp.module.css';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRotateRight, faArrowDown, faArrowUp, faCheck, faChevronDown, faChevronRight, faSpinner, faPlus, faMinus, faRotateLeft, faFolderOpen, faCopy } from '@fortawesome/free-solid-svg-icons';
+// 🌟 引入更多用于右键菜单的图标
+import { faRotateRight, faArrowDown, faArrowUp, faCheck, faChevronDown, faChevronRight, faSpinner, faPlus, faMinus, faRotateLeft, faFolderOpen, faCopy, faFileCode, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import { faImage, faCode, faFile } from '@fortawesome/free-solid-svg-icons';
 import { faMarkdown, faHtml5, faCss3Alt, faVuejs, faJs, faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 
@@ -67,7 +68,7 @@ function processGraphCommits(commits: GraphCommit[]) {
             outgoingLanes[laneIndex] = parents[0];
             parentLanes.push(laneIndex);
         } else {
-            outgoingLanes[laneIndex] = null;
+            outgoingLanes[laneIndex] = null; 
         }
 
         for (let i = 1; i < parents.length; i++) {
@@ -156,7 +157,6 @@ export default function GitApp() {
     const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit, x: number, y: number } | null>(null);
     const hoverTimeoutRef = useRef<any>(null);
 
-    // 🌟 1. 新增：右键菜单状态
     const [contextMenu, setContextMenu] = useState<{ visible: boolean, x: number, y: number, file: GitFile, listType: 'staged' | 'unstaged' | 'history' } | null>(null);
 
     const processedCommits = useMemo(() => processGraphCommits(graphCommits), [graphCommits]);
@@ -196,14 +196,16 @@ export default function GitApp() {
             }
         };
         window.addEventListener('message', handleMsg);
-
-        // 🌟 2. 监听全局点击，点击空白处自动关闭右键菜单
+        
+        // 🌟 监听全局点击和 Webview 失去焦点事件
         const closeContextMenu = () => setContextMenu(null);
         window.addEventListener('click', closeContextMenu);
-
+        window.addEventListener('blur', closeContextMenu); // <- 解决点击 Webview 外部时不关闭的问题
+        
         return () => {
             window.removeEventListener('message', handleMsg);
             window.removeEventListener('click', closeContextMenu);
+            window.removeEventListener('blur', closeContextMenu);
         };
     }, []);
 
@@ -217,7 +219,6 @@ export default function GitApp() {
     };
 
     const handleMouseLeave = () => {
-        // 🌟 修改点：立马清除并隐藏，不再有 2000ms 延迟
         clearTimeout(hoverTimeoutRef.current);
         setHoverInfo(null);
     };
@@ -275,13 +276,11 @@ export default function GitApp() {
                                     vscode.postMessage({ command: 'diff', file: item.file, status: item.status });
                                 }
                             }}
-                            // 🌟 3. 拦截右键点击事件
                             onContextMenu={(e) => {
                                 e.preventDefault();
                                 setActiveFile(item.file);
-                                // 防止菜单越界
-                                const safeX = Math.min(e.clientX, window.innerWidth - 200);
-                                const safeY = Math.min(e.clientY, window.innerHeight - 200);
+                                const safeX = Math.min(e.clientX, window.innerWidth - 220); // 菜单稍微变宽了，留足空间
+                                const safeY = Math.min(e.clientY, window.innerHeight - 250);
                                 setContextMenu({ visible: true, x: safeX, y: safeY, file: item, listType });
                             }}
                         >
@@ -342,42 +341,46 @@ export default function GitApp() {
 
     return (
         <div className={styles['git-sidebar']}>
-            {/* 🌟 4. 全局渲染右键菜单与透明遮罩 */}
+            {/* 全局右键菜单 */}
             {contextMenu && contextMenu.visible && (
                 <>
-                    {/* 隐形遮罩层，拦截全局点击和右键，实现“点击其他地方必定关闭” */}
-                    <div
-                        className={styles['context-menu-backdrop']}
+                    <div 
+                        className={styles['context-menu-backdrop']} 
                         onClick={() => setContextMenu(null)}
                         onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
                     />
-
-                    {/* 右键菜单本体 */}
-                    <div
-                        className={styles['context-menu']}
-                        style={{ left: contextMenu.x, top: contextMenu.y }}
-                    >
+                    <div className={styles['context-menu']} style={{ left: contextMenu.x, top: contextMenu.y }}>
+                        
                         <div className={styles['context-menu-item']} onClick={() => {
                             if (contextMenu.listType === 'history') {
-                                vscode.postMessage({ command: 'diffCommitFile', file: contextMenu.file.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: contextMenu.file.status });
+                                 vscode.postMessage({ command: 'diffCommitFile', file: contextMenu.file.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: contextMenu.file.status });
                             } else {
-                                vscode.postMessage({ command: 'diff', file: contextMenu.file.file, status: contextMenu.file.status });
+                                 vscode.postMessage({ command: 'diff', file: contextMenu.file.file, status: contextMenu.file.status });
                             }
                             setContextMenu(null);
-                        }}>打开更改</div>
-
+                        }}>
+                            <FontAwesomeIcon icon={faFileCode} className={styles['context-menu-icon']} /> 
+                            <span>打开更改</span>
+                        </div>
+                        
                         <div className={styles['context-menu-item']} onClick={() => {
                             vscode.postMessage({ command: 'open', file: contextMenu.file.file });
                             setContextMenu(null);
-                        }}>打开文件</div>
-
+                        }}>
+                            <FontAwesomeIcon icon={faFolderOpen} className={styles['context-menu-icon']} /> 
+                            <span>打开文件</span>
+                        </div>
+                        
                         {contextMenu.listType !== 'history' && (
                             <div className={styles['context-menu-item']} onClick={() => {
                                 vscode.postMessage({ command: 'discard', file: contextMenu.file.file, status: contextMenu.file.status });
                                 setContextMenu(null);
-                            }}>放弃更改</div>
+                            }}>
+                                <FontAwesomeIcon icon={faRotateLeft} className={styles['context-menu-icon']} /> 
+                                <span>放弃更改</span>
+                            </div>
                         )}
-
+                        
                         {contextMenu.listType !== 'history' && (
                             <div className={styles['context-menu-item']} onClick={() => {
                                 if (contextMenu.listType === 'staged') {
@@ -386,7 +389,10 @@ export default function GitApp() {
                                     vscode.postMessage({ command: 'stage', file: contextMenu.file.file, status: contextMenu.file.status });
                                 }
                                 setContextMenu(null);
-                            }}>{contextMenu.listType === 'staged' ? '取消暂存更改' : '暂存更改'}</div>
+                            }}>
+                                <FontAwesomeIcon icon={contextMenu.listType === 'staged' ? faMinus : faPlus} className={styles['context-menu-icon']} /> 
+                                <span>{contextMenu.listType === 'staged' ? '取消暂存更改' : '暂存更改'}</span>
+                            </div>
                         )}
 
                         <div className={styles['context-menu-divider']}></div>
@@ -394,12 +400,18 @@ export default function GitApp() {
                         <div className={styles['context-menu-item']} onClick={() => {
                             vscode.postMessage({ command: 'ignore', file: contextMenu.file.file });
                             setContextMenu(null);
-                        }}>添加到 .gitignore</div>
+                        }}>
+                            <FontAwesomeIcon icon={faEyeSlash} className={styles['context-menu-icon']} /> 
+                            <span>添加到 .gitignore</span>
+                        </div>
 
                         <div className={styles['context-menu-item']} onClick={() => {
                             vscode.postMessage({ command: 'reveal', file: contextMenu.file.file });
                             setContextMenu(null);
-                        }}>在访达/资源管理器中显示</div>
+                        }}>
+                            <FontAwesomeIcon icon={faFolderOpen} className={styles['context-menu-icon']} /> 
+                            <span>在访达/资源管理器中显示</span>
+                        </div>
                     </div>
                 </>
             )}
@@ -501,8 +513,8 @@ export default function GitApp() {
                                                 <svg width={svgWidth} height={ROW_HEIGHT} style={{ flexShrink: 0 }}>
                                                     {c.paths.map((p, idx) => {
                                                         let startY = 0, endY = ROW_HEIGHT;
-                                                        if (p.type === 'spawn') startY = CY;
-                                                        if (p.type === 'merge') endY = CY;
+                                                        if (p.type === 'spawn') startY = CY; 
+                                                        if (p.type === 'merge') endY = CY;   
 
                                                         const startX = p.from * LANE_WIDTH + 7;
                                                         const endX = p.to * LANE_WIDTH + 7;

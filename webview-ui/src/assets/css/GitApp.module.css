@@ -462,7 +462,7 @@ body {
     left: 0;
     width: 100vw;
     height: 100vh;
-    z-index: 99999; /* 保证在最上层，但比菜单低一级 */
+    z-index: 99999;
     cursor: default;
 }
 
@@ -471,10 +471,10 @@ body {
     z-index: 100000;
     background: var(--vscode-menu-background, #252526);
     border: 1px solid var(--vscode-menu-border, #454545);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); /* 加深阴影使其更有立体悬浮感 */
-    border-radius: 6px; /* 更加圆润精致 */
-    padding: 6px 0; /* 上下留白更优雅 */
-    min-width: 200px; /* 稍微加宽一点，不那么局促 */
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25); /* VS Code 风格的阴影 */
+    border-radius: 6px;
+    padding: 6px 0;
+    min-width: 220px; /* 菜单更宽一点，适配图标 */
     font-size: 13px;
     color: var(--vscode-menu-foreground, #cccccc);
     font-family: var(--vscode-font-family);
@@ -482,12 +482,18 @@ body {
 }
 
 .context-menu-item {
-    padding: 6px 20px; /* 增加左右内边距，让文字不贴边 */
+    padding: 6px 12px; /* 紧凑排版 */
     cursor: pointer;
     display: flex;
     align-items: center;
-    /* VS Code 原生 hover 是没有渐变的，鼠标划过瞬间亮起更清脆 */
+    gap: 8px; /* 图标和文字之间的间距 */
     transition: none; 
+}
+
+.context-menu-icon {
+    width: 16px;
+    text-align: center;
+    opacity: 0.8; /* 图标稍微淡一点更精致 */
 }
 
 .context-menu-item:hover {
@@ -495,8 +501,12 @@ body {
     color: var(--vscode-menu-selectionForeground, #ffffff);
 }
 
+.context-menu-item:hover .context-menu-icon {
+    opacity: 1; /* hover 时图标变亮 */
+}
+
 .context-menu-divider {
     height: 1px;
     background: var(--vscode-menu-separatorBackground, #454545);
-    margin: 4px 10px; /* 重点：两端留一点空隙，不要贴死边缘，这是原生质感的秘诀 */
+    margin: 4px 10px; 
 }
