@@ -8,7 +8,6 @@ import { faImage, faCode, faFile } from '@fortawesome/free-solid-svg-icons';
 import { faMarkdown, faHtml5, faCss3Alt, faVuejs, faJs, faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 
 interface GitFile { status: string; file: string; }
-// 🌟 接口补充 refs 字段
 interface GraphCommit { hash: string; parents?: string[]; author: string; email?: string; message: string; timestamp?: number; refs?: string; }
 
 const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];
@@ -43,7 +42,6 @@ function parseRemoteInfo(url: string, hash: string) {
     return { platform, icon, url: `${cleanUrl}/commit/${hash}` };
 }
 
-// 🌟🌟 核心泳道计算算法
 function processGraphCommits(commits: GraphCommit[]) {
     let activeLanes: (string | null)[] = [];
 
@@ -151,7 +149,6 @@ export default function GitApp() {
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [remoteUrl, setRemoteUrl] = useState<string>('');
 
-    // 🌟 新增分页跳过记录
     const [graphSkip, setGraphSkip] = useState(30);
 
     const [activeCommitHash, setActiveCommitHash] = useState<string | null>(null);
@@ -182,7 +179,7 @@ export default function GitApp() {
             } else if (msg.type === 'graphData') {
                 const commits = msg.graphCommits || [];
                 setGraphCommits(commits);
-                setGraphSkip(30); // 🌟 初始化重置分页
+                setGraphSkip(30);
                 setHasMoreCommits(commits.length >= 30);
                 setIsGraphLoading(false);
             } else if (msg.type === 'moreCommitsData') {
@@ -221,12 +218,11 @@ export default function GitApp() {
         hoverTimeoutRef.current = setTimeout(() => {
             const safeY = Math.min(rect.bottom + 4, window.innerHeight - 120);
             setHoverInfo({ commit, x: rect.left + 24, y: safeY });
-        }, 600); // 显示延迟依然是 600ms
+        }, 600);
     };
 
     const handleMouseLeave = () => {
         clearTimeout(hoverTimeoutRef.current);
-        // 🌟 修复 Hover 马上消失问题：加入 250ms 的消失延迟
         hoverTimeoutRef.current = setTimeout(() => { setHoverInfo(null); }, 250);
     };
 
@@ -289,11 +285,8 @@ export default function GitApp() {
                         }}>
                             {getFileIcon(fileName || '')}
                             <div className={styles['file-name']}>{fileName}</div>
-                            {/* 🌟 修复留白：目录紧贴文件名 */}
                             {dirPath && <div className={styles['file-dir']}>{dirPath}</div>}
-                            {/* 🌟 补充的弹簧，把图标挤到右边，中间空出 */}
                             <div style={{ flex: 1 }}></div>
-
                             <div className={styles['file-actions']} onClick={(e) => e.stopPropagation()}>
                                 <button className={styles['action-btn']} title="打开文件" onClick={() => vscode.postMessage({ command: 'open', file: item.file })}>
                                     <FontAwesomeIcon icon={faFolderOpen} />
@@ -340,7 +333,6 @@ export default function GitApp() {
         if (target.scrollHeight - target.scrollTop <= target.clientHeight + 20) {
             if (hasMoreCommits && !isLoadingMore && graphCommits.length > 0) {
                 setIsLoadingMore(true);
-                // 🌟 使用 skip 分页而不是 to
                 vscode.postMessage({ command: 'loadMoreCommits', skip: graphSkip });
                 setGraphSkip(prev => prev + 30);
             }
@@ -349,7 +341,6 @@ export default function GitApp() {
 
     return (
         <div className={styles['git-sidebar']}>
-            {/* 全局右键菜单 */}
             {contextMenu && contextMenu.visible && (
                 <>
                     <div
@@ -428,7 +419,6 @@ export default function GitApp() {
                 <div
                     className={styles['commit-hover-widget']}
                     style={{ left: Math.min(hoverInfo.x, window.innerWidth - 300), top: hoverInfo.y }}
-                    // 🌟 鼠标移入 Hover 框时，立刻取消消失的定时器！
                     onMouseEnter={() => clearTimeout(hoverTimeoutRef.current)}
                     onMouseLeave={handleMouseLeave}
                 >
@@ -442,7 +432,6 @@ export default function GitApp() {
                         )}
                     </div>
 
-                    {/* 🌟 新增：在 Hover 弹窗中渲染所处分支/标签信息 */}
                     {hoverInfo.commit.refs && (
                         <div className={styles['hover-refs']}>
                             {hoverInfo.commit.refs.split(',').map(r => r.trim()).filter(Boolean).map((r, i) => {
@@ -530,10 +519,11 @@ export default function GitApp() {
                                                 onMouseEnter={(e) => handleMouseEnter(e, c as any)}
                                                 onMouseLeave={handleMouseLeave}
                                             >
-                                                {/* 🌟 修复 SVG 缝隙断断续续：增加 display: block 移除基线留白 */}
-                                                <svg width={svgWidth} height={ROW_HEIGHT} style={{ flexShrink: 0, display: 'block' }}>
+                                                {/* 🌟 修复断裂：增加 overflow: 'visible' */}
+                                                <svg width={svgWidth} height={ROW_HEIGHT} style={{ flexShrink: 0, display: 'block', overflow: 'visible' }}>
                                                     {c.paths.map((p, idx) => {
-                                                        let startY = 0, endY = ROW_HEIGHT;
+                                                        // 🌟 修复断裂：线条向下多画 1px (ROW_HEIGHT + 1) 实现像素级完美覆盖
+                                                        let startY = 0, endY = ROW_HEIGHT + 1;
                                                         if (p.type === 'spawn') startY = CY;
                                                         if (p.type === 'merge') endY = CY;
 
@@ -562,11 +552,13 @@ export default function GitApp() {
                                             </div>
 
                                             {activeCommitHash === c.hash && (
-                                                <div style={{ display: 'flex' }}>
-                                                    {/* 🌟 同理，展开文件时的竖线也要 display: block */}
-                                                    <svg width={svgWidth} style={{ flexShrink: 0, display: 'block' }}>
-                                                        {c.outgoingLanes.map((hash, i) => hash ? <line key={i} x1={i * LANE_WIDTH + 7} y1={0} x2={i * LANE_WIDTH + 7} y2="100%" stroke={COLORS[i % COLORS.length]} strokeWidth="2" /> : null)}
-                                                    </svg>
+                                                <div style={{ display: 'flex', position: 'relative' }}>
+                                                    {/* 🌟 修复巨大留白：不再使用 <svg y2="100%">，改用绝对定位的 div 画出真实的线条高度 */}
+                                                    <div style={{ width: svgWidth, flexShrink: 0, position: 'relative' }}>
+                                                        {c.outgoingLanes.map((hash, i) => hash ? (
+                                                            <div key={i} style={{ position: 'absolute', left: i * LANE_WIDTH + 6, top: 0, bottom: 0, width: 2, backgroundColor: COLORS[i % COLORS.length] }} />
+                                                        ) : null)}
+                                                    </div>
                                                     <div className={styles['commit-files-wrapper']}>
                                                         {(commitFilesLoading || loadedCommitHash !== c.hash) ? (
                                                             <div style={{ opacity: 0.6, fontSize: '11px', padding: '6px 12px' }}>

@@ -109,8 +109,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
           case 'loadMoreCommits': {
             const logOptions = {
-              '--all': null,
-              skip: msg.skip,
+              '--all': null, 
+              '--skip': msg.skip,
               maxCount: 30,
               format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct', refs: '%D' }
             };
@@ -121,7 +121,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               author: c.author,
               email: c.email,
               message: c.message,
-              refs: (c as any).refs || '', // 🌟 获取当前 commit 对应的分支/标签名
+              refs: (c as any).refs || '', 
               timestamp: parseInt(c.timestamp as string, 10) * 1000
             }));
             this._view?.webview.postMessage({ type: 'moreCommitsData', commits: nextCommits });

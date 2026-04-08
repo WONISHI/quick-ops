@@ -282,11 +282,13 @@ body {
 
 .commit-timeline {
     list-style: none;
-    padding: 0;
-    margin: 0;
+    padding: 0 !important;
+    margin: 0 !important;
 }
 
 .commit-log-item {
+    padding: 0 !important;
+    margin: 0 !important;
     display: flex;
     flex-direction: column;
 }
@@ -469,11 +471,12 @@ body {
     position: fixed;
     z-index: 100000;
     background: var(--vscode-menu-background, #252526);
-    border: 1px solid var(--vscode-menu-border, #454545);
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25); /* VS Code 风格的阴影 */
+    border: none !important;
+    outline: none !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3) !important;
     border-radius: 6px;
     padding: 6px 0;
-    min-width: 220px; /* 菜单更宽一点，适配图标 */
+    min-width: 220px;
     font-size: 13px;
     color: var(--vscode-menu-foreground, #cccccc);
     font-family: var(--vscode-font-family);
