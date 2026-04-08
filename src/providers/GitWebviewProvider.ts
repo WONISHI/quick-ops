@@ -56,7 +56,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           case 'push':
             vscode.window.showInformationMessage('正在推送到远程...');
-            await git.push();
+            await git.push(['-u', 'origin', 'HEAD']);
             vscode.window.showInformationMessage('🚀 推送成功！');
             await this.refreshStatus(cwd);
             break;
@@ -84,7 +84,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
           case 'discard': {
             if (msg.status === 'U') {
-              // 🌟 替换为 vscode 原生 fs，并且放入回收站以防误删
               const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
               await vscode.workspace.fs.delete(fileUri, { useTrash: true });
             } else {
@@ -108,9 +107,11 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
           case 'loadMoreCommits': {
+            // 🌟 核心修复：彻底抛弃 to: ref，使用 VS Code 原生的全图拓扑分页法！
             const logOptions = {
-              '--all': null, 
-              '--skip': msg.skip,
+              '--all': null,         // 强制查询所有分支，不遗漏平行分支
+              '--topo-order': null,  // 强制拓扑排序，防止分页期间排序错乱
+              '--skip': msg.skip,    // 使用纯数字进行严格的记录跳过
               maxCount: 30,
               format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct', refs: '%D' }
             };
@@ -121,7 +122,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               author: c.author,
               email: c.email,
               message: c.message,
-              refs: (c as any).refs || '', 
+              refs: (c as any).refs || '',
               timestamp: parseInt(c.timestamp as string, 10) * 1000
             }));
             this._view?.webview.postMessage({ type: 'moreCommitsData', commits: nextCommits });
@@ -159,22 +160,16 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             vscode.window.showInformationMessage(`已复制: ${msg.text}`);
             break;
           case 'ignore': {
-            // 🌟 替换为 vscode 原生 fs 来追加写入 .gitignore
             const gitignoreUri = vscode.Uri.file(path.join(cwd, '.gitignore'));
             let existingContent = Buffer.alloc(0);
             try {
-              // 尝试读取现有内容
               existingContent = Buffer.from(await vscode.workspace.fs.readFile(gitignoreUri));
-            } catch (e) {
-              // 如果文件不存在，会自动创建，这里的错可以忽略
-            }
+            } catch (e) {}
             
-            // 拼接新内容
             const appendStr = existingContent.length > 0 ? `\n${msg.file}` : msg.file;
             const appendContent = Buffer.from(appendStr, 'utf8');
             const newContent = Buffer.concat([existingContent, appendContent]);
             
-            // 写回文件
             await vscode.workspace.fs.writeFile(gitignoreUri, newContent);
             vscode.window.showInformationMessage(`已将 ${msg.file} 添加到 .gitignore`);
             await this.refreshStatus(cwd);
@@ -237,9 +232,10 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         remoteUrl 
       });
 
-      // 2. 获取 Log 历史记录 (分离以防卡顿)
+      // 2. 🌟 核心修复：初始加载也必须带上 '--topo-order' 保证与分页排序完全一致！
       const logOptions = {
         '--all': null,
+        '--topo-order': null, 
         format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct', refs: '%D' },
         maxCount: 30
       };
@@ -251,7 +247,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           author: c.author,
           email: c.email,
           message: c.message,
-          refs: (c as any).refs || '', // 🌟 提取 refs
+          refs: (c as any).refs || '',
           timestamp: parseInt(c.timestamp as string, 10) * 1000
       }));
 
