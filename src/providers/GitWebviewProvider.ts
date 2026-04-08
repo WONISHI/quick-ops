@@ -109,17 +109,19 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
           case 'loadMoreCommits': {
             const logOptions = {
-              to: msg.ref,
-              maxCount: 31,
-              format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct' }
+              '--all': null,
+              skip: msg.skip,
+              maxCount: 30,
+              format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct', refs: '%D' }
             };
             const logRaw = await git.log(logOptions);
-            const nextCommits = logRaw.all.slice(1).map(c => ({
+            const nextCommits = logRaw.all.map(c => ({
               hash: c.hash,
               parents: c.parents ? (c.parents as string).split(' ').filter(Boolean) : [],
               author: c.author,
               email: c.email,
               message: c.message,
+              refs: (c as any).refs || '', // 🌟 获取当前 commit 对应的分支/标签名
               timestamp: parseInt(c.timestamp as string, 10) * 1000
             }));
             this._view?.webview.postMessage({ type: 'moreCommitsData', commits: nextCommits });
@@ -237,7 +239,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
       // 2. 获取 Log 历史记录 (分离以防卡顿)
       const logOptions = {
-        format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct' },
+        '--all': null,
+        format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct', refs: '%D' },
         maxCount: 30
       };
       
@@ -248,6 +251,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           author: c.author,
           email: c.email,
           message: c.message,
+          refs: (c as any).refs || '', // 🌟 提取 refs
           timestamp: parseInt(c.timestamp as string, 10) * 1000
       }));
 

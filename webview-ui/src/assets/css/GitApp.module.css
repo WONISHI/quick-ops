@@ -195,7 +195,6 @@ body {
 }
 
 .file-dir {
-    flex: 1;
     min-width: 0;
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
@@ -509,4 +508,33 @@ body {
     height: 1px;
     background: var(--vscode-menu-separatorBackground, #454545);
     margin: 4px 10px; 
+}
+/* =========================================
+   🌟 Hover 弹窗内的分支标签 (Refs)
+   ========================================= */
+   .hover-refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+
+.ref-tag {
+    background: var(--vscode-badge-background, #4d4d4d);
+    color: var(--vscode-badge-foreground, #ffffff);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 10px;
+    line-height: 14px;
+    white-space: nowrap;
+}
+
+.ref-head {
+    /* 给当前激活的 HEAD 分支醒目的颜色 */
+    background: var(--vscode-textLink-activeForeground, #3794ff); 
+}
+
+/* 确保鼠标滑到 hover 面板上时面板不会因为没有事件捕获而消失 */
+.commit-hover-widget {
+    pointer-events: auto;
 }

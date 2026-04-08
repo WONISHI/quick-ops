@@ -3,13 +3,13 @@ import { vscode } from '../utils/vscode';
 import styles from '../assets/css/GitApp.module.css';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-// 🌟 引入更多用于右键菜单的图标
 import { faRotateRight, faArrowDown, faArrowUp, faCheck, faChevronDown, faChevronRight, faSpinner, faPlus, faMinus, faRotateLeft, faFolderOpen, faCopy, faFileCode, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import { faImage, faCode, faFile } from '@fortawesome/free-solid-svg-icons';
 import { faMarkdown, faHtml5, faCss3Alt, faVuejs, faJs, faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 
 interface GitFile { status: string; file: string; }
-interface GraphCommit { hash: string; parents?: string[]; author: string; email?: string; message: string; timestamp?: number; }
+// 🌟 接口补充 refs 字段
+interface GraphCommit { hash: string; parents?: string[]; author: string; email?: string; message: string; timestamp?: number; refs?: string; }
 
 const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];
 const LANE_WIDTH = 12;
@@ -26,10 +26,12 @@ function formatRelativeTime(ms: number) {
     if (mins > 0) return `${mins} 分钟前`;
     return '刚刚';
 }
+
 function formatAbsoluteTime(ms: number) {
     const d = new Date(ms);
     return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
+
 function parseRemoteInfo(url: string, hash: string) {
     if (!url) return null;
     let cleanUrl = url.replace(/\.git$/, '');
@@ -41,6 +43,7 @@ function parseRemoteInfo(url: string, hash: string) {
     return { platform, icon, url: `${cleanUrl}/commit/${hash}` };
 }
 
+// 🌟🌟 核心泳道计算算法
 function processGraphCommits(commits: GraphCommit[]) {
     let activeLanes: (string | null)[] = [];
 
@@ -68,7 +71,7 @@ function processGraphCommits(commits: GraphCommit[]) {
             outgoingLanes[laneIndex] = parents[0];
             parentLanes.push(laneIndex);
         } else {
-            outgoingLanes[laneIndex] = null; 
+            outgoingLanes[laneIndex] = null;
         }
 
         for (let i = 1; i < parents.length; i++) {
@@ -148,6 +151,9 @@ export default function GitApp() {
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [remoteUrl, setRemoteUrl] = useState<string>('');
 
+    // 🌟 新增分页跳过记录
+    const [graphSkip, setGraphSkip] = useState(30);
+
     const [activeCommitHash, setActiveCommitHash] = useState<string | null>(null);
     const [loadedCommitHash, setLoadedCommitHash] = useState<string | null>(null);
     const [activeCommitParentHash, setActiveCommitParentHash] = useState<string | undefined>();
@@ -176,6 +182,7 @@ export default function GitApp() {
             } else if (msg.type === 'graphData') {
                 const commits = msg.graphCommits || [];
                 setGraphCommits(commits);
+                setGraphSkip(30); // 🌟 初始化重置分页
                 setHasMoreCommits(commits.length >= 30);
                 setIsGraphLoading(false);
             } else if (msg.type === 'moreCommitsData') {
@@ -196,12 +203,11 @@ export default function GitApp() {
             }
         };
         window.addEventListener('message', handleMsg);
-        
-        // 🌟 监听全局点击和 Webview 失去焦点事件
+
         const closeContextMenu = () => setContextMenu(null);
         window.addEventListener('click', closeContextMenu);
-        window.addEventListener('blur', closeContextMenu); // <- 解决点击 Webview 外部时不关闭的问题
-        
+        window.addEventListener('blur', closeContextMenu);
+
         return () => {
             window.removeEventListener('message', handleMsg);
             window.removeEventListener('click', closeContextMenu);
@@ -215,12 +221,13 @@ export default function GitApp() {
         hoverTimeoutRef.current = setTimeout(() => {
             const safeY = Math.min(rect.bottom + 4, window.innerHeight - 120);
             setHoverInfo({ commit, x: rect.left + 24, y: safeY });
-        }, 600);
+        }, 600); // 显示延迟依然是 600ms
     };
 
     const handleMouseLeave = () => {
         clearTimeout(hoverTimeoutRef.current);
-        setHoverInfo(null);
+        // 🌟 修复 Hover 马上消失问题：加入 250ms 的消失延迟
+        hoverTimeoutRef.current = setTimeout(() => { setHoverInfo(null); }, 250);
     };
 
     const handleCommit = () => {
@@ -235,12 +242,14 @@ export default function GitApp() {
         if (status.includes('D')) return styles['status-D'];
         return styles['status-A'];
     };
+
     const getStatusText = (status: string) => {
         if (status.includes('M')) return 'M';
         if (status.includes('D')) return 'D';
         if (status.includes('A')) return 'A';
         return 'U';
     };
+
     const getFileIcon = (fileName: string) => {
         const ext = fileName.split('.').pop()?.toLowerCase();
         switch (ext) {
@@ -264,29 +273,27 @@ export default function GitApp() {
                     const fileName = parts.pop();
                     const dirPath = parts.length > 0 ? parts.join('/') : '';
                     return (
-                        <li
-                            key={idx}
-                            className={`${styles['file-item']} ${activeFile === item.file ? styles['active'] : ''}`}
-                            title={item.file}
-                            onClick={() => {
-                                setActiveFile(item.file);
-                                if (listType === 'history') {
-                                    vscode.postMessage({ command: 'diffCommitFile', file: item.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: item.status });
-                                } else {
-                                    vscode.postMessage({ command: 'diff', file: item.file, status: item.status });
-                                }
-                            }}
-                            onContextMenu={(e) => {
-                                e.preventDefault();
-                                setActiveFile(item.file);
-                                const safeX = Math.min(e.clientX, window.innerWidth - 220); // 菜单稍微变宽了，留足空间
-                                const safeY = Math.min(e.clientY, window.innerHeight - 250);
-                                setContextMenu({ visible: true, x: safeX, y: safeY, file: item, listType });
-                            }}
-                        >
+                        <li key={idx} className={`${styles['file-item']} ${activeFile === item.file ? styles['active'] : ''}`} title={item.file} onClick={() => {
+                            setActiveFile(item.file);
+                            if (listType === 'history') {
+                                vscode.postMessage({ command: 'diffCommitFile', file: item.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: item.status });
+                            } else {
+                                vscode.postMessage({ command: 'diff', file: item.file, status: item.status });
+                            }
+                        }} onContextMenu={(e) => {
+                            e.preventDefault();
+                            setActiveFile(item.file);
+                            const safeX = Math.min(e.clientX, window.innerWidth - 220);
+                            const safeY = Math.min(e.clientY, window.innerHeight - 250);
+                            setContextMenu({ visible: true, x: safeX, y: safeY, file: item, listType });
+                        }}>
                             {getFileIcon(fileName || '')}
                             <div className={styles['file-name']}>{fileName}</div>
-                            <div className={styles['file-dir']}>{dirPath}</div>
+                            {/* 🌟 修复留白：目录紧贴文件名 */}
+                            {dirPath && <div className={styles['file-dir']}>{dirPath}</div>}
+                            {/* 🌟 补充的弹簧，把图标挤到右边，中间空出 */}
+                            <div style={{ flex: 1 }}></div>
+
                             <div className={styles['file-actions']} onClick={(e) => e.stopPropagation()}>
                                 <button className={styles['action-btn']} title="打开文件" onClick={() => vscode.postMessage({ command: 'open', file: item.file })}>
                                     <FontAwesomeIcon icon={faFolderOpen} />
@@ -333,8 +340,9 @@ export default function GitApp() {
         if (target.scrollHeight - target.scrollTop <= target.clientHeight + 20) {
             if (hasMoreCommits && !isLoadingMore && graphCommits.length > 0) {
                 setIsLoadingMore(true);
-                const lastCommit = graphCommits[graphCommits.length - 1];
-                vscode.postMessage({ command: 'loadMoreCommits', ref: lastCommit.hash });
+                // 🌟 使用 skip 分页而不是 to
+                vscode.postMessage({ command: 'loadMoreCommits', skip: graphSkip });
+                setGraphSkip(prev => prev + 30);
             }
         }
     };
@@ -344,43 +352,43 @@ export default function GitApp() {
             {/* 全局右键菜单 */}
             {contextMenu && contextMenu.visible && (
                 <>
-                    <div 
-                        className={styles['context-menu-backdrop']} 
+                    <div
+                        className={styles['context-menu-backdrop']}
                         onClick={() => setContextMenu(null)}
                         onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
                     />
                     <div className={styles['context-menu']} style={{ left: contextMenu.x, top: contextMenu.y }}>
-                        
+
                         <div className={styles['context-menu-item']} onClick={() => {
                             if (contextMenu.listType === 'history') {
-                                 vscode.postMessage({ command: 'diffCommitFile', file: contextMenu.file.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: contextMenu.file.status });
+                                vscode.postMessage({ command: 'diffCommitFile', file: contextMenu.file.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: contextMenu.file.status });
                             } else {
-                                 vscode.postMessage({ command: 'diff', file: contextMenu.file.file, status: contextMenu.file.status });
+                                vscode.postMessage({ command: 'diff', file: contextMenu.file.file, status: contextMenu.file.status });
                             }
                             setContextMenu(null);
                         }}>
-                            <FontAwesomeIcon icon={faFileCode} className={styles['context-menu-icon']} /> 
+                            <FontAwesomeIcon icon={faFileCode} className={styles['context-menu-icon']} />
                             <span>打开更改</span>
                         </div>
-                        
+
                         <div className={styles['context-menu-item']} onClick={() => {
                             vscode.postMessage({ command: 'open', file: contextMenu.file.file });
                             setContextMenu(null);
                         }}>
-                            <FontAwesomeIcon icon={faFolderOpen} className={styles['context-menu-icon']} /> 
+                            <FontAwesomeIcon icon={faFolderOpen} className={styles['context-menu-icon']} />
                             <span>打开文件</span>
                         </div>
-                        
+
                         {contextMenu.listType !== 'history' && (
                             <div className={styles['context-menu-item']} onClick={() => {
                                 vscode.postMessage({ command: 'discard', file: contextMenu.file.file, status: contextMenu.file.status });
                                 setContextMenu(null);
                             }}>
-                                <FontAwesomeIcon icon={faRotateLeft} className={styles['context-menu-icon']} /> 
+                                <FontAwesomeIcon icon={faRotateLeft} className={styles['context-menu-icon']} />
                                 <span>放弃更改</span>
                             </div>
                         )}
-                        
+
                         {contextMenu.listType !== 'history' && (
                             <div className={styles['context-menu-item']} onClick={() => {
                                 if (contextMenu.listType === 'staged') {
@@ -390,7 +398,7 @@ export default function GitApp() {
                                 }
                                 setContextMenu(null);
                             }}>
-                                <FontAwesomeIcon icon={contextMenu.listType === 'staged' ? faMinus : faPlus} className={styles['context-menu-icon']} /> 
+                                <FontAwesomeIcon icon={contextMenu.listType === 'staged' ? faMinus : faPlus} className={styles['context-menu-icon']} />
                                 <span>{contextMenu.listType === 'staged' ? '取消暂存更改' : '暂存更改'}</span>
                             </div>
                         )}
@@ -401,7 +409,7 @@ export default function GitApp() {
                             vscode.postMessage({ command: 'ignore', file: contextMenu.file.file });
                             setContextMenu(null);
                         }}>
-                            <FontAwesomeIcon icon={faEyeSlash} className={styles['context-menu-icon']} /> 
+                            <FontAwesomeIcon icon={faEyeSlash} className={styles['context-menu-icon']} />
                             <span>添加到 .gitignore</span>
                         </div>
 
@@ -409,18 +417,18 @@ export default function GitApp() {
                             vscode.postMessage({ command: 'reveal', file: contextMenu.file.file });
                             setContextMenu(null);
                         }}>
-                            <FontAwesomeIcon icon={faFolderOpen} className={styles['context-menu-icon']} /> 
+                            <FontAwesomeIcon icon={faFolderOpen} className={styles['context-menu-icon']} />
                             <span>在访达/资源管理器中显示</span>
                         </div>
                     </div>
                 </>
             )}
 
-            {/* 原有的 Hover Widget */}
             {hoverInfo && (
                 <div
                     className={styles['commit-hover-widget']}
                     style={{ left: Math.min(hoverInfo.x, window.innerWidth - 300), top: hoverInfo.y }}
+                    // 🌟 鼠标移入 Hover 框时，立刻取消消失的定时器！
                     onMouseEnter={() => clearTimeout(hoverTimeoutRef.current)}
                     onMouseLeave={handleMouseLeave}
                 >
@@ -433,6 +441,18 @@ export default function GitApp() {
                             </span>
                         )}
                     </div>
+
+                    {/* 🌟 新增：在 Hover 弹窗中渲染所处分支/标签信息 */}
+                    {hoverInfo.commit.refs && (
+                        <div className={styles['hover-refs']}>
+                            {hoverInfo.commit.refs.split(',').map(r => r.trim()).filter(Boolean).map((r, i) => {
+                                const isHead = r.startsWith('HEAD -> ');
+                                const name = isHead ? r.replace('HEAD -> ', '') : r;
+                                return <span key={i} className={`${styles['ref-tag']} ${isHead ? styles['ref-head'] : ''}`}>{name}</span>;
+                            })}
+                        </div>
+                    )}
+
                     <div className={styles['hover-message']}>{hoverInfo.commit.message}</div>
                     <div className={styles['hover-divider']}></div>
                     <div className={styles['hover-footer']}>
@@ -510,11 +530,12 @@ export default function GitApp() {
                                                 onMouseEnter={(e) => handleMouseEnter(e, c as any)}
                                                 onMouseLeave={handleMouseLeave}
                                             >
-                                                <svg width={svgWidth} height={ROW_HEIGHT} style={{ flexShrink: 0 }}>
+                                                {/* 🌟 修复 SVG 缝隙断断续续：增加 display: block 移除基线留白 */}
+                                                <svg width={svgWidth} height={ROW_HEIGHT} style={{ flexShrink: 0, display: 'block' }}>
                                                     {c.paths.map((p, idx) => {
                                                         let startY = 0, endY = ROW_HEIGHT;
-                                                        if (p.type === 'spawn') startY = CY; 
-                                                        if (p.type === 'merge') endY = CY;   
+                                                        if (p.type === 'spawn') startY = CY;
+                                                        if (p.type === 'merge') endY = CY;
 
                                                         const startX = p.from * LANE_WIDTH + 7;
                                                         const endX = p.to * LANE_WIDTH + 7;
@@ -542,7 +563,8 @@ export default function GitApp() {
 
                                             {activeCommitHash === c.hash && (
                                                 <div style={{ display: 'flex' }}>
-                                                    <svg width={svgWidth} style={{ flexShrink: 0 }}>
+                                                    {/* 🌟 同理，展开文件时的竖线也要 display: block */}
+                                                    <svg width={svgWidth} style={{ flexShrink: 0, display: 'block' }}>
                                                         {c.outgoingLanes.map((hash, i) => hash ? <line key={i} x1={i * LANE_WIDTH + 7} y1={0} x2={i * LANE_WIDTH + 7} y2="100%" stroke={COLORS[i % COLORS.length]} strokeWidth="2" /> : null)}
                                                     </svg>
                                                     <div className={styles['commit-files-wrapper']}>
