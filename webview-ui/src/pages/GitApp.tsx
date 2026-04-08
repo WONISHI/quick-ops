@@ -511,7 +511,8 @@ export default function GitApp() {
                         <div className={styles['git-graph-view']} onScroll={handleGraphScroll}>
                             <ul className={styles['commit-timeline']}>
                                 {processedCommits.map(c => {
-                                    const svgWidth = Math.max(1, c.maxLane) * LANE_WIDTH + 8;
+                                    // 🌟 给 SVG 留足右侧空间，防止圆圈被切断
+                                    const svgWidth = (c.maxLane + 1) * LANE_WIDTH + 16;
                                     return (
                                         <li key={c.hash} className={styles['commit-log-item']}>
                                             <div className={styles['commit-row']}
@@ -519,13 +520,12 @@ export default function GitApp() {
                                                 onMouseEnter={(e) => handleMouseEnter(e, c as any)}
                                                 onMouseLeave={handleMouseLeave}
                                             >
-                                                {/* 🌟 修复断裂：增加 overflow: 'visible' */}
+                                                {/* 🌟 核心修复1：断断续续的缝隙 - 溢出可见，并且保证线条向下完美扎入相邻元素的领地 */}
                                                 <svg width={svgWidth} height={ROW_HEIGHT} style={{ flexShrink: 0, display: 'block', overflow: 'visible' }}>
                                                     {c.paths.map((p, idx) => {
-                                                        // 🌟 修复断裂：线条向下多画 1px (ROW_HEIGHT + 1) 实现像素级完美覆盖
-                                                        let startY = 0, endY = ROW_HEIGHT + 1;
-                                                        if (p.type === 'spawn') startY = CY;
-                                                        if (p.type === 'merge') endY = CY;
+                                                        const OVERLAP = 2;
+                                                        let startY = p.type === 'spawn' ? CY : -OVERLAP;
+                                                        let endY = p.type === 'merge' ? CY : ROW_HEIGHT + OVERLAP;
 
                                                         const startX = p.from * LANE_WIDTH + 7;
                                                         const endX = p.to * LANE_WIDTH + 7;
@@ -534,13 +534,18 @@ export default function GitApp() {
                                                         if (startX === endX) {
                                                             d = `M ${startX} ${startY} L ${endX} ${endY}`;
                                                         } else {
-                                                            const cp1Y = startY + (endY - startY) / 2;
-                                                            const cp2Y = startY + (endY - startY) / 2;
-                                                            d = `M ${startX} ${startY} C ${startX} ${cp1Y}, ${endX} ${cp2Y}, ${endX} ${endY}`;
+                                                            // 🌟 绘制完美 S 型曲线，确保在上下边缘一定是绝对的垂直线，杜绝折角和断层
+                                                            if (p.type === 'spawn') {
+                                                                d = `M ${startX} ${startY} C ${startX} ${startY + 9}, ${endX} ${ROW_HEIGHT - 9}, ${endX} ${ROW_HEIGHT} L ${endX} ${endY}`;
+                                                            } else if (p.type === 'merge') {
+                                                                d = `M ${startX} ${startY} L ${startX} 0 C ${startX} 9, ${endX} ${CY - 9}, ${endX} ${CY}`;
+                                                            } else {
+                                                                d = `M ${startX} ${startY} L ${startX} 0 C ${startX} 18, ${endX} 18, ${endX} ${ROW_HEIGHT} L ${endX} ${endY}`;
+                                                            }
                                                         }
                                                         return <path key={idx} d={d} stroke={p.color} strokeWidth="2" fill="none" />;
                                                     })}
-                                                    <circle cx={c.laneIndex * LANE_WIDTH + 7} cy={CY} r="4" fill={COLORS[c.laneIndex % COLORS.length]} stroke="var(--vscode-editor-background)" strokeWidth="2" />
+                                                    <circle cx={c.laneIndex * LANE_WIDTH + 7} cy={CY} r="4" fill={COLORS[c.laneIndex % COLORS.length]} stroke="var(--vscode-sideBar-background, #252526)" strokeWidth="2" />
                                                 </svg>
                                                 <div className={styles['commit-content']}>
                                                     <div className={styles['commit-message']}>{c.message}</div>
@@ -553,10 +558,10 @@ export default function GitApp() {
 
                                             {activeCommitHash === c.hash && (
                                                 <div style={{ display: 'flex', position: 'relative' }}>
-                                                    {/* 🌟 修复巨大留白：不再使用 <svg y2="100%">，改用绝对定位的 div 画出真实的线条高度 */}
+                                                    {/* 🌟 核心修复2：点开文件的巨大留白 - 使用 div 绝对定位，杜绝 svg 的默认高度 */}
                                                     <div style={{ width: svgWidth, flexShrink: 0, position: 'relative' }}>
                                                         {c.outgoingLanes.map((hash, i) => hash ? (
-                                                            <div key={i} style={{ position: 'absolute', left: i * LANE_WIDTH + 6, top: 0, bottom: 0, width: 2, backgroundColor: COLORS[i % COLORS.length] }} />
+                                                            <div key={i} style={{ position: 'absolute', left: i * LANE_WIDTH + 6, top: -2, bottom: -2, width: 2, backgroundColor: COLORS[i % COLORS.length] }} />
                                                         ) : null)}
                                                     </div>
                                                     <div className={styles['commit-files-wrapper']}>
