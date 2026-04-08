@@ -106,28 +106,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             await this.refreshStatus(cwd);
             break;
           }
-          case 'loadMoreCommits': {
-            // 🌟 核心修复：彻底抛弃 to: ref，使用 VS Code 原生的全图拓扑分页法！
-            const logOptions = {
-              '--all': null,         // 强制查询所有分支，不遗漏平行分支
-              '--topo-order': null,  // 强制拓扑排序，防止分页期间排序错乱
-              '--skip': msg.skip,    // 使用纯数字进行严格的记录跳过
-              maxCount: 30,
-              format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct', refs: '%D' }
-            };
-            const logRaw = await git.log(logOptions);
-            const nextCommits = logRaw.all.map(c => ({
-              hash: c.hash,
-              parents: c.parents ? (c.parents as string).split(' ').filter(Boolean) : [],
-              author: c.author,
-              email: c.email,
-              message: c.message,
-              refs: (c as any).refs || '',
-              timestamp: parseInt(c.timestamp as string, 10) * 1000
-            }));
-            this._view?.webview.postMessage({ type: 'moreCommitsData', commits: nextCommits });
-            break;
-          }
           case 'getCommitFiles': {
             const diffRaw = await git.raw(['diff-tree', '--no-commit-id', '--name-status', '-r', '--root', msg.hash]);
             const files = diffRaw.split('\n').filter(line => line.trim()).map(line => {
@@ -232,12 +210,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         remoteUrl 
       });
 
-      // 2. 🌟 核心修复：初始加载也必须带上 '--topo-order' 保证与分页排序完全一致！
+      // 2. 🌟 核心修复：将 maxCount 放开到 5000，一次性把历史交给前端，让 Canvas 完美画图！
       const logOptions = {
         '--all': null,
         '--topo-order': null, 
         format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct', refs: '%D' },
-        maxCount: 30
+        maxCount: 5000  // 🌟 这里是重点：拉取足够多的记录
       };
       
       const logRaw = await git.log(logOptions);

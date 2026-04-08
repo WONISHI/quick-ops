@@ -69,19 +69,19 @@ function processGraphCommits(commits: GraphCommit[]) {
             outgoingLanes[laneIndex] = parents[0];
             parentLanes.push(laneIndex);
         } else {
-            outgoingLanes[laneIndex] = null;
+            outgoingLanes[laneIndex] = null; 
         }
 
         for (let i = 1; i < parents.length; i++) {
             const p = parents[i];
-            let outIdx = outgoingLanes.indexOf(p);
-            if (outIdx === -1) {
-                outIdx = outgoingLanes.findIndex(l => l === null);
-                if (outIdx !== -1) outgoingLanes[outIdx] = p;
-                else {
-                    outIdx = outgoingLanes.length;
-                    outgoingLanes.push(p);
-                }
+            let outIdx = outgoingLanes.findIndex((l, index) => l === null && index > laneIndex);
+            if (outIdx === -1) outIdx = outgoingLanes.findIndex(l => l === null);
+            
+            if (outIdx !== -1) {
+                outgoingLanes[outIdx] = p;
+            } else {
+                outIdx = outgoingLanes.length;
+                outgoingLanes.push(p);
             }
             parentLanes.push(outIdx);
         }
@@ -144,12 +144,10 @@ export default function GitApp() {
     const [isGraphOpen, setIsGraphOpen] = useState(true);
 
     const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
-    const [hasMoreCommits, setHasMoreCommits] = useState(true);
     const [isGraphLoading, setIsGraphLoading] = useState(true);
-    const [isLoadingMore, setIsLoadingMore] = useState(false);
     const [remoteUrl, setRemoteUrl] = useState<string>('');
-
-    const [graphSkip, setGraphSkip] = useState(30);
+    
+    const [displayCount, setDisplayCount] = useState(50);
 
     const [activeCommitHash, setActiveCommitHash] = useState<string | null>(null);
     const [loadedCommitHash, setLoadedCommitHash] = useState<string | null>(null);
@@ -163,6 +161,106 @@ export default function GitApp() {
     const [contextMenu, setContextMenu] = useState<{ visible: boolean, x: number, y: number, file: GitFile, listType: 'staged' | 'unstaged' | 'history' } | null>(null);
 
     const processedCommits = useMemo(() => processGraphCommits(graphCommits), [graphCommits]);
+
+    const yPositions = useMemo(() => {
+        const positions: number[] = [];
+        let currentY = 0;
+        for (let i = 0; i < processedCommits.length; i++) {
+            positions.push(currentY);
+            currentY += ROW_HEIGHT;
+            
+            if (activeCommitHash === processedCommits[i].hash) {
+                if (commitFilesLoading || loadedCommitHash !== activeCommitHash) {
+                    currentY += 38;
+                } else {
+                    currentY += 10 + commitFiles.length * 22;
+                }
+            }
+        }
+        positions.push(currentY);
+        return positions;
+    }, [processedCommits, activeCommitHash, commitFilesLoading, loadedCommitHash, commitFiles.length]);
+
+    const renderedHeight = yPositions[Math.min(displayCount, processedCommits.length)] || 0;
+
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+    const graphContainerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const container = graphContainerRef.current;
+        if (!canvas || !container || processedCommits.length === 0) return;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const dpr = window.devicePixelRatio || 1;
+        const containerWidth = container.clientWidth || 800;
+
+        canvas.width = containerWidth * dpr;
+        canvas.height = renderedHeight * dpr;
+        ctx.scale(dpr, dpr);
+
+        ctx.clearRect(0, 0, containerWidth, renderedHeight);
+
+        processedCommits.slice(0, displayCount).forEach((c, idx) => {
+            const startY = yPositions[idx];
+            const endY = yPositions[idx + 1];
+            const midY = startY + CY;
+            const CURVE_OFFSET = 12;
+
+            c.paths.forEach(p => {
+                const startX = p.from * LANE_WIDTH + 7;
+                const endX = p.to * LANE_WIDTH + 7;
+
+                ctx.beginPath();
+                ctx.strokeStyle = p.color;
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+
+                if (p.type === 'pass') {
+                    ctx.moveTo(startX, startY);
+                    if (startX === endX) {
+                        ctx.lineTo(endX, endY);
+                    } else {
+                        ctx.bezierCurveTo(startX, startY + CURVE_OFFSET, endX, endY - CURVE_OFFSET, endX, endY);
+                    }
+                } else if (p.type === 'merge') {
+                    ctx.moveTo(startX, startY);
+                    if (startX === endX) {
+                        ctx.lineTo(endX, midY); 
+                    } else {
+                        ctx.bezierCurveTo(startX, startY + CURVE_OFFSET, endX, midY - CURVE_OFFSET, endX, midY);
+                    }
+                } else if (p.type === 'spawn') {
+                    ctx.moveTo(startX, midY); 
+                    if (startX === endX) {
+                        ctx.lineTo(endX, endY);
+                    } else {
+                        ctx.bezierCurveTo(startX, midY + CURVE_OFFSET, endX, endY - CURVE_OFFSET, endX, endY);
+                    }
+                }
+                ctx.stroke();
+            });
+        });
+
+        const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--vscode-sideBar-background').trim() || '#252526';
+
+        processedCommits.slice(0, displayCount).forEach((c, idx) => {
+            const cx = c.laneIndex * LANE_WIDTH + 7;
+            const cy = yPositions[idx] + CY;
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
+            ctx.fillStyle = COLORS[c.laneIndex % COLORS.length];
+            ctx.fill();
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = bgColor;
+            ctx.stroke();
+        });
+    }, [processedCommits, displayCount, yPositions, renderedHeight, activeCommitHash]);
 
     useEffect(() => {
         vscode.postMessage({ command: 'webviewLoaded' });
@@ -179,14 +277,8 @@ export default function GitApp() {
             } else if (msg.type === 'graphData') {
                 const commits = msg.graphCommits || [];
                 setGraphCommits(commits);
-                setGraphSkip(30);
-                setHasMoreCommits(commits.length >= 30);
+                setDisplayCount(50);
                 setIsGraphLoading(false);
-            } else if (msg.type === 'moreCommitsData') {
-                const newCommits = msg.commits || [];
-                setGraphCommits(prev => [...prev, ...newCommits]);
-                setHasMoreCommits(newCommits.length >= 30);
-                setIsLoadingMore(false);
             } else if (msg.type === 'commitFilesData') {
                 setCommitFiles(msg.files || []);
                 setActiveCommitParentHash(msg.parentHash);
@@ -195,20 +287,39 @@ export default function GitApp() {
             } else if (msg.type === 'error') {
                 setLoading(false);
                 setIsGraphLoading(false);
-                setIsLoadingMore(false);
                 setCommitFilesLoading(false);
             }
         };
         window.addEventListener('message', handleMsg);
+        
+        // 🌟 监听切回窗口或标签页时自动刷新状态
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                vscode.postMessage({ command: 'refresh' });
+            }
+        };
+        const handleFocus = () => {
+            vscode.postMessage({ command: 'refresh' });
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('focus', handleFocus);
 
         const closeContextMenu = () => setContextMenu(null);
         window.addEventListener('click', closeContextMenu);
         window.addEventListener('blur', closeContextMenu);
-
+        
+        window.addEventListener('resize', () => {
+            setDisplayCount(prev => prev);
+        });
+        
         return () => {
             window.removeEventListener('message', handleMsg);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', handleFocus);
             window.removeEventListener('click', closeContextMenu);
             window.removeEventListener('blur', closeContextMenu);
+            window.removeEventListener('resize', () => {});
         };
     }, []);
 
@@ -291,11 +402,16 @@ export default function GitApp() {
                                 <button className={styles['action-btn']} title="打开文件" onClick={() => vscode.postMessage({ command: 'open', file: item.file })}>
                                     <FontAwesomeIcon icon={faFolderOpen} />
                                 </button>
+                                
+                                {/* 🌟 核心修改：如果是"未暂存(unstaged)"才显示"放弃更改"减号按钮；如果是"已暂存(staged)"则完全不显示"放弃更改" */}
+                                {listType === 'unstaged' && (
+                                    <button className={styles['action-btn']} title="放弃更改" onClick={() => vscode.postMessage({ command: 'discard', file: item.file, status: item.status })}>
+                                        <FontAwesomeIcon icon={faMinus} />
+                                    </button>
+                                )}
+
                                 {listType !== 'history' && (
                                     <>
-                                        <button className={styles['action-btn']} title="放弃更改" onClick={() => vscode.postMessage({ command: 'discard', file: item.file, status: item.status })}>
-                                            <FontAwesomeIcon icon={faRotateLeft} />
-                                        </button>
                                         {listType === 'staged' ? (
                                             <button className={styles['action-btn']} title="取消暂存更改" onClick={() => vscode.postMessage({ command: 'unstage', file: item.file })}>
                                                 <FontAwesomeIcon icon={faMinus} />
@@ -330,11 +446,9 @@ export default function GitApp() {
 
     const handleGraphScroll = (e: React.UIEvent<HTMLDivElement>) => {
         const target = e.target as HTMLDivElement;
-        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 20) {
-            if (hasMoreCommits && !isLoadingMore && graphCommits.length > 0) {
-                setIsLoadingMore(true);
-                vscode.postMessage({ command: 'loadMoreCommits', skip: graphSkip });
-                setGraphSkip(prev => prev + 30);
+        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
+            if (displayCount < processedCommits.length) {
+                setDisplayCount(prev => prev + 50);
             }
         }
     };
@@ -343,43 +457,44 @@ export default function GitApp() {
         <div className={styles['git-sidebar']}>
             {contextMenu && contextMenu.visible && (
                 <>
-                    <div
-                        className={styles['context-menu-backdrop']}
+                    <div 
+                        className={styles['context-menu-backdrop']} 
                         onClick={() => setContextMenu(null)}
                         onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
                     />
                     <div className={styles['context-menu']} style={{ left: contextMenu.x, top: contextMenu.y }}>
-
+                        
                         <div className={styles['context-menu-item']} onClick={() => {
                             if (contextMenu.listType === 'history') {
-                                vscode.postMessage({ command: 'diffCommitFile', file: contextMenu.file.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: contextMenu.file.status });
+                                 vscode.postMessage({ command: 'diffCommitFile', file: contextMenu.file.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: contextMenu.file.status });
                             } else {
-                                vscode.postMessage({ command: 'diff', file: contextMenu.file.file, status: contextMenu.file.status });
+                                 vscode.postMessage({ command: 'diff', file: contextMenu.file.file, status: contextMenu.file.status });
                             }
                             setContextMenu(null);
                         }}>
-                            <FontAwesomeIcon icon={faFileCode} className={styles['context-menu-icon']} />
+                            <FontAwesomeIcon icon={faFileCode} className={styles['context-menu-icon']} /> 
                             <span>打开更改</span>
                         </div>
-
+                        
                         <div className={styles['context-menu-item']} onClick={() => {
                             vscode.postMessage({ command: 'open', file: contextMenu.file.file });
                             setContextMenu(null);
                         }}>
-                            <FontAwesomeIcon icon={faFolderOpen} className={styles['context-menu-icon']} />
+                            <FontAwesomeIcon icon={faFolderOpen} className={styles['context-menu-icon']} /> 
                             <span>打开文件</span>
                         </div>
-
-                        {contextMenu.listType !== 'history' && (
+                        
+                        {/* 🌟 同步修改右键菜单：只有在"未暂存(unstaged)"才显示"放弃更改" */}
+                        {contextMenu.listType === 'unstaged' && (
                             <div className={styles['context-menu-item']} onClick={() => {
                                 vscode.postMessage({ command: 'discard', file: contextMenu.file.file, status: contextMenu.file.status });
                                 setContextMenu(null);
                             }}>
-                                <FontAwesomeIcon icon={faRotateLeft} className={styles['context-menu-icon']} />
+                                <FontAwesomeIcon icon={faMinus} className={styles['context-menu-icon']} /> 
                                 <span>放弃更改</span>
                             </div>
                         )}
-
+                        
                         {contextMenu.listType !== 'history' && (
                             <div className={styles['context-menu-item']} onClick={() => {
                                 if (contextMenu.listType === 'staged') {
@@ -389,7 +504,7 @@ export default function GitApp() {
                                 }
                                 setContextMenu(null);
                             }}>
-                                <FontAwesomeIcon icon={contextMenu.listType === 'staged' ? faMinus : faPlus} className={styles['context-menu-icon']} />
+                                <FontAwesomeIcon icon={contextMenu.listType === 'staged' ? faMinus : faPlus} className={styles['context-menu-icon']} /> 
                                 <span>{contextMenu.listType === 'staged' ? '取消暂存更改' : '暂存更改'}</span>
                             </div>
                         )}
@@ -400,7 +515,7 @@ export default function GitApp() {
                             vscode.postMessage({ command: 'ignore', file: contextMenu.file.file });
                             setContextMenu(null);
                         }}>
-                            <FontAwesomeIcon icon={faEyeSlash} className={styles['context-menu-icon']} />
+                            <FontAwesomeIcon icon={faEyeSlash} className={styles['context-menu-icon']} /> 
                             <span>添加到 .gitignore</span>
                         </div>
 
@@ -408,7 +523,7 @@ export default function GitApp() {
                             vscode.postMessage({ command: 'reveal', file: contextMenu.file.file });
                             setContextMenu(null);
                         }}>
-                            <FontAwesomeIcon icon={faFolderOpen} className={styles['context-menu-icon']} />
+                            <FontAwesomeIcon icon={faFolderOpen} className={styles['context-menu-icon']} /> 
                             <span>在访达/资源管理器中显示</span>
                         </div>
                     </div>
@@ -470,7 +585,15 @@ export default function GitApp() {
             </div>
 
             <div className={styles['commit-box']}>
-                <textarea className={styles['commit-input']} placeholder="消息 (按 Ctrl+Enter 提交)" value={commitMsg} onChange={(e) => setCommitMsg(e.target.value)} onKeyDown={(e) => { if (e.ctrlKey && e.key === 'Enter') handleCommit(); }} />
+                {/* 🌟 核心修改：将 textarea 替换成了单行 input，按 Enter 直接触发提交 */}
+                <input 
+                    type="text"
+                    className={styles['commit-input']} 
+                    placeholder="消息 (按 Enter 提交)" 
+                    value={commitMsg} 
+                    onChange={(e) => setCommitMsg(e.target.value)} 
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleCommit(); }} 
+                />
                 <button className={styles['commit-btn']} disabled={loading || (!commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0))} onClick={handleCommit} title={stagedFiles.length === 0 ? "暂存所有文件并提交" : "提交已暂存的更改"}>
                     {loading ? <FontAwesomeIcon icon={faSpinner} spin style={{ marginRight: '6px' }} /> : <FontAwesomeIcon icon={faCheck} style={{ marginRight: '6px' }} />} 提交 (Commit)
                 </button>
@@ -508,11 +631,16 @@ export default function GitApp() {
                     ) : processedCommits.length === 0 ? (
                         <div className={styles['git-graph-fallback']}>暂无记录</div>
                     ) : (
-                        <div className={styles['git-graph-view']} onScroll={handleGraphScroll}>
-                            <ul className={styles['commit-timeline']}>
-                                {processedCommits.map(c => {
-                                    // 🌟 给 SVG 留足右侧空间，防止圆圈被切断
-                                    const svgWidth = (c.maxLane + 1) * LANE_WIDTH + 16;
+                        <div className={styles['git-graph-view']} ref={graphContainerRef} onScroll={handleGraphScroll} style={{ position: 'relative' }}>
+                            
+                            <canvas 
+                                ref={canvasRef}
+                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: renderedHeight, pointerEvents: 'none', zIndex: 2 }}
+                            />
+
+                            <ul className={styles['commit-timeline']} style={{ position: 'relative', zIndex: 1 }}>
+                                {processedCommits.slice(0, displayCount).map((c) => {
+                                    const paddingWidth = (c.maxLane + 1) * LANE_WIDTH + 16;
                                     return (
                                         <li key={c.hash} className={styles['commit-log-item']}>
                                             <div className={styles['commit-row']}
@@ -520,33 +648,7 @@ export default function GitApp() {
                                                 onMouseEnter={(e) => handleMouseEnter(e, c as any)}
                                                 onMouseLeave={handleMouseLeave}
                                             >
-                                                {/* 🌟 核心修复1：断断续续的缝隙 - 溢出可见，并且保证线条向下完美扎入相邻元素的领地 */}
-                                                <svg width={svgWidth} height={ROW_HEIGHT} style={{ flexShrink: 0, display: 'block', overflow: 'visible' }}>
-                                                    {c.paths.map((p, idx) => {
-                                                        const OVERLAP = 2;
-                                                        let startY = p.type === 'spawn' ? CY : -OVERLAP;
-                                                        let endY = p.type === 'merge' ? CY : ROW_HEIGHT + OVERLAP;
-
-                                                        const startX = p.from * LANE_WIDTH + 7;
-                                                        const endX = p.to * LANE_WIDTH + 7;
-
-                                                        let d = '';
-                                                        if (startX === endX) {
-                                                            d = `M ${startX} ${startY} L ${endX} ${endY}`;
-                                                        } else {
-                                                            // 🌟 绘制完美 S 型曲线，确保在上下边缘一定是绝对的垂直线，杜绝折角和断层
-                                                            if (p.type === 'spawn') {
-                                                                d = `M ${startX} ${startY} C ${startX} ${startY + 9}, ${endX} ${ROW_HEIGHT - 9}, ${endX} ${ROW_HEIGHT} L ${endX} ${endY}`;
-                                                            } else if (p.type === 'merge') {
-                                                                d = `M ${startX} ${startY} L ${startX} 0 C ${startX} 9, ${endX} ${CY - 9}, ${endX} ${CY}`;
-                                                            } else {
-                                                                d = `M ${startX} ${startY} L ${startX} 0 C ${startX} 18, ${endX} 18, ${endX} ${ROW_HEIGHT} L ${endX} ${endY}`;
-                                                            }
-                                                        }
-                                                        return <path key={idx} d={d} stroke={p.color} strokeWidth="2" fill="none" />;
-                                                    })}
-                                                    <circle cx={c.laneIndex * LANE_WIDTH + 7} cy={CY} r="4" fill={COLORS[c.laneIndex % COLORS.length]} stroke="var(--vscode-sideBar-background, #252526)" strokeWidth="2" />
-                                                </svg>
+                                                <div style={{ width: paddingWidth, flexShrink: 0 }} />
                                                 <div className={styles['commit-content']}>
                                                     <div className={styles['commit-message']}>{c.message}</div>
                                                     <div className={styles['commit-meta']}>
@@ -557,26 +659,41 @@ export default function GitApp() {
                                             </div>
 
                                             {activeCommitHash === c.hash && (
-                                                <div style={{ display: 'flex', position: 'relative' }}>
-                                                    {/* 🌟 核心修复2：点开文件的巨大留白 - 使用 div 绝对定位，杜绝 svg 的默认高度 */}
-                                                    <div style={{ width: svgWidth, flexShrink: 0, position: 'relative' }}>
-                                                        {c.outgoingLanes.map((hash, i) => hash ? (
-                                                            <div key={i} style={{ position: 'absolute', left: i * LANE_WIDTH + 6, top: -2, bottom: -2, width: 2, backgroundColor: COLORS[i % COLORS.length] }} />
-                                                        ) : null)}
-                                                    </div>
-                                                    <div className={styles['commit-files-wrapper']}>
+                                                <div style={{ display: 'flex' }}>
+                                                    <div style={{ width: paddingWidth, flexShrink: 0 }} />
+                                                    <div className={styles['commit-files-wrapper']} style={{ marginLeft: 0, marginTop: '2px', marginBottom: '4px' }}>
                                                         {(commitFilesLoading || loadedCommitHash !== c.hash) ? (
-                                                            <div style={{ opacity: 0.6, fontSize: '11px', padding: '6px 12px' }}>
-                                                                <FontAwesomeIcon icon={faSpinner} spin /> 加载变动文件...
+                                                            <div style={{ height: '32px', display: 'flex', alignItems: 'center', opacity: 0.6, fontSize: '11px', padding: '0 12px' }}>
+                                                                <FontAwesomeIcon icon={faSpinner} spin style={{ marginRight: '6px' }} /> 加载变动文件...
                                                             </div>
-                                                        ) : renderFileList(commitFiles, 'history')}
+                                                        ) : (
+                                                            <ul className={styles['file-list']} style={{ margin: 0, padding: '2px 0' }}>
+                                                                {commitFiles.map((item, idx) => {
+                                                                    const parts = item.file.split('/');
+                                                                    const fileName = parts.pop();
+                                                                    const dirPath = parts.length > 0 ? parts.join('/') : '';
+                                                                    return (
+                                                                        <li key={idx} className={`${styles['file-item']} ${activeFile === item.file ? styles['active'] : ''}`} style={{ height: '22px', display: 'flex', alignItems: 'center', boxSizing: 'border-box' }} title={item.file} onClick={() => { setActiveFile(item.file); vscode.postMessage({ command: 'diffCommitFile', file: item.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: item.status }); }} onContextMenu={(e) => { e.preventDefault(); setActiveFile(item.file); const safeX = Math.min(e.clientX, window.innerWidth - 220); const safeY = Math.min(e.clientY, window.innerHeight - 250); setContextMenu({ visible: true, x: safeX, y: safeY, file: item, listType: 'history' }); }}>
+                                                                            {getFileIcon(fileName || '')}
+                                                                            <div className={styles['file-name']}>{fileName}</div>
+                                                                            {dirPath && <div className={styles['file-dir']}>{dirPath}</div>}
+                                                                            <div style={{ flex: 1 }}></div>
+                                                                            <div className={styles['file-actions']} onClick={(e) => e.stopPropagation()}>
+                                                                                <button className={styles['action-btn']} title="打开文件" onClick={() => vscode.postMessage({ command: 'open', file: item.file })}><FontAwesomeIcon icon={faFolderOpen} /></button>
+                                                                            </div>
+                                                                            <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`}>{getStatusText(item.status)}</div>
+                                                                        </li>
+                                                                    );
+                                                                })}
+                                                            </ul>
+                                                        )}
                                                     </div>
                                                 </div>
                                             )}
                                         </li>
                                     );
                                 })}
-                                {isLoadingMore && (
+                                {displayCount < processedCommits.length && (
                                     <div style={{ textAlign: 'center', padding: '10px', color: 'var(--vscode-descriptionForeground)' }}>
                                         <FontAwesomeIcon icon={faSpinner} spin />
                                     </div>
