@@ -10,7 +10,15 @@ export class GitFeature implements IFeature {
     const gitProvider = new GitWebviewProvider(context.extensionUri);
 
     context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider('quickOps.gitView', gitProvider)
+      vscode.window.registerWebviewViewProvider(
+        'quickOps.gitView', 
+        gitProvider,
+        {
+          webviewOptions: {
+            retainContextWhenHidden: true 
+          }
+        }
+      )
     );
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
