@@ -37,6 +37,24 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.options = { enableScripts: true, localResourceRoots: [this._extensionUri] };
     webviewView.webview.html = getReactWebviewHtml(this._extensionUri, webviewView.webview, '/git');
 
+    // 🌟 核心新增：监听 VS Code 编辑器标签页切换事件
+    const editorListener = vscode.window.onDidChangeActiveTextEditor(editor => {
+      // 确保当前有激活的编辑器，且打开的是本地实体文件
+      if (editor && this._view && editor.document.uri.scheme === 'file') {
+        const cwd = this.getWorkspaceRoot();
+        if (cwd) {
+          // 获取相对于项目根目录的路径，并将 Windows 的反斜杠转换为正斜杠
+          const relativePath = path.relative(cwd, editor.document.uri.fsPath).replace(/\\/g, '/');
+          this._view.webview.postMessage({ type: 'activeEditorChanged', file: relativePath });
+        }
+      }
+    });
+
+    // 🌟 清理机制：当 Webview 被销毁时，注销监听器防止内存泄漏
+    webviewView.onDidDispose(() => {
+      editorListener.dispose();
+    });
+
     webviewView.webview.onDidReceiveMessage(async (msg) => {
       const cwd = this.getWorkspaceRoot();
       if (!cwd) return;
@@ -47,33 +65,43 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         switch (msg.command) {
           case 'webviewLoaded':
           case 'refresh':
-            // 🌟 点击刷新按钮或首次加载：执行全量刷新（包含历史图形）
             await this.refreshStatus(cwd, true);
+            
+            // 🌟 新增：在首次加载或用户点击刷新完成时，主动推送一次当前正处于激活状态的文件
+            if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.scheme === 'file') {
+              const relativePath = path.relative(cwd, vscode.window.activeTextEditor.document.uri.fsPath).replace(/\\/g, '/');
+              this._view?.webview.postMessage({ type: 'activeEditorChanged', file: relativePath });
+            }
             break;
+            
           case 'refreshStatusOnly':
-            // 🌟 核心修复：切换焦点回来时，只请求这一个命令，仅刷新文件状态，不拉取图形历史！极速！
             await this.refreshStatus(cwd, false);
             break;
+            
           case 'commit':
             await this.handleCommit(cwd, msg.message);
             break;
+            
           case 'push':
             vscode.window.showInformationMessage('正在推送到远程...');
             await git.push(['-u', 'origin', 'HEAD']);
             vscode.window.showInformationMessage('🚀 推送成功！');
             await this.refreshStatus(cwd, true);
             break;
+            
           case 'pull':
             vscode.window.showInformationMessage('正在拉取代码...');
             await git.pull();
             vscode.window.showInformationMessage('⬇️ 拉取成功！');
             await this.refreshStatus(cwd, true);
             break;
+            
           case 'open': {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
             vscode.commands.executeCommand('vscode.open', fileUri);
             break;
           }
+          
           case 'diff': {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
             if (msg.status === 'U' || msg.status === 'A') {
@@ -85,6 +113,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             }
             break;
           }
+          
           case 'discard': {
             if (msg.status === 'U') {
               const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
@@ -92,23 +121,26 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             } else {
               await git.checkout(['--', msg.file]);
             }
-            await this.refreshStatus(cwd, false); // 丢弃后只需要局部刷新
+            await this.refreshStatus(cwd, false);
             break;
           }
+          
           case 'stage': {
             if (msg.status === 'D') {
               await git.rm([msg.file]);
             } else {
               await git.add([msg.file]);
             }
-            await this.refreshStatus(cwd, false); // 暂存后只需要局部刷新
+            await this.refreshStatus(cwd, false);
             break;
           }
+          
           case 'unstage': {
             await git.reset(['--', msg.file]);
-            await this.refreshStatus(cwd, false); // 取消暂存只需要局部刷新
+            await this.refreshStatus(cwd, false);
             break;
           }
+          
           case 'getCommitFiles': {
             const diffRaw = await git.raw(['diff-tree', '--no-commit-id', '--name-status', '-r', '--root', msg.hash]);
             const files = diffRaw.split('\n').filter(line => line.trim()).map(line => {
@@ -126,6 +158,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             this._view?.webview.postMessage({ type: 'commitFilesData', hash: msg.hash, files, parentHash: parentOid });
             break;
           }
+          
           case 'diffCommitFile': {
             const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: msg.parentHash || 'empty' }));
             const leftUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${leftQuery}`);
@@ -136,10 +169,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
             break;
           }
+          
           case 'copy':
             vscode.env.clipboard.writeText(msg.text);
             vscode.window.showInformationMessage(`已复制: ${msg.text}`);
             break;
+            
           case 'ignore': {
             const gitignoreUri = vscode.Uri.file(path.join(cwd, '.gitignore'));
             let existingContent = Buffer.alloc(0);
@@ -156,11 +191,13 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             await this.refreshStatus(cwd, false);
             break;
           }
+          
           case 'reveal': {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
             vscode.commands.executeCommand('revealFileInOS', fileUri);
             break;
           }
+          
           case 'openExternal':
             vscode.env.openExternal(vscode.Uri.parse(msg.url));
             break;
@@ -172,7 +209,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  // 🌟 核心修复：增加 fullRefresh 参数控制是否查询耗时的 Git 图形日志
   private async refreshStatus(cwd: string, fullRefresh: boolean = true) {
     if (!this._view) return;
     if (fullRefresh) this._view.webview.postMessage({ type: 'startLoading' });
@@ -205,7 +241,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         }
       });
 
-      // 发送极速的文件更改状态
       this._view.webview.postMessage({ 
         type: 'statusData', 
         stagedFiles, 
@@ -214,7 +249,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         remoteUrl 
       });
 
-      // 只有在 fullRefresh 为 true 时，才去耗时拉取 5000 条历史日志！
       if (fullRefresh) {
         const logOptions = {
           '--all': null,
@@ -254,7 +288,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     
     await git.commit(message);
     vscode.window.showInformationMessage('🎉 提交成功！');
-    await this.refreshStatus(cwd, true); // 提交后必须全量刷新一次历史网络图
+    await this.refreshStatus(cwd, true); 
   }
 
   private getWorkspaceRoot(): string | undefined {

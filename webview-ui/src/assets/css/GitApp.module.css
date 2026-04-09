@@ -9,7 +9,6 @@ body {
     padding: 8px;
     display: flex;
     flex-direction: column;
-    /* 🌟 修改点 1：将最外层的全局大间隙由 10px 缩小为 4px */
     gap: 4px; 
     height: 100vh;
     box-sizing: border-box;
@@ -24,12 +23,9 @@ body {
     text-transform: uppercase;
     color: var(--vscode-sideBarTitle-foreground);
     font-weight: 600;
-    margin-bottom: 4px; /* 让标题和输入框稍微有一点呼吸空间 */
+    margin-bottom: 4px; 
 }
 
-/* =========================================
-   🌟 工具栏图标样式优化 (极限调小)
-   ========================================= */
 .git-actions {
     display: flex;
     gap: 4px;
@@ -40,7 +36,6 @@ body {
     color: var(--vscode-icon-foreground);
     border: none;
     cursor: pointer;
-    /* 🌟 修改点 2：按钮外框缩小到 18px */
     width: 18px;  
     height: 18px; 
     border-radius: 4px;
@@ -51,9 +46,7 @@ body {
     transition: background-color 0.1s, color 0.1s;
 }
 
-/* 强制把内部的 SVG 图标设为小尺寸，去掉多余的边框和间隙 */
 .icon-btn svg {
-    /* 🌟 修改点 3：内部图标强行设定为 11px，跟左边的标题文字一样大！ */
     width: 11px !important;  
     height: 11px !important;
 }
@@ -65,13 +58,13 @@ body {
 }
 
 /* =========================================
-   提交输入框区域
+   提交输入框区域 (高度精简)
    ========================================= */
 .commit-box {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin-bottom: 4px; /* 和下方文件列表保持适度距离 */
+    margin-bottom: 4px; 
 }
 
 .commit-input {
@@ -80,12 +73,13 @@ body {
     background: var(--vscode-input-background);
     color: var(--vscode-input-foreground);
     border: 1px solid var(--vscode-input-border);
-    padding: 6px 8px;
+    padding: 4px 6px; 
     border-radius: 2px;
     resize: vertical;
-    min-height: 50px;
+    min-height: 28px; 
     font-family: inherit;
     font-size: 13px;
+    line-height: 18px;
 }
 
 .commit-input:focus {
@@ -119,7 +113,6 @@ body {
 .changes-scroll-area {
     display: flex;
     flex-direction: column;
-    /* 🌟 修改点 4：暂存与更改区块的间距强制等于全局间距 4px */
     gap: 4px; 
     flex-shrink: 0;
 }
@@ -129,9 +122,8 @@ body {
     display: flex;
     align-items: center;
     gap: 4px;
-    /* 🌟 修改点 5：去掉 header 的 margin-top，全靠父级的 gap 控制间隙，保证绝对等距 */
     margin-top: 0px; 
-    margin-bottom: 4px; /* 标题和下方列表的紧凑间距 */
+    margin-bottom: 4px; 
     cursor: pointer;
     user-select: none;
 }
@@ -206,7 +198,7 @@ body {
 }
 
 /* =========================================
-   文件级操作按钮 (加号、减号、撤销)
+   文件级操作按钮
    ========================================= */
 .file-actions {
     display: none;
@@ -299,8 +291,8 @@ body {
 
 .commit-row {
     display: flex;
-    align-items: flex-start;
-    height: 36px; /* 强制固定高度，完美对接 SVG 的画线起点和终点 */
+    align-items: center; 
+    height: 36px;
     width: 100%;
     cursor: pointer;
     border-radius: 4px;
@@ -317,44 +309,47 @@ body {
 
 .commit-content {
     display: flex;
-    flex-direction: column;
-    justify-content: center;
+    flex-direction: row; 
+    align-items: center; 
+    justify-content: space-between; 
     height: 36px;
     overflow: hidden;
     flex: 1;
+    min-width: 0;
 }
 
 .commit-message {
-    font-size: 11px;
+    font-size: 13px; 
     color: var(--vscode-foreground);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    line-height: 1.1;
+    line-height: 18px; 
     transition: color 0.1s;
 }
 
 .commit-meta {
-    font-size: 9px;
+    font-size: 11px;
     color: var(--vscode-descriptionForeground);
     display: flex;
     gap: 6px;
     opacity: 0.8;
-    margin-top: 1px;
+    margin-top: 2px; 
+    line-height: 14px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .commit-hash {
     font-family: var(--vscode-editor-font-family);
 }
 
-/* =========================================
-   历史提交展开的文件列表外框
-   ========================================= */
 .commit-files-wrapper {
     margin-top: 2px;
     margin-bottom: 4px;
-    margin-left: 4px; /* 在 SVG 连线右侧留一点距离 */
-    flex: 1; /* 撑满剩余空间 */
+    margin-left: 4px; 
+    flex: 1; 
     overflow: hidden;
 }
 
@@ -364,7 +359,7 @@ body {
 }
 
 /* =========================================
-   🌟 Hover 悬浮窗样式 (原生 VS Code 质感)
+   Hover 悬浮窗样式
    ========================================= */
 .commit-hover-widget {
     position: fixed;
@@ -381,6 +376,7 @@ body {
     line-height: 1.4;
     cursor: default;
     animation: fadeIn 0.1s ease-in;
+    pointer-events: auto;
 }
 
 @keyframes fadeIn {
@@ -459,7 +455,7 @@ body {
 }
 
 /* =========================================
-   🌟 新增：右键菜单 (Context Menu) 样式
+   右键菜单 (Context Menu) 样式
    ========================================= */
 .context-menu-backdrop {
     position: fixed;
@@ -475,8 +471,8 @@ body {
     position: fixed;
     z-index: 100000;
     background: var(--vscode-menu-background, #252526);
-    border: none !important;     /* 抹杀边框 */
-    outline: none !important;    /* 抹杀轮廓线 */
+    border: none !important;
+    outline: none !important;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
     border-radius: 6px;
     padding: 6px 0;
@@ -488,18 +484,18 @@ body {
 }
 
 .context-menu-item {
-    padding: 6px 12px; /* 紧凑排版 */
+    padding: 6px 12px;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 8px; /* 图标和文字之间的间距 */
+    gap: 8px; 
     transition: none; 
 }
 
 .context-menu-icon {
     width: 16px;
     text-align: center;
-    opacity: 0.8; /* 图标稍微淡一点更精致 */
+    opacity: 0.8; 
 }
 
 .context-menu-item:hover {
@@ -508,7 +504,7 @@ body {
 }
 
 .context-menu-item:hover .context-menu-icon {
-    opacity: 1; /* hover 时图标变亮 */
+    opacity: 1; 
 }
 
 .context-menu-divider {
@@ -516,32 +512,29 @@ body {
     background: var(--vscode-menu-separatorBackground, #454545);
     margin: 4px 10px; 
 }
+
 /* =========================================
-   🌟 Hover 弹窗内的分支标签 (Refs)
+   Hover 弹窗内的分支标签 (Refs 蓝色按钮)
    ========================================= */
-   .hover-refs {
+.hover-refs {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 6px;
+    gap: 6px;
+    margin-top: 4px; 
+    margin-bottom: 8px;
 }
 
 .ref-tag {
-    background: var(--vscode-badge-background, #4d4d4d);
-    color: var(--vscode-badge-foreground, #ffffff);
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-size: 10px;
-    line-height: 14px;
+    background: var(--vscode-button-background, #3168d1);
+    color: var(--vscode-button-foreground, #ffffff);
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 11px;
+    line-height: 16px;
     white-space: nowrap;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .ref-head {
-    /* 给当前激活的 HEAD 分支醒目的颜色 */
-    background: var(--vscode-textLink-activeForeground, #3794ff); 
-}
-
-/* 确保鼠标滑到 hover 面板上时面板不会因为没有事件捕获而消失 */
-.commit-hover-widget {
-    pointer-events: auto;
+    font-weight: 500;
 }
