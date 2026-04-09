@@ -13,6 +13,7 @@ import MockProxyPanelApp from "./pages/MockProxyPanelApp"
 import MockRulePanelApp from './pages/MockRulePanelApp'
 import GitApp from './pages/GitApp';
 import './index.css';
+import '@vscode/codicons/dist/codicon.css';
 
 // 🌟 从 VS Code 注入的全局变量中获取初始路由，如果没有则默认走 '/'
 const initialRoute = (window as any).__ROUTE__ || '/';

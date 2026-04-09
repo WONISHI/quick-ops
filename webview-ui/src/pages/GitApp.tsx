@@ -2,10 +2,13 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { vscode } from '../utils/vscode';
 import styles from '../assets/css/GitApp.module.css';
 
+// 🌟 引入 VS Code 官方图标库 CSS (用于按钮和菜单)
+import '@vscode/codicons/dist/codicon.css';
+
+// 🌟 恢复引入 FontAwesome (专门用于彩色文件图标)
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faRotateRight, faArrowDown, faArrowUp, faCheck, faChevronDown, faChevronRight, faSpinner, faPlus, faMinus, faRotateLeft, faFolderOpen, faCopy, faFileCode, faEyeSlash } from '@fortawesome/free-solid-svg-icons';
 import { faImage, faCode, faFile } from '@fortawesome/free-solid-svg-icons';
-import { faMarkdown, faHtml5, faCss3Alt, faVuejs, faJs, faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
+import { faMarkdown, faHtml5, faCss3Alt, faVuejs, faJs } from '@fortawesome/free-brands-svg-icons';
 
 interface GitFile { status: string; file: string; }
 interface GraphCommit { hash: string; parents?: string[]; author: string; email?: string; message: string; timestamp?: number; refs?: string; }
@@ -36,8 +39,8 @@ function parseRemoteInfo(url: string, hash: string) {
     let cleanUrl = url.replace(/\.git$/, '');
     if (cleanUrl.startsWith('git@')) cleanUrl = cleanUrl.replace(/^git@([^:]+):/, 'https://$1/');
     let platform = 'GitLab';
-    let icon = faGitlab;
-    if (cleanUrl.includes('github.com')) { platform = 'GitHub'; icon = faGithub; }
+    let icon = 'codicon-repo'; 
+    if (cleanUrl.includes('github.com')) { platform = 'GitHub'; icon = 'codicon-github'; }
     else if (cleanUrl.includes('gitee.com')) { platform = 'Gitee'; }
     return { platform, icon, url: `${cleanUrl}/commit/${hash}` };
 }
@@ -204,10 +207,9 @@ export default function GitApp() {
         ctx.clearRect(0, 0, containerWidth, renderedHeight);
 
         processedCommits.slice(0, displayCount).forEach((c, idx) => {
-            const startY = yPositions[idx];
-            const endY = yPositions[idx + 1];
-            const midY = startY + CY;
-            const CURVE_OFFSET = 12;
+            const startY = yPositions[idx] + CY;
+            const endY = idx + 1 < yPositions.length ? yPositions[idx + 1] + CY : startY + ROW_HEIGHT;
+            const CURVE_OFFSET = Math.min(Math.abs(endY - startY) / 2, 20);
 
             c.paths.forEach(p => {
                 const startX = p.from * LANE_WIDTH + 7;
@@ -219,27 +221,11 @@ export default function GitApp() {
                 ctx.lineCap = 'round';
                 ctx.lineJoin = 'round';
 
-                if (p.type === 'pass') {
-                    ctx.moveTo(startX, startY);
-                    if (startX === endX) {
-                        ctx.lineTo(endX, endY);
-                    } else {
-                        ctx.bezierCurveTo(startX, startY + CURVE_OFFSET, endX, endY - CURVE_OFFSET, endX, endY);
-                    }
-                } else if (p.type === 'merge') {
-                    ctx.moveTo(startX, startY);
-                    if (startX === endX) {
-                        ctx.lineTo(endX, midY); 
-                    } else {
-                        ctx.bezierCurveTo(startX, startY + CURVE_OFFSET, endX, midY - CURVE_OFFSET, endX, midY);
-                    }
-                } else if (p.type === 'spawn') {
-                    ctx.moveTo(startX, midY); 
-                    if (startX === endX) {
-                        ctx.lineTo(endX, endY);
-                    } else {
-                        ctx.bezierCurveTo(startX, midY + CURVE_OFFSET, endX, endY - CURVE_OFFSET, endX, endY);
-                    }
+                ctx.moveTo(startX, startY);
+                if (startX === endX) {
+                    ctx.lineTo(endX, endY);
+                } else {
+                    ctx.bezierCurveTo(startX, startY + CURVE_OFFSET, endX, endY - CURVE_OFFSET, endX, endY);
                 }
                 ctx.stroke();
             });
@@ -260,9 +246,13 @@ export default function GitApp() {
             ctx.strokeStyle = bgColor;
             ctx.stroke();
         });
-    }, [processedCommits, displayCount, yPositions, renderedHeight, activeCommitHash]);
+    }, [processedCommits, displayCount, yPositions, renderedHeight, activeCommitHash, isGraphOpen, isGraphLoading]);
+
+    const lastRefreshRef = useRef<number>(0);
 
     useEffect(() => {
+        lastRefreshRef.current = Date.now();
+        
         vscode.postMessage({ command: 'webviewLoaded' });
         const handleMsg = (e: MessageEvent) => {
             const msg = e.data;
@@ -292,15 +282,18 @@ export default function GitApp() {
         };
         window.addEventListener('message', handleMsg);
         
-        // 🌟 监听切回窗口或标签页时自动刷新状态
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
-                vscode.postMessage({ command: 'refresh' });
+        const triggerSmartRefresh = () => {
+            const now = Date.now();
+            if (now - lastRefreshRef.current > 5000) {
+                vscode.postMessage({ command: 'refreshStatusOnly' }); 
+                lastRefreshRef.current = now;
             }
         };
-        const handleFocus = () => {
-            vscode.postMessage({ command: 'refresh' });
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') triggerSmartRefresh();
         };
+        const handleFocus = () => triggerSmartRefresh();
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
         window.addEventListener('focus', handleFocus);
@@ -342,6 +335,7 @@ export default function GitApp() {
         setLoading(true);
         vscode.postMessage({ command: 'commit', message: commitMsg });
         setCommitMsg('');
+        if (textareaRef.current) textareaRef.current.style.height = '32px'; 
     };
 
     const getStatusClass = (status: string) => {
@@ -357,18 +351,19 @@ export default function GitApp() {
         return 'U';
     };
 
+    // 🌟 恢复文件图标使用漂亮的 FontAwesome 彩色图标
     const getFileIcon = (fileName: string) => {
         const ext = fileName.split('.').pop()?.toLowerCase();
         switch (ext) {
-            case 'ts': case 'tsx': return <FontAwesomeIcon icon={faJs} className={styles['file-icon']} style={{ color: '#3178c6' }} />;
-            case 'js': case 'jsx': return <FontAwesomeIcon icon={faJs} className={styles['file-icon']} style={{ color: '#f1e05a' }} />;
-            case 'vue': return <FontAwesomeIcon icon={faVuejs} className={styles['file-icon']} style={{ color: '#41b883' }} />;
-            case 'css': case 'less': case 'scss': return <FontAwesomeIcon icon={faCss3Alt} className={styles['file-icon']} style={{ color: '#264de4' }} />;
-            case 'html': return <FontAwesomeIcon icon={faHtml5} className={styles['file-icon']} style={{ color: '#e34c26' }} />;
-            case 'json': return <FontAwesomeIcon icon={faCode} className={styles['file-icon']} style={{ color: '#cbcb41' }} />;
-            case 'md': return <FontAwesomeIcon icon={faMarkdown} className={styles['file-icon']} style={{ color: '#4daafc' }} />;
-            case 'png': case 'jpg': case 'svg': return <FontAwesomeIcon icon={faImage} className={styles['file-icon']} style={{ color: '#a074c4' }} />;
-            default: return <FontAwesomeIcon icon={faFile} className={styles['file-icon']} style={{ color: 'var(--vscode-descriptionForeground)' }} />;
+            case 'ts': case 'tsx': return <FontAwesomeIcon icon={faJs} className={styles['file-icon']} style={{ color: '#3178c6', marginRight: '6px' }} />;
+            case 'js': case 'jsx': return <FontAwesomeIcon icon={faJs} className={styles['file-icon']} style={{ color: '#f1e05a', marginRight: '6px' }} />;
+            case 'vue': return <FontAwesomeIcon icon={faVuejs} className={styles['file-icon']} style={{ color: '#41b883', marginRight: '6px' }} />;
+            case 'css': case 'less': case 'scss': return <FontAwesomeIcon icon={faCss3Alt} className={styles['file-icon']} style={{ color: '#264de4', marginRight: '6px' }} />;
+            case 'html': return <FontAwesomeIcon icon={faHtml5} className={styles['file-icon']} style={{ color: '#e34c26', marginRight: '6px' }} />;
+            case 'json': return <FontAwesomeIcon icon={faCode} className={styles['file-icon']} style={{ color: '#cbcb41', marginRight: '6px' }} />;
+            case 'md': return <FontAwesomeIcon icon={faMarkdown} className={styles['file-icon']} style={{ color: '#4daafc', marginRight: '6px' }} />;
+            case 'png': case 'jpg': case 'svg': return <FontAwesomeIcon icon={faImage} className={styles['file-icon']} style={{ color: '#a074c4', marginRight: '6px' }} />;
+            default: return <FontAwesomeIcon icon={faFile} className={styles['file-icon']} style={{ color: 'var(--vscode-descriptionForeground)', marginRight: '6px' }} />;
         }
     };
 
@@ -399,14 +394,15 @@ export default function GitApp() {
                             {dirPath && <div className={styles['file-dir']}>{dirPath}</div>}
                             <div style={{ flex: 1 }}></div>
                             <div className={styles['file-actions']} onClick={(e) => e.stopPropagation()}>
+                                {/* 🌟 将“打开文件”图标替换为 codicon-go-to-file */}
                                 <button className={styles['action-btn']} title="打开文件" onClick={() => vscode.postMessage({ command: 'open', file: item.file })}>
-                                    <FontAwesomeIcon icon={faFolderOpen} />
+                                    <i className="codicon codicon-go-to-file" />
                                 </button>
                                 
-                                {/* 🌟 核心修改：如果是"未暂存(unstaged)"才显示"放弃更改"减号按钮；如果是"已暂存(staged)"则完全不显示"放弃更改" */}
+                                {/* 🌟 将“放弃更改”图标替换为 codicon-discard */}
                                 {listType === 'unstaged' && (
                                     <button className={styles['action-btn']} title="放弃更改" onClick={() => vscode.postMessage({ command: 'discard', file: item.file, status: item.status })}>
-                                        <FontAwesomeIcon icon={faMinus} />
+                                        <i className="codicon codicon-discard" /> 
                                     </button>
                                 )}
 
@@ -414,11 +410,11 @@ export default function GitApp() {
                                     <>
                                         {listType === 'staged' ? (
                                             <button className={styles['action-btn']} title="取消暂存更改" onClick={() => vscode.postMessage({ command: 'unstage', file: item.file })}>
-                                                <FontAwesomeIcon icon={faMinus} />
+                                                <i className="codicon codicon-dash" />
                                             </button>
                                         ) : (
                                             <button className={styles['action-btn']} title="暂存更改" onClick={() => vscode.postMessage({ command: 'stage', file: item.file, status: item.status })}>
-                                                <FontAwesomeIcon icon={faPlus} />
+                                                <i className="codicon codicon-plus" />
                                             </button>
                                         )}
                                     </>
@@ -453,6 +449,8 @@ export default function GitApp() {
         }
     };
 
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
     return (
         <div className={styles['git-sidebar']}>
             {contextMenu && contextMenu.visible && (
@@ -472,25 +470,26 @@ export default function GitApp() {
                             }
                             setContextMenu(null);
                         }}>
-                            <FontAwesomeIcon icon={faFileCode} className={styles['context-menu-icon']} /> 
+                            <i className={`codicon codicon-git-compare ${styles['context-menu-icon']}`} /> 
                             <span>打开更改</span>
                         </div>
                         
+                        {/* 🌟 右键菜单里的“打开文件”同步修改为 codicon-go-to-file */}
                         <div className={styles['context-menu-item']} onClick={() => {
                             vscode.postMessage({ command: 'open', file: contextMenu.file.file });
                             setContextMenu(null);
                         }}>
-                            <FontAwesomeIcon icon={faFolderOpen} className={styles['context-menu-icon']} /> 
+                            <i className={`codicon codicon-go-to-file ${styles['context-menu-icon']}`} /> 
                             <span>打开文件</span>
                         </div>
                         
-                        {/* 🌟 同步修改右键菜单：只有在"未暂存(unstaged)"才显示"放弃更改" */}
+                        {/* 🌟 右键菜单里的“放弃更改”同步修改为 codicon-discard */}
                         {contextMenu.listType === 'unstaged' && (
                             <div className={styles['context-menu-item']} onClick={() => {
                                 vscode.postMessage({ command: 'discard', file: contextMenu.file.file, status: contextMenu.file.status });
                                 setContextMenu(null);
                             }}>
-                                <FontAwesomeIcon icon={faMinus} className={styles['context-menu-icon']} /> 
+                                <i className={`codicon codicon-discard ${styles['context-menu-icon']}`} /> 
                                 <span>放弃更改</span>
                             </div>
                         )}
@@ -504,7 +503,7 @@ export default function GitApp() {
                                 }
                                 setContextMenu(null);
                             }}>
-                                <FontAwesomeIcon icon={contextMenu.listType === 'staged' ? faMinus : faPlus} className={styles['context-menu-icon']} /> 
+                                <i className={`codicon ${contextMenu.listType === 'staged' ? 'codicon-dash' : 'codicon-plus'} ${styles['context-menu-icon']}`} /> 
                                 <span>{contextMenu.listType === 'staged' ? '取消暂存更改' : '暂存更改'}</span>
                             </div>
                         )}
@@ -515,7 +514,7 @@ export default function GitApp() {
                             vscode.postMessage({ command: 'ignore', file: contextMenu.file.file });
                             setContextMenu(null);
                         }}>
-                            <FontAwesomeIcon icon={faEyeSlash} className={styles['context-menu-icon']} /> 
+                            <i className={`codicon codicon-eye-closed ${styles['context-menu-icon']}`} /> 
                             <span>添加到 .gitignore</span>
                         </div>
 
@@ -523,7 +522,7 @@ export default function GitApp() {
                             vscode.postMessage({ command: 'reveal', file: contextMenu.file.file });
                             setContextMenu(null);
                         }}>
-                            <FontAwesomeIcon icon={faFolderOpen} className={styles['context-menu-icon']} /> 
+                            <i className={`codicon codicon-folder-opened ${styles['context-menu-icon']}`} /> 
                             <span>在访达/资源管理器中显示</span>
                         </div>
                     </div>
@@ -561,13 +560,13 @@ export default function GitApp() {
                     <div className={styles['hover-divider']}></div>
                     <div className={styles['hover-footer']}>
                         <span className={styles['hover-action-btn']} onClick={() => vscode.postMessage({ command: 'copy', text: hoverInfo.commit.hash })} title="复制 Hash">
-                            <FontAwesomeIcon icon={faCopy} /> {hoverInfo.commit.hash.substring(0, 7)}
+                            <i className="codicon codicon-copy" style={{ marginRight: '4px' }} /> {hoverInfo.commit.hash.substring(0, 7)}
                         </span>
                         {remoteUrl && parseRemoteInfo(remoteUrl, hoverInfo.commit.hash) && (
                             <>
                                 <span className={styles['hover-separator']}>|</span>
                                 <span className={styles['hover-action-btn']} onClick={() => vscode.postMessage({ command: 'openExternal', url: parseRemoteInfo(remoteUrl, hoverInfo.commit.hash)!.url })}>
-                                    <FontAwesomeIcon icon={parseRemoteInfo(remoteUrl, hoverInfo.commit.hash)!.icon} /> 在 {parseRemoteInfo(remoteUrl, hoverInfo.commit.hash)!.platform} 上打开
+                                    <i className={`codicon ${parseRemoteInfo(remoteUrl, hoverInfo.commit.hash)!.icon}`} style={{ marginRight: '4px' }} /> 在 {parseRemoteInfo(remoteUrl, hoverInfo.commit.hash)!.platform} 上打开
                                 </span>
                             </>
                         )}
@@ -578,24 +577,41 @@ export default function GitApp() {
             <div className={styles['git-toolbar']}>
                 <span>Git 管理 <span style={{ textTransform: 'none', opacity: 0.7 }}>({branch})</span></span>
                 <div className={styles['git-actions']}>
-                    <button className={styles['icon-btn']} title="刷新" onClick={() => vscode.postMessage({ command: 'refresh' })}><FontAwesomeIcon icon={faRotateRight} /></button>
-                    <button className={styles['icon-btn']} title="拉取 (Pull)" onClick={() => vscode.postMessage({ command: 'pull' })}><FontAwesomeIcon icon={faArrowDown} /></button>
-                    <button className={styles['icon-btn']} title="推送 (Push)" onClick={() => vscode.postMessage({ command: 'push' })}><FontAwesomeIcon icon={faArrowUp} /></button>
+                    <button className={styles['icon-btn']} title="刷新" onClick={() => { lastRefreshRef.current = Date.now(); vscode.postMessage({ command: 'refresh' }); }}>
+                        <i className="codicon codicon-refresh" />
+                    </button>
+                    <button className={styles['icon-btn']} title="拉取 (Pull)" onClick={() => vscode.postMessage({ command: 'pull' })}>
+                        <i className="codicon codicon-arrow-down" />
+                    </button>
+                    <button className={styles['icon-btn']} title="推送 (Push)" onClick={() => vscode.postMessage({ command: 'push' })}>
+                        <i className="codicon codicon-arrow-up" />
+                    </button>
                 </div>
             </div>
 
             <div className={styles['commit-box']}>
-                {/* 🌟 核心修改：将 textarea 替换成了单行 input，按 Enter 直接触发提交 */}
-                <input 
-                    type="text"
+                <textarea 
+                    ref={textareaRef}
                     className={styles['commit-input']} 
-                    placeholder="消息 (按 Enter 提交)" 
+                    placeholder="消息 (按 Ctrl+Enter 提交)" 
                     value={commitMsg} 
-                    onChange={(e) => setCommitMsg(e.target.value)} 
-                    onKeyDown={(e) => { if (e.key === 'Enter') handleCommit(); }} 
+                    onChange={(e) => {
+                        setCommitMsg(e.target.value);
+                        e.target.style.height = '32px'; 
+                        e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                    }} 
+                    onKeyDown={(e) => { 
+                        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleCommit(); 
+                    }} 
+                    style={{
+                        resize: 'none', 
+                        minHeight: '32px',
+                        overflowY: 'auto',
+                        boxSizing: 'border-box'
+                    }}
                 />
                 <button className={styles['commit-btn']} disabled={loading || (!commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0))} onClick={handleCommit} title={stagedFiles.length === 0 ? "暂存所有文件并提交" : "提交已暂存的更改"}>
-                    {loading ? <FontAwesomeIcon icon={faSpinner} spin style={{ marginRight: '6px' }} /> : <FontAwesomeIcon icon={faCheck} style={{ marginRight: '6px' }} />} 提交 (Commit)
+                    {loading ? <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} /> : <i className="codicon codicon-check" style={{ marginRight: '6px' }} />} 提交 (Commit)
                 </button>
             </div>
 
@@ -603,35 +619,83 @@ export default function GitApp() {
                 {stagedFiles.length > 0 && (
                     <div className={styles['changes-section']}>
                         <div className={styles['changes-header']} onClick={() => setIsStagedOpen(!isStagedOpen)}>
-                            <FontAwesomeIcon icon={isStagedOpen ? faChevronDown : faChevronRight} style={{ fontSize: '10px', width: '12px' }} /> 暂存的更改 <span className={styles['badge']}>{stagedFiles.length}</span>
+                            <i className={`codicon ${isStagedOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} /> 暂存的更改 <span className={styles['badge']}>{stagedFiles.length}</span>
                         </div>
-                        {isStagedOpen && renderFileList(stagedFiles, 'staged')}
+                        {isStagedOpen && (
+                            <ul className={styles['file-list']}>
+                                {stagedFiles.map((item, idx) => {
+                                    const parts = item.file.split('/');
+                                    const fileName = parts.pop();
+                                    const dirPath = parts.length > 0 ? parts.join('/') : '';
+                                    return (
+                                        <li key={idx} className={`${styles['file-item']} ${activeFile === item.file ? styles['active'] : ''}`} title={item.file} onClick={() => { setActiveFile(item.file); vscode.postMessage({ command: 'diff', file: item.file, status: item.status }); }} onContextMenu={(e) => { e.preventDefault(); setActiveFile(item.file); const safeX = Math.min(e.clientX, window.innerWidth - 220); const safeY = Math.min(e.clientY, window.innerHeight - 250); setContextMenu({ visible: true, x: safeX, y: safeY, file: item, listType: 'staged' }); }}>
+                                            {getFileIcon(fileName || '')}
+                                            <div className={styles['file-name']}>{fileName}</div>
+                                            {dirPath && <div className={styles['file-dir']}>{dirPath}</div>}
+                                            <div style={{ flex: 1 }}></div>
+                                            <div className={styles['file-actions']} onClick={(e) => e.stopPropagation()}>
+                                                <button className={styles['action-btn']} title="打开文件" onClick={() => vscode.postMessage({ command: 'open', file: item.file })}><i className="codicon codicon-go-to-file" /></button>
+                                                <button className={styles['action-btn']} title="取消暂存更改" onClick={() => vscode.postMessage({ command: 'unstage', file: item.file })}><i className="codicon codicon-dash" /></button>
+                                            </div>
+                                            <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`}>{getStatusText(item.status)}</div>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
                     </div>
                 )}
 
                 <div className={styles['changes-section']}>
                     <div className={styles['changes-header']} onClick={() => setIsUnstagedOpen(!isUnstagedOpen)}>
-                        <FontAwesomeIcon icon={isUnstagedOpen ? faChevronDown : faChevronRight} style={{ fontSize: '10px', width: '12px' }} /> 更改 <span className={styles['badge']}>{unstagedFiles.length}</span>
+                        <i className={`codicon ${isUnstagedOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} /> 更改 <span className={styles['badge']}>{unstagedFiles.length}</span>
                     </div>
                     {isUnstagedOpen && (
-                        unstagedFiles.length === 0 && stagedFiles.length === 0 ? <div className={styles['empty-message']}>没有需要提交的更改</div> : renderFileList(unstagedFiles, 'unstaged')
+                        unstagedFiles.length === 0 && stagedFiles.length === 0 ? <div className={styles['empty-message']}>没有需要提交的更改</div> : (
+                            <ul className={styles['file-list']}>
+                                {unstagedFiles.map((item, idx) => {
+                                    const parts = item.file.split('/');
+                                    const fileName = parts.pop();
+                                    const dirPath = parts.length > 0 ? parts.join('/') : '';
+                                    return (
+                                        <li key={idx} className={`${styles['file-item']} ${activeFile === item.file ? styles['active'] : ''}`} title={item.file} onClick={() => { setActiveFile(item.file); vscode.postMessage({ command: 'diff', file: item.file, status: item.status }); }} onContextMenu={(e) => { e.preventDefault(); setActiveFile(item.file); const safeX = Math.min(e.clientX, window.innerWidth - 220); const safeY = Math.min(e.clientY, window.innerHeight - 250); setContextMenu({ visible: true, x: safeX, y: safeY, file: item, listType: 'unstaged' }); }}>
+                                            {getFileIcon(fileName || '')}
+                                            <div className={styles['file-name']}>{fileName}</div>
+                                            {dirPath && <div className={styles['file-dir']}>{dirPath}</div>}
+                                            <div style={{ flex: 1 }}></div>
+                                            <div className={styles['file-actions']} onClick={(e) => e.stopPropagation()}>
+                                                <button className={styles['action-btn']} title="打开文件" onClick={() => vscode.postMessage({ command: 'open', file: item.file })}><i className="codicon codicon-go-to-file" /></button>
+                                                <button className={styles['action-btn']} title="放弃更改" onClick={() => vscode.postMessage({ command: 'discard', file: item.file, status: item.status })}><i className="codicon codicon-discard" /></button>
+                                                <button className={styles['action-btn']} title="暂存更改" onClick={() => vscode.postMessage({ command: 'stage', file: item.file, status: item.status })}><i className="codicon codicon-plus" /></button>
+                                            </div>
+                                            <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`}>{getStatusText(item.status)}</div>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )
                     )}
                 </div>
             </div>
 
             <div className={styles['git-graph-section']}>
                 <div className={styles['changes-header']} onClick={() => setIsGraphOpen(!isGraphOpen)}>
-                    <FontAwesomeIcon icon={isGraphOpen ? faChevronDown : faChevronRight} style={{ fontSize: '10px', width: '12px' }} /> 图形
+                    <i className={`codicon ${isGraphOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} /> 图形
                 </div>
                 {isGraphOpen && (
                     isGraphLoading ? (
                         <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--vscode-descriptionForeground)', fontSize: '12px', opacity: 0.8 }}>
-                            <FontAwesomeIcon icon={faSpinner} spin style={{ marginRight: '8px' }} /> 正在加载历史记录...
+                            <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '8px' }} /> 正在加载历史记录...
                         </div>
                     ) : processedCommits.length === 0 ? (
                         <div className={styles['git-graph-fallback']}>暂无记录</div>
                     ) : (
-                        <div className={styles['git-graph-view']} ref={graphContainerRef} onScroll={handleGraphScroll} style={{ position: 'relative' }}>
+                        <div className={styles['git-graph-view']} ref={graphContainerRef} onScroll={(e) => {
+                            const target = e.target as HTMLDivElement;
+                            if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
+                                if (displayCount < processedCommits.length) setDisplayCount(prev => prev + 50);
+                            }
+                        }} style={{ position: 'relative' }}>
                             
                             <canvas 
                                 ref={canvasRef}
@@ -664,7 +728,7 @@ export default function GitApp() {
                                                     <div className={styles['commit-files-wrapper']} style={{ marginLeft: 0, marginTop: '2px', marginBottom: '4px' }}>
                                                         {(commitFilesLoading || loadedCommitHash !== c.hash) ? (
                                                             <div style={{ height: '32px', display: 'flex', alignItems: 'center', opacity: 0.6, fontSize: '11px', padding: '0 12px' }}>
-                                                                <FontAwesomeIcon icon={faSpinner} spin style={{ marginRight: '6px' }} /> 加载变动文件...
+                                                                <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} /> 加载变动文件...
                                                             </div>
                                                         ) : (
                                                             <ul className={styles['file-list']} style={{ margin: 0, padding: '2px 0' }}>
@@ -679,7 +743,7 @@ export default function GitApp() {
                                                                             {dirPath && <div className={styles['file-dir']}>{dirPath}</div>}
                                                                             <div style={{ flex: 1 }}></div>
                                                                             <div className={styles['file-actions']} onClick={(e) => e.stopPropagation()}>
-                                                                                <button className={styles['action-btn']} title="打开文件" onClick={() => vscode.postMessage({ command: 'open', file: item.file })}><FontAwesomeIcon icon={faFolderOpen} /></button>
+                                                                                <button className={styles['action-btn']} title="打开文件" onClick={() => vscode.postMessage({ command: 'open', file: item.file })}><i className="codicon codicon-go-to-file" /></button>
                                                                             </div>
                                                                             <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`}>{getStatusText(item.status)}</div>
                                                                         </li>
@@ -695,7 +759,7 @@ export default function GitApp() {
                                 })}
                                 {displayCount < processedCommits.length && (
                                     <div style={{ textAlign: 'center', padding: '10px', color: 'var(--vscode-descriptionForeground)' }}>
-                                        <FontAwesomeIcon icon={faSpinner} spin />
+                                        <i className="codicon codicon-loading codicon-modifier-spin" />
                                     </div>
                                 )}
                             </ul>
