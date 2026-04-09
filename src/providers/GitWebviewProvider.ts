@@ -37,20 +37,16 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.options = { enableScripts: true, localResourceRoots: [this._extensionUri] };
     webviewView.webview.html = getReactWebviewHtml(this._extensionUri, webviewView.webview, '/git');
 
-    // 🌟 核心新增：监听 VS Code 编辑器标签页切换事件
     const editorListener = vscode.window.onDidChangeActiveTextEditor(editor => {
-      // 确保当前有激活的编辑器，且打开的是本地实体文件
       if (editor && this._view && editor.document.uri.scheme === 'file') {
         const cwd = this.getWorkspaceRoot();
         if (cwd) {
-          // 获取相对于项目根目录的路径，并将 Windows 的反斜杠转换为正斜杠
           const relativePath = path.relative(cwd, editor.document.uri.fsPath).replace(/\\/g, '/');
           this._view.webview.postMessage({ type: 'activeEditorChanged', file: relativePath });
         }
       }
     });
 
-    // 🌟 清理机制：当 Webview 被销毁时，注销监听器防止内存泄漏
     webviewView.onDidDispose(() => {
       editorListener.dispose();
     });
@@ -66,8 +62,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           case 'webviewLoaded':
           case 'refresh':
             await this.refreshStatus(cwd, true);
-            
-            // 🌟 新增：在首次加载或用户点击刷新完成时，主动推送一次当前正处于激活状态的文件
             if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.scheme === 'file') {
               const relativePath = path.relative(cwd, vscode.window.activeTextEditor.document.uri.fsPath).replace(/\\/g, '/');
               this._view?.webview.postMessage({ type: 'activeEditorChanged', file: relativePath });
@@ -77,6 +71,75 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           case 'refreshStatusOnly':
             await this.refreshStatus(cwd, false);
             break;
+            
+          // 🌟 修改：支持连续弹出两次下拉框，选择任意两个分支进行对比
+          case 'requestCompare': {
+            try {
+              const branches = await git.branchLocal();
+              const branchNames = branches.all; 
+              
+              // 第 1 个弹窗：选择基准分支
+              const baseBranch = await vscode.window.showQuickPick(branchNames, { 
+                placeHolder: '1/2: 请选择【基准分支】(Base Branch)',
+                matchOnDescription: true
+              });
+              if (!baseBranch) return;
+
+              // 第 2 个弹窗：选择目标分支（过滤掉刚才选的基准分支）
+              const targetBranch = await vscode.window.showQuickPick(branchNames.filter(b => b !== baseBranch), { 
+                placeHolder: `2/2: 请选择【目标分支】(与 ${baseBranch} 对比)`,
+                matchOnDescription: true
+              });
+              if (!targetBranch) return;
+
+              const diffRaw = await git.raw(['diff', '--name-status', `${baseBranch}...${targetBranch}`]);
+              const files = diffRaw.split('\n').filter(line => line.trim()).map(line => {
+                const parts = line.split('\t');
+                return { status: parts[0].charAt(0), file: parts[parts.length - 1] };
+              });
+              
+              // 将选中的两个分支都返回给前端
+              this._view?.webview.postMessage({ type: 'compareData', baseBranch, targetBranch, files });
+            } catch (e: any) {
+              vscode.window.showErrorMessage(`对比分支失败: ${e.message}`);
+            }
+            break;
+          }
+
+          case 'diffBranchFile': {
+            const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: msg.targetBranch }));
+            const leftUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${leftQuery}`);
+            
+            // 右侧不再写死 HEAD，而是使用我们选择的基准分支
+            const rightRef = msg.status === 'D' ? 'empty' : msg.baseBranch;
+            const rightQuery = encodeURIComponent(JSON.stringify({ cwd, ref: rightRef }));
+            const rightUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${rightQuery}`);
+            
+            const title = `${path.basename(msg.file)} (${msg.targetBranch} ↔ ${msg.baseBranch})`;
+            vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+            break;
+          }
+
+          case 'compareCommit': {
+            try {
+              const diffRaw = await git.raw(['diff', '--name-status', `${msg.hash}...HEAD`]);
+              const files = diffRaw.split('\n').filter(line => line.trim()).map(line => {
+                const parts = line.split('\t');
+                return { status: parts[0].charAt(0), file: parts[parts.length - 1] };
+              });
+              this._view?.webview.postMessage({ type: 'compareData', targetHash: msg.hash, files });
+            } catch (e: any) {
+              vscode.window.showErrorMessage(`对比失败: ${e.message}`);
+            }
+            break;
+          }
+
+          case 'diffCompareFile': {
+            const leftUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${encodeURIComponent(JSON.stringify({ cwd, ref: msg.targetHash }))}`);
+            const rightUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${encodeURIComponent(JSON.stringify({ cwd, ref: msg.status === 'D' ? 'empty' : 'HEAD' }))}`);
+            vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, `${path.basename(msg.file)} (${msg.targetHash.substring(0,7)} ↔ 当前)`);
+            break;
+          }
             
           case 'commit':
             await this.handleCommit(cwd, msg.message);
