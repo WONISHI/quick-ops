@@ -270,7 +270,7 @@ export default function GitApp() {
     const [compareCommits, setCompareCommits] = useState<GraphCommit[]>([]);
     const [isCompareOpen, setIsCompareOpen] = useState(true);
 
-    const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit, x: number, y: number } | null>(null);
+    const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit, x: number, y: number, position: 'top' | 'bottom' } | null>(null);
     const hoverTimeoutRef = useRef<any>(null);
 
     const [contextMenu, setContextMenu] = useState<{ visible: boolean, x: number, y: number, file: GitFile, listType: 'staged' | 'unstaged' | 'history' | 'compare' } | null>(null);
@@ -486,9 +486,15 @@ export default function GitApp() {
         const rect = e.currentTarget.getBoundingClientRect();
         clearTimeout(hoverTimeoutRef.current);
         hoverTimeoutRef.current = setTimeout(() => {
-            const safeY = Math.min(rect.bottom + 4, window.innerHeight - 120);
-            setHoverInfo({ commit, x: rect.left + 24, y: safeY });
-        }, 600);
+            // 🌟 核心逻辑：如果鼠标在屏幕下半部，弹窗就往上展示，避免被底部遮挡
+            const showAbove = rect.top > window.innerHeight / 2;
+            setHoverInfo({
+                commit,
+                x: Math.min(rect.left + 24, window.innerWidth - 320),
+                y: showAbove ? rect.top - 8 : rect.bottom + 4,
+                position: showAbove ? 'top' : 'bottom'
+            });
+        }, 500);
     };
 
     const handleMouseLeave = () => {
@@ -784,7 +790,10 @@ export default function GitApp() {
             {hoverInfo && (
                 <div
                     className={styles['commit-hover-widget']}
-                    style={{ left: Math.min(hoverInfo.x, window.innerWidth - 300), top: hoverInfo.y }}
+                    style={{ 
+                        left: hoverInfo.x, 
+                        ...(hoverInfo.position === 'top' ? { bottom: window.innerHeight - hoverInfo.y } : { top: hoverInfo.y }) 
+                    }}
                     onMouseEnter={() => clearTimeout(hoverTimeoutRef.current)}
                     onMouseLeave={handleMouseLeave}
                 >
