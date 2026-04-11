@@ -389,7 +389,7 @@ export default function GitApp() {
                 ctx.fill();
             }
         });
-    }, [graphData, displayCount, yPositions, renderedHeight, activeCommitHash]);
+    }, [graphData, displayCount, yPositions, renderedHeight, activeCommitHash, isGraphOpen]); // 🌟 修复树丢失的关键：补上了 isGraphOpen 依赖项！
 
     const lastRefreshRef = useRef<number>(0);
 
