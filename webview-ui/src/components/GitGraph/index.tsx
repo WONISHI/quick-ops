@@ -190,6 +190,9 @@ const GitGraph: React.FC<GitGraphProps> = ({
     const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit, x: number, y: number, position: 'top' | 'bottom' } | null>(null);
     const hoverTimeoutRef = useRef<any>(null);
 
+    // 🌟 新增：用于触发 Canvas 重绘的计数器
+    const [resizeTrigger, setResizeTrigger] = useState(0);
+
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const graphContainerRef = useRef<HTMLDivElement>(null);
 
@@ -215,6 +218,24 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
     const renderedHeight = yPositions[Math.min(displayCount, graphCommits.length)] || 0;
 
+    // 🌟 新增：监听窗口大小变化的 useEffect（带有防抖机制）
+    useEffect(() => {
+        let timeoutId: number;
+        const handleResize = () => {
+            clearTimeout(timeoutId);
+            // 延迟 150ms 触发重绘，避免拖拽过程中频繁渲染卡顿
+            timeoutId = window.setTimeout(() => {
+                setResizeTrigger(prev => prev + 1);
+            }, 150); 
+        };
+
+        window.addEventListener('resize', handleResize);
+        return () => {
+            window.removeEventListener('resize', handleResize);
+            clearTimeout(timeoutId);
+        };
+    }, []);
+
     useEffect(() => {
         const canvas = canvasRef.current;
         const container = graphContainerRef.current;
@@ -224,6 +245,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
         if (!ctx) return;
 
         const dpr = window.devicePixelRatio || 1;
+        // 这里的 clientWidth 每次 resizeTrigger 变化时都会重新获取最新的
         const containerWidth = container.clientWidth || 800;
 
         canvas.width = containerWidth * dpr;
@@ -295,7 +317,8 @@ const GitGraph: React.FC<GitGraphProps> = ({
                 ctx.fill();
             }
         });
-    }, [graphData, displayCount, yPositions, renderedHeight, activeCommitHash]);
+    // 🌟 修改：将 resizeTrigger 添加到 useEffect 的依赖数组中
+    }, [graphData, displayCount, yPositions, renderedHeight, activeCommitHash, resizeTrigger]);
 
     const handleMouseEnter = (e: React.MouseEvent, commit: GraphCommit) => {
         const rect = e.currentTarget.getBoundingClientRect();
