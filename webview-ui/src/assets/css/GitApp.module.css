@@ -22,7 +22,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 3px 8px; /* 🌟 将原本的 6px 改为 3px */
+    padding: 3px 8px;
     font-weight: 600;
     border-bottom: 1px solid rgba(128, 128, 128, 0.2);
 }
@@ -37,8 +37,8 @@ body {
     color: var(--vscode-icon-foreground);
     border: none;
     cursor: pointer;
-    width: 20px;  /* 🌟 从 22px 缩小到 20px */
-    height: 20px; /* 🌟 从 22px 缩小到 20px */
+    width: 20px; 
+    height: 20px;
     border-radius: 3px;
     display: flex;
     align-items: center;
@@ -105,8 +105,8 @@ body {
 }
 
 .changes-header {
-    padding: 3px 8px; /* 🌟 将原本的 4px 改为 3px */
-    min-height: 22px; /* 🌟 限制最小高度 */
+    padding: 3px 8px;
+    min-height: 22px;
     font-weight: 600;
     cursor: pointer;
     display: flex;
@@ -158,24 +158,22 @@ body {
 }
 
 .file-name {
-    /* 🌟 核心修复 2：文件名过长时也用省略号，且尽量不被压缩 */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     flex-shrink: 0; 
-    max-width: 50%; /* 防止文件名过长直接挤掉目录名 */
+    max-width: 50%;
 }
 
 .file-dir {
     font-size: 11px;
     color: var(--vscode-descriptionForeground);
     opacity: 0.7;
-    /* 🌟 核心修复 3：目录超长时显示省略号 */
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    min-width: 0; /* Flex 布局中让文字截断生效的必杀技 */
-    flex-shrink: 1; /* 空间不足时优先压缩目录路径 */
+    min-width: 0;
+    flex-shrink: 1;
 }
 
 .file-actions {
@@ -230,9 +228,6 @@ body {
     font-size: 12px;
 }
 
-/* =========================================
-   🌟 全新改造：VS Code Git Graph 提交树
-   ========================================= */
 .git-graph-section {
     flex: 1;
     display: flex;
@@ -240,244 +235,8 @@ body {
     overflow: hidden;
 }
 
-.graph-header-row {
-    display: flex;
-    align-items: center;
-    height: 28px;
-    border-bottom: 1px solid rgba(128, 128, 128, 0.4);
-    font-weight: 600;
-    background: rgba(128, 128, 128, 0.05);
-}
-
-.graph-header-col {
-    padding: 0 6px;
-    border-right: 1px solid rgba(128, 128, 128, 0.2);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.graph-header-col:last-child {
-    border-right: none;
-}
-
-.graph-scroll-view {
-    flex: 1;
-    overflow-y: auto;
-    position: relative;
-}
-
-.commit-row {
-    display: flex;
-    align-items: center;
-    height: 24px;
-    /* 🌟 原版的 24px 极致紧凑高度 */
-    cursor: pointer;
-    box-sizing: border-box;
-    transition: background-color 0.1s;
-}
-
-.commit-row:hover,
-.commit-row.active {
-    background-color: rgba(128, 128, 128, 0.15);
-}
-
-.col-desc {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    padding: 0 6px;
-}
-
-.col-date,
-.col-author {
-    width: 120px;
-    flex-shrink: 0;
-    color: var(--vscode-descriptionForeground);
-    padding: 0 6px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.col-commit {
-    width: 80px;
-    flex-shrink: 0;
-    padding: 0 10px 0 6px;
-    color: var(--vscode-descriptionForeground);
-    font-family: var(--vscode-editor-font-family);
-    text-align: right;
-}
-
-/* 🌟 原版标签样式 (Refs) */
-.git-ref {
-    display: inline-flex;
-    align-items: center;
-    height: 18px;
-    line-height: 18px;
-    margin-right: 6px;
-    background-color: rgba(128, 128, 128, 0.15);
-    border-radius: 5px;
-    border: 1px solid rgba(128, 128, 128, 0.6);
-    font-size: 11.5px;
-    padding: 0 6px 0 4px;
-    color: var(--vscode-foreground);
-    white-space: nowrap;
-    flex-shrink: 0;
-}
-
-.git-ref.head {
-    border-color: #3168d1;
-}
-
-.git-ref.remote {
-    border-color: #6a2a88;
-}
-
-.git-ref.tag {
-    border-color: #cca700;
-}
-
-.git-ref i {
-    margin-right: 4px;
-    opacity: 0.8;
-    font-size: 12px;
-}
-
-.git-ref.head {
-    font-weight: bold;
-}
-
-.commit-msg {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.commit-msg.bold {
-    font-weight: bold;
-}
-
-/* 展开的文件详情区 (CDV) */
-.cdv-container {
-    background-color: rgba(128, 128, 128, 0.08);
-    border-top: 1px solid rgba(128, 128, 128, 0.2);
-    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
-    padding: 6px 0;
-    box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.1);
-}
-
 /* =========================================
-   恢复：悬浮提示框 (Hover Widget)
-   ========================================= */
-.commit-hover-widget {
-    position: fixed;
-    z-index: 10000;
-    width: max-content;
-    max-width: 400px;
-    max-height: 40vh; /* 🌟 新增：限制最大高度，防止内容过多撑出屏幕 */
-    overflow-y: auto; /* 🌟 新增：内容过多时允许内部滚动 */
-    background: var(--vscode-editorHoverWidget-background);
-    border: 1px solid var(--vscode-editorHoverWidget-border);
-    color: var(--vscode-editorHoverWidget-foreground);
-    box-shadow: 0 2px 8px var(--vscode-widget-shadow);
-    border-radius: 4px;
-    padding: 12px;
-    font-size: 12px;
-    pointer-events: auto;
-}
-
-.hover-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 8px;
-}
-
-.hover-avatar {
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--vscode-button-background);
-    color: var(--vscode-button-foreground);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: bold;
-    font-size: 11px;
-}
-
-.hover-author {
-    font-weight: 600;
-}
-
-.hover-time {
-    color: var(--vscode-descriptionForeground);
-    font-size: 11px;
-}
-
-.hover-refs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    margin-bottom: 8px;
-}
-
-.ref-tag {
-    display: inline-flex;
-    align-items: center;
-    padding: 2px 6px;
-    border-radius: 4px;
-    background: rgba(128, 128, 128, 0.15); /* 默认背景色 */
-    border: none; /* 🌟 1. 满足要求：去掉边框 */
-    font-size: 11px;
-}
-
-.ref-head {
-    background-color: #3168d1; /* 🌟 2. 满足要求：添加背景颜色 */
-    color: #ffffff; /* 确保背景色加上后文字清晰可见 */
-    font-weight: bold;
-}
-
-.hover-message {
-    line-height: 1.4;
-    word-break: break-word;
-    white-space: pre-wrap;
-}
-
-.hover-divider {
-    height: 1px;
-    background: var(--vscode-editorHoverWidget-border);
-    margin: 10px 0;
-}
-
-.hover-footer {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--vscode-textLink-foreground);
-}
-
-.hover-action-btn {
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    opacity: 0.8;
-}
-
-.hover-action-btn:hover {
-    opacity: 1;
-    /* text-decoration: underline; 🌟 3. 满足要求：删除了这行，鼠标悬浮不再有下划线 */
-}
-
-.hover-separator {
-    color: var(--vscode-descriptionForeground);
-    opacity: 0.5;
-}
-
-/* =========================================
-   恢复：右键菜单 (Context Menu)
+   右键菜单 (Context Menu)
    ========================================= */
 .context-menu-backdrop {
     position: fixed;
@@ -491,7 +250,6 @@ body {
 .context-menu {
     display: block;
     position: fixed;
-    /* 使用 fixed 以完美匹配 clientX/Y 坐标 */
     background-color: var(--vscode-menu-background);
     box-shadow: 0 1px 4px 1px var(--vscode-widget-shadow);
     color: var(--vscode-menu-foreground);
@@ -503,7 +261,6 @@ body {
     user-select: none;
     min-width: 180px;
     border-radius: 4px;
-    /* 增加一点圆角更符合目前的 VS Code UI */
     border: 1px solid var(--vscode-menu-border, transparent);
 }
 
@@ -512,9 +269,7 @@ body {
     align-items: center;
     padding: 6px 20px;
     cursor: default;
-    /* 官方使用 default 而非 pointer */
     font-size: 13px;
-    /* 匹配侧边栏字体大小 */
     -webkit-user-select: none;
     user-select: none;
 }

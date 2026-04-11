@@ -1,0 +1,263 @@
+/* src/assets/css/GitGraph.module.css */
+
+/* =========================================
+   Git Graph 提交树容器与行
+   ========================================= */
+.graph-header-row {
+    display: flex;
+    align-items: center;
+    height: 28px;
+    border-bottom: 1px solid rgba(128, 128, 128, 0.4);
+    font-weight: 600;
+    background: rgba(128, 128, 128, 0.05);
+}
+
+.graph-header-col {
+    padding: 0 6px;
+    border-right: 1px solid rgba(128, 128, 128, 0.2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.graph-header-col:last-child {
+    border-right: none;
+}
+
+.graph-scroll-view {
+    flex: 1;
+    overflow-y: auto;
+    position: relative;
+}
+
+.commit-row {
+    display: flex;
+    align-items: center;
+    height: 24px;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: background-color 0.1s;
+}
+
+.commit-row:hover,
+.commit-row.active {
+    background-color: rgba(128, 128, 128, 0.15);
+}
+
+.col-desc {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+}
+
+.col-date,
+.col-author {
+    width: 120px;
+    flex-shrink: 0;
+    color: var(--vscode-descriptionForeground);
+    padding: 0 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.col-commit {
+    width: 80px;
+    flex-shrink: 0;
+    padding: 0 10px 0 6px;
+    color: var(--vscode-descriptionForeground);
+    font-family: var(--vscode-editor-font-family);
+    text-align: right;
+}
+
+.git-ref {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    line-height: 18px;
+    margin-right: 6px;
+    background-color: rgba(128, 128, 128, 0.15);
+    border-radius: 5px;
+    border: 1px solid rgba(128, 128, 128, 0.6);
+    font-size: 11.5px;
+    padding: 0 6px 0 4px;
+    color: var(--vscode-foreground);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.git-ref.head {
+    border-color: #3168d1;
+    font-weight: bold;
+}
+
+.git-ref.remote {
+    border-color: #6a2a88;
+}
+
+.git-ref.tag {
+    border-color: #cca700;
+}
+
+.git-ref i {
+    margin-right: 4px;
+    opacity: 0.8;
+    font-size: 12px;
+}
+
+.commit-msg {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.commit-msg.bold {
+    font-weight: bold;
+}
+
+.cdv-container {
+    background-color: rgba(128, 128, 128, 0.08);
+    border-top: 1px solid rgba(128, 128, 128, 0.2);
+    border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+    padding: 6px 0;
+    box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* =========================================
+   悬浮提示框 (Hover Widget)
+   ========================================= */
+.commit-hover-widget {
+    position: fixed;
+    z-index: 10000;
+    width: max-content;
+    max-width: 400px;
+    max-height: 40vh;
+    overflow-y: auto;
+    background: var(--vscode-editorHoverWidget-background);
+    border: 1px solid var(--vscode-editorHoverWidget-border);
+    color: var(--vscode-editorHoverWidget-foreground);
+    box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 12px;
+    pointer-events: auto;
+}
+
+.hover-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.hover-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 11px;
+}
+
+.hover-author {
+    font-weight: 600;
+}
+
+.hover-time {
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+}
+
+.hover-refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.ref-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(128, 128, 128, 0.15);
+    border: none;
+    font-size: 11px;
+}
+
+.ref-head {
+    background-color: #3168d1;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+.hover-message {
+    line-height: 1.4;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.hover-divider {
+    height: 1px;
+    background: var(--vscode-editorHoverWidget-border);
+    margin: 10px 0;
+}
+
+.hover-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--vscode-textLink-foreground);
+}
+
+.hover-action-btn {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    opacity: 0.8;
+}
+
+.hover-action-btn:hover {
+    opacity: 1;
+}
+
+.hover-separator {
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.5;
+}
+
+/* 一些在 GitGraph 中用到的基础样式（比如展开变动文件列表所需的包裹器） */
+.commit-files-wrapper {
+    margin-left: 0;
+    margin-top: 2px;
+    margin-bottom: 4px;
+    flex: 1;
+    min-width: 0;
+}
+
+.commit-timeline {
+    position: relative;
+    z-index: 2;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.commit-log-item {
+    position: relative;
+}
+
+.commit-content {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: space-between;
+    min-width: 0;
+    height: 100%;
+}

@@ -1,206 +1,17 @@
-import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { vscode } from '../utils/vscode';
 import styles from '../assets/css/GitApp.module.css';
 
-// 引入 VS Code 官方图标库 CSS
 import '@vscode/codicons/dist/codicon.css';
-
-// 引入 FontAwesome 彩色图标
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faImage, faCode, faFile } from '@fortawesome/free-solid-svg-icons';
 import { faMarkdown, faHtml5, faCss3Alt, faVuejs, faJs } from '@fortawesome/free-brands-svg-icons';
 
-interface GitFile { status: string; file: string; }
-interface GraphCommit { hash: string; parents?: string[]; author: string; email?: string; message: string; timestamp?: number; refs?: string; }
+import Tooltip from '../components/Tooltip';
+import GitGraph, { type GraphCommit } from '../components/GitGraph';
+
+export interface GitFile { status: string; file: string; }
 interface TreeNode { name: string; fullPath: string; isDirectory: boolean; children: TreeNode[]; file?: GitFile; }
-
-const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];
-const LANE_WIDTH = 14;
-const ROW_HEIGHT = 24;
-const CY = 12;
-
-// ==========================================
-// 🌟 抽离并加强的自定义 Tooltip 组件
-// ==========================================
-import Tooltip from '../components/Tooltip/index'; // 确保这里引用了你刚才抽离的 Tooltip 组件，如果路径不对请自己修改
-
-// ==========================================
-// 🌟 1:1 完美复刻 vscode-git-graph 底层引擎
-// ==========================================
-const NULL_VERTEX_ID = -1;
-
-interface Point { x: number; y: number; }
-interface Line { p1: Point; p2: Point; lockedFirst: boolean; }
-interface UnavailablePoint { connectsTo: Vertex | null; onBranch: Branch; }
-
-class Branch {
-    public colour: number;
-    public lines: Line[] = [];
-    constructor(colour: number) {
-        this.colour = colour
-    }
-    addLine(p1: Point, p2: Point, lockedFirst: boolean) {
-        this.lines.push({ p1, p2, lockedFirst });
-    }
-}
-
-class Vertex {
-    public id: number;
-    public x: number = 0;
-    private children: Vertex[] = [];
-    private parents: Vertex[] = [];
-    private nextParent: number = 0;
-    private onBranch: Branch | null = null;
-    private nextX: number = 0;
-    private connections: UnavailablePoint[] = [];
-
-    constructor(id: number) {
-        this.id = id;
-    }
-
-    addChild(v: Vertex) { this.children.push(v); }
-    addParent(v: Vertex) { this.parents.push(v); }
-    getParents() { return this.parents; }
-    getNextParent(): Vertex | null { return this.nextParent < this.parents.length ? this.parents[this.nextParent] : null; }
-    registerParentProcessed() { this.nextParent++; }
-    isMerge() { return this.parents.length > 1; }
-    addToBranch(b: Branch, x: number) { if (!this.onBranch) { this.onBranch = b; this.x = x; } }
-    isNotOnBranch() { return this.onBranch === null; }
-    getBranch() { return this.onBranch; }
-    getPoint(): Point { return { x: this.x, y: this.id }; }
-    getNextPoint(): Point { return { x: this.nextX, y: this.id }; }
-    getPointConnectingTo(v: Vertex | null, b: Branch) {
-        for (let i = 0; i < this.connections.length; i++) {
-            if (this.connections[i] && this.connections[i].connectsTo === v && this.connections[i].onBranch === b) return { x: i, y: this.id };
-        }
-        return null;
-    }
-    registerUnavailablePoint(x: number, v: Vertex | null, b: Branch) {
-        if (x === this.nextX) {
-            this.nextX = x + 1;
-            this.connections[x] = { connectsTo: v, onBranch: b };
-        }
-    }
-}
-
-function buildGraphEngine(commits: GraphCommit[]) {
-    const vertices = commits.map((_, i) => new Vertex(i));
-    const commitLookup: Record<string, number> = {};
-    commits.forEach((c, i) => commitLookup[c.hash] = i);
-
-    const nullVertex = new Vertex(NULL_VERTEX_ID);
-
-    // 构建父子关联
-    commits.forEach((c, i) => {
-        (c.parents || []).forEach(pHash => {
-            if (commitLookup[pHash] !== undefined) {
-                vertices[i].addParent(vertices[commitLookup[pHash]]);
-                vertices[commitLookup[pHash]].addChild(vertices[i]);
-            } else {
-                vertices[i].addParent(nullVertex);
-            }
-        });
-    });
-
-    const branches: Branch[] = [];
-    const availableColours: number[] = [];
-
-    const getAvailableColour = (startAt: number) => {
-        for (let i = 0; i < availableColours.length; i++) {
-            if (startAt > availableColours[i]) return i;
-        }
-        availableColours.push(0);
-        return availableColours.length - 1;
-    };
-
-    const determinePath = (startAt: number) => {
-        let i = startAt;
-        let vertex = vertices[i], parentVertex = vertex.getNextParent(), curVertex;
-        let lastPoint = vertex.isNotOnBranch() ? vertex.getNextPoint() : vertex.getPoint(), curPoint;
-
-        if (parentVertex !== null && parentVertex.id !== NULL_VERTEX_ID && vertex.isMerge() && !vertex.isNotOnBranch() && !parentVertex.isNotOnBranch()) {
-            let foundPointToParent = false, parentBranch = parentVertex.getBranch()!;
-            for (i = startAt + 1; i < vertices.length; i++) {
-                curVertex = vertices[i];
-                curPoint = curVertex.getPointConnectingTo(parentVertex, parentBranch);
-                if (curPoint !== null) foundPointToParent = true;
-                else curPoint = curVertex.getNextPoint();
-
-                parentBranch.addLine(lastPoint, curPoint, !foundPointToParent && curVertex !== parentVertex ? lastPoint.x < curPoint.x : true);
-                curVertex.registerUnavailablePoint(curPoint.x, parentVertex, parentBranch);
-                lastPoint = curPoint;
-
-                if (foundPointToParent) {
-                    vertex.registerParentProcessed();
-                    break;
-                }
-            }
-        } else {
-            let branch = new Branch(getAvailableColour(startAt));
-            vertex.addToBranch(branch, lastPoint.x);
-            vertex.registerUnavailablePoint(lastPoint.x, vertex, branch);
-            for (i = startAt + 1; i < vertices.length; i++) {
-                curVertex = vertices[i];
-                curPoint = parentVertex === curVertex && !parentVertex.isNotOnBranch() ? curVertex.getPoint() : curVertex.getNextPoint();
-                branch.addLine(lastPoint, curPoint, lastPoint.x < curPoint.x);
-                curVertex.registerUnavailablePoint(curPoint.x, parentVertex, branch);
-                lastPoint = curPoint;
-
-                if (parentVertex === curVertex) {
-                    vertex.registerParentProcessed();
-                    let parentVertexOnBranch = !parentVertex.isNotOnBranch();
-                    parentVertex.addToBranch(branch, curPoint.x);
-                    vertex = parentVertex;
-                    parentVertex = vertex.getNextParent();
-                    if (parentVertex === null || parentVertexOnBranch) break;
-                }
-            }
-            if (i === vertices.length && parentVertex !== null && parentVertex.id === NULL_VERTEX_ID) {
-                vertex.registerParentProcessed();
-            }
-            branches.push(branch);
-            availableColours[branch.colour] = i;
-        }
-    };
-
-    let idx = 0;
-    while (idx < vertices.length) {
-        if (vertices[idx].getNextParent() !== null || vertices[idx].isNotOnBranch()) {
-            determinePath(idx);
-        } else {
-            idx++;
-        }
-    }
-
-    return { vertices, branches };
-}
-
-function formatRelativeTime(ms: number) {
-    const diff = Date.now() - ms;
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (days > 0) return `${days} 天前`;
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    if (hours > 0) return `${hours} 小时前`;
-    const mins = Math.floor(diff / (1000 * 60));
-    if (mins > 0) return `${mins} 分钟前`;
-    return '刚刚';
-}
-
-function formatAbsoluteTime(ms: number) {
-    const d = new Date(ms);
-    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-}
-
-function parseRemoteInfo(url: string, hash: string) {
-    if (!url) return null;
-    let cleanUrl = url.replace(/\.git$/, '');
-    if (cleanUrl.startsWith('git@')) cleanUrl = cleanUrl.replace(/^git@([^:]+):/, 'https://$1/');
-    let platform = 'GitLab';
-    let icon = 'codicon-repo';
-    if (cleanUrl.includes('github.com')) { platform = 'GitHub'; icon = 'codicon-github'; }
-    else if (cleanUrl.includes('gitee.com')) { platform = 'Gitee'; }
-    return { platform, icon, url: `${cleanUrl}/commit/${hash}` };
-}
 
 function buildTree(files: GitFile[]): TreeNode[] {
     const root: TreeNode[] = [];
@@ -274,134 +85,18 @@ export default function GitApp() {
     const [compareCommits, setCompareCommits] = useState<GraphCommit[]>([]);
     const [isCompareOpen, setIsCompareOpen] = useState(false);
 
-    // 🌟 新增状态：控制提交时是否跳过校验 (false = 开启校验，true = 跳过校验)
     const [skipVerify, setSkipVerify] = useState(false);
-
     const [selectedGraphFilter, setSelectedGraphFilter] = useState('全部分支');
     const filterRef = useRef('全部分支');
     const [flashBranchBtn, setFlashBranchBtn] = useState(false);
 
-    const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit, x: number, y: number, position: 'top' | 'bottom' } | null>(null);
-    const hoverTimeoutRef = useRef<any>(null);
-
     const [contextMenu, setContextMenu] = useState<{ visible: boolean, x: number, y: number, file: GitFile, listType: 'staged' | 'unstaged' | 'history' | 'compare' } | null>(null);
 
-    const graphData = useMemo(() => buildGraphEngine(graphCommits), [graphCommits]);
-
-    const yPositions = useMemo(() => {
-        const positions: number[] = [];
-        let currentY = 0;
-        for (let i = 0; i < graphCommits.length; i++) {
-            positions.push(currentY);
-            currentY += ROW_HEIGHT;
-
-            if (activeCommitHash === graphCommits[i].hash) {
-                if (commitFilesLoading || loadedCommitHash !== activeCommitHash) {
-                    currentY += 38;
-                } else {
-                    currentY += 10 + commitFiles.length * 22;
-                }
-            }
-        }
-        positions.push(currentY);
-        return positions;
-    }, [graphCommits, activeCommitHash, commitFilesLoading, loadedCommitHash, commitFiles.length]);
-
-    const renderedHeight = yPositions[Math.min(displayCount, graphCommits.length)] || 0;
-
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const graphContainerRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        const container = graphContainerRef.current;
-        if (!canvas || !container || graphCommits.length === 0) return;
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        const dpr = window.devicePixelRatio || 1;
-        const containerWidth = container.clientWidth || 800;
-
-        canvas.width = containerWidth * dpr;
-        canvas.height = renderedHeight * dpr;
-        ctx.scale(dpr, dpr);
-
-        ctx.clearRect(0, 0, containerWidth, renderedHeight);
-
-        graphData.branches.forEach(branch => {
-            const color = COLORS[branch.colour % COLORS.length];
-            ctx.beginPath();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-
-            let lastPt: { x: number, y: number } | null = null;
-            branch.lines.forEach((line, i) => {
-                const x1 = line.p1.x * LANE_WIDTH + 14;
-                const y1Base = yPositions[line.p1.y];
-                const y1 = y1Base + CY;
-
-                const x2 = line.p2.x * LANE_WIDTH + 14;
-                const y2Base = yPositions[line.p2.y];
-                const y2 = y2Base + CY;
-
-                if (i === 0 || lastPt?.x !== x1 || lastPt?.y !== y1) {
-                    ctx.moveTo(x1, y1);
-                }
-
-                if (x1 === x2) {
-                    ctx.lineTo(x2, y2);
-                } else {
-                    const d = 12;
-                    if (line.lockedFirst) {
-                        const curveEndY = y1Base + ROW_HEIGHT;
-                        ctx.bezierCurveTo(x1, y1 + d, x2, curveEndY - d, x2, curveEndY);
-                        ctx.lineTo(x2, y2);
-                    } else {
-                        const curveStartY = y2Base;
-                        ctx.lineTo(x1, curveStartY);
-                        ctx.bezierCurveTo(x1, curveStartY + d, x2, y2 - d, x2, y2);
-                    }
-                }
-                lastPt = { x: x2, y: y2 };
-            });
-            ctx.stroke();
-        });
-
-        const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--vscode-sideBar-background').trim() || '#252526';
-
-        graphData.vertices.slice(0, displayCount).forEach((v, idx) => {
-            const cx = v.getPoint().x * LANE_WIDTH + 14;
-            const cy = yPositions[idx] + CY;
-            const c = graphCommits[idx];
-            const isHead = c.refs?.includes('HEAD');
-
-            ctx.beginPath();
-            ctx.arc(cx, cy, 3.5, 0, 2 * Math.PI);
-
-            const vBranch = v.getBranch();
-            const dotColor = vBranch ? COLORS[vBranch.colour % COLORS.length] : '#808080';
-
-            if (isHead) {
-                ctx.fillStyle = bgColor;
-                ctx.lineWidth = 2;
-                ctx.strokeStyle = dotColor;
-                ctx.stroke();
-                ctx.fill();
-            } else {
-                ctx.fillStyle = dotColor;
-                ctx.fill();
-            }
-        });
-    }, [graphData, displayCount, yPositions, renderedHeight, activeCommitHash, isGraphOpen]);
-
     const lastRefreshRef = useRef<number>(0);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     useEffect(() => {
         lastRefreshRef.current = Date.now();
-
         vscode.postMessage({ command: 'webviewLoaded' });
         const handleMsg = (e: MessageEvent) => {
             const msg = e.data;
@@ -471,9 +166,7 @@ export default function GitApp() {
             }
         };
 
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') triggerSmartRefresh();
-        };
+        const handleVisibilityChange = () => { if (document.visibilityState === 'visible') triggerSmartRefresh(); };
         const handleFocus = () => triggerSmartRefresh();
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -483,66 +176,30 @@ export default function GitApp() {
         window.addEventListener('click', closeContextMenu);
         window.addEventListener('blur', closeContextMenu);
 
-        window.addEventListener('resize', () => {
-            setDisplayCount(prev => prev);
-        });
-
         return () => {
             window.removeEventListener('message', handleMsg);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             window.removeEventListener('focus', handleFocus);
             window.removeEventListener('click', closeContextMenu);
             window.removeEventListener('blur', closeContextMenu);
-            window.removeEventListener('resize', () => { });
         };
     }, []);
-
-    const handleMouseEnter = (e: React.MouseEvent, commit: GraphCommit) => {
-        const rect = e.currentTarget.getBoundingClientRect();
-        clearTimeout(hoverTimeoutRef.current);
-        hoverTimeoutRef.current = setTimeout(() => {
-            const showAbove = rect.top > window.innerHeight / 2;
-            setHoverInfo({
-                commit,
-                x: Math.min(rect.left + 24, window.innerWidth - 320),
-                y: showAbove ? rect.top - 8 : rect.bottom + 4,
-                position: showAbove ? 'top' : 'bottom'
-            });
-        }, 500);
-    };
-
-    const handleMouseLeave = () => {
-        clearTimeout(hoverTimeoutRef.current);
-        hoverTimeoutRef.current = setTimeout(() => { setHoverInfo(null); }, 250);
-    };
 
     const handleCommit = () => {
         if (!commitMsg.trim()) return;
         setLoading(true);
-        // 🌟 将 skipVerify 状态一起发给后台
         vscode.postMessage({ command: 'commit', message: commitMsg, skipVerify });
         setCommitMsg('');
         if (textareaRef.current) textareaRef.current.style.height = '28px';
     };
 
     const toggleCommit = (hash: string) => {
-        clearTimeout(hoverTimeoutRef.current);
-        setHoverInfo(null);
         if (activeCommitHash === hash) {
             setActiveCommitHash(null);
         } else {
             setActiveCommitHash(hash);
             setCommitFilesLoading(true);
             vscode.postMessage({ command: 'getCommitFiles', hash });
-        }
-    };
-
-    const handleGraphScroll = (e: React.UIEvent<HTMLDivElement>) => {
-        const target = e.target as HTMLDivElement;
-        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
-            if (displayCount < graphCommits.length) {
-                setDisplayCount(prev => prev + 50);
-            }
         }
     };
 
@@ -735,8 +392,6 @@ export default function GitApp() {
         );
     }
 
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-
     return (
         <div className={styles['git-sidebar']}>
 
@@ -818,68 +473,12 @@ export default function GitApp() {
                 </>
             )}
 
-            {hoverInfo && (
-                <div
-                    className={styles['commit-hover-widget']}
-                    style={{
-                        left: hoverInfo.x,
-                        ...(hoverInfo.position === 'top' ? { bottom: window.innerHeight - hoverInfo.y } : { top: hoverInfo.y })
-                    }}
-                    onMouseEnter={() => clearTimeout(hoverTimeoutRef.current)}
-                    onMouseLeave={handleMouseLeave}
-                >
-                    <div className={styles['hover-header']}>
-                        <div className={styles['hover-avatar']}>{hoverInfo.commit.author[0].toUpperCase()}</div>
-                        <span className={styles['hover-author']}>{hoverInfo.commit.author}</span>
-                        {hoverInfo.commit.timestamp && (
-                            <span className={styles['hover-time']}>
-                                , {formatRelativeTime(hoverInfo.commit.timestamp)} ({formatAbsoluteTime(hoverInfo.commit.timestamp)})
-                            </span>
-                        )}
-                    </div>
-
-                    <div className={styles['hover-refs']}>
-                        {hoverInfo.commit.refs ? (
-                            hoverInfo.commit.refs.split(',').map((r: string, i: number) => {
-                                const trimmed = r.trim();
-                                if (!trimmed) return null;
-                                const isHead = trimmed.startsWith('HEAD -> ');
-                                const name = isHead ? trimmed.replace('HEAD -> ', '') : trimmed;
-                                return <span key={i} className={`${styles['ref-tag']} ${isHead ? styles['ref-head'] : ''}`}>{name}</span>;
-                            })
-                        ) : (
-                            <span className={`${styles['ref-tag']} ${styles['ref-head']}`}>{branch}</span>
-                        )}
-                    </div>
-
-                    <div className={styles['hover-message']}>{hoverInfo.commit.message}</div>
-                    <div className={styles['hover-divider']}></div>
-                    <div className={styles['hover-footer']}>
-                        <Tooltip content="复制 Hash">
-                            <span className={styles['hover-action-btn']} onClick={() => vscode.postMessage({ command: 'copy', text: hoverInfo.commit.hash })}>
-                                <i className="codicon codicon-copy" style={{ marginRight: '4px' }} /> {hoverInfo.commit.hash.substring(0, 7)}
-                            </span>
-                        </Tooltip>
-
-                        {remoteUrl && parseRemoteInfo(remoteUrl, hoverInfo.commit.hash) && (
-                            <>
-                                <span className={styles['hover-separator']}>|</span>
-                                <span className={styles['hover-action-btn']} onClick={() => vscode.postMessage({ command: 'openExternal', url: parseRemoteInfo(remoteUrl, hoverInfo.commit.hash)!.url })}>
-                                    <i className={`codicon ${parseRemoteInfo(remoteUrl, hoverInfo.commit.hash)!.icon}`} style={{ marginRight: '4px' }} /> 在 {parseRemoteInfo(remoteUrl, hoverInfo.commit.hash)!.platform} 上打开
-                                </span>
-                            </>
-                        )}
-                    </div>
-                </div>
-            )}
-
             <div className={styles['git-toolbar']}>
                 <span>Git 管理 ({branch})</span>
                 <div className={styles['git-actions']}>
-                    {/* 🌟 核心新增：校验开关按钮，默认开启（蓝色），点击关闭（变黑） */}
                     <Tooltip content={!skipVerify ? "校验开启" : "校验关闭"}>
-                        <button 
-                            className={styles['icon-btn']} 
+                        <button
+                            className={styles['icon-btn']}
                             onClick={() => setSkipVerify(!skipVerify)}
                             style={{ color: !skipVerify ? '#3168d1' : 'inherit' }}
                         >
@@ -941,7 +540,6 @@ export default function GitApp() {
                         <div style={{ maxHeight: '30vh', overflowY: 'auto', paddingBottom: '4px' }}>
                             {stagedFiles.length > 0 && (
                                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
-                                    {/* 🌟 暂存区：增加取消暂存所有更改按钮 */}
                                     <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                                             <i className="codicon codicon-git-branch-staged-changes" style={{ fontSize: '14px', width: '16px' }} />
@@ -967,11 +565,10 @@ export default function GitApp() {
                             )}
 
                             <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
-                                {/* 🌟 工作区：增加放弃所有和暂存所有按钮 */}
                                 <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                       <i className="codicon codicon-git-branch-changes" style={{ fontSize: '14px', width: '16px' }} />
-                                       工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
+                                        <i className="codicon codicon-git-branch-changes" style={{ fontSize: '14px', width: '16px' }} />
+                                        工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                                         {unstagedFiles.length > 0 && (
@@ -1023,7 +620,7 @@ export default function GitApp() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
                             {compareBase === '文件历史' ? '文件历史' : '对比'}
-                            
+
                             {compareTarget && compareBase && (
                                 <span style={{ color: 'var(--vscode-textLink-foreground)', fontSize: '11px', maxWidth: '120px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={compareBase === '文件历史' ? `文件: ${compareTarget}` : `${compareTarget} ↔ ${compareBase}`}>
                                     {compareBase === '文件历史' ? `(${compareTarget})` : `(${compareTarget} ↔ ${compareBase})`}
@@ -1031,7 +628,7 @@ export default function GitApp() {
                             )}
                             <span className={styles['badge']}>{compareCommits.length}</span>
                         </div>
-                        
+
                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                             <Tooltip content={activeFile ? `查看当前文件历史` : "查看当前文件历史 (请先打开文件)"}>
                                 <button
@@ -1151,8 +748,8 @@ export default function GitApp() {
                                     vscode.postMessage({ command: 'changeGraphFilter', current: selectedGraphFilter });
                                 }}
                                 style={{
-                                    opacity: flashBranchBtn ? 1 : 0.8, 
-                                    width: '20px', height: '20px', 
+                                    opacity: flashBranchBtn ? 1 : 0.8,
+                                    width: '20px', height: '20px',
                                     display: 'flex', justifyContent: 'center',
                                     backgroundColor: flashBranchBtn ? 'var(--vscode-button-background, #3168d1)' : 'transparent',
                                     color: flashBranchBtn ? 'var(--vscode-button-foreground, #ffffff)' : 'inherit',
@@ -1189,105 +786,18 @@ export default function GitApp() {
                     ) : graphCommits.length === 0 ? (
                         <div className={styles['git-graph-fallback']}>暂无记录</div>
                     ) : (
-                        <div className={styles['graph-scroll-view']} ref={graphContainerRef} onScroll={handleGraphScroll} style={{ position: 'relative', flex: 1, overflowY: 'auto' }}>
-
-                            <canvas
-                                ref={canvasRef}
-                                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${renderedHeight}px`, pointerEvents: 'none', zIndex: 1 }}
-                            />
-
-                            <ul className={styles['commit-timeline']} style={{ position: 'relative', zIndex: 2, margin: 0, padding: 0, listStyle: 'none' }}>
-                                {graphData.vertices.slice(0, displayCount).map((v, idx) => {
-                                    const c = graphCommits[idx];
-                                    const paddingWidth = (v.getNextPoint().x + 1) * LANE_WIDTH + 14;
-
-                                    let localRef: string | null = null;
-                                    let isRemotePush = false;
-
-                                    if (c.refs) {
-                                        const refsArray = c.refs.split(',').map(r => r.trim());
-                                        for (const r of refsArray) {
-                                            if (r.startsWith('HEAD ->')) {
-                                                localRef = r.replace('HEAD ->', '').trim();
-                                            } else if (r === branch && !localRef) {
-                                                localRef = r;
-                                            } else if (r.startsWith('origin/')) {
-                                                isRemotePush = true;
-                                            }
-                                        }
-                                    }
-
-                                    return (
-                                        <li key={c.hash} className={styles['commit-log-item']} style={{ position: 'relative' }}>
-                                            <div className={`${styles['commit-row']} ${activeCommitHash === c.hash ? styles['active'] : ''}`}
-                                                onClick={() => toggleCommit(c.hash)}
-                                                onMouseEnter={(e) => handleMouseEnter(e, c as any)}
-                                                onMouseLeave={handleMouseLeave}
-                                                style={{ height: `${ROW_HEIGHT}px`, display: 'flex', alignItems: 'center', overflow: 'hidden', paddingRight: '8px', cursor: 'pointer' }}
-                                            >
-                                                <div style={{ width: paddingWidth, flexShrink: 0 }} />
-
-                                                <div className={styles['commit-content']} style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'space-between', minWidth: 0, height: '100%' }}>
-                                                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                                        <div className={styles['commit-message']} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '13px', lineHeight: '16px' }}>
-                                                            {c.message}
-                                                        </div>
-                                                    </div>
-
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: '8px' }}>
-                                                        {localRef && (
-                                                            <div style={{
-                                                                display: 'flex', alignItems: 'center', backgroundColor: '#3168d1', color: '#ffffff',
-                                                                padding: '0 6px', borderRadius: '10px', fontSize: '11px', fontWeight: 'bold', gap: '3px',
-                                                                boxShadow: '0 1px 2px rgba(0,0,0,0.2)', height: '20px'
-                                                            }} title={`本地分支: ${localRef}`}>
-                                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                    <circle cx="12" cy="12" r="8" />
-                                                                    <circle cx="12" cy="12" r="3" />
-                                                                    <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-                                                                </svg>
-                                                                <span>{localRef}</span>
-                                                            </div>
-                                                        )}
-
-                                                        {isRemotePush && (
-                                                            <div style={{
-                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                                backgroundColor: '#6a2a88', color: '#ffffff',
-                                                                width: '20px', height: '20px', borderRadius: '50%',
-                                                                boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
-                                                            }} title="已同步至远程仓库">
-                                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                                    <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
-                                                                </svg>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {activeCommitHash === c.hash && (
-                                                <div style={{ display: 'flex' }}>
-                                                    <div style={{ width: paddingWidth, flexShrink: 0 }} />
-                                                    <div className={styles['commit-files-wrapper']} style={{ marginLeft: 0, marginTop: '2px', marginBottom: '4px', flex: 1, minWidth: 0 }}>
-                                                        {(commitFilesLoading || loadedCommitHash !== c.hash) ? (
-                                                            <div style={{ height: '32px', display: 'flex', alignItems: 'center', opacity: 0.6, fontSize: '11px', padding: '0 12px' }}>
-                                                                <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} /> 加载变动文件...
-                                                            </div>
-                                                        ) : renderFileList(commitFiles, 'history')}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </li>
-                                    );
-                                })}
-                                {displayCount < graphCommits.length && (
-                                    <div style={{ textAlign: 'center', padding: '10px', color: 'var(--vscode-descriptionForeground)' }}>
-                                        <i className="codicon codicon-loading codicon-modifier-spin" />
-                                    </div>
-                                )}
-                            </ul>
-                        </div>
+                        < GitGraph
+                            graphCommits={graphCommits}
+                            displayCount={displayCount}
+                            setDisplayCount={setDisplayCount}
+                            activeCommitHash={activeCommitHash}
+                            loadedCommitHash={loadedCommitHash}
+                            commitFilesLoading={commitFilesLoading}
+                            commitFiles={commitFiles}
+                            branch={branch}
+                            onCommitClick={toggleCommit}
+                            renderCommitFiles={(files) => renderFileList(files, 'history')}
+                        />
                     )
                 )}
             </div>
