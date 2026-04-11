@@ -246,8 +246,9 @@ export default function GitApp() {
     const [loading, setLoading] = useState(false);
     const [activeFile, setActiveFile] = useState<string | null>(null);
 
-    const [isStagedOpen, setIsStagedOpen] = useState(true);
-    const [isUnstagedOpen, setIsUnstagedOpen] = useState(true);
+    // 改变状态，控制包裹所有更改的外层 div
+    const [isChangesOpen, setIsChangesOpen] = useState(true);
+    
     const [isGraphOpen, setIsGraphOpen] = useState(true);
 
     const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
@@ -881,21 +882,37 @@ export default function GitApp() {
             </div>
 
             <div className={styles['changes-scroll-area']}>
-                {stagedFiles.length > 0 && (
-                    <div className={styles['changes-section']}>
-                        <div className={styles['changes-header']} onClick={() => setIsStagedOpen(!isStagedOpen)}>
-                            <i className={`codicon ${isStagedOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} /> 暂存的更改 <span className={styles['badge']}>{stagedFiles.length}</span>
-                        </div>
-                        {isStagedOpen && renderFileList(stagedFiles, 'staged')}
-                    </div>
-                )}
-
+                {/* 🌟 新增：最外层的可折叠“更改”区域 */}
                 <div className={styles['changes-section']}>
-                    <div className={styles['changes-header']} onClick={() => setIsUnstagedOpen(!isUnstagedOpen)}>
-                        <i className={`codicon ${isUnstagedOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} /> 更改 <span className={styles['badge']}>{unstagedFiles.length}</span>
+                    <div className={styles['changes-header']} onClick={() => setIsChangesOpen(!isChangesOpen)}>
+                        <i className={`codicon ${isChangesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
+                        更改 <span className={styles['badge']}>{stagedFiles.length + unstagedFiles.length}</span>
                     </div>
-                    {isUnstagedOpen && (
-                        unstagedFiles.length === 0 && stagedFiles.length === 0 ? <div className={styles['empty-message']}>没有需要提交的更改</div> : renderFileList(unstagedFiles, 'unstaged')
+
+                    {isChangesOpen && (
+                        <>
+                            {/* 暂存区 (移除折叠图标，文案修改) */}
+                            {stagedFiles.length > 0 && (
+                                <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
+                                    <div className={styles['changes-header']} style={{ cursor: 'default' }}>
+                                        暂存区 <span className={styles['badge']}>{stagedFiles.length}</span>
+                                    </div>
+                                    {renderFileList(stagedFiles, 'staged')}
+                                </div>
+                            )}
+
+                            {/* 工作区 (移除折叠图标，文案修改) */}
+                            <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
+                                <div className={styles['changes-header']} style={{ cursor: 'default' }}>
+                                   工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
+                                </div>
+                                {unstagedFiles.length === 0 && stagedFiles.length === 0 ? (
+                                    <div className={styles['empty-message']}>没有需要提交的更改</div>
+                                ) : (
+                                    renderFileList(unstagedFiles, 'unstaged')
+                                )}
+                            </div>
+                        </>
                     )}
                 </div>
 
