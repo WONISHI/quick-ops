@@ -488,12 +488,13 @@ export default function GitApp() {
                     </Tooltip>
                     <Tooltip content="拉取 (Pull)">
                         <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'pull' })}>
-                            <i className="codicon codicon-arrow-down" />
+                            <i className="codicon codicon-repo-pull" />
                         </button>
                     </Tooltip>
                     <Tooltip content="推送 (Push)">
                         <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'push' })}>
-                            <i className="codicon codicon-arrow-up" />
+                            {/* 🌟 修改：Push 图标替换为 codicon-repo-push */}
+                            <i className="codicon codicon-repo-push" />
                         </button>
                     </Tooltip>
                     <Tooltip content={viewMode === 'list' ? '以树状视图查看' : '以列表视图查看'}>
@@ -543,7 +544,8 @@ export default function GitApp() {
                                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                                     <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <i className="codicon codicon-check" style={{ fontSize: '14px', width: '16px' }} />
+                                            {/* 🌟 修改：暂存区图标替换为 codicon-git-branch-staged-changes */}
+                                            <i className="codicon codicon-git-branch-staged-changes" style={{ fontSize: '14px', width: '16px' }} />
                                             暂存区 <span className={styles['badge']}>{stagedFiles.length}</span>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -568,7 +570,8 @@ export default function GitApp() {
                             <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                                 <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                       <i className="codicon codicon-file" style={{ fontSize: '14px', width: '16px' }} />
+                                       {/* 🌟 修改：工作区图标替换为 codicon-git-branch-changes */}
+                                       <i className="codicon codicon-git-branch-changes" style={{ fontSize: '14px', width: '16px' }} />
                                        工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
