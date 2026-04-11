@@ -895,6 +895,8 @@ export default function GitApp() {
                             {stagedFiles.length > 0 && (
                                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                                     <div className={styles['changes-header']} style={{ cursor: 'default' }}>
+                                        {/* 🌟 补回了图标 */}
+                                        <i className="codicon codicon-check" style={{ fontSize: '14px', width: '16px' }} />
                                         暂存区 <span className={styles['badge']}>{stagedFiles.length}</span>
                                     </div>
                                     {renderFileList(stagedFiles, 'staged')}
@@ -904,6 +906,8 @@ export default function GitApp() {
                             {/* 工作区 (移除折叠图标，文案修改) */}
                             <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                                 <div className={styles['changes-header']} style={{ cursor: 'default' }}>
+                                    {/* 🌟 补回了图标 */}
+                                   <i className="codicon codicon-file" style={{ fontSize: '14px', width: '16px' }} />
                                    工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
                                 </div>
                                 {unstagedFiles.length === 0 && stagedFiles.length === 0 ? (
