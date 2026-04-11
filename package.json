@@ -416,6 +416,16 @@
         "command": "quickOps.compareWithSelected",
         "title": "与已选项目进行比较",
         "icon": "$(diff)"
+      },
+      {
+        "command": "quick-ops.openInNewTab",
+        "title": "在新标签页打开",
+        "category": "QuickOps"
+      },
+      {
+        "command": "quick-ops.openAndSplitRight",
+        "title": "向右拆分",
+        "category": "QuickOps"
       }
     ],
     "keybindings": [
@@ -491,6 +501,16 @@
         }
       ],
       "explorer/context": [
+        {
+          "command": "quick-ops.openAndSplitRight",
+          "group": "navigation",
+          "when": "resourceScheme == 'file'"
+        },
+        {
+          "command": "quick-ops.openInNewTab",
+          "group": "navigation",
+          "when": "resourceScheme == 'file'"
+        },
         {
           "submenu": "quick-ops.explorerSubmenu",
           "group": "7_modification"
