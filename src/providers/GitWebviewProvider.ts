@@ -5,11 +5,11 @@ import { getReactWebviewHtml } from '../utils/WebviewHelper';
 
 export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
-
+  
   // 核心拦截状态：记录是否是我们 Webview 发起的 Git 操作
   private _isInternalOp = false;
   private _internalOpTimer: NodeJS.Timeout | null = null;
-  private _gitWatchers: vscode.Disposable[] = [];
+  private _gitWatchers: vscode.Disposable[] = []; 
 
   // 刷新并发锁与防抖定时器
   private _isRefreshing = false;
@@ -33,7 +33,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           const content = await git.show([`${ref}:${filepath}`]);
           return content;
         } catch (e) {
-          return '';
+          return ''; 
         }
       }
     }();
@@ -44,7 +44,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private async executeGitOperation(operation: () => Promise<void> | void) {
     this._isInternalOp = true;
     if (this._internalOpTimer) clearTimeout(this._internalOpTimer);
-
+    
     try {
       await operation();
     } finally {
@@ -59,18 +59,18 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     // 1. 获取官方 Git 插件实例（不直接拿 exports）
     const gitExtension = vscode.extensions.getExtension('vscode.git');
     if (!gitExtension) {
-      console.warn('未找到 VS Code 内置 Git 插件');
-      return;
+        console.warn('未找到 VS Code 内置 Git 插件');
+        return;
     }
 
     try {
       // 🌟 2. 核心修复：如果还没激活，主动等待它激活！
-      if (!gitExtension.isActive) {
-        await gitExtension.activate();
-      }
+        if (!gitExtension.isActive) {
+            await gitExtension.activate();
+        }
     } catch (e) {
-      console.warn('激活 VS Code 内置 Git 插件失败:', e);
-      return;
+        console.warn('激活 VS Code 内置 Git 插件失败:', e);
+        return;
     }
 
     // 3. 安全获取 API
@@ -80,34 +80,31 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     const onStateChange = () => {
       if (this._isInternalOp) return;
       if (this._debounceTimer) clearTimeout(this._debounceTimer);
-
+      
       this._debounceTimer = setTimeout(async () => {
-        if (this._isInternalOp) return;
+        if (this._isInternalOp) return; 
         if (this._isRefreshing) return;
-
+        
         const cwd = this.getWorkspaceRoot();
         if (cwd) {
           const git = simpleGit(cwd);
           let currentState = '';
-
+          
           try {
             const refs = await git.raw(['show-ref']).catch(() => '');
             const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
             currentState = refs + head;
-          } catch (e) { }
+          } catch(e) {}
 
           const graphChanged = currentState !== this._lastGraphState;
-
+          
           if (graphChanged) {
-            this._lastGraphState = currentState;
-            console.log('检测到 Commit/分支 发生变化，执行全量刷新');
-          } else {
-            console.log('检测到单纯的文件修改，仅刷新工作区状态，图形保持静止');
-          }
-
+             this._lastGraphState = currentState; 
+          } 
+          
           this.refreshStatus(cwd, graphChanged);
         }
-      }, 1500);
+      }, 1500); 
     };
 
     const openRepoDisposable = gitApi.onDidOpenRepository((repo: any) => {
@@ -167,7 +164,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               this._view?.webview.postMessage({ type: 'activeEditorChanged', file: relativePath });
             }
             break;
-
+            
           case 'refreshStatusOnly':
             await this.refreshStatus(cwd, false);
             break;
@@ -186,47 +183,47 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 const items = [allOption, ...branchNames].map(b => ({
                   label: b === msg.current ? `$(check) ${b}` : b,
                   description: b === msg.current ? '当前选择' : undefined,
-                  branchName: b
+                  branchName: b 
                 }));
                 quickPick.items = items;
-
+                
                 const currentItem = items.find(i => i.branchName === msg.current);
                 if (currentItem && quickPick.activeItems.length === 0) {
-                  quickPick.activeItems = [currentItem];
+                    quickPick.activeItems = [currentItem];
                 }
               };
 
               await updateQuickPickItems();
               quickPick.show();
 
-              quickPick.busy = true;
+              quickPick.busy = true; 
               this.executeGitOperation(async () => {
-                try {
-                  await git.fetch(['--all', '--prune']);
-                  await updateQuickPickItems();
+                  try {
+                      await git.fetch(['--all', '--prune']);
+                      await updateQuickPickItems();
                 } catch (e) { }
               }).finally(() => {
-                quickPick.busy = false;
+                  quickPick.busy = false; 
               });
 
               const selectedBranch = await new Promise<string | undefined>((resolve) => {
                 quickPick.onDidAccept(() => {
-                  const selection = quickPick.selectedItems[0];
-                  resolve(selection ? selection.branchName : undefined);
-                  quickPick.hide();
+                    const selection = quickPick.selectedItems[0];
+                    resolve(selection ? selection.branchName : undefined);
+                    quickPick.hide();
                 });
                 quickPick.onDidHide(() => {
-                  quickPick.dispose();
-                  resolve(undefined);
+                    quickPick.dispose();
+                    resolve(undefined);
                 });
               });
 
-              if (!selectedBranch) return;
+              if (!selectedBranch) return; 
 
               const logOptions: any = {
-                '--topo-order': null,
+                '--topo-order': null, 
                 format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct', refs: '%D' },
-                maxCount: 5000
+                maxCount: 5000 
               };
 
               if (selectedBranch === allOption) {
@@ -237,19 +234,19 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
               const logRaw = await git.log(logOptions);
               const graphCommits = logRaw.all.map((c: any) => ({
-                hash: c.hash,
-                parents: c.parents ? (c.parents as string).split(' ').filter(Boolean) : [],
-                author: c.author,
-                email: c.email,
-                message: c.message,
-                refs: c.refs || '',
-                timestamp: parseInt(c.timestamp as string, 10) * 1000
+                  hash: c.hash,
+                  parents: c.parents ? (c.parents as string).split(' ').filter(Boolean) : [],
+                  author: c.author,
+                  email: c.email,
+                  message: c.message,
+                  refs: c.refs || '',
+                  timestamp: parseInt(c.timestamp as string, 10) * 1000
               }));
 
-              this._view?.webview.postMessage({
-                type: 'graphData',
-                graphCommits,
-                graphFilter: selectedBranch
+              this._view?.webview.postMessage({ 
+                type: 'graphData', 
+                graphCommits, 
+                graphFilter: selectedBranch 
               });
 
             } catch (e: any) {
@@ -261,27 +258,27 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           case 'viewFileHistory': {
             try {
               const logOptions: any = {
-                '--topo-order': null,
-                format: { hash: '%H', author: '%an', message: '%s', timestamp: '%ct' },
+                '--topo-order': null, 
+                format: { hash: '%H', author: '%an', message: '%s', timestamp: '%ct' }, 
                 maxCount: 5000,
                 file: msg.file
               };
 
               const logRaw = await git.log(logOptions);
               const commits = logRaw.all.map((c: any) => ({
-                hash: c.hash,
-                author: c.author,
-                message: c.message,
-                timestamp: parseInt(c.timestamp as string, 10) * 1000
+                  hash: c.hash,
+                  author: c.author,
+                  message: c.message,
+                  timestamp: parseInt(c.timestamp as string, 10) * 1000
               }));
 
               const fileName = msg.file.split('/').pop() || msg.file;
-
-              this._view?.webview.postMessage({
-                type: 'compareData',
-                baseBranch: '文件历史',
-                targetBranch: fileName,
-                commits
+              
+              this._view?.webview.postMessage({ 
+                type: 'compareData', 
+                baseBranch: '文件历史', 
+                targetBranch: fileName, 
+                commits 
               });
 
             } catch (e: any) {
@@ -289,23 +286,23 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             }
             break;
           }
-
+            
           case 'requestCompare': {
             try {
               this.executeGitOperation(async () => {
-                await git.fetch(['--all', '--prune']).catch(() => { });
+                 await git.fetch(['--all', '--prune']).catch(() => {});
               });
 
               const branches = await git.branch(['-a']);
-              const branchNames = branches.all.filter(b => !b.includes('->'));
-
-              const baseBranch = await vscode.window.showQuickPick(branchNames, {
+              const branchNames = branches.all.filter(b => !b.includes('->')); 
+              
+              const baseBranch = await vscode.window.showQuickPick(branchNames, { 
                 placeHolder: '1/2: 请选择【基准分支】(Base Branch，支持远程分支)',
                 matchOnDescription: true
               });
               if (!baseBranch) return;
 
-              const targetBranch = await vscode.window.showQuickPick(branchNames.filter(b => b !== baseBranch), {
+              const targetBranch = await vscode.window.showQuickPick(branchNames.filter(b => b !== baseBranch), { 
                 placeHolder: `2/2: 请选择【目标分支】(查看 ${baseBranch} 中没有的记录)`,
                 matchOnDescription: true
               });
@@ -316,7 +313,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 to: targetBranch,
                 format: { hash: '%H', author: '%an', message: '%s', timestamp: '%ct' }
               };
-
+              
               const logResult = await git.log(logOptions);
               const commits = logResult.all.map(c => ({
                 hash: c.hash,
@@ -324,45 +321,45 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 message: c.message,
                 timestamp: parseInt(c.timestamp as string, 10) * 1000
               }));
-
+              
               this._view?.webview.postMessage({ type: 'compareData', baseBranch, targetBranch, commits });
             } catch (e: any) {
               vscode.window.showErrorMessage(`对比分支失败: ${e.message}`);
             }
             break;
           }
-
+            
           case 'commit':
             await this.executeGitOperation(async () => {
               // 🌟 接收 skipVerify
-              await this.handleCommit(cwd, msg.message, msg.skipVerify);
+                await this.handleCommit(cwd, msg.message, msg.skipVerify);
             });
             break;
-
+            
           case 'push':
             await this.executeGitOperation(async () => {
-              vscode.window.showInformationMessage('正在推送到远程...');
-              await git.push(['-u', 'origin', 'HEAD']);
-              vscode.window.showInformationMessage('🚀 推送成功！');
-              await this.refreshStatus(cwd, true);
+                vscode.window.showInformationMessage('正在推送到远程...');
+                await git.push(['-u', 'origin', 'HEAD']);
+                vscode.window.showInformationMessage('🚀 推送成功！');
+                await this.refreshStatus(cwd, true);
             });
             break;
-
+            
           case 'pull':
             await this.executeGitOperation(async () => {
-              vscode.window.showInformationMessage('正在拉取代码...');
-              await git.pull();
-              vscode.window.showInformationMessage('⬇️ 拉取成功！');
-              await this.refreshStatus(cwd, true);
+                vscode.window.showInformationMessage('正在拉取代码...');
+                await git.pull();
+                vscode.window.showInformationMessage('⬇️ 拉取成功！');
+                await this.refreshStatus(cwd, true);
             });
             break;
-
+            
           case 'open': {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
             vscode.commands.executeCommand('vscode.open', fileUri);
             break;
           }
-
+          
           case 'diff': {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
             if (msg.status === 'U' || msg.status === 'A') {
@@ -375,39 +372,75 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          // 🌟 核心新增：暂存全部
+          case 'stageAll': {
+            await this.executeGitOperation(async () => {
+                await git.add(['-A']); // 添加所有变更文件到暂存区
+                await this.refreshStatus(cwd, false);
+            });
+            break;
+          }
+
+          // 🌟 核心新增：取消暂存全部
+          case 'unstageAll': {
+            await this.executeGitOperation(async () => {
+                await git.reset(); // 重置所有已暂存文件
+                await this.refreshStatus(cwd, false);
+            });
+            break;
+          }
+
+          // 🌟 核心新增：放弃所有工作区更改
+          case 'discardAll': {
+            // 安全拦截：弹窗要求用户确认不可逆操作
+            const confirm = await vscode.window.showWarningMessage(
+                '您确定要放弃所有工作区的更改吗？此操作无法撤销。',
+                { modal: true },
+                '放弃更改'
+            );
+            if (confirm !== '放弃更改') return;
+
+            await this.executeGitOperation(async () => {
+                await git.checkout(['--', '.']); // 恢复所有 tracked 的文件
+                await git.clean('f', ['-d']); // 清理所有新增未被 tracked 的文件
+                await this.refreshStatus(cwd, false);
+            });
+            break;
+          }
+          
           case 'discard': {
             await this.executeGitOperation(async () => {
-              if (msg.status === 'U') {
-                const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
-                await vscode.workspace.fs.delete(fileUri, { useTrash: true });
-              } else {
-                await git.checkout(['--', msg.file]);
-              }
-              await this.refreshStatus(cwd, false);
+                if (msg.status === 'U') {
+                  const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
+                  await vscode.workspace.fs.delete(fileUri, { useTrash: true });
+                } else {
+                  await git.checkout(['--', msg.file]);
+                }
+                await this.refreshStatus(cwd, false);
             });
             break;
           }
-
+          
           case 'stage': {
             await this.executeGitOperation(async () => {
-              if (msg.status === 'D') {
-                await git.rm([msg.file]);
-              } else {
-                await git.add([msg.file]);
-              }
-              await this.refreshStatus(cwd, false);
+                if (msg.status === 'D') {
+                  await git.rm([msg.file]);
+                } else {
+                  await git.add([msg.file]);
+                }
+                await this.refreshStatus(cwd, false);
             });
             break;
           }
-
+          
           case 'unstage': {
             await this.executeGitOperation(async () => {
-              await git.reset(['--', msg.file]);
-              await this.refreshStatus(cwd, false);
+                await git.reset(['--', msg.file]);
+                await this.refreshStatus(cwd, false);
             });
             break;
           }
-
+          
           case 'getCommitFiles': {
             const diffRaw = await git.raw(['diff-tree', '--no-commit-id', '--name-status', '-r', '--root', msg.hash]);
             const files = diffRaw.split('\n').filter(line => line.trim()).map(line => {
@@ -425,7 +458,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             this._view?.webview.postMessage({ type: 'commitFilesData', hash: msg.hash, files, parentHash: parentOid });
             break;
           }
-
+          
           case 'diffCommitFile': {
             const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: msg.parentHash || 'empty' }));
             const leftUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${leftQuery}`);
@@ -436,37 +469,37 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
             break;
           }
-
+          
           case 'copy':
             vscode.env.clipboard.writeText(msg.text);
             vscode.window.showInformationMessage(`已复制: ${msg.text}`);
             break;
-
+            
           case 'ignore': {
             await this.executeGitOperation(async () => {
-              const gitignoreUri = vscode.Uri.file(path.join(cwd, '.gitignore'));
-              let existingContent = Buffer.alloc(0);
-              try {
-                existingContent = Buffer.from(await vscode.workspace.fs.readFile(gitignoreUri));
+                const gitignoreUri = vscode.Uri.file(path.join(cwd, '.gitignore'));
+                let existingContent = Buffer.alloc(0);
+                try {
+                  existingContent = Buffer.from(await vscode.workspace.fs.readFile(gitignoreUri));
               } catch (e) { }
-
-              const appendStr = existingContent.length > 0 ? `\n${msg.file}` : msg.file;
-              const appendContent = Buffer.from(appendStr, 'utf8');
-              const newContent = Buffer.concat([existingContent, appendContent]);
-
-              await vscode.workspace.fs.writeFile(gitignoreUri, newContent);
-              vscode.window.showInformationMessage(`已将 ${msg.file} 添加到 .gitignore`);
-              await this.refreshStatus(cwd, false);
+                
+                const appendStr = existingContent.length > 0 ? `\n${msg.file}` : msg.file;
+                const appendContent = Buffer.from(appendStr, 'utf8');
+                const newContent = Buffer.concat([existingContent, appendContent]);
+                
+                await vscode.workspace.fs.writeFile(gitignoreUri, newContent);
+                vscode.window.showInformationMessage(`已将 ${msg.file} 添加到 .gitignore`);
+                await this.refreshStatus(cwd, false);
             });
             break;
           }
-
+          
           case 'reveal': {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
             vscode.commands.executeCommand('revealFileInOS', fileUri);
             break;
           }
-
+          
           case 'openExternal':
             vscode.env.openExternal(vscode.Uri.parse(msg.url));
             break;
@@ -480,7 +513,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
   private async refreshStatus(cwd: string, fullRefresh: boolean = true) {
     if (!this._view) return;
-
+    
     // 如果已经被锁住了，直接退出
     if (this._isRefreshing) return;
 
@@ -502,9 +535,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       const branch = await branchPromise;
       const remoteUrl = await remoteUrlPromise;
       const status = await statusPromise;
-
-      const stagedFiles: { status: string, file: string }[] = [];
-      const unstagedFiles: { status: string, file: string }[] = [];
+      
+      const stagedFiles: {status: string, file: string}[] = [];
+      const unstagedFiles: {status: string, file: string}[] = [];
 
       status.files.forEach(file => {
         if (file.index !== ' ' && file.index !== '?') {
@@ -517,38 +550,38 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         }
       });
 
-      this._view.webview.postMessage({
-        type: 'statusData',
-        stagedFiles,
-        unstagedFiles,
-        branch,
-        remoteUrl
+      this._view.webview.postMessage({ 
+        type: 'statusData', 
+        stagedFiles, 
+        unstagedFiles, 
+        branch, 
+        remoteUrl 
       });
 
       if (fullRefresh) {
         // 🌟 每次主动全量刷新时，同步更新指纹缓存
         try {
-          const refs = await git.raw(['show-ref']).catch(() => '');
-          const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
-          this._lastGraphState = refs + head;
+            const refs = await git.raw(['show-ref']).catch(() => '');
+            const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
+            this._lastGraphState = refs + head;
         } catch (e) { }
 
         const logOptions = {
           '--all': null,
-          '--topo-order': null,
+          '--topo-order': null, 
           format: { hash: '%H', parents: '%P', author: '%an', email: '%ae', message: '%s', timestamp: '%ct', refs: '%D' },
-          maxCount: 5000
+          maxCount: 5000 
         };
-
+        
         const logRaw = await git.log(logOptions);
         const graphCommits = logRaw.all.map((c: any) => ({
-          hash: c.hash,
-          parents: c.parents ? (c.parents as string).split(' ').filter(Boolean) : [],
-          author: c.author,
-          email: c.email,
-          message: c.message,
-          refs: c.refs || '',
-          timestamp: parseInt(c.timestamp as string, 10) * 1000
+            hash: c.hash,
+            parents: c.parents ? (c.parents as string).split(' ').filter(Boolean) : [],
+            author: c.author,
+            email: c.email,
+            message: c.message,
+            refs: c.refs || '',
+            timestamp: parseInt(c.timestamp as string, 10) * 1000
         }));
 
         this._view.webview.postMessage({ type: 'graphData', graphCommits, graphFilter: '全部分支' });
@@ -567,21 +600,21 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private async handleCommit(cwd: string, message: string, skipVerify: boolean) {
     const git: SimpleGit = simpleGit(cwd);
     const status = await git.status();
-
+    
     const hasStaged = status.files.some(f => f.index !== ' ' && f.index !== '?');
     if (!hasStaged) {
       await git.add(['-A']);
     }
-
+    
     // 🌟 拼装提交配置
     const options: any = {};
     if (skipVerify) {
       options['--no-verify'] = null; // 添加 --no-verify 标志
     }
-
+    
     await git.commit(message, options);
     vscode.window.showInformationMessage('🎉 提交成功！');
-    await this.refreshStatus(cwd, true);
+    await this.refreshStatus(cwd, true); 
   }
 
   private getWorkspaceRoot(): string | undefined {

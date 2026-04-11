@@ -941,18 +941,68 @@ export default function GitApp() {
                         <div style={{ maxHeight: '30vh', overflowY: 'auto', paddingBottom: '4px' }}>
                             {stagedFiles.length > 0 && (
                                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
-                                    <div className={styles['changes-header']} style={{ cursor: 'default' }}>
-                                        <i className="codicon codicon-check" style={{ fontSize: '14px', width: '16px' }} />
-                                        暂存区 <span className={styles['badge']}>{stagedFiles.length}</span>
+                                    {/* 🌟 暂存区：增加取消暂存所有更改按钮 */}
+                                    <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <i className="codicon codicon-check" style={{ fontSize: '14px', width: '16px' }} />
+                                            暂存区 <span className={styles['badge']}>{stagedFiles.length}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                            <Tooltip content="取消暂存所有更改">
+                                                <button
+                                                    className={styles['action-btn']}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        vscode.postMessage({ command: 'unstageAll' });
+                                                    }}
+                                                    style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                                >
+                                                    <i className="codicon codicon-remove" />
+                                                </button>
+                                            </Tooltip>
+                                        </div>
                                     </div>
                                     {renderFileList(stagedFiles, 'staged')}
                                 </div>
                             )}
 
                             <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
-                                <div className={styles['changes-header']} style={{ cursor: 'default' }}>
-                                   <i className="codicon codicon-file" style={{ fontSize: '14px', width: '16px' }} />
-                                   工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
+                                {/* 🌟 工作区：增加放弃所有和暂存所有按钮 */}
+                                <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                       <i className="codicon codicon-file" style={{ fontSize: '14px', width: '16px' }} />
+                                       工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                        {unstagedFiles.length > 0 && (
+                                            <>
+                                                <Tooltip content="放弃所有更改">
+                                                    <button
+                                                        className={styles['action-btn']}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            vscode.postMessage({ command: 'discardAll' });
+                                                        }}
+                                                        style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                                    >
+                                                        <i className="codicon codicon-discard" />
+                                                    </button>
+                                                </Tooltip>
+                                                <Tooltip content="暂存所有更改">
+                                                    <button
+                                                        className={styles['action-btn']}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            vscode.postMessage({ command: 'stageAll' });
+                                                        }}
+                                                        style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                                    >
+                                                        <i className="codicon codicon-plus" />
+                                                    </button>
+                                                </Tooltip>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
                                 {unstagedFiles.length === 0 && stagedFiles.length === 0 ? (
                                     <div className={styles['empty-message']}>没有需要提交的更改</div>
