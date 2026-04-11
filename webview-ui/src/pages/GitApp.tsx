@@ -922,16 +922,35 @@ export default function GitApp() {
                     >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
-                            对比
+                            {/* 🌟 核心判断：如果基准分支标识为“文件历史”，就显示“文件历史” */}
+                            {compareBase === '文件历史' ? '文件历史' : '对比'}
+                            
                             {compareTarget && compareBase && (
-                                <span style={{ color: 'var(--vscode-textLink-foreground)', fontSize: '11px', maxWidth: '120px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={`${compareTarget} ↔ ${compareBase}`}>
-                                    ({compareTarget} ↔ {compareBase})
+                                <span style={{ color: 'var(--vscode-textLink-foreground)', fontSize: '11px', maxWidth: '120px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={compareBase === '文件历史' ? `文件: ${compareTarget}` : `${compareTarget} ↔ ${compareBase}`}>
+                                    {/* 🌟 核心判断：根据不同模式显示不同的括号后缀 */}
+                                    {compareBase === '文件历史' ? `(${compareTarget})` : `(${compareTarget} ↔ ${compareBase})`}
                                 </span>
                             )}
                             <span className={styles['badge']}>{compareCommits.length}</span>
                         </div>
                         
                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                            <button
+                                className={styles['action-btn']}
+                                title={activeFile ? `查看文件历史: ${activeFile}` : "请先在编辑器中打开一个文件"}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!activeFile) {
+                                        vscode.postMessage({ command: 'error', message: '当前没有在编辑器中打开任何文件，无法查看历史记录。' });
+                                        return;
+                                    }
+                                    vscode.postMessage({ command: 'viewFileHistory', file: activeFile });
+                                }}
+                                style={{ opacity: activeFile ? 0.8 : 0.4, width: '20px', height: '20px', display: 'flex', justifyContent: 'center', cursor: activeFile ? 'pointer' : 'not-allowed' }}
+                            >
+                                <i className="codicon codicon-history" />
+                            </button>
+
                             <button
                                 className={styles['action-btn']}
                                 title="与其他分支对比"
@@ -963,9 +982,9 @@ export default function GitApp() {
                     {isCompareOpen && (
                         <div style={{ maxHeight: '30vh', overflowY: 'auto', paddingBottom: '4px' }}>
                             {(!compareTarget || !compareBase) ? (
-                                <div className={styles['empty-message']}>点击右上角图标选择分支进行对比</div>
+                                <div className={styles['empty-message']}>点击右上角图标选择分支或查看文件历史</div>
                             ) : compareCommits.length === 0 ? (
-                                <div className={styles['empty-message']}>两个分支没有差异记录</div>
+                                <div className={styles['empty-message']}>没有记录</div>
                             ) : (
                                 <ul className={styles['file-list']} style={{ padding: 0, margin: 0 }}>
                                     {compareCommits.map(c => (
