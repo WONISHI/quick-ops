@@ -80,6 +80,9 @@ body {
     padding: 4px;
     border-radius: 2px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .commit-btn:hover {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { vscode } from '../utils/vscode';
 import styles from '../assets/css/GitApp.module.css';
 
@@ -582,7 +582,12 @@ export default function GitApp() {
                                                         className={styles['action-btn']}
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            vscode.postMessage({ command: 'discardAll' });
+                                                            // 🌟 核心修改：如果只有一个文件，伪装成单文件放弃发送；否则发送包含文件数量的 discardAll
+                                                            if (unstagedFiles.length === 1) {
+                                                                vscode.postMessage({ command: 'discard', file: unstagedFiles[0].file, status: unstagedFiles[0].status });
+                                                            } else {
+                                                                vscode.postMessage({ command: 'discardAll', count: unstagedFiles.length });
+                                                            }
                                                         }}
                                                         style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
                                                     >
@@ -622,15 +627,15 @@ export default function GitApp() {
                         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                     >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
-                            <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
-                            {compareBase === '文件历史' ? '文件历史' : '对比'}
+                            <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px', flexShrink: 0 }} />
+                            <span style={{ flexShrink: 0 }}>{compareBase === '文件历史' ? '文件历史' : '对比'}</span>
                             
                             {compareTarget && compareBase && (
                                 <span style={{ flex: 1, minWidth: 0, color: 'var(--vscode-textLink-foreground)', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={compareBase === '文件历史' ? `文件: ${compareTarget}` : `${compareTarget} ↔ ${compareBase}`}>
                                     {compareBase === '文件历史' ? `(${compareTarget})` : `(${compareTarget} ↔ ${compareBase})`}
                                 </span>
                             )}
-                            <span className={styles['badge']}>{compareCommits.length}</span>
+                            <span className={styles['badge']} style={{ flexShrink: 0 }}>{compareCommits.length}</span>
                         </div>
                         
                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>

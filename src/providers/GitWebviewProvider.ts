@@ -442,12 +442,13 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           case 'discardAll': {
+            // 🌟 多文件情况，弹出警告弹窗 (对应截图2)
             const confirm = await vscode.window.showWarningMessage(
-                '您确定要放弃所有工作区的更改吗？此操作无法撤销。',
+                `是否确实要放弃 ${msg.count} 个文件中的全部更改?\n\n此操作不可撤销！\n如果继续操作，你当前的工作集将永久丢失。`,
                 { modal: true },
-                '放弃更改'
+                `放弃所有 ${msg.count} 个文件`
             );
-            if (confirm !== '放弃更改') return;
+            if (confirm !== `放弃所有 ${msg.count} 个文件`) return;
 
             await this.executeGitOperation(async () => {
                 await git.checkout(['--', '.']); 
@@ -458,6 +459,15 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
           
           case 'discard': {
+            // 🌟 单文件情况，提取出文件名并弹出警告弹窗 (对应截图1)
+            const fileName = msg.file.split('/').pop() || msg.file;
+            const confirm = await vscode.window.showWarningMessage(
+                `是否确实要放弃 “${fileName}” 中的更改?`,
+                { modal: true },
+                '放弃文件'
+            );
+            if (confirm !== '放弃文件') return;
+
             await this.executeGitOperation(async () => {
                 if (msg.status === 'U') {
                   const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
