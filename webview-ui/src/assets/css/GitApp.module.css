@@ -22,7 +22,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 6px 8px;
+    padding: 3px 8px; /* 🌟 将原本的 6px 改为 3px */
     font-weight: 600;
     border-bottom: 1px solid rgba(128, 128, 128, 0.2);
 }
@@ -37,8 +37,8 @@ body {
     color: var(--vscode-icon-foreground);
     border: none;
     cursor: pointer;
-    width: 22px;
-    height: 22px;
+    width: 20px;  /* 🌟 从 22px 缩小到 20px */
+    height: 20px; /* 🌟 从 22px 缩小到 20px */
     border-radius: 3px;
     display: flex;
     align-items: center;
@@ -105,7 +105,8 @@ body {
 }
 
 .changes-header {
-    padding: 4px 8px;
+    padding: 3px 8px; /* 🌟 将原本的 4px 改为 3px */
+    min-height: 22px; /* 🌟 限制最小高度 */
     font-weight: 600;
     cursor: pointer;
     display: flex;
@@ -124,6 +125,7 @@ body {
     padding: 0 6px;
     font-size: 11px;
     font-weight: 400;
+    line-height: 20px;
 }
 
 .file-list {
@@ -193,6 +195,7 @@ body {
     display: flex;
     align-items: center;
     opacity: 0.8;
+    padding:0;
 }
 
 .action-btn:hover {

@@ -486,7 +486,6 @@ export default function GitApp() {
         const rect = e.currentTarget.getBoundingClientRect();
         clearTimeout(hoverTimeoutRef.current);
         hoverTimeoutRef.current = setTimeout(() => {
-            // 🌟 核心逻辑：如果鼠标在屏幕下半部，弹窗就往上展示，避免被底部遮挡
             const showAbove = rect.top > window.innerHeight / 2;
             setHoverInfo({
                 commit,
@@ -790,9 +789,9 @@ export default function GitApp() {
             {hoverInfo && (
                 <div
                     className={styles['commit-hover-widget']}
-                    style={{ 
-                        left: hoverInfo.x, 
-                        ...(hoverInfo.position === 'top' ? { bottom: window.innerHeight - hoverInfo.y } : { top: hoverInfo.y }) 
+                    style={{
+                        left: hoverInfo.x,
+                        ...(hoverInfo.position === 'top' ? { bottom: window.innerHeight - hoverInfo.y } : { top: hoverInfo.y })
                     }}
                     onMouseEnter={() => clearTimeout(hoverTimeoutRef.current)}
                     onMouseLeave={handleMouseLeave}
@@ -990,7 +989,7 @@ export default function GitApp() {
                         <i className={`codicon ${isGraphOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} /> 图形
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                         <button
                             className={styles['action-btn']}
                             title="与其他分支对比"
@@ -998,7 +997,7 @@ export default function GitApp() {
                                 e.stopPropagation();
                                 vscode.postMessage({ command: 'requestCompare' });
                             }}
-                            style={{ opacity: 0.8 }}
+                            style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
                         >
                             <i className="codicon codicon-git-compare" />
                         </button>
@@ -1012,7 +1011,7 @@ export default function GitApp() {
                                 lastRefreshRef.current = Date.now();
                                 vscode.postMessage({ command: 'refresh' });
                             }}
-                            style={{ marginRight: '4px', opacity: 0.8 }}
+                            style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
                         >
                             <i className="codicon codicon-refresh" />
                         </button>
