@@ -31,7 +31,7 @@ export class MarkDecorationFeature implements IFeature {
 
   constructor(
     private configService: ConfigurationService = ConfigurationService.getInstance(),
-  ) {}
+  ) { }
 
   public activate(context: vscode.ExtensionContext): void {
     void this.reloadDecorations();
@@ -157,8 +157,11 @@ export class MarkDecorationFeature implements IFeature {
         fontWeight: style.fontWeight || '800',
         letterSpacing: '0.15px',
         borderRadius: style.borderRadius || '6px',
-        textDecoration: 'none',
-        rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+        textDecoration: `
+          none;
+          padding: 1px 6px;
+        `,
+        rangeBehavior: vscode.DecorationRangeBehavior.ClosedOpen,
       });
 
       this.decorationTypes.set(markText, {
