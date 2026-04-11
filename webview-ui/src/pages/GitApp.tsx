@@ -944,7 +944,7 @@ export default function GitApp() {
                                     {/* 🌟 暂存区：增加取消暂存所有更改按钮 */}
                                     <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <i className="codicon codicon-check" style={{ fontSize: '14px', width: '16px' }} />
+                                            <i className="codicon codicon-git-branch-staged-changes" style={{ fontSize: '14px', width: '16px' }} />
                                             暂存区 <span className={styles['badge']}>{stagedFiles.length}</span>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -970,7 +970,7 @@ export default function GitApp() {
                                 {/* 🌟 工作区：增加放弃所有和暂存所有按钮 */}
                                 <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                       <i className="codicon codicon-file" style={{ fontSize: '14px', width: '16px' }} />
+                                       <i className="codicon codicon-git-branch-changes" style={{ fontSize: '14px', width: '16px' }} />
                                        工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
