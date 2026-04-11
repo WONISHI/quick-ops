@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useLayoutEffect, useMemo } from 'react';
-import { vscode } from '../utils/vscode';
+import { vscode } from '../../utils/vscode';
 import styles from '../assets/css/GitApp.module.css';
 
 // 引入 VS Code 官方图标库 CSS
@@ -76,7 +76,7 @@ const Tooltip: React.FC<TooltipProps> = ({
     useEffect(() => {
         const handleOutsideClick = (e: MouseEvent) => {
             if (
-                trigger === 'click' && 
+                trigger === 'click' &&
                 visible &&
                 tooltipRef.current && !tooltipRef.current.contains(e.target as Node) &&
                 targetRef.current && !targetRef.current.contains(e.target as Node)
@@ -110,13 +110,13 @@ const Tooltip: React.FC<TooltipProps> = ({
 
             if (placement === 'top' && target.top - tooltip.height - gap < 0 && window.innerHeight - target.bottom > tooltip.height + gap) {
                 actualPlacement = 'bottom';
-            } 
+            }
             else if (placement === 'bottom' && target.bottom + tooltip.height + gap > window.innerHeight && target.top > tooltip.height + gap) {
                 actualPlacement = 'top';
-            } 
+            }
             else if (placement === 'left' && target.left - tooltip.width - gap < 0 && window.innerWidth - target.right > tooltip.width + gap) {
                 actualPlacement = 'right';
-            } 
+            }
             else if (placement === 'right' && target.right + tooltip.width + gap > window.innerWidth && target.left > tooltip.width + gap) {
                 actualPlacement = 'left';
             }
@@ -151,12 +151,12 @@ const Tooltip: React.FC<TooltipProps> = ({
                     height: '8px',
                     backgroundColor: 'var(--vscode-editorHoverWidget-background)',
                 };
-                const arrowOffset = -4; 
+                const arrowOffset = -4;
 
                 if (actualPlacement === 'top' || actualPlacement === 'bottom') {
                     let arrowX = (target.left + target.width / 2) - x;
                     arrowX = Math.max(8, Math.min(tooltip.width - 8, arrowX));
-                    
+
                     aStyle.left = arrowX;
                     aStyle.transform = 'translateX(-50%) rotate(45deg)';
 
@@ -172,7 +172,7 @@ const Tooltip: React.FC<TooltipProps> = ({
                 } else {
                     let arrowY = (target.top + target.height / 2) - y;
                     arrowY = Math.max(8, Math.min(tooltip.height - 8, arrowY));
-                    
+
                     aStyle.top = arrowY;
                     aStyle.transform = 'translateY(-50%) rotate(45deg)';
 
@@ -215,9 +215,9 @@ const Tooltip: React.FC<TooltipProps> = ({
                     if (trigger === 'click') toggleTooltip();
                     if (childProps.onClick) childProps.onClick(e);
                 },
-                title: undefined 
+                title: undefined
             } as any)}
-            
+
             {visible && (
                 <div
                     ref={tooltipRef}
@@ -500,6 +500,10 @@ export default function GitApp() {
 
     const [selectedGraphFilter, setSelectedGraphFilter] = useState('全部分支');
 
+    // 🌟 新增：用于跟踪过滤器变化，触发闪烁动画
+    const filterRef = useRef('全部分支');
+    const [flashBranchBtn, setFlashBranchBtn] = useState(false);
+
     const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit, x: number, y: number, position: 'top' | 'bottom' } | null>(null);
     const hoverTimeoutRef = useRef<any>(null);
 
@@ -636,7 +640,15 @@ export default function GitApp() {
                 const commits = msg.graphCommits || [];
                 setGraphCommits(commits);
                 setDisplayCount(100);
-                if (msg.graphFilter) setSelectedGraphFilter(msg.graphFilter);
+                if (msg.graphFilter) {
+                    setSelectedGraphFilter(msg.graphFilter);
+                    // 🌟 动画逻辑：如果分支确实变了，触发闪烁
+                    if (filterRef.current !== msg.graphFilter) {
+                        setFlashBranchBtn(true);
+                        setTimeout(() => setFlashBranchBtn(false), 800);
+                        filterRef.current = msg.graphFilter;
+                    }
+                }
                 setIsGraphLoading(false);
             } else if (msg.type === 'commitFilesData') {
                 setCommitFiles(msg.files || []);
@@ -1152,8 +1164,8 @@ export default function GitApp() {
 
                             <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                                 <div className={styles['changes-header']} style={{ cursor: 'default' }}>
-                                   <i className="codicon codicon-file" style={{ fontSize: '14px', width: '16px' }} />
-                                   工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
+                                    <i className="codicon codicon-file" style={{ fontSize: '14px', width: '16px' }} />
+                                    工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
                                 </div>
                                 {unstagedFiles.length === 0 && stagedFiles.length === 0 ? (
                                     <div className={styles['empty-message']}>没有需要提交的更改</div>
@@ -1174,7 +1186,7 @@ export default function GitApp() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
                             {compareBase === '文件历史' ? '文件历史' : '对比'}
-                            
+
                             {compareTarget && compareBase && (
                                 <span style={{ color: 'var(--vscode-textLink-foreground)', fontSize: '11px', maxWidth: '120px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={compareBase === '文件历史' ? `文件: ${compareTarget}` : `${compareTarget} ↔ ${compareBase}`}>
                                     {compareBase === '文件历史' ? `(${compareTarget})` : `(${compareTarget} ↔ ${compareBase})`}
@@ -1182,7 +1194,7 @@ export default function GitApp() {
                             )}
                             <span className={styles['badge']}>{compareCommits.length}</span>
                         </div>
-                        
+
                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                             <Tooltip content={activeFile ? `查看当前文件历史` : "查看当前文件历史 (请先打开文件)"}>
                                 <button
@@ -1293,15 +1305,24 @@ export default function GitApp() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {/* 🌟 过滤选择器 (已改成纯图标按钮) */}
                         <Tooltip content={`筛选分支 (当前: ${selectedGraphFilter})`}>
+                            {/* 🌟 动画生效区：将样式切换挂载在这个按钮上 */}
                             <button
                                 className={styles['action-btn']}
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    vscode.postMessage({ command: 'changeGraphFilter' });
+                                    // 🌟 告诉后台当前处于什么分支状态
+                                    vscode.postMessage({ command: 'changeGraphFilter', current: selectedGraphFilter });
                                 }}
-                                style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                style={{
+                                    opacity: flashBranchBtn ? 1 : 0.8,
+                                    width: '20px', height: '20px',
+                                    display: 'flex', justifyContent: 'center',
+                                    backgroundColor: flashBranchBtn ? 'var(--vscode-button-background, #3168d1)' : 'transparent',
+                                    color: flashBranchBtn ? 'var(--vscode-button-foreground, #ffffff)' : 'inherit',
+                                    borderRadius: '3px',
+                                    transition: 'all 0.5s ease-out'
+                                }}
                             >
                                 <i className="codicon codicon-git-branch" />
                             </button>
