@@ -888,12 +888,12 @@ export default function GitApp() {
                     </Tooltip>
                     <Tooltip content="拉取 (Pull)">
                         <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'pull' })}>
-                            <i className="codicon codicon-arrow-down" />
+                            <i className="codicon codicon-repo-pull" />
                         </button>
                     </Tooltip>
                     <Tooltip content="推送 (Push)">
                         <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'push' })}>
-                            <i className="codicon codicon-arrow-up" />
+                            <i className="codicon codicon-repo-push" />
                         </button>
                     </Tooltip>
                     <Tooltip content={viewMode === 'list' ? '以树状视图查看' : '以列表视图查看'}>
