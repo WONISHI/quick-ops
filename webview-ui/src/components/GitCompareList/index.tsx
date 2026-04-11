@@ -1,6 +1,6 @@
 import React from 'react';
 import styles from './index.module.css';
-import { type GraphCommit } from '../GitGraph'; // 复用 GitGraph 里定义的类型
+import { type GraphCommit } from '../GitGraph';
 
 interface GitCompareListProps {
     commits: GraphCommit[];
@@ -31,18 +31,15 @@ const GitCompareList: React.FC<GitCompareListProps> = ({
                 <li key={c.hash} style={{ borderBottom: '1px solid var(--vscode-panel-border)', padding: 0 }}>
                     <div
                         className={styles['file-item']}
-                        style={{ height: 'auto', padding: '4px 8px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}
+                        style={{ height: 'auto', padding: '4px 8px', display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}
                         onClick={() => onCommitClick(c.hash)}
                     >
-                        {/* 🌟 作者首字母头像 */}
+                        {/* 🌟 修改：移除首字母头像，替换为 git-commit 图标 */}
                         <div style={{
-                            width: '16px', height: '16px', borderRadius: '50%',
-                            backgroundColor: 'var(--vscode-button-background, #3168d1)',
-                            color: 'var(--vscode-button-foreground, #ffffff)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: '10px', fontWeight: 'bold', flexShrink: 0, marginTop: '2px'
+                            flexShrink: 0, marginTop: '2px', color: 'var(--vscode-icon-foreground)'
                         }}>
-                            {c.author ? c.author[0].toUpperCase() : 'U'}
+                            <i className="codicon codicon-git-commit" style={{ fontSize: '14px' }} />
                         </div>
 
                         {/* 🌟 提交信息摘要 */}

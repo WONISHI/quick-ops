@@ -367,6 +367,21 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             }
             break;
           }
+
+          case 'diffBranchFile': {
+            // 左侧：1号分支 (Base Branch)
+            const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: msg.baseBranch }));
+            const leftUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${leftQuery}`);
+            
+            // 右侧：选中的特定提交节点 (或者 targetBranch)
+            const rightRef = msg.status === 'D' ? 'empty' : msg.targetBranch;
+            const rightQuery = encodeURIComponent(JSON.stringify({ cwd, ref: rightRef }));
+            const rightUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${rightQuery}`);
+            
+            const title = `${path.basename(msg.file)} (${msg.baseBranch} ↔ ${msg.targetBranch.substring(0, 7)})`;
+            vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+            break;
+          }
             
           case 'commit':
             await this.executeGitOperation(async () => {

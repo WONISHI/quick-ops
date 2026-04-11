@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { vscode } from '../utils/vscode';
 import styles from '../assets/css/GitApp.module.css';
 
@@ -262,7 +262,8 @@ export default function GitApp() {
                             vscode.postMessage({ command: 'diffCommitFile', file: item.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: item.status });
                         } else if (listType === 'compare') {
                             if (compareTarget && compareBase) {
-                                vscode.postMessage({ command: 'diffBranchFile', file: item.file, targetBranch: compareTarget, baseBranch: compareBase, status: item.status });
+                                // 🌟 核心修复：如果是 compare 模式，将目标设为具体的 commit hash
+                                vscode.postMessage({ command: 'diffBranchFile', file: item.file, targetBranch: activeCommitHash || compareTarget, baseBranch: compareBase, status: item.status });
                             }
                         } else {
                             vscode.postMessage({ command: 'diff', file: item.file, status: item.status });
@@ -336,7 +337,8 @@ export default function GitApp() {
                                 vscode.postMessage({ command: 'diffCommitFile', file: item.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: item.status });
                             } else if (listType === 'compare') {
                                 if (compareTarget && compareBase) {
-                                    vscode.postMessage({ command: 'diffBranchFile', file: item.file, targetBranch: compareTarget, baseBranch: compareBase, status: item.status });
+                                    // 🌟 核心修复：如果是 compare 模式，将目标设为具体的 commit hash
+                                    vscode.postMessage({ command: 'diffBranchFile', file: item.file, targetBranch: activeCommitHash || compareTarget, baseBranch: compareBase, status: item.status });
                                 }
                             } else {
                                 vscode.postMessage({ command: 'diff', file: item.file, status: item.status });
@@ -410,7 +412,8 @@ export default function GitApp() {
                                 vscode.postMessage({ command: 'diffCommitFile', file: contextMenu.file.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: contextMenu.file.status });
                             } else if (contextMenu.listType === 'compare') {
                                 if (compareTarget && compareBase) {
-                                    vscode.postMessage({ command: 'diffBranchFile', file: contextMenu.file.file, targetBranch: compareTarget, baseBranch: compareBase, status: contextMenu.file.status });
+                                    // 🌟 核心修复：菜单点击也支持
+                                    vscode.postMessage({ command: 'diffBranchFile', file: contextMenu.file.file, targetBranch: activeCommitHash || compareTarget, baseBranch: compareBase, status: contextMenu.file.status });
                                 }
                             } else {
                                 vscode.postMessage({ command: 'diff', file: contextMenu.file.file, status: contextMenu.file.status });
@@ -493,7 +496,6 @@ export default function GitApp() {
                     </Tooltip>
                     <Tooltip content="推送 (Push)">
                         <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'push' })}>
-                            {/* 🌟 修改：Push 图标替换为 codicon-repo-push */}
                             <i className="codicon codicon-repo-push" />
                         </button>
                     </Tooltip>
@@ -544,7 +546,6 @@ export default function GitApp() {
                                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                                     <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            {/* 🌟 修改：暂存区图标替换为 codicon-git-branch-staged-changes */}
                                             <i className="codicon codicon-git-branch-staged-changes" style={{ fontSize: '14px', width: '16px' }} />
                                             暂存区 <span className={styles['badge']}>{stagedFiles.length}</span>
                                         </div>
@@ -570,7 +571,6 @@ export default function GitApp() {
                             <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                                 <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                       {/* 🌟 修改：工作区图标替换为 codicon-git-branch-changes */}
                                        <i className="codicon codicon-git-branch-changes" style={{ fontSize: '14px', width: '16px' }} />
                                        工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
                                     </div>
@@ -621,19 +621,19 @@ export default function GitApp() {
                         onClick={() => setIsCompareOpen(!isCompareOpen)}
                         style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                     >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
                             <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
                             {compareBase === '文件历史' ? '文件历史' : '对比'}
                             
                             {compareTarget && compareBase && (
-                                <span style={{ color: 'var(--vscode-textLink-foreground)', fontSize: '11px', maxWidth: '120px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={compareBase === '文件历史' ? `文件: ${compareTarget}` : `${compareTarget} ↔ ${compareBase}`}>
+                                <span style={{ flex: 1, minWidth: 0, color: 'var(--vscode-textLink-foreground)', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={compareBase === '文件历史' ? `文件: ${compareTarget}` : `${compareTarget} ↔ ${compareBase}`}>
                                     {compareBase === '文件历史' ? `(${compareTarget})` : `(${compareTarget} ↔ ${compareBase})`}
                                 </span>
                             )}
                             <span className={styles['badge']}>{compareCommits.length}</span>
                         </div>
                         
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
                             <Tooltip content={activeFile ? `查看当前文件历史` : "查看当前文件历史 (请先打开文件)"}>
                                 <button
                                     className={styles['action-btn']}
@@ -687,7 +687,6 @@ export default function GitApp() {
                             {(!compareTarget || !compareBase) ? (
                                 <div className={styles['empty-message']}>点击右上角图标选择分支或查看文件历史</div>
                             ) : (
-                                /* 🌟 接入抽离后的组件 GitCompareList */
                                 <GitCompareList
                                     commits={compareCommits}
                                     activeCommitHash={activeCommitHash}
@@ -695,7 +694,8 @@ export default function GitApp() {
                                     commitFilesLoading={commitFilesLoading}
                                     commitFiles={commitFiles}
                                     onCommitClick={toggleCommit}
-                                    renderCommitFiles={(files) => renderFileList(files, 'history')}
+                                    // 🌟 核心修复：判断如果是"文件历史"仍然用 history 渲染，如果是"分支对比"则使用 compare 渲染
+                                    renderCommitFiles={(files:any) => renderFileList(files, compareBase === '文件历史' ? 'history' : 'compare')}
                                 />
                             )}
                         </div>
@@ -770,7 +770,7 @@ export default function GitApp() {
                             commitFiles={commitFiles}
                             branch={branch}
                             onCommitClick={toggleCommit}
-                            renderCommitFiles={(files) => renderFileList(files, 'history')}
+                            renderCommitFiles={(files:any) => renderFileList(files, 'history')}
                         />
                     )
                 )}
