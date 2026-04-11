@@ -535,6 +535,12 @@ export default function GitApp() {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const graphContainerRef = useRef<HTMLDivElement>(null);
 
+    // @FIXME: 
+    // @OPTIMIZE: 
+    // @error: 
+    // @success: 
+    // @todo: 
+    // @warning: 
     useEffect(() => {
         const canvas = canvasRef.current;
         const container = graphContainerRef.current;
