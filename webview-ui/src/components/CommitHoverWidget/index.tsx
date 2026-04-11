@@ -1,6 +1,6 @@
 import React from 'react';
 import { vscode } from '../../utils/vscode';
-import styles from './index.module.css';
+import styles from '../assets/css/CommitHoverWidget.module.css';
 import Tooltip from '../Tooltip';
 import { type GraphCommit } from '../GitGraph';
 
@@ -20,12 +20,27 @@ export function formatAbsoluteTime(ms: number) {
     return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
+// 🌟 补回：动态解析远程仓库地址的函数
+export function parseRemoteInfo(url: string, hash: string) {
+    if (!url) return null;
+    let cleanUrl = url.replace(/\.git$/, '').trim();
+    if (cleanUrl.startsWith('git@')) {
+        cleanUrl = cleanUrl.replace(/^git@([^:]+):/, 'https://$1/');
+    }
+    let platform = 'GitLab';
+    let icon = 'codicon-repo';
+    if (cleanUrl.includes('github.com')) { platform = 'GitHub'; icon = 'codicon-github'; }
+    else if (cleanUrl.includes('gitee.com')) { platform = 'Gitee'; }
+    return { platform, icon, url: `${cleanUrl}/commit/${hash}` };
+}
+
 interface CommitHoverWidgetProps {
     commit: GraphCommit;
     x: number;
     y: number;
     position: 'top' | 'bottom';
     branch?: string;
+    remoteUrl?: string; // 🌟 接收 remoteUrl
     onMouseEnter: () => void;
     onMouseLeave: () => void;
 }
@@ -36,6 +51,7 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
     y,
     position,
     branch,
+    remoteUrl,
     onMouseEnter,
     onMouseLeave
 }) => {
@@ -81,6 +97,16 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
                         <i className="codicon codicon-copy" style={{ marginRight: '4px' }} /> {commit.hash.substring(0, 7)}
                     </span>
                 </Tooltip>
+                
+                {/* 🌟 补回：跳转到外部平台 */}
+                {remoteUrl && parseRemoteInfo(remoteUrl, commit.hash) && (
+                    <>
+                        <span className={styles['hover-separator']}>|</span>
+                        <span className={styles['hover-action-btn']} onClick={() => vscode.postMessage({ command: 'openExternal', url: parseRemoteInfo(remoteUrl, commit.hash)!.url })}>
+                            <i className={`codicon ${parseRemoteInfo(remoteUrl, commit.hash)!.icon}`} style={{ marginRight: '4px' }} /> 在 {parseRemoteInfo(remoteUrl, commit.hash)!.platform} 上打开
+                        </span>
+                    </>
+                )}
             </div>
         </div>
     );

@@ -1,10 +1,14 @@
+/* src/assets/css/CommitHoverWidget.module.css */
+
 .commit-hover-widget {
     position: fixed;
     z-index: 10000;
     width: max-content;
-    max-width: 400px;
+    /* 🌟 修改这里：最大宽度限制为视口宽度的 85% */
+    max-width: 85vw; 
     max-height: 40vh;
     overflow-y: auto;
+    overflow-x: hidden;
     background: var(--vscode-editorHoverWidget-background);
     border: 1px solid var(--vscode-editorHoverWidget-border);
     color: var(--vscode-editorHoverWidget-foreground);
@@ -13,11 +17,13 @@
     padding: 12px;
     font-size: 12px;
     pointer-events: auto;
+    box-sizing: border-box;
 }
 
 .hover-header {
     display: flex;
     align-items: center;
+    flex-wrap: wrap; /* 🌟 核心修复 3：作者名字或时间太长时，允许折行 */
     gap: 8px;
     margin-bottom: 8px;
 }
@@ -33,6 +39,7 @@
     justify-content: center;
     font-weight: bold;
     font-size: 11px;
+    flex-shrink: 0; /* 头像不允许被压缩 */
 }
 
 .hover-author {
@@ -46,7 +53,7 @@
 
 .hover-refs {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: wrap; /* 标签本身已经支持换行 */
     gap: 4px;
     margin-bottom: 8px;
 }
@@ -59,6 +66,7 @@
     background: rgba(128, 128, 128, 0.15);
     border: none;
     font-size: 11px;
+    word-break: break-all; /* 如果单个分支名极其变态的长，也强制折断 */
 }
 
 .ref-head {
@@ -69,8 +77,10 @@
 
 .hover-message {
     line-height: 1.4;
-    word-break: break-word;
     white-space: pre-wrap;
+    /* 🌟 核心修复 4：强制折断连续的无空格长文本（比如超长 URL 或 hash） */
+    word-wrap: break-word;
+    word-break: break-all; 
 }
 
 .hover-divider {
@@ -82,6 +92,7 @@
 .hover-footer {
     display: flex;
     align-items: center;
+    flex-wrap: wrap; /* 🌟 核心修复 5：屏幕太窄时，底部的操作按钮自动换行 */
     gap: 8px;
     color: var(--vscode-textLink-foreground);
 }

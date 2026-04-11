@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
-import CommitHoverWidget from '../CommitHoverWidget'; // 🌟 引入抽离的悬浮组件
+import CommitHoverWidget from '../CommitHoverWidget';
 
 export interface GraphCommit { 
     hash: string; 
@@ -22,6 +21,7 @@ interface GitGraphProps {
     commitFilesLoading: boolean;
     commitFiles: any[];
     branch: string;
+    remoteUrl?: string;
     onCommitClick: (hash: string) => void;
     renderCommitFiles: (files: any[]) => React.ReactNode;
 }
@@ -181,6 +181,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
     activeCommitHash,
     loadedCommitHash,
     commitFilesLoading,
+    remoteUrl,
     commitFiles,
     branch,
     onCommitClick,
@@ -340,6 +341,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
                     y={hoverInfo.y}
                     position={hoverInfo.position}
                     branch={branch}
+                    remoteUrl={remoteUrl}
                     onMouseEnter={() => clearTimeout(hoverTimeoutRef.current)}
                     onMouseLeave={handleMouseLeave}
                 />

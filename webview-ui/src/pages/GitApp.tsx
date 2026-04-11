@@ -694,8 +694,7 @@ export default function GitApp() {
                                     commitFilesLoading={commitFilesLoading}
                                     commitFiles={commitFiles}
                                     onCommitClick={toggleCommit}
-                                    // 🌟 核心修复：判断如果是"文件历史"仍然用 history 渲染，如果是"分支对比"则使用 compare 渲染
-                                    renderCommitFiles={(files:any) => renderFileList(files, compareBase === '文件历史' ? 'history' : 'compare')}
+                                    renderCommitFiles={(files) => renderFileList(files, compareBase === '文件历史' ? 'history' : 'compare')}
                                 />
                             )}
                         </div>
@@ -770,7 +769,8 @@ export default function GitApp() {
                             commitFiles={commitFiles}
                             branch={branch}
                             onCommitClick={toggleCommit}
-                            renderCommitFiles={(files:any) => renderFileList(files, 'history')}
+                            remoteUrl={remoteUrl}
+                            renderCommitFiles={(files) => renderFileList(files, 'history')}
                         />
                     )
                 )}
