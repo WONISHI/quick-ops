@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
-import Tooltip from '../Tooltip';
+import CommitHoverWidget from '../CommitHoverWidget'; // 🌟 引入抽离的悬浮组件
 
 export interface GraphCommit { 
     hash: string; 
@@ -174,33 +174,6 @@ function buildGraphEngine(commits: GraphCommit[]) {
     return { vertices, branches };
 }
 
-function formatRelativeTime(ms: number) {
-    const diff = Date.now() - ms;
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (days > 0) return `${days} 天前`;
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    if (hours > 0) return `${hours} 小时前`;
-    const mins = Math.floor(diff / (1000 * 60));
-    if (mins > 0) return `${mins} 分钟前`;
-    return '刚刚';
-}
-
-function formatAbsoluteTime(ms: number) {
-    const d = new Date(ms);
-    return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-}
-
-function parseRemoteInfo(url: string, hash: string) {
-    if (!url) return null;
-    let cleanUrl = url.replace(/\.git$/, '');
-    if (cleanUrl.startsWith('git@')) cleanUrl = cleanUrl.replace(/^git@([^:]+):/, 'https://$1/');
-    let platform = 'GitLab';
-    let icon = 'codicon-repo';
-    if (cleanUrl.includes('github.com')) { platform = 'GitHub'; icon = 'codicon-github'; }
-    else if (cleanUrl.includes('gitee.com')) { platform = 'Gitee'; }
-    return { platform, icon, url: `${cleanUrl}/commit/${hash}` };
-}
-
 const GitGraph: React.FC<GitGraphProps> = ({
     graphCommits,
     displayCount,
@@ -359,50 +332,17 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
     return (
         <>
+            {/* 🌟 复用刚刚抽离出来的悬浮卡片 */}
             {hoverInfo && (
-                <div
-                    className={styles['commit-hover-widget']}
-                    style={{
-                        left: hoverInfo.x,
-                        ...(hoverInfo.position === 'top' ? { bottom: window.innerHeight - hoverInfo.y } : { top: hoverInfo.y })
-                    }}
+                <CommitHoverWidget
+                    commit={hoverInfo.commit}
+                    x={hoverInfo.x}
+                    y={hoverInfo.y}
+                    position={hoverInfo.position}
+                    branch={branch}
                     onMouseEnter={() => clearTimeout(hoverTimeoutRef.current)}
                     onMouseLeave={handleMouseLeave}
-                >
-                    <div className={styles['hover-header']}>
-                        <div className={styles['hover-avatar']}>{hoverInfo.commit.author[0].toUpperCase()}</div>
-                        <span className={styles['hover-author']}>{hoverInfo.commit.author}</span>
-                        {hoverInfo.commit.timestamp && (
-                            <span className={styles['hover-time']}>
-                                , {formatRelativeTime(hoverInfo.commit.timestamp)} ({formatAbsoluteTime(hoverInfo.commit.timestamp)})
-                            </span>
-                        )}
-                    </div>
-
-                    <div className={styles['hover-refs']}>
-                        {hoverInfo.commit.refs ? (
-                            hoverInfo.commit.refs.split(',').map((r: string, i: number) => {
-                                const trimmed = r.trim();
-                                if (!trimmed) return null;
-                                const isHead = trimmed.startsWith('HEAD -> ');
-                                const name = isHead ? trimmed.replace('HEAD -> ', '') : trimmed;
-                                return <span key={i} className={`${styles['ref-tag']} ${isHead ? styles['ref-head'] : ''}`}>{name}</span>;
-                            })
-                        ) : (
-                            <span className={`${styles['ref-tag']} ${styles['ref-head']}`}>{branch}</span>
-                        )}
-                    </div>
-
-                    <div className={styles['hover-message']}>{hoverInfo.commit.message}</div>
-                    <div className={styles['hover-divider']}></div>
-                    <div className={styles['hover-footer']}>
-                        <Tooltip content="复制 Hash">
-                            <span className={styles['hover-action-btn']} onClick={() => vscode.postMessage({ command: 'copy', text: hoverInfo.commit.hash })}>
-                                <i className="codicon codicon-copy" style={{ marginRight: '4px' }} /> {hoverInfo.commit.hash.substring(0, 7)}
-                            </span>
-                        </Tooltip>
-                    </div>
-                </div>
+                />
             )}
 
             <div className={styles['graph-scroll-view']} ref={graphContainerRef} onScroll={handleGraphScroll} style={{ position: 'relative', flex: 1, overflowY: 'auto' }}>

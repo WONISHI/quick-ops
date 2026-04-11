@@ -1,0 +1,103 @@
+.commit-hover-widget {
+    position: fixed;
+    z-index: 10000;
+    width: max-content;
+    max-width: 400px;
+    max-height: 40vh;
+    overflow-y: auto;
+    background: var(--vscode-editorHoverWidget-background);
+    border: 1px solid var(--vscode-editorHoverWidget-border);
+    color: var(--vscode-editorHoverWidget-foreground);
+    box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+    border-radius: 4px;
+    padding: 12px;
+    font-size: 12px;
+    pointer-events: auto;
+}
+
+.hover-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.hover-avatar {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 11px;
+}
+
+.hover-author {
+    font-weight: 600;
+}
+
+.hover-time {
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+}
+
+.hover-refs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-bottom: 8px;
+}
+
+.ref-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(128, 128, 128, 0.15);
+    border: none;
+    font-size: 11px;
+}
+
+.ref-head {
+    background-color: #3168d1;
+    color: #ffffff;
+    font-weight: bold;
+}
+
+.hover-message {
+    line-height: 1.4;
+    word-break: break-word;
+    white-space: pre-wrap;
+}
+
+.hover-divider {
+    height: 1px;
+    background: var(--vscode-editorHoverWidget-border);
+    margin: 10px 0;
+}
+
+.hover-footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--vscode-textLink-foreground);
+}
+
+.hover-action-btn {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    opacity: 0.8;
+}
+
+.hover-action-btn:hover {
+    opacity: 1;
+}
+
+.hover-separator {
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.5;
+}
