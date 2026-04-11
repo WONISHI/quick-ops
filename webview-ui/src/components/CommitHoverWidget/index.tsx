@@ -1,6 +1,6 @@
 import React from 'react';
 import { vscode } from '../../utils/vscode';
-import styles from './index.module.css'; 
+import styles from './index.module.css';
 import { type GraphCommit } from '../GitGraph';
 
 export function formatRelativeTime(ms: number) {
@@ -34,11 +34,11 @@ export function parseRemoteInfo(url: string, hash: string) {
 
 interface CommitHoverWidgetProps {
     commit: GraphCommit;
-    x: number; 
+    x: number;
     y: number;
     position: 'top' | 'bottom';
     branch?: string;
-    remoteUrl?: string; 
+    remoteUrl?: string;
     onMouseEnter: () => void;
     onMouseLeave: () => void;
 }
@@ -65,13 +65,15 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
         >
             <div className={styles['hover-header']}>
                 <div className={styles['hover-avatar']}>{commit.author ? commit.author[0].toUpperCase() : 'U'}</div>
-                <span className={styles['hover-author']}>{commit.author}</span>
-                {commit.timestamp && (
-                    <span className={styles['hover-time']} style={{ display: 'flex', alignItems: 'center' }}>
-                        <i className="codicon codicon-clock" style={{ marginLeft: '6px', marginRight: '4px', fontSize: '13px' }} />
-                        {formatRelativeTime(commit.timestamp)} ({formatAbsoluteTime(commit.timestamp)})
-                    </span>
-                )}
+                <div className={styles['hover-detail']}>
+                    <span className={styles['hover-author']}>{commit.author}</span>
+                    {commit.timestamp && (
+                        <span className={styles['hover-time']} style={{ display: 'flex', alignItems: 'center' }}>
+                            <i className="codicon codicon-clock" style={{ marginRight: '4px', fontSize: '13px' }} />
+                            {formatRelativeTime(commit.timestamp)} ({formatAbsoluteTime(commit.timestamp)})
+                        </span>
+                    )}
+                </div>
             </div>
 
             <div className={styles['hover-refs']}>
@@ -90,24 +92,24 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
 
             <div className={styles['hover-message']}>{commit.message}</div>
             <div className={styles['hover-divider']}></div>
-            
+
             <div className={styles['hover-footer']}>
                 {/* 🌟 核心修改：移除 <Tooltip> 包装，直接在 span 上使用原生的 title 属性 */}
-                <span 
-                    className={styles['hover-action-btn']} 
-                    title="复制 Hash" 
+                <span
+                    className={styles['hover-action-btn']}
+                    title="复制 Hash"
                     onClick={() => vscode.postMessage({ command: 'copy', text: commit.hash })}
                 >
                     <i className="codicon codicon-copy" style={{ marginRight: '4px' }} /> {commit.hash.substring(0, 7)}
                 </span>
-                
+
                 {remoteUrl && parseRemoteInfo(remoteUrl, commit.hash) && (
                     <>
                         <span className={styles['hover-separator']}>|</span>
                         {/* 🌟 核心修改：移除 <Tooltip> 包装，直接在 span 上使用原生的 title 属性 */}
-                        <span 
-                            className={styles['hover-action-btn']} 
-                            title="查看记录" 
+                        <span
+                            className={styles['hover-action-btn']}
+                            title="查看记录"
                             onClick={() => vscode.postMessage({ command: 'openExternal', url: parseRemoteInfo(remoteUrl, commit.hash)!.url })}
                         >
                             <i className={`codicon ${parseRemoteInfo(remoteUrl, commit.hash)!.icon}`} style={{ marginRight: '4px' }} /> 在 {parseRemoteInfo(remoteUrl, commit.hash)!.platform} 上打开

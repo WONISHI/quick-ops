@@ -275,7 +275,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
             // 延迟 150ms 触发重绘，避免拖拽过程中频繁渲染卡顿
             timeoutId = window.setTimeout(() => {
                 setResizeTrigger(prev => prev + 1);
-            }, 150); 
+            }, 150);
         };
 
         window.addEventListener('resize', handleResize);
@@ -364,7 +364,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
                 ctx.fill();
             }
         });
-    // 🌟 修改：将 resizeTrigger 添加到 useEffect 的依赖数组中
+        // 🌟 修改：将 resizeTrigger 添加到 useEffect 的依赖数组中
     }, [graphData, displayCount, yPositions, renderedHeight, activeCommitHash, resizeTrigger]);
 
     const handleMouseEnter = (e: React.MouseEvent, commit: GraphCommit) => {

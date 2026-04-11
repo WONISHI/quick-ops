@@ -5,7 +5,7 @@
     z-index: 10000;
     width: max-content;
     /* 🌟 修改这里：最大宽度限制为视口宽度的 85% */
-    max-width: 85vw; 
+    max-width: 85vw;
     max-height: 40vh;
     overflow-y: auto;
     overflow-x: hidden;
@@ -23,7 +23,8 @@
 .hover-header {
     display: flex;
     align-items: center;
-    flex-wrap: wrap; /* 🌟 核心修复 3：作者名字或时间太长时，允许折行 */
+    flex-wrap: wrap;
+    /* 🌟 核心修复 3：作者名字或时间太长时，允许折行 */
     gap: 8px;
     margin-bottom: 8px;
 }
@@ -39,7 +40,16 @@
     justify-content: center;
     font-weight: bold;
     font-size: 11px;
-    flex-shrink: 0; /* 头像不允许被压缩 */
+    flex-shrink: 0;
+    /* 头像不允许被压缩 */
+}
+
+.hover-detail {
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    row-gap: 0px;
+    column-gap: 3px;
 }
 
 .hover-author {
@@ -53,20 +63,20 @@
 
 .hover-refs {
     display: flex;
-    flex-wrap: wrap; /* 标签本身已经支持换行 */
+    flex-wrap: wrap;
     gap: 4px;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
 }
 
 .ref-tag {
     display: inline-flex;
     align-items: center;
-    padding: 2px 6px;
+    padding: 0px 5px;
     border-radius: 4px;
     background: rgba(128, 128, 128, 0.15);
     border: none;
-    font-size: 11px;
-    word-break: break-all; /* 如果单个分支名极其变态的长，也强制折断 */
+    font-size: 10px;
+    word-break: break-all;
 }
 
 .ref-head {
@@ -78,9 +88,8 @@
 .hover-message {
     line-height: 1.4;
     white-space: pre-wrap;
-    /* 🌟 核心修复 4：强制折断连续的无空格长文本（比如超长 URL 或 hash） */
     word-wrap: break-word;
-    word-break: break-all; 
+    word-break: break-all;
 }
 
 .hover-divider {
@@ -92,7 +101,7 @@
 .hover-footer {
     display: flex;
     align-items: center;
-    flex-wrap: wrap; /* 🌟 核心修复 5：屏幕太窄时，底部的操作按钮自动换行 */
+    flex-wrap: wrap;
     gap: 8px;
     color: var(--vscode-textLink-foreground);
 }
