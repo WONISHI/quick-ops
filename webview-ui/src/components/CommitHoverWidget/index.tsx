@@ -1,7 +1,6 @@
 import React from 'react';
 import { vscode } from '../../utils/vscode';
-import styles from '../assets/css/CommitHoverWidget.module.css';
-import Tooltip from '../Tooltip';
+import styles from './index.module.css'; 
 import { type GraphCommit } from '../GitGraph';
 
 export function formatRelativeTime(ms: number) {
@@ -20,7 +19,6 @@ export function formatAbsoluteTime(ms: number) {
     return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
-// 🌟 补回：动态解析远程仓库地址的函数
 export function parseRemoteInfo(url: string, hash: string) {
     if (!url) return null;
     let cleanUrl = url.replace(/\.git$/, '').trim();
@@ -36,18 +34,17 @@ export function parseRemoteInfo(url: string, hash: string) {
 
 interface CommitHoverWidgetProps {
     commit: GraphCommit;
-    x: number;
+    x: number; 
     y: number;
     position: 'top' | 'bottom';
     branch?: string;
-    remoteUrl?: string; // 🌟 接收 remoteUrl
+    remoteUrl?: string; 
     onMouseEnter: () => void;
     onMouseLeave: () => void;
 }
 
 const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
     commit,
-    x,
     y,
     position,
     branch,
@@ -59,7 +56,8 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
         <div
             className={styles['commit-hover-widget']}
             style={{
-                left: x,
+                left: '50%',
+                transform: 'translateX(-50%)',
                 ...(position === 'top' ? { bottom: window.innerHeight - y } : { top: y })
             }}
             onMouseEnter={onMouseEnter}
@@ -69,8 +67,9 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
                 <div className={styles['hover-avatar']}>{commit.author ? commit.author[0].toUpperCase() : 'U'}</div>
                 <span className={styles['hover-author']}>{commit.author}</span>
                 {commit.timestamp && (
-                    <span className={styles['hover-time']}>
-                        , {formatRelativeTime(commit.timestamp)} ({formatAbsoluteTime(commit.timestamp)})
+                    <span className={styles['hover-time']} style={{ display: 'flex', alignItems: 'center' }}>
+                        <i className="codicon codicon-clock" style={{ marginLeft: '6px', marginRight: '4px', fontSize: '13px' }} />
+                        {formatRelativeTime(commit.timestamp)} ({formatAbsoluteTime(commit.timestamp)})
                     </span>
                 )}
             </div>
@@ -91,18 +90,26 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
 
             <div className={styles['hover-message']}>{commit.message}</div>
             <div className={styles['hover-divider']}></div>
+            
             <div className={styles['hover-footer']}>
-                <Tooltip content="复制 Hash">
-                    <span className={styles['hover-action-btn']} onClick={() => vscode.postMessage({ command: 'copy', text: commit.hash })}>
-                        <i className="codicon codicon-copy" style={{ marginRight: '4px' }} /> {commit.hash.substring(0, 7)}
-                    </span>
-                </Tooltip>
+                {/* 🌟 核心修改：移除 <Tooltip> 包装，直接在 span 上使用原生的 title 属性 */}
+                <span 
+                    className={styles['hover-action-btn']} 
+                    title="复制 Hash" 
+                    onClick={() => vscode.postMessage({ command: 'copy', text: commit.hash })}
+                >
+                    <i className="codicon codicon-copy" style={{ marginRight: '4px' }} /> {commit.hash.substring(0, 7)}
+                </span>
                 
-                {/* 🌟 补回：跳转到外部平台 */}
                 {remoteUrl && parseRemoteInfo(remoteUrl, commit.hash) && (
                     <>
                         <span className={styles['hover-separator']}>|</span>
-                        <span className={styles['hover-action-btn']} onClick={() => vscode.postMessage({ command: 'openExternal', url: parseRemoteInfo(remoteUrl, commit.hash)!.url })}>
+                        {/* 🌟 核心修改：移除 <Tooltip> 包装，直接在 span 上使用原生的 title 属性 */}
+                        <span 
+                            className={styles['hover-action-btn']} 
+                            title="查看记录" 
+                            onClick={() => vscode.postMessage({ command: 'openExternal', url: parseRemoteInfo(remoteUrl, commit.hash)!.url })}
+                        >
                             <i className={`codicon ${parseRemoteInfo(remoteUrl, commit.hash)!.icon}`} style={{ marginRight: '4px' }} /> 在 {parseRemoteInfo(remoteUrl, commit.hash)!.platform} 上打开
                         </span>
                     </>

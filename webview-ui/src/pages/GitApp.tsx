@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { vscode } from '../utils/vscode';
 import styles from '../assets/css/GitApp.module.css';
 
@@ -693,6 +693,7 @@ export default function GitApp() {
                                     loadedCommitHash={loadedCommitHash}
                                     commitFilesLoading={commitFilesLoading}
                                     commitFiles={commitFiles}
+                                    remoteUrl={remoteUrl}
                                     onCommitClick={toggleCommit}
                                     renderCommitFiles={(files) => renderFileList(files, compareBase === '文件历史' ? 'history' : 'compare')}
                                 />
