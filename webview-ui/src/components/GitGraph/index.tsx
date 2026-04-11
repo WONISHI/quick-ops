@@ -2,14 +2,14 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import styles from './index.module.css';
 import CommitHoverWidget from '../CommitHoverWidget';
 
-export interface GraphCommit { 
-    hash: string; 
-    parents?: string[]; 
-    author: string; 
-    email?: string; 
-    message: string; 
-    timestamp?: number; 
-    refs?: string; 
+export interface GraphCommit {
+    hash: string;
+    parents?: string[];
+    author: string;
+    email?: string;
+    message: string;
+    timestamp?: number;
+    refs?: string;
 }
 
 interface GitGraphProps {
@@ -22,6 +22,8 @@ interface GitGraphProps {
     commitFiles: any[];
     branch: string;
     remoteUrl?: string;
+    isSearchOpen: boolean;
+    setIsSearchOpen: (open: boolean) => void;
     onCommitClick: (hash: string) => void;
     renderCommitFiles: (files: any[]) => React.ReactNode;
 }
@@ -184,6 +186,8 @@ const GitGraph: React.FC<GitGraphProps> = ({
     remoteUrl,
     commitFiles,
     branch,
+    isSearchOpen,
+    setIsSearchOpen,
     onCommitClick,
     renderCommitFiles
 }) => {
@@ -195,6 +199,25 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const graphContainerRef = useRef<HTMLDivElement>(null);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+
+    // 🌟 拖拽状态引擎修复版
+    const [searchOffset, setSearchOffset] = useState({ x: 0, y: 0 });
+    const isDragging = useRef(false);
+    const dragStart = useRef({ mouseX: 0, mouseY: 0, currentX: 0, currentY: 0 });
+
+    const [searchQuery, setSearchQuery] = useState('');
+    const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+
+    const matchedIndices = useMemo(() => {
+        if (!searchQuery) return [];
+        const lowerQuery = searchQuery.toLowerCase();
+        return graphCommits.map((c, i) =>
+            c.message.toLowerCase().includes(lowerQuery) ||
+                c.author.toLowerCase().includes(lowerQuery) ||
+                c.hash.toLowerCase().includes(lowerQuery) ? i : -1
+        ).filter(i => i !== -1);
+    }, [graphCommits, searchQuery]);
 
     const graphData = useMemo(() => buildGraphEngine(graphCommits), [graphCommits]);
 
@@ -218,7 +241,33 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
     const renderedHeight = yPositions[Math.min(displayCount, graphCommits.length)] || 0;
 
-    // 🌟 新增：监听窗口大小变化的 useEffect（带有防抖机制）
+    useEffect(() => {
+        setCurrentMatchIndex(0);
+    }, [searchQuery]);
+
+    useEffect(() => {
+        if (matchedIndices.length > 0 && isSearchOpen) {
+            const matchCommitIndex = matchedIndices[currentMatchIndex];
+            if (matchCommitIndex >= displayCount) {
+                setDisplayCount(matchCommitIndex + 50);
+            }
+            const y = yPositions[matchCommitIndex];
+            if (graphContainerRef.current) {
+                graphContainerRef.current.scrollTop = Math.max(0, y - 60);
+            }
+        }
+    }, [currentMatchIndex, matchedIndices, yPositions, isSearchOpen]);
+
+    useEffect(() => {
+        if (isSearchOpen && searchInputRef.current) {
+            searchInputRef.current.focus();
+        } else if (!isSearchOpen) {
+            setSearchQuery('');
+            setSearchOffset({ x: 0, y: 0 });
+        }
+    }, [isSearchOpen]);
+
+    // Canvas 重绘逻辑（省略，保持不变）...
     useEffect(() => {
         let timeoutId: number;
         const handleResize = () => {
@@ -291,9 +340,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
             });
             ctx.stroke();
         });
-
         const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--vscode-sideBar-background').trim() || '#252526';
-
         graphData.vertices.slice(0, displayCount).forEach((v, idx) => {
             const cx = v.getPoint().x * LANE_WIDTH + 14;
             const cy = yPositions[idx] + CY;
@@ -325,75 +372,121 @@ const GitGraph: React.FC<GitGraphProps> = ({
         clearTimeout(hoverTimeoutRef.current);
         hoverTimeoutRef.current = setTimeout(() => {
             const showAbove = rect.top > window.innerHeight / 2;
-            setHoverInfo({
-                commit,
-                x: Math.min(rect.left + 24, window.innerWidth - 320),
-                y: showAbove ? rect.top - 8 : rect.bottom + 4,
-                position: showAbove ? 'top' : 'bottom'
-            });
+            setHoverInfo({ commit, x: 0, y: showAbove ? rect.top - 8 : rect.bottom + 4, position: showAbove ? 'top' : 'bottom' });
         }, 500);
     };
 
-    const handleMouseLeave = () => {
-        clearTimeout(hoverTimeoutRef.current);
-        hoverTimeoutRef.current = setTimeout(() => { setHoverInfo(null); }, 250);
+    const handleMouseLeave = () => { clearTimeout(hoverTimeoutRef.current); hoverTimeoutRef.current = setTimeout(() => { setHoverInfo(null); }, 250); };
+    const handleGraphScroll = (e: React.UIEvent<HTMLDivElement>) => { const target = e.target as HTMLDivElement; if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) { if (displayCount < graphCommits.length) { setDisplayCount(prev => prev + 50); } } };
+    const handleItemClick = (hash: string) => { clearTimeout(hoverTimeoutRef.current); setHoverInfo(null); onCommitClick(hash); };
+    const handleNextMatch = () => { if (matchedIndices.length === 0) return; setCurrentMatchIndex((prev) => (prev + 1) % matchedIndices.length); };
+    const handlePrevMatch = () => { if (matchedIndices.length === 0) return; setCurrentMatchIndex((prev) => (prev - 1 + matchedIndices.length) % matchedIndices.length); };
+
+    const highlightText = (text: string, query: string, isActiveMatch: boolean) => {
+        if (!query) return text;
+        const safeQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const parts = text.split(new RegExp(`(${safeQuery})`, 'gi'));
+        return parts.map((part, i) => part.toLowerCase() === query.toLowerCase() ? (
+            <span key={i} style={{ backgroundColor: isActiveMatch ? 'var(--vscode-editor-findMatchBackground, #515c6a)' : 'var(--vscode-editor-findMatchHighlightBackground, #ea5c0055)', color: 'inherit', border: isActiveMatch ? '1px solid var(--vscode-editor-findMatchBorder, #f48771)' : 'none', borderRadius: '2px' }}>{part}</span>
+        ) : part);
     };
 
-    const handleGraphScroll = (e: React.UIEvent<HTMLDivElement>) => {
-        const target = e.target as HTMLDivElement;
-        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
-            if (displayCount < graphCommits.length) {
-                setDisplayCount(prev => prev + 50);
-            }
-        }
+    // 🌟 核心：拖拽处理逻辑 (锁定在 Gripper)
+    const handlePointerDown = (e: React.PointerEvent) => {
+        const target = e.target as HTMLElement;
+        // 只有点击了 gripper 及其内部图标才触发拖拽
+        if (!target.classList.contains(styles['search-gripper']) && !target.closest(`.${styles['search-gripper']}`)) return;
+
+        e.preventDefault();
+        (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+        isDragging.current = true;
+        dragStart.current = {
+            mouseX: e.clientX,
+            mouseY: e.clientY,
+            currentX: searchOffset.x,
+            currentY: searchOffset.y
+        };
     };
 
-    const handleItemClick = (hash: string) => {
-        clearTimeout(hoverTimeoutRef.current);
-        setHoverInfo(null);
-        onCommitClick(hash);
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (!isDragging.current) return;
+        const dx = e.clientX - dragStart.current.mouseX;
+        const dy = e.clientY - dragStart.current.mouseY;
+        setSearchOffset({
+            x: dragStart.current.currentX + dx,
+            y: dragStart.current.currentY + dy
+        });
+    };
+
+    const handlePointerUp = (e: React.PointerEvent) => {
+        isDragging.current = false;
+        (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
     };
 
     return (
         <>
-            {/* 🌟 复用刚刚抽离出来的悬浮卡片 */}
             {hoverInfo && (
                 <CommitHoverWidget
                     commit={hoverInfo.commit}
-                    x={hoverInfo.x}
-                    y={hoverInfo.y}
-                    position={hoverInfo.position}
-                    branch={branch}
-                    remoteUrl={remoteUrl}
+                    x={0} y={hoverInfo.y} position={hoverInfo.position}
+                    branch={branch} remoteUrl={remoteUrl}
                     onMouseEnter={() => clearTimeout(hoverTimeoutRef.current)}
                     onMouseLeave={handleMouseLeave}
                 />
             )}
 
+            {isSearchOpen && (
+                <div
+                    className={styles['search-widget']}
+                    style={{ transform: `translate(${searchOffset.x}px, ${searchOffset.y}px)` }}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
+                >
+                    {/* 🌟 拖拽手柄 */}
+                    <div className={styles['search-gripper']}>
+                        <i className="codicon codicon-gripper" />
+                    </div>
+
+                    <input
+                        ref={searchInputRef}
+                        className={styles['search-input']}
+                        placeholder="搜索提交..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); e.shiftKey ? handlePrevMatch() : handleNextMatch(); }
+                            else if (e.key === 'Escape') { setIsSearchOpen(false); }
+                        }}
+                    />
+                    <div className={styles['search-count']}>
+                        {matchedIndices.length > 0 ? currentMatchIndex + 1 : 0}/{matchedIndices.length}
+                    </div>
+                    <button className={styles['search-btn']} onClick={handlePrevMatch} disabled={matchedIndices.length === 0} title="上一个 (Shift+Enter)">
+                        <i className="codicon codicon-arrow-up" />
+                    </button>
+                    <button className={styles['search-btn']} onClick={handleNextMatch} disabled={matchedIndices.length === 0} title="下一个 (Enter)">
+                        <i className="codicon codicon-arrow-down" />
+                    </button>
+                    <button className={styles['search-btn']} onClick={() => setIsSearchOpen(false)} title="关闭 (Esc)">
+                        <i className="codicon codicon-close" />
+                    </button>
+                </div>
+            )}
+
             <div className={styles['graph-scroll-view']} ref={graphContainerRef} onScroll={handleGraphScroll} style={{ position: 'relative', flex: 1, overflowY: 'auto' }}>
-                <canvas
-                    ref={canvasRef}
-                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${renderedHeight}px`, pointerEvents: 'none', zIndex: 1 }}
-                />
+                <canvas ref={canvasRef} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${renderedHeight}px`, pointerEvents: 'none', zIndex: 1 }} />
                 <ul className={styles['commit-timeline']} style={{ position: 'relative', zIndex: 2, margin: 0, padding: 0, listStyle: 'none' }}>
                     {graphData.vertices.slice(0, displayCount).map((v, idx) => {
                         const c = graphCommits[idx];
                         const paddingWidth = (v.getNextPoint().x + 1) * LANE_WIDTH + 14;
-
-                        let localRef: string | null = null;
-                        let isRemotePush = false;
-
+                        const isMatched = matchedIndices.includes(idx);
+                        const isActiveMatch = isSearchOpen && isMatched && matchedIndices[currentMatchIndex] === idx;
+                        let localRef: string | null = null; let isRemotePush = false;
                         if (c.refs) {
                             const refsArray = c.refs.split(',').map(r => r.trim());
-                            for (const r of refsArray) {
-                                if (r.startsWith('HEAD ->')) {
-                                    localRef = r.replace('HEAD ->', '').trim();
-                                } else if (r === branch && !localRef) {
-                                    localRef = r;
-                                } else if (r.startsWith('origin/')) {
-                                    isRemotePush = true;
-                                }
-                            }
+                            for (const r of refsArray) { if (r.startsWith('HEAD ->')) { localRef = r.replace('HEAD ->', '').trim(); } else if (r === branch && !localRef) { localRef = r; } else if (r.startsWith('origin/')) { isRemotePush = true; } }
                         }
 
                         return (
@@ -409,38 +502,13 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                     <div className={styles['commit-content']} style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'space-between', minWidth: 0, height: '100%' }}>
                                         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                                             <div className={styles['commit-message']} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '13px', lineHeight: '16px' }}>
-                                                {c.message}
+                                                {isSearchOpen ? highlightText(c.message, searchQuery, isActiveMatch) : c.message}
                                             </div>
                                         </div>
 
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: '8px' }}>
-                                            {localRef && (
-                                                <div style={{
-                                                    display: 'flex', alignItems: 'center', backgroundColor: '#3168d1', color: '#ffffff',
-                                                    padding: '0 6px', borderRadius: '10px', fontSize: '11px', fontWeight: 'bold', gap: '3px',
-                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.2)', height: '20px'
-                                                }} title={`本地分支: ${localRef}`}>
-                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                        <circle cx="12" cy="12" r="8" />
-                                                        <circle cx="12" cy="12" r="3" />
-                                                        <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-                                                    </svg>
-                                                    <span>{localRef}</span>
-                                                </div>
-                                            )}
-
-                                            {isRemotePush && (
-                                                <div style={{
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    backgroundColor: '#6a2a88', color: '#ffffff',
-                                                    width: '20px', height: '20px', borderRadius: '50%',
-                                                    boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
-                                                }} title="已同步至远程仓库">
-                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                        <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
-                                                    </svg>
-                                                </div>
-                                            )}
+                                            {localRef && <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#3168d1', color: '#ffffff', padding: '0 6px', borderRadius: '10px', fontSize: '11px', fontWeight: 'bold', gap: '3px', boxShadow: '0 1px 2px rgba(0,0,0,0.2)', height: '20px' }} title={`本地分支: ${localRef}`}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3" /><circle cx="12" cy="12" r="1.5" fill="currentColor" /></svg><span>{localRef}</span></div>}
+                                            {isRemotePush && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#6a2a88', color: '#ffffff', width: '20px', height: '20px', borderRadius: '50%', boxShadow: '0 1px 2px rgba(0,0,0,0.2)' }} title="已同步至远程仓库"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" /></svg></div>}
                                         </div>
                                     </div>
                                 </div>
@@ -460,11 +528,6 @@ const GitGraph: React.FC<GitGraphProps> = ({
                             </li>
                         );
                     })}
-                    {displayCount < graphCommits.length && (
-                        <div style={{ textAlign: 'center', padding: '10px', color: 'var(--vscode-descriptionForeground)' }}>
-                            <i className="codicon codicon-loading codicon-modifier-spin" />
-                        </div>
-                    )}
                 </ul>
             </div>
         </>

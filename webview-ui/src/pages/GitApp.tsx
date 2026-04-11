@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { vscode } from '../utils/vscode';
 import styles from '../assets/css/GitApp.module.css';
 
@@ -9,7 +9,7 @@ import { faMarkdown, faHtml5, faCss3Alt, faVuejs, faJs } from '@fortawesome/free
 
 import Tooltip from '../components/Tooltip';
 import GitGraph, { type GraphCommit } from '../components/GitGraph';
-import GitCompareList from '../components/GitCompareList'; // 🌟 引入新抽离的组件
+import GitCompareList from '../components/GitCompareList'; 
 
 export interface GitFile { status: string; file: string; }
 interface TreeNode { name: string; fullPath: string; isDirectory: boolean; children: TreeNode[]; file?: GitFile; }
@@ -65,6 +65,8 @@ export default function GitApp() {
 
     const [isChangesOpen, setIsChangesOpen] = useState(true);
     const [isGraphOpen, setIsGraphOpen] = useState(true);
+    // 🌟 新增：管理图谱搜索框的开关状态
+    const [isGraphSearchOpen, setIsGraphSearchOpen] = useState(false);
 
     const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
     const [isGraphLoading, setIsGraphLoading] = useState(true);
@@ -262,7 +264,6 @@ export default function GitApp() {
                             vscode.postMessage({ command: 'diffCommitFile', file: item.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: item.status });
                         } else if (listType === 'compare') {
                             if (compareTarget && compareBase) {
-                                // 🌟 核心修复：如果是 compare 模式，将目标设为具体的 commit hash
                                 vscode.postMessage({ command: 'diffBranchFile', file: item.file, targetBranch: activeCommitHash || compareTarget, baseBranch: compareBase, status: item.status });
                             }
                         } else {
@@ -337,7 +338,6 @@ export default function GitApp() {
                                 vscode.postMessage({ command: 'diffCommitFile', file: item.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: item.status });
                             } else if (listType === 'compare') {
                                 if (compareTarget && compareBase) {
-                                    // 🌟 核心修复：如果是 compare 模式，将目标设为具体的 commit hash
                                     vscode.postMessage({ command: 'diffBranchFile', file: item.file, targetBranch: activeCommitHash || compareTarget, baseBranch: compareBase, status: item.status });
                                 }
                             } else {
@@ -412,7 +412,6 @@ export default function GitApp() {
                                 vscode.postMessage({ command: 'diffCommitFile', file: contextMenu.file.file, hash: activeCommitHash, parentHash: activeCommitParentHash, status: contextMenu.file.status });
                             } else if (contextMenu.listType === 'compare') {
                                 if (compareTarget && compareBase) {
-                                    // 🌟 核心修复：菜单点击也支持
                                     vscode.postMessage({ command: 'diffBranchFile', file: contextMenu.file.file, targetBranch: activeCommitHash || compareTarget, baseBranch: compareBase, status: contextMenu.file.status });
                                 }
                             } else {
@@ -582,7 +581,6 @@ export default function GitApp() {
                                                         className={styles['action-btn']}
                                                         onClick={(e) => {
                                                             e.stopPropagation();
-                                                            // 🌟 核心修改：如果只有一个文件，伪装成单文件放弃发送；否则发送包含文件数量的 discardAll
                                                             if (unstagedFiles.length === 1) {
                                                                 vscode.postMessage({ command: 'discard', file: unstagedFiles[0].file, status: unstagedFiles[0].status });
                                                             } else {
@@ -719,6 +717,20 @@ export default function GitApp() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {/* 🌟 核心修改 1：新增搜索按钮 */}
+                        <Tooltip content="搜索记录">
+                            <button
+                                className={styles['action-btn']}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsGraphSearchOpen(!isGraphSearchOpen);
+                                }}
+                                style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                            >
+                                <i className="codicon codicon-search" />
+                            </button>
+                        </Tooltip>
+
                         <Tooltip content={`筛选分支 (当前: ${selectedGraphFilter})`}>
                             <button
                                 className={styles['action-btn']}
@@ -776,6 +788,9 @@ export default function GitApp() {
                             branch={branch}
                             onCommitClick={toggleCommit}
                             remoteUrl={remoteUrl}
+                            /* 🌟 核心修改 2：把开关状态传给 GitGraph 组件 */
+                            isSearchOpen={isGraphSearchOpen}
+                            setIsSearchOpen={setIsGraphSearchOpen}
                             renderCommitFiles={(files) => renderFileList(files, 'history')}
                         />
                     )
