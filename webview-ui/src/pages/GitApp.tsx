@@ -20,233 +20,9 @@ const ROW_HEIGHT = 24;
 const CY = 12;
 
 // ==========================================
-// 抽离并加强的自定义 Tooltip 组件
+// 🌟 抽离并加强的自定义 Tooltip 组件
 // ==========================================
-export type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right';
-export type TooltipTrigger = 'hover' | 'click';
-export type TooltipAlign = 'start' | 'center' | 'end';
-
-export interface TooltipProps {
-    content: React.ReactNode;
-    children: React.ReactElement<any>;
-    placement?: TooltipPlacement;
-    trigger?: TooltipTrigger;
-    align?: TooltipAlign;
-    showArrow?: boolean;
-}
-
-const Tooltip: React.FC<TooltipProps> = ({
-    content,
-    children,
-    placement = 'top',
-    trigger = 'hover',
-    align = 'center',
-    showArrow = true,
-}) => {
-    const [visible, setVisible] = useState(false);
-    const [opacity, setOpacity] = useState(0);
-    const [position, setPosition] = useState({ left: -9999, top: -9999 });
-    const [arrowStyle, setArrowStyle] = useState<React.CSSProperties>({});
-
-    const timerRef = useRef<any>(null);
-    const tooltipRef = useRef<HTMLDivElement>(null);
-    const targetRef = useRef<HTMLElement | null>(null);
-
-    const showTooltip = () => {
-        if (!content) return;
-        if (trigger === 'hover') {
-            clearTimeout(timerRef.current);
-            timerRef.current = setTimeout(() => setVisible(true), 300);
-        } else {
-            setVisible(true);
-        }
-    };
-
-    const hideTooltip = () => {
-        clearTimeout(timerRef.current);
-        setVisible(false);
-        setOpacity(0);
-    };
-
-    const toggleTooltip = () => {
-        if (visible) hideTooltip();
-        else showTooltip();
-    };
-
-    useEffect(() => {
-        const handleOutsideClick = (e: MouseEvent) => {
-            if (
-                trigger === 'click' && 
-                visible &&
-                tooltipRef.current && !tooltipRef.current.contains(e.target as Node) &&
-                targetRef.current && !targetRef.current.contains(e.target as Node)
-            ) {
-                hideTooltip();
-            }
-        };
-
-        const handleScrollOrResize = () => {
-            if (visible) hideTooltip();
-        };
-
-        document.addEventListener('mousedown', handleOutsideClick);
-        window.addEventListener('wheel', handleScrollOrResize, { passive: true });
-        window.addEventListener('resize', handleScrollOrResize);
-
-        return () => {
-            document.removeEventListener('mousedown', handleOutsideClick);
-            window.removeEventListener('wheel', handleScrollOrResize);
-            window.removeEventListener('resize', handleScrollOrResize);
-        };
-    }, [visible, trigger]);
-
-    useLayoutEffect(() => {
-        if (visible && tooltipRef.current && targetRef.current && opacity === 0) {
-            const target = targetRef.current.getBoundingClientRect();
-            const tooltip = tooltipRef.current.getBoundingClientRect();
-            const gap = showArrow ? 8 : 4;
-
-            let actualPlacement = placement;
-
-            if (placement === 'top' && target.top - tooltip.height - gap < 0 && window.innerHeight - target.bottom > tooltip.height + gap) {
-                actualPlacement = 'bottom';
-            } 
-            else if (placement === 'bottom' && target.bottom + tooltip.height + gap > window.innerHeight && target.top > tooltip.height + gap) {
-                actualPlacement = 'top';
-            } 
-            else if (placement === 'left' && target.left - tooltip.width - gap < 0 && window.innerWidth - target.right > tooltip.width + gap) {
-                actualPlacement = 'right';
-            } 
-            else if (placement === 'right' && target.right + tooltip.width + gap > window.innerWidth && target.left > tooltip.width + gap) {
-                actualPlacement = 'left';
-            }
-
-            let x = 0;
-            let y = 0;
-
-            if (actualPlacement === 'top' || actualPlacement === 'bottom') {
-                y = actualPlacement === 'top' ? target.top - tooltip.height - gap : target.bottom + gap;
-                if (align === 'start') x = target.left;
-                else if (align === 'end') x = target.right - tooltip.width;
-                else x = target.left + target.width / 2 - tooltip.width / 2;
-            } else {
-                x = actualPlacement === 'left' ? target.left - tooltip.width - gap : target.right + gap;
-                if (align === 'start') y = target.top;
-                else if (align === 'end') y = target.bottom - tooltip.height;
-                else y = target.top + target.height / 2 - tooltip.height / 2;
-            }
-
-            const padding = 8;
-            if (x < padding) x = padding;
-            if (x + tooltip.width > window.innerWidth - padding) x = window.innerWidth - padding - tooltip.width;
-            if (y < padding) y = padding;
-            if (y + tooltip.height > window.innerHeight - padding) y = window.innerHeight - padding - tooltip.height;
-
-            setPosition({ left: x, top: y });
-
-            if (showArrow) {
-                const aStyle: React.CSSProperties = {
-                    position: 'absolute',
-                    width: '8px',
-                    height: '8px',
-                    backgroundColor: 'var(--vscode-editorHoverWidget-background)',
-                };
-                const arrowOffset = -4; 
-
-                if (actualPlacement === 'top' || actualPlacement === 'bottom') {
-                    let arrowX = (target.left + target.width / 2) - x;
-                    arrowX = Math.max(8, Math.min(tooltip.width - 8, arrowX));
-                    
-                    aStyle.left = arrowX;
-                    aStyle.transform = 'translateX(-50%) rotate(45deg)';
-
-                    if (actualPlacement === 'top') {
-                        aStyle.bottom = arrowOffset;
-                        aStyle.borderBottom = '1px solid var(--vscode-editorHoverWidget-border)';
-                        aStyle.borderRight = '1px solid var(--vscode-editorHoverWidget-border)';
-                    } else {
-                        aStyle.top = arrowOffset;
-                        aStyle.borderTop = '1px solid var(--vscode-editorHoverWidget-border)';
-                        aStyle.borderLeft = '1px solid var(--vscode-editorHoverWidget-border)';
-                    }
-                } else {
-                    let arrowY = (target.top + target.height / 2) - y;
-                    arrowY = Math.max(8, Math.min(tooltip.height - 8, arrowY));
-                    
-                    aStyle.top = arrowY;
-                    aStyle.transform = 'translateY(-50%) rotate(45deg)';
-
-                    if (actualPlacement === 'left') {
-                        aStyle.right = arrowOffset;
-                        aStyle.borderTop = '1px solid var(--vscode-editorHoverWidget-border)';
-                        aStyle.borderRight = '1px solid var(--vscode-editorHoverWidget-border)';
-                    } else {
-                        aStyle.left = arrowOffset;
-                        aStyle.borderBottom = '1px solid var(--vscode-editorHoverWidget-border)';
-                        aStyle.borderLeft = '1px solid var(--vscode-editorHoverWidget-border)';
-                    }
-                }
-                setArrowStyle(aStyle);
-            }
-
-            requestAnimationFrame(() => setOpacity(1));
-        }
-    }, [visible, opacity, placement, align, showArrow]);
-
-    const childProps = children.props as any;
-
-    return (
-        <>
-            {React.cloneElement(children, {
-                ref: (node: HTMLElement) => {
-                    targetRef.current = node;
-                    if (typeof childProps.ref === 'function') childProps.ref(node);
-                    else if (childProps.ref) childProps.ref.current = node;
-                },
-                onMouseEnter: (e: React.MouseEvent) => {
-                    if (trigger === 'hover') showTooltip();
-                    if (childProps.onMouseEnter) childProps.onMouseEnter(e);
-                },
-                onMouseLeave: (e: React.MouseEvent) => {
-                    if (trigger === 'hover') hideTooltip();
-                    if (childProps.onMouseLeave) childProps.onMouseLeave(e);
-                },
-                onClick: (e: React.MouseEvent) => {
-                    if (trigger === 'click') toggleTooltip();
-                    if (childProps.onClick) childProps.onClick(e);
-                },
-                title: undefined 
-            } as any)}
-            
-            {visible && (
-                <div
-                    ref={tooltipRef}
-                    style={{
-                        position: 'fixed',
-                        top: position.top,
-                        left: position.left,
-                        opacity: opacity,
-                        transition: 'opacity 0.15s ease-in-out',
-                        backgroundColor: 'var(--vscode-editorHoverWidget-background)',
-                        border: '1px solid var(--vscode-editorHoverWidget-border)',
-                        color: 'var(--vscode-editorHoverWidget-foreground)',
-                        padding: '4px 8px',
-                        borderRadius: '4px',
-                        fontSize: '12px',
-                        whiteSpace: 'nowrap',
-                        zIndex: 100000,
-                        pointerEvents: 'none',
-                        boxShadow: '0 2px 8px var(--vscode-widget-shadow)',
-                        boxSizing: 'border-box'
-                    }}
-                >
-                    {content}
-                    {showArrow && <div style={arrowStyle} />}
-                </div>
-            )}
-        </>
-    );
-};
+import Tooltip from '../components/Tooltip/index'; // 确保这里引用了你刚才抽离的 Tooltip 组件，如果路径不对请自己修改
 
 // ==========================================
 // 🌟 1:1 完美复刻 vscode-git-graph 底层引擎
@@ -498,7 +274,12 @@ export default function GitApp() {
     const [compareCommits, setCompareCommits] = useState<GraphCommit[]>([]);
     const [isCompareOpen, setIsCompareOpen] = useState(false);
 
+    // 🌟 新增状态：控制提交时是否跳过校验 (false = 开启校验，true = 跳过校验)
+    const [skipVerify, setSkipVerify] = useState(false);
+
     const [selectedGraphFilter, setSelectedGraphFilter] = useState('全部分支');
+    const filterRef = useRef('全部分支');
+    const [flashBranchBtn, setFlashBranchBtn] = useState(false);
 
     const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit, x: number, y: number, position: 'top' | 'bottom' } | null>(null);
     const hoverTimeoutRef = useRef<any>(null);
@@ -636,7 +417,14 @@ export default function GitApp() {
                 const commits = msg.graphCommits || [];
                 setGraphCommits(commits);
                 setDisplayCount(100);
-                if (msg.graphFilter) setSelectedGraphFilter(msg.graphFilter);
+                if (msg.graphFilter) {
+                    setSelectedGraphFilter(msg.graphFilter);
+                    if (filterRef.current !== msg.graphFilter) {
+                        setFlashBranchBtn(true);
+                        setTimeout(() => setFlashBranchBtn(false), 800);
+                        filterRef.current = msg.graphFilter;
+                    }
+                }
                 setIsGraphLoading(false);
             } else if (msg.type === 'commitFilesData') {
                 setCommitFiles(msg.files || []);
@@ -731,7 +519,8 @@ export default function GitApp() {
     const handleCommit = () => {
         if (!commitMsg.trim()) return;
         setLoading(true);
-        vscode.postMessage({ command: 'commit', message: commitMsg });
+        // 🌟 将 skipVerify 状态一起发给后台
+        vscode.postMessage({ command: 'commit', message: commitMsg, skipVerify });
         setCommitMsg('');
         if (textareaRef.current) textareaRef.current.style.height = '28px';
     };
@@ -1087,6 +876,16 @@ export default function GitApp() {
             <div className={styles['git-toolbar']}>
                 <span>Git 管理 ({branch})</span>
                 <div className={styles['git-actions']}>
+                    {/* 🌟 核心新增：校验开关按钮，默认开启（蓝色），点击关闭（变黑） */}
+                    <Tooltip content={!skipVerify ? "校验开启" : "校验关闭"}>
+                        <button 
+                            className={styles['icon-btn']} 
+                            onClick={() => setSkipVerify(!skipVerify)}
+                            style={{ color: !skipVerify ? '#3168d1' : 'inherit' }}
+                        >
+                            <i className="codicon codicon-shield" />
+                        </button>
+                    </Tooltip>
                     <Tooltip content="拉取 (Pull)">
                         <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'pull' })}>
                             <i className="codicon codicon-arrow-down" />
@@ -1299,9 +1098,17 @@ export default function GitApp() {
                                 className={styles['action-btn']}
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    vscode.postMessage({ command: 'changeGraphFilter' });
+                                    vscode.postMessage({ command: 'changeGraphFilter', current: selectedGraphFilter });
                                 }}
-                                style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                style={{
+                                    opacity: flashBranchBtn ? 1 : 0.8, 
+                                    width: '20px', height: '20px', 
+                                    display: 'flex', justifyContent: 'center',
+                                    backgroundColor: flashBranchBtn ? 'var(--vscode-button-background, #3168d1)' : 'transparent',
+                                    color: flashBranchBtn ? 'var(--vscode-button-foreground, #ffffff)' : 'inherit',
+                                    borderRadius: '3px',
+                                    transition: 'all 0.5s ease-out'
+                                }}
                             >
                                 <i className="codicon codicon-git-branch" />
                             </button>
