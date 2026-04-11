@@ -6,16 +6,12 @@ import { getReactWebviewHtml } from '../utils/WebviewHelper';
 export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   
-  // 核心拦截状态：记录是否是我们 Webview 发起的 Git 操作
   private _isInternalOp = false;
   private _internalOpTimer: NodeJS.Timeout | null = null;
   private _gitWatchers: vscode.Disposable[] = []; 
 
-  // 刷新并发锁与防抖定时器
   private _isRefreshing = false;
   private _debounceTimer: NodeJS.Timeout | null = null;
-
-  // 🌟 核心优化：缓存上一次的 Git 树状态指纹
   private _lastGraphState = '';
 
   constructor(private readonly _extensionUri: vscode.Uri) {
@@ -40,7 +36,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     vscode.workspace.registerTextDocumentContentProvider('quickops-git', gitDiffProvider);
   }
 
-  // 内部操作锁执行器
   private async executeGitOperation(operation: () => Promise<void> | void) {
     this._isInternalOp = true;
     if (this._internalOpTimer) clearTimeout(this._internalOpTimer);
@@ -54,9 +49,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // 设置全局 Git 监听器
   private async setupGitWatcher() {
-    // 1. 获取官方 Git 插件实例（不直接拿 exports）
     const gitExtension = vscode.extensions.getExtension('vscode.git');
     if (!gitExtension) {
         console.warn('未找到 VS Code 内置 Git 插件');
@@ -64,7 +57,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     }
 
     try {
-      // 🌟 2. 核心修复：如果还没激活，主动等待它激活！
         if (!gitExtension.isActive) {
             await gitExtension.activate();
         }
@@ -73,7 +65,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         return;
     }
 
-    // 3. 安全获取 API
     const gitApi = gitExtension.exports?.getAPI(1);
     if (!gitApi) return;
 
@@ -185,11 +176,16 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   description: b === msg.current ? '当前选择' : undefined,
                   branchName: b 
                 }));
+                
+                const prevActive = quickPick.activeItems[0]?.branchName;
                 quickPick.items = items;
                 
-                const currentItem = items.find(i => i.branchName === msg.current);
-                if (currentItem && quickPick.activeItems.length === 0) {
-                    quickPick.activeItems = [currentItem];
+                if (prevActive) {
+                    const newActive = items.find(i => i.branchName === prevActive);
+                    if (newActive) quickPick.activeItems = [newActive];
+                } else {
+                    const currentItem = items.find(i => i.branchName === msg.current);
+                    if (currentItem) quickPick.activeItems = [currentItem];
                 }
               };
 
@@ -201,7 +197,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   try {
                       await git.fetch(['--all', '--prune']);
                       await updateQuickPickItems();
-                } catch (e) { }
+                  } catch (e) {}
               }).finally(() => {
                   quickPick.busy = false; 
               });
@@ -287,25 +283,68 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
             
+          // 🌟 全新升级的对比分支功能：瞬间弹出 + 顶部蓝条后台静默刷新
           case 'requestCompare': {
             try {
+              // 1. 创建高级下拉菜单实例
+              const quickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { branchName: string }>();
+              quickPick.placeholder = '1/2: 请选择【基准分支】(Base Branch，支持远程分支)';
+              quickPick.matchOnDescription = true;
+
+              const updateQuickPickItems = async () => {
+                const branches = await git.branch(['-a']);
+                const branchNames = branches.all.filter(b => !b.includes('->'));
+                
+                // 记住用户的选中焦点，防止数据刷新时焦点乱跳
+                const prevActive = quickPick.activeItems[0]?.branchName;
+                const items = branchNames.map(b => ({ label: b, branchName: b }));
+                
+                quickPick.items = items;
+                if (prevActive) {
+                    const newActive = items.find(i => i.branchName === prevActive);
+                    if (newActive) quickPick.activeItems = [newActive];
+                }
+              };
+
+              // 瞬间加载并展示本地旧缓存
+              await updateQuickPickItems();
+              quickPick.show();
+
+              // 开启蓝条进度，并执行包含 prune 的后台静默拉取
+              quickPick.busy = true;
               this.executeGitOperation(async () => {
-                 await git.fetch(['--all', '--prune']).catch(() => {});
+                 try {
+                     await git.fetch(['--all', '--prune']);
+                     await updateQuickPickItems();
+                 } catch (e) {}
+              }).finally(() => {
+                 quickPick.busy = false;
               });
 
-              const branches = await git.branch(['-a']);
-              const branchNames = branches.all.filter(b => !b.includes('->')); 
-              
-              const baseBranch = await vscode.window.showQuickPick(branchNames, { 
-                placeHolder: '1/2: 请选择【基准分支】(Base Branch，支持远程分支)',
-                matchOnDescription: true
+              // 等待用户选择基准分支
+              const baseBranch = await new Promise<string | undefined>((resolve) => {
+                quickPick.onDidAccept(() => {
+                    const selection = quickPick.selectedItems[0];
+                    resolve(selection ? selection.branchName : undefined);
+                    quickPick.hide();
+                });
+                quickPick.onDidHide(() => {
+                    quickPick.dispose();
+                    resolve(undefined);
+                });
               });
+
               if (!baseBranch) return;
 
-              const targetBranch = await vscode.window.showQuickPick(branchNames.filter(b => b !== baseBranch), { 
+              // 2. 选择目标分支 (此时 fetch 通常已经完成，直接读取最新本地分支即可，使用原生简单的 showQuickPick 即可)
+              const branchesAfterFetch = await git.branch(['-a']);
+              const branchNamesAfterFetch = branchesAfterFetch.all.filter(b => !b.includes('->') && b !== baseBranch);
+
+              const targetBranch = await vscode.window.showQuickPick(branchNamesAfterFetch, { 
                 placeHolder: `2/2: 请选择【目标分支】(查看 ${baseBranch} 中没有的记录)`,
                 matchOnDescription: true
               });
+
               if (!targetBranch) return;
 
               const logOptions = {
@@ -331,7 +370,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             
           case 'commit':
             await this.executeGitOperation(async () => {
-              // 🌟 接收 skipVerify
                 await this.handleCommit(cwd, msg.message, msg.skipVerify);
             });
             break;
@@ -372,27 +410,23 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
-          // 🌟 核心新增：暂存全部
           case 'stageAll': {
             await this.executeGitOperation(async () => {
-                await git.add(['-A']); // 添加所有变更文件到暂存区
+                await git.add(['-A']);
                 await this.refreshStatus(cwd, false);
             });
             break;
           }
 
-          // 🌟 核心新增：取消暂存全部
           case 'unstageAll': {
             await this.executeGitOperation(async () => {
-                await git.reset(); // 重置所有已暂存文件
+                await git.reset(); 
                 await this.refreshStatus(cwd, false);
             });
             break;
           }
 
-          // 🌟 核心新增：放弃所有工作区更改
           case 'discardAll': {
-            // 安全拦截：弹窗要求用户确认不可逆操作
             const confirm = await vscode.window.showWarningMessage(
                 '您确定要放弃所有工作区的更改吗？此操作无法撤销。',
                 { modal: true },
@@ -401,8 +435,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             if (confirm !== '放弃更改') return;
 
             await this.executeGitOperation(async () => {
-                await git.checkout(['--', '.']); // 恢复所有 tracked 的文件
-                await git.clean('f', ['-d']); // 清理所有新增未被 tracked 的文件
+                await git.checkout(['--', '.']); 
+                await git.clean('f', ['-d']); 
                 await this.refreshStatus(cwd, false);
             });
             break;
@@ -481,7 +515,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 let existingContent = Buffer.alloc(0);
                 try {
                   existingContent = Buffer.from(await vscode.workspace.fs.readFile(gitignoreUri));
-              } catch (e) { }
+                } catch (e) {}
                 
                 const appendStr = existingContent.length > 0 ? `\n${msg.file}` : msg.file;
                 const appendContent = Buffer.from(appendStr, 'utf8');
@@ -514,10 +548,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private async refreshStatus(cwd: string, fullRefresh: boolean = true) {
     if (!this._view) return;
     
-    // 如果已经被锁住了，直接退出
     if (this._isRefreshing) return;
 
-    // 开始执行，立刻上锁
     this._isRefreshing = true;
 
     if (fullRefresh) this._view.webview.postMessage({ type: 'startLoading' });
@@ -559,12 +591,11 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       });
 
       if (fullRefresh) {
-        // 🌟 每次主动全量刷新时，同步更新指纹缓存
         try {
             const refs = await git.raw(['show-ref']).catch(() => '');
             const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
             this._lastGraphState = refs + head;
-        } catch (e) { }
+        } catch (e) {}
 
         const logOptions = {
           '--all': null,
@@ -591,12 +622,10 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       this._view.webview.postMessage({ type: 'statusData', stagedFiles: [], unstagedFiles: [], branch: '未初始化', remoteUrl: '' });
       if (fullRefresh) this._view.webview.postMessage({ type: 'graphData', graphCommits: [], graphFilter: '全部分支' });
     } finally {
-      // 🌟 最关键的一步：无论成功还是失败，最后一定要解锁！
       this._isRefreshing = false;
     }
   }
 
-  // 🌟 接收 skipVerify 参数
   private async handleCommit(cwd: string, message: string, skipVerify: boolean) {
     const git: SimpleGit = simpleGit(cwd);
     const status = await git.status();
@@ -606,10 +635,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       await git.add(['-A']);
     }
     
-    // 🌟 拼装提交配置
     const options: any = {};
     if (skipVerify) {
-      options['--no-verify'] = null; // 添加 --no-verify 标志
+        options['--no-verify'] = null; 
     }
     
     await git.commit(message, options);

@@ -1,0 +1,78 @@
+.empty-message {
+    padding: 8px;
+    text-align: center;
+    opacity: 0.6;
+    font-size: 12px;
+}
+
+.compare-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.compare-list-li {
+    border-bottom: 1px solid var(--vscode-panel-border);
+    padding: 0;
+}
+
+.compare-item {
+    display: flex;
+    align-items: flex-start;
+    padding: 4px 8px;
+    gap: 8px;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+.compare-item:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+/* 作者首字母头像 */
+.avatar {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: var(--vscode-button-background, #3168d1);
+    color: var(--vscode-button-foreground, #ffffff);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.message-container {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 提交信息文本截断 */
+.message {
+    font-size: 12px;
+    color: var(--vscode-foreground);
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 展开的变动文件包裹器 */
+.commit-files-wrapper {
+    margin-left: 28px;
+    margin-right: 8px;
+    margin-bottom: 4px;
+}
+
+.loading-text {
+    height: 24px;
+    display: flex;
+    align-items: center;
+    opacity: 0.6;
+    font-size: 11px;
+}

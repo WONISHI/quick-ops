@@ -9,6 +9,7 @@ import { faMarkdown, faHtml5, faCss3Alt, faVuejs, faJs } from '@fortawesome/free
 
 import Tooltip from '../components/Tooltip';
 import GitGraph, { type GraphCommit } from '../components/GitGraph';
+import GitCompareList from '../components/GitCompareList'; // 🌟 引入新抽离的组件
 
 export interface GitFile { status: string; file: string; }
 interface TreeNode { name: string; fullPath: string; isDirectory: boolean; children: TreeNode[]; file?: GitFile; }
@@ -477,8 +478,8 @@ export default function GitApp() {
                 <span>Git 管理 ({branch})</span>
                 <div className={styles['git-actions']}>
                     <Tooltip content={!skipVerify ? "校验开启" : "校验关闭"}>
-                        <button
-                            className={styles['icon-btn']}
+                        <button 
+                            className={styles['icon-btn']} 
                             onClick={() => setSkipVerify(!skipVerify)}
                             style={{ color: !skipVerify ? '#3168d1' : 'inherit' }}
                         >
@@ -487,12 +488,12 @@ export default function GitApp() {
                     </Tooltip>
                     <Tooltip content="拉取 (Pull)">
                         <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'pull' })}>
-                            <i className="codicon codicon-repo-pull" />
+                            <i className="codicon codicon-arrow-down" />
                         </button>
                     </Tooltip>
                     <Tooltip content="推送 (Push)">
                         <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'push' })}>
-                            <i className="codicon codicon-repo-push" />
+                            <i className="codicon codicon-arrow-up" />
                         </button>
                     </Tooltip>
                     <Tooltip content={viewMode === 'list' ? '以树状视图查看' : '以列表视图查看'}>
@@ -542,7 +543,7 @@ export default function GitApp() {
                                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                                     <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <i className="codicon codicon-git-branch-staged-changes" style={{ fontSize: '14px', width: '16px' }} />
+                                            <i className="codicon codicon-check" style={{ fontSize: '14px', width: '16px' }} />
                                             暂存区 <span className={styles['badge']}>{stagedFiles.length}</span>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -567,8 +568,8 @@ export default function GitApp() {
                             <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                                 <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                        <i className="codicon codicon-git-branch-changes" style={{ fontSize: '14px', width: '16px' }} />
-                                        工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
+                                       <i className="codicon codicon-file" style={{ fontSize: '14px', width: '16px' }} />
+                                       工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                                         {unstagedFiles.length > 0 && (
@@ -620,7 +621,7 @@ export default function GitApp() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
                             {compareBase === '文件历史' ? '文件历史' : '对比'}
-
+                            
                             {compareTarget && compareBase && (
                                 <span style={{ color: 'var(--vscode-textLink-foreground)', fontSize: '11px', maxWidth: '120px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={compareBase === '文件历史' ? `文件: ${compareTarget}` : `${compareTarget} ↔ ${compareBase}`}>
                                     {compareBase === '文件历史' ? `(${compareTarget})` : `(${compareTarget} ↔ ${compareBase})`}
@@ -628,7 +629,7 @@ export default function GitApp() {
                             )}
                             <span className={styles['badge']}>{compareCommits.length}</span>
                         </div>
-
+                        
                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                             <Tooltip content={activeFile ? `查看当前文件历史` : "查看当前文件历史 (请先打开文件)"}>
                                 <button
@@ -682,46 +683,17 @@ export default function GitApp() {
                         <div style={{ maxHeight: '30vh', overflowY: 'auto', paddingBottom: '4px' }}>
                             {(!compareTarget || !compareBase) ? (
                                 <div className={styles['empty-message']}>点击右上角图标选择分支或查看文件历史</div>
-                            ) : compareCommits.length === 0 ? (
-                                <div className={styles['empty-message']}>没有记录</div>
                             ) : (
-                                <ul className={styles['file-list']} style={{ padding: 0, margin: 0 }}>
-                                    {compareCommits.map(c => (
-                                        <li key={c.hash} style={{ borderBottom: '1px solid var(--vscode-panel-border)', padding: 0 }}>
-                                            <div
-                                                className={styles['file-item']}
-                                                style={{ height: 'auto', padding: '4px 8px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}
-                                                onClick={() => toggleCommit(c.hash)}
-                                            >
-                                                <div style={{
-                                                    width: '16px', height: '16px', borderRadius: '50%',
-                                                    backgroundColor: 'var(--vscode-button-background, #3168d1)',
-                                                    color: 'var(--vscode-button-foreground, #ffffff)',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    fontSize: '10px', fontWeight: 'bold', flexShrink: 0, marginTop: '2px'
-                                                }}>
-                                                    {c.author[0].toUpperCase()}
-                                                </div>
-
-                                                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                                                    <div style={{ fontSize: '12px', color: 'var(--vscode-foreground)', lineHeight: '1.4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                        {c.message}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {activeCommitHash === c.hash && (
-                                                <div className={styles['commit-files-wrapper']} style={{ marginLeft: '28px', marginRight: '8px', marginBottom: '4px' }}>
-                                                    {(commitFilesLoading || loadedCommitHash !== c.hash) ? (
-                                                        <div style={{ height: '24px', display: 'flex', alignItems: 'center', opacity: 0.6, fontSize: '11px' }}>
-                                                            <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} /> 加载变动文件...
-                                                        </div>
-                                                    ) : renderFileList(commitFiles, 'history')}
-                                                </div>
-                                            )}
-                                        </li>
-                                    ))}
-                                </ul>
+                                /* 🌟 接入抽离后的组件 GitCompareList */
+                                <GitCompareList
+                                    commits={compareCommits}
+                                    activeCommitHash={activeCommitHash}
+                                    loadedCommitHash={loadedCommitHash}
+                                    commitFilesLoading={commitFilesLoading}
+                                    commitFiles={commitFiles}
+                                    onCommitClick={toggleCommit}
+                                    renderCommitFiles={(files) => renderFileList(files, 'history')}
+                                />
                             )}
                         </div>
                     )}
@@ -739,7 +711,6 @@ export default function GitApp() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        {/* 🌟 过滤选择器 (已改成纯图标按钮) */}
                         <Tooltip content={`筛选分支 (当前: ${selectedGraphFilter})`}>
                             <button
                                 className={styles['action-btn']}
@@ -748,8 +719,8 @@ export default function GitApp() {
                                     vscode.postMessage({ command: 'changeGraphFilter', current: selectedGraphFilter });
                                 }}
                                 style={{
-                                    opacity: flashBranchBtn ? 1 : 0.8,
-                                    width: '20px', height: '20px',
+                                    opacity: flashBranchBtn ? 1 : 0.8, 
+                                    width: '20px', height: '20px', 
                                     display: 'flex', justifyContent: 'center',
                                     backgroundColor: flashBranchBtn ? 'var(--vscode-button-background, #3168d1)' : 'transparent',
                                     color: flashBranchBtn ? 'var(--vscode-button-foreground, #ffffff)' : 'inherit',
@@ -786,7 +757,7 @@ export default function GitApp() {
                     ) : graphCommits.length === 0 ? (
                         <div className={styles['git-graph-fallback']}>暂无记录</div>
                     ) : (
-                        < GitGraph
+                        <GitGraph 
                             graphCommits={graphCommits}
                             displayCount={displayCount}
                             setDisplayCount={setDisplayCount}
