@@ -20,7 +20,7 @@ const ROW_HEIGHT = 24;
 const CY = 12;
 
 // ==========================================
-// 🌟 抽离并加强的自定义 Tooltip 组件
+// 抽离并加强的自定义 Tooltip 组件
 // ==========================================
 export type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right';
 export type TooltipTrigger = 'hover' | 'click';
