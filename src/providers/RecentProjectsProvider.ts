@@ -207,6 +207,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'updateSingleBranch':
           this.updateSingleBranch(data.fsPath);
           break;
+        case 'openFileInNewTab':
+          // 在后端使用 preview: false 来确保是以固定新标签页打开
+          this.openFileReadOnly(data.fsPath, data.projectName || '未知项目', vscode.ViewColumn.Active, false);
+          break;
         case 'revealInExplorer':
           try {
             let uri: vscode.Uri;
@@ -596,7 +600,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async openFileReadOnly(fsPath: string, projectName: string, viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active) {
+  // 🌟 修改：在参数列表最后增加 preview: boolean = true
+  private async openFileReadOnly(
+    fsPath: string,
+    projectName: string,
+    viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active,
+    preview: boolean = true
+  ) {
     try {
       const originalUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const fileName = originalUri.path.split(/[\\/]/).pop() || 'unknown';
@@ -609,7 +619,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       const doc = await vscode.workspace.openTextDocument(roUri);
-      await vscode.window.showTextDocument(doc, { preview: true, viewColumn });
+
+      // 🌟 修改：使用传进来的 preview 变量，而不是写死 true
+      await vscode.window.showTextDocument(doc, { preview, viewColumn });
     } catch (e) {
       vscode.window.showErrorMessage('无法打开该文件预览。');
     }

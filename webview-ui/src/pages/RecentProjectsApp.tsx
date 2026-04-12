@@ -211,6 +211,10 @@ export default function RecentProjectsApp() {
       case 'revealInExplorer': vscode.postMessage({ type: 'revealInExplorer', fsPath: arg || payload.path }); break;
       case 'delete': vscode.postMessage({ type: 'removeProject', fsPath: payload.path }); break;
       case 'openFileToSide': vscode.postMessage({ type: 'openFileToSide', fsPath: payload.path, projectName: payload.projectName }); break;
+      
+      // 🌟 1. 新增：处理在新标签页打开的 action
+      case 'openFileInNewTab': vscode.postMessage({ type: 'openFileInNewTab', fsPath: payload.path, projectName: payload.projectName }); break;
+      
       case 'updateBranch': vscode.postMessage({ type: 'updateSingleBranch', fsPath: payload.path }); break;
       case 'selectForCompare': vscode.postMessage({ type: 'selectForCompare', fsPath: payload.path, projectName: payload.projectName }); break;
       case 'compareWithSelected': vscode.postMessage({ type: 'compareWithSelected', fsPath: payload.path, projectName: payload.projectName }); break;
@@ -220,7 +224,6 @@ export default function RecentProjectsApp() {
   // ----------- 渲染子树组件 -----------
   const renderTreeChildren = (parentId: string, projectName: string) => {
     const children = dirChildren[parentId];
-    console.log(children)
     if (loadingNodes.has(parentId)) {
       return <div className="empty-node"><FontAwesomeIcon icon={faSpinner} spin /> 加载中...</div>;
     }
@@ -373,7 +376,9 @@ export default function RecentProjectsApp() {
               <>
                 {!contextMenu.payload.isFolder && (
                   <>
-                    <li onClick={() => executeMenuAction('openFileToSide')}><FontAwesomeIcon icon={faColumns} className="menu-icon"/> 在侧边打开</li>
+                    {/* 🌟 2. 添加具体的 UI 菜单项 */}
+                    <li onClick={() => executeMenuAction('openFileToSide')}><FontAwesomeIcon icon={faColumns} className="menu-icon"/> 向右拆分</li>
+                    <li onClick={() => executeMenuAction('openFileInNewTab')}><FontAwesomeIcon icon={faArrowUpRightFromSquare} className="menu-icon"/> 在新标签页打开</li>
                     <li onClick={() => executeMenuAction('copyFile')}><FontAwesomeIcon icon={faCopy} className="menu-icon"/> 复制文件</li>
                     <div className="menu-separator"></div>
                     <li onClick={() => executeMenuAction('selectForCompare')}><FontAwesomeIcon icon={faSquareCheck} className="menu-icon"/> 选择以进行比较</li>
@@ -426,7 +431,6 @@ export default function RecentProjectsApp() {
                const title = p.customName || p.name;
                const displayPath = getDisplayPath(p);
                const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
-               console.log('p',p)
                const branch = branchMap[p.fsPath] || p.branch;
 
                return (
