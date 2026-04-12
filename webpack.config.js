@@ -31,7 +31,11 @@ const extensionConfig = {
     libraryTarget: 'commonjs',
   },
   externalsPresets: { node: true },
-  externals: { vscode: 'commonjs vscode' },
+  externals: { 
+    vscode: 'commonjs vscode',
+    bufferutil: 'bufferutil',
+    'utf-8-validate': 'utf-8-validate', 
+  },
   cache: {
     type: 'filesystem',
   },

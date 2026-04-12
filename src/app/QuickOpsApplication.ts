@@ -31,6 +31,7 @@ import { TerminalFeature } from '../features/TerminalFeature';
 import { ComponentIntellisenseFeature } from '../features/ComponentIntellisenseFeature';
 import { TextCompareFeature } from '../features/TextCompareFeature';
 import { GitFeature } from '../features/GitFeature';
+import { ZeroConfigConsoleFeature } from '../features/InlineConsoleFeature'
 
 export class QuickOpsApplication {
   private context: vscode.ExtensionContext;
@@ -79,6 +80,7 @@ export class QuickOpsApplication {
       new ComponentIntellisenseFeature(),
       new TextCompareFeature(),
       new GitFeature(),
+      new ZeroConfigConsoleFeature()
     ];
 
     for (const feature of this.features) {
