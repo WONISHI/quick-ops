@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import * as https from 'https';
 import * as path from 'path';
+import * as fs from 'fs';
+import * as readline from 'readline';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
 
 export class ReadOnlyContentProvider implements vscode.TextDocumentContentProvider {
@@ -67,7 +69,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private lastOpenedPath: string = '';
   private dirCache = new Map<string, any[]>();
 
-  // 🌟 新增全局对比状态变量
   private selectedForCompareUri?: vscode.Uri;
   private selectedForCompareName?: string;
 
@@ -75,7 +76,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.recordCurrentProject();
   }
 
-  // ================= 🌟 对比功能核心代码 =================
   private getReadOnlyUri(fsPath: string, projectName: string): vscode.Uri {
     const originalUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
     const fileName = originalUri.path.split(/[\\/]/).pop() || 'unknown';
@@ -120,7 +120,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     await vscode.commands.executeCommand('vscode.diff', this.selectedForCompareUri, currentUri, title);
   }
 
-  // ================= 🌟 原有核心逻辑 =================
   public refresh() {
     this.updateWebview();
   }
@@ -204,12 +203,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'openFileToSide':
           this.openFileReadOnly(data.fsPath, data.projectName || '未知项目', vscode.ViewColumn.Beside);
           break;
+        case 'openFileInNewTab':
+          this.openFileReadOnly(data.fsPath, data.projectName || '未知项目', vscode.ViewColumn.Active, false);
+          break;
         case 'updateSingleBranch':
           this.updateSingleBranch(data.fsPath);
-          break;
-        case 'openFileInNewTab':
-          // 在后端使用 preview: false 来确保是以固定新标签页打开
-          this.openFileReadOnly(data.fsPath, data.projectName || '未知项目', vscode.ViewColumn.Active, false);
           break;
         case 'revealInExplorer':
           try {
@@ -224,16 +222,137 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             vscode.window.showErrorMessage(`在资源管理器中定位失败: ${e}`);
           }
           break;
-
-        // 🌟 增加对比消息监听
         case 'selectForCompare':
           this.selectForCompare(data.fsPath, data.projectName);
           break;
         case 'compareWithSelected':
           this.compareWithSelected(data.fsPath, data.projectName);
           break;
+
+        // 🌟 核心新增：监听来自前端的文件夹内容检索请求
+        case 'searchInFolder':
+          this.handleSearchInFolder(data.fsPath, data.query, data.isRemote);
+          break;
+        // 🌟 核心新增：点击搜索记录打开特定文件并跳转到指定行
+        case 'openFileAtLine': {
+          try {
+            const fileUri = vscode.Uri.file(data.fsPath);
+            const doc = await vscode.workspace.openTextDocument(fileUri);
+            const editor = await vscode.window.showTextDocument(doc);
+            const position = new vscode.Position(Math.max(0, data.line - 1), 0);
+            editor.selection = new vscode.Selection(position, position);
+            editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+          } catch (e) { }
+          break;
+        }
       }
     });
+  }
+
+  // 🌟 核心修复：处理 file:// 协议的前缀转换问题
+  private async handleSearchInFolder(fsPath: string, query: string, isRemote: boolean) {
+    if (isRemote) {
+      this._view?.webview.postMessage({ type: 'searchFolderResult', results: [], error: '由于网络限制，远程仓库暂不支持全文代码检索，请在本地打开该项目后再尝试。' });
+      return;
+    }
+
+    const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+    const nativePath = uri.fsPath;
+
+    if (!query.trim() || !fs.existsSync(nativePath)) {
+      this._view?.webview.postMessage({ type: 'searchFolderResult', results: [] });
+      return;
+    }
+
+    const results: any[] = [];
+    const maxResults = 200;
+    let currentResults = 0;
+
+    // 🌟 使用对标 VS Code 的增强排除列表
+    const IGNORE_DIRS = new Set([
+      'node_modules', 'bower_components', 'vendor',
+      '.git', '.svn', '.hg', 'CVS', '.vscode', '.idea',
+      'dist', 'build', 'out', 'coverage', '.next', '.nuxt', '.cache'
+    ]);
+
+    const BINARY_EXTS = new Set([
+      '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.webp', '.bmp', '.tif', '.tiff',
+      '.woff', '.woff2', '.ttf', '.eot', '.otf',
+      '.mp4', '.mp3', '.wav', '.ogg', '.webm', '.mov', '.avi',
+      '.pdf', '.zip', '.tar', '.gz', '.7z', '.rar', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+      '.exe', '.dll', '.so', '.dylib', '.class', '.jar', '.bin', '.DS_Store', 'Thumbs.db', '.pyc', '.o'
+    ]);
+
+    const searchRecursive = async (dir: string) => {
+      if (currentResults >= maxResults) return;
+      try {
+        let entries;
+        try {
+          entries = await fs.promises.readdir(dir, { withFileTypes: true });
+        } catch (e) { return; }
+
+        for (const entry of entries) {
+          if (currentResults >= maxResults) break;
+
+          // 拦截系统隐藏文件如 .DS_Store 或者配置的忽略文件夹
+          if (IGNORE_DIRS.has(entry.name) || entry.name === '.DS_Store' || entry.name === 'Thumbs.db') continue;
+
+          const fullPath = path.join(dir, entry.name);
+
+          if (entry.isDirectory()) {
+            await searchRecursive(fullPath);
+          } else if (entry.isFile()) {
+            const ext = path.extname(entry.name).toLowerCase();
+            if (BINARY_EXTS.has(ext)) continue;
+
+            try {
+              const stat = await fs.promises.stat(fullPath);
+              if (stat.size > 2 * 1024 * 1024) continue; // 忽略 > 2MB 的文件
+            } catch (e) { continue; }
+
+            const fileMatches = [];
+            let lineNum = 1;
+            const fileStream = fs.createReadStream(fullPath, { encoding: 'utf8' });
+            const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+
+            try {
+              for await (const line of rl) {
+                if (line.toLowerCase().includes(query.toLowerCase())) {
+                  fileMatches.push({
+                    line: lineNum,
+                    text: line.trim().substring(0, 300)
+                  });
+                  currentResults++;
+                  if (currentResults >= maxResults) {
+                    rl.close();
+                    break;
+                  }
+                }
+                lineNum++;
+              }
+            } catch (e) { }
+
+            if (fileMatches.length > 0) {
+              const relativePath = path.relative(nativePath, fullPath).replace(/\\/g, '/');
+              results.push({
+                file: relativePath,
+                fullPath: fullPath,
+                matches: fileMatches
+              });
+            }
+          }
+        }
+      } catch (e) { }
+    };
+
+    await vscode.window.withProgress({
+      location: vscode.ProgressLocation.Window,
+      title: 'Quick Ops: 正在检索文件夹内容...'
+    }, async () => {
+      await searchRecursive(nativePath);
+    });
+
+    this._view?.webview.postMessage({ type: 'searchFolderResult', results });
   }
 
   private async copyFileEntity(fsPath: string) {
@@ -471,13 +590,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       await new Promise(resolve => setTimeout(resolve, 5));
     }
 
-    // 全部处理完毕后再统一保存
     if (stateChanged) {
       await this.context.globalState.update(this.stateKey, projects);
     }
   }
 
-  public async updateSingleBranch(fsPath: string) {
+  public async updateSingleBranch(fsPath: string, silent: boolean = false) {
     let projects = this.getRecentProjects();
     const index = projects.findIndex((p) => p.fsPath === fsPath);
     if (index === -1) return;
@@ -485,73 +603,82 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const p = projects[index];
     const displayName = p.customName || p.name;
 
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Window,
-        title: `Quick Ops: 正在更新 [${displayName}] 的分支信息...`,
-      },
-      async () => {
-        let newBranch: string | undefined = undefined;
+    const fetchTask = async () => {
+      let newBranch: string | undefined = undefined;
 
-        if (p.fsPath.startsWith('vscode-vfs://') || p.fsPath.startsWith('http')) {
-          const match = p.fsPath.match(/[?&]ref=([^&]+)/);
-          if (match) {
-            newBranch = match[1];
-          } else {
-            let repoFullName = '';
-            if (p.fsPath.startsWith('vscode-vfs://')) {
-              repoFullName = p.fsPath.split('?')[0].replace('vscode-vfs://github/', '').replace('vscode-vfs://gitlab/', '');
-            } else if (p.fsPath.startsWith('http')) {
-              try {
-                const url = new URL(p.fsPath);
-                repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
-              } catch (e) { }
-            }
-            if (repoFullName) {
-              newBranch = await this.fetchDefaultBranch(p.platform || 'github', p.customDomain || '', repoFullName);
-            }
-          }
+      if (p.fsPath.startsWith('vscode-vfs://') || p.fsPath.startsWith('http')) {
+        const match = p.fsPath.match(/[?&]ref=([^&]+)/);
+        if (match) {
+          newBranch = match[1];
         } else {
-          try {
-            const baseUri = p.fsPath.includes('://') ? vscode.Uri.parse(p.fsPath) : vscode.Uri.file(p.fsPath);
-            let gitPath = vscode.Uri.joinPath(baseUri, '.git');
-
-            const stat = await vscode.workspace.fs.stat(gitPath);
-
-            if (stat.type === vscode.FileType.File) {
-              const fileBytes = await vscode.workspace.fs.readFile(gitPath);
-              const fileContent = Buffer.from(fileBytes).toString('utf8').trim();
-              if (fileContent.startsWith('gitdir: ')) {
-                const realGitDir = fileContent.replace('gitdir: ', '').trim();
-                const realGitDirPath = path.isAbsolute(realGitDir)
-                  ? realGitDir
-                  : path.join(baseUri.fsPath, realGitDir);
-                gitPath = vscode.Uri.file(realGitDirPath);
-              }
-            }
-
-            const headUri = vscode.Uri.joinPath(gitPath, 'HEAD');
-            const contentBytes = await vscode.workspace.fs.readFile(headUri);
-            const content = Buffer.from(contentBytes).toString('utf8').trim();
-
-            newBranch = content.startsWith('ref: ')
-              ? content.replace(/^ref:\s*refs\/heads\//, '')
-              : content.substring(0, 7);
-          } catch (e) {
-            newBranch = undefined;
+          let repoFullName = '';
+          if (p.fsPath.startsWith('vscode-vfs://')) {
+            repoFullName = p.fsPath.split('?')[0].replace('vscode-vfs://github/', '').replace('vscode-vfs://gitlab/', '');
+          } else if (p.fsPath.startsWith('http')) {
+            try {
+              const url = new URL(p.fsPath);
+              repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
+            } catch (e) { }
+          }
+          if (repoFullName) {
+            newBranch = await this.fetchDefaultBranch(p.platform || 'github', p.customDomain || '', repoFullName);
           }
         }
+      } else {
+        try {
+          const baseUri = p.fsPath.includes('://') ? vscode.Uri.parse(p.fsPath) : vscode.Uri.file(p.fsPath);
+          let gitPath = vscode.Uri.joinPath(baseUri, '.git');
 
-        this._view?.webview.postMessage({ type: 'updateBranchTag', fsPath: p.fsPath, branch: newBranch });
+          const stat = await vscode.workspace.fs.stat(gitPath);
 
-        if (p.branch !== newBranch) {
-          projects[index].branch = newBranch;
-          await this.context.globalState.update(this.stateKey, projects);
+          if (stat.type === vscode.FileType.File) {
+            const fileBytes = await vscode.workspace.fs.readFile(gitPath);
+            const fileContent = Buffer.from(fileBytes).toString('utf8').trim();
+            if (fileContent.startsWith('gitdir: ')) {
+              const realGitDir = fileContent.replace('gitdir: ', '').trim();
+              const realGitDirPath = path.isAbsolute(realGitDir)
+                ? realGitDir
+                : path.join(baseUri.fsPath, realGitDir);
+              gitPath = vscode.Uri.file(realGitDirPath);
+            }
+          }
+
+          const headUri = vscode.Uri.joinPath(gitPath, 'HEAD');
+          const contentBytes = await vscode.workspace.fs.readFile(headUri);
+          const content = Buffer.from(contentBytes).toString('utf8').trim();
+
+          newBranch = content.startsWith('ref: ')
+            ? content.replace(/^ref:\s*refs\/heads\//, '')
+            : content.substring(0, 7);
+        } catch (e) {
+          newBranch = undefined;
         }
       }
-    );
 
-    vscode.window.showInformationMessage(`🎉 项目 [${displayName}] 的分支更新成功！`);
+      this._view?.webview.postMessage({ type: 'updateBranchTag', fsPath: p.fsPath, branch: newBranch });
+
+      if (p.branch !== newBranch) {
+        const currentProjects = this.getRecentProjects();
+        const currentIndex = currentProjects.findIndex((cp) => cp.fsPath === fsPath);
+        if (currentIndex > -1) {
+          currentProjects[currentIndex].branch = newBranch;
+          await this.context.globalState.update(this.stateKey, currentProjects);
+        }
+      }
+    };
+
+    if (silent) {
+      fetchTask().catch(() => { });
+    } else {
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Window,
+          title: `Quick Ops: 正在更新 [${displayName}] 的分支信息...`,
+        },
+        fetchTask
+      );
+      vscode.window.showInformationMessage(`🎉 项目 [${displayName}] 的分支更新成功！`);
+    }
   }
 
   private async editProjectName(fsPath: string) {
@@ -600,13 +727,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // 🌟 修改：在参数列表最后增加 preview: boolean = true
-  private async openFileReadOnly(
-    fsPath: string,
-    projectName: string,
-    viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active,
-    preview: boolean = true
-  ) {
+  private async openFileReadOnly(fsPath: string, projectName: string, viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active, preview: boolean = true) {
     try {
       const originalUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const fileName = originalUri.path.split(/[\\/]/).pop() || 'unknown';
@@ -619,8 +740,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       const doc = await vscode.workspace.openTextDocument(roUri);
-
-      // 🌟 修改：使用传进来的 preview 变量，而不是写死 true
       await vscode.window.showTextDocument(doc, { preview, viewColumn });
     } catch (e) {
       vscode.window.showErrorMessage('无法打开该文件预览。');
@@ -779,16 +898,17 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (!folders || folders.length === 0) return;
 
     const currentUriStr = folders[0].uri.toString();
+    const currentBaseUri = currentUriStr.split('?')[0];
+
     const allProjects = this.getRecentProjects();
+    const existingProject = allProjects.find((p) => p.fsPath.split('?')[0] === currentBaseUri);
+    let projects = allProjects.filter((p) => p.fsPath.split('?')[0] !== currentBaseUri);
 
-    // 🌟 核心修复：先找出是否已经存在该项目的旧记录
-    const existingProject = allProjects.find((p) => p.fsPath === currentUriStr);
-    let projects = allProjects.filter((p) => p.fsPath !== currentUriStr);
+    const finalFsPath = existingProject ? existingProject.fsPath : currentUriStr;
 
-    // 🌟 核心修复：在 unshift 插入时，把旧记录的额外属性（branch, customName等）继承过来
     projects.unshift({
       name: folders[0].name,
-      fsPath: currentUriStr,
+      fsPath: finalFsPath,
       timestamp: Date.now(),
       branch: existingProject?.branch,
       customName: existingProject?.customName,
@@ -800,16 +920,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     await this.context.globalState.update(this.stateKey, projects);
     if (this._view) this.updateWebview();
+
+    this.updateSingleBranch(finalFsPath, true);
   }
 
   private async insertProjectToHistory(name: string, uriStr: string, platform?: 'github' | 'gitlab', customDomain?: string) {
     const allProjects = this.getRecentProjects();
 
-    // 🌟 核心修复：找出是否已经存在该项目的旧记录
     const existingProject = allProjects.find((p) => p.fsPath === uriStr);
     let projects = allProjects.filter((p) => p.fsPath !== uriStr);
 
-    // 🌟 核心修复：继承旧数据
     projects.unshift({
       name,
       fsPath: uriStr,
