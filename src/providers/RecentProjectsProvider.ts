@@ -767,9 +767,23 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (!folders || folders.length === 0) return;
 
     const currentUriStr = folders[0].uri.toString();
-    let projects = this.getRecentProjects().filter((p) => p.fsPath !== currentUriStr);
+    const allProjects = this.getRecentProjects();
 
-    projects.unshift({ name: folders[0].name, fsPath: currentUriStr, timestamp: Date.now() });
+    // 🌟 核心修复：先找出是否已经存在该项目的旧记录
+    const existingProject = allProjects.find((p) => p.fsPath === currentUriStr);
+    let projects = allProjects.filter((p) => p.fsPath !== currentUriStr);
+
+    // 🌟 核心修复：在 unshift 插入时，把旧记录的额外属性（branch, customName等）继承过来
+    projects.unshift({
+      name: folders[0].name,
+      fsPath: currentUriStr,
+      timestamp: Date.now(),
+      branch: existingProject?.branch,
+      customName: existingProject?.customName,
+      platform: existingProject?.platform,
+      customDomain: existingProject?.customDomain
+    });
+
     if (projects.length > 50) projects = projects.slice(0, 50);
 
     await this.context.globalState.update(this.stateKey, projects);
@@ -777,8 +791,22 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private async insertProjectToHistory(name: string, uriStr: string, platform?: 'github' | 'gitlab', customDomain?: string) {
-    let projects = this.getRecentProjects().filter((p) => p.fsPath !== uriStr);
-    projects.unshift({ name, fsPath: uriStr, timestamp: Date.now(), platform, customDomain });
+    const allProjects = this.getRecentProjects();
+
+    // 🌟 核心修复：找出是否已经存在该项目的旧记录
+    const existingProject = allProjects.find((p) => p.fsPath === uriStr);
+    let projects = allProjects.filter((p) => p.fsPath !== uriStr);
+
+    // 🌟 核心修复：继承旧数据
+    projects.unshift({
+      name,
+      fsPath: uriStr,
+      timestamp: Date.now(),
+      platform: platform || existingProject?.platform,
+      customDomain: customDomain || existingProject?.customDomain,
+      branch: existingProject?.branch,
+      customName: existingProject?.customName
+    });
 
     if (projects.length > 50) projects = projects.slice(0, 50);
     await this.context.globalState.update(this.stateKey, projects);

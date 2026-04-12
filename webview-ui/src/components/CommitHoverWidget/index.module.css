@@ -1,10 +1,7 @@
-/* src/assets/css/CommitHoverWidget.module.css */
-
 .commit-hover-widget {
     position: fixed;
     z-index: 10000;
     width: max-content;
-    /* 🌟 修改这里：最大宽度限制为视口宽度的 85% */
     max-width: 85vw;
     max-height: 40vh;
     overflow-y: auto;
@@ -24,7 +21,6 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    /* 🌟 核心修复 3：作者名字或时间太长时，允许折行 */
     gap: 8px;
     margin-bottom: 8px;
 }
