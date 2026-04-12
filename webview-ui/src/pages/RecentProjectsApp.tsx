@@ -9,7 +9,7 @@ import {
   faFileCode
 } from '@fortawesome/free-solid-svg-icons';
 import { 
-  faCopy, faSquareCheck, faClone, faImage, faFolderOpen as faFolderOpenReg 
+  faCopy, faSquareCheck, faClone, faImage, faFolderOpen as faFolderOpenReg, faWindowRestore 
 } from '@fortawesome/free-regular-svg-icons';
 import { 
   faGithub, faGitlab, faJs, faVuejs, faHtml5, faCss3Alt, faMarkdown 
@@ -378,7 +378,7 @@ export default function RecentProjectsApp() {
                   <>
                     {/* 🌟 2. 添加具体的 UI 菜单项 */}
                     <li onClick={() => executeMenuAction('openFileToSide')}><FontAwesomeIcon icon={faColumns} className="menu-icon"/> 向右拆分</li>
-                    <li onClick={() => executeMenuAction('openFileInNewTab')}><FontAwesomeIcon icon={faArrowUpRightFromSquare} className="menu-icon"/> 在新标签页打开</li>
+                    <li onClick={() => executeMenuAction('openFileInNewTab')}><FontAwesomeIcon icon={faWindowRestore} className="menu-icon"/> 在新标签页打开</li>
                     <li onClick={() => executeMenuAction('copyFile')}><FontAwesomeIcon icon={faCopy} className="menu-icon"/> 复制文件</li>
                     <div className="menu-separator"></div>
                     <li onClick={() => executeMenuAction('selectForCompare')}><FontAwesomeIcon icon={faSquareCheck} className="menu-icon"/> 选择以进行比较</li>
