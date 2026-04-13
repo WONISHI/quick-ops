@@ -700,6 +700,34 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'createBranch': {
+            try {
+              // 1. 弹出输入框让用户输入新分支名
+              const newBranchName = await vscode.window.showInputBox({
+                prompt: '请输入新分支的名称',
+                placeHolder: '例如: feature/new-login',
+                validateInput: (text) => {
+                  if (text.trim().length === 0) return '分支名称不能为空';
+                  if (/\s/.test(text)) return '分支名称不能包含空格';
+                  return null;
+                }
+              });
+
+              if (!newBranchName) return; // 用户取消了输入
+
+              // 2. 执行 Git 命令创建并切换分支
+              await this.executeGitOperation(async () => {
+                // checkoutLocalBranch 等同于 git checkout -b <name>
+                await git.checkoutLocalBranch(newBranchName);
+                vscode.window.showInformationMessage(`✅ 已成功创建并切换到新分支: ${newBranchName}`);
+                await this.refreshStatus(cwd, true);
+              });
+            } catch (e: any) {
+              vscode.window.showErrorMessage(`创建新分支失败: ${e.message}`);
+            }
+            break;
+          }
+
           case 'openExternal':
             vscode.env.openExternal(vscode.Uri.parse(msg.url));
             break;

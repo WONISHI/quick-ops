@@ -582,7 +582,8 @@ export default function GitApp() {
                                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                                     <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <i className="codicon codicon-git-branch-staged-changes" style={{ fontSize: '14px', width: '16px' }} />
+                                            {/* 🌟 修复 1：暂存区图标替换为 git-pull-request-done */}
+                                            <i className="codicon codicon-git-pull-request-done" style={{ fontSize: '14px', width: '16px' }} />
                                             暂存区 <span className={styles['badge']}>{stagedFiles.length}</span>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -755,6 +756,19 @@ export default function GitApp() {
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 
+                        <Tooltip content="新建本地分支">
+                            <button
+                                className={styles['action-btn']}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    vscode.postMessage({ command: 'createBranch' }); // 👈 这里改成 createBranch
+                                }}
+                                style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                            >
+                                <i className="codicon codicon-git-branch-staged-changes" />
+                            </button>
+                        </Tooltip>
+
                         <Tooltip content="切换分支 (Checkout)">
                             <button
                                 className={styles['action-btn']}
@@ -812,7 +826,8 @@ export default function GitApp() {
                                     transition: 'all 0.5s ease-out'
                                 }}
                             >
-                                <i className="codicon codicon-git-branch" />
+                                {/* 🌟 修复 3：筛选分支图标替换为 filter */}
+                                <i className="codicon codicon-filter" />
                             </button>
                         </Tooltip>
 
@@ -852,7 +867,6 @@ export default function GitApp() {
                             branch={branch}
                             onCommitClick={toggleCommit}
                             remoteUrl={remoteUrl}
-                            /* 🌟 核心修改 2：把开关状态传给 GitGraph 组件 */
                             isSearchOpen={isGraphSearchOpen}
                             setIsSearchOpen={setIsGraphSearchOpen}
                             renderCommitFiles={(files) => renderFileList(files, 'history')}
