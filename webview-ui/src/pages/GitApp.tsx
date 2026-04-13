@@ -545,29 +545,32 @@ export default function GitApp() {
 
                     {/* 🌟 渲染：撤销按钮加在这里 */}
                     <div className={styles['changes-header']} onClick={() => setIsChangesOpen(!isChangesOpen)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+
+                        {/* 左侧：箭头、文字、徽章 */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <i className={`codicon ${isChangesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
                             更改 <span className={styles['badge']}>{stagedFiles.length + unstagedFiles.length}</span>
                         </div>
-                    </div>
 
-                    {/* 右侧：操作按钮组 (只在刚提交时显示撤销) */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                        {justCommitted && (
-                            <Tooltip content="撤销刚刚的提交 (退回工作区)">
-                                <button
-                                    className={styles['action-btn']}
-                                    onClick={(e) => {
-                                        e.stopPropagation(); // 阻止标题折叠
-                                        vscode.postMessage({ command: 'undoLastCommit' });
-                                        setJustCommitted(false); // 点完消失
-                                    }}
-                                    style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
-                                >
-                                    <i className="codicon codicon-debug-restart-frame" />
-                                </button>
-                            </Tooltip>
-                        )}
+                        {/* 右侧：操作按钮组 (只在刚提交时显示撤销)，必须包裹在这个 changes-header 内部 */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                            {justCommitted && (
+                                <Tooltip content="撤销刚刚的提交 (退回工作区)">
+                                    <button
+                                        className={styles['action-btn']}
+                                        onClick={(e) => {
+                                            e.stopPropagation(); // 阻止标题折叠
+                                            vscode.postMessage({ command: 'undoLastCommit' });
+                                            setJustCommitted(false); // 点完消失
+                                        }}
+                                        style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                    >
+                                        <i className="codicon codicon-debug-restart-frame" />
+                                    </button>
+                                </Tooltip>
+                            )}
+                        </div>
+
                     </div>
 
                     {isChangesOpen && (
