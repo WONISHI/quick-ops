@@ -18,6 +18,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   // 注意：此处是 View 的 ID，如果不叫这个名字请手动替换
   private readonly VIEW_ID = 'quick-ops-view-container';
 
+  // 🌟 核心修复 1：定义一个状态锁，防止进度条嵌套冲突
+  private _isViewProgressing = false;
+
   constructor(private readonly _extensionUri: vscode.Uri) {
     const gitDiffProvider = new (class implements vscode.TextDocumentContentProvider {
       async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
@@ -40,10 +43,21 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     vscode.workspace.registerTextDocumentContentProvider('quickops-git', gitDiffProvider);
   }
 
+  // 🌟 核心修复 2：实现防嵌套逻辑
   private async withViewProgress<T>(task: () => Promise<T>): Promise<T> {
-    return vscode.window.withProgress({ location: { viewId: this.VIEW_ID } }, async () => {
+    if (this._isViewProgressing) {
+      // 如果外层已经在转圈了，内层直接执行任务，不再调用 vscode API 避免 UI 冲突被吞！
       return await task();
-    });
+    }
+
+    this._isViewProgressing = true;
+    try {
+      return await vscode.window.withProgress({ location: { viewId: this.VIEW_ID } }, async () => {
+        return await task();
+      });
+    } finally {
+      this._isViewProgressing = false;
+    }
   }
 
   private async executeGitOperation(operation: () => Promise<void> | void) {

@@ -740,7 +740,7 @@ export default function GitApp() {
                                 }}
                                 style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
                             >
-                                <i className="codicon codicon-git-merge" />
+                                <i className="codicon codicon-git-pull-request" />
                             </button>
                         </Tooltip>
 
