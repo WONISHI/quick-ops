@@ -16,7 +16,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
   // 🌟 1. 定义视图 ID（请确保这个 ID 和你 package.json 中 views 里注册的 ID 一致）
   // 注意：此处是 View 的 ID，如果不叫这个名字请手动替换
-  private readonly VIEW_ID = 'quick-ops-view-container';
+  private readonly VIEW_ID = 'quickOps.gitView';
 
   constructor(private readonly _extensionUri: vscode.Uri) {
     const gitDiffProvider = new (class implements vscode.TextDocumentContentProvider {
