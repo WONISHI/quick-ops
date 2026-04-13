@@ -169,6 +169,91 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             await this.refreshStatus(cwd, false);
             break;
 
+          // ==========================================
+          // 🌟 新增逻辑 1：切换本地分支 (Checkout)
+          // ==========================================
+          case 'checkoutBranch': {
+            try {
+              let localBranches: string[] = [];
+              let currentBranch = '';
+
+              // 先挂载进度条获取本地分支列表
+              await this.withViewProgress(async () => {
+                const branchSummary = await git.branchLocal();
+                localBranches = branchSummary.all;
+                currentBranch = branchSummary.current;
+              });
+
+              const items = localBranches.map((b) => ({
+                label: b === currentBranch ? `$(check) ${b}` : b,
+                description: b === currentBranch ? '当前分支' : undefined,
+                branchName: b,
+              }));
+
+              const selected = await vscode.window.showQuickPick(items, {
+                placeHolder: '请选择要切换到的本地分支',
+                matchOnDescription: true,
+              });
+
+              if (!selected || selected.branchName === currentBranch) return;
+
+              // 执行 Checkout 时挂载进度条并锁定刷新
+              await this.executeGitOperation(async () => {
+                await git.checkout(selected.branchName);
+                vscode.window.showInformationMessage(`✅ 已切换到分支: ${selected.branchName}`);
+                await this.refreshStatus(cwd, true);
+              });
+            } catch (e: any) {
+              vscode.window.showErrorMessage(`切换分支失败: ${e.message}`);
+            }
+            break;
+          }
+
+          // ==========================================
+          // 🌟 新增逻辑 2：合并本地分支 (Merge)
+          // ==========================================
+          case 'mergeBranch': {
+            try {
+              let mergeableBranches: string[] = [];
+              let currentBranch = '';
+
+              await this.withViewProgress(async () => {
+                const branchSummary = await git.branchLocal();
+                currentBranch = branchSummary.current;
+                // 过滤掉当前分支（不能合并自己）
+                mergeableBranches = branchSummary.all.filter((b) => b !== currentBranch);
+              });
+
+              if (mergeableBranches.length === 0) {
+                vscode.window.showInformationMessage('没有其他本地分支可供合并');
+                return;
+              }
+
+              const items = mergeableBranches.map((b) => ({
+                label: b,
+                branchName: b,
+              }));
+
+              const selected = await vscode.window.showQuickPick(items, {
+                placeHolder: `请选择要合并到【${currentBranch}】的本地分支`,
+                matchOnDescription: true,
+              });
+
+              if (!selected) return;
+
+              await this.executeGitOperation(async () => {
+                await git.merge([selected.branchName]);
+                vscode.window.showInformationMessage(`🎉 已成功将 ${selected.branchName} 合并到 ${currentBranch}`);
+                await this.refreshStatus(cwd, true);
+              });
+            } catch (e: any) {
+              vscode.window.showErrorMessage(`合并分支失败: ${e.message}`);
+              // 如果发生冲突，刷新视图以显示冲突状态 (Unmerged)
+              await this.refreshStatus(cwd, true);
+            }
+            break;
+          }
+
           case 'changeGraphFilter': {
             try {
               const allOption = '全部分支';

@@ -480,8 +480,8 @@ export default function GitApp() {
                 <span>Git 管理 ({branch})</span>
                 <div className={styles['git-actions']}>
                     <Tooltip content={!skipVerify ? "校验开启" : "校验关闭"}>
-                        <button 
-                            className={styles['icon-btn']} 
+                        <button
+                            className={styles['icon-btn']}
                             onClick={() => setSkipVerify(!skipVerify)}
                             style={{ color: !skipVerify ? '#3168d1' : 'inherit' }}
                         >
@@ -570,8 +570,8 @@ export default function GitApp() {
                             <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                                 <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                       <i className="codicon codicon-git-branch-changes" style={{ fontSize: '14px', width: '16px' }} />
-                                       工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
+                                        <i className="codicon codicon-git-branch-changes" style={{ fontSize: '14px', width: '16px' }} />
+                                        工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
                                         {unstagedFiles.length > 0 && (
@@ -717,6 +717,33 @@ export default function GitApp() {
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+
+                        <Tooltip content="切换分支 (Checkout)">
+                            <button
+                                className={styles['action-btn']}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    vscode.postMessage({ command: 'checkoutBranch' });
+                                }}
+                                style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                            >
+                                <i className="codicon codicon-git-branch" />
+                            </button>
+                        </Tooltip>
+
+                        <Tooltip content="合并分支 (Merge)">
+                            <button
+                                className={styles['action-btn']}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    vscode.postMessage({ command: 'mergeBranch' });
+                                }}
+                                style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                            >
+                                <i className="codicon codicon-git-merge" />
+                            </button>
+                        </Tooltip>
+
                         {/* 🌟 核心修改 1：新增搜索按钮 */}
                         <Tooltip content="搜索记录">
                             <button
@@ -739,8 +766,8 @@ export default function GitApp() {
                                     vscode.postMessage({ command: 'changeGraphFilter', current: selectedGraphFilter });
                                 }}
                                 style={{
-                                    opacity: flashBranchBtn ? 1 : 0.8, 
-                                    width: '20px', height: '20px', 
+                                    opacity: flashBranchBtn ? 1 : 0.8,
+                                    width: '20px', height: '20px',
                                     display: 'flex', justifyContent: 'center',
                                     backgroundColor: flashBranchBtn ? 'var(--vscode-button-background, #3168d1)' : 'transparent',
                                     color: flashBranchBtn ? 'var(--vscode-button-foreground, #ffffff)' : 'inherit',
@@ -748,7 +775,7 @@ export default function GitApp() {
                                     transition: 'all 0.5s ease-out'
                                 }}
                             >
-                                <i className="codicon codicon-git-branch" />
+                                <i className="codicon codicon-filter" />
                             </button>
                         </Tooltip>
 
