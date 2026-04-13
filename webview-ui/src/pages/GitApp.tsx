@@ -163,6 +163,9 @@ export default function GitApp() {
             } else if (msg.type === 'commitSuccess') {
                 // 🌟 监听：提交成功，唤醒撤销按钮
                 setJustCommitted(true);
+            } else if (msg.type === 'clearJustCommitted') {
+                // 🌟 监听：推送/拉取成功，立刻隐藏撤销按钮
+                setJustCommitted(false);
             }
         };
         window.addEventListener('message', handleMsg);
