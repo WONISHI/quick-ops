@@ -91,6 +91,9 @@ export default function GitApp() {
     const [compareCommits, setCompareCommits] = useState<GraphCommit[]>([]);
     const [isCompareOpen, setIsCompareOpen] = useState(false);
 
+    // 🌟 新增状态：Git 是否安装。默认 null 代表还在检测中
+    const [isGitInstalled, setIsGitInstalled] = useState<boolean | null>(null);
+
     const [skipVerify, setSkipVerify] = useState(false);
     const [selectedGraphFilter, setSelectedGraphFilter] = useState('全部分支');
     const filterRef = useRef('全部分支');
@@ -166,6 +169,9 @@ export default function GitApp() {
             } else if (msg.type === 'clearJustCommitted') {
                 // 🌟 监听：推送/拉取成功，立刻隐藏撤销按钮
                 setJustCommitted(false);
+            } else if (msg.type === 'gitInstallationStatus') {
+                // 🌟 监听：获取 Git 安装状态
+                setIsGitInstalled(msg.isInstalled);
             }
         };
         window.addEventListener('message', handleMsg);
@@ -401,6 +407,29 @@ export default function GitApp() {
                     );
                 })}
             </ul>
+        );
+    }
+
+    if (isGitInstalled === false) {
+        return (
+            <div className={styles['git-sidebar']} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', textAlign: 'center', height: '100vh' }}>
+                <i className="codicon codicon-git-merge" style={{ fontSize: '48px', marginBottom: '16px', color: 'var(--vscode-textLink-foreground)', opacity: 0.8 }} />
+                <div style={{ fontSize: '15px', marginBottom: '8px', color: 'var(--vscode-editor-foreground)', fontWeight: 600 }}>
+                    未检测到 Git 环境
+                </div>
+                <div style={{ fontSize: '12px', marginBottom: '24px', color: 'var(--vscode-descriptionForeground)', lineHeight: 1.5 }}>
+                    当前系统未安装 Git，或环境变量未配置。<br />
+                    请安装 Git 后 <span style={{ color: 'var(--vscode-textLink-foreground)' }}>重启 VS Code</span>。
+                </div>
+                <button
+                    className={styles['commit-btn']}
+                    onClick={() => vscode.postMessage({ command: 'openExternal', url: 'https://git-scm.com/downloads' })}
+                    style={{ width: 'auto', padding: '0 20px', borderRadius: '4px', height: '32px' }}
+                >
+                    <i className="codicon codicon-cloud-download" style={{ marginRight: '6px' }} />
+                    前往官网下载 Git
+                </button>
+            </div>
         );
     }
 

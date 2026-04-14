@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import simpleGit, { SimpleGit } from 'simple-git';
 import path from 'path';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
+import { exec } from 'child_process';
 
 export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
@@ -43,6 +44,14 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private async withViewProgress<T>(task: () => Promise<T>): Promise<T> {
     return vscode.window.withProgress({ location: { viewId: this.VIEW_ID } }, async () => {
       return await task();
+    });
+  }
+
+  private checkGitInstalled(): Promise<boolean> {
+    return new Promise((resolve) => {
+      exec('git --version', (error) => {
+        resolve(!error);
+      });
     });
   }
 
@@ -158,6 +167,13 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         switch (msg.command) {
           case 'webviewLoaded':
           case 'refresh':
+            // 🌟 1. 先检测 Git 是否安装
+            const isInstalled = await this.checkGitInstalled();
+            // 🌟 2. 将状态通知前端
+            this._view?.webview.postMessage({ type: 'gitInstallationStatus', isInstalled });
+
+            // 🌟 3. 如果没安装，直接 return，不要执行后续任何读取状态的逻辑
+            if (!isInstalled) return;
             await this.refreshStatus(cwd, true);
             if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.scheme === 'file') {
               const relativePath = path.relative(cwd, vscode.window.activeTextEditor.document.uri.fsPath).replace(/\\/g, '/');
