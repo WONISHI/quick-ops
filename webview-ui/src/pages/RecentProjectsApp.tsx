@@ -413,8 +413,8 @@ export default function RecentProjectsApp() {
         .file-icon-md { color: #5dade2; } .file-icon-img { color: #a074c4; } .file-icon-default { color: var(--vscode-symbolIcon-fileForeground, #999); }
 
         .empty-node { font-size: 12px; opacity: 0.5; padding: 4px 12px; font-style: italic; }
-        .empty-state { padding: 30px 20px; text-align: center; }
-        .empty-text { opacity: 0.6; font-size: 13px; margin-bottom: 20px; }
+        .empty-state { height: 100%;display: flex;flex-direction: column;text-align: center; }
+        .empty-text { display:flex;justify-content: center;align-items: center;flex:1;opacity: 0.6; font-size: 13px; margin-bottom: 20px; }
         .bottom-bar { padding: 10px; border-top: 1px solid var(--vscode-panel-border); display: flex; gap: 8px; background: var(--vscode-sideBar-background); flex-shrink: 0; }
         .action-btn { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 6px 12px; border-radius: 2px; cursor: pointer; font-size: 12px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
         .action-btn:hover { background: var(--vscode-button-hoverBackground); }
