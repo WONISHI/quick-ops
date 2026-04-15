@@ -9,7 +9,7 @@ import { faMarkdown, faHtml5, faCss3Alt, faVuejs, faJs } from '@fortawesome/free
 
 import Tooltip from '../components/Tooltip';
 import GitGraph, { type GraphCommit } from '../components/GitGraph';
-import GitCompareList from '../components/GitCompareList';
+import GitCompareList from '../components/GitCompareList'; 
 
 export interface GitFile { status: string; file: string; }
 interface TreeNode { name: string; fullPath: string; isDirectory: boolean; children: TreeNode[]; file?: GitFile; }
@@ -56,6 +56,10 @@ function buildTree(files: GitFile[]): TreeNode[] {
 }
 
 export default function GitApp() {
+    // 🌟 新增状态：控制是否为一个有效的 Git 仓库
+    const [isRepo, setIsRepo] = useState<boolean>(true);
+    const [isGitInstalled, setIsGitInstalled] = useState<boolean | null>(null);
+
     const [stagedFiles, setStagedFiles] = useState<GitFile[]>([]);
     const [unstagedFiles, setUnstagedFiles] = useState<GitFile[]>([]);
     const [branch, setBranch] = useState('');
@@ -65,10 +69,8 @@ export default function GitApp() {
 
     const [isChangesOpen, setIsChangesOpen] = useState(true);
     const [isGraphOpen, setIsGraphOpen] = useState(true);
-    // 🌟 新增：管理图谱搜索框的开关状态
     const [isGraphSearchOpen, setIsGraphSearchOpen] = useState(false);
 
-    // 🌟 新增状态：控制刚刚提交后的撤销按钮显隐
     const [justCommitted, setJustCommitted] = useState(false);
 
     const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
@@ -91,9 +93,6 @@ export default function GitApp() {
     const [compareCommits, setCompareCommits] = useState<GraphCommit[]>([]);
     const [isCompareOpen, setIsCompareOpen] = useState(false);
 
-    // 🌟 新增状态：Git 是否安装。默认 null 代表还在检测中
-    const [isGitInstalled, setIsGitInstalled] = useState<boolean | null>(null);
-
     const [skipVerify, setSkipVerify] = useState(false);
     const [selectedGraphFilter, setSelectedGraphFilter] = useState('全部分支');
     const filterRef = useRef('全部分支');
@@ -111,7 +110,18 @@ export default function GitApp() {
             const msg = e.data;
             if (msg.type === 'startLoading') {
                 setIsGraphLoading(true);
+            } else if (msg.type === 'noWorkspace' || msg.type === 'notRepo') {
+                // 🌟 核心拦截：如果是空文件夹或非 Git 仓库
+                setLoading(false);
+                setIsGraphLoading(false);
+                setIsRepo(false);
+                setBranch(msg.type === 'noWorkspace' ? '无工作区' : '未初始化');
+                setStagedFiles([]);
+                setUnstagedFiles([]);
+                setGraphCommits([]);
+                setCompareCommits([]);
             } else if (msg.type === 'statusData') {
+                setIsRepo(true);
                 setStagedFiles(msg.stagedFiles || []);
                 setUnstagedFiles(msg.unstagedFiles || []);
                 setBranch(msg.branch || '');
@@ -164,13 +174,10 @@ export default function GitApp() {
                 setIsGraphLoading(false);
                 setCommitFilesLoading(false);
             } else if (msg.type === 'commitSuccess') {
-                // 🌟 监听：提交成功，唤醒撤销按钮
                 setJustCommitted(true);
             } else if (msg.type === 'clearJustCommitted') {
-                // 🌟 监听：推送/拉取成功，立刻隐藏撤销按钮
                 setJustCommitted(false);
             } else if (msg.type === 'gitInstallationStatus') {
-                // 🌟 监听：获取 Git 安装状态
                 setIsGitInstalled(msg.isInstalled);
             }
         };
@@ -178,7 +185,7 @@ export default function GitApp() {
 
         const triggerSmartRefresh = () => {
             const now = Date.now();
-            if (now - lastRefreshRef.current > 5000) {
+            if (now - lastRefreshRef.current > 5000 && isRepo) { // Only refresh if it's a valid repo
                 vscode.postMessage({ command: 'refreshStatusOnly' });
                 lastRefreshRef.current = now;
             }
@@ -201,7 +208,7 @@ export default function GitApp() {
             window.removeEventListener('click', closeContextMenu);
             window.removeEventListener('blur', closeContextMenu);
         };
-    }, []);
+    }, [isRepo]);
 
     const handleCommit = () => {
         if (!commitMsg.trim()) return;
@@ -410,6 +417,7 @@ export default function GitApp() {
         );
     }
 
+    // 检测：如果没有安装 Git，显示安装引导页面
     if (isGitInstalled === false) {
         return (
             <div className={styles['git-sidebar']} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', textAlign: 'center', height: '100vh' }}>
@@ -517,30 +525,41 @@ export default function GitApp() {
             <div className={styles['git-toolbar']}>
                 <span>Git 管理 ({branch})</span>
                 <div className={styles['git-actions']}>
-                    <Tooltip content={!skipVerify ? "校验开启" : "校验关闭"}>
-                        <button
-                            className={styles['icon-btn']}
-                            onClick={() => setSkipVerify(!skipVerify)}
-                            style={{ color: !skipVerify ? '#3168d1' : 'inherit' }}
-                        >
-                            <i className="codicon codicon-shield" />
-                        </button>
-                    </Tooltip>
-                    <Tooltip content="拉取 (Pull)">
-                        <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'pull' })}>
-                            <i className="codicon codicon-repo-pull" />
-                        </button>
-                    </Tooltip>
-                    <Tooltip content="推送 (Push)">
-                        <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'push' })}>
-                            <i className="codicon codicon-repo-push" />
-                        </button>
-                    </Tooltip>
-                    <Tooltip content={viewMode === 'list' ? '以树状视图查看' : '以列表视图查看'}>
-                        <button className={styles['icon-btn']} onClick={() => setViewMode(v => v === 'list' ? 'tree' : 'list')}>
-                            <i className={`codicon ${viewMode === 'list' ? 'codicon-list-tree' : 'codicon-list-flat'}`} />
-                        </button>
-                    </Tooltip>
+                    {/* 🌟 条件渲染：如果不是Repo或没工作区，这里只展示 Clone 按钮 */}
+                    {isRepo ? (
+                        <>
+                            <Tooltip content={!skipVerify ? "校验开启" : "校验关闭"}>
+                                <button
+                                    className={styles['icon-btn']}
+                                    onClick={() => setSkipVerify(!skipVerify)}
+                                    style={{ color: !skipVerify ? '#3168d1' : 'inherit' }}
+                                >
+                                    <i className="codicon codicon-shield" />
+                                </button>
+                            </Tooltip>
+                            <Tooltip content="拉取 (Pull)">
+                                <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'pull' })}>
+                                    <i className="codicon codicon-repo-pull" />
+                                </button>
+                            </Tooltip>
+                            <Tooltip content="推送 (Push)">
+                                <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'push' })}>
+                                    <i className="codicon codicon-repo-push" />
+                                </button>
+                            </Tooltip>
+                            <Tooltip content={viewMode === 'list' ? '以树状视图查看' : '以列表视图查看'}>
+                                <button className={styles['icon-btn']} onClick={() => setViewMode(v => v === 'list' ? 'tree' : 'list')}>
+                                    <i className={`codicon ${viewMode === 'list' ? 'codicon-list-tree' : 'codicon-list-flat'}`} />
+                                </button>
+                            </Tooltip>
+                        </>
+                    ) : (
+                        <Tooltip content="克隆仓库 (Clone)">
+                            <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'clone' })}>
+                                <i className="codicon codicon-repo-clone" />
+                            </button>
+                        </Tooltip>
+                    )}
                 </div>
             </div>
 
@@ -554,7 +573,6 @@ export default function GitApp() {
                         setCommitMsg(e.target.value);
                         e.target.style.height = '28px';
                         e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
-                        // 🌟 用户敲击键盘时，隐藏撤销按钮
                         setJustCommitted(false);
                     }}
                     onKeyDown={(e) => {
@@ -566,8 +584,9 @@ export default function GitApp() {
                         overflowY: 'auto',
                         boxSizing: 'border-box'
                     }}
+                    disabled={!isRepo}
                 />
-                <button className={styles['commit-btn']} disabled={loading || (!commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0))} onClick={handleCommit}>
+                <button className={styles['commit-btn']} disabled={!isRepo || loading || (!commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0))} onClick={handleCommit}>
                     {loading ? <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} /> : <i className="codicon codicon-check" style={{ marginRight: '6px' }} />} 提交 (Commit)
                 </button>
             </div>
@@ -575,34 +594,32 @@ export default function GitApp() {
             <div className={styles['changes-scroll-area']} style={{ maxHeight: 'none', overflowY: 'visible', flexShrink: 0 }}>
                 <div className={styles['changes-section']}>
 
-                    {/* 🌟 渲染：撤销按钮加在这里 */}
                     <div className={styles['changes-header']} onClick={() => setIsChangesOpen(!isChangesOpen)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-
-                        {/* 左侧：箭头、文字、徽章 */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <i className={`codicon ${isChangesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
                             更改 <span className={styles['badge']}>{stagedFiles.length + unstagedFiles.length}</span>
                         </div>
 
-                        {/* 右侧：操作按钮组 (只在刚提交时显示撤销)，必须包裹在这个 changes-header 内部 */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                            {justCommitted && (
-                                <Tooltip content="撤销刚刚的提交 (退回工作区)">
-                                    <button
-                                        className={styles['action-btn']}
-                                        onClick={(e) => {
-                                            e.stopPropagation(); // 阻止标题折叠
-                                            vscode.postMessage({ command: 'undoLastCommit' });
-                                            setJustCommitted(false); // 点完消失
-                                        }}
-                                        style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
-                                    >
-                                        <i className="codicon codicon-debug-restart-frame" />
-                                    </button>
-                                </Tooltip>
-                            )}
-                        </div>
-
+                        {/* 🌟 只有有效的仓库才会显示撤销按钮保护区域 */}
+                        {isRepo && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                                {justCommitted && (
+                                    <Tooltip content="撤销刚刚的提交 (退回工作区)">
+                                        <button
+                                            className={styles['action-btn']}
+                                            onClick={(e) => {
+                                                e.stopPropagation(); 
+                                                vscode.postMessage({ command: 'undoLastCommit' });
+                                                setJustCommitted(false); 
+                                            }}
+                                            style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                        >
+                                            <i className="codicon codicon-debug-restart-frame" />
+                                        </button>
+                                    </Tooltip>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {isChangesOpen && (
@@ -611,7 +628,6 @@ export default function GitApp() {
                                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                                     <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            {/* 🌟 修复 1：暂存区图标替换为 git-pull-request-done */}
                                             <i className="codicon codicon-git-pull-request-done" style={{ fontSize: '14px', width: '16px' }} />
                                             暂存区 <span className={styles['badge']}>{stagedFiles.length}</span>
                                         </div>
@@ -676,7 +692,7 @@ export default function GitApp() {
                                     </div>
                                 </div>
                                 {unstagedFiles.length === 0 && stagedFiles.length === 0 ? (
-                                    <div className={styles['empty-message']}>没有需要提交的更改</div>
+                                    <div className={styles['empty-message']}>{!isRepo ? '在此打开项目或进行克隆' : '没有需要提交的更改'}</div>
                                 ) : (
                                     renderFileList(unstagedFiles, 'unstaged')
                                 )}
@@ -703,59 +719,62 @@ export default function GitApp() {
                             <span className={styles['badge']} style={{ flexShrink: 0 }}>{compareCommits.length}</span>
                         </div>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
-                            <Tooltip content={activeFile ? `查看当前文件历史` : "查看当前文件历史 (请先打开文件)"}>
-                                <button
-                                    className={styles['action-btn']}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (!activeFile) {
-                                            vscode.postMessage({ command: 'error', message: '当前没有在编辑器中打开任何文件，无法查看历史记录。' });
-                                            return;
-                                        }
-                                        vscode.postMessage({ command: 'viewFileHistory', file: activeFile });
-                                    }}
-                                    style={{ opacity: activeFile ? 0.8 : 0.4, width: '20px', height: '20px', display: 'flex', justifyContent: 'center', cursor: activeFile ? 'pointer' : 'not-allowed' }}
-                                >
-                                    <i className="codicon codicon-history" />
-                                </button>
-                            </Tooltip>
-
-                            <Tooltip content="分支对比">
-                                <button
-                                    className={styles['action-btn']}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        vscode.postMessage({ command: 'requestCompare' });
-                                    }}
-                                    style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
-                                >
-                                    <i className="codicon codicon-git-compare" />
-                                </button>
-                            </Tooltip>
-
-                            {(compareTarget && compareBase) && (
-                                <Tooltip content="关闭对比">
+                        {/* 🌟 只有当是有效 Repo 才会显示比较工具栏按钮 */}
+                        {isRepo && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+                                <Tooltip content={activeFile ? `查看当前文件历史` : "查看当前文件历史 (请先打开文件)"}>
                                     <button
                                         className={styles['action-btn']}
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            setCompareTarget(null);
-                                            setCompareBase(null);
-                                            setCompareCommits([]);
+                                            if (!activeFile) {
+                                                vscode.postMessage({ command: 'error', message: '当前没有在编辑器中打开任何文件，无法查看历史记录。' });
+                                                return;
+                                            }
+                                            vscode.postMessage({ command: 'viewFileHistory', file: activeFile });
+                                        }}
+                                        style={{ opacity: activeFile ? 0.8 : 0.4, width: '20px', height: '20px', display: 'flex', justifyContent: 'center', cursor: activeFile ? 'pointer' : 'not-allowed' }}
+                                    >
+                                        <i className="codicon codicon-history" />
+                                    </button>
+                                </Tooltip>
+
+                                <Tooltip content="分支对比">
+                                    <button
+                                        className={styles['action-btn']}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            vscode.postMessage({ command: 'requestCompare' });
                                         }}
                                         style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
                                     >
-                                        <i className="codicon codicon-close" />
+                                        <i className="codicon codicon-git-compare" />
                                     </button>
                                 </Tooltip>
-                            )}
-                        </div>
+
+                                {(compareTarget && compareBase) && (
+                                    <Tooltip content="关闭对比">
+                                        <button
+                                            className={styles['action-btn']}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setCompareTarget(null);
+                                                setCompareBase(null);
+                                                setCompareCommits([]);
+                                            }}
+                                            style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                        >
+                                            <i className="codicon codicon-close" />
+                                        </button>
+                                    </Tooltip>
+                                )}
+                            </div>
+                        )}
                     </div>
                     {isCompareOpen && (
                         <div style={{ maxHeight: '30vh', overflowY: 'auto', paddingBottom: '4px' }}>
                             {(!compareTarget || !compareBase) ? (
-                                <div className={styles['empty-message']}>点击右上角图标选择分支或查看文件历史</div>
+                                <div className={styles['empty-message']}>{!isRepo ? '未连接至 Git 仓库' : '点击右上角图标选择分支或查看文件历史'}</div>
                             ) : (
                                 <GitCompareList
                                     commits={compareCommits}
@@ -783,98 +802,98 @@ export default function GitApp() {
                         <i className={`codicon ${isGraphOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} /> 图形
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {/* 🌟 只有当是有效 Repo 才会显示图形相关的右上角工具栏按钮 */}
+                    {isRepo && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Tooltip content="新建本地分支">
+                                <button
+                                    className={styles['action-btn']}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        vscode.postMessage({ command: 'createBranch' }); 
+                                    }}
+                                    style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                >
+                                    <i className="codicon codicon-git-branch-staged-changes" />
+                                </button>
+                            </Tooltip>
 
-                        <Tooltip content="新建本地分支">
-                            <button
-                                className={styles['action-btn']}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    vscode.postMessage({ command: 'createBranch' }); // 👈 这里改成 createBranch
-                                }}
-                                style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
-                            >
-                                <i className="codicon codicon-git-branch-staged-changes" />
-                            </button>
-                        </Tooltip>
+                            <Tooltip content="切换分支 (Checkout)">
+                                <button
+                                    className={styles['action-btn']}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        vscode.postMessage({ command: 'checkoutBranch' });
+                                    }}
+                                    style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                >
+                                    <i className="codicon codicon-git-branch" />
+                                </button>
+                            </Tooltip>
 
-                        <Tooltip content="切换分支 (Checkout)">
-                            <button
-                                className={styles['action-btn']}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    vscode.postMessage({ command: 'checkoutBranch' });
-                                }}
-                                style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
-                            >
-                                <i className="codicon codicon-git-branch" />
-                            </button>
-                        </Tooltip>
+                            <Tooltip content="合并分支 (Merge)">
+                                <button
+                                    className={styles['action-btn']}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        vscode.postMessage({ command: 'mergeBranch' });
+                                    }}
+                                    style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                >
+                                    <i className="codicon codicon-git-pull-request" />
+                                </button>
+                            </Tooltip>
 
-                        <Tooltip content="合并分支 (Merge)">
-                            <button
-                                className={styles['action-btn']}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    vscode.postMessage({ command: 'mergeBranch' });
-                                }}
-                                style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
-                            >
-                                <i className="codicon codicon-git-pull-request" />
-                            </button>
-                        </Tooltip>
+                            <Tooltip content="搜索记录">
+                                <button
+                                    className={styles['action-btn']}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsGraphSearchOpen(!isGraphSearchOpen);
+                                    }}
+                                    style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                >
+                                    <i className="codicon codicon-search" />
+                                </button>
+                            </Tooltip>
 
-                        {/* 🌟 核心修改 1：新增搜索按钮 */}
-                        <Tooltip content="搜索记录">
-                            <button
-                                className={styles['action-btn']}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsGraphSearchOpen(!isGraphSearchOpen);
-                                }}
-                                style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
-                            >
-                                <i className="codicon codicon-search" />
-                            </button>
-                        </Tooltip>
+                            <Tooltip content={`筛选分支 (当前: ${selectedGraphFilter})`}>
+                                <button
+                                    className={styles['action-btn']}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        vscode.postMessage({ command: 'changeGraphFilter', current: selectedGraphFilter });
+                                    }}
+                                    style={{
+                                        opacity: flashBranchBtn ? 1 : 0.8,
+                                        width: '20px', height: '20px',
+                                        display: 'flex', justifyContent: 'center',
+                                        backgroundColor: flashBranchBtn ? 'var(--vscode-button-background, #3168d1)' : 'transparent',
+                                        color: flashBranchBtn ? 'var(--vscode-button-foreground, #ffffff)' : 'inherit',
+                                        borderRadius: '3px',
+                                        transition: 'all 0.5s ease-out'
+                                    }}
+                                >
+                                    <i className="codicon codicon-filter" />
+                                </button>
+                            </Tooltip>
 
-                        <Tooltip content={`筛选分支 (当前: ${selectedGraphFilter})`}>
-                            <button
-                                className={styles['action-btn']}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    vscode.postMessage({ command: 'changeGraphFilter', current: selectedGraphFilter });
-                                }}
-                                style={{
-                                    opacity: flashBranchBtn ? 1 : 0.8,
-                                    width: '20px', height: '20px',
-                                    display: 'flex', justifyContent: 'center',
-                                    backgroundColor: flashBranchBtn ? 'var(--vscode-button-background, #3168d1)' : 'transparent',
-                                    color: flashBranchBtn ? 'var(--vscode-button-foreground, #ffffff)' : 'inherit',
-                                    borderRadius: '3px',
-                                    transition: 'all 0.5s ease-out'
-                                }}
-                            >
-                                {/* 🌟 修复 3：筛选分支图标替换为 filter */}
-                                <i className="codicon codicon-filter" />
-                            </button>
-                        </Tooltip>
-
-                        <Tooltip content="刷新">
-                            <button
-                                className={styles['action-btn']}
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsGraphLoading(true);
-                                    lastRefreshRef.current = Date.now();
-                                    vscode.postMessage({ command: 'refresh' });
-                                }}
-                                style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
-                            >
-                                <i className="codicon codicon-refresh" />
-                            </button>
-                        </Tooltip>
-                    </div>
+                            <Tooltip content="刷新">
+                                <button
+                                    className={styles['action-btn']}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsGraphLoading(true);
+                                        lastRefreshRef.current = Date.now();
+                                        vscode.postMessage({ command: 'refresh' });
+                                    }}
+                                    style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                >
+                                    <i className="codicon codicon-refresh" />
+                                </button>
+                            </Tooltip>
+                        </div>
+                    )}
                 </div>
 
                 {isGraphOpen && (
@@ -883,7 +902,7 @@ export default function GitApp() {
                             <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '8px' }} /> 正在加载历史记录...
                         </div>
                     ) : graphCommits.length === 0 ? (
-                        <div className={styles['git-graph-fallback']}>暂无记录</div>
+                        <div className={styles['git-graph-fallback']}>{!isRepo ? '未连接至 Git 仓库' : '暂无记录'}</div>
                     ) : (
                         <GitGraph
                             graphCommits={graphCommits}

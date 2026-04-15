@@ -2,11 +2,11 @@ import * as vscode from 'vscode';
 import simpleGit, { SimpleGit } from 'simple-git';
 import path from 'path';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
-import { exec } from 'child_process';
+import { exec } from 'child_process'; // 🌟 引入执行模块
 
 export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
-
+  
   private _isInternalOp = false;
   private _internalOpTimer: NodeJS.Timeout | null = null;
   private _gitWatchers: vscode.Disposable[] = [];
@@ -40,20 +40,22 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     })();
     vscode.workspace.registerTextDocumentContentProvider('quickops-git', gitDiffProvider);
   }
-
+  
   private async withViewProgress<T>(task: () => Promise<T>): Promise<T> {
     return vscode.window.withProgress({ location: { viewId: this.VIEW_ID } }, async () => {
       return await task();
     });
   }
 
+  // 🌟 检测 Git 是否安装
   private checkGitInstalled(): Promise<boolean> {
     return new Promise((resolve) => {
-      exec('git --version', (error) => {
-        resolve(!error);
-      });
+        exec('git --version', (error) => {
+            resolve(!error);
+        });
     });
   }
+
 
   private async executeGitOperation(operation: () => Promise<void> | void) {
     this._isInternalOp = true;
@@ -73,18 +75,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
   private async setupGitWatcher() {
     const gitExtension = vscode.extensions.getExtension('vscode.git');
-    if (!gitExtension) {
-      console.warn('未找到 VS Code 内置 Git 插件');
-      return;
-    }
+    if (!gitExtension) return;
 
     try {
-      if (!gitExtension.isActive) {
-        await gitExtension.activate();
-      }
+        if (!gitExtension.isActive) await gitExtension.activate();
     } catch (e) {
-      console.warn('激活 VS Code 内置 Git 插件失败:', e);
-      return;
+        return;
     }
 
     const gitApi = gitExtension.exports?.getAPI(1);
@@ -93,11 +89,11 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     const onStateChange = () => {
       if (this._isInternalOp) return;
       if (this._debounceTimer) clearTimeout(this._debounceTimer);
-
+      
       this._debounceTimer = setTimeout(async () => {
-        if (this._isInternalOp) return;
+        if (this._isInternalOp) return; 
         if (this._isRefreshing) return;
-
+        
         const cwd = this.getWorkspaceRoot();
         if (cwd) {
           const git = simpleGit(cwd);
@@ -117,7 +113,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
           this.refreshStatus(cwd, graphChanged);
         }
-      }, 1500);
+      }, 1500); 
     };
 
     const openRepoDisposable = gitApi.onDidOpenRepository((repo: any) => {
@@ -158,29 +154,46 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     });
 
     webviewView.webview.onDidReceiveMessage(async (msg) => {
-      const cwd = this.getWorkspaceRoot();
-      if (!cwd) return;
-
-      const git: SimpleGit = simpleGit(cwd);
-
       try {
+        // 🌟 1. 无需 Git 仓库即可以执行的全局命令
+        if (msg.command === 'openExternal') {
+            vscode.env.openExternal(vscode.Uri.parse(msg.url));
+            return;
+        }
+        if (msg.command === 'clone') {
+            // 调用 VS Code 完美的内置克隆体验
+            vscode.commands.executeCommand('git.clone');
+            return;
+        }
+
+        // 🌟 2. 拦截 Git 安装状态
+        if (msg.command === 'webviewLoaded' || msg.command === 'refresh') {
+            const isInstalled = await this.checkGitInstalled();
+            this._view?.webview.postMessage({ type: 'gitInstallationStatus', isInstalled });
+            if (!isInstalled) return;
+        }
+
+        // 🌟 3. 拦截空工作区 (根本没打开任何文件夹)
+        const cwd = this.getWorkspaceRoot();
+        if (!cwd) {
+            if (msg.command === 'webviewLoaded' || msg.command === 'refresh') {
+                this._view?.webview.postMessage({ type: 'noWorkspace' });
+            }
+            return;
+        }
+
+        const git: SimpleGit = simpleGit(cwd);
+
         switch (msg.command) {
           case 'webviewLoaded':
           case 'refresh':
-            // 🌟 1. 先检测 Git 是否安装
-            const isInstalled = await this.checkGitInstalled();
-            // 🌟 2. 将状态通知前端
-            this._view?.webview.postMessage({ type: 'gitInstallationStatus', isInstalled });
-
-            // 🌟 3. 如果没安装，直接 return，不要执行后续任何读取状态的逻辑
-            if (!isInstalled) return;
             await this.refreshStatus(cwd, true);
             if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.scheme === 'file') {
               const relativePath = path.relative(cwd, vscode.window.activeTextEditor.document.uri.fsPath).replace(/\\/g, '/');
               this._view?.webview.postMessage({ type: 'activeEditorChanged', file: relativePath });
             }
             break;
-
+            
           case 'refreshStatusOnly':
             await this.refreshStatus(cwd, false);
             break;
@@ -190,14 +203,39 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           // ==========================================
           case 'undoLastCommit': {
             await this.executeGitOperation(async () => {
-              try {
-                await git.reset(['--mixed', 'HEAD~1']);
-                vscode.window.showInformationMessage('✅ 已撤销最近一次提交，更改已退回工作区。');
-                await this.refreshStatus(cwd, true);
-              } catch (e: any) {
-                vscode.window.showErrorMessage(`无法撤销提交 (可能没有足够的提交记录): ${e.message}`);
-              }
+                try {
+                  await git.reset(['--mixed', 'HEAD~1']);
+                  vscode.window.showInformationMessage('✅ 已撤销最近一次提交，更改已退回工作区。');
+                  await this.refreshStatus(cwd, true);
+                } catch (e: any) {
+                  vscode.window.showErrorMessage(`无法撤销提交 (可能没有足够的提交记录): ${e.message}`);
+                }
             });
+            break;
+          }
+
+          case 'createBranch': {
+            try {
+              const newBranchName = await vscode.window.showInputBox({
+                prompt: '请输入新分支的名称',
+                placeHolder: '例如: feature/new-login',
+                validateInput: (text) => {
+                  if (text.trim().length === 0) return '分支名称不能为空';
+                  if (/\s/.test(text)) return '分支名称不能包含空格';
+                  return null;
+                }
+              });
+
+              if (!newBranchName) return; 
+
+              await this.executeGitOperation(async () => {
+                await git.checkoutLocalBranch(newBranchName);
+                vscode.window.showInformationMessage(`✅ 已成功创建并切换到新分支: ${newBranchName}`);
+                await this.refreshStatus(cwd, true);
+              });
+            } catch (e: any) {
+              vscode.window.showErrorMessage(`创建新分支失败: ${e.message}`);
+            }
             break;
           }
 
@@ -365,7 +403,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   message: c.message,
                   refs: c.refs || '',
                   timestamp: parseInt(c.timestamp as string, 10) * 1000
-                }));
+              }));
 
                 this._view?.webview.postMessage({
                   type: 'graphData',
@@ -412,7 +450,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             }
             break;
           }
-
+            
           // 🌟 全新升级的对比分支功能：瞬间弹出 + 顶部蓝条后台静默刷新
           case 'requestCompare': {
             try {
@@ -516,45 +554,45 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
             break;
           }
-
+            
           case 'commit':
             await this.executeGitOperation(async () => {
-              await this.handleCommit(cwd, msg.message, msg.skipVerify);
+                await this.handleCommit(cwd, msg.message, msg.skipVerify);
             });
             break;
-
+            
           case 'push':
             await this.executeGitOperation(async () => {
-              vscode.window.showInformationMessage('正在推送到远程...');
-              await git.push(['-u', 'origin', 'HEAD']);
-              vscode.window.showInformationMessage('🚀 推送成功！');
+                vscode.window.showInformationMessage('正在推送到远程...');
+                await git.push(['-u', 'origin', 'HEAD']);
+                vscode.window.showInformationMessage('🚀 推送成功！');
 
               // 🌟 新增：推送成功后，通知前端隐藏撤销按钮
-              this._view?.webview.postMessage({ type: 'clearJustCommitted' });
+                this._view?.webview.postMessage({ type: 'clearJustCommitted' });
 
-              await this.refreshStatus(cwd, true);
+                await this.refreshStatus(cwd, true);
             });
             break;
-
+            
           case 'pull':
             await this.executeGitOperation(async () => {
-              vscode.window.showInformationMessage('正在拉取代码...');
-              await git.pull();
-              vscode.window.showInformationMessage('⬇️ 拉取成功！');
+                vscode.window.showInformationMessage('正在拉取代码...');
+                await git.pull();
+                vscode.window.showInformationMessage('⬇️ 拉取成功！');
 
               // 🌟 新增：拉取成功后，通知前端隐藏撤销按钮（防止历史记录错乱）
-              this._view?.webview.postMessage({ type: 'clearJustCommitted' });
+                this._view?.webview.postMessage({ type: 'clearJustCommitted' });
 
-              await this.refreshStatus(cwd, true);
+                await this.refreshStatus(cwd, true);
             });
             break;
-
+            
           case 'open': {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
             vscode.commands.executeCommand('vscode.open', fileUri);
             break;
           }
-
+          
           case 'diff': {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
             if (msg.status === 'U' || msg.status === 'A') {
@@ -569,21 +607,21 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
           case 'stageAll': {
             await this.executeGitOperation(async () => {
-              await git.add(['-A']);
-              await this.refreshStatus(cwd, false);
+                await git.add(['-A']);
+                await this.refreshStatus(cwd, false);
             });
             break;
           }
 
           case 'unstageAll': {
             await this.executeGitOperation(async () => {
-              try {
-                await git.reset(['HEAD']);
-              } catch (e) {
-                console.log('err', e)
-                await git.raw(['rm', '--cached', '-r', '.']);
-              }
-              await this.refreshStatus(cwd, false);
+                try {
+                  await git.reset(['HEAD']); 
+                } catch (e) {
+                  console.log('err', e)
+                  await git.raw(['rm', '--cached', '-r', '.']);
+                }
+                await this.refreshStatus(cwd, false);
             });
             break;
           }
@@ -591,62 +629,62 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           case 'discardAll': {
             // 🌟 多文件情况，弹出警告弹窗 (对应截图2)
             const confirm = await vscode.window.showWarningMessage(
-              `是否确实要放弃 ${msg.count} 个文件中的全部更改?\n\n此操作不可撤销！\n如果继续操作，你当前的工作集将永久丢失。`,
-              { modal: true },
-              `放弃所有 ${msg.count} 个文件`
+                `是否确实要放弃 ${msg.count} 个文件中的全部更改?\n\n此操作不可撤销！\n如果继续操作，你当前的工作集将永久丢失。`,
+                { modal: true },
+                `放弃所有 ${msg.count} 个文件`
             );
             if (confirm !== `放弃所有 ${msg.count} 个文件`) return;
 
             await this.executeGitOperation(async () => {
-              await git.checkout(['--', '.']);
-              await git.clean('f', ['-d']);
-              await this.refreshStatus(cwd, false);
+                await git.checkout(['--', '.']); 
+                await git.clean('f', ['-d']); 
+                await this.refreshStatus(cwd, false);
             });
             break;
           }
-
+          
           case 'discard': {
             // 🌟 单文件情况，提取出文件名并弹出警告弹窗 (对应截图1)
             const fileName = msg.file.split('/').pop() || msg.file;
             const confirm = await vscode.window.showWarningMessage(
-              `是否确实要放弃 “${fileName}” 中的更改?`,
-              { modal: true },
-              '放弃文件'
+                `是否确实要放弃 “${fileName}” 中的更改?`,
+                { modal: true },
+                '放弃文件'
             );
             if (confirm !== '放弃文件') return;
 
             await this.executeGitOperation(async () => {
-              if (msg.status === 'U') {
-                const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
-                await vscode.workspace.fs.delete(fileUri, { useTrash: true });
-              } else {
-                await git.checkout(['--', msg.file]);
-              }
-              await this.refreshStatus(cwd, false);
+                if (msg.status === 'U') {
+                  const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
+                  await vscode.workspace.fs.delete(fileUri, { useTrash: true });
+                } else {
+                  await git.checkout(['--', msg.file]);
+                }
+                await this.refreshStatus(cwd, false);
             });
             break;
           }
-
+          
           case 'stage': {
             await this.executeGitOperation(async () => {
-              if (msg.status === 'D') {
-                await git.rm([msg.file]);
-              } else {
-                await git.add([msg.file]);
-              }
-              await this.refreshStatus(cwd, false);
+                if (msg.status === 'D') {
+                  await git.rm([msg.file]);
+                } else {
+                  await git.add([msg.file]);
+                }
+                await this.refreshStatus(cwd, false);
             });
             break;
           }
-
+          
           case 'unstage': {
             await this.executeGitOperation(async () => {
-              try {
-                await git.reset(['HEAD', '--', msg.file]);
-              } catch (e) {
-                await git.raw(['rm', '--cached', '--', msg.file]);
-              }
-              await this.refreshStatus(cwd, false);
+                try {
+                  await git.reset(['HEAD', '--', msg.file]);
+                } catch (e) {
+                  await git.raw(['rm', '--cached', '--', msg.file]);
+                }
+                await this.refreshStatus(cwd, false);
             });
             break;
           }
@@ -674,7 +712,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             });
             break;
           }
-
+          
           case 'diffCommitFile': {
             const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: msg.parentHash || 'empty' }));
             const leftUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${leftQuery}`);
@@ -685,12 +723,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
             break;
           }
-
+          
           case 'copy':
             vscode.env.clipboard.writeText(msg.text);
             vscode.window.showInformationMessage(`已复制: ${msg.text}`);
             break;
-
+            
           case 'ignore': {
             await this.executeGitOperation(async () => {
               const gitignoreUri = vscode.Uri.file(path.join(cwd, '.gitignore'));
@@ -709,44 +747,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             });
             break;
           }
-
+          
           case 'reveal': {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
             vscode.commands.executeCommand('revealFileInOS', fileUri);
             break;
           }
-
-          case 'createBranch': {
-            try {
-              // 1. 弹出输入框让用户输入新分支名
-              const newBranchName = await vscode.window.showInputBox({
-                prompt: '请输入新分支的名称',
-                placeHolder: '例如: feature/new-login',
-                validateInput: (text) => {
-                  if (text.trim().length === 0) return '分支名称不能为空';
-                  if (/\s/.test(text)) return '分支名称不能包含空格';
-                  return null;
-                }
-              });
-
-              if (!newBranchName) return; // 用户取消了输入
-
-              // 2. 执行 Git 命令创建并切换分支
-              await this.executeGitOperation(async () => {
-                // checkoutLocalBranch 等同于 git checkout -b <name>
-                await git.checkoutLocalBranch(newBranchName);
-                vscode.window.showInformationMessage(`✅ 已成功创建并切换到新分支: ${newBranchName}`);
-                await this.refreshStatus(cwd, true);
-              });
-            } catch (e: any) {
-              vscode.window.showErrorMessage(`创建新分支失败: ${e.message}`);
-            }
-            break;
-          }
-
-          case 'openExternal':
-            vscode.env.openExternal(vscode.Uri.parse(msg.url));
-            break;
         }
       } catch (error: any) {
         vscode.window.showErrorMessage(`Git 错误: ${error.message}`);
@@ -769,8 +775,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     try {
       // 🌟 使用视图进度条包裹读取操作
       await this.withViewProgress(async () => {
+        // 🌟 拦截未初始化的文件夹
         const isRepo = await git.checkIsRepo();
-        if (!isRepo) throw new Error('Not a git repository');
+        if (!isRepo) {
+            this._view?.webview.postMessage({ type: 'notRepo' });
+            return;
+        }
 
         const branchPromise = git
           .branchLocal()
@@ -837,8 +847,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         }
       });
     } catch (e: any) {
-      this._view.webview.postMessage({ type: 'statusData', stagedFiles: [], unstagedFiles: [], branch: '未初始化', remoteUrl: '' });
-      if (fullRefresh) this._view.webview.postMessage({ type: 'graphData', graphCommits: [], graphFilter: '全部分支' });
+      // 出错时也发送 notRepo 拦截
+      this._view?.webview.postMessage({ type: 'notRepo' });
     } finally {
       this._isRefreshing = false;
     }
@@ -847,24 +857,24 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private async handleCommit(cwd: string, message: string, skipVerify: boolean) {
     const git: SimpleGit = simpleGit(cwd);
     const status = await git.status();
-
+    
     const hasStaged = status.files.some(f => f.index !== ' ' && f.index !== '?');
     if (!hasStaged) {
       await git.add(['-A']);
     }
-
+    
     const options: any = {};
     if (skipVerify) {
-      options['--no-verify'] = null;
+        options['--no-verify'] = null; 
     }
-
+    
     await git.commit(message, options);
     vscode.window.showInformationMessage('🎉 提交成功！');
 
     // 🌟 发送通知给前端：刚刚提交成功，可以显示撤销按钮
     this._view?.webview.postMessage({ type: 'commitSuccess' });
 
-    await this.refreshStatus(cwd, true);
+    await this.refreshStatus(cwd, true); 
   }
 
   private getWorkspaceRoot(): string | undefined {
