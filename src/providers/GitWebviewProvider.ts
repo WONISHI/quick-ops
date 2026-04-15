@@ -761,21 +761,18 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private async refreshStatus(cwd: string, fullRefresh: boolean = true) {
+private async refreshStatus(cwd: string, fullRefresh: boolean = true) {
     if (!this._view) return;
-
     if (this._isRefreshing) return;
-
     this._isRefreshing = true;
 
     if (fullRefresh) this._view.webview.postMessage({ type: 'startLoading' });
 
     const git: SimpleGit = simpleGit(cwd);
 
-    try {
-      // 🌟 使用视图进度条包裹读取操作
-      await this.withViewProgress(async () => {
-        // 🌟 拦截未初始化的文件夹
+    // 🌟 1. 将核心的读取逻辑提取出来
+    const doRefresh = async () => {
+        // 拦截未初始化的文件夹
         const isRepo = await git.checkIsRepo();
         if (!isRepo) {
             this._view?.webview.postMessage({ type: 'notRepo' });
@@ -845,7 +842,15 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
           this._view?.webview.postMessage({ type: 'graphData', graphCommits, graphFilter: '全部分支' });
         }
-      });
+    };
+
+    try {
+      // 🌟 2. 核心修复：如果是全量刷新，显示进度条；如果是后台静默刷新(false)，则直接执行，不显示进度条
+      if (fullRefresh) {
+          await this.withViewProgress(doRefresh);
+      } else {
+          await doRefresh();
+      }
     } catch (e: any) {
       // 出错时也发送 notRepo 拦截
       this._view?.webview.postMessage({ type: 'notRepo' });
