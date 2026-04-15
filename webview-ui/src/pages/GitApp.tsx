@@ -9,7 +9,7 @@ import { faMarkdown, faHtml5, faCss3Alt, faVuejs, faJs } from '@fortawesome/free
 
 import Tooltip from '../components/Tooltip';
 import GitGraph, { type GraphCommit } from '../components/GitGraph';
-import GitCompareList from '../components/GitCompareList'; 
+import GitCompareList from '../components/GitCompareList';
 
 export interface GitFile { status: string; file: string; }
 interface TreeNode { name: string; fullPath: string; isDirectory: boolean; children: TreeNode[]; file?: GitFile; }
@@ -68,6 +68,9 @@ export default function GitApp() {
     // 🌟 新增：管理图谱搜索框的开关状态
     const [isGraphSearchOpen, setIsGraphSearchOpen] = useState(false);
 
+    // 🌟 新增状态：控制刚刚提交后的撤销按钮显隐
+    const [justCommitted, setJustCommitted] = useState(false);
+
     const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
     const [isGraphLoading, setIsGraphLoading] = useState(true);
     const [remoteUrl, setRemoteUrl] = useState<string>('');
@@ -87,6 +90,9 @@ export default function GitApp() {
     const [compareBase, setCompareBase] = useState<string | null>(null);
     const [compareCommits, setCompareCommits] = useState<GraphCommit[]>([]);
     const [isCompareOpen, setIsCompareOpen] = useState(false);
+
+    // 🌟 新增状态：Git 是否安装。默认 null 代表还在检测中
+    const [isGitInstalled, setIsGitInstalled] = useState<boolean | null>(null);
 
     const [skipVerify, setSkipVerify] = useState(false);
     const [selectedGraphFilter, setSelectedGraphFilter] = useState('全部分支');
@@ -157,6 +163,15 @@ export default function GitApp() {
                 setLoading(false);
                 setIsGraphLoading(false);
                 setCommitFilesLoading(false);
+            } else if (msg.type === 'commitSuccess') {
+                // 🌟 监听：提交成功，唤醒撤销按钮
+                setJustCommitted(true);
+            } else if (msg.type === 'clearJustCommitted') {
+                // 🌟 监听：推送/拉取成功，立刻隐藏撤销按钮
+                setJustCommitted(false);
+            } else if (msg.type === 'gitInstallationStatus') {
+                // 🌟 监听：获取 Git 安装状态
+                setIsGitInstalled(msg.isInstalled);
             }
         };
         window.addEventListener('message', handleMsg);
@@ -395,6 +410,29 @@ export default function GitApp() {
         );
     }
 
+    if (isGitInstalled === false) {
+        return (
+            <div className={styles['git-sidebar']} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', textAlign: 'center', height: '100vh' }}>
+                <i className="codicon codicon-git-merge" style={{ fontSize: '48px', marginBottom: '16px', color: 'var(--vscode-textLink-foreground)', opacity: 0.8 }} />
+                <div style={{ fontSize: '15px', marginBottom: '8px', color: 'var(--vscode-editor-foreground)', fontWeight: 600 }}>
+                    未检测到 Git 环境
+                </div>
+                <div style={{ fontSize: '12px', marginBottom: '24px', color: 'var(--vscode-descriptionForeground)', lineHeight: 1.5 }}>
+                    当前系统未安装 Git，或环境变量未配置。<br />
+                    请安装 Git 后 <span style={{ color: 'var(--vscode-textLink-foreground)' }}>重启 VS Code</span>。
+                </div>
+                <button
+                    className={styles['commit-btn']}
+                    onClick={() => vscode.postMessage({ command: 'openExternal', url: 'https://git-scm.com/downloads' })}
+                    style={{ width: 'auto', padding: '0 20px', borderRadius: '4px', height: '32px' }}
+                >
+                    <i className="codicon codicon-cloud-download" style={{ marginRight: '6px' }} />
+                    前往官网下载 Git
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className={styles['git-sidebar']}>
 
@@ -516,6 +554,8 @@ export default function GitApp() {
                         setCommitMsg(e.target.value);
                         e.target.style.height = '28px';
                         e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                        // 🌟 用户敲击键盘时，隐藏撤销按钮
+                        setJustCommitted(false);
                     }}
                     onKeyDown={(e) => {
                         if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleCommit();
@@ -534,9 +574,35 @@ export default function GitApp() {
 
             <div className={styles['changes-scroll-area']} style={{ maxHeight: 'none', overflowY: 'visible', flexShrink: 0 }}>
                 <div className={styles['changes-section']}>
-                    <div className={styles['changes-header']} onClick={() => setIsChangesOpen(!isChangesOpen)}>
-                        <i className={`codicon ${isChangesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
-                        更改 <span className={styles['badge']}>{stagedFiles.length + unstagedFiles.length}</span>
+
+                    {/* 🌟 渲染：撤销按钮加在这里 */}
+                    <div className={styles['changes-header']} onClick={() => setIsChangesOpen(!isChangesOpen)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+
+                        {/* 左侧：箭头、文字、徽章 */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <i className={`codicon ${isChangesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
+                            更改 <span className={styles['badge']}>{stagedFiles.length + unstagedFiles.length}</span>
+                        </div>
+
+                        {/* 右侧：操作按钮组 (只在刚提交时显示撤销)，必须包裹在这个 changes-header 内部 */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                            {justCommitted && (
+                                <Tooltip content="撤销刚刚的提交 (退回工作区)">
+                                    <button
+                                        className={styles['action-btn']}
+                                        onClick={(e) => {
+                                            e.stopPropagation(); // 阻止标题折叠
+                                            vscode.postMessage({ command: 'undoLastCommit' });
+                                            setJustCommitted(false); // 点完消失
+                                        }}
+                                        style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                                    >
+                                        <i className="codicon codicon-debug-restart-frame" />
+                                    </button>
+                                </Tooltip>
+                            )}
+                        </div>
+
                     </div>
 
                     {isChangesOpen && (
@@ -545,7 +611,8 @@ export default function GitApp() {
                                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                                     <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                            <i className="codicon codicon-git-branch-staged-changes" style={{ fontSize: '14px', width: '16px' }} />
+                                            {/* 🌟 修复 1：暂存区图标替换为 git-pull-request-done */}
+                                            <i className="codicon codicon-git-pull-request-done" style={{ fontSize: '14px', width: '16px' }} />
                                             暂存区 <span className={styles['badge']}>{stagedFiles.length}</span>
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
@@ -627,7 +694,7 @@ export default function GitApp() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
                             <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px', flexShrink: 0 }} />
                             <span style={{ flexShrink: 0 }}>{compareBase === '文件历史' ? '文件历史' : '对比'}</span>
-                            
+
                             {compareTarget && compareBase && (
                                 <span style={{ flex: 1, minWidth: 0, color: 'var(--vscode-textLink-foreground)', fontSize: '11px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={compareBase === '文件历史' ? `文件: ${compareTarget}` : `${compareTarget} ↔ ${compareBase}`}>
                                     {compareBase === '文件历史' ? `(${compareTarget})` : `(${compareTarget} ↔ ${compareBase})`}
@@ -635,7 +702,7 @@ export default function GitApp() {
                             )}
                             <span className={styles['badge']} style={{ flexShrink: 0 }}>{compareCommits.length}</span>
                         </div>
-                        
+
                         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
                             <Tooltip content={activeFile ? `查看当前文件历史` : "查看当前文件历史 (请先打开文件)"}>
                                 <button
@@ -718,6 +785,19 @@ export default function GitApp() {
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
 
+                        <Tooltip content="新建本地分支">
+                            <button
+                                className={styles['action-btn']}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    vscode.postMessage({ command: 'createBranch' }); // 👈 这里改成 createBranch
+                                }}
+                                style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                            >
+                                <i className="codicon codicon-git-branch-staged-changes" />
+                            </button>
+                        </Tooltip>
+
                         <Tooltip content="切换分支 (Checkout)">
                             <button
                                 className={styles['action-btn']}
@@ -775,6 +855,7 @@ export default function GitApp() {
                                     transition: 'all 0.5s ease-out'
                                 }}
                             >
+                                {/* 🌟 修复 3：筛选分支图标替换为 filter */}
                                 <i className="codicon codicon-filter" />
                             </button>
                         </Tooltip>
@@ -804,7 +885,7 @@ export default function GitApp() {
                     ) : graphCommits.length === 0 ? (
                         <div className={styles['git-graph-fallback']}>暂无记录</div>
                     ) : (
-                        <GitGraph 
+                        <GitGraph
                             graphCommits={graphCommits}
                             displayCount={displayCount}
                             setDisplayCount={setDisplayCount}
@@ -815,7 +896,6 @@ export default function GitApp() {
                             branch={branch}
                             onCommitClick={toggleCommit}
                             remoteUrl={remoteUrl}
-                            /* 🌟 核心修改 2：把开关状态传给 GitGraph 组件 */
                             isSearchOpen={isGraphSearchOpen}
                             setIsSearchOpen={setIsGraphSearchOpen}
                             renderCommitFiles={(files) => renderFileList(files, 'history')}

@@ -37,7 +37,7 @@ body {
     color: var(--vscode-icon-foreground);
     border: none;
     cursor: pointer;
-    width: 20px; 
+    width: 20px;
     height: 20px;
     border-radius: 3px;
     display: flex;
@@ -164,7 +164,7 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    flex-shrink: 0; 
+    flex-shrink: 0;
     max-width: 50%;
 }
 
@@ -196,7 +196,7 @@ body {
     display: flex;
     align-items: center;
     opacity: 0.8;
-    padding:0;
+    padding: 0;
 }
 
 .action-btn:hover {
@@ -295,4 +295,12 @@ body {
     border-top: 1px solid var(--vscode-menu-separatorBackground);
     opacity: 0.5;
     height: 0;
+}
+
+.git-graph-fallback {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+    color: var(--vscode-editor-foreground);
 }
