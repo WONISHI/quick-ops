@@ -166,15 +166,15 @@ export default function GitApp() {
             setExpandedDirs((prev) => {
               const next = { ...prev };
               let currentPath = '';
-              parts.forEach((p: any) => {
+              // 🌟 修复 1：将 (p: any) 修正为 (p: string)，消除 ESLint 报错
+              parts.forEach((p: string) => {
                 currentPath = currentPath ? `${currentPath}/${p}` : p;
                 next[currentPath] = true;
               });
               return next;
             });
           }
-          å;
-        }
+        } // 🌟 修复 2：删除了这里多余的乱码字符 `}å`
       } else if (msg.type === 'compareData') {
         if (msg.targetBranch && msg.baseBranch) {
           setCompareTarget(msg.targetBranch);
