@@ -29,7 +29,49 @@ import {
 import { faCopy, faSquareCheck, faClone, faImage, faFolderOpen as faFolderOpenReg, faWindowRestore } from '@fortawesome/free-regular-svg-icons';
 import { faGithub, faGitlab, faJs, faVuejs, faHtml5, faCss3Alt, faMarkdown } from '@fortawesome/free-brands-svg-icons';
 
-function getDisplayPath(project: any) {
+// 🌟 1. 定义所有核心数据结构的 TypeScript 接口
+interface Project {
+  fsPath: string;
+  name: string;
+  customName?: string;
+  customDomain?: string;
+  platform?: string;
+  branch?: string;
+  timestamp: number;
+}
+
+interface DirChild {
+  path: string;
+  name: string;
+  isFolder: boolean;
+}
+
+interface SearchMatch {
+  line: number;
+  text: string;
+}
+
+interface SearchResult {
+  file: string;
+  fullPath: string;
+  matches: SearchMatch[];
+}
+
+interface ContextMenuPayload {
+  path: string;
+  name?: string;
+  originalName?: string;
+  customName?: string;
+  isRemote?: boolean;
+  platform?: string;
+  customDomain?: string;
+  isActiveProject?: boolean;
+  isFolder?: boolean;
+  projectName?: string;
+}
+
+// 🌟 2. 移除任何 any 声明，使用强类型
+function getDisplayPath(project: Project) {
   let displayPath = project.fsPath;
   try {
     const isFile = !project.fsPath.startsWith('vscode-vfs') && !project.fsPath.startsWith('http');
@@ -44,7 +86,9 @@ function getDisplayPath(project: any) {
     } else {
       displayPath = project.fsPath.replace('vscode-vfs://github/', 'GitHub: ').replace('vscode-vfs://gitlab/', 'GitLab: ');
     }
-  } catch (e) {}
+  } catch (e) {
+    console.log('e', e);
+  }
   return displayPath;
 }
 
@@ -131,7 +175,7 @@ const HighlightText = ({
 };
 
 export default function RecentProjectsApp() {
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [currentUri, setCurrentUri] = useState('');
   const [lastOpenedPath, setLastOpenedPath] = useState('');
 
@@ -140,7 +184,7 @@ export default function RecentProjectsApp() {
 
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
-  const [dirChildren, setDirChildren] = useState<Record<string, any[]>>({});
+  const [dirChildren, setDirChildren] = useState<Record<string, DirChild[]>>({});
   const [branchMap, setBranchMap] = useState<Record<string, string>>({});
 
   const [contextMenu, setContextMenu] = useState<{
@@ -148,15 +192,15 @@ export default function RecentProjectsApp() {
     x: number;
     y: number;
     type: 'top' | 'sub';
-    payload: any;
-  }>({ visible: false, x: 0, y: 0, type: 'top', payload: {} });
+    payload: ContextMenuPayload;
+  }>({ visible: false, x: 0, y: 0, type: 'top', payload: { path: '' } });
   const menuRef = useRef<HTMLDivElement>(null);
 
   // 文件夹内容搜索机制状态
   const [isSearchMode, setIsSearchMode] = useState(false);
-  const [searchTargetProject, setSearchTargetProject] = useState<any>(null);
+  const [searchTargetProject, setSearchTargetProject] = useState<ContextMenuPayload | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
-  const [folderSearchResults, setFolderSearchResults] = useState<any[]>([]);
+  const [folderSearchResults, setFolderSearchResults] = useState<SearchResult[]>([]);
   const [isSearchingFolder, setIsSearchingFolder] = useState(false);
   const [folderSearchError, setFolderSearchError] = useState('');
   const [currentActiveMatch, setCurrentActiveMatch] = useState(0);
@@ -173,7 +217,7 @@ export default function RecentProjectsApp() {
     const regex = new RegExp(`(${safeQuery})`, 'gi');
 
     folderSearchResults.forEach((res, fileIndex) => {
-      res.matches.forEach((m: any, matchIndex: number) => {
+      res.matches.forEach((m: SearchMatch, matchIndex: number) => {
         const startIdx = idx;
         map.set(`${fileIndex}-${matchIndex}`, startIdx);
 
@@ -197,33 +241,36 @@ export default function RecentProjectsApp() {
 
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
-      const msg = e.data;
+      // 禁用 eslint 检测 e.data 的隐式 any，或者在内部使用类型断言
+      const msg = e.data as Record<string, unknown>;
+
       if (msg.type === 'updateProjects') {
-        setProjects(msg.data || []);
-        setCurrentUri(msg.currentUriStr || '');
-        setLastOpenedPath(msg.lastOpenedPath || '');
+        const data = (msg.data as Project[]) || [];
+        setProjects(data);
+        setCurrentUri((msg.currentUriStr as string) || '');
+        setLastOpenedPath((msg.lastOpenedPath as string) || '');
         const initialBranches: Record<string, string> = {};
-        (msg.data || []).forEach((p: any) => {
+        data.forEach((p: Project) => {
           if (p.branch) initialBranches[p.fsPath] = p.branch;
         });
         setBranchMap(initialBranches);
       } else if (msg.type === 'updateBranchTag') {
-        setBranchMap((prev) => ({ ...prev, [msg.fsPath]: msg.branch }));
+        setBranchMap((prev) => ({ ...prev, [msg.fsPath as string]: msg.branch as string }));
       } else if (msg.type === 'readDirResult') {
         setLoadingNodes((prev) => {
           const n = new Set(prev);
-          n.delete(msg.id);
+          n.delete(msg.id as string);
           return n;
         });
-        setDirChildren((prev) => ({ ...prev, [msg.id]: msg.children }));
+        setDirChildren((prev) => ({ ...prev, [msg.id as string]: msg.children as DirChild[] }));
       } else if (msg.type === 'searchFolderResult') {
         setIsSearchingFolder(false);
         if (msg.error) {
-          setFolderSearchError(msg.error);
+          setFolderSearchError(msg.error as string);
           setFolderSearchResults([]);
         } else {
           setFolderSearchError('');
-          setFolderSearchResults(msg.results || []);
+          setFolderSearchResults((msg.results as SearchResult[]) || []);
           setCurrentActiveMatch(0);
         }
       }
@@ -253,7 +300,7 @@ export default function RecentProjectsApp() {
   const currentProject = projects.find((p) => p.fsPath.split('?')[0] === currentBaseUri);
   const otherProjects = projects.filter((p) => p !== currentProject);
 
-  const matchSearch = (p: any) => {
+  const matchSearch = (p: Project) => {
     if (!searchQuery) return true;
     const title = p.customName || p.name;
     const path = getDisplayPath(p);
@@ -264,10 +311,11 @@ export default function RecentProjectsApp() {
   const filteredOtherProjects = otherProjects.filter(matchSearch);
   const isCurrentVisible = currentProject && matchSearch(currentProject);
 
-  const clickTimeout = useRef<any>(null);
+  // 修复 useRef 的类型
+  const clickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleOpenProject = (path: string) => {
-    clearTimeout(clickTimeout.current);
+    if (clickTimeout.current) clearTimeout(clickTimeout.current);
     vscode.postMessage({ type: 'openProject', fsPath: path });
   };
 
@@ -282,10 +330,10 @@ export default function RecentProjectsApp() {
     vscode.postMessage({ type: 'openFile', fsPath: path, projectName });
   };
 
-  const handleToggleExpand = (id: string, path: string, projectName: string, isRemote: boolean, e: React.MouseEvent) => {
+  const handleToggleExpand = (id: string, path: string, projectName: string, _: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedId(id);
-    clearTimeout(clickTimeout.current);
+    if (clickTimeout.current) clearTimeout(clickTimeout.current);
     clickTimeout.current = setTimeout(() => {
       setExpandedNodes((prev) => {
         const next = new Set(prev);
@@ -307,7 +355,7 @@ export default function RecentProjectsApp() {
     }, 250);
   };
 
-  const handleContextMenu = (e: React.MouseEvent, type: 'top' | 'sub', payload: any, elementId: string) => {
+  const handleContextMenu = (e: React.MouseEvent, type: 'top' | 'sub', payload: ContextMenuPayload, elementId: string) => {
     e.preventDefault();
     e.stopPropagation();
     setSelectedId(elementId);
@@ -320,7 +368,7 @@ export default function RecentProjectsApp() {
     setContextMenu({ visible: true, x, y, type, payload });
   };
 
-  const executeMenuAction = (action: string, arg?: any) => {
+  const executeMenuAction = (action: string, arg?: string) => {
     setContextMenu((prev) => ({ ...prev, visible: false }));
     const { payload } = contextMenu;
 
@@ -378,7 +426,6 @@ export default function RecentProjectsApp() {
     }
   };
 
-  // 🌟 修复跳转：基于真实关键词数量
   const handleNextSearchMatch = () => {
     if (totalMatches === 0) return;
     setCurrentActiveMatch((prev) => (prev + 1) % totalMatches);
@@ -391,7 +438,6 @@ export default function RecentProjectsApp() {
   useEffect(() => {
     if (totalMatches > 0 && isSearchMode && flatMatchesList[currentActiveMatch]) {
       const matchInfo = flatMatchesList[currentActiveMatch];
-      // 准确地滚动到对应的匹配行
       const el = document.getElementById(`search-line-${matchInfo.fileIndex}-${matchInfo.matchIndex}`);
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
@@ -727,7 +773,6 @@ export default function RecentProjectsApp() {
               />
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '4px', paddingRight: '4px' }}>
-                {/* 🌟 使用基于关键字出现总数的渲染 */}
                 <span style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', minWidth: '40px', textAlign: 'center' }}>
                   {totalMatches > 0 ? currentActiveMatch + 1 : 0} / {totalMatches}
                 </span>
@@ -759,8 +804,7 @@ export default function RecentProjectsApp() {
                       {res.file}
                     </div>
                     <ul style={{ listStyle: 'none', padding: 0, margin: 0, borderLeft: '1px solid var(--vscode-panel-border)', marginLeft: '6px' }}>
-                      {res.matches.map((m: any, j: number) => {
-                        // 计算当前这行之前的全局索引基数
+                      {res.matches.map((m: SearchMatch, j: number) => {
                         const globalStartIndex = lineStartIndexMap.get(`${i}-${j}`) || 0;
                         const matchInfo = flatMatchesList[currentActiveMatch];
                         const isLineActive = matchInfo && matchInfo.fileIndex === i && matchInfo.matchIndex === j;
@@ -803,7 +847,6 @@ export default function RecentProjectsApp() {
                             >
                               {m.line}
                             </span>
-                            {/* 🌟 传入精确的全局参数，完成个别匹配块的高亮渲染 */}
                             <HighlightText text={m.text} query={folderSearchQuery} globalStartIndex={globalStartIndex} currentActiveMatch={currentActiveMatch} isLineActive={!!isLineActive} />
                           </li>
                         );
