@@ -669,9 +669,22 @@ export default function GitApp() {
               更改 <span className={styles['badge']}>{stagedFiles.length + unstagedFiles.length}</span>
             </div>
 
-            {/* 🌟 只有有效的仓库才会显示撤销按钮保护区域 */}
+            {/* 🌟 核心升级：右侧加入工作区/暂存区局部刷新按钮 */}
             {isRepo && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Tooltip content="刷新状态和更改">
+                  <button
+                    className={styles['action-btn']}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      vscode.postMessage({ command: 'refreshStatusOnly' });
+                    }}
+                    style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                  >
+                    <i className="codicon codicon-refresh" />
+                  </button>
+                </Tooltip>
+
                 {justCommitted && (
                   <Tooltip content="撤销刚刚的提交 (退回工作区)">
                     <button

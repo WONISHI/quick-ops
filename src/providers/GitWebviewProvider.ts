@@ -602,9 +602,63 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          // ========================================================
+          // 🌟 核心升级：stageAll 自动忽略/剔除假变更文件
+          // ========================================================
           case 'stageAll': {
             await this.executeGitOperation(async () => {
-              await git.add(['-A']);
+              const status = await git.status();
+              const filesToAdd: string[] = [];
+              const filesToDelete: string[] = [];
+
+              for (const f of status.files) {
+                const wDir = f.working_dir;
+                if (wDir === ' ' || wDir === '') continue; // 未在工作区修改
+
+                if (wDir === 'D') {
+                  filesToDelete.push(f.path);
+                } else if (wDir === '?' || wDir === 'U') {
+                  filesToAdd.push(f.path);
+                } else {
+                  // 工作区有修改 (如 M), 检查实质内容 diff
+                  const diff = await git.diff(['--', f.path]);
+                  if (!diff.trim()) {
+                    // 无内容变更 (如仅文件权限/换行符变化)，抛弃假修改恢复原始状态
+                    await git.checkout(['--', f.path]);
+                  } else {
+                    filesToAdd.push(f.path);
+                  }
+                }
+              }
+
+              if (filesToAdd.length > 0) await git.add(filesToAdd);
+              if (filesToDelete.length > 0) await git.rm(filesToDelete);
+
+              await this.refreshStatus(cwd, false);
+            });
+            break;
+          }
+
+          // ========================================================
+          // 🌟 核心升级：stage 自动忽略/剔除单文件假变更
+          // ========================================================
+          case 'stage': {
+            await this.executeGitOperation(async () => {
+              if (msg.status === 'D') {
+                await git.rm([msg.file]);
+              } else if (msg.status === '?' || msg.status === 'U') {
+                await git.add([msg.file]);
+              } else {
+                // 检查单文件是否有实质内容更改
+                const diff = await git.diff(['--', msg.file]);
+                if (!diff.trim()) {
+                  // 无内容变更，直接 checkout 抛弃工作区假状态
+                  await git.checkout(['--', msg.file]);
+                  vscode.window.showInformationMessage(`文件 ${msg.file} 无实质性内容更改，已自动剔除。`);
+                } else {
+                  await git.add([msg.file]);
+                }
+              }
               await this.refreshStatus(cwd, false);
             });
             break;
@@ -628,7 +682,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             const confirm = await vscode.window.showWarningMessage(
               `是否确实要放弃 ${msg.count} 个文件中的全部更改?\n\n此操作不可撤销！\n如果继续操作，你当前的工作集将永久丢失。`,
               { modal: true },
-              `放弃所有 ${msg.count} 个文件`,
+              `放弃所有 ${msg.count} 个文件`
             );
             if (confirm !== `放弃所有 ${msg.count} 个文件`) return;
 
@@ -652,18 +706,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 await vscode.workspace.fs.delete(fileUri, { useTrash: true });
               } else {
                 await git.checkout(['--', msg.file]);
-              }
-              await this.refreshStatus(cwd, false);
-            });
-            break;
-          }
-
-          case 'stage': {
-            await this.executeGitOperation(async () => {
-              if (msg.status === 'D') {
-                await git.rm([msg.file]);
-              } else {
-                await git.add([msg.file]);
               }
               await this.refreshStatus(cwd, false);
             });
