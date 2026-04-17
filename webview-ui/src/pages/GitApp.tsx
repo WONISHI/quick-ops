@@ -113,7 +113,7 @@ export default function GitApp() {
   const [contextMenu, setContextMenu] = useState<{ visible: boolean; x: number; y: number; file: GitFile; listType: 'staged' | 'unstaged' | 'history' | 'compare' } | null>(null);
 
   const lastRefreshRef = useRef<number>(0);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const commitInputRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     lastRefreshRef.current = Date.now();
@@ -231,7 +231,11 @@ export default function GitApp() {
     setLoading(true);
     vscode.postMessage({ command: 'commit', message: commitMsg, skipVerify });
     setCommitMsg('');
-    if (textareaRef.current) textareaRef.current.style.height = '28px';
+
+    // 🌟 提交后清空 div 内部文本
+    if (commitInputRef.current) {
+      commitInputRef.current.innerText = '';
+    }
   };
 
   const toggleCommit = (hash: string) => {
@@ -633,29 +637,37 @@ export default function GitApp() {
       </div>
 
       <div className={styles['commit-box']}>
-        <textarea
-          ref={textareaRef}
+        <div
+          ref={commitInputRef}
           className={styles['commit-input']}
-          placeholder="消息 (按 Ctrl+Enter 提交)"
-          value={commitMsg}
-          onChange={(e) => {
-            setCommitMsg(e.target.value);
-            e.target.style.height = '28px';
-            e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+          contentEditable={isRepo && !loading}
+          data-placeholder="消息 (按 Ctrl+Enter 提交)"
+          onInput={(e) => {
+            // 🌟 监听输入并将内容同步到 state
+            setCommitMsg(e.currentTarget.innerText);
             setJustCommitted(false);
           }}
           onKeyDown={(e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') handleCommit();
+            // 🌟 拦截 Ctrl+Enter 或 Cmd+Enter
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+              e.preventDefault(); // 阻止回车换行
+              handleCommit();
+            }
           }}
-          style={{
-            resize: 'none',
-            minHeight: '28px',
-            overflowY: 'auto',
-            boxSizing: 'border-box',
+          onPaste={(e) => {
+            // 🌟 拦截粘贴事件：强制转换为纯文本，防止用户粘贴图片或富文本 HTML 搞乱输入框
+            e.preventDefault();
+            const text = e.clipboardData.getData('text/plain');
+            document.execCommand('insertText', false, text);
           }}
-          disabled={!isRepo}
+          suppressContentEditableWarning={true}
         />
-        <button className={styles['commit-btn']} disabled={!isRepo || loading || !commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0)} onClick={handleCommit}>
+
+        <button
+          className={styles['commit-btn']}
+          disabled={!isRepo || loading || !commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0)}
+          onClick={handleCommit}
+        >
           {loading ? <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} /> : <i className="codicon codicon-check" style={{ marginRight: '6px' }} />} 提交
           (Commit)
         </button>

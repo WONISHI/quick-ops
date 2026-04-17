@@ -67,10 +67,37 @@ body {
     padding: 4px 6px;
     border-radius: 2px;
     min-height: 28px;
+    max-height: 120px; /* 🌟 自动撑开的最大高度 */
+    overflow-y: auto;
     font-family: inherit;
     font-size: 13px;
     line-height: 18px;
     box-sizing: border-box;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    outline: none;
+}
+
+/* 🌟 获取焦点时的高亮边框（完全对齐 VS Code 原生体验） */
+.commit-input:focus {
+    border-color: var(--vscode-focusBorder);
+    outline: 1px solid var(--vscode-focusBorder);
+    outline-offset: -1px;
+}
+
+/* 🌟 巧妙利用 CSS 实现 div 的 placeholder 占位符效果 */
+.commit-input:empty::before {
+    content: attr(data-placeholder);
+    color: var(--vscode-input-placeholderForeground, #a6a6a6);
+    pointer-events: none;
+    display: block;
+}
+
+/* 🌟 当没有 Git 仓库（被禁用）时的样式 */
+.commit-input[contenteditable="false"] {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--vscode-input-background);
 }
 
 .commit-btn {
