@@ -600,7 +600,13 @@ export default function GitApp() {
       )}
 
       <div className={styles['git-toolbar']}>
-        <span>Git 管理 ({branch})</span>
+        <div className={styles['toolbar-title-container']}>
+          <Tooltip content={`Git分支 (${branch})`}>
+            <span className={styles['toolbar-title']}>
+              Git 管理 ({branch})
+            </span>
+          </Tooltip>
+        </div>
         <div className={styles['git-actions']}>
           {/* 🌟 条件渲染：如果不是Repo或没工作区，这里只展示 Clone 按钮 */}
           {isRepo ? (

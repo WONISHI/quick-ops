@@ -331,3 +331,20 @@ body {
     flex: 1;
     color: var(--vscode-editor-foreground);
 }
+/* 外层容器：控制 Flex 缩放并必须包含 min-width: 0 */
+.toolbar-title-container {
+    flex: 1;          /* 占据左侧所有剩余空间 */
+    min-width: 0;     /* 🌟 核心魔法：允许 flex 子元素缩小到比其内容更小的尺寸，从而触发截断 */
+    margin-right: 10px; /* 给右侧按钮留点呼吸空间 */
+    display: flex;
+    align-items: center;
+}
+
+/* 内层文本：负责实现单行省略号 */
+.toolbar-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    width: 100%;
+}
