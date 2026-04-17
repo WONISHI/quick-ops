@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import simpleGit, { SimpleGit } from 'simple-git';
 import path from 'path';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
-import { exec } from 'child_process'; // 🌟 引入执行模块
+import { exec } from 'child_process'; 
 
 export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
@@ -144,8 +144,22 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       }
     });
 
+    // 🌟 核心升级：实时监听 VS Code 全局设置的改变
+    const configListener = vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('quick-ops.git.defaultSkipVerify')) {
+        const config = vscode.workspace.getConfiguration('quick-ops.git');
+        const defaultSkipVerify = config.get<boolean>('defaultSkipVerify') || false;
+        // 配置一旦发生改变，立刻推送给前端
+        this._view?.webview.postMessage({ 
+          type: 'gitConfigChanged', 
+          defaultSkipVerify 
+        });
+      }
+    });
+
     webviewView.onDidDispose(() => {
       editorListener.dispose();
+      configListener.dispose(); // 🌟 别忘了销毁监听器防止内存泄漏
       this._gitWatchers.forEach((d) => d.dispose());
       this._gitWatchers = [];
     });
@@ -170,7 +184,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           // 获取配置
           const config = vscode.workspace.getConfiguration('quick-ops.git');
           const defaultSkipVerify = config.get<boolean>('defaultSkipVerify') || false;
-          console.log('defaultSkipVerify',defaultSkipVerify)
+          console.log('defaultSkipVerify',defaultSkipVerify);
 
           this._view?.webview.postMessage({
             type: 'gitInstallationStatus',

@@ -191,11 +191,16 @@ export default function GitApp() {
       } else if (msg.type === 'clearJustCommitted') {
         setJustCommitted(false);
       } else if (msg.type === 'gitInstallationStatus') {
-        console.log('1111',msg)
+        console.log('1111', msg);
         setIsGitInstalled(msg.isInstalled);
         // 🌟 监听：如果是首次加载 Webview，则应用用户在设置中的默认配置
         if (msg.isInit && msg.defaultSkipVerify !== undefined) {
-          console.log('msg',msg)
+          console.log('msg', msg);
+          setSkipVerify(msg.defaultSkipVerify);
+        }
+      } else if (msg.type === 'gitConfigChanged') {
+        // 🌟 监听：来自 VS Code 原生设置界面的实时配置修改
+        if (msg.defaultSkipVerify !== undefined) {
           setSkipVerify(msg.defaultSkipVerify);
         }
       }

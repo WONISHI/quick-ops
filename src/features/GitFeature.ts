@@ -7,8 +7,9 @@ import { exec } from 'child_process';
 
 export class GitFeature implements IFeature {
   public readonly id = 'GitFeature';
+  // 🌟 将锁提升为类属性，确保在异步初始化和监听器之间共享
+  private _isUpdating = false;
 
-  // 🌟 检测系统是否安装了 Git
   private checkGitInstalled(): Promise<boolean> {
     return new Promise((resolve) => {
       exec('git --version', (error) => {
@@ -17,7 +18,6 @@ export class GitFeature implements IFeature {
     });
   }
 
-  // 🌟 核心逻辑：将检查、回填、挂载监听串联为严格的先后顺序
   private async initializeConfigSync(context: vscode.ExtensionContext) {
     const isInstalled = await this.checkGitInstalled();
     if (!isInstalled) return;
@@ -26,20 +26,16 @@ export class GitFeature implements IFeature {
     let globalName = '';
     let globalEmail = '';
     
-    // 1. 获取底层 Git 里的真实配置
     try {
       globalName = (await git.raw(['config', '--global', 'user.name'])).trim();
       globalEmail = (await git.raw(['config', '--global', 'user.email'])).trim();
-    } catch (e) {
-      // 忽略没配置的情况
-    }
+    } catch (e) {}
 
     const config = vscode.workspace.getConfiguration('quick-ops.git');
-    let isUpdating = false; // 防抖锁
 
-    // 2. 判断：如果 Git 有值，则回填到 VS Code 配置中
+    // 1. 初始化回填
     if (globalName || globalEmail) {
-      isUpdating = true; // 开启锁，以防万一
+      this._isUpdating = true; // 开启同步锁
       const promises = [];
       if (globalName && config.get('userName') !== globalName) {
         promises.push(config.update('userName', globalName, vscode.ConfigurationTarget.Global));
@@ -48,66 +44,60 @@ export class GitFeature implements IFeature {
         promises.push(config.update('userEmail', globalEmail, vscode.ConfigurationTarget.Global));
       }
       
-      // 🌟 关键：必须等待回填操作彻底完成！
       await Promise.all(promises);
-      isUpdating = false; // 回填完毕，释放锁
+      
+      // 🌟 关键优化：延迟释放锁。
+      // 因为 config.update 后，VS Code 的配置变更事件是异步广播的，
+      // 立即释放锁会导致监听器捕获到刚才自己触发的变更。
+      setTimeout(() => { this._isUpdating = false; }, 500);
     }
 
-    // 3. 然后再开启监听 (此时初始化回填已结束，后续所有的变动都是用户的手动修改)
+    // 2. 挂载监听器
     context.subscriptions.push(
         vscode.workspace.onDidChangeConfiguration(async (e) => {
-            if (isUpdating) return;
+            // 🌟 锁中或变更的不是账号信息，则忽略
+            if (this._isUpdating) return;
+            if (!e.affectsConfiguration('quick-ops.git.userName') && !e.affectsConfiguration('quick-ops.git.userEmail')) return;
 
-            if (e.affectsConfiguration('quick-ops.git.userName') || e.affectsConfiguration('quick-ops.git.userEmail')) {
-                
-                const isGitReady = await this.checkGitInstalled();
-                if (!isGitReady) {
-                    vscode.window.showWarningMessage('未检测到 Git 环境，无法设置全局用户名和邮箱。');
-                    return;
-                }
+            const isGitReady = await this.checkGitInstalled();
+            if (!isGitReady) return;
 
-                // 获取 VS Code 输入框里的“新值”
-                const currentConfig = vscode.workspace.getConfiguration('quick-ops.git');
-                const newName = currentConfig.get<string>('userName');
-                const newEmail = currentConfig.get<string>('userEmail');
+            const currentConfig = vscode.workspace.getConfiguration('quick-ops.git');
+            const newName = currentConfig.get<string>('userName');
+            const newEmail = currentConfig.get<string>('userEmail');
 
-                // 再次获取底层 Git 里的“旧值”（防止在此期间被第三方工具改掉）
-                let oldName = '';
-                let oldEmail = '';
+            let oldName = '';
+            let oldEmail = '';
+            try {
+                const liveGit = simpleGit();
+                oldName = (await liveGit.raw(['config', '--global', 'user.name'])).trim();
+                oldEmail = (await liveGit.raw(['config', '--global', 'user.email'])).trim();
+            } catch (err) {}
+
+            // 如果 VS Code 设置的值和 Git 里的值已经一致了，说明是自动同步，直接返回
+            if (newName === oldName && newEmail === oldEmail) return;
+
+            const action = await vscode.window.showInformationMessage(
+                `检测到 Git 账号信息更改，是否同步设置为 Git 的【全局 (Global)】配置？\n\n[用户名] ${oldName || '未设置'}  ➡️  ${newName || '未设置'}\n[邮箱] ${oldEmail || '未设置'}  ➡️  ${newEmail || '未设置'}`,
+                { modal: true },
+                '确认设置为全局'
+            );
+
+            if (action === '确认设置为全局') {
                 try {
-                    oldName = (await git.raw(['config', '--global', 'user.name'])).trim();
-                    oldEmail = (await git.raw(['config', '--global', 'user.email'])).trim();
-                } catch (err) {}
-
-                // 如果实质内容没有改变，直接跳过
-                if (newName === oldName && newEmail === oldEmail) return;
-
-                const action = await vscode.window.showInformationMessage(
-                    `检测到 Git 账号信息更改，是否同步设置为 Git 的【全局 (Global)】配置？\n\n[用户名] ${oldName || '未设置'}  ➡️  ${newName || '未设置'}\n[邮箱] ${oldEmail || '未设置'}  ➡️  ${newEmail || '未设置'}`,
-                    { modal: true },
-                    '确认设置为全局'
-                );
-
-                if (action === '确认设置为全局') {
-                    // 用户确认，执行底层 Git 修改
-                    try {
-                        if (newName !== undefined && newName !== oldName) {
-                            await git.raw(['config', '--global', 'user.name', newName]);
-                        }
-                        if (newEmail !== undefined && newEmail !== oldEmail) {
-                            await git.raw(['config', '--global', 'user.email', newEmail]);
-                        }
-                        vscode.window.showInformationMessage('✅ Git 全局用户信息已成功更新！');
-                    } catch (error: any) {
-                        vscode.window.showErrorMessage(`设置全局 Git 配置失败: ${error.message}`);
-                    }
-                } else {
-                    // 用户取消，回退 VS Code 里的值到底层真实的值
-                    isUpdating = true; // 上锁，防止还原操作再次触发弹窗死循环
-                    await currentConfig.update('userName', oldName, vscode.ConfigurationTarget.Global);
-                    await currentConfig.update('userEmail', oldEmail, vscode.ConfigurationTarget.Global);
-                    isUpdating = false;
+                    const liveGit = simpleGit();
+                    if (newName !== undefined && newName !== oldName) await liveGit.raw(['config', '--global', 'user.name', newName]);
+                    if (newEmail !== undefined && newEmail !== oldEmail) await liveGit.raw(['config', '--global', 'user.email', newEmail]);
+                    vscode.window.showInformationMessage('✅ Git 全局用户信息已成功更新！');
+                } catch (error: any) {
+                    vscode.window.showErrorMessage(`设置全局 Git 配置失败: ${error.message}`);
                 }
+            } else {
+                // 用户取消，回滚
+                this._isUpdating = true;
+                await currentConfig.update('userName', oldName, vscode.ConfigurationTarget.Global);
+                await currentConfig.update('userEmail', oldEmail, vscode.ConfigurationTarget.Global);
+                setTimeout(() => { this._isUpdating = false; }, 500);
             }
         })
     );
@@ -115,20 +105,12 @@ export class GitFeature implements IFeature {
 
   public activate(context: vscode.ExtensionContext): void {
     const gitProvider = new GitWebviewProvider(context.extensionUri);
-
     context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider(
-        'quickOps.gitView', 
-        gitProvider,
-        {
-          webviewOptions: { retainContextWhenHidden: true }
-        }
-      )
+      vscode.window.registerWebviewViewProvider('quickOps.gitView', gitProvider, {
+        webviewOptions: { retainContextWhenHidden: true }
+      })
     );
-
-    // 🌟 直接调用异步的初始化流程
     this.initializeConfigSync(context);
-
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 }
