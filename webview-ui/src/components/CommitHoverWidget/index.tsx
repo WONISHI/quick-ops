@@ -32,9 +32,15 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({ commit, y, positi
         <div className={styles['hover-detail']}>
           <span className={styles['hover-author']}>{commit.author}</span>
           {commit.timestamp && (
-            <span className={styles['hover-time']} style={{ display: 'flex', alignItems: 'center' }}>
-              <i className="codicon codicon-clock" style={{ marginRight: '4px', fontSize: '13px' }} />
-              {formatRelativeTime(commit.timestamp)} ({formatAbsoluteTime(commit.timestamp)})
+            <span
+              className={styles['hover-time']}
+              title={`${formatRelativeTime(commit.timestamp)} (${formatAbsoluteTime(commit.timestamp)})`}
+            >
+              <i className="codicon codicon-clock" style={{ marginRight: '4px', fontSize: '13px', flexShrink: 0 }} />
+              {/* 🌟 专门用一个 span 包裹文本，用于触发省略号 */}
+              <span className={styles['hover-time-text']}>
+                {formatRelativeTime(commit.timestamp)} ({formatAbsoluteTime(commit.timestamp)})
+              </span>
             </span>
           )}
         </div>

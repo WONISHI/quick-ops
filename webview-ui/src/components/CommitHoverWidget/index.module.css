@@ -43,20 +43,32 @@
 .hover-detail {
     display: flex;
     flex: 1;
-    flex-wrap: wrap;
-    row-gap: 0px;
-    column-gap: 3px;
+    align-items: center; /* 垂直居中对齐 */
+    flex-wrap: nowrap;   /* 🌟 强制作者和时间在同一行，绝不换行 */
+    gap: 6px;
+    min-width: 0;        /* 🌟 核心魔法：允许 flex 子容器收缩，从而触发内部的省略号 */
 }
 
 .hover-author {
     font-weight: 600;
+    white-space: nowrap;
+    flex-shrink: 0;      /* 🌟 保证作者名完整显示，绝不被压缩 */
 }
 
 .hover-time {
+    display: flex;
+    align-items: center;
     color: var(--vscode-descriptionForeground);
     font-size: 11px;
+    min-width: 0;        /* 🌟 允许时间容器被压缩 */
 }
 
+/* 🌟 新增：专门针对时间文本的单行省略号处理 */
+.hover-time-text {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 .hover-refs {
     display: flex;
     flex-wrap: wrap;
