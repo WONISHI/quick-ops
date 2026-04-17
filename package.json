@@ -85,6 +85,11 @@
           "default": "",
           "description": "Git 提交使用的邮箱 (修改后将提示是否同步到当前本地 Git 仓库)"
         },
+        "quick-ops.git.defaultSkipVerify": {
+          "type": "boolean",
+          "default": false,
+          "description": "Git 提交时默认是否跳过校验 (勾选则相当于提交时附加 --no-verify 参数，面板中盾牌按钮将默认显示为'校验关闭')"
+        },
         "quick-ops.general.anchorViewMode": {
           "type": "string",
           "enum": [

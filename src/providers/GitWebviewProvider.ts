@@ -100,7 +100,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             const refs = await git.raw(['show-ref']).catch(() => '');
             const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
             currentState = refs + head;
-          } catch (e) {}
+          } catch (e) { }
 
           const graphChanged = currentState !== this._lastGraphState;
 
@@ -166,7 +166,20 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         // 🌟 2. 拦截 Git 安装状态
         if (msg.command === 'webviewLoaded' || msg.command === 'refresh') {
           const isInstalled = await this.checkGitInstalled();
-          this._view?.webview.postMessage({ type: 'gitInstallationStatus', isInstalled });
+
+          // 获取配置
+          const config = vscode.workspace.getConfiguration('quick-ops.git');
+          const defaultSkipVerify = config.get<boolean>('defaultSkipVerify') || false;
+          console.log('defaultSkipVerify',defaultSkipVerify)
+
+          this._view?.webview.postMessage({
+            type: 'gitInstallationStatus',
+            isInstalled,
+            defaultSkipVerify,
+            // 传入一个标识，区分是首次加载还是手动刷新
+            isInit: msg.command === 'webviewLoaded'
+          });
+
           if (!isInstalled) return;
         }
 
@@ -358,7 +371,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 try {
                   await git.fetch(['--all', '--prune']);
                   await updateQuickPickItems();
-                } catch (e) {}
+                } catch (e) { }
               }).finally(() => {
                 quickPick.busy = false;
               });
@@ -481,7 +494,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 try {
                   await git.fetch(['--all', '--prune']);
                   await updateQuickPickItems();
-                } catch (e) {}
+                } catch (e) { }
               }).finally(() => {
                 quickPick.busy = false;
               });
@@ -770,7 +783,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               let existingContent = Buffer.alloc(0);
               try {
                 existingContent = Buffer.from(await vscode.workspace.fs.readFile(gitignoreUri));
-              } catch (e) {}
+              } catch (e) { }
 
               const appendStr = existingContent.length > 0 ? `\n${msg.file}` : msg.file;
               const appendContent = Buffer.from(appendStr, 'utf8');
@@ -780,6 +793,17 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               vscode.window.showInformationMessage(`已将 ${msg.file} 添加到 .gitignore`);
               await this.refreshStatus(cwd, false);
             });
+            break;
+          }
+
+          case 'toggleSkipVerify': {
+            try {
+              const config = vscode.workspace.getConfiguration('quick-ops.git');
+              // 🌟 修改配置：将用户在 UI 上的操作持久化到全局设置中
+              await config.update('defaultSkipVerify', msg.value, vscode.ConfigurationTarget.Global);
+            } catch (error: any) {
+              console.error('Failed to update defaultSkipVerify setting:', error);
+            }
             break;
           }
 
@@ -855,7 +879,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           const refs = await git.raw(['show-ref']).catch(() => '');
           const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
           this._lastGraphState = refs + head;
-        } catch (e) {}
+        } catch (e) { }
 
         const logOptions = {
           '--all': null,

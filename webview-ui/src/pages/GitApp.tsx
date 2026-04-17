@@ -191,7 +191,13 @@ export default function GitApp() {
       } else if (msg.type === 'clearJustCommitted') {
         setJustCommitted(false);
       } else if (msg.type === 'gitInstallationStatus') {
+        console.log('1111',msg)
         setIsGitInstalled(msg.isInstalled);
+        // 🌟 监听：如果是首次加载 Webview，则应用用户在设置中的默认配置
+        if (msg.isInit && msg.defaultSkipVerify !== undefined) {
+          console.log('msg',msg)
+          setSkipVerify(msg.defaultSkipVerify);
+        }
       }
     };
     window.addEventListener('message', handleMsg);
@@ -612,7 +618,15 @@ export default function GitApp() {
           {isRepo ? (
             <>
               <Tooltip content={!skipVerify ? '校验开启' : '校验关闭'}>
-                <button className={styles['icon-btn']} onClick={() => setSkipVerify(!skipVerify)} style={{ color: !skipVerify ? '#3168d1' : 'inherit' }}>
+                <button
+                  className={styles['icon-btn']}
+                  onClick={() => {
+                    const newValue = !skipVerify;
+                    setSkipVerify(newValue);
+                    vscode.postMessage({ command: 'toggleSkipVerify', value: newValue });
+                  }}
+                  style={{ color: !skipVerify ? '#3168d1' : 'inherit' }}
+                >
                   <i className="codicon codicon-shield" />
                 </button>
               </Tooltip>
