@@ -74,17 +74,27 @@
     flex-wrap: wrap;
     gap: 4px;
     margin-bottom: 4px;
+    min-width: 0; /* 🌟 魔法属性 1：确保父容器允许子元素收缩截断 */
+    width: 100%;  /* 确保占满外层可用宽度 */
 }
 
 .ref-tag {
-    display: inline-flex;
-    align-items: center;
-    padding: 0px 5px;
+    display: inline-block; /* 🌟 魔法属性 2：把 inline-flex 改为 inline-block 才能完美触发省略号 */
+    padding: 2px 5px;      /* 使用 padding 维持原本的垂直居中视觉效果 */
+    line-height: 1.2;
     border-radius: 4px;
     background: rgba(128, 128, 128, 0.15);
     border: none;
     font-size: 10px;
-    word-break: break-all;
+    
+    /* 🌟 核心截断与省略号逻辑 */
+    max-width: 100%;         /* 标签最大宽度绝不能超过父容器 */
+    white-space: nowrap;     /* 强制文本不换行 */
+    overflow: hidden;        /* 隐藏超出的部分 */
+    text-overflow: ellipsis; /* 超出部分显示 ... */
+    
+    vertical-align: middle;
+    box-sizing: border-box;
 }
 
 .ref-head {
