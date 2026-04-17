@@ -405,14 +405,6 @@
         "title": "转为短横线 (kebab-case)"
       },
       {
-        "command": "quickOps.toggleTerminal",
-        "title": "切换终端",
-        "icon": {
-          "light": "resources/icons/light/terminal.svg",
-          "dark": "resources/icons/dark/terminal.svg"
-        }
-      },
-      {
         "command": "quick-ops.openTextCompare",
         "title": "文本差异对比 (Text Diff Compare)",
         "category": "Quick Ops"
@@ -481,32 +473,28 @@
           "group": "navigation@1"
         },
         {
-          "command": "quickOps.toggleTerminal",
-          "group": "navigation@2"
-        },
-        {
           "command": "quick-ops.openLivePreview",
-          "group": "navigation@3",
+          "group": "navigation@2",
           "when": "resourceScheme == file"
         },
         {
           "command": "quick-ops.anchor.showMenu",
-          "group": "navigation@4",
+          "group": "navigation@3",
           "when": "quickOps.hasAnchorsInProject && resourceScheme == file"
         },
         {
           "command": "quick-ops.revealInExplorer",
           "when": "resourceScheme == file",
-          "group": "navigation@5"
+          "group": "navigation@4"
         },
         {
           "command": "quick-ops.scrollToTop",
-          "group": "navigation@6",
+          "group": "navigation@5",
           "when": "editorTextFocus"
         },
         {
           "command": "quick-ops.scrollToBottom",
-          "group": "navigation@7",
+          "group": "navigation@6",
           "when": "editorTextFocus"
         }
       ],
