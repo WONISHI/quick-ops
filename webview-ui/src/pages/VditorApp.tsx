@@ -24,6 +24,8 @@ export default function VditorApp() {
             mode: 'ir',
             theme: 'classic',
             lang: 'zh_CN',
+            // 🌟 核心修复：必须指定高度为视口高度，否则 Vditor 会无限伸展导致滚动条丢失！
+            height: '100vh', 
             toolbar: isEdit ? undefined : [], 
             toolbarConfig: {
               hide: !isEdit,
@@ -36,7 +38,12 @@ export default function VditorApp() {
               }
             },
             after: () => {
-              if (!isEdit) vd.disabled();
+              if (!isEdit) {
+                const irElement = vditorRef.current?.querySelector('.vditor-ir');
+                if (irElement) {
+                  irElement.setAttribute('contenteditable', 'false');
+                }
+              }
             },
             input: (value: string) => {
               // vscode.postMessage({ command: 'saveMarkdown', content: value });
@@ -57,23 +64,21 @@ export default function VditorApp() {
   }, []);
 
   return (
-    <div style={{ height: '100vh', width: '100vw', backgroundColor: '#ffffff' }}>
+    // 🌟 外层加上 overflow: hidden，防止出现多余的白边或双滚动条
+    <div style={{ height: '100vh', width: '100vw', backgroundColor: '#ffffff', overflow: 'hidden' }}>
       <style>
         {`
-          /* 🌟 修复 1：去除 Vditor 默认的浅灰色背景 */
+          /* 去除 Vditor 默认的浅灰色背景 */
           .vditor, .vditor-ir, .vditor-reset {
             background-color: transparent !important;
           }
           
-          /* 🌟 修复 2：打破默认 800px 最大宽度限制，填满两边空隙 */
-          .vditor-ir {
+          .vditor-ir, .vditor-reset {
             max-width: 100% !important;
-            padding: 24px 40px !important;
-          }
-
-          /* 🌟 修复 3：解决 vd.disabled() 导致整体透明度变成 0.3 发灰的问题 */
-          .vditor--disabled {
-            opacity: 1 !important;
+            padding-left: 20px !important;
+            padding-right: 20px !important;
+            padding-top: 24px !important; 
+            padding-bottom: 24px !important;
           }
           
           /* 强制加深字体颜色，告别灰蒙蒙 */
@@ -85,6 +90,17 @@ export default function VditorApp() {
           ${isReadMode ? `
             .vditor-toolbar { display: none !important; }
             .vditor-ir { caret-color: transparent !important; } 
+
+            /* 屏蔽点击代码块/公式时弹出的源码框（灰色背景的 \`\`\`JS） */
+            .vditor-ir__marker,
+            .vditor-ir__node--expand pre.vditor-ir__marker {
+              display: none !important;
+            }
+
+            /* 屏蔽代码块点击后右上角弹出的语言修改输入框 */
+            .vditor-ir__info {
+              display: none !important;
+            }
           ` : ''}
         `}
       </style>

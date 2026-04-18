@@ -318,12 +318,10 @@ export default function RecentProjectsApp() {
     vscode.postMessage({ type: 'openProjectCurrent', fsPath: path });
   };
 
-  // 🌟 核心拦截：点击文件直接通过后缀判断是否采用 Vditor
   const handleOpenFile = (path: string, projectName: string, id: string, isActiveProject: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedId(id);
     if (path.toLowerCase().endsWith('.md')) {
-      // 交给后端处理 Vditor，并带上激活状态以区分 edit/read
       vscode.postMessage({ type: 'previewWithVditor', fsPath: path, projectName, isActiveProject });
     } else {
       vscode.postMessage({ type: isActiveProject ? 'openFileNormal' : 'openFile', fsPath: path, projectName });
