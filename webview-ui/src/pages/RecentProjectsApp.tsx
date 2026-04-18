@@ -29,7 +29,9 @@ import {
 import { faCopy, faSquareCheck, faClone, faImage, faFolderOpen as faFolderOpenReg, faWindowRestore } from '@fortawesome/free-regular-svg-icons';
 import { faGithub, faGitlab, faJs, faVuejs, faHtml5, faCss3Alt, faMarkdown } from '@fortawesome/free-brands-svg-icons';
 
-// 🌟 1. 定义所有核心数据结构的 TypeScript 接口
+// 🌟 引入刚刚新建的 CSS Module
+import styles from '../assets/css/RecentProjectsApp.module.css';
+
 interface Project {
   fsPath: string;
   name: string;
@@ -70,7 +72,6 @@ interface ContextMenuPayload {
   projectName?: string;
 }
 
-// 🌟 2. 移除任何 any 声明，使用强类型
 function getDisplayPath(project: Project) {
   let displayPath = project.fsPath;
   try {
@@ -98,35 +99,34 @@ function getFileIcon(filename: string) {
   switch (ext) {
     case 'js':
     case 'jsx':
-      return <FontAwesomeIcon icon={faJs} className="file-icon-js sub-icon" />;
+      return <FontAwesomeIcon icon={faJs} className={`${styles['file-icon-js']} ${styles['sub-icon']}`} />;
     case 'ts':
     case 'tsx':
-      return <FontAwesomeIcon icon={faJs} className="file-icon-ts sub-icon" />;
+      return <FontAwesomeIcon icon={faJs} className={`${styles['file-icon-ts']} ${styles['sub-icon']}`} />;
     case 'vue':
-      return <FontAwesomeIcon icon={faVuejs} className="file-icon-vue sub-icon" />;
+      return <FontAwesomeIcon icon={faVuejs} className={`${styles['file-icon-vue']} ${styles['sub-icon']}`} />;
     case 'html':
-      return <FontAwesomeIcon icon={faHtml5} className="file-icon-html sub-icon" />;
+      return <FontAwesomeIcon icon={faHtml5} className={`${styles['file-icon-html']} ${styles['sub-icon']}`} />;
     case 'css':
     case 'scss':
     case 'less':
-      return <FontAwesomeIcon icon={faCss3Alt} className="file-icon-css sub-icon" />;
+      return <FontAwesomeIcon icon={faCss3Alt} className={`${styles['file-icon-css']} ${styles['sub-icon']}`} />;
     case 'json':
-      return <FontAwesomeIcon icon={faFileCode} className="file-icon-json sub-icon" />;
+      return <FontAwesomeIcon icon={faFileCode} className={`${styles['file-icon-json']} ${styles['sub-icon']}`} />;
     case 'md':
-      return <FontAwesomeIcon icon={faMarkdown} className="file-icon-md sub-icon" />;
+      return <FontAwesomeIcon icon={faMarkdown} className={`${styles['file-icon-md']} ${styles['sub-icon']}`} />;
     case 'png':
     case 'jpg':
     case 'jpeg':
     case 'gif':
     case 'svg':
     case 'ico':
-      return <FontAwesomeIcon icon={faImage} className="file-icon-img sub-icon" />;
+      return <FontAwesomeIcon icon={faImage} className={`${styles['file-icon-img']} ${styles['sub-icon']}`} />;
     default:
-      return <FontAwesomeIcon icon={faFileCode} className="file-icon-default sub-icon" />;
+      return <FontAwesomeIcon icon={faFileCode} className={`${styles['file-icon-default']} ${styles['sub-icon']}`} />;
   }
 }
 
-// 🌟 修复：能够识别当前激活的关键词，并支持一行多关键词精准高亮
 const HighlightText = ({
   text,
   query,
@@ -196,7 +196,6 @@ export default function RecentProjectsApp() {
   }>({ visible: false, x: 0, y: 0, type: 'top', payload: { path: '' } });
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // 文件夹内容搜索机制状态
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [searchTargetProject, setSearchTargetProject] = useState<ContextMenuPayload | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
@@ -205,7 +204,6 @@ export default function RecentProjectsApp() {
   const [folderSearchError, setFolderSearchError] = useState('');
   const [currentActiveMatch, setCurrentActiveMatch] = useState(0);
 
-  // 🌟 核心修复：按“关键字出现次数”统计总数并映射导航索引，而不是按“行”
   const { lineStartIndexMap, totalMatches, flatMatchesList } = useMemo(() => {
     const map = new Map<string, number>();
     const list: { fileIndex: number; matchIndex: number; lineGlobalIndex: number; fullPath: string; lineNum: number }[] = [];
@@ -221,7 +219,6 @@ export default function RecentProjectsApp() {
         const startIdx = idx;
         map.set(`${fileIndex}-${matchIndex}`, startIdx);
 
-        // 统计本行出现了多少次关键字
         let occurrencesCount = 0;
         const parts = m.text.split(regex);
         parts.forEach((part: string) => {
@@ -232,7 +229,7 @@ export default function RecentProjectsApp() {
         for (let k = 0; k < count; k++) {
           list.push({ fileIndex, matchIndex, lineGlobalIndex: startIdx, fullPath: res.fullPath, lineNum: m.line });
         }
-        idx += count; // 累加真实关键字数量
+        idx += count;
       });
     });
 
@@ -241,7 +238,6 @@ export default function RecentProjectsApp() {
 
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
-      // 禁用 eslint 检测 e.data 的隐式 any，或者在内部使用类型断言
       const msg = e.data as Record<string, unknown>;
 
       if (msg.type === 'updateProjects') {
@@ -311,7 +307,6 @@ export default function RecentProjectsApp() {
   const filteredOtherProjects = otherProjects.filter(matchSearch);
   const isCurrentVisible = currentProject && matchSearch(currentProject);
 
-  // 修复 useRef 的类型
   const clickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleOpenProject = (path: string) => {
@@ -415,7 +410,6 @@ export default function RecentProjectsApp() {
       case 'compareWithSelected':
         vscode.postMessage({ type: 'compareWithSelected', fsPath: payload.path, projectName: payload.projectName });
         break;
-
       case 'searchInFolder':
         setSearchTargetProject(payload);
         setIsSearchMode(true);
@@ -447,13 +441,13 @@ export default function RecentProjectsApp() {
     const children = dirChildren[parentId];
     if (loadingNodes.has(parentId)) {
       return (
-        <div className="empty-node">
+        <div className={styles['empty-node']}>
           <FontAwesomeIcon icon={faSpinner} spin /> 加载中...
         </div>
       );
     }
     if (!children) return null;
-    if (children.length === 0) return <div className="empty-node">（空文件夹/无读取权限）</div>;
+    if (children.length === 0) return <div className={styles['empty-node']}>（空文件夹/无读取权限）</div>;
 
     return (
       <>
@@ -464,34 +458,34 @@ export default function RecentProjectsApp() {
 
           if (child.isFolder) {
             return (
-              <div key={childId} className="tree-node">
+              <div key={childId}>
                 <div
-                  className={`sub-item clickable-sub ${selectedId === childId ? 'selected' : ''}`}
+                  className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedId === childId ? styles['selected'] : ''}`}
                   onClick={(e) => handleToggleExpand(childId, child.path, projectName, isRemote, e)}
                   onContextMenu={(e) => handleContextMenu(e, 'sub', { path: child.path, name: child.name, isFolder: true, projectName }, childId)}
                 >
-                  <div className="tree-chevron">
+                  <div className={styles['tree-chevron']}>
                     <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} style={{ fontSize: '10px' }} />
                   </div>
-                  <FontAwesomeIcon icon={faFolder} className="icon-closed sub-icon" />
-                  <span className="sub-name">{child.name}</span>
+                  <FontAwesomeIcon icon={faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']}`} />
+                  <span className={styles['sub-name']}>{child.name}</span>
                 </div>
-                {isExpanded && <div className="tree-children">{renderTreeChildren(childId, projectName)}</div>}
+                {isExpanded && <div className={styles['tree-children']}>{renderTreeChildren(childId, projectName)}</div>}
               </div>
             );
           } else {
             return (
-              <div key={childId} className="tree-node">
+              <div key={childId}>
                 <div
-                  className={`sub-item ${selectedId === childId ? 'selected' : ''}`}
+                  className={`${styles['sub-item']} ${selectedId === childId ? styles['selected'] : ''}`}
                   onClick={(e) => handleOpenFile(child.path, projectName, childId, e)}
                   onContextMenu={(e) => handleContextMenu(e, 'sub', { path: child.path, name: child.name, isFolder: false, projectName }, childId)}
                   style={{ cursor: 'pointer' }}
                   title="点击以只读模式预览"
                 >
-                  <div className="chevron-placeholder"></div>
+                  <div className={styles['chevron-placeholder']}></div>
                   {getFileIcon(child.name)}
-                  <span className="sub-name">{child.name}</span>
+                  <span className={styles['sub-name']}>{child.name}</span>
                 </div>
               </div>
             );
@@ -503,187 +497,60 @@ export default function RecentProjectsApp() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--vscode-sideBar-background)', color: 'var(--vscode-foreground)' }}>
-      <style>{`
-        * { box-sizing: border-box; }
-        body { padding: 0; margin: 0; font-family: var(--vscode-font-family); user-select: none; }
-        .search-container { padding: 10px 12px; position: sticky; top: 0; z-index: 10; background: var(--vscode-sideBar-background); }
-        .search-box { display: flex; align-items: center; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border); padding: 4px 8px; border-radius: 2px; }
-        .search-box:focus-within { border-color: var(--vscode-focusBorder); outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-        .search-box input { flex: 1; background: transparent; border: none; color: var(--vscode-input-foreground); outline: none; margin-left: 6px; font-size: 12px; }
-        .list-container { flex: 1; overflow-y: auto; padding-bottom: 20px;}
-        ul { list-style: none; padding: 0; margin: 0; }
-        
-        .active-top-project { display: flex; justify-content: space-between; align-items: center; padding: 8px 10px 8px 0px; background-color: rgba(93, 173, 226, 0.1); border-left: 3px solid #5dade2; cursor: context-menu; }
-        .active-top-project .path { color: var(--vscode-descriptionForeground); opacity: 0.8; }
-        .top-divider { height: 4px; background: rgba(0, 0, 0, 0.1); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1); margin-bottom: 4px; }
-        
-        .project-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px 6px 3px; cursor: pointer; border-bottom: 1px solid var(--vscode-panel-border); transition: background-color 0.1s; }
-        .project-item:hover { background-color: var(--vscode-list-hoverBackground); }
-        .project-item.just-opened { padding-left: 1px; background-color: rgba(128, 128, 128, 0.06); box-shadow: inset 0 0 12px rgba(128, 128, 128, 0.15); border-left: 2px solid var(--vscode-descriptionForeground); }
-        
-        .project-item.selected, .sub-item.selected, .active-top-project.selected { background-color: var(--vscode-list-activeSelectionBackground) !important; color: var(--vscode-list-activeSelectionForeground) !important; }
-        .project-item.selected .path, .active-top-project.selected .path, .project-item.selected .icon-closed, .sub-item.selected .tree-chevron { color: var(--vscode-list-activeSelectionForeground) !important; opacity: 0.9 !important; }
-
-        .item-left { display: flex; align-items: center; flex: 1; min-width: 0; gap: 3px; }
-        .clickable-expand { cursor: pointer; }
-        .clickable-expand:hover .tree-chevron { background: var(--vscode-toolbar-hoverBackground); opacity: 1; }
-
-        .tree-chevron, .chevron-placeholder { width: 14px; height: 20px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 4px;}
-        .tree-chevron { color: var(--vscode-icon-foreground); opacity: 0.8; }
-        .project-icon, .sub-icon { width: 16px; text-align: center; margin-right: 6px; flex-shrink: 0; display: inline-block; font-size: 14px; }
-
-        .info { gap:2px; overflow: hidden; display: flex; flex-direction: column; flex: 1; padding: 2px 0; pointer-events: none; }
-        .title { line-height:1; font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; pointer-events: auto; }
-        .path { line-height:1; font-size: 10px; opacity: 0.6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;text-align:left }
-        
-        .branch-tag { line-height:1; font-size: 10px; background: var(--vscode-badge-background, rgba(128, 128, 128, 0.15)); color: var(--vscode-badge-foreground, var(--vscode-descriptionForeground)); padding: 2px 6px; border-radius: 10px; display: inline-flex; align-items: center; gap: 3px; margin-left: 8px; border: 1px solid var(--vscode-panel-border);}
-        .icon-opened { color: #5dade2 !important; } 
-        .icon-closed { color: var(--vscode-icon-foreground); opacity: 0.8; } 
-        
-        .item-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; margin-left: 4px; }
-        .action-btn-icon { background: none; border: none; color: var(--vscode-icon-foreground); cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
-        .open-btn { opacity: 0.4; } .open-btn:hover { opacity: 1; background: var(--vscode-toolbar-hoverBackground); }
-        .project-item:hover .open-btn { opacity: 0.8; }
-
-        .tree-children { margin-left: 10px; padding-left: 6px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke); }
-        .sub-item { display: flex; align-items: center; padding: 2px 0; font-size: 13px; cursor: default; }
-        .sub-item.clickable-sub { cursor: pointer; }
-        .sub-item.clickable-sub:hover .tree-chevron { background: var(--vscode-toolbar-hoverBackground); opacity: 1; }
-        .sub-item:hover { background-color: var(--vscode-list-hoverBackground); }
-        .sub-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0.9; pointer-events: none;}
-        
-        .file-icon-js { color: #f1e05a; } .file-icon-ts { color: #3178c6; } .file-icon-vue { color: #41b883; }
-        .file-icon-html { color: #e34c26; } .file-icon-css { color: #563d7c; } .file-icon-json { color: #cbcb41; }
-        .file-icon-md { color: #5dade2; } .file-icon-img { color: #a074c4; } .file-icon-default { color: var(--vscode-symbolIcon-fileForeground, #999); }
-
-        .empty-node { font-size: 12px; opacity: 0.5; padding: 4px 12px; font-style: italic; }
-        .empty-state { height: 100%;display: flex;flex-direction: column;text-align: center; }
-        .empty-text { display:flex;justify-content: center;align-items: center;flex:1;opacity: 0.6; font-size: 13px; margin-bottom: 20px; }
-        .bottom-bar { padding: 10px; border-top: 1px solid var(--vscode-panel-border); display: flex; gap: 8px; background: var(--vscode-sideBar-background); flex-shrink: 0; }
-        .action-btn { background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 6px 12px; border-radius: 2px; cursor: pointer; font-size: 12px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; transition: background 0.2s; }
-        .action-btn:hover { background: var(--vscode-button-hoverBackground); }
-        .action-btn.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
-        .action-btn.secondary:hover { background: var(--vscode-button-secondaryHoverBackground); }
-
-        #context-menu { position: fixed; background: var(--vscode-menu-background); color: var(--vscode-menu-foreground); border: 1px solid var(--vscode-menu-border); box-shadow: 0 4px 12px rgba(0,0,0,0.25); border-radius: 6px; z-index: 9999; min-width: 180px; padding: 4px 0; font-size: 13px; }
-        #context-menu li { padding: 6px 12px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
-        #context-menu li:hover { background: var(--vscode-menu-selectionBackground); color: var(--vscode-menu-selectionForeground); }
-        .menu-icon { width: 14px; text-align: center; opacity: 0.8; }
-        .menu-separator { height: 1px; background: var(--vscode-menu-separatorBackground); margin: 4px 0; }
-
-        .search-tag {
-            position: relative;
-            max-width: 80px;
-            min-width: 60px;
-            background: var(--vscode-badge-background, #4d4d4d);
-            color: var(--vscode-badge-foreground, #ffffff);
-            padding: 2px 6px;
-            border-radius: 2px;
-            font-size: 11px;
-            display: flex;
-            align-items: center;
-            cursor: pointer;
-            line-height: 14px;
-            margin-right: 4px;
-            overflow: visible;
-            text-align:center;
-        }
-        .search-tag .tag-text {
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            width: 100%;
-            transition: opacity 0.1s;
-        }
-        
-        .search-tag .close-icon {
-            position: absolute;
-            top: -5px;   
-            right: -4px; 
-            font-size: 11px; 
-            color: #ffffff;
-            background: transparent;
-            border: none;
-            box-shadow: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transform: scale(0.8);
-            transition: all 0.15s ease-in-out;
-            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
-        }
-        
-        .search-tag:hover .close-icon {
-            opacity: 1;
-            transform: scale(1);
-        }
-        
-        .search-tag .close-icon:hover {
-            color: var(--vscode-errorForeground, #f14c4c);
-            background: transparent;
-            transform: scale(1.2); 
-        }
-        
-        .search-tag:hover .tag-text {
-            opacity: 0.6;
-        }
-      `}</style>
-
       {contextMenu.visible && (
-        <div id="context-menu" ref={menuRef} style={{ left: contextMenu.x, top: contextMenu.y }}>
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        <div id={styles['context-menu']} ref={menuRef} style={{ left: contextMenu.x, top: contextMenu.y }}>
+          <ul>
             {contextMenu.type === 'top' && (
               <>
                 <li onClick={() => executeMenuAction('openInNewWindow')}>
-                  <FontAwesomeIcon icon={faArrowUpRightFromSquare} className="menu-icon" /> 在新窗口打开
+                  <FontAwesomeIcon icon={faArrowUpRightFromSquare} className={styles['menu-icon']} /> 在新窗口打开
                 </li>
-                <div className="menu-separator"></div>
+                <div className={styles['menu-separator']}></div>
                 <li onClick={() => executeMenuAction('searchInFolder')}>
-                  <FontAwesomeIcon icon={faMagnifyingGlass} className="menu-icon" /> 查找文件内容...
+                  <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
                 </li>
-                <div className="menu-separator"></div>
+                <div className={styles['menu-separator']}></div>
 
                 <li onClick={() => executeMenuAction('edit')}>
-                  <FontAwesomeIcon icon={faPen} className="menu-icon" /> 编辑项目名称
+                  <FontAwesomeIcon icon={faPen} className={styles['menu-icon']} /> 编辑项目名称
                 </li>
                 <li onClick={() => executeMenuAction('changeAddress')}>
-                  <FontAwesomeIcon icon={faLocationDot} className="menu-icon" /> 更换地址
+                  <FontAwesomeIcon icon={faLocationDot} className={styles['menu-icon']} /> 更换地址
                 </li>
                 {contextMenu.payload.isRemote && (
                   <li onClick={() => executeMenuAction('switchBranch')}>
-                    <FontAwesomeIcon icon={faCodeBranch} className="menu-icon" /> 切换分支
+                    <FontAwesomeIcon icon={faCodeBranch} className={styles['menu-icon']} /> 切换分支
                   </li>
                 )}
-                <div className="menu-separator"></div>
+                <div className={styles['menu-separator']}></div>
                 <li onClick={() => executeMenuAction('copyText', contextMenu.payload.originalName)}>
-                  <FontAwesomeIcon icon={faCopy} className="menu-icon" /> 复制文件名
+                  <FontAwesomeIcon icon={faCopy} className={styles['menu-icon']} /> 复制文件名
                 </li>
                 <li onClick={() => executeMenuAction('updateBranch')}>
-                  <FontAwesomeIcon icon={faRotateRight} className="menu-icon" /> 更新分支
+                  <FontAwesomeIcon icon={faRotateRight} className={styles['menu-icon']} /> 更新分支
                 </li>
                 {contextMenu.payload.customName && (
                   <li onClick={() => executeMenuAction('copyText', contextMenu.payload.customName)}>
-                    <FontAwesomeIcon icon={faCopy} className="menu-icon" /> 复制项目名
+                    <FontAwesomeIcon icon={faCopy} className={styles['menu-icon']} /> 复制项目名
                   </li>
                 )}
                 <li onClick={() => executeMenuAction('copyText', contextMenu.payload.path)}>
-                  <FontAwesomeIcon icon={faLink} className="menu-icon" /> 复制地址链接
+                  <FontAwesomeIcon icon={faLink} className={styles['menu-icon']} /> 复制地址链接
                 </li>
                 {contextMenu.payload.isRemote ? (
                   <li onClick={() => executeMenuAction('openLink')}>
-                    <FontAwesomeIcon icon={faGlobe} className="menu-icon" /> 在浏览器中打开
+                    <FontAwesomeIcon icon={faGlobe} className={styles['menu-icon']} /> 在浏览器中打开
                   </li>
                 ) : (
                   <li onClick={() => executeMenuAction('revealInExplorer')}>
-                    <FontAwesomeIcon icon={faFolderOpenReg} className="menu-icon" /> 在访达/资源管理器中显示
+                    <FontAwesomeIcon icon={faFolderOpenReg} className={styles['menu-icon']} /> 在访达/资源管理器中显示
                   </li>
                 )}
                 {!contextMenu.payload.isActiveProject && (
                   <>
-                    <div className="menu-separator"></div>
+                    <div className={styles['menu-separator']}></div>
                     <li onClick={() => executeMenuAction('delete')} style={{ color: 'var(--vscode-errorForeground)' }}>
-                      <FontAwesomeIcon icon={faTrash} className="menu-icon" /> 移除该项目
+                      <FontAwesomeIcon icon={faTrash} className={styles['menu-icon']} /> 移除该项目
                     </li>
                   </>
                 )}
@@ -695,43 +562,43 @@ export default function RecentProjectsApp() {
                 {!contextMenu.payload.isFolder && (
                   <>
                     <li onClick={() => executeMenuAction('openFileToSide')}>
-                      <FontAwesomeIcon icon={faColumns} className="menu-icon" /> 向右拆分
+                      <FontAwesomeIcon icon={faColumns} className={styles['menu-icon']} /> 向右拆分
                     </li>
                     <li onClick={() => executeMenuAction('openFileInNewTab')}>
-                      <FontAwesomeIcon icon={faWindowRestore} className="menu-icon" /> 在新标签页打开
+                      <FontAwesomeIcon icon={faWindowRestore} className={styles['menu-icon']} /> 在新标签页打开
                     </li>
                     <li onClick={() => executeMenuAction('copyFile')}>
-                      <FontAwesomeIcon icon={faCopy} className="menu-icon" /> 复制文件
+                      <FontAwesomeIcon icon={faCopy} className={styles['menu-icon']} /> 复制文件
                     </li>
-                    <div className="menu-separator"></div>
+                    <div className={styles['menu-separator']}></div>
                     <li onClick={() => executeMenuAction('selectForCompare')}>
-                      <FontAwesomeIcon icon={faSquareCheck} className="menu-icon" /> 选择以进行比较
+                      <FontAwesomeIcon icon={faSquareCheck} className={styles['menu-icon']} /> 选择以进行比较
                     </li>
                     <li onClick={() => executeMenuAction('compareWithSelected')}>
-                      <FontAwesomeIcon icon={faCodeCompare} className="menu-icon" /> 与已选项目进行比较
+                      <FontAwesomeIcon icon={faCodeCompare} className={styles['menu-icon']} /> 与已选项目进行比较
                     </li>
-                    <div className="menu-separator"></div>
+                    <div className={styles['menu-separator']}></div>
                   </>
                 )}
                 {contextMenu.payload.isFolder && (
                   <>
                     <li onClick={() => executeMenuAction('searchInFolder')}>
-                      <FontAwesomeIcon icon={faMagnifyingGlass} className="menu-icon" /> 查找文件内容...
+                      <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
                     </li>
-                    <div className="menu-separator"></div>
+                    <div className={styles['menu-separator']}></div>
                   </>
                 )}
                 <li onClick={() => executeMenuAction('copyText', contextMenu.payload.name)}>
-                  <FontAwesomeIcon icon={faClone} className="menu-icon" /> 复制名称
+                  <FontAwesomeIcon icon={faClone} className={styles['menu-icon']} /> 复制名称
                 </li>
                 <li onClick={() => executeMenuAction('copyText', contextMenu.payload.path)}>
-                  <FontAwesomeIcon icon={faLink} className="menu-icon" /> 复制路径
+                  <FontAwesomeIcon icon={faLink} className={styles['menu-icon']} /> 复制路径
                 </li>
                 {!contextMenu.payload.path.startsWith('vscode-vfs') && !contextMenu.payload.path.startsWith('http') && (
                   <>
-                    <div className="menu-separator"></div>
+                    <div className={styles['menu-separator']}></div>
                     <li onClick={() => executeMenuAction('revealInExplorer', contextMenu.payload.path)}>
-                      <FontAwesomeIcon icon={faFolderOpenReg} className="menu-icon" /> 在访达/资源管理器中显示
+                      <FontAwesomeIcon icon={faFolderOpenReg} className={styles['menu-icon']} /> 在访达/资源管理器中显示
                     </li>
                   </>
                 )}
@@ -745,15 +612,15 @@ export default function RecentProjectsApp() {
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
           <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--vscode-panel-border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <button className="action-btn-icon" onClick={() => setIsSearchMode(false)} title="返回项目列表" style={{ padding: '4px' }}>
+              <button className={styles['action-btn-icon']} onClick={() => setIsSearchMode(false)} title="返回项目列表" style={{ padding: '4px' }}>
                 <FontAwesomeIcon icon={faArrowLeft} />
               </button>
               <span style={{ fontSize: '13px', fontWeight: 'bold' }}>在文件夹中查找</span>
             </div>
-            <div className="search-box" style={{ padding: '2px 4px' }}>
-              <div className="search-tag" onClick={() => setIsSearchMode(false)} title="取消检索">
-                <span className="tag-text">{searchTargetProject.originalName || searchTargetProject.name}</span>
-                <FontAwesomeIcon icon={faTimes} className="close-icon" />
+            <div className={styles['search-box']} style={{ padding: '2px 4px' }}>
+              <div className={styles['search-tag']} onClick={() => setIsSearchMode(false)} title="取消检索">
+                <span className={styles['tag-text']}>{searchTargetProject.originalName || searchTargetProject.name}</span>
+                <FontAwesomeIcon icon={faTimes} className={styles['close-icon']} />
               </div>
 
               <input
@@ -776,10 +643,10 @@ export default function RecentProjectsApp() {
                 <span style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', minWidth: '40px', textAlign: 'center' }}>
                   {totalMatches > 0 ? currentActiveMatch + 1 : 0} / {totalMatches}
                 </span>
-                <button className="action-btn-icon" style={{ padding: '2px 4px' }} onClick={handlePrevSearchMatch} disabled={totalMatches === 0}>
+                <button className={styles['action-btn-icon']} style={{ padding: '2px 4px' }} onClick={handlePrevSearchMatch} disabled={totalMatches === 0}>
                   <FontAwesomeIcon icon={faArrowUp} />
                 </button>
-                <button className="action-btn-icon" style={{ padding: '2px 4px' }} onClick={handleNextSearchMatch} disabled={totalMatches === 0}>
+                <button className={styles['action-btn-icon']} style={{ padding: '2px 4px' }} onClick={handleNextSearchMatch} disabled={totalMatches === 0}>
                   <FontAwesomeIcon icon={faArrowDown} />
                 </button>
               </div>
@@ -796,14 +663,14 @@ export default function RecentProjectsApp() {
             ) : folderSearchResults.length === 0 && folderSearchQuery ? (
               <div style={{ textAlign: 'center', opacity: 0.6, fontSize: '12px', padding: '20px' }}>没有找到符合条件的代码内容</div>
             ) : (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+              <ul>
                 {folderSearchResults.map((res, i) => (
                   <li key={i} style={{ marginBottom: '8px' }}>
                     <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--vscode-textLink-foreground)', marginBottom: '2px', wordBreak: 'break-all' }}>
                       <FontAwesomeIcon icon={faFileCode} style={{ marginRight: '6px' }} />
                       {res.file}
                     </div>
-                    <ul style={{ listStyle: 'none', padding: 0, margin: 0, borderLeft: '1px solid var(--vscode-panel-border)', marginLeft: '6px' }}>
+                    <ul style={{ borderLeft: '1px solid var(--vscode-panel-border)', marginLeft: '6px' }}>
                       {res.matches.map((m: SearchMatch, j: number) => {
                         const globalStartIndex = lineStartIndexMap.get(`${i}-${j}`) || 0;
                         const matchInfo = flatMatchesList[currentActiveMatch];
@@ -861,23 +728,23 @@ export default function RecentProjectsApp() {
       ) : (
         <>
           {projects.length > 0 && (
-            <div className="search-container">
-              <div className="search-box">
+            <div className={styles['search-container']}>
+              <div className={styles['search-box']}>
                 <FontAwesomeIcon icon={faMagnifyingGlass} style={{ color: 'var(--vscode-input-placeholderForeground)', fontSize: '12px' }} />
                 <input type="text" value={searchQuery} onChange={handleSearch} placeholder="搜索标题、文件夹、地址..." autoComplete="off" spellCheck="false" />
               </div>
             </div>
           )}
 
-          <div className="list-container" onScroll={() => setContextMenu((p) => ({ ...p, visible: false }))}>
+          <div className={styles['list-container']} onScroll={() => setContextMenu((p) => ({ ...p, visible: false }))}>
             {projects.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-text">暂无项目记录，请添加：</div>
-                <div className="bottom-bar">
-                  <button className="action-btn" onClick={() => vscode.postMessage({ type: 'addLocal' })}>
+              <div className={styles['empty-state']}>
+                <div className={styles['empty-text']}>暂无项目记录，请添加：</div>
+                <div className={styles['bottom-bar']}>
+                  <button className={styles['action-btn']} onClick={() => vscode.postMessage({ type: 'addLocal' })}>
                     <FontAwesomeIcon icon={faFolderPlus} /> 添加本地项目
                   </button>
-                  <button className="action-btn secondary" onClick={() => vscode.postMessage({ type: 'addRemote' })}>
+                  <button className={`${styles['action-btn']} ${styles['secondary']}`} onClick={() => vscode.postMessage({ type: 'addRemote' })}>
                     <FontAwesomeIcon icon={faGithub} /> 添加远程仓库
                   </button>
                 </div>
@@ -899,7 +766,7 @@ export default function RecentProjectsApp() {
                     return (
                       <div key="active-top">
                         <div
-                          className={`active-top-project ${selectedId === 'active-top' ? 'selected' : ''}`}
+                          className={`${styles['active-top-project']} ${selectedId === 'active-top' ? styles['selected'] : ''}`}
                           title="当前窗口正在运行的项目"
                           onContextMenu={(e) =>
                             handleContextMenu(
@@ -911,23 +778,23 @@ export default function RecentProjectsApp() {
                           }
                           onClick={() => setSelectedId('active-top')}
                         >
-                          <div className="item-left">
-                            <div className="tree-chevron" style={{ visibility: 'hidden' }}></div>
-                            <div className="info">
-                              <div className="title">
-                                <FontAwesomeIcon icon={icon} className="project-icon icon-opened" />
+                          <div className={styles['item-left']}>
+                            <div className={styles['tree-chevron']} style={{ visibility: 'hidden' }}></div>
+                            <div className={styles['info']}>
+                              <div className={styles['title']}>
+                                <FontAwesomeIcon icon={icon} className={`${styles['project-icon']} ${styles['icon-opened']}`} />
                                 {title}
                                 {branch && (
-                                  <span className="branch-tag">
+                                  <span className={styles['branch-tag']}>
                                     <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px' }} /> {branch}
                                   </span>
                                 )}
                               </div>
-                              <div className="path">{finalPath}</div>
+                              <div className={styles['path']}>{finalPath}</div>
                             </div>
                           </div>
                         </div>
-                        <div className="top-divider"></div>
+                        <div className={styles['top-divider']}></div>
                       </div>
                     );
                   })()}
@@ -946,9 +813,9 @@ export default function RecentProjectsApp() {
                     const branch = branchMap[p.fsPath] || p.branch;
 
                     return (
-                      <li key={rootId} className="tree-node">
+                      <li key={rootId}>
                         <div
-                          className={`project-item ${isJustOpened ? 'just-opened' : ''} ${selectedId === rootId ? 'selected' : ''}`}
+                          className={`${styles['project-item']} ${isJustOpened ? styles['just-opened'] : ''} ${selectedId === rootId ? styles['selected'] : ''}`}
                           onDoubleClick={() => handleOpenProject(p.fsPath)}
                           title={isJustOpened ? '刚刚在此窗口中唤起过' : ''}
                           onContextMenu={(e) =>
@@ -961,31 +828,31 @@ export default function RecentProjectsApp() {
                           }
                           onClick={() => setSelectedId(rootId)}
                         >
-                          <div className="item-left clickable-expand" onClick={(e) => handleToggleExpand(rootId, p.fsPath, title, isRemote, e)}>
-                            <div className="tree-chevron">
+                          <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootId, p.fsPath, title, isRemote, e)}>
+                            <div className={styles['tree-chevron']}>
                               <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} style={{ fontSize: '10px' }} />
                             </div>
-                            <div className="info">
-                              <div className="title">
-                                <FontAwesomeIcon icon={icon} className="project-icon icon-closed" />
+                            <div className={styles['info']}>
+                              <div className={styles['title']}>
+                                <FontAwesomeIcon icon={icon} className={`${styles['project-icon']} ${styles['icon-closed']}`} />
                                 {title}
                                 {branch && (
-                                  <span className="branch-tag">
+                                  <span className={styles['branch-tag']}>
                                     <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px' }} /> {branch}
                                   </span>
                                 )}
                               </div>
-                              <div className="path">{finalPath}</div>
+                              <div className={styles['path']}>{finalPath}</div>
                             </div>
                           </div>
 
-                          <div className="item-actions">
-                            <button className="action-btn-icon open-btn" onClick={(e) => handleOpenCurrent(p.fsPath, e)} title="在当前窗口打开">
+                          <div className={styles['item-actions']}>
+                            <button className={`${styles['action-btn-icon']} ${styles['open-btn']}`} onClick={(e) => handleOpenCurrent(p.fsPath, e)} title="在当前窗口打开">
                               <FontAwesomeIcon icon={faArrowRightToBracket} />
                             </button>
                           </div>
                         </div>
-                        {isExpanded && <div className="tree-children">{renderTreeChildren(rootId, title)}</div>}
+                        {isExpanded && <div className={styles['tree-children']}>{renderTreeChildren(rootId, title)}</div>}
                       </li>
                     );
                   })}
@@ -999,11 +866,11 @@ export default function RecentProjectsApp() {
           </div>
 
           {projects.length > 0 && (
-            <div className="bottom-bar">
-              <button className="action-btn" onClick={() => vscode.postMessage({ type: 'addLocal' })} style={{ marginBottom: 0 }}>
+            <div className={styles['bottom-bar']}>
+              <button className={styles['action-btn']} onClick={() => vscode.postMessage({ type: 'addLocal' })} style={{ marginBottom: 0 }}>
                 <FontAwesomeIcon icon={faFolderPlus} /> 添加本地
               </button>
-              <button className="action-btn secondary" onClick={() => vscode.postMessage({ type: 'addRemote' })} style={{ marginBottom: 0 }}>
+              <button className={`${styles['action-btn']} ${styles['secondary']}`} onClick={() => vscode.postMessage({ type: 'addRemote' })} style={{ marginBottom: 0 }}>
                 <FontAwesomeIcon icon={faGithub} /> 添加远程
               </button>
             </div>
