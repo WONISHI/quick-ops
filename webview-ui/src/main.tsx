@@ -11,6 +11,7 @@ import AnchorApp from "./pages/AnchorApp"
 import MockSidebarApp from './pages/MockSidebarApp'
 import MockProxyPanelApp from "./pages/MockProxyPanelApp"
 import MockRulePanelApp from './pages/MockRulePanelApp'
+import VditorApp from './pages/VditorApp';
 import GitApp from './pages/GitApp';
 import './index.css';
 import '@vscode/codicons/dist/codicon.css';
@@ -32,6 +33,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         <Route path="/mock" element={<MockSidebarApp />} />
         <Route path="/mock/proxy" element={<MockProxyPanelApp />} />
         <Route path="/mock/rule" element={<MockRulePanelApp />} />
+        <Route path='/vditor' element={<VditorApp></VditorApp>}/>
         <Route path="/" element={<div>Welcome to Quick Ops Dashboard!</div>} />
       </Routes>
     </MemoryRouter>

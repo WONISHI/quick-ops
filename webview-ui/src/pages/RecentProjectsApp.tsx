@@ -419,6 +419,10 @@ export default function RecentProjectsApp() {
         setFolderSearchResults([]);
         setFolderSearchError('');
         break;
+      // 🌟 新增：拦截 Vditor 预览指令并发送给后端
+      case 'previewWithVditor':
+        vscode.postMessage({ type: 'previewWithVditor', fsPath: payload.path, projectName: payload.projectName });
+        break;
     }
   };
 
@@ -581,6 +585,17 @@ export default function RecentProjectsApp() {
                       <FontAwesomeIcon icon={faCopy} className={styles['menu-icon']} /> 复制文件
                     </li>
                     <div className={styles['menu-separator']}></div>
+                    
+                    {/* 🌟 新增：如果是 .md 文件，添加 Vditor 预览按钮 */}
+                    {contextMenu.payload.name?.toLowerCase().endsWith('.md') && (
+                      <>
+                        <li onClick={() => executeMenuAction('previewWithVditor')}>
+                          <FontAwesomeIcon icon={faMarkdown} className={styles['menu-icon']} style={{ color: '#5dade2' }} /> 使用 Vditor 查看
+                        </li>
+                        <div className={styles['menu-separator']}></div>
+                      </>
+                    )}
+
                     <li onClick={() => executeMenuAction('selectForCompare')}>
                       <FontAwesomeIcon icon={faSquareCheck} className={styles['menu-icon']} /> 选择以进行比较
                     </li>
@@ -809,12 +824,12 @@ export default function RecentProjectsApp() {
                             <div className={styles['info']}>
                               <div className={styles['title']}>
                                 <FontAwesomeIcon icon={icon} className={`${styles['project-icon']} ${styles['icon-opened']}`} />
-                                {/* 🌟 包装项目名称以支持省略号 */}
+                                {/* 🌟 包装项目名称以支持超出省略号 */}
                                 <span className={styles['project-name']} title={title}>{title}</span>
                                 {branch && (
                                   <span className={styles['branch-tag']} title={branch}>
                                     <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px', flexShrink: 0 }} /> 
-                                    {/* 🌟 包装分支文本以支持省略号 */}
+                                    {/* 🌟 包装分支文本以支持超出省略号 */}
                                     <span className={styles['branch-text']}>{branch}</span>
                                   </span>
                                 )}
@@ -865,12 +880,12 @@ export default function RecentProjectsApp() {
                             <div className={styles['info']}>
                               <div className={styles['title']}>
                                 <FontAwesomeIcon icon={icon} className={`${styles['project-icon']} ${styles['icon-closed']}`} />
-                                {/* 🌟 包装项目名称以支持省略号 */}
+                                {/* 🌟 包装项目名称以支持超出省略号 */}
                                 <span className={styles['project-name']} title={title}>{title}</span>
                                 {branch && (
                                   <span className={styles['branch-tag']} title={branch}>
                                     <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px', flexShrink: 0 }} /> 
-                                    {/* 🌟 包装分支文本以支持省略号 */}
+                                    {/* 🌟 包装分支文本以支持超出省略号 */}
                                     <span className={styles['branch-text']}>{branch}</span>
                                   </span>
                                 )}

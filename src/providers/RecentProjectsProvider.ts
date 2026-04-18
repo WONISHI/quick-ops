@@ -233,6 +233,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'searchInFolder':
           this.handleSearchInFolder(data.fsPath, data.query, data.isRemote);
           break;
+
+        // ================= 🌟 核心新增/修改逻辑开始 =================
+        case 'previewWithVditor':
+          // 将 Vditor 请求转发到新的 React Panel
+          this.openVditorPanel(data.fsPath, 'read');
+          break;
+
         case 'openFileNormal':
         case 'openFileNormalToSide':
         case 'openFileNormalInNewTab': {
@@ -282,7 +289,48 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  // 🌟 核心修复：处理 file:// 协议的前缀转换问题
+  // ================= 🌟 Vditor 独立 Webview 逻辑 =================
+  private async openVditorPanel(fsPath: string, type: 'read' | 'edit') {
+    try {
+      const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+      const fileName = path.basename(uri.path);
+
+      const contentBytes = await vscode.workspace.fs.readFile(uri);
+      const content = Buffer.from(contentBytes).toString('utf8');
+
+      const panel = vscode.window.createWebviewPanel(
+        'vditorPreviewReact',
+        `Vditor: ${fileName}`,
+        vscode.ViewColumn.Active,
+        {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: [this.context.extensionUri]
+        }
+      );
+
+      panel.webview.onDidReceiveMessage(async (msg) => {
+        if (msg.command === 'webviewLoaded') {
+          panel.webview.postMessage({
+            type: 'initVditorData',
+            content: content,
+            mode: type,
+            fsPath: fsPath
+          });
+        } else if (msg.command === 'saveMarkdown' && type === 'edit') {
+          await vscode.workspace.fs.writeFile(uri, Buffer.from(msg.content, 'utf8'));
+          vscode.window.showInformationMessage('✅ Markdown 已保存');
+        }
+      });
+
+      // 挂载 React 路由
+      panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, `/Vditor?type=${type}`);
+
+    } catch (e) {
+      vscode.window.showErrorMessage('无法读取文件进行 Vditor 预览，请检查网络或权限。');
+    }
+  }
+
   private async handleSearchInFolder(fsPath: string, query: string, isRemote: boolean) {
     if (isRemote) {
       this._view?.webview.postMessage({ type: 'searchFolderResult', results: [], error: '由于网络限制，远程仓库暂不支持全文代码检索，请在本地打开该项目后再尝试。' });
@@ -392,7 +440,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
 
-      // 🌟 核心修复 1：URI 的 path 永远是正斜杠，必须强制使用 posix 模式解析，防止 Windows 干扰
+      // 🌟 跨平台路径修复：强制 POSIX 解析并使用 Uri.joinPath
       const parsedPath = path.posix.parse(uri.path);
       let newFileName = `${parsedPath.name}_copy${parsedPath.ext}`;
 
