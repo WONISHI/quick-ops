@@ -367,6 +367,9 @@ export default function RecentProjectsApp() {
     const { payload } = contextMenu;
 
     switch (action) {
+      case 'openProjectCurrent': // 🌟 1. 响应新增的“在当前窗口打开”菜单
+        vscode.postMessage({ type: 'openProjectCurrent', fsPath: payload.path });
+        break;
       case 'openInNewWindow':
         vscode.postMessage({ type: 'openInNewWindow', fsPath: payload.path });
         break;
@@ -501,9 +504,12 @@ export default function RecentProjectsApp() {
           <ul>
             {contextMenu.type === 'top' && (
               <>
-                {/* 🌟 只有非当前项目，才显示“在新窗口打开”和“查找文件内容” */}
+                {/* 🌟 2. 非当前项目，显示“在当前窗口打开”、“在新窗口打开”和“查找文件内容” */}
                 {!contextMenu.payload.isActiveProject && (
                   <>
+                    <li onClick={() => executeMenuAction('openProjectCurrent')}>
+                      <FontAwesomeIcon icon={faArrowRightToBracket} className={styles['menu-icon']} /> 在当前窗口打开
+                    </li>
                     <li onClick={() => executeMenuAction('openInNewWindow')}>
                       <FontAwesomeIcon icon={faArrowUpRightFromSquare} className={styles['menu-icon']} /> 在新窗口打开
                     </li>
@@ -586,7 +592,6 @@ export default function RecentProjectsApp() {
                 )}
                 {contextMenu.payload.isFolder && (
                   <>
-                    {/* 🌟 只有非当前项目的子文件夹，才显示“查找文件内容” */}
                     {!contextMenu.payload.isActiveProject && (
                       <>
                         <li onClick={() => executeMenuAction('searchInFolder')}>
