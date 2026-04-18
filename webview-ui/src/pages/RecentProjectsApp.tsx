@@ -318,10 +318,16 @@ export default function RecentProjectsApp() {
     vscode.postMessage({ type: 'openProjectCurrent', fsPath: path });
   };
 
+  // 🌟 核心拦截：点击文件直接通过后缀判断是否采用 Vditor
   const handleOpenFile = (path: string, projectName: string, id: string, isActiveProject: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedId(id);
-    vscode.postMessage({ type: isActiveProject ? 'openFileNormal' : 'openFile', fsPath: path, projectName });
+    if (path.toLowerCase().endsWith('.md')) {
+      // 交给后端处理 Vditor，并带上激活状态以区分 edit/read
+      vscode.postMessage({ type: 'previewWithVditor', fsPath: path, projectName, isActiveProject });
+    } else {
+      vscode.postMessage({ type: isActiveProject ? 'openFileNormal' : 'openFile', fsPath: path, projectName });
+    }
   };
 
   const handleToggleExpand = (id: string, path: string, projectName: string, _: boolean, e: React.MouseEvent) => {
@@ -419,10 +425,6 @@ export default function RecentProjectsApp() {
         setFolderSearchResults([]);
         setFolderSearchError('');
         break;
-      // 🌟 新增：拦截 Vditor 预览指令并发送给后端
-      case 'previewWithVditor':
-        vscode.postMessage({ type: 'previewWithVditor', fsPath: payload.path, projectName: payload.projectName });
-        break;
     }
   };
 
@@ -487,7 +489,7 @@ export default function RecentProjectsApp() {
                   onClick={(e) => handleOpenFile(child.path, projectName, childId, isActiveProject, e)}
                   onContextMenu={(e) => handleContextMenu(e, 'sub', { path: child.path, name: child.name, isFolder: false, projectName, isActiveProject }, childId)}
                   style={{ cursor: 'pointer' }}
-                  title={isActiveProject ? "点击打开文件" : "点击以只读模式预览"}
+                  title={isActiveProject ? "点击打开文件" : "点击预览"}
                 >
                   <div className={styles['chevron-placeholder']}></div>
                   {getFileIcon(child.name)}
@@ -508,7 +510,6 @@ export default function RecentProjectsApp() {
           <ul>
             {contextMenu.type === 'top' && (
               <>
-                {/* 🌟 非当前项目才显示：在当前窗口打开、在新窗口打开、查找文件内容 */}
                 {!contextMenu.payload.isActiveProject && (
                   <>
                     <li onClick={() => executeMenuAction('openProjectCurrent')}>
@@ -585,17 +586,6 @@ export default function RecentProjectsApp() {
                       <FontAwesomeIcon icon={faCopy} className={styles['menu-icon']} /> 复制文件
                     </li>
                     <div className={styles['menu-separator']}></div>
-                    
-                    {/* 🌟 新增：如果是 .md 文件，添加 Vditor 预览按钮 */}
-                    {contextMenu.payload.name?.toLowerCase().endsWith('.md') && (
-                      <>
-                        <li onClick={() => executeMenuAction('previewWithVditor')}>
-                          <FontAwesomeIcon icon={faMarkdown} className={styles['menu-icon']} style={{ color: '#5dade2' }} /> 使用 Vditor 查看
-                        </li>
-                        <div className={styles['menu-separator']}></div>
-                      </>
-                    )}
-
                     <li onClick={() => executeMenuAction('selectForCompare')}>
                       <FontAwesomeIcon icon={faSquareCheck} className={styles['menu-icon']} /> 选择以进行比较
                     </li>
@@ -607,7 +597,6 @@ export default function RecentProjectsApp() {
                 )}
                 {contextMenu.payload.isFolder && (
                   <>
-                    {/* 🌟 只有非当前项目的子文件夹才显示查找文件内容 */}
                     {!contextMenu.payload.isActiveProject && (
                       <>
                         <li onClick={() => executeMenuAction('searchInFolder')}>
@@ -778,10 +767,10 @@ export default function RecentProjectsApp() {
                 <div className={styles['empty-text']}>暂无项目记录，请添加：</div>
                 <div className={styles['bottom-bar']}>
                   <button className={styles['action-btn']} onClick={() => vscode.postMessage({ type: 'addLocal' })}>
-                    <FontAwesomeIcon icon={faFolderPlus} /> 添加本地
+                    <FontAwesomeIcon icon={faFolderPlus} /> 添加本地项目
                   </button>
                   <button className={`${styles['action-btn']} ${styles['secondary']}`} onClick={() => vscode.postMessage({ type: 'addRemote' })}>
-                    <FontAwesomeIcon icon={faGithub} /> 添加远程
+                    <FontAwesomeIcon icon={faGithub} /> 添加远程仓库
                   </button>
                 </div>
               </div>
@@ -824,12 +813,10 @@ export default function RecentProjectsApp() {
                             <div className={styles['info']}>
                               <div className={styles['title']}>
                                 <FontAwesomeIcon icon={icon} className={`${styles['project-icon']} ${styles['icon-opened']}`} />
-                                {/* 🌟 包装项目名称以支持超出省略号 */}
                                 <span className={styles['project-name']} title={title}>{title}</span>
                                 {branch && (
                                   <span className={styles['branch-tag']} title={branch}>
                                     <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px', flexShrink: 0 }} /> 
-                                    {/* 🌟 包装分支文本以支持超出省略号 */}
                                     <span className={styles['branch-text']}>{branch}</span>
                                   </span>
                                 )}
@@ -880,12 +867,10 @@ export default function RecentProjectsApp() {
                             <div className={styles['info']}>
                               <div className={styles['title']}>
                                 <FontAwesomeIcon icon={icon} className={`${styles['project-icon']} ${styles['icon-closed']}`} />
-                                {/* 🌟 包装项目名称以支持超出省略号 */}
                                 <span className={styles['project-name']} title={title}>{title}</span>
                                 {branch && (
                                   <span className={styles['branch-tag']} title={branch}>
                                     <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px', flexShrink: 0 }} /> 
-                                    {/* 🌟 包装分支文本以支持超出省略号 */}
                                     <span className={styles['branch-text']}>{branch}</span>
                                   </span>
                                 )}

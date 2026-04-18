@@ -229,15 +229,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           this.compareWithSelected(data.fsPath, data.projectName);
           break;
 
-        // 🌟 核心新增：监听来自前端的文件夹内容检索请求
         case 'searchInFolder':
           this.handleSearchInFolder(data.fsPath, data.query, data.isRemote);
           break;
-
-        // ================= 🌟 核心新增/修改逻辑开始 =================
+        
         case 'previewWithVditor':
-          // 将 Vditor 请求转发到新的 React Panel
-          this.openVditorPanel(data.fsPath, 'read');
+          this.openVditorPanel(data.fsPath, data.isActiveProject ? 'edit' : 'read');
           break;
 
         case 'openFileNormal':
@@ -254,13 +251,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           }
           break;
         }
-        // 🌟 核心新增：点击搜索记录打开特定文件并跳转到指定行
-        // 🌟 核心新增：点击搜索记录打开特定文件并跳转到指定行
+        
         case 'openFileAtLine': {
           try {
             let fileUri: vscode.Uri;
-
-            // 🌟 4. 修复：根据是否为激活项目，决定打开可编辑的原生文件还是只读的虚拟文件
             if (data.isActiveProject) {
               fileUri = data.fsPath.includes('://') ? vscode.Uri.parse(data.fsPath) : vscode.Uri.file(data.fsPath);
             } else {
@@ -289,7 +283,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  // ================= 🌟 Vditor 独立 Webview 逻辑 =================
   private async openVditorPanel(fsPath: string, type: 'read' | 'edit') {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
@@ -323,7 +316,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
       });
 
-      // 挂载 React 路由
       panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, `/Vditor?type=${type}`);
 
     } catch (e) {
@@ -349,7 +341,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const maxResults = 200;
     let currentResults = 0;
 
-    // 🌟 使用对标 VS Code 的增强排除列表
     const IGNORE_DIRS = new Set([
       'node_modules', 'bower_components', 'vendor',
       '.git', '.svn', '.hg', 'CVS', '.vscode', '.idea',
@@ -375,7 +366,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         for (const entry of entries) {
           if (currentResults >= maxResults) break;
 
-          // 拦截系统隐藏文件如 .DS_Store 或者配置的忽略文件夹
           if (IGNORE_DIRS.has(entry.name) || entry.name === '.DS_Store' || entry.name === 'Thumbs.db') continue;
 
           const fullPath = path.join(dir, entry.name);
@@ -388,7 +378,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
             try {
               const stat = await fs.promises.stat(fullPath);
-              if (stat.size > 2 * 1024 * 1024) continue; // 忽略 > 2MB 的文件
+              if (stat.size > 2 * 1024 * 1024) continue; 
             } catch (e) { continue; }
 
             const fileMatches = [];
@@ -439,12 +429,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private async copyFileEntity(fsPath: string) {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
-
-      // 🌟 跨平台路径修复：强制 POSIX 解析并使用 Uri.joinPath
       const parsedPath = path.posix.parse(uri.path);
       let newFileName = `${parsedPath.name}_copy${parsedPath.ext}`;
-
-      // 🌟 核心修复 2：使用 VS Code 原生 API 生成新路径，它会自动处理各平台和各类协议 (file/vscode-vfs) 的斜杠问题
       let newUri = vscode.Uri.joinPath(uri, '..', newFileName);
 
       let counter = 1;
@@ -455,7 +441,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           newFileName = `${parsedPath.name}_copy${counter}${parsedPath.ext}`;
           newUri = vscode.Uri.joinPath(uri, '..', newFileName);
         } catch (error) {
-          // 抛出异常说明文件不存在，可以用这个名字
           break;
         }
       }

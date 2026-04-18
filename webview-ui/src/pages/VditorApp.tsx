@@ -66,9 +66,19 @@ export default function VditorApp() {
           }
           
           /* 🌟 修复 2：打破默认 800px 最大宽度限制，填满两边空隙 */
-          .vditor-reset {
+          .vditor-ir {
             max-width: 100% !important;
             padding: 24px 40px !important;
+          }
+
+          /* 🌟 修复 3：解决 vd.disabled() 导致整体透明度变成 0.3 发灰的问题 */
+          .vditor--disabled {
+            opacity: 1 !important;
+          }
+          
+          /* 强制加深字体颜色，告别灰蒙蒙 */
+          .vditor-ir {
+            color: #24292e !important;
           }
 
           /* 只读模式专属屏蔽 */
