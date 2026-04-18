@@ -392,9 +392,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
 
-      const parsedPath = path.parse(uri.path);
+      // 🌟 核心修复 1：URI 的 path 永远是正斜杠，必须强制使用 posix 模式解析，防止 Windows 干扰
+      const parsedPath = path.posix.parse(uri.path);
       let newFileName = `${parsedPath.name}_copy${parsedPath.ext}`;
-      let newUri = uri.with({ path: path.join(parsedPath.dir, newFileName) });
+
+      // 🌟 核心修复 2：使用 VS Code 原生 API 生成新路径，它会自动处理各平台和各类协议 (file/vscode-vfs) 的斜杠问题
+      let newUri = vscode.Uri.joinPath(uri, '..', newFileName);
 
       let counter = 1;
       while (true) {
@@ -402,8 +405,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           await vscode.workspace.fs.stat(newUri);
           counter++;
           newFileName = `${parsedPath.name}_copy${counter}${parsedPath.ext}`;
-          newUri = uri.with({ path: path.join(parsedPath.dir, newFileName) });
+          newUri = vscode.Uri.joinPath(uri, '..', newFileName);
         } catch (error) {
+          // 抛出异常说明文件不存在，可以用这个名字
           break;
         }
       }
@@ -417,7 +421,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       vscode.window.showInformationMessage(`📄 文件已复制为: ${newFileName}`);
     } catch (e) {
-      vscode.window.showErrorMessage(`复制文件失败，这可能是由于权限不足或当前文件系统不支持复制操作。详情: ${e}`);
+      vscode.window.showErrorMessage(`复制文件失败，详情: ${e}`);
     }
   }
 
