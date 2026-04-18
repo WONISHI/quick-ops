@@ -169,12 +169,18 @@ ul {
   line-height: 1;
   font-size: 13px;
   font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   display: flex;
   align-items: center;
   pointer-events: auto;
+  min-width: 0; 
+  width: 100%;
+}
+
+.project-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1; 
 }
 
 .path {
@@ -199,6 +205,17 @@ ul {
   gap: 3px;
   margin-left: 8px;
   border: 1px solid var(--vscode-panel-border);
+  
+  /* 🌟 核心：允许分支标签在父级剩余空间不足时被压缩 */
+  flex-shrink: 1;
+  min-width: 0; 
+}
+
+/* 🌟 新增：专门包裹分支名称文本，触发单行省略号 */
+.branch-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .icon-opened {

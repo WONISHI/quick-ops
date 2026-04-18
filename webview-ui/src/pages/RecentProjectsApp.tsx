@@ -367,7 +367,7 @@ export default function RecentProjectsApp() {
     const { payload } = contextMenu;
 
     switch (action) {
-      case 'openProjectCurrent': // 🌟 1. 响应新增的“在当前窗口打开”菜单
+      case 'openProjectCurrent':
         vscode.postMessage({ type: 'openProjectCurrent', fsPath: payload.path });
         break;
       case 'openInNewWindow':
@@ -504,7 +504,7 @@ export default function RecentProjectsApp() {
           <ul>
             {contextMenu.type === 'top' && (
               <>
-                {/* 🌟 2. 非当前项目，显示“在当前窗口打开”、“在新窗口打开”和“查找文件内容” */}
+                {/* 🌟 非当前项目才显示：在当前窗口打开、在新窗口打开、查找文件内容 */}
                 {!contextMenu.payload.isActiveProject && (
                   <>
                     <li onClick={() => executeMenuAction('openProjectCurrent')}>
@@ -592,6 +592,7 @@ export default function RecentProjectsApp() {
                 )}
                 {contextMenu.payload.isFolder && (
                   <>
+                    {/* 🌟 只有非当前项目的子文件夹才显示查找文件内容 */}
                     {!contextMenu.payload.isActiveProject && (
                       <>
                         <li onClick={() => executeMenuAction('searchInFolder')}>
@@ -808,10 +809,13 @@ export default function RecentProjectsApp() {
                             <div className={styles['info']}>
                               <div className={styles['title']}>
                                 <FontAwesomeIcon icon={icon} className={`${styles['project-icon']} ${styles['icon-opened']}`} />
-                                {title}
+                                {/* 🌟 包装项目名称以支持省略号 */}
+                                <span className={styles['project-name']} title={title}>{title}</span>
                                 {branch && (
-                                  <span className={styles['branch-tag']}>
-                                    <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px' }} /> {branch}
+                                  <span className={styles['branch-tag']} title={branch}>
+                                    <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px', flexShrink: 0 }} /> 
+                                    {/* 🌟 包装分支文本以支持省略号 */}
+                                    <span className={styles['branch-text']}>{branch}</span>
                                   </span>
                                 )}
                               </div>
@@ -861,10 +865,13 @@ export default function RecentProjectsApp() {
                             <div className={styles['info']}>
                               <div className={styles['title']}>
                                 <FontAwesomeIcon icon={icon} className={`${styles['project-icon']} ${styles['icon-closed']}`} />
-                                {title}
+                                {/* 🌟 包装项目名称以支持省略号 */}
+                                <span className={styles['project-name']} title={title}>{title}</span>
                                 {branch && (
-                                  <span className={styles['branch-tag']}>
-                                    <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px' }} /> {branch}
+                                  <span className={styles['branch-tag']} title={branch}>
+                                    <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px', flexShrink: 0 }} /> 
+                                    {/* 🌟 包装分支文本以支持省略号 */}
+                                    <span className={styles['branch-text']}>{branch}</span>
                                   </span>
                                 )}
                               </div>
