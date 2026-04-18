@@ -19,13 +19,35 @@ export default function VditorApp() {
           const isEdit = msg.mode === 'edit';
           setIsReadMode(!isEdit);
 
+          let processedContent = msg.content;
+          
+          // 🌟 1. 处理 Obsidian 双链语法: ![[Pasted image xxx.png]]
+          const wikiRegex = /!\[\[(.*?)\]\]/g;
+          processedContent = processedContent.replace(wikiRegex, (match: string, rawImageName: string) => {
+            const exactName = rawImageName.trim();
+            if (msg.imageMap && msg.imageMap[exactName]) {
+              return `![${exactName}](${msg.imageMap[exactName]})`;
+            }
+            return `![${exactName}](${exactName})`;
+          });
+
+          // 🌟 2. 处理标准 Markdown 语法: ![Pasted image xxx.png](Pasted image xxx.png)
+          // 我们匹配括号里的路径，如果它在 imageMap 里，就替换它
+          const mdRegex = /!\[(.*?)\]\((.*?)\)/g;
+          processedContent = processedContent.replace(mdRegex, (match: string, alt: string, path: string) => {
+            const exactPath = path.trim();
+            if (msg.imageMap && msg.imageMap[exactPath]) {
+              return `![${alt}](${msg.imageMap[exactPath]})`;
+            }
+            return match; // 找不到保持原样
+          });
+
           const vd = new Vditor(vditorRef.current, {
-            value: msg.content,
+            value: processedContent,
             mode: 'ir',
             theme: 'classic',
             lang: 'zh_CN',
-            // 🌟 核心修复：必须指定高度为视口高度，否则 Vditor 会无限伸展导致滚动条丢失！
-            height: '100vh', 
+            height: window.innerHeight,
             toolbar: isEdit ? undefined : [], 
             toolbarConfig: {
               hide: !isEdit,
@@ -57,18 +79,27 @@ export default function VditorApp() {
 
     window.addEventListener('message', handleMessage);
 
+    const handleResize = () => {
+      if (vditorRef.current) {
+        const vditorElement = vditorRef.current.querySelector('.vditor') as HTMLElement;
+        if (vditorElement) {
+          vditorElement.style.height = `${window.innerHeight}px`;
+        }
+      }
+    };
+    window.addEventListener('resize', handleResize);
+
     return () => {
       window.removeEventListener('message', handleMessage);
+      window.removeEventListener('resize', handleResize);
       vditor?.destroy();
     };
   }, []);
 
   return (
-    // 🌟 外层加上 overflow: hidden，防止出现多余的白边或双滚动条
-    <div style={{ height: '100vh', width: '100vw', backgroundColor: '#ffffff', overflow: 'hidden' }}>
+    <div style={{ height: '100vh', backgroundColor: '#ffffff' }}>
       <style>
         {`
-          /* 去除 Vditor 默认的浅灰色背景 */
           .vditor, .vditor-ir, .vditor-reset {
             background-color: transparent !important;
           }
@@ -81,30 +112,25 @@ export default function VditorApp() {
             padding-bottom: 24px !important;
           }
           
-          /* 强制加深字体颜色，告别灰蒙蒙 */
           .vditor-ir {
             color: #24292e !important;
           }
 
-          /* 只读模式专属屏蔽 */
           ${isReadMode ? `
             .vditor-toolbar { display: none !important; }
             .vditor-ir { caret-color: transparent !important; } 
 
-            /* 屏蔽点击代码块/公式时弹出的源码框（灰色背景的 \`\`\`JS） */
             .vditor-ir__marker,
             .vditor-ir__node--expand pre.vditor-ir__marker {
               display: none !important;
             }
 
-            /* 屏蔽代码块点击后右上角弹出的语言修改输入框 */
             .vditor-ir__info {
               display: none !important;
             }
           ` : ''}
         `}
       </style>
-      
       <div ref={vditorRef} style={{ border: 'none', height: '100%' }} />
     </div>
   );

@@ -228,11 +228,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'compareWithSelected':
           this.compareWithSelected(data.fsPath, data.projectName);
           break;
-
         case 'searchInFolder':
           this.handleSearchInFolder(data.fsPath, data.query, data.isRemote);
           break;
-        
+
         case 'previewWithVditor':
           this.openVditorPanel(data.fsPath, data.isActiveProject ? 'edit' : 'read');
           break;
@@ -283,6 +282,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  // ================= 🌟 Vditor 独立 Webview 与本地图片解析逻辑 =================
   private async openVditorPanel(fsPath: string, type: 'read' | 'edit') {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
@@ -291,6 +291,80 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const contentBytes = await vscode.workspace.fs.readFile(uri);
       const content = Buffer.from(contentBytes).toString('utf8');
 
+      const mdDir = path.dirname(uri.fsPath);
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
+      
+      const imageMap: Record<string, string> = {};
+      
+      const wikiRegex = /!\[\[(.*?)\]\]/g;
+      const mdRegex = /!\[.*?\]\((.*?)\)/g;
+      
+      const foundNames = new Set<string>();
+      let match;
+      
+      while ((match = wikiRegex.exec(content)) !== null) { foundNames.add(match[1].trim()); }
+      while ((match = mdRegex.exec(content)) !== null) { 
+        const p = match[1].trim();
+        if (p.includes('Pasted image')) {
+            foundNames.add(p);
+        }
+      }
+
+      for (const exactName of foundNames) {
+        let decodedName = exactName;
+        try {
+          decodedName = decodeURIComponent(exactName);
+        } catch (e) {}
+
+        const searchDirs: string[] = [];
+
+        // 🌟 1. 优先扫描当前文件同级别的 assets、img、images
+        searchDirs.push(
+          path.join(mdDir, 'assets'),
+          path.join(mdDir, 'img'),
+          path.join(mdDir, 'images')
+        );
+
+        // 🌟 2. 其次扫描根目录的 assets、img、images
+        if (workspaceRoot) {
+          searchDirs.push(
+            path.join(workspaceRoot, 'assets'),
+            path.join(workspaceRoot, 'img'),
+            path.join(workspaceRoot, 'images')
+          );
+        }
+
+        // 🌟 3. 保底扫描当前文件夹本身和根目录本身
+        searchDirs.push(mdDir);
+        if (workspaceRoot) {
+          searchDirs.push(workspaceRoot);
+        }
+
+        // 去重，防止重复扫描
+        const uniqueSearchDirs = Array.from(new Set(searchDirs));
+
+        let foundPath = '';
+        for (const dir of uniqueSearchDirs) {
+          if (!fs.existsSync(dir)) continue;
+
+          try {
+            const files = fs.readdirSync(dir);
+            const matchedFile = files.find(file => file === decodedName || file === exactName);
+            
+            if (matchedFile) {
+              foundPath = path.join(dir, matchedFile);
+              break; 
+            }
+          } catch (e) {
+            // 忽略读取错误
+          }
+        }
+
+        if (foundPath) {
+          imageMap[exactName] = foundPath;
+        }
+      }
+
       const panel = vscode.window.createWebviewPanel(
         'vditorPreviewReact',
         `Vditor: ${fileName}`,
@@ -298,9 +372,18 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         {
           enableScripts: true,
           retainContextWhenHidden: true,
-          localResourceRoots: [this.context.extensionUri]
+          localResourceRoots: [
+            this.context.extensionUri,
+            vscode.Uri.file(mdDir), 
+            ...(workspaceRoot ? [vscode.Uri.file(workspaceRoot)] : [])
+          ]
         }
       );
+
+      const finalImageMap: Record<string, string> = {};
+      for (const [rawName, absPath] of Object.entries(imageMap)) {
+        finalImageMap[rawName] = panel.webview.asWebviewUri(vscode.Uri.file(absPath)).toString();
+      }
 
       panel.webview.onDidReceiveMessage(async (msg) => {
         if (msg.command === 'webviewLoaded') {
@@ -308,7 +391,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             type: 'initVditorData',
             content: content,
             mode: type,
-            fsPath: fsPath
+            fsPath: fsPath,
+            imageMap: finalImageMap
           });
         } else if (msg.command === 'saveMarkdown' && type === 'edit') {
           await vscode.workspace.fs.writeFile(uri, Buffer.from(msg.content, 'utf8'));
@@ -319,7 +403,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, `/Vditor?type=${type}`);
 
     } catch (e) {
-      vscode.window.showErrorMessage('无法读取文件进行 Vditor 预览，请检查网络或权限。');
+      vscode.window.showErrorMessage('无法读取文件进行 Vditor 预览。');
     }
   }
 
