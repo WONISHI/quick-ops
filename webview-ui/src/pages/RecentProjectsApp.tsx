@@ -763,10 +763,10 @@ export default function RecentProjectsApp() {
                 <div className={styles['empty-text']}>暂无项目记录，请添加：</div>
                 <div className={styles['bottom-bar']}>
                   <button className={styles['action-btn']} onClick={() => vscode.postMessage({ type: 'addLocal' })}>
-                    <FontAwesomeIcon icon={faFolderPlus} /> 添加本地项目
+                    <FontAwesomeIcon icon={faFolderPlus} /> 添加本地
                   </button>
                   <button className={`${styles['action-btn']} ${styles['secondary']}`} onClick={() => vscode.postMessage({ type: 'addRemote' })}>
-                    <FontAwesomeIcon icon={faGithub} /> 添加远程仓库
+                    <FontAwesomeIcon icon={faGithub} /> 添加远程
                   </button>
                 </div>
               </div>

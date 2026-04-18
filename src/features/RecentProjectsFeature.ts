@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
+import * as path from 'path';
 import { IFeature } from '../core/interfaces/IFeature';
 import ColorLog from '../utils/ColorLog';
 import { RecentProjectsProvider, ReadOnlyContentProvider, ReadOnlyDecorationProvider } from '../providers/RecentProjectsProvider';
@@ -20,34 +22,119 @@ export class RecentProjectsFeature implements IFeature {
       webviewOptions: { retainContextWhenHidden: true },
     });
 
-    // 注册基础命令
-    const addCmd = vscode.commands.registerCommand('quickOps.addRecentProject', async () => { /* 你的逻辑 */ });
+    // ================= 🌟 修复并升级：输入+选择双模式的添加逻辑 =================
+    const addCmd = vscode.commands.registerCommand('quickOps.addRecentProject', async () => {
+      const quickPick = vscode.window.createQuickPick();
+      quickPick.placeholder = '直接输入本地绝对路径或远程URL按回车，或在下方选择';
+      quickPick.items = [
+        { label: '$(folder) 浏览本地项目...', description: '打开系统文件夹选择器', alwaysShow: true },
+        { label: '$(repo) 填写远程仓库...', description: '手动输入添加 GitHub / GitLab 链接', alwaysShow: true }
+      ];
+
+      // 🌟 监听用户的实时输入，动态改变第一个选项
+      quickPick.onDidChangeValue(value => {
+        if (value.trim()) {
+          const isRemote = /^(https?:\/\/|git@|vscode-vfs:\/\/)/i.test(value.trim()) || /^([^/]+\/[^/]+)$/.test(value.trim());
+          quickPick.items = [
+            {
+              label: isRemote ? '$(repo) 识别为【远程仓库】并添加' : '$(folder) 识别为【本地项目】并添加',
+              description: value,
+              alwaysShow: true
+            },
+            { label: '$(folder) 浏览本地项目...', description: '打开系统文件夹选择器', alwaysShow: true },
+            { label: '$(repo) 填写远程仓库...', description: '手动输入添加 GitHub / GitLab 链接', alwaysShow: true }
+          ];
+        } else {
+          // 清空输入时恢复默认选项
+          quickPick.items = [
+            { label: '$(folder) 浏览本地项目...', description: '打开系统文件夹选择器', alwaysShow: true },
+            { label: '$(repo) 填写远程仓库...', description: '手动输入添加 GitHub / GitLab 链接', alwaysShow: true }
+          ];
+        }
+      });
+
+      quickPick.onDidAccept(async () => {
+        const inputValue = quickPick.value.trim();
+        const selected = quickPick.selectedItems[0];
+        quickPick.hide();
+        quickPick.dispose();
+
+        // 如果用户直接输入了路径并回车，或者选中了动态生成的第一个选项
+        if (inputValue && selected.description === inputValue) {
+          const isRemote = /^(https?:\/\/|git@|vscode-vfs:\/\/)/i.test(inputValue) || /^([^/]+\/[^/]+)$/.test(inputValue);
+
+          if (isRemote) {
+            // 利用 any 绕过 private，复用 provider 中已有的完备解析逻辑
+            const parsed = (provider as any).parseRemoteUrlInput(inputValue);
+            if (parsed) {
+              const projectName = await vscode.window.showInputBox({
+                prompt: '确认远程项目名称',
+                value: parsed.repoFullName.split('/').pop() || parsed.repoFullName
+              });
+              if (projectName) {
+                await (provider as any).insertProjectToHistory(projectName, parsed.targetUriStr, parsed.platform, parsed.customDomain);
+                vscode.window.showInformationMessage(`✅ 已添加远程项目: ${projectName}`);
+              }
+            } else {
+              vscode.window.showErrorMessage('❌ 无效的远程地址格式，请检查。');
+            }
+          } else {
+            // 本地路径处理
+            if (fs.existsSync(inputValue)) {
+              const stat = fs.statSync(inputValue);
+              if (stat.isDirectory()) {
+                const folderName = path.basename(inputValue) || '本地项目';
+                const uriStr = vscode.Uri.file(inputValue).toString();
+                await (provider as any).insertProjectToHistory(folderName, uriStr);
+                vscode.window.showInformationMessage(`✅ 已添加本地项目: ${folderName}`);
+              } else {
+                vscode.window.showErrorMessage('❌ 输入的路径是一个文件，请提供文件夹路径。');
+              }
+            } else {
+              vscode.window.showErrorMessage('❌ 找不到该本地路径，请检查拼写是否正确。');
+            }
+          }
+        } else {
+          // 用户没有输入内容，点击了默认的固定选项
+          if (selected.label.includes('浏览本地项目')) {
+            await provider.addLocalProject();
+          } else if (selected.label.includes('填写远程仓库')) {
+            await provider.addRemoteProject();
+          }
+        }
+      });
+
+      quickPick.show();
+    });
+
+    // ================= 🌟 其他命令保持不变 =================
+    const refreshCmd = vscode.commands.registerCommand('quickOps.refreshRecentProjects', async () => {
+      provider.refresh();
+      await provider.syncAllBranches();
+    });
+
     const clearCmd = vscode.commands.registerCommand('quickOps.clearRecentProjects', () => provider.clearAll());
-    const refreshCmd = vscode.commands.registerCommand('quickOps.refreshRecentProjects', () => { provider.refresh(); });
     const syncCmd = vscode.commands.registerCommand('quickOps.syncBranches', async () => await provider.syncAllBranches());
 
-    // ================= 🌟 【新增核心】：注册跨视图文件对比命令 =================
+    // 注册跨视图文件对比命令
     const selectForCompareCmd = vscode.commands.registerCommand('quickOps.selectForCompare', (uri: vscode.Uri) => {
-      // 从 VS Code 原生右键菜单调用时，参数是该文件的 Uri
       if (uri) provider.selectForCompare(uri.toString());
     });
 
     const compareWithSelectedCmd = vscode.commands.registerCommand('quickOps.compareWithSelected', (uri: vscode.Uri) => {
-      // 从 VS Code 原生右键菜单调用时，参数是该文件的 Uri
       if (uri) provider.compareWithSelected(uri.toString());
     });
-    // =====================================================================
 
     // 窗口焦点变化自动刷新
     const windowFocusWatcher = vscode.window.onDidChangeWindowState((e) => {
       if (e.focused) provider.refresh();
     });
 
-    // 🌟 将所有注册推入订阅池
+    // 将所有注册推入订阅池
     context.subscriptions.push(
       webviewView, roDocRegistration, roDecoRegistration, 
       addCmd, refreshCmd, syncCmd, windowFocusWatcher, clearCmd,
-      selectForCompareCmd, compareWithSelectedCmd // 把新增的两个命令也推入
+      selectForCompareCmd, compareWithSelectedCmd
     );
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
