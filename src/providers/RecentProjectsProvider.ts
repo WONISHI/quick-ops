@@ -233,16 +233,49 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'searchInFolder':
           this.handleSearchInFolder(data.fsPath, data.query, data.isRemote);
           break;
+        case 'openFileNormal':
+        case 'openFileNormalToSide':
+        case 'openFileNormalInNewTab': {
+          try {
+            const uri = data.fsPath.includes('://') ? vscode.Uri.parse(data.fsPath) : vscode.Uri.file(data.fsPath);
+            const doc = await vscode.workspace.openTextDocument(uri);
+            const viewColumn = data.type === 'openFileNormalToSide' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
+            const preview = data.type !== 'openFileNormalInNewTab';
+            await vscode.window.showTextDocument(doc, { preview, viewColumn });
+          } catch (e) {
+            vscode.window.showErrorMessage('无法打开该文件。');
+          }
+          break;
+        }
+        // 🌟 核心新增：点击搜索记录打开特定文件并跳转到指定行
         // 🌟 核心新增：点击搜索记录打开特定文件并跳转到指定行
         case 'openFileAtLine': {
           try {
-            const fileUri = vscode.Uri.file(data.fsPath);
+            let fileUri: vscode.Uri;
+
+            // 🌟 4. 修复：根据是否为激活项目，决定打开可编辑的原生文件还是只读的虚拟文件
+            if (data.isActiveProject) {
+              fileUri = data.fsPath.includes('://') ? vscode.Uri.parse(data.fsPath) : vscode.Uri.file(data.fsPath);
+            } else {
+              const originalUri = data.fsPath.includes('://') ? vscode.Uri.parse(data.fsPath) : vscode.Uri.file(data.fsPath);
+              const fileName = originalUri.path.split(/[\\/]/).pop() || 'unknown';
+              const projName = data.projectName || '搜索结果';
+              fileUri = vscode.Uri.from({
+                scheme: 'quickops-ro',
+                path: `/🔒 ${projName}: ${fileName}`,
+                query: `target=${encodeURIComponent(originalUri.toString())}`
+              });
+            }
+
             const doc = await vscode.workspace.openTextDocument(fileUri);
-            const editor = await vscode.window.showTextDocument(doc);
+            const editor = await vscode.window.showTextDocument(doc, { preview: true });
+
             const position = new vscode.Position(Math.max(0, data.line - 1), 0);
             editor.selection = new vscode.Selection(position, position);
             editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
-          } catch (e) { }
+          } catch (e) {
+            vscode.window.showErrorMessage('打开文件失败，请检查文件是否存在。');
+          }
           break;
         }
       }

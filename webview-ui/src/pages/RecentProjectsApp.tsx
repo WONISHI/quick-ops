@@ -29,7 +29,6 @@ import {
 import { faCopy, faSquareCheck, faClone, faImage, faFolderOpen as faFolderOpenReg, faWindowRestore } from '@fortawesome/free-regular-svg-icons';
 import { faGithub, faGitlab, faJs, faVuejs, faHtml5, faCss3Alt, faMarkdown } from '@fortawesome/free-brands-svg-icons';
 
-// 🌟 引入刚刚新建的 CSS Module
 import styles from '../assets/css/RecentProjectsApp.module.css';
 
 interface Project {
@@ -319,10 +318,10 @@ export default function RecentProjectsApp() {
     vscode.postMessage({ type: 'openProjectCurrent', fsPath: path });
   };
 
-  const handleOpenFile = (path: string, projectName: string, id: string, e: React.MouseEvent) => {
+  const handleOpenFile = (path: string, projectName: string, id: string, isActiveProject: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedId(id);
-    vscode.postMessage({ type: 'openFile', fsPath: path, projectName });
+    vscode.postMessage({ type: isActiveProject ? 'openFileNormal' : 'openFile', fsPath: path, projectName });
   };
 
   const handleToggleExpand = (id: string, path: string, projectName: string, _: boolean, e: React.MouseEvent) => {
@@ -396,19 +395,19 @@ export default function RecentProjectsApp() {
         vscode.postMessage({ type: 'removeProject', fsPath: payload.path });
         break;
       case 'openFileToSide':
-        vscode.postMessage({ type: 'openFileToSide', fsPath: payload.path, projectName: payload.projectName });
+        vscode.postMessage({ type: payload.isActiveProject ? 'openFileNormalToSide' : 'openFileToSide', fsPath: payload.path, projectName: payload.projectName });
         break;
       case 'openFileInNewTab':
-        vscode.postMessage({ type: 'openFileInNewTab', fsPath: payload.path, projectName: payload.projectName });
+        vscode.postMessage({ type: payload.isActiveProject ? 'openFileNormalInNewTab' : 'openFileInNewTab', fsPath: payload.path, projectName: payload.projectName });
         break;
       case 'updateBranch':
         vscode.postMessage({ type: 'updateSingleBranch', fsPath: payload.path });
         break;
       case 'selectForCompare':
-        vscode.postMessage({ type: 'selectForCompare', fsPath: payload.path, projectName: payload.projectName });
+        vscode.postMessage({ type: 'selectForCompare', fsPath: payload.path, projectName: payload.isActiveProject ? undefined : payload.projectName });
         break;
       case 'compareWithSelected':
-        vscode.postMessage({ type: 'compareWithSelected', fsPath: payload.path, projectName: payload.projectName });
+        vscode.postMessage({ type: 'compareWithSelected', fsPath: payload.path, projectName: payload.isActiveProject ? undefined : payload.projectName });
         break;
       case 'searchInFolder':
         setSearchTargetProject(payload);
@@ -437,7 +436,7 @@ export default function RecentProjectsApp() {
     }
   }, [currentActiveMatch, totalMatches, isSearchMode, flatMatchesList]);
 
-  const renderTreeChildren = (parentId: string, projectName: string) => {
+  const renderTreeChildren = (parentId: string, projectName: string, isActiveProject: boolean = false) => {
     const children = dirChildren[parentId];
     if (loadingNodes.has(parentId)) {
       return (
@@ -462,7 +461,7 @@ export default function RecentProjectsApp() {
                 <div
                   className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedId === childId ? styles['selected'] : ''}`}
                   onClick={(e) => handleToggleExpand(childId, child.path, projectName, isRemote, e)}
-                  onContextMenu={(e) => handleContextMenu(e, 'sub', { path: child.path, name: child.name, isFolder: true, projectName }, childId)}
+                  onContextMenu={(e) => handleContextMenu(e, 'sub', { path: child.path, name: child.name, isFolder: true, projectName, isActiveProject }, childId)}
                 >
                   <div className={styles['tree-chevron']}>
                     <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} style={{ fontSize: '10px' }} />
@@ -470,7 +469,7 @@ export default function RecentProjectsApp() {
                   <FontAwesomeIcon icon={faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']}`} />
                   <span className={styles['sub-name']}>{child.name}</span>
                 </div>
-                {isExpanded && <div className={styles['tree-children']}>{renderTreeChildren(childId, projectName)}</div>}
+                {isExpanded && <div className={styles['tree-children']}>{renderTreeChildren(childId, projectName, isActiveProject)}</div>}
               </div>
             );
           } else {
@@ -478,10 +477,10 @@ export default function RecentProjectsApp() {
               <div key={childId}>
                 <div
                   className={`${styles['sub-item']} ${selectedId === childId ? styles['selected'] : ''}`}
-                  onClick={(e) => handleOpenFile(child.path, projectName, childId, e)}
-                  onContextMenu={(e) => handleContextMenu(e, 'sub', { path: child.path, name: child.name, isFolder: false, projectName }, childId)}
+                  onClick={(e) => handleOpenFile(child.path, projectName, childId, isActiveProject, e)}
+                  onContextMenu={(e) => handleContextMenu(e, 'sub', { path: child.path, name: child.name, isFolder: false, projectName, isActiveProject }, childId)}
                   style={{ cursor: 'pointer' }}
-                  title="点击以只读模式预览"
+                  title={isActiveProject ? "点击打开文件" : "点击以只读模式预览"}
                 >
                   <div className={styles['chevron-placeholder']}></div>
                   {getFileIcon(child.name)}
@@ -502,14 +501,19 @@ export default function RecentProjectsApp() {
           <ul>
             {contextMenu.type === 'top' && (
               <>
-                <li onClick={() => executeMenuAction('openInNewWindow')}>
-                  <FontAwesomeIcon icon={faArrowUpRightFromSquare} className={styles['menu-icon']} /> 在新窗口打开
-                </li>
-                <div className={styles['menu-separator']}></div>
-                <li onClick={() => executeMenuAction('searchInFolder')}>
-                  <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
-                </li>
-                <div className={styles['menu-separator']}></div>
+                {/* 🌟 只有非当前项目，才显示“在新窗口打开”和“查找文件内容” */}
+                {!contextMenu.payload.isActiveProject && (
+                  <>
+                    <li onClick={() => executeMenuAction('openInNewWindow')}>
+                      <FontAwesomeIcon icon={faArrowUpRightFromSquare} className={styles['menu-icon']} /> 在新窗口打开
+                    </li>
+                    <div className={styles['menu-separator']}></div>
+                    <li onClick={() => executeMenuAction('searchInFolder')}>
+                      <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
+                    </li>
+                    <div className={styles['menu-separator']}></div>
+                  </>
+                )}
 
                 <li onClick={() => executeMenuAction('edit')}>
                   <FontAwesomeIcon icon={faPen} className={styles['menu-icon']} /> 编辑项目名称
@@ -582,10 +586,15 @@ export default function RecentProjectsApp() {
                 )}
                 {contextMenu.payload.isFolder && (
                   <>
-                    <li onClick={() => executeMenuAction('searchInFolder')}>
-                      <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
-                    </li>
-                    <div className={styles['menu-separator']}></div>
+                    {/* 🌟 只有非当前项目的子文件夹，才显示“查找文件内容” */}
+                    {!contextMenu.payload.isActiveProject && (
+                      <>
+                        <li onClick={() => executeMenuAction('searchInFolder')}>
+                          <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
+                        </li>
+                        <div className={styles['menu-separator']}></div>
+                      </>
+                    )}
                   </>
                 )}
                 <li onClick={() => executeMenuAction('copyText', contextMenu.payload.name)}>
@@ -682,7 +691,13 @@ export default function RecentProjectsApp() {
                             id={`search-line-${i}-${j}`}
                             onClick={() => {
                               setCurrentActiveMatch(globalStartIndex);
-                              vscode.postMessage({ type: 'openFileAtLine', fsPath: res.fullPath, line: m.line });
+                              vscode.postMessage({ 
+                                type: 'openFileAtLine', 
+                                fsPath: res.fullPath, 
+                                line: m.line,
+                                isActiveProject: searchTargetProject.isActiveProject,
+                                projectName: searchTargetProject.projectName || searchTargetProject.name || searchTargetProject.originalName
+                              });
                             }}
                             style={{
                               fontSize: '12px',
@@ -763,23 +778,28 @@ export default function RecentProjectsApp() {
                     const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
                     const branch = branchMap[p.fsPath] || p.branch;
 
+                    const rootId = 'active-top';
+                    const isExpanded = expandedNodes.has(rootId);
+
                     return (
-                      <div key="active-top">
+                      <div key={rootId}>
                         <div
-                          className={`${styles['active-top-project']} ${selectedId === 'active-top' ? styles['selected'] : ''}`}
+                          className={`${styles['active-top-project']} ${selectedId === rootId ? styles['selected'] : ''}`}
                           title="当前窗口正在运行的项目"
                           onContextMenu={(e) =>
                             handleContextMenu(
                               e,
                               'top',
                               { path: p.fsPath, isRemote, originalName: p.name, customName: p.customName, platform: p.platform || 'github', customDomain: p.customDomain, isActiveProject: true },
-                              'active-top',
+                              rootId,
                             )
                           }
-                          onClick={() => setSelectedId('active-top')}
+                          onClick={() => setSelectedId(rootId)}
                         >
-                          <div className={styles['item-left']}>
-                            <div className={styles['tree-chevron']} style={{ visibility: 'hidden' }}></div>
+                          <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootId, p.fsPath, title, isRemote, e)}>
+                            <div className={styles['tree-chevron']}>
+                              <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} style={{ fontSize: '10px' }} />
+                            </div>
                             <div className={styles['info']}>
                               <div className={styles['title']}>
                                 <FontAwesomeIcon icon={icon} className={`${styles['project-icon']} ${styles['icon-opened']}`} />
@@ -794,6 +814,7 @@ export default function RecentProjectsApp() {
                             </div>
                           </div>
                         </div>
+                        {isExpanded && <div className={styles['tree-children']}>{renderTreeChildren(rootId, title, true)}</div>}
                         <div className={styles['top-divider']}></div>
                       </div>
                     );
