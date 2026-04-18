@@ -26,7 +26,6 @@ export class ZeroConfigConsoleFeature implements IFeature {
     private proxyServer?: http.Server;
     private activeTargetPort: number | null = null;
 
-    // 绿色的行内日志高亮样式
     private readonly logDecorationType = vscode.window.createTextEditorDecorationType({
         after: {
             margin: '0 0 0 30px',
@@ -41,13 +40,9 @@ export class ZeroConfigConsoleFeature implements IFeature {
     private decorationsMap = new Map<string, vscode.DecorationOptions[]>();
 
     public async activate(context: vscode.ExtensionContext) {
-        // 1. 启动接收前端日志的 WebSocket 服务器
         this.startWebSocketServer();
-
-        // 2. 🌟 [Console Ninja 魔法] 启动底层汇报服务器并注入 NODE_OPTIONS
         await this.setupProcessInjection(context);
 
-        // 3. 注册编辑器相关事件
         vscode.workspace.onDidChangeTextDocument((e) => {
             this.clearDecorationsOnEdit(e.document, e.contentChanges);
         }, null, context.subscriptions);
@@ -63,29 +58,39 @@ export class ZeroConfigConsoleFeature implements IFeature {
             })
         );
 
+        // 🌟 新增指令：手动召唤带有强制注入环境的专属终端
+        context.subscriptions.push(
+            vscode.commands.registerCommand('quick-ops.openInjectedTerminal', () => {
+                this.openInjectedTerminal(context);
+            })
+        );
+
         ColorLog.black(`[${this.id}]`, 'Ninja-Style Zero-Config Activated.');
     }
 
-    // ==========================================
-    // 🌟 核心魔法 1：Node.js 底层进程注入 (Console Ninja 同款)
-    // ==========================================
     private async setupProcessInjection(context: vscode.ExtensionContext) {
-        // A. 启动一个内部 HTTP 服务器，专门用来接收 boot.js 汇报的端口
         this.reporterServer = http.createServer((req, res) => {
-            res.writeHead(200);
+            res.writeHead(200, { 'Access-Control-Allow-Origin': '*' });
             res.end('OK');
 
             if (req.url && req.url.startsWith('/report?port=')) {
-                const portStr = req.url.split('=')[1];
-                const port = parseInt(portStr, 10);
-
-                // 过滤掉一些无效端口或我们自己的代理端口
-                if (port && port > 1024 && port !== this.activeTargetPort) {
-                    console.log(`[NinjaHook] 成功在底层拦截到服务启动端口: ${port}`);
-                    this.activeTargetPort = port;
-
-                    // 收到目标端口后，立即启动我们的 0 入侵透明代理！
-                    this.startTransparentProxy(port);
+                const port = parseInt(req.url.split('=')[1], 10);
+                if (port && port > 1024) {
+                    if (this.activeTargetPort === null) {
+                        console.log(`[NinjaHook] 🎯 VS Code 收到前端服务端口: ${port}`);
+                        this.activeTargetPort = port;
+                        this.startTransparentProxy(port);
+                    }
+                }
+            } else if (req.url && req.url.startsWith('/close?port=')) {
+                const port = parseInt(req.url.split('=')[1], 10);
+                if (this.activeTargetPort === port) {
+                    console.log(`[NinjaHook] 🛑 目标主服务已关闭，释放端口: ${port}`);
+                    this.activeTargetPort = null;
+                    if (this.proxyServer) {
+                        this.proxyServer.close();
+                        this.proxyServer = undefined;
+                    }
                 }
             }
         });
@@ -100,7 +105,6 @@ export class ZeroConfigConsoleFeature implements IFeature {
     }
 
     private injectNodeOptions(context: vscode.ExtensionContext) {
-        // B. 将底层劫持脚本 (boot.js) 写入到插件的全局存储目录中
         const storageUri = context.globalStorageUri;
         if (!fs.existsSync(storageUri.fsPath)) {
             fs.mkdirSync(storageUri.fsPath, { recursive: true });
@@ -108,58 +112,112 @@ export class ZeroConfigConsoleFeature implements IFeature {
 
         const bootScriptPath = path.join(storageUri.fsPath, 'quickops-boot.js');
 
-        // 🌟 这是即将注入到用户 Node.js 进程的最底层的劫持代码
         const bootScriptContent = `
       const net = require('net');
       const http = require('http');
 
-      // 劫持底层 TCP Listen
+      console.log('\\x1b[36m[QuickOps Boot] 🚀 成功潜入 Node.js 底层进程！等待捕获端口...\\x1b[0m');
+
       const originalListen = net.Server.prototype.listen;
       net.Server.prototype.listen = function(...args) {
-          let port = null;
-          if (typeof args[0] === 'number') {
-              port = args[0];
-          } else if (typeof args[0] === 'object' && args[0] !== null && args[0].port) {
-              port = args[0].port;
-          }
+          const server = originalListen.apply(this, args);
 
-          // 发现服务绑定了端口，立刻向 VS Code 插件汇报
-          if (port && port > 1024) {
-              const req = http.request({
-                  hostname: '127.0.0.1',
-                  port: ${this.reporterPort}, // 动态填入我们的汇报端口
-                  path: '/report?port=' + port,
-                  method: 'GET'
-              });
-              req.on('error', () => {}); // 忽略错误，防止阻断正常流程
-              req.end();
-          }
+          server.once('listening', () => {
+              try {
+                  const addr = server.address();
+                  if (addr && typeof addr === 'object' && addr.port && addr.port > 1024) {
+                      const finalPort = addr.port;
+                      
+                      console.log('\\x1b[36m[QuickOps Boot] 🎯 捕获到服务监听端口: ' + finalPort + '\\x1b[0m');
 
-          // 放行原始的 listen 逻辑，Vite/Webpack 正常启动
-          return originalListen.apply(this, args);
+                      const req = http.request({
+                          hostname: '127.0.0.1',
+                          port: ${this.reporterPort}, 
+                          path: '/report?port=' + finalPort,
+                          method: 'GET'
+                      });
+                      req.on('error', () => {}); 
+                      req.end();
+
+                      server.once('close', () => {
+                          console.log('\\x1b[36m[QuickOps Boot] 🛑 服务已关闭: ' + finalPort + '\\x1b[0m');
+                          const reqClose = http.request({
+                              hostname: '127.0.0.1',
+                              port: ${this.reporterPort}, 
+                              path: '/close?port=' + finalPort,
+                              method: 'GET'
+                          });
+                          reqClose.on('error', () => {}); 
+                          reqClose.end();
+                      });
+                  }
+              } catch (e) {}
+          });
+
+          return server;
       };
     `;
 
-        // 每次启动都覆盖写入最新脚本
         fs.writeFileSync(bootScriptPath, bootScriptContent, 'utf-8');
 
-        // C. 核心魔法：使用 VS Code API，为集成终端投毒 NODE_OPTIONS
-        // 这意味着用户在 VS Code 终端里执行的任何 node 命令，都会先执行我们的 boot.js
+        // 依然保留全局注入尝试，将 append 改为 prepend，提高执行优先级
         const envCollection = context.environmentVariableCollection;
-
-        // 处理路径中可能存在的空格
         const safeBootPath = bootScriptPath.replace(/\\/g, '/');
-        const nodeOptionsValue = ` --require="${safeBootPath}"`;
-
-        // 追加到现有的 NODE_OPTIONS 中
-        envCollection.append('NODE_OPTIONS', nodeOptionsValue);
-
-        console.log(`[NinjaHook] 终端环境变量投毒成功: ${nodeOptionsValue}`);
+        // Node_OPTIONS 前置注入，防冲突
+        envCollection.prepend('NODE_OPTIONS', `--require="${safeBootPath}" `);
     }
 
-    // ==========================================
-    // 🌟 核心魔法 2：内存透明代理注入 (无缝塞入 JS)
-    // ==========================================
+    // 🌟 核心破局点：手动创建终端并强制捆绑环境变量
+    private openInjectedTerminal(context: vscode.ExtensionContext) {
+        const storageUri = context.globalStorageUri;
+        const bootScriptPath = path.join(storageUri.fsPath, 'quickops-boot.js');
+        const safeBootPath = bootScriptPath.replace(/\\/g, '/');
+
+        // 通过 VS Code API 直接创建终端，环境变量 100% 生效，无视系统外壳限制
+        const terminal = vscode.window.createTerminal({
+            name: '🚀 QuickOps Console Ninja',
+            env: {
+                NODE_OPTIONS: `--require="${safeBootPath}"`
+            }
+        });
+
+        terminal.show();
+        vscode.window.showInformationMessage('✅ 专属拦截终端已就绪！请在此终端内运行 npm run dev');
+        
+        // 自动帮你把命令输入进去，你只需要敲回车
+        terminal.sendText('npm run dev', false); 
+    }
+
+    private async waitForTargetReady(port: number): Promise<boolean> {
+        return new Promise((resolve) => {
+            let attempts = 0;
+            const maxAttempts = 60; 
+            
+            const interval = setInterval(() => {
+                attempts++;
+                const req = http.request({
+                    hostname: 'localhost', 
+                    port: port,
+                    method: 'HEAD',
+                    timeout: 1000
+                }, (res) => {
+                    clearInterval(interval);
+                    resolve(true);
+                });
+
+                req.on('error', (err) => {
+                    if (attempts >= maxAttempts) {
+                        clearInterval(interval);
+                        resolve(false);
+                    }
+                });
+                
+                req.on('timeout', () => req.destroy());
+                req.end();
+            }, 1000);
+        });
+    }
+
     private async startTransparentProxy(targetPort: number) {
         if (this.proxyServer) {
             this.proxyServer.close();
@@ -167,7 +225,7 @@ export class ZeroConfigConsoleFeature implements IFeature {
 
         // @ts-ignore
         const proxy: any = httpProxy.createProxyServer({
-            target: `http://localhost:${targetPort}`,
+            target: `http://localhost:${targetPort}`, 
             ws: true,
             selfHandleResponse: true
         });
@@ -185,7 +243,6 @@ export class ZeroConfigConsoleFeature implements IFeature {
                     let htmlString: string = content.toString('utf-8');
                     const injectScript: string = this.getInjectScript();
 
-                    // 在 <head> 标签内部注入劫持脚本
                     htmlString = htmlString.replace(/(<head[^>]*>)/i, `$1\n${injectScript}\n`);
                     content = Buffer.from(htmlString, 'utf-8');
 
@@ -206,7 +263,7 @@ export class ZeroConfigConsoleFeature implements IFeature {
         });
 
         this.proxyServer = http.createServer((req, res) => {
-            delete req.headers['accept-encoding'];
+            delete req.headers['accept-encoding']; 
             proxy.web(req, res);
         });
 
@@ -214,35 +271,38 @@ export class ZeroConfigConsoleFeature implements IFeature {
             proxy.ws(req, socket, head);
         });
 
-        // 🌟 修复 2：代理服务器也绑定到 localhost
-        this.proxyServer.listen(0, 'localhost', () => {
+        this.proxyServer.listen(0, '127.0.0.1', async () => {
             const address = this.proxyServer?.address();
             if (address && typeof address === 'object') {
                 const proxyPort = address.port;
-                const proxyUrl = `http://localhost:${proxyPort}`;
+                const proxyUrl = `http://127.0.0.1:${proxyPort}`;
 
-                // 🌟 修复 3：在终端/输出面板明确打印出代理 URL，防止你点错
-                console.log(`[QuickOps] 代理注入成功！请访问此链接查看页面 (不要点终端里的原始链接): ${proxyUrl}`);
+                console.log(`[QuickOps] 代理注入成功！准备等待底层服务 ${targetPort} 就绪...`);
 
-                setTimeout(() => {
-                    vscode.window.showInformationMessage(`🚀 QuickOps 已从底层接管进程并注入日志分析！`, '在外部浏览器打开', '在内部预览打开').then(selection => {
+                const isReady = await this.waitForTargetReady(targetPort);
+
+                if (isReady) {
+                    console.log(`[QuickOps] 底层服务就绪！代理地址: ${proxyUrl}`);
+                    vscode.window.showInformationMessage(
+                        `🚀 QuickOps 已从底层接管进程并注入日志分析！`, 
+                        '在外部浏览器打开', 
+                        '在内部预览打开'
+                    ).then(selection => {
                         if (selection === '在内部预览打开') {
                             vscode.commands.executeCommand('simpleBrowser.api.open', vscode.Uri.parse(proxyUrl), {
                                 viewColumn: vscode.ViewColumn.Beside
                             });
                         } else if (selection === '在外部浏览器打开') {
-                            // 允许你一键在谷歌浏览器打开正确的代理地址
                             vscode.env.openExternal(vscode.Uri.parse(proxyUrl));
                         }
                     });
-                }, 1000);
+                } else {
+                    vscode.window.showWarningMessage(`[QuickOps] 代理启动超时，未检测到前端服务就绪，请检查终端输出。`);
+                }
             }
         });
     }
 
-    // ==========================================
-    // 日志接收与行内渲染引擎 (保持高效逻辑)
-    // ==========================================
     private startWebSocketServer() {
         this.wss = new WebSocketServer({ port: 0 });
 
@@ -333,9 +393,6 @@ export class ZeroConfigConsoleFeature implements IFeature {
     }
 }
 
-// ==========================================
-// 注入的浏览器端代码
-// ==========================================
 const INJECT_SCRIPT_TEMPLATE = `
 <script>
 (function() {
