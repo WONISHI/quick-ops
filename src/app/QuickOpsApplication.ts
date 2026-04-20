@@ -30,32 +30,39 @@ import { RecentProjectsFeature } from '../features/RecentProjectsFeature';
 import { ComponentIntellisenseFeature } from '../features/ComponentIntellisenseFeature';
 import { TextCompareFeature } from '../features/TextCompareFeature';
 import { GitFeature } from '../features/GitFeature';
-import { ZeroConfigConsoleFeature } from '../features/InlineConsoleFeature'
+import { ZeroConfigConsoleFeature } from '../features/InlineConsoleFeature';
 
 export class QuickOpsApplication {
-  private context: vscode.ExtensionContext;
+  private readonly context: vscode.ExtensionContext;
   private services: IService[] = [];
   private features: IFeature[] = [];
+  private started = false;
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
   }
 
-  public async start() {
+  public async start(): Promise<void> {
+    if (this.started) return;
+    this.started = true;
+
     ColorLog.black('[QuickOps]', 'Application Starting...');
-    console.time('QuickOps Activation');
 
-    this.services = [ConfigurationService.getInstance(), WorkspaceStateService.getInstance(), EditorContextService.getInstance(), TerminalExecutor.getInstance()];
+    this.services = [
+      ConfigurationService.getInstance(),
+      WorkspaceStateService.getInstance(),
+      EditorContextService.getInstance(),
+      TerminalExecutor.getInstance()
+    ];
 
-    const initPromises = this.services.map(async (service) => {
+    for (const service of this.services) {
       try {
         //@ts-ignore
-        if (service.init) await service.init(this.context);
+        await service.init?.(this.context);
       } catch (error) {
         console.error(`[Service] ${service.serviceId} failed to init:`, error);
       }
-    });
-    await Promise.all(initPromises);
+    }
 
     this.features = [
       new ConfigManagementFeature(),
@@ -83,34 +90,46 @@ export class QuickOpsApplication {
 
     for (const feature of this.features) {
       try {
-        feature.activate(this.context);
+        await feature.activate(this.context);
       } catch (error) {
         console.error(`[Feature] ${feature.id} failed to activate:`, error);
       }
     }
 
     this.setupGlobalDisposables();
-    console.timeEnd('QuickOps Activation');
-    ColorLog.black('[QuickOps]', 'All features registered instantly!');
+
+    ColorLog.black('[QuickOps]', 'Application started successfully.');
   }
 
-  private setupGlobalDisposables() {}
+  private setupGlobalDisposables(): void {
+    this.context.subscriptions.push({
+      dispose: () => {
+        void this.dispose();
+      }
+    });
+  }
 
-  public dispose() {
+  public async dispose(): Promise<void> {
     for (let i = this.features.length - 1; i >= 0; i--) {
       try {
-        this.features[i].dispose?.();
-      } catch (e) {
-        console.error(e);
+        await this.features[i].dispose?.();
+      } catch (error) {
+        console.error(error);
       }
     }
+
     for (let i = this.services.length - 1; i >= 0; i--) {
       try {
-        this.services[i].dispose?.();
-      } catch (e) {
-        console.error(e);
+        await this.services[i].dispose?.();
+      } catch (error) {
+        console.error(error);
       }
     }
+
+    this.features = [];
+    this.services = [];
+    this.started = false;
+
     ColorLog.red('[QuickOps]', 'Application Disposed.');
   }
 }
