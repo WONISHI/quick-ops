@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import styles from './index.module.css';
 import CommitHoverWidget from '../CommitHoverWidget';
 
@@ -261,6 +261,9 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
     const [searchQuery, setSearchQuery] = useState('');
     const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+    const expandedBlockRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    const [expandedBlockHeights, setExpandedBlockHeights] = useState<Record<string, number>>({});
+    const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
     const matchedIndices = useMemo(() => {
         if (!searchQuery) return [];
@@ -280,25 +283,63 @@ const GitGraph: React.FC<GitGraphProps> = ({
             const hash = graphCommits[i].hash;
             const isExpanded = expandedCommitHashes.includes(hash);
             const isLoading = !!commitFilesLoadingMap[hash];
-            const files = commitFilesMap[hash] || [];
 
             positions.push(currentY);
             currentY += ROW_HEIGHT;
 
             if (isExpanded) {
-                if (isLoading) {
-                    currentY += 38;
-                } else {
-                    currentY += 10 + files.length * 22;
-                }
+                const measuredHeight = expandedBlockHeights[hash];
+                currentY += typeof measuredHeight === 'number' ? measuredHeight : (isLoading ? 38 : 32);
             }
         }
 
         positions.push(currentY);
         return positions;
-    }, [graphCommits, expandedCommitHashes, commitFilesLoadingMap, commitFilesMap]);
+    }, [graphCommits, expandedCommitHashes, commitFilesLoadingMap, expandedBlockHeights]);
 
     const renderedHeight = yPositions[Math.min(displayCount, graphCommits.length)] || 0;
+
+    useLayoutEffect(() => {
+        resizeObserverRef.current?.disconnect();
+
+        const observer = new ResizeObserver(() => {
+            setExpandedBlockHeights((prev) => {
+                let changed = false;
+                const next = { ...prev };
+
+                expandedCommitHashes.forEach((hash) => {
+                    const el = expandedBlockRefs.current[hash];
+                    if (!el) return;
+
+                    const height = Math.ceil(el.getBoundingClientRect().height);
+                    if (next[hash] !== height) {
+                        next[hash] = height;
+                        changed = true;
+                    }
+                });
+
+                return changed ? next : prev;
+            });
+        });
+
+        resizeObserverRef.current = observer;
+
+        expandedCommitHashes.forEach((hash) => {
+            const el = expandedBlockRefs.current[hash];
+            if (!el) return;
+
+            observer.observe(el);
+
+            const initialHeight = Math.ceil(el.getBoundingClientRect().height);
+            setExpandedBlockHeights((prev) =>
+                prev[hash] === initialHeight ? prev : { ...prev, [hash]: initialHeight }
+            );
+        });
+
+        return () => {
+            observer.disconnect();
+        };
+    }, [expandedCommitHashes, commitFilesMap, commitFilesLoadingMap]);
 
     useEffect(() => {
         setCurrentMatchIndex(0);
@@ -695,9 +736,18 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                 </div>
 
                                 {isExpanded && (
-                                    <div style={{ display: 'flex' }}>
+                                    <div
+                                        ref={(el) => {
+                                            expandedBlockRefs.current[c.hash] = el;
+                                        }}
+                                        data-hash={c.hash}
+                                        style={{ display: 'flex', paddingTop: '2px', paddingBottom: '4px' }}
+                                    >
                                         <div style={{ width: paddingWidth, flexShrink: 0 }} />
-                                        <div className={styles['commit-files-wrapper']} style={{ marginLeft: 0, marginTop: '2px', marginBottom: '4px', flex: 1, minWidth: 0 }}>
+                                        <div
+                                            className={styles['commit-files-wrapper']}
+                                            style={{ marginLeft: 0, flex: 1, minWidth: 0 }}
+                                        >
                                             {isLoading ? (
                                                 <div style={{ height: '32px', display: 'flex', alignItems: 'center', opacity: 0.6, fontSize: '11px', padding: '0 12px' }}>
                                                     <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} />

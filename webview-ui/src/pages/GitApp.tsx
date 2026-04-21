@@ -128,6 +128,7 @@ export default function GitApp() {
   const [flashBranchBtn, setFlashBranchBtn] = useState(false);
 
   const [activeCommitHash, setActiveCommitHash] = useState<string | null>(null);
+  const [folderName, setFolderName] = useState('');
 
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
@@ -173,6 +174,7 @@ export default function GitApp() {
         setUnstagedFiles(msg.unstagedFiles || []);
         setBranch(msg.branch || '');
         setRemoteUrl(msg.remoteUrl || '');
+        setFolderName(msg.folderName || '');
         setLoading(false);
       } else if (msg.type === 'graphData') {
         const commits = msg.graphCommits || [];
@@ -753,8 +755,10 @@ export default function GitApp() {
 
       <div className={styles['git-toolbar']}>
         <div className={styles['toolbar-title-container']}>
-          <Tooltip content={`Git分支 (${branch})`}>
-            <span className={styles['toolbar-title']}>Git 管理 ({branch})</span>
+          <Tooltip content={`${folderName || '当前工作区'} (${branch})`}>
+            <span className={styles['toolbar-title']}>
+              {folderName || '当前工作区'} ({branch})
+            </span>
           </Tooltip>
         </div>
 

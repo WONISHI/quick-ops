@@ -930,6 +930,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         unstagedFiles,
         branch,
         remoteUrl,
+        folderName: path.basename(cwd)
       });
 
       if (fullRefresh) {
