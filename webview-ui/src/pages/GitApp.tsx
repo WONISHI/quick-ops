@@ -127,6 +127,8 @@ export default function GitApp() {
   const filterRef = useRef('全部分支');
   const [flashBranchBtn, setFlashBranchBtn] = useState(false);
 
+  const [activeCommitHash, setActiveCommitHash] = useState<string | null>(null);
+
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
     x: number;
@@ -319,18 +321,20 @@ export default function GitApp() {
   };
 
   const toggleCommit = (hash: string) => {
-    setLastExpandedCommitHash(hash);
+    setActiveCommitHash(hash);
 
     const alreadyExpanded = expandedCommitHashes.includes(hash);
 
-    setExpandedCommitHashes((prev) => (alreadyExpanded ? prev.filter((h) => h !== hash) : [...prev, hash]));
+    setExpandedCommitHashes((prev) =>
+      alreadyExpanded ? prev.filter((h) => h !== hash) : [...prev, hash]
+    );
 
     if (alreadyExpanded) return;
     if (commitFilesMap[hash]) return;
 
     setCommitFilesLoadingMap((prev) => ({
       ...prev,
-      [hash]: true,
+      [hash]: true
     }));
 
     vscode.postMessage({ command: 'getCommitFiles', hash });
@@ -806,7 +810,16 @@ export default function GitApp() {
           contentEditable={isRepo && !loading}
           data-placeholder="消息 (按 Ctrl+Enter 提交)"
           onInput={(e) => {
-            setCommitMsg(e.currentTarget.innerText);
+            const el = e.currentTarget;
+            const text = el.innerText.replace(/\n/g, '').trim();
+
+            if (!text) {
+              el.innerHTML = '';
+              setCommitMsg('');
+            } else {
+              setCommitMsg(el.innerText);
+            }
+
             setJustCommitted(false);
           }}
           onKeyDown={(e) => {
@@ -820,7 +833,17 @@ export default function GitApp() {
             const text = e.clipboardData.getData('text/plain');
             if (!text) return;
             insertPlainTextAtCursor(text);
-            setCommitMsg(e.currentTarget.innerText);
+
+            const el = e.currentTarget;
+            const currentText = el.innerText.replace(/\n/g, '').trim();
+
+            if (!currentText) {
+              el.innerHTML = '';
+              setCommitMsg('');
+            } else {
+              setCommitMsg(el.innerText);
+            }
+
             setJustCommitted(false);
           }}
           onDrop={(e) => {
@@ -1215,6 +1238,7 @@ export default function GitApp() {
               expandedCommitHashes={expandedCommitHashes}
               commitFilesLoadingMap={commitFilesLoadingMap}
               commitFilesMap={commitFilesMap}
+              activeCommitHash={activeCommitHash}
               branch={branch}
               onCommitClick={toggleCommit}
               remoteUrl={remoteUrl}

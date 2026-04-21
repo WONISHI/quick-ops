@@ -87,10 +87,10 @@ body {
 
 /* 🌟 巧妙利用 CSS 实现 div 的 placeholder 占位符效果 */
 .commit-input:empty::before {
-    content: attr(data-placeholder);
-    color: var(--vscode-input-placeholderForeground, #a6a6a6);
-    pointer-events: none;
-    display: block;
+  content: attr(data-placeholder);
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 /* 🌟 当没有 Git 仓库（被禁用）时的样式 */
