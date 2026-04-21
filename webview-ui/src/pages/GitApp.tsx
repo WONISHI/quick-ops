@@ -43,7 +43,7 @@ function buildTree(files: GitFile[]): TreeNode[] {
           fullPath: currentPath,
           isDirectory: !isFile,
           children: [],
-          file: isFile ? f : undefined
+          file: isFile ? f : undefined,
         };
         currentLevel.push(existingNode);
       }
@@ -190,17 +190,17 @@ export default function GitApp() {
       } else if (msg.type === 'commitFilesData') {
         setCommitFilesMap((prev) => ({
           ...prev,
-          [msg.hash]: msg.files || []
+          [msg.hash]: msg.files || [],
         }));
 
         setCommitParentHashMap((prev) => ({
           ...prev,
-          [msg.hash]: msg.parentHash
+          [msg.hash]: msg.parentHash,
         }));
 
         setCommitFilesLoadingMap((prev) => ({
           ...prev,
-          [msg.hash]: false
+          [msg.hash]: false,
         }));
       } else if (msg.type === 'activeEditorChanged') {
         setActiveFile(msg.file);
@@ -323,16 +323,14 @@ export default function GitApp() {
 
     const alreadyExpanded = expandedCommitHashes.includes(hash);
 
-    setExpandedCommitHashes((prev) =>
-      alreadyExpanded ? prev.filter((h) => h !== hash) : [...prev, hash]
-    );
+    setExpandedCommitHashes((prev) => (alreadyExpanded ? prev.filter((h) => h !== hash) : [...prev, hash]));
 
     if (alreadyExpanded) return;
     if (commitFilesMap[hash]) return;
 
     setCommitFilesLoadingMap((prev) => ({
       ...prev,
-      [hash]: true
+      [hash]: true,
     }));
 
     vscode.postMessage({ command: 'getCommitFiles', hash });
@@ -386,7 +384,7 @@ export default function GitApp() {
     e.stopPropagation();
     setExpandedDirs((prev) => ({
       ...prev,
-      [path]: prev[path] === false ? true : false
+      [path]: prev[path] === false ? true : false,
     }));
   };
 
@@ -398,7 +396,7 @@ export default function GitApp() {
       file: file.file,
       hash: historyHash,
       parentHash: commitParentHashMap[historyHash],
-      status: file.status
+      status: file.status,
     });
   };
 
@@ -410,31 +408,19 @@ export default function GitApp() {
       file: file.file,
       targetBranch: lastExpandedCommitHash || compareTarget,
       baseBranch: compareBase,
-      status: file.status
+      status: file.status,
     });
   };
 
-  const renderTreeNodes = (
-    nodes: TreeNode[],
-    listType: 'staged' | 'unstaged' | 'history' | 'compare',
-    depth = 0,
-    historyHash?: string
-  ): React.ReactNode => {
+  const renderTreeNodes = (nodes: TreeNode[], listType: 'staged' | 'unstaged' | 'history' | 'compare', depth = 0, historyHash?: string): React.ReactNode => {
     return nodes.map((node) => {
       if (node.isDirectory) {
         const isOpen = expandedDirs[node.fullPath] !== false;
 
         return (
           <React.Fragment key={node.fullPath}>
-            <li
-              className={styles['file-item']}
-              style={{ paddingLeft: `${depth * 12 + 4}px`, cursor: 'pointer' }}
-              onClick={(e) => toggleDir(node.fullPath, e)}
-            >
-              <i
-                className={`codicon ${isOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`}
-                style={{ fontSize: '14px', width: '16px', opacity: 0.8, marginRight: '2px' }}
-              />
+            <li className={styles['file-item']} style={{ paddingLeft: `${depth * 12 + 4}px`, cursor: 'pointer' }} onClick={(e) => toggleDir(node.fullPath, e)}>
+              <i className={`codicon ${isOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px', opacity: 0.8, marginRight: '2px' }} />
               <i className="codicon codicon-folder" style={{ marginRight: '6px', color: 'var(--vscode-icon-foreground)' }} />
               <div className={styles['file-name']} style={{ opacity: 0.9 }}>
                 {node.name}
@@ -478,7 +464,7 @@ export default function GitApp() {
               y: safeY,
               file: item,
               listType,
-              historyHash
+              historyHash,
             });
           }}
         >
@@ -526,11 +512,7 @@ export default function GitApp() {
     });
   };
 
-  const renderFileList = (
-    files: GitFile[],
-    listType: 'staged' | 'unstaged' | 'history' | 'compare',
-    historyHash?: string
-  ) => {
+  const renderFileList = (files: GitFile[], listType: 'staged' | 'unstaged' | 'history' | 'compare', historyHash?: string) => {
     if (viewMode === 'tree') {
       const treeNodes = buildTree(files);
       return <ul className={styles['file-list']}>{renderTreeNodes(treeNodes, listType, 0, historyHash)}</ul>;
@@ -571,7 +553,7 @@ export default function GitApp() {
                   y: safeY,
                   file: item,
                   listType,
-                  historyHash
+                  historyHash,
                 });
               }}
             >
@@ -633,16 +615,11 @@ export default function GitApp() {
           justifyContent: 'center',
           padding: '20px',
           textAlign: 'center',
-          height: '100vh'
+          height: '100vh',
         }}
       >
-        <i
-          className="codicon codicon-git-merge"
-          style={{ fontSize: '48px', marginBottom: '16px', color: 'var(--vscode-textLink-foreground)', opacity: 0.8 }}
-        />
-        <div style={{ fontSize: '15px', marginBottom: '8px', color: 'var(--vscode-editor-foreground)', fontWeight: 600 }}>
-          未检测到 Git 环境
-        </div>
+        <i className="codicon codicon-git-merge" style={{ fontSize: '48px', marginBottom: '16px', color: 'var(--vscode-textLink-foreground)', opacity: 0.8 }} />
+        <div style={{ fontSize: '15px', marginBottom: '8px', color: 'var(--vscode-editor-foreground)', fontWeight: 600 }}>未检测到 Git 环境</div>
         <div style={{ fontSize: '12px', marginBottom: '24px', color: 'var(--vscode-descriptionForeground)', lineHeight: 1.5 }}>
           当前系统未安装 Git，或环境变量未配置。
           <br />
@@ -684,7 +661,7 @@ export default function GitApp() {
                   vscode.postMessage({
                     command: 'diff',
                     file: contextMenu.file.file,
-                    status: contextMenu.file.status
+                    status: contextMenu.file.status,
                   });
                 }
                 setContextMenu(null);
@@ -712,7 +689,7 @@ export default function GitApp() {
                   vscode.postMessage({
                     command: 'discard',
                     file: contextMenu.file.file,
-                    status: contextMenu.file.status
+                    status: contextMenu.file.status,
                   });
                   setContextMenu(null);
                 }}
@@ -732,7 +709,7 @@ export default function GitApp() {
                     vscode.postMessage({
                       command: 'stage',
                       file: contextMenu.file.file,
-                      status: contextMenu.file.status
+                      status: contextMenu.file.status,
                     });
                   }
                   setContextMenu(null);
@@ -852,27 +829,15 @@ export default function GitApp() {
           suppressContentEditableWarning={true}
         />
 
-        <button
-          className={styles['commit-btn']}
-          disabled={!isRepo || loading || !commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0)}
-          onClick={handleCommit}
-        >
-          {loading ? (
-            <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} />
-          ) : (
-            <i className="codicon codicon-check" style={{ marginRight: '6px' }} />
-          )}
+        <button className={styles['commit-btn']} disabled={!isRepo || loading || !commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0)} onClick={handleCommit}>
+          {loading ? <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} /> : <i className="codicon codicon-check" style={{ marginRight: '6px' }} />}
           提交 (Commit)
         </button>
       </div>
 
       <div className={styles['changes-scroll-area']} style={{ maxHeight: 'none', overflowY: 'visible', flexShrink: 0 }}>
         <div className={styles['changes-section']}>
-          <div
-            className={styles['changes-header']}
-            onClick={() => setIsChangesOpen(!isChangesOpen)}
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-          >
+          <div className={styles['changes-header']} onClick={() => setIsChangesOpen(!isChangesOpen)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <i className={`codicon ${isChangesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
               更改 <span className={styles['badge']}>{stagedFiles.length + unstagedFiles.length}</span>
@@ -916,10 +881,7 @@ export default function GitApp() {
             <div style={{ maxHeight: '30vh', overflowY: 'auto', paddingBottom: '4px' }}>
               {stagedFiles.length > 0 && (
                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
-                  <div
-                    className={styles['changes-header']}
-                    style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                  >
+                  <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                       <i className="codicon codicon-git-pull-request-done" style={{ fontSize: '14px', width: '16px' }} />
                       暂存区 <span className={styles['badge']}>{stagedFiles.length}</span>
@@ -945,10 +907,7 @@ export default function GitApp() {
               )}
 
               <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
-                <div
-                  className={styles['changes-header']}
-                  style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                >
+                <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                     <i className="codicon codicon-git-branch-changes" style={{ fontSize: '14px', width: '16px' }} />
                     工作区 <span className={styles['badge']}>{unstagedFiles.length}</span>
@@ -966,7 +925,7 @@ export default function GitApp() {
                                 vscode.postMessage({
                                   command: 'discard',
                                   file: unstagedFiles[0].file,
-                                  status: unstagedFiles[0].status
+                                  status: unstagedFiles[0].status,
                                 });
                               } else {
                                 vscode.postMessage({ command: 'discardAll', count: unstagedFiles.length });
@@ -1006,11 +965,7 @@ export default function GitApp() {
         </div>
 
         <div className={styles['changes-section']} style={{ marginTop: '8px' }}>
-          <div
-            className={styles['changes-header']}
-            onClick={() => setIsCompareOpen(!isCompareOpen)}
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-          >
+          <div className={styles['changes-header']} onClick={() => setIsCompareOpen(!isCompareOpen)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
               <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px', flexShrink: 0 }} />
               <span style={{ flexShrink: 0 }}>{compareBase === '文件历史' ? '文件历史' : '对比'}</span>
@@ -1024,7 +979,7 @@ export default function GitApp() {
                     fontSize: '11px',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
-                    textOverflow: 'ellipsis'
+                    textOverflow: 'ellipsis',
                   }}
                   title={compareBase === '文件历史' ? `文件: ${compareTarget}` : `${compareTarget} ↔ ${compareBase}`}
                 >
@@ -1047,7 +1002,7 @@ export default function GitApp() {
                       if (!activeFile) {
                         vscode.postMessage({
                           command: 'error',
-                          message: '当前没有在编辑器中打开任何文件，无法查看历史记录。'
+                          message: '当前没有在编辑器中打开任何文件，无法查看历史记录。',
                         });
                         return;
                       }
@@ -1059,21 +1014,35 @@ export default function GitApp() {
                       height: '20px',
                       display: 'flex',
                       justifyContent: 'center',
-                      cursor: activeFile ? 'pointer' : 'not-allowed'
+                      cursor: activeFile ? 'pointer' : 'not-allowed',
                     }}
                   >
                     <i className="codicon codicon-history" />
                   </button>
                 </Tooltip>
 
-                <Tooltip content="分支对比">
+                <Tooltip content={activeFile ? '跨分支对比当前文件' : '跨分支对比文件 (请先打开文件)'}>
                   <button
                     className={styles['action-btn']}
                     onClick={(e) => {
                       e.stopPropagation();
-                      vscode.postMessage({ command: 'requestCompare' });
+                      if (!activeFile) {
+                        vscode.postMessage({
+                          command: 'error',
+                          message: '当前没有在编辑器中打开任何文件，无法进行跨分支对比。',
+                        });
+                        return;
+                      }
+                      vscode.postMessage({ command: 'compareFileAcrossBranches', file: activeFile });
                     }}
-                    style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                    style={{
+                      opacity: activeFile ? 0.8 : 0.4,
+                      width: '20px',
+                      height: '20px',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      cursor: activeFile ? 'pointer' : 'not-allowed',
+                    }}
                   >
                     <i className="codicon codicon-git-compare" />
                   </button>
@@ -1112,13 +1081,7 @@ export default function GitApp() {
                   commitFiles={lastExpandedCommitFiles}
                   remoteUrl={remoteUrl}
                   onCommitClick={toggleCommit}
-                  renderCommitFiles={(files) =>
-                    renderFileList(
-                      files,
-                      compareBase === '文件历史' ? 'history' : 'compare',
-                      lastExpandedCommitHash || undefined
-                    )
-                  }
+                  renderCommitFiles={(files) => renderFileList(files, compareBase === '文件历史' ? 'history' : 'compare', lastExpandedCommitHash || undefined)}
                 />
               )}
             </div>
@@ -1127,11 +1090,7 @@ export default function GitApp() {
       </div>
 
       <div className={styles['git-graph-section']}>
-        <div
-          className={styles['changes-header']}
-          onClick={() => setIsGraphOpen(!isGraphOpen)}
-          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-        >
+        <div className={styles['changes-header']} onClick={() => setIsGraphOpen(!isGraphOpen)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <i className={`codicon ${isGraphOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
             图形
@@ -1194,7 +1153,7 @@ export default function GitApp() {
                     backgroundColor: flashBranchBtn ? 'var(--vscode-button-background, #3168d1)' : 'transparent',
                     color: flashBranchBtn ? 'var(--vscode-button-foreground, #ffffff)' : 'inherit',
                     borderRadius: '3px',
-                    transition: 'all 0.5s ease-out'
+                    transition: 'all 0.5s ease-out',
                   }}
                 >
                   <i className="codicon codicon-filter" />
@@ -1216,7 +1175,7 @@ export default function GitApp() {
                     justifyContent: 'center',
                     backgroundColor: isGraphSearchOpen ? 'var(--vscode-button-background, #3168d1)' : 'transparent',
                     color: isGraphSearchOpen ? 'var(--vscode-button-foreground, #ffffff)' : 'inherit',
-                    borderRadius: '3px'
+                    borderRadius: '3px',
                   }}
                 >
                   <i className="codicon codicon-search" />

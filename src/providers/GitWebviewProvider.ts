@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import simpleGit, { SimpleGit } from 'simple-git';
 import path from 'path';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
-import { exec } from 'child_process'; 
+import { exec } from 'child_process';
 
 export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
@@ -100,7 +100,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             const refs = await git.raw(['show-ref']).catch(() => '');
             const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
             currentState = refs + head;
-          } catch (e) { }
+          } catch (e) {}
 
           const graphChanged = currentState !== this._lastGraphState;
 
@@ -150,9 +150,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         const config = vscode.workspace.getConfiguration('quick-ops.git');
         const defaultSkipVerify = config.get<boolean>('defaultSkipVerify') || false;
         // 配置一旦发生改变，立刻推送给前端
-        this._view?.webview.postMessage({ 
-          type: 'gitConfigChanged', 
-          defaultSkipVerify 
+        this._view?.webview.postMessage({
+          type: 'gitConfigChanged',
+          defaultSkipVerify,
         });
       }
     });
@@ -184,14 +184,14 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           // 获取配置
           const config = vscode.workspace.getConfiguration('quick-ops.git');
           const defaultSkipVerify = config.get<boolean>('defaultSkipVerify') || false;
-          console.log('defaultSkipVerify',defaultSkipVerify);
+          console.log('defaultSkipVerify', defaultSkipVerify);
 
           this._view?.webview.postMessage({
             type: 'gitInstallationStatus',
             isInstalled,
             defaultSkipVerify,
             // 传入一个标识，区分是首次加载还是手动刷新
-            isInit: msg.command === 'webviewLoaded'
+            isInit: msg.command === 'webviewLoaded',
           });
 
           if (!isInstalled) return;
@@ -385,7 +385,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 try {
                   await git.fetch(['--all', '--prune']);
                   await updateQuickPickItems();
-                } catch (e) { }
+                } catch (e) {}
               }).finally(() => {
                 quickPick.busy = false;
               });
@@ -508,7 +508,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 try {
                   await git.fetch(['--all', '--prune']);
                   await updateQuickPickItems();
-                } catch (e) { }
+                } catch (e) {}
               }).finally(() => {
                 quickPick.busy = false;
               });
@@ -560,6 +560,50 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               });
             } catch (e: any) {
               vscode.window.showErrorMessage(`对比分支失败: ${e.message}`);
+            }
+            break;
+          }
+
+          case 'compareFileAcrossBranches': {
+            try {
+              let branchNames: string[] = [];
+
+              // 1. 获取全部分支供选择
+              await this.withViewProgress(async () => {
+                const branches = await git.branch(['-a']);
+                // 过滤掉软链接（如 HEAD -> master）
+                branchNames = branches.all.filter((b) => !b.includes('->'));
+              });
+
+              const fileName = path.basename(msg.file);
+
+              // 2. 弹窗：选择左侧分支 (Base)
+              const baseBranch = await vscode.window.showQuickPick(branchNames, {
+                placeHolder: `1/2: 请选择【左侧分支】以对比 ${fileName}`,
+                matchOnDescription: true,
+              });
+              if (!baseBranch) return;
+
+              // 3. 弹窗：选择右侧分支 (Target)，并过滤掉刚选的左侧分支
+              const targetBranchNames = branchNames.filter((b) => b !== baseBranch);
+              const targetBranch = await vscode.window.showQuickPick(targetBranchNames, {
+                placeHolder: `2/2: 请选择【右侧分支】以对比 ${fileName}`,
+                matchOnDescription: true,
+              });
+              if (!targetBranch) return;
+
+              // 4. 组装虚拟 URI
+              const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: baseBranch }));
+              const leftUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${leftQuery}`);
+
+              const rightQuery = encodeURIComponent(JSON.stringify({ cwd, ref: targetBranch }));
+              const rightUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${rightQuery}`);
+
+              // 5. 唤起原生 Diff 窗口，标题格式如：index.vue (test ↔ feature/0.0.1)
+              const title = `${fileName} (${baseBranch} ↔ ${targetBranch})`;
+              vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+            } catch (e: any) {
+              vscode.window.showErrorMessage(`对比分支文件失败: ${e.message}`);
             }
             break;
           }
@@ -709,7 +753,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             const confirm = await vscode.window.showWarningMessage(
               `是否确实要放弃 ${msg.count} 个文件中的全部更改?\n\n此操作不可撤销！\n如果继续操作，你当前的工作集将永久丢失。`,
               { modal: true },
-              `放弃所有 ${msg.count} 个文件`
+              `放弃所有 ${msg.count} 个文件`,
             );
             if (confirm !== `放弃所有 ${msg.count} 个文件`) return;
 
@@ -797,7 +841,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               let existingContent = Buffer.alloc(0);
               try {
                 existingContent = Buffer.from(await vscode.workspace.fs.readFile(gitignoreUri));
-              } catch (e) { }
+              } catch (e) {}
 
               const appendStr = existingContent.length > 0 ? `\n${msg.file}` : msg.file;
               const appendContent = Buffer.from(appendStr, 'utf8');
@@ -893,7 +937,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           const refs = await git.raw(['show-ref']).catch(() => '');
           const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
           this._lastGraphState = refs + head;
-        } catch (e) { }
+        } catch (e) {}
 
         const logOptions = {
           '--all': null,
