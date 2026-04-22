@@ -180,6 +180,7 @@ ul {
   overflow: hidden;
   text-overflow: ellipsis;
   flex-shrink: 1; 
+  line-height: 20px;
 }
 
 .path {
