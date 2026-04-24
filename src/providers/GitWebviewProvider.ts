@@ -885,7 +885,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           case 'getCommitFiles': {
-            // 🌟 使用视图进度条包裹
+            // 🌟 还原为纯净的数据获取逻辑，专供前端内联展开文件树使用
             await this.withViewProgress(async () => {
               const diffRaw = await git.raw(['diff-tree', '--no-commit-id', '--name-status', '-r', '--root', msg.hash]);
               const files = diffRaw
@@ -903,6 +903,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 parentOid = undefined;
               }
 
+              // 只推送数据给前端，触发你的 activeCommitHash === c.hash 渲染逻辑
               this._view?.webview.postMessage({ type: 'commitFilesData', hash: msg.hash, files, parentHash: parentOid });
             });
             break;

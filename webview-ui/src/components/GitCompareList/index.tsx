@@ -84,8 +84,8 @@ const GitCompareList: React.FC<GitCompareListProps> = ({ commits, activeCommitHa
               className={styles['file-item']}
               style={{ height: 'auto', padding: '4px 8px', display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}
               onClick={() => handleItemClick(c.hash)}
-              onMouseEnter={(e) => handleMouseEnter(e, c)} // 🌟 挂载鼠标事件
-              onMouseLeave={handleMouseLeave} // 🌟 挂载鼠标事件
+              onMouseEnter={(e) => handleMouseEnter(e, c)}
+              onMouseLeave={handleMouseLeave} 
             >
               <div
                 style={{

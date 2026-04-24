@@ -139,9 +139,6 @@ export default function GitApp() {
   const lastRefreshRef = useRef<number>(0);
   const commitInputRef = useRef<HTMLDivElement>(null);
 
-  const lastExpandedCommitFiles = lastExpandedCommitHash ? commitFilesMap[lastExpandedCommitHash] || [] : [];
-  const lastExpandedCommitLoading = lastExpandedCommitHash ? !!commitFilesLoadingMap[lastExpandedCommitHash] : false;
-
   useEffect(() => {
     lastRefreshRef.current = Date.now();
     vscode.postMessage({ command: 'webviewLoaded' });
@@ -1097,12 +1094,18 @@ export default function GitApp() {
               ) : (
                 <GitCompareList
                   commits={compareCommits}
-                  activeCommitHash={lastExpandedCommitHash}
-                  loadedCommitHash={lastExpandedCommitHash}
-                  commitFilesLoading={lastExpandedCommitLoading}
-                  commitFiles={lastExpandedCommitFiles}
+                  activeCommitHash={activeCommitHash}
+                  loadedCommitHash={commitFilesMap[activeCommitHash || ''] ? activeCommitHash : null}
+                  commitFilesLoading={!!commitFilesLoadingMap[activeCommitHash || '']}
+                  commitFiles={commitFilesMap[activeCommitHash || ''] || []}
                   remoteUrl={remoteUrl}
-                  onCommitClick={toggleCommit}
+                  onCommitClick={(hash) => {
+                    if (activeCommitHash === hash) {
+                      setActiveCommitHash(null);
+                    } else {
+                      toggleCommit(hash);
+                    }
+                  }}
                   renderCommitFiles={(files) => renderFileList(files, compareBase === '文件历史' ? 'history' : 'compare', lastExpandedCommitHash || undefined)}
                 />
               )}
