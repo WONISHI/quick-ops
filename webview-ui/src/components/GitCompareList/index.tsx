@@ -79,7 +79,7 @@ const GitCompareList: React.FC<GitCompareListProps> = ({ commits, activeCommitHa
 
       <ul className={styles['file-list']} style={{ padding: 0, margin: 0 }}>
         {commits.map((c) => (
-          <li key={c.hash} style={{ borderBottom: '1px solid var(--vscode-panel-border)', padding: 0 }}>
+          <li key={c.hash} style={{ padding: 0 }}>
             <div
               className={styles['file-item']}
               style={{ height: 'auto', padding: '4px 8px', display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}
@@ -97,11 +97,11 @@ const GitCompareList: React.FC<GitCompareListProps> = ({ commits, activeCommitHa
                   color: 'var(--vscode-icon-foreground)',
                 }}
               >
-                <i className="codicon codicon-git-commit" style={{ fontSize: '14px' }} />
+                <i className="codicon codicon-git-commit" style={{ fontSize: '16px', color: '#007acc' }} />
               </div>
 
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ fontSize: '12px', color: 'var(--vscode-foreground)', lineHeight: '1.4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.message}</div>
+                <div style={{ fontSize: '14px', color: 'var(--vscode-foreground)', lineHeight: '1.4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.message}</div>
               </div>
             </div>
 
