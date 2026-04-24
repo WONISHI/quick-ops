@@ -564,46 +564,82 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
-          case 'compareFileAcrossBranches': {
+          // ==========================================
+          // 🌟 核心升级：跨分支多文件对比 (原生 Multi-Diff)
+          // ==========================================
+          case 'compareBranchesMultiDiff': {
             try {
               let branchNames: string[] = [];
 
               // 1. 获取全部分支供选择
               await this.withViewProgress(async () => {
                 const branches = await git.branch(['-a']);
-                // 过滤掉软链接（如 HEAD -> master）
                 branchNames = branches.all.filter((b) => !b.includes('->'));
               });
 
-              const fileName = path.basename(msg.file);
-
               // 2. 弹窗：选择左侧分支 (Base)
               const baseBranch = await vscode.window.showQuickPick(branchNames, {
-                placeHolder: `1/2: 请选择【左侧分支】以对比 ${fileName}`,
+                placeHolder: `1/2: 请选择【左侧分支】(Base Branch)`,
                 matchOnDescription: true,
               });
               if (!baseBranch) return;
 
-              // 3. 弹窗：选择右侧分支 (Target)，并过滤掉刚选的左侧分支
+              // 3. 弹窗：选择右侧分支 (Target)
               const targetBranchNames = branchNames.filter((b) => b !== baseBranch);
               const targetBranch = await vscode.window.showQuickPick(targetBranchNames, {
-                placeHolder: `2/2: 请选择【右侧分支】以对比 ${fileName}`,
+                placeHolder: `2/2: 请选择【右侧分支】(Target Branch) 以对比 ${baseBranch}`,
                 matchOnDescription: true,
               });
               if (!targetBranch) return;
 
-              // 4. 组装虚拟 URI
-              const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: baseBranch }));
-              const leftUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${leftQuery}`);
+              // 4. 获取两个分支间的所有差异文件
+              let diffFiles: { status: string; file: string }[] = [];
+              await this.withViewProgress(async () => {
+                const diffRaw = await git.raw(['diff', '--name-status', baseBranch, targetBranch]);
+                diffFiles = diffRaw
+                  .split('\n')
+                  .filter((line) => line.trim())
+                  .map((line) => {
+                    const parts = line.split('\t');
+                    return {
+                      status: parts[0].charAt(0),
+                      file: parts[parts.length - 1], // 取最后一部分，兼容重命名 (Rename) 格式
+                    };
+                  });
+              });
 
-              const rightQuery = encodeURIComponent(JSON.stringify({ cwd, ref: targetBranch }));
-              const rightUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${rightQuery}`);
+              if (diffFiles.length === 0) {
+                vscode.window.showInformationMessage(`分支 ${baseBranch} 和 ${targetBranch} 之间没有任何差异。`);
+                return;
+              }
 
-              // 5. 唤起原生 Diff 窗口，标题格式如：index.vue (test ↔ feature/0.0.1)
-              const title = `${fileName} (${baseBranch} ↔ ${targetBranch})`;
-              vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+              // 5. 组装 vscode.changes API 需要的 Multi-Diff 数组格式
+              const changesArgs = diffFiles.map((f) => {
+                let leftRef = baseBranch;
+                let rightRef = targetBranch;
+
+                // 处理新增和删除情况，让空文件的一侧传入 'empty'
+                if (f.status === 'A') leftRef = 'empty';
+                if (f.status === 'D') rightRef = 'empty';
+
+                const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: leftRef }));
+                const leftUri = vscode.Uri.parse(`quickops-git:///${f.file}?${leftQuery}`);
+
+                const rightQuery = encodeURIComponent(JSON.stringify({ cwd, ref: rightRef }));
+                const rightUri = vscode.Uri.parse(`quickops-git:///${f.file}?${rightQuery}`);
+
+                const fileUri = vscode.Uri.file(path.join(cwd, f.file));
+
+                // Multi-Diff 核心参数格式: [文件URI(用于Tab标题和图标), 左侧内容URI, 右侧内容URI]
+                return [fileUri, leftUri, rightUri];
+              });
+
+              const title = `对比: ${baseBranch} ↔ ${targetBranch}`;
+
+              // 🌟 核心：唤起 VS Code 原生多文件差异对比编辑器
+              await vscode.commands.executeCommand('vscode.changes', title, changesArgs);
             } catch (e: any) {
-              vscode.window.showErrorMessage(`对比分支文件失败: ${e.message}`);
+              vscode.window.showErrorMessage(`跨分支对比失败: ${e.message}`);
             }
             break;
           }
@@ -930,7 +966,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         unstagedFiles,
         branch,
         remoteUrl,
-        folderName: path.basename(cwd)
+        folderName: path.basename(cwd),
       });
 
       if (fullRefresh) {
