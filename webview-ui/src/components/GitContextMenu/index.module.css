@@ -1,0 +1,65 @@
+/* 遮罩层，用于拦截点击并关闭菜单 */
+.backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9998;
+}
+
+.menu {
+  position: fixed;
+  background-color: var(--vscode-menu-background, #252526);
+  color: var(--vscode-menu-foreground, #cccccc);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border-radius: 5px;
+  padding: 4px 0;
+  width: max-content;
+  min-width: 140px;
+  max-width: calc(100vw - 16px);
+  z-index: 9999;
+  font-family: var(--vscode-font-family, sans-serif);
+  font-size: 13px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.menu.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  cursor: pointer;
+  gap: 8px;
+  user-select: none;
+}
+
+.item:hover {
+  background-color: var(--vscode-menu-selectionBackground, #04395e);
+  color: var(--vscode-menu-selectionForeground, #ffffff);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* 分割线 */
+.divider {
+  height: 1px;
+  background-color: var(--vscode-menu-separatorBackground, #454545);
+  margin: 4px 8px;
+}

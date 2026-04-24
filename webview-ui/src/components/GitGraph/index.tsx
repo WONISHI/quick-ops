@@ -30,6 +30,7 @@ interface GitGraphProps {
     setIsSearchOpen: (open: boolean) => void;
     onCommitClick: (hash: string) => void;
     renderCommitFiles: (hash: string, files: GitFile[]) => React.ReactNode;
+    onCommitContextMenu: (e: React.MouseEvent, commit: GraphCommit) => void;
 }
 
 const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];
@@ -241,11 +242,11 @@ const GitGraph: React.FC<GitGraphProps> = ({
     isSearchOpen,
     setIsSearchOpen,
     onCommitClick,
-    renderCommitFiles
+    renderCommitFiles,
+    onCommitContextMenu // 🌟 从父组件传入
 }) => {
     const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit; x: number; y: number; position: 'top' | 'bottom' } | null>(null);
     
-    // 🌟 修复 1：明确传递 undefined 初始值
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const suppressHoverUntilRef = useRef(0);
 
@@ -264,7 +265,6 @@ const GitGraph: React.FC<GitGraphProps> = ({
     const expandedBlockRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const [expandedBlockHeights, setExpandedBlockHeights] = useState<Record<string, number>>({});
     const resizeObserverRef = useRef<ResizeObserver | null>(null);
-
 
     const [prevIsSearchOpen, setPrevIsSearchOpen] = useState(isSearchOpen);
 
@@ -612,8 +612,8 @@ const GitGraph: React.FC<GitGraphProps> = ({
                         placeholder="搜索提交..."
                         value={searchQuery}
                         onChange={(e) => {
-                            setSearchQuery(e.target.value)
-                            setCurrentMatchIndex(0);
+                            setSearchQuery(e.target.value);
+                            setCurrentMatchIndex(0); 
                         }}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
@@ -687,6 +687,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                     onClick={() => handleItemClick(c.hash)}
                                     onMouseEnter={(e) => handleMouseEnter(e, c)}
                                     onMouseLeave={handleMouseLeave}
+                                    onContextMenu={(e) => onCommitContextMenu(e, c)} // 🌟 直接传递给父级
                                     style={{ height: `${ROW_HEIGHT}px`, display: 'flex', alignItems: 'center', overflow: 'hidden', paddingRight: '8px', cursor: 'pointer' }}
                                 >
                                     <div style={{ width: paddingWidth, flexShrink: 0 }} />
