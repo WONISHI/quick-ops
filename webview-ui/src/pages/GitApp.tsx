@@ -11,10 +11,7 @@ import Tooltip from '../components/Tooltip';
 import GitGraph, { type GraphCommit } from '../components/GitGraph';
 import GitCompareList from '../components/GitCompareList';
 
-export interface GitFile {
-  status: string;
-  file: string;
-}
+import type { GitFile } from '../types/GitApp';
 
 interface TreeNode {
   name: string;
@@ -327,16 +324,14 @@ export default function GitApp() {
 
     const alreadyExpanded = expandedCommitHashes.includes(hash);
 
-    setExpandedCommitHashes((prev) =>
-      alreadyExpanded ? prev.filter((h) => h !== hash) : [...prev, hash]
-    );
+    setExpandedCommitHashes((prev) => (alreadyExpanded ? prev.filter((h) => h !== hash) : [...prev, hash]));
 
     if (alreadyExpanded) return;
     if (commitFilesMap[hash]) return;
 
     setCommitFilesLoadingMap((prev) => ({
       ...prev,
-      [hash]: true
+      [hash]: true,
     }));
 
     vscode.postMessage({ command: 'getCommitFiles', hash });
