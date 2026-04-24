@@ -30,7 +30,6 @@ interface GitGraphProps {
     setIsSearchOpen: (open: boolean) => void;
     onCommitClick: (hash: string) => void;
     renderCommitFiles: (hash: string, files: GitFile[]) => React.ReactNode;
-    onCommitContextMenu: (e: React.MouseEvent, commit: GraphCommit) => void;
 }
 
 const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];
@@ -242,10 +241,11 @@ const GitGraph: React.FC<GitGraphProps> = ({
     isSearchOpen,
     setIsSearchOpen,
     onCommitClick,
-    renderCommitFiles,
-    onCommitContextMenu // 🌟
+    renderCommitFiles
 }) => {
     const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit; x: number; y: number; position: 'top' | 'bottom' } | null>(null);
+    
+    // 🌟 修复 1：明确传递 undefined 初始值
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const suppressHoverUntilRef = useRef(0);
 
@@ -261,6 +261,9 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
     const [searchQuery, setSearchQuery] = useState('');
     const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+    const expandedBlockRefs = useRef<Record<string, HTMLDivElement | null>>({});
+    const [expandedBlockHeights, setExpandedBlockHeights] = useState<Record<string, number>>({});
+    const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
 
     const [prevIsSearchOpen, setPrevIsSearchOpen] = useState(isSearchOpen);
@@ -273,10 +276,6 @@ const GitGraph: React.FC<GitGraphProps> = ({
             setCurrentMatchIndex(0);
         }
     }
-
-    const expandedBlockRefs = useRef<Record<string, HTMLDivElement | null>>({});
-    const [expandedBlockHeights, setExpandedBlockHeights] = useState<Record<string, number>>({});
-    const resizeObserverRef = useRef<ResizeObserver | null>(null);
 
     const matchedIndices = useMemo(() => {
         if (!searchQuery) return [];
@@ -479,7 +478,8 @@ const GitGraph: React.FC<GitGraphProps> = ({
         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
 
         hoverTimeoutRef.current = setTimeout(() => {
-            if (Date.now() < suppressHoverUntilRef.current) return;
+            const timeInside = new Date().getTime();
+            if (timeInside < suppressHoverUntilRef.current) return;
 
             const showAbove = rect.top > window.innerHeight / 2;
             setHoverInfo({
@@ -687,7 +687,6 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                     onClick={() => handleItemClick(c.hash)}
                                     onMouseEnter={(e) => handleMouseEnter(e, c)}
                                     onMouseLeave={handleMouseLeave}
-                                    onContextMenu={(e) => onCommitContextMenu(e, c)} // 🌟 直接调用 Props 回调
                                     style={{ height: `${ROW_HEIGHT}px`, display: 'flex', alignItems: 'center', overflow: 'hidden', paddingRight: '8px', cursor: 'pointer' }}
                                 >
                                     <div style={{ width: paddingWidth, flexShrink: 0 }} />
