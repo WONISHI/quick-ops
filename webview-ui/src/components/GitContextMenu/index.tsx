@@ -42,37 +42,51 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ visible, x, y, onClose
 
   useEffect(() => {
     if (!visible) return;
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+
+    const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        onClose();
+      }
+    };
+
+    // 🌟 新增：当点击 VS Code 原生 UI（红框区域）时，iframe 会失焦，此时关闭菜单
+    const handleWindowBlur = () => {
+      onClose();
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    document.addEventListener('mousedown', handleOutsideClick, true);
+    window.addEventListener('blur', handleWindowBlur); // 🌟 挂载失焦监听
+
+    return () => {
+      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener('mousedown', handleOutsideClick, true);
+      window.removeEventListener('blur', handleWindowBlur); // 🌟 卸载失焦监听
+    };
   }, [visible, onClose]);
 
   if (!visible) return null;
 
   return createPortal(
-    <>
-      <div 
-        className={styles.backdrop} 
-        onMouseDown={(e) => { e.stopPropagation(); onClose(); }}
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onClose(); }}
-      />
-      <div
-        ref={menuRef}
-        className={`${styles.menu} ${isCalculated ? styles.visible : ''}`}
-        style={{ left: pos.x, top: pos.y }}
-        onMouseDown={(e) => e.stopPropagation()}
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
-      >
-        {children}
-      </div>
-    </>,
+    <div
+      ref={menuRef}
+      // 🌟 className 现在可以正确读取到 styles.visible 了！
+      className={`${styles.menu} ${isCalculated ? styles.visible : ''}`}
+      style={{ left: pos.x, top: pos.y }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+    >
+      {children}
+    </div>,
     document.body
   );
 };
 
 export const MenuItem = ({ icon, text, onClick }: { icon: string, text: string, onClick: () => void }) => (
-  <div 
-    className={styles.item} 
+  <div
+    className={styles.item}
     onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onClick(); }}
   >
     <i className={`codicon ${icon} ${styles.icon}`} />
@@ -112,7 +126,7 @@ export const GitContextMenu: React.FC<GitContextMenuProps> = ({ contextMenu, onC
 
   return (
     <ContextMenu visible={contextMenu.visible} x={contextMenu.x} y={contextMenu.y} onClose={onClose}>
-      
+
       {/* 1. Commit 记录的菜单 */}
       {contextMenu.type === 'commit' && contextMenu.commit && (
         <>
