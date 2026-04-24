@@ -565,79 +565,132 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           // ==========================================
-          // 🌟 核心升级：跨分支多文件对比 (原生 Multi-Diff)
+          // 🌟 核心升级：一键完成「侧边栏 Commits」+「原生多文件对比」
           // ==========================================
-          case 'compareBranchesMultiDiff': {
+          case 'compareFileAcrossBranches': {
             try {
-              let branchNames: string[] = [];
+              // 1. 弹出高级下拉菜单选择【基准分支 Base Branch】
+              const quickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { branchName: string }>();
+              quickPick.placeholder = '1/2: 请选择【基准分支】(Base Branch，支持远程分支)';
+              quickPick.matchOnDescription = true;
 
-              // 1. 获取全部分支供选择
-              await this.withViewProgress(async () => {
-                const branches = await git.branch(['-a']);
-                branchNames = branches.all.filter((b) => !b.includes('->'));
+              const updateQuickPickItems = async () => {
+                await this.withViewProgress(async () => {
+                  const branches = await git.branch(['-a']);
+                  const branchNames = branches.all.filter((b) => !b.includes('->'));
+                  const prevActive = quickPick.activeItems[0]?.branchName;
+                  const items = branchNames.map((b) => ({ label: b, branchName: b }));
+                  quickPick.items = items;
+                  if (prevActive) {
+                    const newActive = items.find((i) => i.branchName === prevActive);
+                    if (newActive) quickPick.activeItems = [newActive];
+                  }
+                });
+              };
+
+              await updateQuickPickItems();
+              quickPick.show();
+
+              quickPick.busy = true;
+              this.executeGitOperation(async () => {
+                try {
+                  await git.fetch(['--all', '--prune']);
+                  await updateQuickPickItems();
+                } catch (e) {}
+              }).finally(() => {
+                quickPick.busy = false;
               });
 
-              // 2. 弹窗：选择左侧分支 (Base)
-              const baseBranch = await vscode.window.showQuickPick(branchNames, {
-                placeHolder: `1/2: 请选择【左侧分支】(Base Branch)`,
-                matchOnDescription: true,
+              const baseBranch = await new Promise<string | undefined>((resolve) => {
+                quickPick.onDidAccept(() => {
+                  const selection = quickPick.selectedItems[0];
+                  resolve(selection ? selection.branchName : undefined);
+                  quickPick.hide();
+                });
+                quickPick.onDidHide(() => {
+                  quickPick.dispose();
+                  resolve(undefined);
+                });
               });
+
               if (!baseBranch) return;
 
-              // 3. 弹窗：选择右侧分支 (Target)
-              const targetBranchNames = branchNames.filter((b) => b !== baseBranch);
-              const targetBranch = await vscode.window.showQuickPick(targetBranchNames, {
-                placeHolder: `2/2: 请选择【右侧分支】(Target Branch) 以对比 ${baseBranch}`,
-                matchOnDescription: true,
+              // 2. 选择【目标分支 Target Branch】
+              let targetBranch: string | undefined;
+              await this.withViewProgress(async () => {
+                const branchesAfterFetch = await git.branch(['-a']);
+                const branchNamesAfterFetch = branchesAfterFetch.all.filter((b) => !b.includes('->') && b !== baseBranch);
+
+                targetBranch = await vscode.window.showQuickPick(branchNamesAfterFetch, {
+                  placeHolder: `2/2: 请选择【目标分支】(查看 ${baseBranch} 中没有的记录)`,
+                  matchOnDescription: true,
+                });
               });
+
               if (!targetBranch) return;
 
-              // 4. 获取两个分支间的所有差异文件
-              let diffFiles: { status: string; file: string }[] = [];
+              // 3. 🌟 动作 A：查询 Commits 记录并推送到 React 侧边栏
+              await this.withViewProgress(async () => {
+                const logOptions = {
+                  from: baseBranch,
+                  to: targetBranch,
+                  format: { hash: '%H', author: '%an', message: '%s', timestamp: '%ct' },
+                };
+                const logResult = await git.log(logOptions);
+                const commits = logResult.all.map((c) => ({
+                  hash: c.hash,
+                  author: c.author,
+                  message: c.message,
+                  timestamp: parseInt(c.timestamp as string, 10) * 1000,
+                }));
+
+                this._view?.webview.postMessage({ type: 'compareData', baseBranch, targetBranch, commits });
+              });
+
+              // 4. 🌟 动作 B：查询差异文件，并唤起 VS Code 原生多文件对比编辑器
               await this.withViewProgress(async () => {
                 const diffRaw = await git.raw(['diff', '--name-status', baseBranch, targetBranch]);
-                diffFiles = diffRaw
+                const diffFiles = diffRaw
                   .split('\n')
                   .filter((line) => line.trim())
                   .map((line) => {
                     const parts = line.split('\t');
                     return {
                       status: parts[0].charAt(0),
-                      file: parts[parts.length - 1], // 取最后一部分，兼容重命名 (Rename) 格式
+                      file: parts[parts.length - 1], // 取最后一部分兼容重命名格式
                     };
                   });
+
+                if (diffFiles.length === 0) {
+                  vscode.window.showInformationMessage(`分支 ${baseBranch} 和 ${targetBranch} 之间没有任何文件差异。`);
+                  return;
+                }
+
+                // 组装 vscode.changes 需要的格式: [文件URI, 左侧旧内容URI, 右侧新内容URI]
+                const changesArgs = diffFiles.map((f) => {
+                  let leftRef = baseBranch;
+                  let rightRef = targetBranch;
+
+                  // 自动处理新增(A)和删除(D)时的空文件占位
+                  if (f.status === 'A') leftRef = 'empty';
+                  if (f.status === 'D') rightRef = 'empty';
+
+                  const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: leftRef }));
+                  const leftUri = vscode.Uri.parse(`quickops-git:///${f.file}?${leftQuery}`);
+
+                  const rightQuery = encodeURIComponent(JSON.stringify({ cwd, ref: rightRef }));
+                  const rightUri = vscode.Uri.parse(`quickops-git:///${f.file}?${rightQuery}`);
+
+                  const fileUri = vscode.Uri.file(path.join(cwd, f.file));
+
+                  return [fileUri, leftUri, rightUri];
+                });
+
+                const title = `对比: ${baseBranch} ↔ ${targetBranch}`;
+
+                // 唤起原生 Multi-Diff
+                await vscode.commands.executeCommand('vscode.changes', title, changesArgs);
               });
-
-              if (diffFiles.length === 0) {
-                vscode.window.showInformationMessage(`分支 ${baseBranch} 和 ${targetBranch} 之间没有任何差异。`);
-                return;
-              }
-
-              // 5. 组装 vscode.changes API 需要的 Multi-Diff 数组格式
-              const changesArgs = diffFiles.map((f) => {
-                let leftRef = baseBranch;
-                let rightRef = targetBranch;
-
-                // 处理新增和删除情况，让空文件的一侧传入 'empty'
-                if (f.status === 'A') leftRef = 'empty';
-                if (f.status === 'D') rightRef = 'empty';
-
-                const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: leftRef }));
-                const leftUri = vscode.Uri.parse(`quickops-git:///${f.file}?${leftQuery}`);
-
-                const rightQuery = encodeURIComponent(JSON.stringify({ cwd, ref: rightRef }));
-                const rightUri = vscode.Uri.parse(`quickops-git:///${f.file}?${rightQuery}`);
-
-                const fileUri = vscode.Uri.file(path.join(cwd, f.file));
-
-                // Multi-Diff 核心参数格式: [文件URI(用于Tab标题和图标), 左侧内容URI, 右侧内容URI]
-                return [fileUri, leftUri, rightUri];
-              });
-
-              const title = `对比: ${baseBranch} ↔ ${targetBranch}`;
-
-              // 🌟 核心：唤起 VS Code 原生多文件差异对比编辑器
-              await vscode.commands.executeCommand('vscode.changes', title, changesArgs);
             } catch (e: any) {
               vscode.window.showErrorMessage(`跨分支对比失败: ${e.message}`);
             }

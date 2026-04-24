@@ -1043,22 +1043,27 @@ export default function GitApp() {
                   </button>
                 </Tooltip>
 
-                {/* 🌟 升级：跨分支对比 (多文件) */}
-                <Tooltip content="跨分支对比 (多文件)">
+                <Tooltip content={activeFile ? '跨分支对比当前文件' : '跨分支对比文件 (请先打开文件)'}>
                   <button
                     className={styles['action-btn']}
                     onClick={(e) => {
                       e.stopPropagation();
-                      // 直接抛出新命令，不再判断 activeFile
-                      vscode.postMessage({ command: 'compareBranchesMultiDiff' });
+                      if (!activeFile) {
+                        vscode.postMessage({
+                          command: 'error',
+                          message: '当前没有在编辑器中打开任何文件，无法进行跨分支对比。',
+                        });
+                        return;
+                      }
+                      vscode.postMessage({ command: 'compareFileAcrossBranches', file: activeFile });
                     }}
                     style={{
-                      opacity: 0.8,
+                      opacity: activeFile ? 0.8 : 0.4,
                       width: '20px',
                       height: '20px',
                       display: 'flex',
                       justifyContent: 'center',
-                      cursor: 'pointer', // 始终允许点击
+                      cursor: activeFile ? 'pointer' : 'not-allowed',
                     }}
                   >
                     <i className="codicon codicon-git-compare" />
