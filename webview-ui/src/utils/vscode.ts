@@ -1,6 +1,3 @@
-// webview-ui/src/utils/vscode.ts
-
-// 获取全局唯一的 VS Code API 实例
 class VSCodeAPIWrapper {
     private readonly vsCodeApi: any;
 
