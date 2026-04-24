@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import styles from './index.module.css';
 import CommitHoverWidget from '../CommitHoverWidget';
+import type { GitFile } from '../../types/GitApp';
 
 export interface GraphCommit {
     hash: string;
@@ -19,7 +20,7 @@ interface GitGraphProps {
 
     expandedCommitHashes: string[];
     commitFilesLoadingMap: Record<string, boolean>;
-    commitFilesMap: Record<string, any[]>;
+    commitFilesMap: Record<string, GitFile[]>;
 
     activeCommitHash: string | null;
 
@@ -28,9 +29,9 @@ interface GitGraphProps {
     isSearchOpen: boolean;
     setIsSearchOpen: (open: boolean) => void;
     onCommitClick: (hash: string) => void;
-    renderCommitFiles: (hash: string, files: any[]) => React.ReactNode;
+    renderCommitFiles: (hash: string, files: GitFile[]) => React.ReactNode;
+    onCommitContextMenu: (e: React.MouseEvent, commit: GraphCommit) => void;
 }
-
 
 const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];
 const LANE_WIDTH = 14;
@@ -74,9 +75,7 @@ class Vertex {
     private nextX: number = 0;
     private connections: UnavailablePoint[] = [];
 
-    constructor(id: number) {
-        this.id = id;
-    }
+    constructor(id: number) { this.id = id; }
 
     addChild(v: Vertex) {
         this.children.push(v);
@@ -243,10 +242,11 @@ const GitGraph: React.FC<GitGraphProps> = ({
     isSearchOpen,
     setIsSearchOpen,
     onCommitClick,
-    renderCommitFiles
+    renderCommitFiles,
+    onCommitContextMenu // 🌟
 }) => {
     const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit; x: number; y: number; position: 'top' | 'bottom' } | null>(null);
-    const hoverTimeoutRef = useRef<any>(null);
+    const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const suppressHoverUntilRef = useRef(0);
 
     const [resizeTrigger, setResizeTrigger] = useState(0);
@@ -261,6 +261,19 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
     const [searchQuery, setSearchQuery] = useState('');
     const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+
+
+    const [prevIsSearchOpen, setPrevIsSearchOpen] = useState(isSearchOpen);
+
+    if (isSearchOpen !== prevIsSearchOpen) {
+        setPrevIsSearchOpen(isSearchOpen);
+        if (!isSearchOpen) {
+            setSearchQuery('');
+            setSearchOffset({ x: 0, y: 0 });
+            setCurrentMatchIndex(0);
+        }
+    }
+
     const expandedBlockRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const [expandedBlockHeights, setExpandedBlockHeights] = useState<Record<string, number>>({});
     const resizeObserverRef = useRef<ResizeObserver | null>(null);
@@ -342,10 +355,6 @@ const GitGraph: React.FC<GitGraphProps> = ({
     }, [expandedCommitHashes, commitFilesMap, commitFilesLoadingMap]);
 
     useEffect(() => {
-        setCurrentMatchIndex(0);
-    }, [searchQuery]);
-
-    useEffect(() => {
         if (matchedIndices.length > 0 && isSearchOpen) {
             const matchCommitIndex = matchedIndices[currentMatchIndex];
             if (matchCommitIndex >= displayCount) {
@@ -361,9 +370,6 @@ const GitGraph: React.FC<GitGraphProps> = ({
     useEffect(() => {
         if (isSearchOpen && searchInputRef.current) {
             searchInputRef.current.focus();
-        } else if (!isSearchOpen) {
-            setSearchQuery('');
-            setSearchOffset({ x: 0, y: 0 });
         }
     }, [isSearchOpen]);
 
@@ -466,10 +472,11 @@ const GitGraph: React.FC<GitGraphProps> = ({
     }, [graphData, displayCount, yPositions, renderedHeight, expandedCommitHashes, resizeTrigger, graphCommits]);
 
     const handleMouseEnter = (e: React.MouseEvent, commit: GraphCommit) => {
-        if (Date.now() < suppressHoverUntilRef.current) return;
+        const now = new Date().getTime();
+        if (now < suppressHoverUntilRef.current) return;
 
         const rect = e.currentTarget.getBoundingClientRect();
-        clearTimeout(hoverTimeoutRef.current);
+        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
 
         hoverTimeoutRef.current = setTimeout(() => {
             if (Date.now() < suppressHoverUntilRef.current) return;
@@ -481,11 +488,11 @@ const GitGraph: React.FC<GitGraphProps> = ({
                 y: showAbove ? rect.top - 8 : rect.bottom + 4,
                 position: showAbove ? 'top' : 'bottom'
             });
-        }, 500);
+        }, 1000);
     };
 
     const handleMouseLeave = () => {
-        clearTimeout(hoverTimeoutRef.current);
+        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
         hoverTimeoutRef.current = setTimeout(() => {
             setHoverInfo(null);
         }, 250);
@@ -501,7 +508,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
     };
 
     const handleItemClick = (hash: string) => {
-        clearTimeout(hoverTimeoutRef.current);
+        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
         setHoverInfo(null);
         onCommitClick(hash);
     };
@@ -581,7 +588,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
                     position={hoverInfo.position}
                     branch={branch}
                     remoteUrl={remoteUrl}
-                    onMouseEnter={() => clearTimeout(hoverTimeoutRef.current)}
+                    onMouseEnter={() => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); }}
                     onMouseLeave={handleMouseLeave}
                 />
             )}
@@ -604,11 +611,18 @@ const GitGraph: React.FC<GitGraphProps> = ({
                         className={styles['search-input']}
                         placeholder="搜索提交..."
                         value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onChange={(e) => {
+                            setSearchQuery(e.target.value)
+                            setCurrentMatchIndex(0);
+                        }}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter') {
                                 e.preventDefault();
-                                e.shiftKey ? handlePrevMatch() : handleNextMatch();
+                                if (e.shiftKey) {
+                                    handlePrevMatch();
+                                } else {
+                                    handleNextMatch();
+                                }
                             } else if (e.key === 'Escape') {
                                 setIsSearchOpen(false);
                             }
@@ -673,6 +687,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                     onClick={() => handleItemClick(c.hash)}
                                     onMouseEnter={(e) => handleMouseEnter(e, c)}
                                     onMouseLeave={handleMouseLeave}
+                                    onContextMenu={(e) => onCommitContextMenu(e, c)} // 🌟 直接调用 Props 回调
                                     style={{ height: `${ROW_HEIGHT}px`, display: 'flex', alignItems: 'center', overflow: 'hidden', paddingRight: '8px', cursor: 'pointer' }}
                                 >
                                     <div style={{ width: paddingWidth, flexShrink: 0 }} />

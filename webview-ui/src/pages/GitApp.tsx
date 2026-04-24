@@ -105,14 +105,10 @@ export default function GitApp() {
 
   const [displayCount, setDisplayCount] = useState(100);
 
-  // ✅ 多展开 commit 状态
   const [expandedCommitHashes, setExpandedCommitHashes] = useState<string[]>([]);
   const [commitFilesMap, setCommitFilesMap] = useState<Record<string, GitFile[]>>({});
   const [commitFilesLoadingMap, setCommitFilesLoadingMap] = useState<Record<string, boolean>>({});
   const [commitParentHashMap, setCommitParentHashMap] = useState<Record<string, string | undefined>>({});
-
-  // ✅ 兼容现有 GitCompareList 的“单 commit props”
-  const [lastExpandedCommitHash, setLastExpandedCommitHash] = useState<string | null>(null);
 
   const [compareTarget, setCompareTarget] = useState<string | null>(null);
   const [compareBase, setCompareBase] = useState<string | null>(null);
@@ -127,13 +123,16 @@ export default function GitApp() {
   const [activeCommitHash, setActiveCommitHash] = useState<string | null>(null);
   const [folderName, setFolderName] = useState('');
 
+  // 🌟 大一统右键菜单状态
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
     x: number;
     y: number;
-    file: GitFile;
-    listType: 'staged' | 'unstaged' | 'history' | 'compare';
+    type: 'file' | 'commit';
+    file?: GitFile;
+    listType?: 'staged' | 'unstaged' | 'history' | 'compare';
     historyHash?: string;
+    commit?: GraphCommit;
   } | null>(null);
 
   const lastRefreshRef = useRef<number>(0);
@@ -161,7 +160,7 @@ export default function GitApp() {
         setCommitFilesMap({});
         setCommitFilesLoadingMap({});
         setCommitParentHashMap({});
-        setLastExpandedCommitHash(null);
+        setActiveCommitHash(null);
       } else if (msg.type === 'statusData') {
         setIsRepo(true);
         setStagedFiles(msg.stagedFiles || []);
@@ -404,7 +403,7 @@ export default function GitApp() {
     vscode.postMessage({
       command: 'diffBranchFile',
       file: file.file,
-      targetBranch: lastExpandedCommitHash || compareTarget,
+      targetBranch: activeCommitHash || compareTarget,
       baseBranch: compareBase,
       status: file.status,
     });
@@ -460,6 +459,7 @@ export default function GitApp() {
               visible: true,
               x: safeX,
               y: safeY,
+              type: 'file',
               file: item,
               listType,
               historyHash,
@@ -549,6 +549,7 @@ export default function GitApp() {
                   visible: true,
                   x: safeX,
                   y: safeY,
+                  type: 'file',
                   file: item,
                   listType,
                   historyHash,
@@ -637,6 +638,7 @@ export default function GitApp() {
 
   return (
     <div className={styles['git-sidebar']}>
+      {/* 🌟 大一统全局右键菜单 */}
       {contextMenu && contextMenu.visible && (
         <>
           <div
@@ -647,100 +649,178 @@ export default function GitApp() {
               setContextMenu(null);
             }}
           />
-          <div className={styles['context-menu']} style={{ left: contextMenu.x, top: contextMenu.y }}>
-            <div
-              className={styles['context-menu-item']}
-              onClick={() => {
-                if (contextMenu.listType === 'history') {
-                  openHistoryDiff(contextMenu.file, contextMenu.historyHash);
-                } else if (contextMenu.listType === 'compare') {
-                  openCompareDiff(contextMenu.file);
-                } else {
-                  vscode.postMessage({
-                    command: 'diff',
-                    file: contextMenu.file.file,
-                    status: contextMenu.file.status,
-                  });
-                }
-                setContextMenu(null);
-              }}
-            >
-              <i className={`codicon codicon-git-compare ${styles['context-menu-icon']}`} />
-              <span>打开更改</span>
-            </div>
 
-            <div
-              className={styles['context-menu-item']}
-              onClick={() => {
-                vscode.postMessage({ command: 'open', file: contextMenu.file.file });
-                setContextMenu(null);
-              }}
-            >
-              <i className={`codicon codicon-go-to-file ${styles['context-menu-icon']}`} />
-              <span>打开文件</span>
-            </div>
-
-            {contextMenu.listType === 'unstaged' && (
-              <div
-                className={styles['context-menu-item']}
-                onClick={() => {
-                  vscode.postMessage({
-                    command: 'discard',
-                    file: contextMenu.file.file,
-                    status: contextMenu.file.status,
-                  });
-                  setContextMenu(null);
-                }}
-              >
-                <i className={`codicon codicon-discard ${styles['context-menu-icon']}`} />
-                <span>放弃更改</span>
-              </div>
+          {/* 🌟 阻止冒泡，防止点击穿透导致菜单过早关闭 */}
+          <div
+            className={styles['context-menu']}
+            style={{ left: contextMenu.x, top: contextMenu.y, zIndex: 1000, position: 'fixed' }}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {/* ==================================
+                1. 右键 [Commit 记录] 
+                包含：复制提交信息、打开更改
+                ================================== */}
+            {contextMenu.type === 'commit' && contextMenu.commit && (
+              <>
+                <div
+                  className={styles['context-menu-item']}
+                  onClick={() => {
+                    console.log('555')
+                    vscode.postMessage({ command: 'copy', text: contextMenu.commit!.message });
+                    setContextMenu(null);
+                  }}
+                >
+                  <i className={`codicon codicon-copy ${styles['context-menu-icon']}`} />
+                  <span>复制提交信息</span>
+                </div>
+                <div
+                  className={styles['context-menu-item']}
+                  onClick={() => {
+                    vscode.postMessage({ command: 'openCommitMultiDiff', hash: contextMenu.commit!.hash });
+                    setContextMenu(null);
+                  }}
+                >
+                  <i className={`codicon codicon-git-compare ${styles['context-menu-icon']}`} />
+                  <span>打开更改</span>
+                </div>
+              </>
             )}
 
-            {contextMenu.listType !== 'history' && contextMenu.listType !== 'compare' && (
-              <div
-                className={styles['context-menu-item']}
-                onClick={() => {
-                  if (contextMenu.listType === 'staged') {
-                    vscode.postMessage({ command: 'unstage', file: contextMenu.file.file });
-                  } else {
-                    vscode.postMessage({
-                      command: 'stage',
-                      file: contextMenu.file.file,
-                      status: contextMenu.file.status,
-                    });
-                  }
-                  setContextMenu(null);
-                }}
-              >
-                <i className={`codicon ${contextMenu.listType === 'staged' ? 'codicon-remove' : 'codicon-plus'} ${styles['context-menu-icon']}`} />
-                <span>{contextMenu.listType === 'staged' ? '取消暂存更改' : '暂存更改'}</span>
-              </div>
+            {/* ==================================
+                右键 [文件] (根据具体区域划分)
+                ================================== */}
+            {contextMenu.type === 'file' && contextMenu.file && (
+              <>
+                {/* 2. 右键 [工作区文件 - unstaged] */}
+                {contextMenu.listType === 'unstaged' && (
+                  <>
+                    <div
+                      className={styles['context-menu-item']}
+                      onClick={() => {
+                        vscode.postMessage({ command: 'diff', file: contextMenu.file!.file, status: contextMenu.file!.status });
+                        setContextMenu(null);
+                      }}
+                    >
+                      <i className={`codicon codicon-git-compare ${styles['context-menu-icon']}`} />
+                      <span>打开更改</span>
+                    </div>
+                    <div
+                      className={styles['context-menu-item']}
+                      onClick={() => {
+                        vscode.postMessage({ command: 'open', file: contextMenu.file!.file });
+                        setContextMenu(null);
+                      }}
+                    >
+                      <i className={`codicon codicon-go-to-file ${styles['context-menu-icon']}`} />
+                      <span>打开文件</span>
+                    </div>
+                    <div
+                      className={styles['context-menu-item']}
+                      onClick={() => {
+                        vscode.postMessage({ command: 'discard', file: contextMenu.file!.file, status: contextMenu.file!.status });
+                        setContextMenu(null);
+                      }}
+                    >
+                      <i className={`codicon codicon-discard ${styles['context-menu-icon']}`} />
+                      <span>放弃更改</span>
+                    </div>
+                    <div
+                      className={styles['context-menu-item']}
+                      onClick={() => {
+                        vscode.postMessage({ command: 'stage', file: contextMenu.file!.file, status: contextMenu.file!.status });
+                        setContextMenu(null);
+                      }}
+                    >
+                      <i className={`codicon codicon-plus ${styles['context-menu-icon']}`} />
+                      <span>暂存更改</span>
+                    </div>
+                    <div className={styles['context-menu-divider']}></div>
+                    <div
+                      className={styles['context-menu-item']}
+                      onClick={() => {
+                        vscode.postMessage({ command: 'ignore', file: contextMenu.file!.file });
+                        setContextMenu(null);
+                      }}
+                    >
+                      <i className={`codicon codicon-eye-closed ${styles['context-menu-icon']}`} />
+                      <span>添加到 .gitignore</span>
+                    </div>
+                    <div
+                      className={styles['context-menu-item']}
+                      onClick={() => {
+                        vscode.postMessage({ command: 'reveal', file: contextMenu.file!.file });
+                        setContextMenu(null);
+                      }}
+                    >
+                      <i className={`codicon codicon-folder-opened ${styles['context-menu-icon']}`} />
+                      <span>在访达/资源管理器中显示</span>
+                    </div>
+                  </>
+                )}
+
+                {/* 3. 右键 [暂存区文件 - staged] */}
+                {contextMenu.listType === 'staged' && (
+                  <>
+                    <div
+                      className={styles['context-menu-item']}
+                      onClick={() => {
+                        vscode.postMessage({ command: 'diff', file: contextMenu.file!.file, status: contextMenu.file!.status });
+                        setContextMenu(null);
+                      }}
+                    >
+                      <i className={`codicon codicon-git-compare ${styles['context-menu-icon']}`} />
+                      <span>打开更改</span>
+                    </div>
+                    <div
+                      className={styles['context-menu-item']}
+                      onClick={() => {
+                        vscode.postMessage({ command: 'open', file: contextMenu.file!.file });
+                        setContextMenu(null);
+                      }}
+                    >
+                      <i className={`codicon codicon-go-to-file ${styles['context-menu-icon']}`} />
+                      <span>打开文件</span>
+                    </div>
+                    <div
+                      className={styles['context-menu-item']}
+                      onClick={() => {
+                        vscode.postMessage({ command: 'unstage', file: contextMenu.file!.file });
+                        setContextMenu(null);
+                      }}
+                    >
+                      <i className={`codicon codicon-remove ${styles['context-menu-icon']}`} />
+                      <span>取消暂存更改</span>
+                    </div>
+                    <div className={styles['context-menu-divider']}></div>
+                    <div
+                      className={styles['context-menu-item']}
+                      onClick={() => {
+                        vscode.postMessage({ command: 'reveal', file: contextMenu.file!.file });
+                        setContextMenu(null);
+                      }}
+                    >
+                      <i className={`codicon codicon-folder-opened ${styles['context-menu-icon']}`} />
+                      <span>在访达/资源管理器中显示</span>
+                    </div>
+                  </>
+                )}
+
+                {/* 4. 右键 [历史提交文件/对比文件 - history / compare] */}
+                {(contextMenu.listType === 'history' || contextMenu.listType === 'compare') && (
+                  <div
+                    className={styles['context-menu-item']}
+                    onClick={() => {
+                      vscode.postMessage({ command: 'open', file: contextMenu.file!.file });
+                      setContextMenu(null);
+                    }}
+                  >
+                    <i className={`codicon codicon-go-to-file ${styles['context-menu-icon']}`} />
+                    <span>打开文件</span>
+                  </div>
+                )}
+              </>
             )}
-
-            <div className={styles['context-menu-divider']}></div>
-
-            <div
-              className={styles['context-menu-item']}
-              onClick={() => {
-                vscode.postMessage({ command: 'ignore', file: contextMenu.file.file });
-                setContextMenu(null);
-              }}
-            >
-              <i className={`codicon codicon-eye-closed ${styles['context-menu-icon']}`} />
-              <span>添加到 .gitignore</span>
-            </div>
-
-            <div
-              className={styles['context-menu-item']}
-              onClick={() => {
-                vscode.postMessage({ command: 'reveal', file: contextMenu.file.file });
-                setContextMenu(null);
-              }}
-            >
-              <i className={`codicon codicon-folder-opened ${styles['context-menu-icon']}`} />
-              <span>在访达/资源管理器中显示</span>
-            </div>
           </div>
         </>
       )}
@@ -1040,27 +1120,20 @@ export default function GitApp() {
                   </button>
                 </Tooltip>
 
-                <Tooltip content={activeFile ? '跨分支对比当前文件' : '跨分支对比文件 (请先打开文件)'}>
+                <Tooltip content="跨分支对比">
                   <button
                     className={styles['action-btn']}
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (!activeFile) {
-                        vscode.postMessage({
-                          command: 'error',
-                          message: '当前没有在编辑器中打开任何文件，无法进行跨分支对比。',
-                        });
-                        return;
-                      }
-                      vscode.postMessage({ command: 'compareFileAcrossBranches', file: activeFile });
+                      vscode.postMessage({ command: 'compareFileAcrossBranches' });
                     }}
                     style={{
-                      opacity: activeFile ? 0.8 : 0.4,
+                      opacity: 0.8,
                       width: '20px',
                       height: '20px',
                       display: 'flex',
                       justifyContent: 'center',
-                      cursor: activeFile ? 'pointer' : 'not-allowed',
+                      cursor: 'pointer',
                     }}
                   >
                     <i className="codicon codicon-git-compare" />
@@ -1106,7 +1179,7 @@ export default function GitApp() {
                       toggleCommit(hash);
                     }
                   }}
-                  renderCommitFiles={(files) => renderFileList(files, compareBase === '文件历史' ? 'history' : 'compare', lastExpandedCommitHash || undefined)}
+                  renderCommitFiles={(files) => renderFileList(files, compareBase === '文件历史' ? 'history' : 'compare', activeCommitHash || undefined)}
                 />
               )}
             </div>
@@ -1247,6 +1320,13 @@ export default function GitApp() {
               isSearchOpen={isGraphSearchOpen}
               setIsSearchOpen={setIsGraphSearchOpen}
               renderCommitFiles={(hash, files) => renderFileList(files, 'history', hash)}
+              onCommitContextMenu={(e, commit) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const safeX = Math.min(e.clientX, window.innerWidth - 180);
+                const safeY = Math.min(e.clientY, window.innerHeight - 100);
+                setContextMenu({ visible: true, x: safeX, y: safeY, type: 'commit', commit });
+              }}
             />
           ))}
       </div>

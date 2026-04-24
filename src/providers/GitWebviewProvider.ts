@@ -698,6 +698,50 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'openCommitMultiDiff': {
+            await this.withViewProgress(async () => {
+              const diffRaw = await git.raw(['diff-tree', '--no-commit-id', '--name-status', '-r', '--root', msg.hash]);
+              const files = diffRaw
+                .split('\n')
+                .filter((line) => line.trim())
+                .map((line) => {
+                  const parts = line.split('\t');
+                  return { status: parts[0].charAt(0), file: parts[parts.length - 1] };
+                });
+
+              let parentOid: string | undefined;
+              try {
+                parentOid = (await git.raw(['rev-parse', `${msg.hash}^1`])).trim();
+              } catch (e) {
+                parentOid = undefined;
+              }
+
+              if (files.length > 0) {
+                const changesArgs = files.map((f) => {
+                  let leftRef = parentOid ? parentOid : 'empty';
+                  let rightRef = msg.hash;
+
+                  if (f.status === 'A') leftRef = 'empty';
+                  if (f.status === 'D') rightRef = 'empty';
+
+                  const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: leftRef }));
+                  const leftUri = vscode.Uri.parse(`quickops-git:///${f.file}?${leftQuery}`);
+
+                  const rightQuery = encodeURIComponent(JSON.stringify({ cwd, ref: rightRef }));
+                  const rightUri = vscode.Uri.parse(`quickops-git:///${f.file}?${rightQuery}`);
+
+                  const fileUri = vscode.Uri.file(path.join(cwd, f.file));
+
+                  return [fileUri, leftUri, rightUri];
+                });
+
+                const title = `Commit: ${msg.hash.substring(0, 7)}`;
+                await vscode.commands.executeCommand('vscode.changes', title, changesArgs);
+              }
+            });
+            break;
+          }
+
           case 'diffBranchFile': {
             // 左侧：1号分支 (Base Branch)
             const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: msg.baseBranch }));
