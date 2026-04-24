@@ -367,7 +367,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       const panel = vscode.window.createWebviewPanel(
         'vditorPreviewReact',
-        `Vditor: ${fileName}`,
+        `${fileName}`,
         vscode.ViewColumn.Active,
         {
           enableScripts: true,
@@ -379,6 +379,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           ]
         }
       );
+
+      panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons','markdown.svg');
 
       const finalImageMap: Record<string, string> = {};
       for (const [rawName, absPath] of Object.entries(imageMap)) {

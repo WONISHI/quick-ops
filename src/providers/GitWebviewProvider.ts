@@ -649,6 +649,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
               // 4. 🌟 动作 B：查询差异文件，并唤起 VS Code 原生多文件对比编辑器
               await this.withViewProgress(async () => {
+                // @ts-ignore
                 const diffRaw = await git.raw(['diff', '--name-status', baseBranch, targetBranch]);
                 const diffFiles = diffRaw
                   .split('\n')
