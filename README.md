@@ -9,9 +9,9 @@
         <img src="https://img.shields.io/github/package-json/v/WONISHI/quick-ops?style=flat-square&label=VS%20Marketplace&color=007ACC&logo=visualstudiocode" alt="Version">
     </a>
     
-    <a href="https://github.com/WONISHI/quick-ops/releases">
-        <img src="https://img.shields.io/github/downloads/WONISHI/quick-ops/total?style=flat-square&label=Installs&color=green&logo=visualstudiocode" alt="Installs">
-    </a>
+   <a href="https://marketplace.visualstudio.com/items?itemName=quick-ops.quick-ops">
+    <img src="https://img.shields.io/visual-studio-marketplace/v/quick-ops.quick-ops?style=flat-square&label=Version&color=007ACC" alt="Version">
+</a>
     <img src="https://img.shields.io/badge/License-MIT-orange.svg?style=flat-square" alt="License">
 </p>
 
