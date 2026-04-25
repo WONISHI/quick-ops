@@ -23,7 +23,6 @@ import {
   faArrowLeft,
   faArrowUp,
   faArrowDown,
-  faTimes,
   faFileLines,
   faFolderTree
 } from '@fortawesome/free-solid-svg-icons';
@@ -167,7 +166,6 @@ export default function RecentProjectsApp() {
   const [searchTargetProject, setSearchTargetProject] = useState<ContextMenuPayload | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
   
-  // 🌟 新增：搜索类型状态 ('content' 为搜文件内容，'name' 为搜文件/文件夹名)
   const [folderSearchType, setFolderSearchType] = useState<'content' | 'name'>('content');
   const [fileNameSearchResults, setFileNameSearchResults] = useState<DirChild[]>([]);
 
@@ -241,7 +239,6 @@ export default function RecentProjectsApp() {
           setFolderSearchResults((msg.results as SearchResult[]) || []);
           setCurrentActiveMatch(0);
         }
-      // 🌟 新增：处理按名称检索文件的返回结果
       } else if (msg.type === 'searchFileNameResult') {
         setIsSearchingFolder(false);
         if (msg.error) {
@@ -268,7 +265,6 @@ export default function RecentProjectsApp() {
     };
   }, []);
 
-  // 🌟 双模式防抖搜索逻辑
   useEffect(() => {
     if (!isSearchMode || !searchTargetProject) return;
 
@@ -283,7 +279,6 @@ export default function RecentProjectsApp() {
     const timeoutId = setTimeout(() => {
       setIsSearchingFolder(true);
       if (folderSearchType === 'content') {
-        // 原有逻辑：内容检索
         vscode.postMessage({ 
           type: 'searchInFolder', 
           fsPath: searchTargetProject.path, 
@@ -291,7 +286,6 @@ export default function RecentProjectsApp() {
           isRemote: searchTargetProject.isRemote 
         });
       } else {
-        // 新增逻辑：文件名/文件夹检索
         vscode.postMessage({ 
           type: 'searchFileName', 
           fsPath: searchTargetProject.path, 
@@ -537,12 +531,13 @@ export default function RecentProjectsApp() {
                       <FontAwesomeIcon icon={faArrowUpRightFromSquare} className={styles['menu-icon']} /> 在新窗口打开
                     </li>
                     <div className={styles['menu-separator']}></div>
-                    <li onClick={() => executeMenuAction('searchInFolder')}>
-                      <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
-                    </li>
-                    <div className={styles['menu-separator']}></div>
                   </>
                 )}
+
+                <li onClick={() => executeMenuAction('searchInFolder')}>
+                  <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
+                </li>
+                <div className={styles['menu-separator']}></div>
 
                 <li onClick={() => executeMenuAction('edit')}>
                   <FontAwesomeIcon icon={faPen} className={styles['menu-icon']} /> 编辑项目名称
@@ -613,18 +608,16 @@ export default function RecentProjectsApp() {
                     <div className={styles['menu-separator']}></div>
                   </>
                 )}
+                
                 {contextMenu.payload.isFolder && (
                   <>
-                    {!contextMenu.payload.isActiveProject && (
-                      <>
-                        <li onClick={() => executeMenuAction('searchInFolder')}>
-                          <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
-                        </li>
-                        <div className={styles['menu-separator']}></div>
-                      </>
-                    )}
+                    <li onClick={() => executeMenuAction('searchInFolder')}>
+                      <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
+                    </li>
+                    <div className={styles['menu-separator']}></div>
                   </>
                 )}
+
                 <li onClick={() => executeMenuAction('copyText', contextMenu.payload.name)}>
                   <FontAwesomeIcon icon={faClone} className={styles['menu-icon']} /> 复制名称
                 </li>
@@ -672,7 +665,6 @@ export default function RecentProjectsApp() {
                 </span>
               </div>
 
-              {/* 内容检索模式下的上下导航按钮 */}
               {folderSearchType === 'content' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                   <button className={styles['action-btn-icon']} style={{ padding: '2px 4px' }} onClick={handlePrevSearchMatch} disabled={totalMatches === 0} title="上一个匹配项">
@@ -687,13 +679,11 @@ export default function RecentProjectsApp() {
             </div>
 
             <div className={styles['search-box']} style={{ padding: '2px 4px', display: 'flex', alignItems: 'center' }}>
-              {/* 🌟 核心修改点：加入切换双模式的图标 */}
               <FontAwesomeIcon 
                  icon={folderSearchType === 'content' ? faFileLines : faFolderTree} 
                  onClick={() => {
                    const newType = folderSearchType === 'content' ? 'name' : 'content';
                    setFolderSearchType(newType);
-                   // 点击切换时：清空输入框，同时清空所有检索结果
                    setFolderSearchQuery('');
                    setFolderSearchResults([]);
                    setFileNameSearchResults([]);
@@ -716,7 +706,6 @@ export default function RecentProjectsApp() {
                 }}
               />
               
-              {/* 内容检索模式下的数量计数器 (放到输入框内部最右侧) */}
               {folderSearchType === 'content' && (
                 <span style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', minWidth: '40px', textAlign: 'center', paddingRight: '4px', flexShrink: 0 }}>
                   {totalMatches > 0 ? currentActiveMatch + 1 : 0} / {totalMatches}
@@ -733,7 +722,6 @@ export default function RecentProjectsApp() {
             ) : folderSearchError ? (
               <div style={{ color: 'var(--vscode-errorForeground)', fontSize: '12px', padding: '10px', textAlign: 'center' }}>{folderSearchError}</div>
             ) : folderSearchType === 'content' ? (
-              // ---------------- [内容检索结果渲染] ----------------
               folderSearchResults.length === 0 && folderSearchQuery ? (
                 <div style={{ textAlign: 'center', opacity: 0.6, fontSize: '12px', padding: '20px' }}>没有找到符合条件的代码内容</div>
               ) : (
@@ -804,13 +792,11 @@ export default function RecentProjectsApp() {
                 </ul>
               )
             ) : (
-              // ---------------- 🌟 [名称检索结果渲染] ----------------
               fileNameSearchResults.length === 0 && folderSearchQuery ? (
                 <div style={{ textAlign: 'center', opacity: 0.6, fontSize: '12px', padding: '20px' }}>没有找到匹配的文件或文件夹</div>
               ) : (
                 <ul>
                   {fileNameSearchResults.map((child, idx) => {
-                    // 使用唯一标识
                     const childId = `name_search_${idx}_${child.path}`;
                     const isExpanded = expandedNodes.has(childId);
                     const isRemote = child.path.startsWith('vscode-vfs') || child.path.startsWith('http');
@@ -829,11 +815,9 @@ export default function RecentProjectsApp() {
                             </div>
                             <FontAwesomeIcon icon={faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']}`} />
                             <span className={styles['sub-name']}>
-                              {/* 使用 HighlightText 组件对文件夹名称的关键字进行橙色背景高亮 */}
                               <HighlightText text={child.name} query={folderSearchQuery} globalStartIndex={-2} currentActiveMatch={-1} isLineActive={false} />
                             </span>
                           </div>
-                          {/* 如果点击展开，复用原有的 renderTreeChildren 加载并渲染目录内容 */}
                           {isExpanded && (
                             <div className={styles['tree-children']} style={{ paddingLeft: '8px' }}>
                               {renderTreeChildren(childId, targetProjName, searchTargetProject.isActiveProject)}
@@ -852,7 +836,6 @@ export default function RecentProjectsApp() {
                             <div className={styles['chevron-placeholder']}></div>
                             <FileIcon fileName={child.name} className={styles['sub-icon']} />
                             <span className={styles['sub-name']}>
-                              {/* 对文件名称的关键字进行高亮 */}
                               <HighlightText text={child.name} query={folderSearchQuery} globalStartIndex={-2} currentActiveMatch={-1} isLineActive={false} />
                             </span>
                           </div>
