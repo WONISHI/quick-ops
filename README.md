@@ -11,7 +11,7 @@
     
    <a href="https://marketplace.visualstudio.com/items?itemName=quick-ops.quick-ops">
     <img src="https://img.shields.io/visual-studio-marketplace/v/quick-ops.quick-ops?style=flat-square&label=Version&color=007ACC" alt="Version">
-</a>
+    </a>
     <img src="https://img.shields.io/badge/License-MIT-orange.svg?style=flat-square" alt="License">
 </p>
 
