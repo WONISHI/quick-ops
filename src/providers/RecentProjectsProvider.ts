@@ -250,7 +250,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           }
           break;
         }
-        
+
+        case 'searchFileName':
+          this.handleSearchFileName(data.fsPath, data.query, data.isRemote);
+          break;
+
         case 'openFileAtLine': {
           try {
             let fileUri: vscode.Uri;
@@ -282,6 +286,64 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  private async handleSearchFileName(fsPath: string, query: string, isRemote: boolean) {
+    if (isRemote) {
+      this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [], error: '远程仓库暂不支持名称检索。' });
+      return;
+    }
+
+    const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+    const nativePath = uri.fsPath;
+
+    if (!query.trim() || !fs.existsSync(nativePath)) {
+      this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [] });
+      return;
+    }
+
+    const results: any[] = [];
+    const maxResults = 200; // 限制最大数量防止卡死
+    let currentResults = 0;
+
+    const IGNORE_DIRS = new Set(['node_modules', 'dist', 'build', '.git', '.svn', '.vscode', '.idea']);
+
+    const searchRecursive = async (dir: string) => {
+      if (currentResults >= maxResults) return;
+      try {
+        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (currentResults >= maxResults) break;
+          if (IGNORE_DIRS.has(entry.name) || entry.name === '.DS_Store') continue;
+
+          const fullPath = path.join(dir, entry.name);
+          const relativePath = path.relative(nativePath, fullPath).replace(/\\/g, '/');
+
+          // 如果文件名/文件夹名包含关键字
+          if (entry.name.toLowerCase().includes(query.toLowerCase())) {
+            results.push({
+              path: vscode.Uri.file(fullPath).toString(),
+              name: relativePath, // 返回相对路径以便于前端清晰展示位置
+              isFolder: entry.isDirectory()
+            });
+            currentResults++;
+          }
+
+          if (entry.isDirectory()) {
+            await searchRecursive(fullPath);
+          }
+        }
+      } catch (e) { }
+    };
+
+    await vscode.window.withProgress({
+      location: vscode.ProgressLocation.Window,
+      title: 'Quick Ops: 正在按名称检索...'
+    }, async () => {
+      await searchRecursive(nativePath);
+    });
+
+    this._view?.webview.postMessage({ type: 'searchFileNameResult', results });
+  }
+
   // ================= 🌟 Vditor 独立 Webview 与本地图片解析逻辑 =================
   private async openVditorPanel(fsPath: string, type: 'read' | 'edit') {
     try {
@@ -293,20 +355,20 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       const mdDir = path.dirname(uri.fsPath);
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-      
+
       const imageMap: Record<string, string> = {};
-      
+
       const wikiRegex = /!\[\[(.*?)\]\]/g;
       const mdRegex = /!\[.*?\]\((.*?)\)/g;
-      
+
       const foundNames = new Set<string>();
       let match;
-      
+
       while ((match = wikiRegex.exec(content)) !== null) { foundNames.add(match[1].trim()); }
-      while ((match = mdRegex.exec(content)) !== null) { 
+      while ((match = mdRegex.exec(content)) !== null) {
         const p = match[1].trim();
         if (p.includes('Pasted image')) {
-            foundNames.add(p);
+          foundNames.add(p);
         }
       }
 
@@ -314,7 +376,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         let decodedName = exactName;
         try {
           decodedName = decodeURIComponent(exactName);
-        } catch (e) {}
+        } catch (e) { }
 
         const searchDirs: string[] = [];
 
@@ -350,10 +412,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           try {
             const files = fs.readdirSync(dir);
             const matchedFile = files.find(file => file === decodedName || file === exactName);
-            
+
             if (matchedFile) {
               foundPath = path.join(dir, matchedFile);
-              break; 
+              break;
             }
           } catch (e) {
             // 忽略读取错误
@@ -374,13 +436,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           retainContextWhenHidden: true,
           localResourceRoots: [
             this.context.extensionUri,
-            vscode.Uri.file(mdDir), 
+            vscode.Uri.file(mdDir),
             ...(workspaceRoot ? [vscode.Uri.file(workspaceRoot)] : [])
           ]
         }
       );
 
-      panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons','markdown.svg');
+      panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'markdown.svg');
 
       const finalImageMap: Record<string, string> = {};
       for (const [rawName, absPath] of Object.entries(imageMap)) {
@@ -464,7 +526,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
             try {
               const stat = await fs.promises.stat(fullPath);
-              if (stat.size > 2 * 1024 * 1024) continue; 
+              if (stat.size > 2 * 1024 * 1024) continue;
             } catch (e) { continue; }
 
             const fileMatches = [];
