@@ -86,6 +86,9 @@ export default function GitApp() {
 
   const [stagedFiles, setStagedFiles] = useState<GitFile[]>([]);
   const [unstagedFiles, setUnstagedFiles] = useState<GitFile[]>([]);
+  // 🌟 新增：维护冲突文件的数据源
+  const [conflictedFiles, setConflictedFiles] = useState<GitFile[]>([]);
+
   const [branch, setBranch] = useState('');
   const [commitMsg, setCommitMsg] = useState('');
   const [loading, setLoading] = useState(false);
@@ -127,10 +130,10 @@ export default function GitApp() {
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
-
-  const [stashes, setStashes] = useState<any[]>([]); 
-  const [showStashInput, setShowStashInput] = useState(false);
-  const [stashInputMsg, setStashInputMsg] = useState('');
+  const [stashes, setStashes] = useState<any[]>([]);
+  const [expandedStashIndex, setExpandedStashIndex] = useState<number | null>(null);
+  const [stashFilesMap, setStashFilesMap] = useState<Record<number, GitFile[]>>({});
+  const [stashFilesLoading, setStashFilesLoading] = useState<Record<number, boolean>>({});
 
   const lastRefreshRef = useRef<number>(0);
   const commitInputRef = useRef<HTMLDivElement>(null);
@@ -151,6 +154,7 @@ export default function GitApp() {
         setBranch(msg.type === 'noWorkspace' ? '无工作区' : '未初始化');
         setStagedFiles([]);
         setUnstagedFiles([]);
+        setConflictedFiles([]); // 🌟 重置
         setGraphCommits([]);
         setCompareCommits([]);
         setExpandedCommitHashes([]);
@@ -158,18 +162,26 @@ export default function GitApp() {
         setCommitFilesLoadingMap({});
         setCommitParentHashMap({});
         setActiveCommitHash(null);
-        setStashes([]); // 🌟 重置
+        setStashes([]);
+        setStashFilesMap({});
+        setStashFilesLoading({});
+        setExpandedStashIndex(null);
       } else if (msg.type === 'statusData') {
         setIsRepo(true);
         setStagedFiles(msg.stagedFiles || []);
         setUnstagedFiles(msg.unstagedFiles || []);
+        setConflictedFiles(msg.conflictedFiles || []); // 🌟 接收冲突区数据
         setBranch(msg.branch || '');
         setRemoteUrl(msg.remoteUrl || '');
         setFolderName(msg.folderName || '');
-        if (msg.stashes) setStashes(msg.stashes); // 🌟 接收贮藏数据
+        if (msg.stashes) setStashes(msg.stashes);
         setLoading(false);
       } else if (msg.type === 'stashData') {
         setStashes(msg.stashes || []);
+      } else if (msg.type === 'stashFilesData') {
+        setStashFilesMap((prev) => ({ ...prev, [msg.index]: msg.files || [] }));
+        setStashFilesLoading((prev) => ({ ...prev, [msg.index]: false }));
+        setCommitParentHashMap((prev) => ({ ...prev, [msg.hash]: msg.parentHash }));
       } else if (msg.type === 'graphData') {
         const commits = msg.graphCommits || [];
         setGraphCommits(commits);
@@ -338,6 +350,7 @@ export default function GitApp() {
     if (status.includes('M')) return 'M';
     if (status.includes('D')) return 'D';
     if (status.includes('A')) return 'A';
+    if (status.includes('C')) return 'C'; // 🌟 支持冲突提示
     return 'U';
   };
 
@@ -487,7 +500,12 @@ export default function GitApp() {
             )}
           </div>
 
-          <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`}>{getStatusText(item.status)}</div>
+          <div 
+            className={`${styles['status-badge']} ${getStatusClass(item.status)}`}
+            style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}
+          >
+            {getStatusText(item.status)}
+          </div>
         </li>
       );
     });
@@ -566,7 +584,13 @@ export default function GitApp() {
                 )}
               </div>
 
-              <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`}>{getStatusText(item.status)}</div>
+              {/* 🌟 同样加上冲突红色高亮 */}
+              <div 
+                className={`${styles['status-badge']} ${getStatusClass(item.status)}`}
+                style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}
+              >
+                {getStatusText(item.status)}
+              </div>
             </li>
           );
         })}
@@ -726,7 +750,7 @@ export default function GitApp() {
           <div className={styles['changes-header']} onClick={() => setIsChangesOpen(!isChangesOpen)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <i className={`codicon ${isChangesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
-              更改 <span className={styles['badge']}>{stagedFiles.length + unstagedFiles.length}</span>
+              更改 <span className={styles['badge']}>{stagedFiles.length + unstagedFiles.length + conflictedFiles.length}</span>
             </div>
 
             {isRepo && (
@@ -765,6 +789,8 @@ export default function GitApp() {
 
           {isChangesOpen && (
             <div style={{ maxHeight: '30vh', overflowY: 'auto', paddingBottom: '4px' }}>
+              
+              {/* 1. 暂存区 */}
               {stagedFiles.length > 0 && (
                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                   <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -787,11 +813,11 @@ export default function GitApp() {
                       </Tooltip>
                     </div>
                   </div>
-
                   {renderFileList(stagedFiles, 'staged')}
                 </div>
               )}
 
+              {/* 2. 工作区 */}
               <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
                 <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -800,14 +826,13 @@ export default function GitApp() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                    {/* 🌟 贮藏按钮 */}
-                    {(unstagedFiles.length > 0 || stagedFiles.length > 0) && (
+                    {(unstagedFiles.length > 0 || stagedFiles.length > 0 || conflictedFiles.length > 0) && (
                       <Tooltip content="贮藏更改 (Stash)">
                         <button
                           className={styles['action-btn']}
                           onClick={(e) => {
                             e.stopPropagation();
-                            setShowStashInput(!showStashInput);
+                            vscode.postMessage({ command: 'stash' });
                           }}
                           style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
                         >
@@ -824,11 +849,7 @@ export default function GitApp() {
                             onClick={(e) => {
                               e.stopPropagation();
                               if (unstagedFiles.length === 1) {
-                                vscode.postMessage({
-                                  command: 'discard',
-                                  file: unstagedFiles[0].file,
-                                  status: unstagedFiles[0].status,
-                                });
+                                vscode.postMessage({ command: 'discard', file: unstagedFiles[0].file, status: unstagedFiles[0].status });
                               } else {
                                 vscode.postMessage({ command: 'discardAll', count: unstagedFiles.length });
                               }
@@ -856,50 +877,32 @@ export default function GitApp() {
                   </div>
                 </div>
 
-                {/* 🌟 贮藏输入框 */}
-                {showStashInput && (
-                  <div style={{ padding: '4px 12px 8px 12px', display: 'flex' }}>
-                    <input
-                      type="text"
-                      value={stashInputMsg}
-                      onChange={(e) => setStashInputMsg(e.target.value)}
-                      placeholder="输入贮藏备注 (Enter 确认, Esc 取消)"
-                      autoFocus
-                      style={{
-                        flex: 1,
-                        backgroundColor: 'var(--vscode-input-background)',
-                        color: 'var(--vscode-input-foreground)',
-                        border: '1px solid var(--vscode-input-border)',
-                        padding: '4px 6px',
-                        borderRadius: '2px',
-                        fontSize: '12px',
-                        outline: 'none'
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          vscode.postMessage({ command: 'stash', message: stashInputMsg });
-                          setShowStashInput(false);
-                          setStashInputMsg('');
-                        } else if (e.key === 'Escape') {
-                          setShowStashInput(false);
-                          setStashInputMsg('');
-                        }
-                      }}
-                    />
-                  </div>
-                )}
-
-                {unstagedFiles.length === 0 && stagedFiles.length === 0 ? (
+                {unstagedFiles.length === 0 && stagedFiles.length === 0 && conflictedFiles.length === 0 ? (
                   <div className={styles['empty-message']}>{!isRepo ? '在此打开项目或进行克隆' : '没有需要提交的更改'}</div>
                 ) : (
                   renderFileList(unstagedFiles, 'unstaged')
                 )}
               </div>
+
+              {/* 🌟🌟🌟 3. 冲突区 (放在工作区下方) 🌟🌟🌟 */}
+              {conflictedFiles.length > 0 && (
+                <div className={styles['changes-section']} style={{ marginLeft: '12px', marginTop: '8px' }}>
+                  <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--vscode-errorForeground, #f14c4c)' }}>
+                      <i className="codicon codicon-warning" style={{ fontSize: '14px', width: '16px' }} />
+                      冲突区 <span className={styles['badge']} style={{ backgroundColor: 'var(--vscode-errorForeground, #f14c4c)', color: '#fff', border: 'none' }}>{conflictedFiles.length}</span>
+                    </div>
+                  </div>
+                  {/* 复用 unstaged，可点击 + 号标记为已解决 */}
+                  {renderFileList(conflictedFiles, 'unstaged')}
+                </div>
+              )}
+
             </div>
           )}
         </div>
 
-        {/* 🌟 贮藏折叠面板 */}
+        {/* 🌟 贮藏 (Stashes) 面板 */}
         <div className={styles['changes-section']} style={{ marginTop: '8px' }}>
           <div className={styles['changes-header']} onClick={() => setIsStashesOpen(!isStashesOpen)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
@@ -915,31 +918,68 @@ export default function GitApp() {
                 <div className={styles['empty-message']}>没有贮藏记录</div>
               ) : (
                 <ul className={styles['file-list']}>
-                  {stashes.map((stash, idx) => (
-                    <li key={idx} className={styles['file-item']} title={stash.message} style={{ paddingLeft: '24px' }}>
-                      <i className="codicon codicon-archive" style={{ marginRight: '6px', color: 'var(--vscode-icon-foreground)' }} />
-                      <div className={styles['file-name']}>{stash.message}</div>
-                      <div style={{ flex: 1 }}></div>
+                  {stashes.map((stash, idx) => {
+                    const isExpanded = expandedStashIndex === stash.index;
+                    const isLoading = stashFilesLoading[stash.index];
+                    const files = stashFilesMap[stash.index] || [];
 
-                      <div className={styles['file-actions']}>
-                        <Tooltip content="应用贮藏 (Apply)">
-                          <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashApply', index: stash.index }); }}>
-                            <i className="codicon codicon-fold-down" />
-                          </button>
-                        </Tooltip>
-                        <Tooltip content="弹出贮藏 (Pop)">
-                          <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashPop', index: stash.index }); }}>
-                            <i className="codicon codicon-arrow-up" />
-                          </button>
-                        </Tooltip>
-                        <Tooltip content="丢弃贮藏 (Drop)">
-                          <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashDrop', index: stash.index }); }}>
-                            <i className="codicon codicon-trash" />
-                          </button>
-                        </Tooltip>
-                      </div>
-                    </li>
-                  ))}
+                    return (
+                      <React.Fragment key={idx}>
+                        <li 
+                          className={`${styles['file-item']} ${isExpanded ? styles['active'] : ''}`} 
+                          title={stash.message} 
+                          style={{ paddingLeft: '12px', cursor: 'pointer' }}
+                          onClick={() => {
+                            if (isExpanded) {
+                              setExpandedStashIndex(null);
+                            } else {
+                              setExpandedStashIndex(stash.index);
+                              if (!stashFilesMap[stash.index]) {
+                                setStashFilesLoading(prev => ({ ...prev, [stash.index]: true }));
+                                vscode.postMessage({ command: 'getStashFiles', index: stash.index });
+                              }
+                            }
+                          }}
+                        >
+                          <i className={`codicon ${isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px', opacity: 0.8, marginRight: '2px' }} />
+                          <i className="codicon codicon-archive" style={{ marginRight: '6px', color: 'var(--vscode-icon-foreground)' }} />
+                          <div className={styles['file-name']}>{stash.message}</div>
+                          <div style={{ flex: 1 }}></div>
+
+                          <div className={styles['file-actions']}>
+                            <Tooltip content="应用贮藏并保留 (Apply)">
+                              <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashApply', index: stash.index }); }}>
+                                <i className="codicon codicon-fold-down" />
+                              </button>
+                            </Tooltip>
+                            <Tooltip content="应用并删除贮藏 (Pop)">
+                              <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashPop', index: stash.index }); }}>
+                                <i className="codicon codicon-arrow-up" />
+                              </button>
+                            </Tooltip>
+                            <Tooltip content="删除此贮藏 (Drop)">
+                              <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashDrop', index: stash.index }); }}>
+                                <i className="codicon codicon-trash" />
+                              </button>
+                            </Tooltip>
+                          </div>
+                        </li>
+
+                        {isExpanded && (
+                          <div style={{ backgroundColor: 'var(--vscode-sideBar-dropBackground)', paddingBottom: '4px' }}>
+                            {isLoading ? (
+                              <div style={{ height: '32px', display: 'flex', alignItems: 'center', opacity: 0.6, fontSize: '11px', padding: '0 24px' }}>
+                                <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} />
+                                加载变动文件...
+                              </div>
+                            ) : (
+                              renderFileList(files, 'history', `stash@{${stash.index}}`)
+                            )}
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </ul>
               )}
             </div>
