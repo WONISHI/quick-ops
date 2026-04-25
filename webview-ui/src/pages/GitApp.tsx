@@ -86,7 +86,6 @@ export default function GitApp() {
 
   const [stagedFiles, setStagedFiles] = useState<GitFile[]>([]);
   const [unstagedFiles, setUnstagedFiles] = useState<GitFile[]>([]);
-  // 🌟 新增：维护冲突文件的数据源
   const [conflictedFiles, setConflictedFiles] = useState<GitFile[]>([]);
 
   const [branch, setBranch] = useState('');
@@ -154,7 +153,7 @@ export default function GitApp() {
         setBranch(msg.type === 'noWorkspace' ? '无工作区' : '未初始化');
         setStagedFiles([]);
         setUnstagedFiles([]);
-        setConflictedFiles([]); // 🌟 重置
+        setConflictedFiles([]);
         setGraphCommits([]);
         setCompareCommits([]);
         setExpandedCommitHashes([]);
@@ -170,7 +169,7 @@ export default function GitApp() {
         setIsRepo(true);
         setStagedFiles(msg.stagedFiles || []);
         setUnstagedFiles(msg.unstagedFiles || []);
-        setConflictedFiles(msg.conflictedFiles || []); // 🌟 接收冲突区数据
+        setConflictedFiles(msg.conflictedFiles || []);
         setBranch(msg.branch || '');
         setRemoteUrl(msg.remoteUrl || '');
         setFolderName(msg.folderName || '');
@@ -198,20 +197,9 @@ export default function GitApp() {
 
         setIsGraphLoading(false);
       } else if (msg.type === 'commitFilesData') {
-        setCommitFilesMap((prev) => ({
-          ...prev,
-          [msg.hash]: msg.files || [],
-        }));
-
-        setCommitParentHashMap((prev) => ({
-          ...prev,
-          [msg.hash]: msg.parentHash,
-        }));
-
-        setCommitFilesLoadingMap((prev) => ({
-          ...prev,
-          [msg.hash]: false,
-        }));
+        setCommitFilesMap((prev) => ({ ...prev, [msg.hash]: msg.files || [] }));
+        setCommitParentHashMap((prev) => ({ ...prev, [msg.hash]: msg.parentHash }));
+        setCommitFilesLoadingMap((prev) => ({ ...prev, [msg.hash]: false }));
       } else if (msg.type === 'activeEditorChanged') {
         setActiveFile(msg.file);
 
@@ -350,7 +338,7 @@ export default function GitApp() {
     if (status.includes('M')) return 'M';
     if (status.includes('D')) return 'D';
     if (status.includes('A')) return 'A';
-    if (status.includes('C')) return 'C'; // 🌟 支持冲突提示
+    if (status.includes('C')) return 'C';
     return 'U';
   };
 
@@ -417,7 +405,8 @@ export default function GitApp() {
     });
   };
 
-  const renderTreeNodes = (nodes: TreeNode[], listType: 'staged' | 'unstaged' | 'history' | 'compare', depth = 0, historyHash?: string): React.ReactNode => {
+  // 🌟 修改点 1: 在渲染节点的地方拦截 stash-file 类型，直接发送 open 命令
+  const renderTreeNodes = (nodes: TreeNode[], listType: 'staged' | 'unstaged' | 'history' | 'compare' | 'stash-file', depth = 0, historyHash?: string): React.ReactNode => {
     return nodes.map((node) => {
       if (node.isDirectory) {
         const isOpen = expandedDirs[node.fullPath] !== false;
@@ -452,6 +441,9 @@ export default function GitApp() {
               openHistoryDiff(item, historyHash);
             } else if (listType === 'compare') {
               openCompareDiff(item);
+            } else if (listType === 'stash-file') {
+              // 🌟 贮藏文件直接打开
+              vscode.postMessage({ command: 'open', file: item.file });
             } else {
               vscode.postMessage({ command: 'diff', file: item.file, status: item.status });
             }
@@ -459,7 +451,7 @@ export default function GitApp() {
           onContextMenu={(e) => {
             e.preventDefault();
             setActiveFile(item.file);
-            setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'file', file: item, listType });
+            setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'file', file: item, listType: listType as any });
           }}
         >
           {getFileIcon(fileName || '')}
@@ -481,7 +473,7 @@ export default function GitApp() {
               </Tooltip>
             )}
 
-            {listType !== 'history' && listType !== 'compare' && (
+            {listType !== 'history' && listType !== 'compare' && listType !== 'stash-file' && (
               <>
                 {listType === 'staged' ? (
                   <Tooltip content="取消暂存更改">
@@ -511,7 +503,7 @@ export default function GitApp() {
     });
   };
 
-  const renderFileList = (files: GitFile[], listType: 'staged' | 'unstaged' | 'history' | 'compare', historyHash?: string) => {
+  const renderFileList = (files: GitFile[], listType: 'staged' | 'unstaged' | 'history' | 'compare' | 'stash-file', historyHash?: string) => {
     if (viewMode === 'tree') {
       const treeNodes = buildTree(files);
       return <ul className={styles['file-list']}>{renderTreeNodes(treeNodes, listType, 0, historyHash)}</ul>;
@@ -535,6 +527,9 @@ export default function GitApp() {
                   openHistoryDiff(item, historyHash);
                 } else if (listType === 'compare') {
                   openCompareDiff(item);
+                } else if (listType === 'stash-file') {
+                  // 🌟 贮藏文件直接打开
+                  vscode.postMessage({ command: 'open', file: item.file });
                 } else {
                   vscode.postMessage({ command: 'diff', file: item.file, status: item.status });
                 }
@@ -542,7 +537,7 @@ export default function GitApp() {
               onContextMenu={(e) => {
                 e.preventDefault();
                 setActiveFile(item.file);
-                setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'file', file: item, listType });
+                setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'file', file: item, listType: listType as any });
               }}
             >
               {getFileIcon(fileName || '')}
@@ -565,7 +560,7 @@ export default function GitApp() {
                   </Tooltip>
                 )}
 
-                {listType !== 'history' && listType !== 'compare' && (
+                {listType !== 'history' && listType !== 'compare' && listType !== 'stash-file' && (
                   <>
                     {listType === 'staged' ? (
                       <Tooltip content="取消暂存更改">
@@ -584,7 +579,6 @@ export default function GitApp() {
                 )}
               </div>
 
-              {/* 🌟 同样加上冲突红色高亮 */}
               <div 
                 className={`${styles['status-badge']} ${getStatusClass(item.status)}`}
                 style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}
@@ -884,7 +878,7 @@ export default function GitApp() {
                 )}
               </div>
 
-              {/* 🌟🌟🌟 3. 冲突区 (放在工作区下方) 🌟🌟🌟 */}
+              {/* 3. 冲突区 */}
               {conflictedFiles.length > 0 && (
                 <div className={styles['changes-section']} style={{ marginLeft: '12px', marginTop: '8px' }}>
                   <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -893,7 +887,6 @@ export default function GitApp() {
                       冲突区 <span className={styles['badge']} style={{ backgroundColor: 'var(--vscode-errorForeground, #f14c4c)', color: '#fff', border: 'none' }}>{conflictedFiles.length}</span>
                     </div>
                   </div>
-                  {/* 复用 unstaged，可点击 + 号标记为已解决 */}
                   {renderFileList(conflictedFiles, 'unstaged')}
                 </div>
               )}
@@ -926,7 +919,8 @@ export default function GitApp() {
                     return (
                       <React.Fragment key={idx}>
                         <li 
-                          className={`${styles['file-item']} ${isExpanded ? styles['active'] : ''}`} 
+                          // 🌟 修改点 2: 移除了 isExpanded 时的 active 高亮背景，仅保留点击功能
+                          className={styles['file-item']} 
                           title={stash.message} 
                           style={{ paddingLeft: '12px', cursor: 'pointer' }}
                           onClick={() => {
@@ -949,12 +943,14 @@ export default function GitApp() {
                           <div className={styles['file-actions']}>
                             <Tooltip content="应用贮藏并保留 (Apply)">
                               <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashApply', index: stash.index }); }}>
-                                <i className="codicon codicon-fold-down" />
+                                {/* 🌟 修改点 3: 替换成了 git-stash-apply 图标 */}
+                                <i className="codicon codicon-git-stash-apply" />
                               </button>
                             </Tooltip>
                             <Tooltip content="应用并删除贮藏 (Pop)">
                               <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashPop', index: stash.index }); }}>
-                                <i className="codicon codicon-arrow-up" />
+                                {/* 🌟 修改点 3: 替换成了 git-stash-pop 图标 */}
+                                <i className="codicon codicon-git-stash-pop" />
                               </button>
                             </Tooltip>
                             <Tooltip content="删除此贮藏 (Drop)">
@@ -965,15 +961,19 @@ export default function GitApp() {
                           </div>
                         </li>
 
+                        {/* 🌟 修改点 4: 去掉深色背景，增加 paddingLeft 制造显著的间距缩进 */}
                         {isExpanded && (
-                          <div style={{ backgroundColor: 'var(--vscode-sideBar-dropBackground)', paddingBottom: '4px' }}>
+                          <div style={{ paddingBottom: '4px' }}>
                             {isLoading ? (
                               <div style={{ height: '32px', display: 'flex', alignItems: 'center', opacity: 0.6, fontSize: '11px', padding: '0 24px' }}>
                                 <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} />
                                 加载变动文件...
                               </div>
                             ) : (
-                              renderFileList(files, 'history', `stash@{${stash.index}}`)
+                              // 🌟 修改点 5: 用 div 包裹，给 18px 左间距，并且传入 stash-file 类型
+                              <div style={{ paddingLeft: '18px' }}>
+                                {renderFileList(files, 'stash-file', `stash@{${stash.index}}`)}
+                              </div>
                             )}
                           </div>
                         )}
