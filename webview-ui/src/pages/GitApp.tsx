@@ -3,9 +3,6 @@ import { vscode } from '../utils/vscode';
 import styles from '../assets/css/GitApp.module.css';
 
 import '@vscode/codicons/dist/codicon.css';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faImage, faCode, faFile } from '@fortawesome/free-solid-svg-icons';
-import { faMarkdown, faHtml5, faCss3Alt, faVuejs, faJs } from '@fortawesome/free-brands-svg-icons';
 
 import Tooltip from '../components/Tooltip';
 import GitGraph, { type GraphCommit } from '../components/GitGraph';
@@ -13,6 +10,7 @@ import GitCompareList from '../components/GitCompareList';
 import type { GitFile } from '../types/GitApp';
 
 import { GitContextMenu, type ContextMenuState } from '../components/GitContextMenu';
+import FileIcon from '../components/FileIcon';
 
 interface TreeNode {
   name: string;
@@ -342,37 +340,6 @@ export default function GitApp() {
     return 'U';
   };
 
-  const getFileIcon = (fileName: string) => {
-    const ext = fileName.split('.').pop()?.toLowerCase();
-
-    switch (ext) {
-      case 'ts':
-      case 'tsx':
-        return <FontAwesomeIcon icon={faJs} className={styles['file-icon']} style={{ color: '#3178c6', marginRight: '6px' }} />;
-      case 'js':
-      case 'jsx':
-        return <FontAwesomeIcon icon={faJs} className={styles['file-icon']} style={{ color: '#f1e05a', marginRight: '6px' }} />;
-      case 'vue':
-        return <FontAwesomeIcon icon={faVuejs} className={styles['file-icon']} style={{ color: '#41b883', marginRight: '6px' }} />;
-      case 'css':
-      case 'less':
-      case 'scss':
-        return <FontAwesomeIcon icon={faCss3Alt} className={styles['file-icon']} style={{ color: '#264de4', marginRight: '6px' }} />;
-      case 'html':
-        return <FontAwesomeIcon icon={faHtml5} className={styles['file-icon']} style={{ color: '#e34c26', marginRight: '6px' }} />;
-      case 'json':
-        return <FontAwesomeIcon icon={faCode} className={styles['file-icon']} style={{ color: '#cbcb41', marginRight: '6px' }} />;
-      case 'md':
-        return <FontAwesomeIcon icon={faMarkdown} className={styles['file-icon']} style={{ color: '#4daafc', marginRight: '6px' }} />;
-      case 'png':
-      case 'jpg':
-      case 'svg':
-        return <FontAwesomeIcon icon={faImage} className={styles['file-icon']} style={{ color: '#a074c4', marginRight: '6px' }} />;
-      default:
-        return <FontAwesomeIcon icon={faFile} className={styles['file-icon']} style={{ color: 'var(--vscode-descriptionForeground)', marginRight: '6px' }} />;
-    }
-  };
-
   const toggleDir = (path: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setExpandedDirs((prev) => ({
@@ -454,7 +421,7 @@ export default function GitApp() {
             setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'file', file: item, listType: listType as any });
           }}
         >
-          {getFileIcon(fileName || '')}
+          <FileIcon fileName={fileName || ''} className={styles['file-icon']} style={{ marginRight: '6px' }} />
           <div className={styles['file-name']}>{fileName}</div>
           <div style={{ flex: 1 }}></div>
 
@@ -540,7 +507,7 @@ export default function GitApp() {
                 setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'file', file: item, listType: listType as any });
               }}
             >
-              {getFileIcon(fileName || '')}
+              <FileIcon fileName={fileName || ''} className={styles['file-icon']} style={{ marginRight: '6px' }} />
               <div className={styles['file-name']}>{fileName}</div>
               {dirPath && <div className={styles['file-dir']}>{dirPath}</div>}
               <div style={{ flex: 1 }}></div>
@@ -970,8 +937,7 @@ export default function GitApp() {
                                 加载变动文件...
                               </div>
                             ) : (
-                              // 🌟 修改点 5: 用 div 包裹，给 18px 左间距，并且传入 stash-file 类型
-                              <div style={{ paddingLeft: '18px' }}>
+                              <div style={{ paddingLeft: '30px' }}>
                                 {renderFileList(files, 'stash-file', `stash@{${stash.index}}`)}
                               </div>
                             )}
