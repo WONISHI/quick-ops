@@ -5,11 +5,12 @@
 <h1 align="center">Quick Ops</h1>
 
 <p align="center">
-    <a href="https://marketplace.visualstudio.com/items?itemName=your-publisher-id.quick-ops">
-        <img src="https://img.shields.io/visual-studio-marketplace/v/your-publisher-id.quick-ops?style=flat-square&label=Version&color=007ACC" alt="Version">
+    <a href="https://github.com/WONISHI/quick-ops">
+        <img src="https://img.shields.io/github/package-json/v/WONISHI/quick-ops?style=flat-square&label=VS%20Marketplace&color=007ACC&logo=visualstudiocode" alt="Version">
     </a>
-    <a href="https://marketplace.visualstudio.com/items?itemName=your-publisher-id.quick-ops">
-        <img src="https://img.shields.io/visual-studio-marketplace/i/your-publisher-id.quick-ops?style=flat-square&label=Installs&color=green" alt="Installs">
+    
+    <a href="https://github.com/WONISHI/quick-ops/releases">
+        <img src="https://img.shields.io/github/downloads/WONISHI/quick-ops/total?style=flat-square&label=Installs&color=green&logo=visualstudiocode" alt="Installs">
     </a>
     <img src="https://img.shields.io/badge/License-MIT-orange.svg?style=flat-square" alt="License">
 </p>
