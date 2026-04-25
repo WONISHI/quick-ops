@@ -29,14 +29,10 @@
 .item {
   display: flex;
   align-items: center;
-  /* 🌟 核心调整：上下内边距从 6px 缩小到 3px，左右稍微缩进点 */
-  padding: 3px 10px; 
+  padding: 6px 12px;
   cursor: pointer;
-  /* 🌟 图标和文字的间距稍微拉近一点，从 8px 缩小到 6px */
-  gap: 6px; 
+  gap: 8px;
   user-select: none;
-  /* 🌟 固定行高，防止里面的字体把高度撑得太大 */
-  line-height: 20px; 
 }
 
 /* 顺便把鼠标 Hover 的样式带上，保持不变 */

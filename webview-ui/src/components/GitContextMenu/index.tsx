@@ -40,11 +40,12 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ visible, x, y, onClose
     }
   }, [visible, x, y]);
 
+  // 2. 🌟 核心：全局监听点击其他地方或失焦关闭
   useEffect(() => {
     if (!visible) return;
 
     const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-
+    
     const handleOutsideClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose();
@@ -58,12 +59,12 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ visible, x, y, onClose
 
     document.addEventListener('keydown', handleEscape);
     document.addEventListener('mousedown', handleOutsideClick, true);
-    window.addEventListener('blur', handleWindowBlur); // 🌟 挂载失焦监听
+    window.addEventListener('blur', handleWindowBlur);
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
       document.removeEventListener('mousedown', handleOutsideClick, true);
-      window.removeEventListener('blur', handleWindowBlur); // 🌟 卸载失焦监听
+      window.removeEventListener('blur', handleWindowBlur);
     };
   }, [visible, onClose]);
 
@@ -72,7 +73,6 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ visible, x, y, onClose
   return createPortal(
     <div
       ref={menuRef}
-      // 🌟 className 现在可以正确读取到 styles.visible 了！
       className={`${styles.menu} ${isCalculated ? styles.visible : ''}`}
       style={{ left: pos.x, top: pos.y }}
       onMouseDown={(e) => e.stopPropagation()}
@@ -85,8 +85,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ visible, x, y, onClose
 };
 
 export const MenuItem = ({ icon, text, onClick }: { icon: string, text: string, onClick: () => void }) => (
-  <div
-    className={styles.item}
+  <div 
+    className={styles.item} 
     onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onClick(); }}
   >
     <i className={`codicon ${icon} ${styles.icon}`} />
@@ -126,7 +126,7 @@ export const GitContextMenu: React.FC<GitContextMenuProps> = ({ contextMenu, onC
 
   return (
     <ContextMenu visible={contextMenu.visible} x={contextMenu.x} y={contextMenu.y} onClose={onClose}>
-
+      
       {/* 1. Commit 记录的菜单 */}
       {contextMenu.type === 'commit' && contextMenu.commit && (
         <>

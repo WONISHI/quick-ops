@@ -184,7 +184,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           // 获取配置
           const config = vscode.workspace.getConfiguration('quick-ops.git');
           const defaultSkipVerify = config.get<boolean>('defaultSkipVerify') || false;
-          console.log('defaultSkipVerify', defaultSkipVerify);
 
           this._view?.webview.postMessage({
             type: 'gitInstallationStatus',
@@ -222,9 +221,74 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             await this.refreshStatus(cwd, false);
             break;
 
-          // ==========================================
-          // 🌟 新增逻辑 1：切换本地分支 (Checkout)
-          // ==========================================
+          // ========================================================
+          // 🌟 新增模块：贮藏 (Stash) 相关操作
+          // ========================================================
+          case 'stash': {
+            await this.executeGitOperation(async () => {
+              try {
+                if (msg.message) {
+                  await git.stash(['push', '-m', msg.message]);
+                } else {
+                  await git.stash(['push']);
+                }
+                vscode.window.showInformationMessage('📦 已成功贮藏工作区更改。');
+                await this.refreshStatus(cwd, false);
+              } catch (e: any) {
+                vscode.window.showErrorMessage(`贮藏失败: ${e.message}`);
+              }
+            });
+            break;
+          }
+
+          case 'stashApply': {
+            await this.executeGitOperation(async () => {
+              try {
+                await git.stash(['apply', `stash@{${msg.index}}`]);
+                vscode.window.showInformationMessage(`✅ 已应用贮藏 stash@{${msg.index}}`);
+                await this.refreshStatus(cwd, false);
+              } catch (e: any) {
+                vscode.window.showErrorMessage(`应用贮藏失败: ${e.message}`);
+              }
+            });
+            break;
+          }
+
+          case 'stashPop': {
+            await this.executeGitOperation(async () => {
+              try {
+                await git.stash(['pop', `stash@{${msg.index}}`]);
+                vscode.window.showInformationMessage(`✅ 已弹出贮藏 stash@{${msg.index}}`);
+                await this.refreshStatus(cwd, false);
+              } catch (e: any) {
+                vscode.window.showErrorMessage(`弹出贮藏失败 (可能存在冲突): ${e.message}`);
+                // 冲突时可能状态改变，需刷新
+                await this.refreshStatus(cwd, false);
+              }
+            });
+            break;
+          }
+
+          case 'stashDrop': {
+            const confirm = await vscode.window.showWarningMessage(
+              `确定要永久删除贮藏 stash@{${msg.index}} 吗？\n此操作不可撤销！`,
+              { modal: true },
+              '删除贮藏'
+            );
+            if (confirm !== '删除贮藏') return;
+
+            await this.executeGitOperation(async () => {
+              try {
+                await git.stash(['drop', `stash@{${msg.index}}`]);
+                vscode.window.showInformationMessage(`🗑️ 已删除贮藏 stash@{${msg.index}}`);
+                await this.refreshStatus(cwd, false);
+              } catch (e: any) {
+                vscode.window.showErrorMessage(`删除贮藏失败: ${e.message}`);
+              }
+            });
+            break;
+          }
+
           case 'undoLastCommit': {
             await this.executeGitOperation(async () => {
               try {
@@ -1040,10 +1104,13 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         .then((r) => r.trim())
         .catch(() => '');
       const statusPromise = git.status();
+      // 🌟 新增：并发获取贮藏列表
+      const stashPromise = git.stashList().catch(() => ({ all: [] })); 
 
       const branch = await branchPromise;
       const remoteUrl = await remoteUrlPromise;
       const status = await statusPromise;
+      const stashRaw = await stashPromise;
 
       const stagedFiles: { status: string; file: string }[] = [];
       const unstagedFiles: { status: string; file: string }[] = [];
@@ -1059,6 +1126,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         }
       });
 
+      // 🌟 新增：格式化贮藏数据发送给前端
+      const stashes = stashRaw.all.map((s, idx) => ({
+        index: idx,
+        message: s.message
+      }));
+
       this._view?.webview.postMessage({
         type: 'statusData',
         stagedFiles,
@@ -1066,6 +1139,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         branch,
         remoteUrl,
         folderName: path.basename(cwd),
+        stashes, 
       });
 
       if (fullRefresh) {

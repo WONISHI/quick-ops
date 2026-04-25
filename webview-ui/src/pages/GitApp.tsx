@@ -92,6 +92,7 @@ export default function GitApp() {
   const [activeFile, setActiveFile] = useState<string | null>(null);
 
   const [isChangesOpen, setIsChangesOpen] = useState(true);
+  const [isStashesOpen, setIsStashesOpen] = useState(false);
   const [isGraphOpen, setIsGraphOpen] = useState(true);
   const [isGraphSearchOpen, setIsGraphSearchOpen] = useState(false);
 
@@ -126,6 +127,11 @@ export default function GitApp() {
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
+
+  const [stashes, setStashes] = useState<any[]>([]); 
+  const [showStashInput, setShowStashInput] = useState(false);
+  const [stashInputMsg, setStashInputMsg] = useState('');
+
   const lastRefreshRef = useRef<number>(0);
   const commitInputRef = useRef<HTMLDivElement>(null);
 
@@ -152,6 +158,7 @@ export default function GitApp() {
         setCommitFilesLoadingMap({});
         setCommitParentHashMap({});
         setActiveCommitHash(null);
+        setStashes([]); // 🌟 重置
       } else if (msg.type === 'statusData') {
         setIsRepo(true);
         setStagedFiles(msg.stagedFiles || []);
@@ -159,7 +166,10 @@ export default function GitApp() {
         setBranch(msg.branch || '');
         setRemoteUrl(msg.remoteUrl || '');
         setFolderName(msg.folderName || '');
+        if (msg.stashes) setStashes(msg.stashes); // 🌟 接收贮藏数据
         setLoading(false);
+      } else if (msg.type === 'stashData') {
+        setStashes(msg.stashes || []);
       } else if (msg.type === 'graphData') {
         const commits = msg.graphCommits || [];
         setGraphCommits(commits);
@@ -790,6 +800,22 @@ export default function GitApp() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                    {/* 🌟 贮藏按钮 */}
+                    {(unstagedFiles.length > 0 || stagedFiles.length > 0) && (
+                      <Tooltip content="贮藏更改 (Stash)">
+                        <button
+                          className={styles['action-btn']}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowStashInput(!showStashInput);
+                          }}
+                          style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                        >
+                          <i className="codicon codicon-archive" />
+                        </button>
+                      </Tooltip>
+                    )}
+
                     {unstagedFiles.length > 0 && (
                       <>
                         <Tooltip content="放弃所有更改">
@@ -830,12 +856,92 @@ export default function GitApp() {
                   </div>
                 </div>
 
+                {/* 🌟 贮藏输入框 */}
+                {showStashInput && (
+                  <div style={{ padding: '4px 12px 8px 12px', display: 'flex' }}>
+                    <input
+                      type="text"
+                      value={stashInputMsg}
+                      onChange={(e) => setStashInputMsg(e.target.value)}
+                      placeholder="输入贮藏备注 (Enter 确认, Esc 取消)"
+                      autoFocus
+                      style={{
+                        flex: 1,
+                        backgroundColor: 'var(--vscode-input-background)',
+                        color: 'var(--vscode-input-foreground)',
+                        border: '1px solid var(--vscode-input-border)',
+                        padding: '4px 6px',
+                        borderRadius: '2px',
+                        fontSize: '12px',
+                        outline: 'none'
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          vscode.postMessage({ command: 'stash', message: stashInputMsg });
+                          setShowStashInput(false);
+                          setStashInputMsg('');
+                        } else if (e.key === 'Escape') {
+                          setShowStashInput(false);
+                          setStashInputMsg('');
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+
                 {unstagedFiles.length === 0 && stagedFiles.length === 0 ? (
                   <div className={styles['empty-message']}>{!isRepo ? '在此打开项目或进行克隆' : '没有需要提交的更改'}</div>
                 ) : (
                   renderFileList(unstagedFiles, 'unstaged')
                 )}
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* 🌟 贮藏折叠面板 */}
+        <div className={styles['changes-section']} style={{ marginTop: '8px' }}>
+          <div className={styles['changes-header']} onClick={() => setIsStashesOpen(!isStashesOpen)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+              <i className={`codicon ${isStashesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px', flexShrink: 0 }} />
+              <span style={{ flexShrink: 0 }}>贮藏</span>
+              <span className={styles['badge']} style={{ flexShrink: 0 }}>{stashes.length}</span>
+            </div>
+          </div>
+
+          {isStashesOpen && (
+            <div style={{ maxHeight: '30vh', overflowY: 'auto', paddingBottom: '4px' }}>
+              {stashes.length === 0 ? (
+                <div className={styles['empty-message']}>没有贮藏记录</div>
+              ) : (
+                <ul className={styles['file-list']}>
+                  {stashes.map((stash, idx) => (
+                    <li key={idx} className={styles['file-item']} title={stash.message} style={{ paddingLeft: '24px' }}>
+                      <i className="codicon codicon-archive" style={{ marginRight: '6px', color: 'var(--vscode-icon-foreground)' }} />
+                      <div className={styles['file-name']}>{stash.message}</div>
+                      <div style={{ flex: 1 }}></div>
+
+                      <div className={styles['file-actions']}>
+                        <Tooltip content="应用贮藏 (Apply)">
+                          <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashApply', index: stash.index }); }}>
+                            <i className="codicon codicon-fold-down" />
+                          </button>
+                        </Tooltip>
+                        <Tooltip content="弹出贮藏 (Pop)">
+                          <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashPop', index: stash.index }); }}>
+                            <i className="codicon codicon-arrow-up" />
+                          </button>
+                        </Tooltip>
+                        <Tooltip content="丢弃贮藏 (Drop)">
+                          <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashDrop', index: stash.index }); }}>
+                            <i className="codicon codicon-trash" />
+                          </button>
+                        </Tooltip>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
         </div>

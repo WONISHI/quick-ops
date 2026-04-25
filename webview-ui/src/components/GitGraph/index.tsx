@@ -687,7 +687,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                     onClick={() => handleItemClick(c.hash)}
                                     onMouseEnter={(e) => handleMouseEnter(e, c)}
                                     onMouseLeave={handleMouseLeave}
-                                    onContextMenu={(e) => onCommitContextMenu(e, c)} // 🌟 直接传递给父级
+                                    onContextMenu={(e) => onCommitContextMenu(e, c)}
                                     style={{ height: `${ROW_HEIGHT}px`, display: 'flex', alignItems: 'center', overflow: 'hidden', paddingRight: '8px', cursor: 'pointer' }}
                                 >
                                     <div style={{ width: paddingWidth, flexShrink: 0 }} />
