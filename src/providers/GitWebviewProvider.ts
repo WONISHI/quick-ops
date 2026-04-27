@@ -996,6 +996,31 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'getCommitFiles': {
+            // 🌟 还原为纯净的数据获取逻辑，专供前端内联展开文件树使用
+            await this.withViewProgress(async () => {
+              const diffRaw = await git.raw(['diff-tree', '--no-commit-id', '--name-status', '-r', '--root', msg.hash]);
+              const files = diffRaw
+                .split('\n')
+                .filter((line) => line.trim())
+                .map((line) => {
+                  const parts = line.split('\t');
+                  return { status: parts[0].charAt(0), file: parts[parts.length - 1] };
+                });
+
+              let parentOid: string | undefined;
+              try {
+                parentOid = (await git.raw(['rev-parse', `${msg.hash}^1`])).trim();
+              } catch (e) {
+                parentOid = undefined;
+              }
+
+              // 只推送数据给前端，触发你的 activeCommitHash === c.hash 渲染逻辑
+              this._view?.webview.postMessage({ type: 'commitFilesData', hash: msg.hash, files, parentHash: parentOid });
+            });
+            break;
+          }
+
           case 'diffBranchFile': {
             const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: msg.baseBranch }));
             const leftUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${leftQuery}`);
