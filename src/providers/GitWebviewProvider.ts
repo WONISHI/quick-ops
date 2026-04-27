@@ -76,9 +76,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       const conflicts = status.conflicted;
 
       if (conflicts.length > 0) {
-        vscode.window.showWarningMessage(
-          `【${operationName}】产生冲突！\n共检测到 ${conflicts.length} 个冲突文件，请在侧边栏的【冲突区】中逐一解决。`
-        );
+        vscode.window.showWarningMessage(`【${operationName}】产生冲突！\n共检测到 ${conflicts.length} 个冲突文件，请在侧边栏的【冲突区】中逐一解决。`);
         // 唤起原生 SCM 面板作为辅助
         vscode.commands.executeCommand('workbench.view.scm');
       } else {
@@ -121,7 +119,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             const refs = await git.raw(['show-ref']).catch(() => '');
             const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
             currentState = refs + head;
-          } catch (e) { }
+          } catch (e) {}
 
           const graphChanged = currentState !== this._lastGraphState;
 
@@ -278,7 +276,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   index: msg.index,
                   hash: stashHash,
                   parentHash,
-                  files
+                  files,
                 });
               } catch (e: any) {
                 vscode.window.showErrorMessage(`获取贮藏文件失败: ${e.message}`);
@@ -314,11 +312,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           case 'stashDrop': {
-            const confirm = await vscode.window.showWarningMessage(
-              `确定要永久删除贮藏 stash@{${msg.index}} 吗？\n此操作不可撤销！`,
-              { modal: true },
-              '删除贮藏'
-            );
+            const confirm = await vscode.window.showWarningMessage(`确定要永久删除贮藏 stash@{${msg.index}} 吗？\n此操作不可撤销！`, { modal: true }, '删除贮藏');
             if (confirm !== '删除贮藏') return;
 
             await this.executeGitOperation(async () => {
@@ -488,7 +482,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 try {
                   await git.fetch(['--all', '--prune']);
                   await updateQuickPickItems();
-                } catch (e) { }
+                } catch (e) {}
               }).finally(() => {
                 quickPick.busy = false;
               });
@@ -606,7 +600,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 try {
                   await git.fetch(['--all', '--prune']);
                   await updateQuickPickItems();
-                } catch (e) { }
+                } catch (e) {}
               }).finally(() => {
                 quickPick.busy = false;
               });
@@ -689,7 +683,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 try {
                   await git.fetch(['--all', '--prune']);
                   await updateQuickPickItems();
-                } catch (e) { }
+                } catch (e) {}
               }).finally(() => {
                 quickPick.busy = false;
               });
@@ -1034,6 +1028,17 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'diffCommitFile': {
+            const leftQuery = encodeURIComponent(JSON.stringify({ cwd, ref: msg.parentHash || 'empty' }));
+            const leftUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${leftQuery}`);
+            const rightRef = msg.status === 'D' ? 'empty' : msg.hash;
+            const rightQuery = encodeURIComponent(JSON.stringify({ cwd, ref: rightRef }));
+            const rightUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${rightQuery}`);
+            const title = `${path.basename(msg.file)} (${msg.hash.substring(0, 7)})`;
+            vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+            break;
+          }
+
           case 'copy':
             vscode.env.clipboard.writeText(msg.text);
             vscode.window.showInformationMessage(`已复制: ${msg.text}`);
@@ -1045,7 +1050,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               let existingContent = Buffer.alloc(0);
               try {
                 existingContent = Buffer.from(await vscode.workspace.fs.readFile(gitignoreUri));
-              } catch (e) { }
+              } catch (e) {}
 
               const appendStr = existingContent.length > 0 ? `\n${msg.file}` : msg.file;
               const appendContent = Buffer.from(appendStr, 'utf8');
@@ -1097,8 +1102,14 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         return;
       }
 
-      const branchPromise = git.branchLocal().then((b) => b.current).catch(() => 'HEAD');
-      const remoteUrlPromise = git.listRemote(['--get-url']).then((r) => r.trim()).catch(() => '');
+      const branchPromise = git
+        .branchLocal()
+        .then((b) => b.current)
+        .catch(() => 'HEAD');
+      const remoteUrlPromise = git
+        .listRemote(['--get-url'])
+        .then((r) => r.trim())
+        .catch(() => '');
       const statusPromise = git.status();
       const stashPromise = git.stashList().catch(() => ({ all: [] }));
 
@@ -1130,7 +1141,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
       const stashes = stashRaw.all.map((s, idx) => ({
         index: idx,
-        message: s.message
+        message: s.message,
       }));
 
       this._view?.webview.postMessage({
@@ -1149,7 +1160,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           const refs = await git.raw(['show-ref']).catch(() => '');
           const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
           this._lastGraphState = refs + head;
-        } catch (e) { }
+        } catch (e) {}
 
         const logOptions = {
           '--all': null,
