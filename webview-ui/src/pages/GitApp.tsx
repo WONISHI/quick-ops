@@ -403,6 +403,7 @@ export default function GitApp() {
           style={{ paddingLeft: `${depth * 12 + 24}px` }}
           title={item.file}
           onClick={() => {
+            console.log('listType',listType)
             setActiveFile(item.file);
             if (listType === 'history') {
               openHistoryDiff(item, historyHash);

@@ -15,6 +15,7 @@ dist/test/**
 
 .gitignore
 .yarnrc
+.yarnrc.yml
 webpack.config.js
 vsc-extension-quickstart.md
 **/tsconfig.json
@@ -26,6 +27,7 @@ pnpm-lock.yaml
 .turbo/**
 dist/*.map  
 dist/*.txt
+dist/bundle-report.html
 **/*.tsbuildinfo
 PERFORMANCE.md
 README_zh.md
@@ -38,6 +40,9 @@ webview-ui/public/**
 webview-ui/tsconfig*.json
 webview-ui/vite.config.ts
 webview-ui/package*.json
+webview-ui/README*.md
+webview-ui/.gitignore
+webview-ui/eslint.config.js
 
 # 仅保留编译后的产物
 !webview-ui/dist/**
