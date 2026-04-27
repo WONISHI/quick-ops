@@ -44,125 +44,130 @@ import tableIcon from 'material-icon-theme/icons/table.svg';
 import pdfIcon from 'material-icon-theme/icons/pdf.svg';
 import consoleIcon from 'material-icon-theme/icons/console.svg';
 import zipIcon from 'material-icon-theme/icons/zip.svg';
-
+import nodeJsIcon from 'material-icon-theme/icons/nodejs.svg';
+import umiIcon from '../../assets/icons/umi.svg';
 
 const EXACT_NAMES: Record<string, string> = {
-    'package.json': npmIcon,
-    'yarn.lock': yarnIcon,
-    '.yarnrc': yarnIcon,
-    '.yarnrc.yml': yarnIcon,
-    'dockerfile': dockerIcon,
-    'docker-compose.yml': dockerIcon,
-    '.dockerignore': dockerIcon,
-    '.gitignore': gitIcon,
-    '.gitattributes': gitIcon,
-    '.gitmodules': gitIcon,
-    '.eslintrc.js': eslintIcon,
-    '.eslintrc.json': eslintIcon,
-    'eslint.config.js': eslintIcon,
-    '.prettierrc': prettierIcon,
-    '.editorconfig': editorconfigIcon,
-    'tsconfig.json': tsconfigIcon,
+  'package.json': npmIcon,
+  '.npmrc': npmIcon,
+  'yarn.lock': yarnIcon,
+  '.yarnrc': yarnIcon,
+  '.yarnrc.yml': yarnIcon,
+  dockerfile: dockerIcon,
+  'docker-compose.yml': dockerIcon,
+  '.dockerignore': dockerIcon,
+  '.gitignore': gitIcon,
+  '.gitattributes': gitIcon,
+  '.gitmodules': gitIcon,
+  '.eslintrc.js': eslintIcon,
+  '.eslintrc.json': eslintIcon,
+  'eslint.config.js': eslintIcon,
+  '.prettierrc': prettierIcon,
+  '.prettierignore': prettierIcon,
+  '.nvmrc': nodeJsIcon,
+  '.umirc.ts': umiIcon,
+  '.editorconfig': editorconfigIcon,
+  'tsconfig.json': tsconfigIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {
-    'ts': typescriptIcon,
-    'tsx': reactTsIcon,
-    'js': javascriptIcon,
-    'jsx': reactIcon,
-    'cjs': javascriptIcon,
-    'mjs': javascriptIcon,
-    'vue': vueIcon,
-    'css': cssIcon,
-    'less': lessIcon,
-    'scss': sassIcon,
-    'sass': sassIcon,
-    'html': htmlIcon,
-    'htm': htmlIcon,
-    'py': pythonIcon,
-    'pyw': pythonIcon,
-    'java': javaIcon,
-    'class': javaclassIcon,
-    'jar': jarIcon,
-    'php': phpIcon,
-    'rs': rustIcon,
-    'go': goIcon,
-    'c': cIcon,
-    'cpp': cppIcon,
-    'h': hIcon,
-    'hpp': hppIcon,
-    'cs': csharpIcon,
-    'json': jsonIcon,
-    'jsonc': jsonIcon,
-    'yaml': yamlIcon,
-    'yml': yamlIcon,
-    'toml': tomlIcon,
-    'xml': xmlIcon,
-    'svg': svgIcon,
-    'sql': databaseIcon,
-    'db': databaseIcon,
-    'sqlite': databaseIcon,
-    'md': markdownIcon,
-    'markdown': markdownIcon,
-    'png': imageIcon,
-    'jpg': imageIcon,
-    'jpeg': imageIcon,
-    'gif': imageIcon,
-    'webp': imageIcon,
-    'ico': imageIcon,
-    'txt': documentIcon,
-    'log': logIcon,
-    'csv': tableIcon,
-    'pdf': pdfIcon,
-    'sh': consoleIcon,
-    'bash': consoleIcon,
-    'zsh': consoleIcon,
-    'bat': consoleIcon,
-    'cmd': consoleIcon,
-    'zip': zipIcon,
-    'tar': zipIcon,
-    'gz': zipIcon,
-    'rar': zipIcon,
-    '7z': zipIcon,
+  ts: typescriptIcon,
+  tsx: reactTsIcon,
+  js: javascriptIcon,
+  jsx: reactIcon,
+  cjs: javascriptIcon,
+  mjs: javascriptIcon,
+  vue: vueIcon,
+  css: cssIcon,
+  less: lessIcon,
+  scss: sassIcon,
+  sass: sassIcon,
+  html: htmlIcon,
+  htm: htmlIcon,
+  py: pythonIcon,
+  pyw: pythonIcon,
+  java: javaIcon,
+  class: javaclassIcon,
+  jar: jarIcon,
+  php: phpIcon,
+  rs: rustIcon,
+  go: goIcon,
+  c: cIcon,
+  cpp: cppIcon,
+  h: hIcon,
+  hpp: hppIcon,
+  cs: csharpIcon,
+  json: jsonIcon,
+  jsonc: jsonIcon,
+  yaml: yamlIcon,
+  yml: yamlIcon,
+  toml: tomlIcon,
+  xml: xmlIcon,
+  svg: svgIcon,
+  sql: databaseIcon,
+  db: databaseIcon,
+  sqlite: databaseIcon,
+  md: markdownIcon,
+  markdown: markdownIcon,
+  png: imageIcon,
+  jpg: imageIcon,
+  jpeg: imageIcon,
+  gif: imageIcon,
+  webp: imageIcon,
+  ico: imageIcon,
+  txt: documentIcon,
+  log: logIcon,
+  csv: tableIcon,
+  pdf: pdfIcon,
+  sh: consoleIcon,
+  bash: consoleIcon,
+  zsh: consoleIcon,
+  bat: consoleIcon,
+  cmd: consoleIcon,
+  zip: zipIcon,
+  tar: zipIcon,
+  gz: zipIcon,
+  rar: zipIcon,
+  '7z': zipIcon,
 };
 
 interface FileIconProps {
-    fileName: string;
-    className?: string;
-    style?: React.CSSProperties;
+  fileName: string;
+  className?: string;
+  style?: React.CSSProperties;
 }
 
 export const FileIcon: React.FC<FileIconProps> = ({ fileName, className, style }) => {
-    const finalUrl = useMemo(() => {
-        const lowerName = fileName.toLowerCase();
-        
-        if (EXACT_NAMES[lowerName]) {
-            return EXACT_NAMES[lowerName];
-        }
+  const finalUrl = useMemo(() => {
+    const lowerName = fileName.toLowerCase();
 
-        const ext = lowerName.split('.').pop() || '';
-        if (EXTENSIONS[ext]) {
-            return EXTENSIONS[ext];
-        }
+    if (EXACT_NAMES[lowerName]) {
+      return EXACT_NAMES[lowerName];
+    }
 
-        return fileIcon; // 默认兜底
-    }, [fileName]);
+    const ext = lowerName.split('.').pop() || '';
+    if (EXTENSIONS[ext]) {
+      return EXTENSIONS[ext];
+    }
 
-    return (
-        <img 
-            src={finalUrl} 
-            alt="file icon" 
-            className={className} 
-            style={{ 
-                width: '16px',
-                height: '16px',
-                objectFit: 'contain',
-                display: 'inline-block',
-                verticalAlign: 'middle',
-                ...style 
-            }} 
-        />
-    );
+    return fileIcon; // 默认兜底
+  }, [fileName]);
+
+  return (
+    <img
+      src={finalUrl}
+      alt="file icon"
+      className={className}
+      style={{
+        width: '16px',
+        height: '16px',
+        objectFit: 'contain',
+        display: 'inline-block',
+        verticalAlign: 'middle',
+        ...style,
+      }}
+    />
+  );
 };
 
 export default FileIcon;
