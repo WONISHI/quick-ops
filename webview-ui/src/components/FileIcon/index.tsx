@@ -75,6 +75,7 @@ import browserlistIcon from 'material-icon-theme/icons/browserlist_light.svg';
 import tuneIcon from 'material-icon-theme/icons/tune.svg';
 import stylelintIcon from 'material-icon-theme/icons/stylelint_light.svg';
 import xlsxIcon from 'material-icon-theme/icons/table.svg';
+import vscodeIcon from 'material-icon-theme/icons/vscode.svg';
 
 const EXACT_NAMES: Record<string, string> = {
   'package.json': npmIcon,
@@ -111,9 +112,11 @@ const EXACT_NAMES: Record<string, string> = {
   'commitlint.config.js': commitlintIcon,
   '.browserslistrc': browserlistIcon,
   'stylelint.config.js': stylelintIcon,
+  '.vscodeignore': vscodeIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {
+  vsix: vscodeIcon,
   env: tuneIcon,
   ejs: ejsIcon,
   hbs: hbsIcon,
