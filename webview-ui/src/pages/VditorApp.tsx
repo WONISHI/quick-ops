@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Vditor from 'vditor';
 import 'vditor/dist/index.css';
 import { vscode } from '../utils/vscode';
@@ -65,7 +65,7 @@ export default function VditorApp() {
                 }
               }
             },
-            input: (value: string) => {
+            input: () => {
               // vscode.postMessage({ command: 'saveMarkdown', content: value });
             }
           });

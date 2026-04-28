@@ -39,7 +39,6 @@ export class AnchorFeature implements IFeature {
     context.subscriptions.push(
       this.service.onDidChangeAnchors(() => {
         this.updateDecorations();
-        // 🌟 2. 数据变化时更新项目级状态
         this.updateProjectContextKey(); 
 
         if (this.currentPanel) {
@@ -48,8 +47,6 @@ export class AnchorFeature implements IFeature {
       }),
       vscode.window.onDidChangeActiveTextEditor(() => {
         this.debouncedUpdate();
-        // 🌟 注意：这里删除了 context 更新调用，因为项目级状态与切换具体哪个文件无关
-        // package.json 里的 resourceScheme == file 会自动帮你控制是否是文件页
       }),
       vscode.workspace.onDidSaveTextDocument((doc) => this.syncAnchorsWithContent(doc)),
     );
@@ -63,9 +60,7 @@ export class AnchorFeature implements IFeature {
     // 注册命令
     context.subscriptions.push(
       vscode.commands.registerCommand('quick-ops.anchor.add', async (...args: any[]) => this.handleAddAnchorCommand(...args)),
-
       vscode.commands.registerCommand('quick-ops.anchor.showMenu', async () => this.handleShowMenuCommand()),
-
       vscode.commands.registerCommand('quick-ops.anchor.listByGroup', async (groupName: string, anchorId: string) => this.showAnchorList(groupName, true, undefined, anchorId)),
       vscode.commands.registerCommand('quick-ops.anchor.navigate', async (currentId: string, direction: 'prev' | 'next') => {
         const target = this.service.getNeighborAnchor(currentId, direction);
@@ -83,8 +78,6 @@ export class AnchorFeature implements IFeature {
   private updateProjectContextKey() {
     const allAnchors = this.service.getAnchors() || [];
     const hasAnchors = allAnchors.length > 0;
-
-    // 设置 context 变量 quickOps.hasAnchorsInProject
     vscode.commands.executeCommand('setContext', 'quickOps.hasAnchorsInProject', hasAnchors);
   }
 
