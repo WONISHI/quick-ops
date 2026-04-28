@@ -85,6 +85,8 @@ import todoIcon from 'material-icon-theme/icons/todo.svg';
 import freemarkerIcon from 'material-icon-theme/icons/freemarker.svg';
 import swcIcon from 'material-icon-theme/icons/swc.svg';
 import vitestIcon from 'material-icon-theme/icons/vitest.svg';
+import vueConfigIcon from 'material-icon-theme/icons/vue-config.svg';
+import viteConfigIcon from 'material-icon-theme/icons/vite.svg';
 
 const EXACT_NAMES: Record<string, string> = {
   'package.json': nodeJsIcon,
@@ -145,6 +147,9 @@ const EXACT_NAMES: Record<string, string> = {
   'nest-cli.json': nestIcon,
   '.swcrc': swcIcon,
   'vitest.config.ts': vitestIcon,
+  'vue.config.js': vueConfigIcon,
+  'vite.config.ts': viteConfigIcon,
+  'vite.config.js': viteConfigIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {
