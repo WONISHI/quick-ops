@@ -24,53 +24,14 @@ import {
   faArrowUp,
   faArrowDown,
   faFileLines,
-  faFolderTree
+  faFolderTree,
 } from '@fortawesome/free-solid-svg-icons';
 import { faCopy, faSquareCheck, faClone, faFolderOpen as faFolderOpenReg, faWindowRestore } from '@fortawesome/free-regular-svg-icons';
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 
 import styles from '../assets/css/RecentProjectsApp.module.css';
 import FileIcon from '../components/FileIcon';
-
-interface Project {
-  fsPath: string;
-  name: string;
-  customName?: string;
-  customDomain?: string;
-  platform?: string;
-  branch?: string;
-  timestamp: number;
-}
-
-interface DirChild {
-  path: string;
-  name: string;
-  isFolder: boolean;
-}
-
-interface SearchMatch {
-  line: number;
-  text: string;
-}
-
-interface SearchResult {
-  file: string;
-  fullPath: string;
-  matches: SearchMatch[];
-}
-
-interface ContextMenuPayload {
-  path: string;
-  name?: string;
-  originalName?: string;
-  customName?: string;
-  isRemote?: boolean;
-  platform?: string;
-  customDomain?: string;
-  isActiveProject?: boolean;
-  isFolder?: boolean;
-  projectName?: string;
-}
+import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '../types/RecentProjectsApp';
 
 function getDisplayPath(project: Project) {
   let displayPath = project.fsPath;
@@ -165,7 +126,7 @@ export default function RecentProjectsApp() {
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [searchTargetProject, setSearchTargetProject] = useState<ContextMenuPayload | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
-  
+
   const [folderSearchType, setFolderSearchType] = useState<'content' | 'name'>('content');
   const [fileNameSearchResults, setFileNameSearchResults] = useState<DirChild[]>([]);
 
@@ -279,18 +240,18 @@ export default function RecentProjectsApp() {
     const timeoutId = setTimeout(() => {
       setIsSearchingFolder(true);
       if (folderSearchType === 'content') {
-        vscode.postMessage({ 
-          type: 'searchInFolder', 
-          fsPath: searchTargetProject.path, 
-          query: folderSearchQuery, 
-          isRemote: searchTargetProject.isRemote 
+        vscode.postMessage({
+          type: 'searchInFolder',
+          fsPath: searchTargetProject.path,
+          query: folderSearchQuery,
+          isRemote: searchTargetProject.isRemote,
         });
       } else {
-        vscode.postMessage({ 
-          type: 'searchFileName', 
-          fsPath: searchTargetProject.path, 
-          query: folderSearchQuery, 
-          isRemote: searchTargetProject.isRemote 
+        vscode.postMessage({
+          type: 'searchFileName',
+          fsPath: searchTargetProject.path,
+          query: folderSearchQuery,
+          isRemote: searchTargetProject.isRemote,
         });
       }
     }, 500);
@@ -501,7 +462,7 @@ export default function RecentProjectsApp() {
                   onClick={(e) => handleOpenFile(child.path, projectName, childId, isActiveProject, e)}
                   onContextMenu={(e) => handleContextMenu(e, 'sub', { path: child.path, name: child.name, isFolder: false, projectName, isActiveProject }, childId)}
                   style={{ cursor: 'pointer' }}
-                  title={isActiveProject ? "点击打开文件" : "点击预览"}
+                  title={isActiveProject ? '点击打开文件' : '点击预览'}
                 >
                   <div className={styles['chevron-placeholder']}></div>
                   <FileIcon fileName={child.name} className={styles['sub-icon']} />
@@ -608,7 +569,7 @@ export default function RecentProjectsApp() {
                     <div className={styles['menu-separator']}></div>
                   </>
                 )}
-                
+
                 {contextMenu.payload.isFolder && (
                   <>
                     <li onClick={() => executeMenuAction('searchInFolder')}>
@@ -640,25 +601,23 @@ export default function RecentProjectsApp() {
 
       {isSearchMode && searchTargetProject ? (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
-          
           <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--vscode-panel-border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
                 <button className={styles['action-btn-icon']} onClick={() => setIsSearchMode(false)} title="返回项目列表" style={{ padding: '4px', flexShrink: 0 }}>
                   <FontAwesomeIcon icon={faArrowLeft} />
                 </button>
-                
-                <span 
-                  style={{ 
-                    fontSize: '13px', 
-                    fontWeight: 'bold', 
+
+                <span
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 'bold',
                     color: 'var(--vscode-foreground)',
                     flexShrink: 0,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                  }} 
+                  }}
                   title={searchTargetProject.originalName || searchTargetProject.name}
                 >
                   {searchTargetProject.originalName || searchTargetProject.name}
@@ -675,28 +634,27 @@ export default function RecentProjectsApp() {
                   </button>
                 </div>
               )}
-
             </div>
 
             <div className={styles['search-box']} style={{ padding: '2px 4px', display: 'flex', alignItems: 'center' }}>
-              <FontAwesomeIcon 
-                 icon={folderSearchType === 'content' ? faFileLines : faFolderTree} 
-                 onClick={() => {
-                   const newType = folderSearchType === 'content' ? 'name' : 'content';
-                   setFolderSearchType(newType);
-                   setFolderSearchQuery('');
-                   setFolderSearchResults([]);
-                   setFileNameSearchResults([]);
-                   setFolderSearchError('');
-                 }}
-                 style={{ cursor: 'pointer', color: 'var(--vscode-textLink-foreground)', fontSize: '14px', marginLeft: '6px', marginRight: '6px' }}
-                 title={folderSearchType === 'content' ? "当前：文件内容检索。点击切换为「文件名/文件夹」检索" : "当前：文件名/文件夹检索。点击切换为「文件内容」检索"}
+              <FontAwesomeIcon
+                icon={folderSearchType === 'content' ? faFileLines : faFolderTree}
+                onClick={() => {
+                  const newType = folderSearchType === 'content' ? 'name' : 'content';
+                  setFolderSearchType(newType);
+                  setFolderSearchQuery('');
+                  setFolderSearchResults([]);
+                  setFileNameSearchResults([]);
+                  setFolderSearchError('');
+                }}
+                style={{ cursor: 'pointer', color: 'var(--vscode-textLink-foreground)', fontSize: '14px', marginLeft: '6px', marginRight: '6px' }}
+                title={folderSearchType === 'content' ? '当前：文件内容检索。点击切换为「文件名/文件夹」检索' : '当前：文件名/文件夹检索。点击切换为「文件内容」检索'}
               />
 
               <input
                 autoFocus
                 style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', color: 'var(--vscode-input-foreground)', outline: 'none', padding: '4px 6px', fontSize: '12px' }}
-                placeholder={folderSearchType === 'content' ? "输入关键字自动检索文件内容..." : "输入关键字自动检索文件或文件夹名称..."}
+                placeholder={folderSearchType === 'content' ? '输入关键字自动检索文件内容...' : '输入关键字自动检索文件或文件夹名称...'}
                 value={folderSearchQuery}
                 onChange={(e) => setFolderSearchQuery(e.target.value)}
                 onKeyDown={(e) => {
@@ -705,7 +663,7 @@ export default function RecentProjectsApp() {
                   }
                 }}
               />
-              
+
               {folderSearchType === 'content' && (
                 <span style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', minWidth: '40px', textAlign: 'center', paddingRight: '4px', flexShrink: 0 }}>
                   {totalMatches > 0 ? currentActiveMatch + 1 : 0} / {totalMatches}
@@ -728,7 +686,9 @@ export default function RecentProjectsApp() {
                 <ul>
                   {folderSearchResults.map((res, i) => (
                     <li key={i} style={{ marginBottom: '8px' }}>
-                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--vscode-textLink-foreground)', marginBottom: '2px', wordBreak: 'break-all', display: 'flex', alignItems: 'center' }}>
+                      <div
+                        style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--vscode-textLink-foreground)', marginBottom: '2px', wordBreak: 'break-all', display: 'flex', alignItems: 'center' }}
+                      >
                         <FileIcon fileName={res.file} style={{ marginRight: '6px' }} />
                         {res.file}
                       </div>
@@ -744,12 +704,12 @@ export default function RecentProjectsApp() {
                               id={`search-line-${i}-${j}`}
                               onClick={() => {
                                 setCurrentActiveMatch(globalStartIndex);
-                                vscode.postMessage({ 
-                                  type: 'openFileAtLine', 
-                                  fsPath: res.fullPath, 
+                                vscode.postMessage({
+                                  type: 'openFileAtLine',
+                                  fsPath: res.fullPath,
                                   line: m.line,
                                   isActiveProject: searchTargetProject.isActiveProject,
-                                  projectName: searchTargetProject.projectName || searchTargetProject.name || searchTargetProject.originalName
+                                  projectName: searchTargetProject.projectName || searchTargetProject.name || searchTargetProject.originalName,
                                 });
                               }}
                               style={{
@@ -791,60 +751,58 @@ export default function RecentProjectsApp() {
                   ))}
                 </ul>
               )
+            ) : fileNameSearchResults.length === 0 && folderSearchQuery ? (
+              <div style={{ textAlign: 'center', opacity: 0.6, fontSize: '12px', padding: '20px' }}>没有找到匹配的文件或文件夹</div>
             ) : (
-              fileNameSearchResults.length === 0 && folderSearchQuery ? (
-                <div style={{ textAlign: 'center', opacity: 0.6, fontSize: '12px', padding: '20px' }}>没有找到匹配的文件或文件夹</div>
-              ) : (
-                <ul>
-                  {fileNameSearchResults.map((child, idx) => {
-                    const childId = `name_search_${idx}_${child.path}`;
-                    const isExpanded = expandedNodes.has(childId);
-                    const isRemote = child.path.startsWith('vscode-vfs') || child.path.startsWith('http');
-                    const targetProjName = searchTargetProject.projectName || searchTargetProject.name || searchTargetProject.originalName || '';
+              <ul>
+                {fileNameSearchResults.map((child, idx) => {
+                  const childId = `name_search_${idx}_${child.path}`;
+                  const isExpanded = expandedNodes.has(childId);
+                  const isRemote = child.path.startsWith('vscode-vfs') || child.path.startsWith('http');
+                  const targetProjName = searchTargetProject.projectName || searchTargetProject.name || searchTargetProject.originalName || '';
 
-                    if (child.isFolder) {
-                      return (
-                        <li key={childId} style={{ marginBottom: '2px' }}>
-                          <div
-                            className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedId === childId ? styles['selected'] : ''}`}
-                            onClick={(e) => handleToggleExpand(childId, child.path, targetProjName, isRemote, e)}
-                            style={{ paddingLeft: '4px' }}
-                          >
-                            <div className={styles['tree-chevron']}>
-                              <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} style={{ fontSize: '10px' }} />
-                            </div>
-                            <FontAwesomeIcon icon={faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']}`} />
-                            <span className={styles['sub-name']}>
-                              <HighlightText text={child.name} query={folderSearchQuery} globalStartIndex={-2} currentActiveMatch={-1} isLineActive={false} />
-                            </span>
+                  if (child.isFolder) {
+                    return (
+                      <li key={childId} style={{ marginBottom: '2px' }}>
+                        <div
+                          className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedId === childId ? styles['selected'] : ''}`}
+                          onClick={(e) => handleToggleExpand(childId, child.path, targetProjName, isRemote, e)}
+                          style={{ paddingLeft: '4px' }}
+                        >
+                          <div className={styles['tree-chevron']}>
+                            <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} style={{ fontSize: '10px' }} />
                           </div>
-                          {isExpanded && (
-                            <div className={styles['tree-children']} style={{ paddingLeft: '8px' }}>
-                              {renderTreeChildren(childId, targetProjName, searchTargetProject.isActiveProject)}
-                            </div>
-                          )}
-                        </li>
-                      );
-                    } else {
-                      return (
-                        <li key={childId} style={{ marginBottom: '2px' }}>
-                          <div
-                            className={`${styles['sub-item']} ${selectedId === childId ? styles['selected'] : ''}`}
-                            onClick={(e) => handleOpenFile(child.path, targetProjName, childId, !!searchTargetProject.isActiveProject, e)}
-                            style={{ cursor: 'pointer', paddingLeft: '4px' }}
-                          >
-                            <div className={styles['chevron-placeholder']}></div>
-                            <FileIcon fileName={child.name} className={styles['sub-icon']} />
-                            <span className={styles['sub-name']}>
-                              <HighlightText text={child.name} query={folderSearchQuery} globalStartIndex={-2} currentActiveMatch={-1} isLineActive={false} />
-                            </span>
+                          <FontAwesomeIcon icon={faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']}`} />
+                          <span className={styles['sub-name']}>
+                            <HighlightText text={child.name} query={folderSearchQuery} globalStartIndex={-2} currentActiveMatch={-1} isLineActive={false} />
+                          </span>
+                        </div>
+                        {isExpanded && (
+                          <div className={styles['tree-children']} style={{ paddingLeft: '8px' }}>
+                            {renderTreeChildren(childId, targetProjName, searchTargetProject.isActiveProject)}
                           </div>
-                        </li>
-                      );
-                    }
-                  })}
-                </ul>
-              )
+                        )}
+                      </li>
+                    );
+                  } else {
+                    return (
+                      <li key={childId} style={{ marginBottom: '2px' }}>
+                        <div
+                          className={`${styles['sub-item']} ${selectedId === childId ? styles['selected'] : ''}`}
+                          onClick={(e) => handleOpenFile(child.path, targetProjName, childId, !!searchTargetProject.isActiveProject, e)}
+                          style={{ cursor: 'pointer', paddingLeft: '4px' }}
+                        >
+                          <div className={styles['chevron-placeholder']}></div>
+                          <FileIcon fileName={child.name} className={styles['sub-icon']} />
+                          <span className={styles['sub-name']}>
+                            <HighlightText text={child.name} query={folderSearchQuery} globalStartIndex={-2} currentActiveMatch={-1} isLineActive={false} />
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  }
+                })}
+              </ul>
             )}
           </div>
         </div>
@@ -911,10 +869,12 @@ export default function RecentProjectsApp() {
                             <div className={styles['info']}>
                               <div className={styles['title']}>
                                 <FontAwesomeIcon icon={icon} className={`${styles['project-icon']} ${styles['icon-opened']}`} />
-                                <span className={styles['project-name']} title={title}>{title}</span>
+                                <span className={styles['project-name']} title={title}>
+                                  {title}
+                                </span>
                                 {branch && (
                                   <span className={styles['branch-tag']} title={branch}>
-                                    <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px', flexShrink: 0 }} /> 
+                                    <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px', flexShrink: 0 }} />
                                     <span className={styles['branch-text']}>{branch}</span>
                                   </span>
                                 )}
@@ -965,10 +925,12 @@ export default function RecentProjectsApp() {
                             <div className={styles['info']}>
                               <div className={styles['title']}>
                                 <FontAwesomeIcon icon={icon} className={`${styles['project-icon']} ${styles['icon-closed']}`} />
-                                <span className={styles['project-name']} title={title}>{title}</span>
+                                <span className={styles['project-name']} title={title}>
+                                  {title}
+                                </span>
                                 {branch && (
                                   <span className={styles['branch-tag']} title={branch}>
-                                    <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px', flexShrink: 0 }} /> 
+                                    <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px', flexShrink: 0 }} />
                                     <span className={styles['branch-text']}>{branch}</span>
                                   </span>
                                 )}
