@@ -76,10 +76,12 @@ import tuneIcon from 'material-icon-theme/icons/tune.svg';
 import stylelintIcon from 'material-icon-theme/icons/stylelint_light.svg';
 import xlsxIcon from 'material-icon-theme/icons/table.svg';
 import vscodeIcon from 'material-icon-theme/icons/vscode.svg';
+import pptxIcon from 'material-icon-theme/icons/powerpoint.svg';
+import wordIcon from 'material-icon-theme/icons/word.svg';
 
 const EXACT_NAMES: Record<string, string> = {
   'package.json': nodeJsIcon,
-  'package-lock.json':nodeJsIcon,
+  'package-lock.json': nodeJsIcon,
   '.npmrc': npmIcon,
   'yarn.lock': yarnIcon,
   '.yarnrc': yarnIcon,
@@ -119,6 +121,10 @@ const EXACT_NAMES: Record<string, string> = {
 };
 
 const EXTENSIONS: Record<string, string> = {
+  doc: wordIcon,
+  docx: wordIcon,
+  ppt: pptxIcon,
+  pptx: pptxIcon,
   vsix: vscodeIcon,
   env: tuneIcon,
   ejs: ejsIcon,
