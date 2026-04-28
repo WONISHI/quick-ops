@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { IFeature } from '../core/interfaces/IFeature';
 import ColorLog from '../utils/ColorLog';
-import { RecentProjectsProvider, ReadOnlyContentProvider, ReadOnlyDecorationProvider } from '../providers/RecentProjectsProvider';
+import { RecentProjectsProvider, ReadOnlyFileSystemProvider } from '../providers/RecentProjectsProvider';
 
 export class RecentProjectsFeature implements IFeature {
   public readonly id = 'RecentProjectsFeature';
@@ -11,18 +11,17 @@ export class RecentProjectsFeature implements IFeature {
   public activate(context: vscode.ExtensionContext): void {
     const provider = new RecentProjectsProvider(context);
 
-    // 注册只读文件及装饰器
-    const roProvider = new ReadOnlyContentProvider();
-    const roDecorationProvider = new ReadOnlyDecorationProvider();
-    const roDocRegistration = vscode.workspace.registerTextDocumentContentProvider('quickops-ro', roProvider);
-    const roDecoRegistration = vscode.window.registerFileDecorationProvider(roDecorationProvider);
+    // ================= 🌟 升级：注册原生只读文件系统 =================
+    const roProvider = new ReadOnlyFileSystemProvider();
+    // 这里的 { isReadonly: true } 参数会让 VS Code 完美启用原生锁图标！
+    const roDocRegistration = vscode.workspace.registerFileSystemProvider('quickops-ro', roProvider, { isReadonly: true });
 
     // 注册 Webview 视图
     const webviewView = vscode.window.registerWebviewViewProvider('quickOps.recentProjectsView', provider, {
       webviewOptions: { retainContextWhenHidden: true },
     });
 
-    // ================= 🌟 修复并升级：输入+选择双模式的添加逻辑 =================
+    // 输入+选择双模式的添加逻辑
     const addCmd = vscode.commands.registerCommand('quickOps.addRecentProject', async () => {
       const quickPick = vscode.window.createQuickPick();
       quickPick.placeholder = '直接输入本地绝对路径或远程URL按回车，或在下方选择';
@@ -31,7 +30,7 @@ export class RecentProjectsFeature implements IFeature {
         { label: '$(repo) 填写远程仓库...', description: '手动输入添加 GitHub / GitLab 链接', alwaysShow: true }
       ];
 
-      // 🌟 监听用户的实时输入，动态改变第一个选项
+      // 监听用户的实时输入，动态改变第一个选项
       quickPick.onDidChangeValue(value => {
         if (value.trim()) {
           const isRemote = /^(https?:\/\/|git@|vscode-vfs:\/\/)/i.test(value.trim()) || /^([^/]+\/[^/]+)$/.test(value.trim());
@@ -107,7 +106,6 @@ export class RecentProjectsFeature implements IFeature {
       quickPick.show();
     });
 
-    // ================= 🌟 其他命令保持不变 =================
     const refreshCmd = vscode.commands.registerCommand('quickOps.refreshRecentProjects', async () => {
       provider.refresh();
       await provider.syncAllBranches();
@@ -130,9 +128,9 @@ export class RecentProjectsFeature implements IFeature {
       if (e.focused) provider.refresh();
     });
 
-    // 将所有注册推入订阅池
+    // 将所有注册推入订阅池 (移除了 roDecoRegistration)
     context.subscriptions.push(
-      webviewView, roDocRegistration, roDecoRegistration, 
+      webviewView, roDocRegistration, 
       addCmd, refreshCmd, syncCmd, windowFocusWatcher, clearCmd,
       selectForCompareCmd, compareWithSelectedCmd
     );

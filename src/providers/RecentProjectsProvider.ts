@@ -5,13 +5,28 @@ import * as fs from 'fs';
 import * as readline from 'readline';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
 
-export class ReadOnlyContentProvider implements vscode.TextDocumentContentProvider {
-  public onDidChangeEmitter = new vscode.EventEmitter<vscode.Uri>();
-  public onDidChange = this.onDidChangeEmitter.event;
+// ================= 🌟 升级：使用原生的 FileSystemProvider 触发 VS Code 原生只读锁 =================
+export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
+  public onDidChangeFileEmitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
+  public onDidChangeFile = this.onDidChangeFileEmitter.event;
 
-  private fileCache = new Map<string, string>();
+  private fileCache = new Map<string, Uint8Array>();
 
-  async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
+  watch(): vscode.Disposable {
+    return new vscode.Disposable(() => { });
+  }
+
+  async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
+    return {
+      type: vscode.FileType.File,
+      ctime: Date.now(),
+      mtime: Date.now(),
+      size: 0,
+      permissions: vscode.FilePermission.Readonly,
+    };
+  }
+
+  async readFile(uri: vscode.Uri): Promise<Uint8Array> {
     try {
       const targetQuery = uri.query.replace('target=', '');
       const targetUriStr = decodeURIComponent(targetQuery);
@@ -29,28 +44,21 @@ export class ReadOnlyContentProvider implements vscode.TextDocumentContentProvid
         },
         async () => {
           const contentBytes = await vscode.workspace.fs.readFile(targetUri);
-          const content = Buffer.from(contentBytes).toString('utf8');
-          this.fileCache.set(targetUriStr, content);
-          return content;
-        },
+          this.fileCache.set(targetUriStr, contentBytes);
+          return contentBytes;
+        }
       );
     } catch (e) {
-      return `/* 无法读取该文件内容。可能是由于网络不佳或触发了 API 请求频率限制。\n   详情：${e} */`;
+      return Buffer.from(`/* 无法读取该文件内容。可能是由于网络不佳或触发了 API 请求频率限制。\n   详情：${e} */`, 'utf8');
     }
   }
-}
 
-export class ReadOnlyDecorationProvider implements vscode.FileDecorationProvider {
-  provideFileDecoration(uri: vscode.Uri): vscode.ProviderResult<vscode.FileDecoration> {
-    if (uri.scheme === 'quickops-ro') {
-      return {
-        badge: '🔒',
-        tooltip: '该文件处于只读预览模式',
-        color: new vscode.ThemeColor('gitDecoration.ignoredResourceForeground'),
-      };
-    }
-    return undefined;
-  }
+  // 以下为只读文件系统必须实现的占位方法，直接抛出无权限异常即可
+  readDirectory(): [string, vscode.FileType][] { return []; }
+  createDirectory() { throw vscode.FileSystemError.NoPermissions(); }
+  writeFile() { throw vscode.FileSystemError.NoPermissions(); }
+  delete() { throw vscode.FileSystemError.NoPermissions(); }
+  rename() { throw vscode.FileSystemError.NoPermissions(); }
 }
 
 export interface RecentProject {
@@ -76,10 +84,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.recordCurrentProject();
   }
 
+  // ================= 🌟 升级：移除硬编码 emoji，使用伪目录结构 =================
   private getReadOnlyUri(fsPath: string, projectName: string): vscode.Uri {
     const originalUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
     const fileName = originalUri.path.split(/[\\/]/).pop() || 'unknown';
-    const virtualPath = `/🔒 ${projectName}: ${fileName}`;
+    const virtualPath = `/${projectName}/${fileName}`;
 
     return vscode.Uri.from({
       scheme: 'quickops-ro',
@@ -261,14 +270,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             if (data.isActiveProject) {
               fileUri = data.fsPath.includes('://') ? vscode.Uri.parse(data.fsPath) : vscode.Uri.file(data.fsPath);
             } else {
-              const originalUri = data.fsPath.includes('://') ? vscode.Uri.parse(data.fsPath) : vscode.Uri.file(data.fsPath);
-              const fileName = originalUri.path.split(/[\\/]/).pop() || 'unknown';
               const projName = data.projectName || '搜索结果';
-              fileUri = vscode.Uri.from({
-                scheme: 'quickops-ro',
-                path: `/🔒 ${projName}: ${fileName}`,
-                query: `target=${encodeURIComponent(originalUri.toString())}`
-              });
+              fileUri = this.getReadOnlyUri(data.fsPath, projName);
             }
 
             const doc = await vscode.workspace.openTextDocument(fileUri);
@@ -344,7 +347,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ type: 'searchFileNameResult', results });
   }
 
-  // ================= 🌟 Vditor 独立 Webview 与本地图片解析逻辑 =================
   private async openVditorPanel(fsPath: string, type: 'read' | 'edit') {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
@@ -380,14 +382,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
         const searchDirs: string[] = [];
 
-        // 🌟 1. 优先扫描当前文件同级别的 assets、img、images
         searchDirs.push(
           path.join(mdDir, 'assets'),
           path.join(mdDir, 'img'),
           path.join(mdDir, 'images')
         );
 
-        // 🌟 2. 其次扫描根目录的 assets、img、images
         if (workspaceRoot) {
           searchDirs.push(
             path.join(workspaceRoot, 'assets'),
@@ -396,13 +396,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           );
         }
 
-        // 🌟 3. 保底扫描当前文件夹本身和根目录本身
         searchDirs.push(mdDir);
         if (workspaceRoot) {
           searchDirs.push(workspaceRoot);
         }
 
-        // 去重，防止重复扫描
         const uniqueSearchDirs = Array.from(new Set(searchDirs));
 
         let foundPath = '';
@@ -417,9 +415,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               foundPath = path.join(dir, matchedFile);
               break;
             }
-          } catch (e) {
-            // 忽略读取错误
-          }
+          } catch (e) { }
         }
 
         if (foundPath) {
@@ -947,16 +943,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   private async openFileReadOnly(fsPath: string, projectName: string, viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active, preview: boolean = true) {
     try {
-      const originalUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
-      const fileName = originalUri.path.split(/[\\/]/).pop() || 'unknown';
-      const virtualPath = `/🔒 ${projectName}: ${fileName}`;
-
-      const roUri = vscode.Uri.from({
-        scheme: 'quickops-ro',
-        path: virtualPath,
-        query: `target=${encodeURIComponent(originalUri.toString())}`,
-      });
-
+      const roUri = this.getReadOnlyUri(fsPath, projectName);
       const doc = await vscode.workspace.openTextDocument(roUri);
       await vscode.window.showTextDocument(doc, { preview, viewColumn });
     } catch (e) {
