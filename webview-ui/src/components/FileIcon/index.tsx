@@ -49,7 +49,7 @@ import ejsIcon from 'material-icon-theme/icons/ejs.svg';
 import changelogIcon from 'material-icon-theme/icons/changelog.svg';
 import fontIcon from 'material-icon-theme/icons/font.svg';
 // import gruntIcon from "material-icon-theme/icons/grunt.svg"
-// import gulpIcon from "material-icon-theme/icons/gulp.svg"
+import gulpIcon from 'material-icon-theme/icons/gulp.svg';
 // import husky from "material-icon-theme/icons/husky.svg"
 // import jestIcon from "material-icon-theme/icons/jest.svg"
 import jsconfigIcon from 'material-icon-theme/icons/jsconfig.svg';
@@ -86,6 +86,7 @@ const EXACT_NAMES: Record<string, string> = {
   'yarn.lock': yarnIcon,
   '.yarnrc': yarnIcon,
   '.yarnrc.yml': yarnIcon,
+  'yarn-error.log': yarnIcon,
   'CHANGELOG.md': changelogIcon,
   dockerfile: dockerIcon,
   'LICENSE.md': licenseIcon,
@@ -98,6 +99,7 @@ const EXACT_NAMES: Record<string, string> = {
   '.eslintrc.js': eslintIcon,
   '.eslintrc.json': eslintIcon,
   'eslint.config.js': eslintIcon,
+  '.eslintignore': eslintIcon,
   '.prettierrc': prettierIcon,
   '.prettierignore': prettierIcon,
   '.nvmrc': nodeJsIcon,
@@ -117,7 +119,14 @@ const EXACT_NAMES: Record<string, string> = {
   'commitlint.config.js': commitlintIcon,
   '.browserslistrc': browserlistIcon,
   'stylelint.config.js': stylelintIcon,
+  '.stylelintignore': stylelintIcon,
+  '.stylelintrc': stylelintIcon,
   '.vscodeignore': vscodeIcon,
+  '.env.development': tuneIcon,
+  '.env.localhost': tuneIcon,
+  '.env.production': tuneIcon,
+  '.env.test': tuneIcon,
+  'gulpfile.js': gulpIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {
