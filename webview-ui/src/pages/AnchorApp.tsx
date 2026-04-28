@@ -15,7 +15,6 @@ function getIconSvg(iconDef: IconDefinition, className: string = '') {
   return `<svg class="${className}" viewBox="0 0 ${width} ${height}" width="1em" height="1em" fill="currentColor"><path d="${path}"></path></svg>`;
 }
 
-// 辅助函数：防止 HTML 注入
 function escapeHtml(text: string) {
   if (!text) return '';
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
