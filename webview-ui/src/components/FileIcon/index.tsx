@@ -121,6 +121,7 @@ const EXACT_NAMES: Record<string, string> = {
   'tsconfig.node.json': tsconfigIcon,
   'jsconfig.json': jsconfigIcon,
   '.quickopsrc': jsonIcon,
+  '.telemetryrc': jsonIcon,
   'plopfile.js': plopIcon,
   'readme.md': readmeIcon,
   'pnpm-lock.yaml': pnpmIcon,
@@ -137,6 +138,7 @@ const EXACT_NAMES: Record<string, string> = {
   '.env.localhost': tuneIcon,
   '.env.production': tuneIcon,
   '.env.test': tuneIcon,
+  '.env.staging': tuneIcon,
   'gulpfile.js': gulpIcon,
   'gulpfile.babel.js': gulpIcon,
   '.babelrc': babelIcon,
@@ -228,6 +230,7 @@ const EXTENSIONS: Record<string, string> = {
   rar: zipIcon,
   '7z': zipIcon,
   xlsx: xlsxIcon,
+  'code-snippets': vscodeIcon,
 };
 
 interface FileIconProps {
