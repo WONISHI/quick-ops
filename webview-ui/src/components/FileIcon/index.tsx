@@ -87,6 +87,7 @@ import swcIcon from 'material-icon-theme/icons/swc.svg';
 import vitestIcon from 'material-icon-theme/icons/vitest.svg';
 import vueConfigIcon from 'material-icon-theme/icons/vue-config.svg';
 import viteConfigIcon from 'material-icon-theme/icons/vite.svg';
+import webpackIcon from 'material-icon-theme/icons/webpack.svg';
 
 const EXACT_NAMES: Record<string, string> = {
   'package.json': nodeJsIcon,
@@ -150,6 +151,7 @@ const EXACT_NAMES: Record<string, string> = {
   'vue.config.js': vueConfigIcon,
   'vite.config.ts': viteConfigIcon,
   'vite.config.js': viteConfigIcon,
+  'webpack.config.js': webpackIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {

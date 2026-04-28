@@ -7,18 +7,10 @@ import '@vscode/codicons/dist/codicon.css';
 import Tooltip from '../components/Tooltip';
 import GitGraph, { type GraphCommit } from '../components/GitGraph';
 import GitCompareList from '../components/GitCompareList';
-import type { GitFile } from '../types/GitApp';
+import type { GitFile, TreeNode } from '../types/GitApp';
 
 import { GitContextMenu, type ContextMenuState } from '../components/GitContextMenu';
 import FileIcon from '../components/FileIcon';
-
-interface TreeNode {
-  name: string;
-  fullPath: string;
-  isDirectory: boolean;
-  children: TreeNode[];
-  file?: GitFile;
-}
 
 function buildTree(files: GitFile[]): TreeNode[] {
   const root: TreeNode[] = [];
@@ -409,7 +401,6 @@ export default function GitApp() {
             } else if (listType === 'compare') {
               openCompareDiff(item);
             } else if (listType === 'stash-file') {
-              // 🌟 贮藏文件直接打开
               vscode.postMessage({ command: 'open', file: item.file });
             } else {
               vscode.postMessage({ command: 'diff', file: item.file, status: item.status });

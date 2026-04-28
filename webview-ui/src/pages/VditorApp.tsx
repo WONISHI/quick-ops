@@ -21,9 +21,8 @@ export default function VditorApp() {
 
           let processedContent = msg.content;
           
-          // 🌟 1. 处理 Obsidian 双链语法: ![[Pasted image xxx.png]]
           const wikiRegex = /!\[\[(.*?)\]\]/g;
-          processedContent = processedContent.replace(wikiRegex, (match: string, rawImageName: string) => {
+          processedContent = processedContent.replace(wikiRegex, (_: string, rawImageName: string) => {
             const exactName = rawImageName.trim();
             if (msg.imageMap && msg.imageMap[exactName]) {
               return `![${exactName}](${msg.imageMap[exactName]})`;
@@ -31,8 +30,7 @@ export default function VditorApp() {
             return `![${exactName}](${exactName})`;
           });
 
-          // 🌟 2. 处理标准 Markdown 语法: ![Pasted image xxx.png](Pasted image xxx.png)
-          // 我们匹配括号里的路径，如果它在 imageMap 里，就替换它
+
           const mdRegex = /!\[(.*?)\]\((.*?)\)/g;
           processedContent = processedContent.replace(mdRegex, (match: string, alt: string, path: string) => {
             const exactPath = path.trim();
