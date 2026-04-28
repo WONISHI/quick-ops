@@ -55,7 +55,7 @@ import jestIcon from 'material-icon-theme/icons/jest.svg';
 import jsconfigIcon from 'material-icon-theme/icons/jsconfig.svg';
 import mapIcon from 'material-icon-theme/icons/javascript-map.svg';
 import hbsIcon from 'material-icon-theme/icons/handlebars.svg';
-import umiIcon from '../../assets/icons/umi.svg';
+import umiIcon from 'material-icon-theme/icons/umi.svg';
 import licenseIcon from 'material-icon-theme/icons/license.svg';
 // import lockIcon from "material-icon-theme/icons/lock.svg"
 import lottieIcon from 'material-icon-theme/icons/lottie.svg';
@@ -88,6 +88,7 @@ import vitestIcon from 'material-icon-theme/icons/vitest.svg';
 import vueConfigIcon from 'material-icon-theme/icons/vue-config.svg';
 import viteConfigIcon from 'material-icon-theme/icons/vite.svg';
 import webpackIcon from 'material-icon-theme/icons/webpack.svg';
+import tailwindcssIcon from 'material-icon-theme/icons/tailwindcss.svg';
 
 const EXACT_NAMES: Record<string, string> = {
   'package.json': nodeJsIcon,
@@ -152,6 +153,7 @@ const EXACT_NAMES: Record<string, string> = {
   'vite.config.ts': viteConfigIcon,
   'vite.config.js': viteConfigIcon,
   'webpack.config.js': webpackIcon,
+  'tailwind.config.ts': tailwindcssIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {

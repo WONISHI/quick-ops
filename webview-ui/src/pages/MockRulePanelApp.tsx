@@ -109,6 +109,7 @@ export default function MockRulePanelApp() {
         reqHeadersObj = JSON.parse(reqHeaders);
         if (typeof reqHeadersObj !== 'object' || Array.isArray(reqHeadersObj)) throw new Error();
       } catch (e) {
+        console.log('e',e)
         return vscode.postMessage({ type: 'error', message: '注入请求头必须是合法的 JSON 对象格式！' });
       }
     }
