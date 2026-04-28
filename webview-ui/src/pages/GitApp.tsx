@@ -403,7 +403,6 @@ export default function GitApp() {
           style={{ paddingLeft: `${depth * 12 + 24}px` }}
           title={item.file}
           onClick={() => {
-            console.log('listType',listType)
             setActiveFile(item.file);
             if (listType === 'history') {
               openHistoryDiff(item, historyHash);
@@ -460,10 +459,7 @@ export default function GitApp() {
             )}
           </div>
 
-          <div 
-            className={`${styles['status-badge']} ${getStatusClass(item.status)}`}
-            style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}
-          >
+          <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`} style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}>
             {getStatusText(item.status)}
           </div>
         </li>
@@ -547,10 +543,7 @@ export default function GitApp() {
                 )}
               </div>
 
-              <div 
-                className={`${styles['status-badge']} ${getStatusClass(item.status)}`}
-                style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}
-              >
+              <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`} style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}>
                 {getStatusText(item.status)}
               </div>
             </li>
@@ -595,7 +588,6 @@ export default function GitApp() {
 
   return (
     <div className={styles['git-sidebar']}>
-      
       <GitContextMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />
 
       <div className={styles['git-toolbar']}>
@@ -751,7 +743,6 @@ export default function GitApp() {
 
           {isChangesOpen && (
             <div style={{ maxHeight: '30vh', overflowY: 'auto', paddingBottom: '4px' }}>
-              
               {/* 1. 暂存区 */}
               {stagedFiles.length > 0 && (
                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
@@ -852,13 +843,15 @@ export default function GitApp() {
                   <div className={styles['changes-header']} style={{ cursor: 'default', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--vscode-errorForeground, #f14c4c)' }}>
                       <i className="codicon codicon-warning" style={{ fontSize: '14px', width: '16px' }} />
-                      冲突区 <span className={styles['badge']} style={{ backgroundColor: 'var(--vscode-errorForeground, #f14c4c)', color: '#fff', border: 'none' }}>{conflictedFiles.length}</span>
+                      冲突区{' '}
+                      <span className={styles['badge']} style={{ backgroundColor: 'var(--vscode-errorForeground, #f14c4c)', color: '#fff', border: 'none' }}>
+                        {conflictedFiles.length}
+                      </span>
                     </div>
                   </div>
                   {renderFileList(conflictedFiles, 'unstaged')}
                 </div>
               )}
-
             </div>
           )}
         </div>
@@ -869,7 +862,9 @@ export default function GitApp() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
               <i className={`codicon ${isStashesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px', flexShrink: 0 }} />
               <span style={{ flexShrink: 0 }}>贮藏</span>
-              <span className={styles['badge']} style={{ flexShrink: 0 }}>{stashes.length}</span>
+              <span className={styles['badge']} style={{ flexShrink: 0 }}>
+                {stashes.length}
+              </span>
             </div>
           </div>
 
@@ -886,10 +881,10 @@ export default function GitApp() {
 
                     return (
                       <React.Fragment key={idx}>
-                        <li 
+                        <li
                           // 🌟 修改点 2: 移除了 isExpanded 时的 active 高亮背景，仅保留点击功能
-                          className={styles['file-item']} 
-                          title={stash.message} 
+                          className={styles['file-item']}
+                          title={stash.message}
                           style={{ paddingLeft: '12px', cursor: 'pointer' }}
                           onClick={() => {
                             if (isExpanded) {
@@ -897,7 +892,7 @@ export default function GitApp() {
                             } else {
                               setExpandedStashIndex(stash.index);
                               if (!stashFilesMap[stash.index]) {
-                                setStashFilesLoading(prev => ({ ...prev, [stash.index]: true }));
+                                setStashFilesLoading((prev) => ({ ...prev, [stash.index]: true }));
                                 vscode.postMessage({ command: 'getStashFiles', index: stash.index });
                               }
                             }
@@ -910,19 +905,37 @@ export default function GitApp() {
 
                           <div className={styles['file-actions']}>
                             <Tooltip content="应用贮藏并保留 (Apply)">
-                              <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashApply', index: stash.index }); }}>
+                              <button
+                                className={styles['action-btn']}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  vscode.postMessage({ command: 'stashApply', index: stash.index });
+                                }}
+                              >
                                 {/* 🌟 修改点 3: 替换成了 git-stash-apply 图标 */}
                                 <i className="codicon codicon-git-stash-apply" />
                               </button>
                             </Tooltip>
                             <Tooltip content="应用并删除贮藏 (Pop)">
-                              <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashPop', index: stash.index }); }}>
+                              <button
+                                className={styles['action-btn']}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  vscode.postMessage({ command: 'stashPop', index: stash.index });
+                                }}
+                              >
                                 {/* 🌟 修改点 3: 替换成了 git-stash-pop 图标 */}
                                 <i className="codicon codicon-git-stash-pop" />
                               </button>
                             </Tooltip>
                             <Tooltip content="删除此贮藏 (Drop)">
-                              <button className={styles['action-btn']} onClick={(e) => { e.stopPropagation(); vscode.postMessage({ command: 'stashDrop', index: stash.index }); }}>
+                              <button
+                                className={styles['action-btn']}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  vscode.postMessage({ command: 'stashDrop', index: stash.index });
+                                }}
+                              >
                                 <i className="codicon codicon-trash" />
                               </button>
                             </Tooltip>
@@ -938,9 +951,7 @@ export default function GitApp() {
                                 加载变动文件...
                               </div>
                             ) : (
-                              <div style={{ paddingLeft: '30px' }}>
-                                {renderFileList(files, 'stash-file', `stash@{${stash.index}}`)}
-                              </div>
+                              <div style={{ paddingLeft: '30px' }}>{renderFileList(files, 'stash-file', `stash@{${stash.index}}`)}</div>
                             )}
                           </div>
                         )}
