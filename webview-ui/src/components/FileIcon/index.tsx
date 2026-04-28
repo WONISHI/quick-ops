@@ -59,7 +59,7 @@ import umiIcon from '../../assets/icons/umi.svg';
 import licenseIcon from 'material-icon-theme/icons/license.svg';
 // import lockIcon from "material-icon-theme/icons/lock.svg"
 import lottieIcon from 'material-icon-theme/icons/lottie.svg';
-// import nestIcon from "material-icon-theme/icons/nest.svg"
+import nestIcon from 'material-icon-theme/icons/nest.svg';
 // import nginxIcon from "material-icon-theme/icons/nginx.svg"
 // import nuxtIcon from "material-icon-theme/icons/nuxt.svg"
 import pnpmIcon from 'material-icon-theme/icons/pnpm_light.svg';
@@ -83,6 +83,8 @@ import wordIcon from 'material-icon-theme/icons/word.svg';
 import babelIcon from 'material-icon-theme/icons/babel.svg';
 import todoIcon from 'material-icon-theme/icons/todo.svg';
 import freemarkerIcon from 'material-icon-theme/icons/freemarker.svg';
+import swcIcon from 'material-icon-theme/icons/swc.svg';
+import vitestIcon from 'material-icon-theme/icons/vitest.svg';
 
 const EXACT_NAMES: Record<string, string> = {
   'package.json': nodeJsIcon,
@@ -140,6 +142,9 @@ const EXACT_NAMES: Record<string, string> = {
   'rollup.config.js': rollupIcon,
   'turbo.json': turboIcon,
   'wrangler.toml': wranglerIcon,
+  'nest-cli.json': nestIcon,
+  '.swcrc': swcIcon,
+  'vitest.config.ts': vitestIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {
