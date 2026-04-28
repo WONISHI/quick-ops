@@ -51,7 +51,7 @@ import fontIcon from 'material-icon-theme/icons/font.svg';
 // import gruntIcon from "material-icon-theme/icons/grunt.svg"
 import gulpIcon from 'material-icon-theme/icons/gulp.svg';
 // import husky from "material-icon-theme/icons/husky.svg"
-// import jestIcon from "material-icon-theme/icons/jest.svg"
+import jestIcon from 'material-icon-theme/icons/jest.svg';
 import jsconfigIcon from 'material-icon-theme/icons/jsconfig.svg';
 import mapIcon from 'material-icon-theme/icons/javascript-map.svg';
 import hbsIcon from 'material-icon-theme/icons/handlebars.svg';
@@ -65,7 +65,9 @@ import lottieIcon from 'material-icon-theme/icons/lottie.svg';
 import pnpmIcon from 'material-icon-theme/icons/pnpm_light.svg';
 import postcssIcon from 'material-icon-theme/icons/postcss.svg';
 // import reduxIcon from "material-icon-theme/icons/redux-store.svg"
-// import rollupIcon from "material-icon-theme/icons/rollup.svg"
+import wranglerIcon from 'material-icon-theme/icons/wrangler.svg';
+import turboIcon from 'material-icon-theme/icons/turborepo_light.svg';
+import rollupIcon from 'material-icon-theme/icons/rollup.svg';
 import readmeIcon from 'material-icon-theme/icons/readme.svg';
 import plopIcon from 'material-icon-theme/icons/plop.svg';
 import markdownlint from 'material-icon-theme/icons/markdownlint.svg';
@@ -130,9 +132,14 @@ const EXACT_NAMES: Record<string, string> = {
   '.env.production': tuneIcon,
   '.env.test': tuneIcon,
   'gulpfile.js': gulpIcon,
-  'gulpfile.babel.js':gulpIcon,
+  'gulpfile.babel.js': gulpIcon,
   '.babelrc': babelIcon,
   'todo.md': todoIcon,
+  'jest.config.js': jestIcon,
+  'rollup.config.mjs': rollupIcon,
+  'rollup.config.js': rollupIcon,
+  'turbo.json': turboIcon,
+  'wrangler.toml': wranglerIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {
