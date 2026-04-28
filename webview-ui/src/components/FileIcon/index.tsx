@@ -78,6 +78,9 @@ import xlsxIcon from 'material-icon-theme/icons/table.svg';
 import vscodeIcon from 'material-icon-theme/icons/vscode.svg';
 import pptxIcon from 'material-icon-theme/icons/powerpoint.svg';
 import wordIcon from 'material-icon-theme/icons/word.svg';
+import babelIcon from 'material-icon-theme/icons/babel.svg';
+import todoIcon from 'material-icon-theme/icons/todo.svg';
+import freemarkerIcon from 'material-icon-theme/icons/freemarker.svg';
 
 const EXACT_NAMES: Record<string, string> = {
   'package.json': nodeJsIcon,
@@ -127,9 +130,12 @@ const EXACT_NAMES: Record<string, string> = {
   '.env.production': tuneIcon,
   '.env.test': tuneIcon,
   'gulpfile.js': gulpIcon,
+  '.babelrc': babelIcon,
+  'todo.md': todoIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {
+  ftl: freemarkerIcon,
   doc: wordIcon,
   docx: wordIcon,
   ppt: pptxIcon,
