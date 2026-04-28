@@ -45,7 +45,35 @@ import pdfIcon from 'material-icon-theme/icons/pdf.svg';
 import consoleIcon from 'material-icon-theme/icons/console.svg';
 import zipIcon from 'material-icon-theme/icons/zip.svg';
 import nodeJsIcon from 'material-icon-theme/icons/nodejs.svg';
+import ejsIcon from 'material-icon-theme/icons/ejs.svg';
+import changelogIcon from 'material-icon-theme/icons/changelog.svg';
+import fontIcon from 'material-icon-theme/icons/font.svg';
+// import gruntIcon from "material-icon-theme/icons/grunt.svg"
+// import gulpIcon from "material-icon-theme/icons/gulp.svg"
+// import husky from "material-icon-theme/icons/husky.svg"
+// import jestIcon from "material-icon-theme/icons/jest.svg"
+import jsconfigIcon from 'material-icon-theme/icons/jsconfig.svg';
+import mapIcon from 'material-icon-theme/icons/javascript-map.svg';
+import hbsIcon from 'material-icon-theme/icons/handlebars.svg';
 import umiIcon from '../../assets/icons/umi.svg';
+import licenseIcon from 'material-icon-theme/icons/license.svg';
+// import lockIcon from "material-icon-theme/icons/lock.svg"
+import lottieIcon from 'material-icon-theme/icons/lottie.svg';
+// import nestIcon from "material-icon-theme/icons/nest.svg"
+// import nginxIcon from "material-icon-theme/icons/nginx.svg"
+// import nuxtIcon from "material-icon-theme/icons/nuxt.svg"
+import pnpmIcon from 'material-icon-theme/icons/pnpm_light.svg';
+import postcssIcon from 'material-icon-theme/icons/postcss.svg';
+// import reduxIcon from "material-icon-theme/icons/redux-store.svg"
+// import rollupIcon from "material-icon-theme/icons/rollup.svg"
+import readmeIcon from 'material-icon-theme/icons/readme.svg';
+import plopIcon from 'material-icon-theme/icons/plop.svg';
+import markdownlint from 'material-icon-theme/icons/markdownlint.svg';
+import lintstagedIcon from 'material-icon-theme/icons/lintstaged.svg';
+import commitlintIcon from 'material-icon-theme/icons/commitlint.svg';
+import browserlistIcon from 'material-icon-theme/icons/browserlist_light.svg';
+import tuneIcon from 'material-icon-theme/icons/tune.svg';
+import stylelintIcon from 'material-icon-theme/icons/stylelint_light.svg';
 
 const EXACT_NAMES: Record<string, string> = {
   'package.json': npmIcon,
@@ -53,11 +81,14 @@ const EXACT_NAMES: Record<string, string> = {
   'yarn.lock': yarnIcon,
   '.yarnrc': yarnIcon,
   '.yarnrc.yml': yarnIcon,
+  'CHANGELOG.md': changelogIcon,
   dockerfile: dockerIcon,
+  'LICENSE.md': licenseIcon,
   'docker-compose.yml': dockerIcon,
   '.dockerignore': dockerIcon,
   '.gitignore': gitIcon,
   '.gitattributes': gitIcon,
+  '.gitkeep': gitIcon,
   '.gitmodules': gitIcon,
   '.eslintrc.js': eslintIcon,
   '.eslintrc.json': eslintIcon,
@@ -68,9 +99,26 @@ const EXACT_NAMES: Record<string, string> = {
   '.umirc.ts': umiIcon,
   '.editorconfig': editorconfigIcon,
   'tsconfig.json': tsconfigIcon,
+  'jsconfig.json': jsconfigIcon,
+  '.quickopsrc': jsonIcon,
+  'plopfile.js': plopIcon,
+  'readme.md': readmeIcon,
+  'pnpm-lock.yaml': pnpmIcon,
+  '.markdownlint.json': markdownlint,
+  'postcss.config.js': postcssIcon,
+  '.lintstagedrc': lintstagedIcon,
+  'commitlint.config.js': commitlintIcon,
+  '.browserslistrc': browserlistIcon,
+  'stylelint.config.js': stylelintIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {
+  env: tuneIcon,
+  ejs: ejsIcon,
+  hbs: hbsIcon,
+  font: fontIcon,
+  map: mapIcon,
+  lottie: lottieIcon,
   ts: typescriptIcon,
   tsx: reactTsIcon,
   js: javascriptIcon,
