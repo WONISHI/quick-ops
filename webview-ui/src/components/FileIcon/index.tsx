@@ -78,7 +78,8 @@ import xlsxIcon from 'material-icon-theme/icons/table.svg';
 import vscodeIcon from 'material-icon-theme/icons/vscode.svg';
 
 const EXACT_NAMES: Record<string, string> = {
-  'package.json': npmIcon,
+  'package.json': nodeJsIcon,
+  'package-lock.json':nodeJsIcon,
   '.npmrc': npmIcon,
   'yarn.lock': yarnIcon,
   '.yarnrc': yarnIcon,
@@ -101,6 +102,8 @@ const EXACT_NAMES: Record<string, string> = {
   '.umirc.ts': umiIcon,
   '.editorconfig': editorconfigIcon,
   'tsconfig.json': tsconfigIcon,
+  'tsconfig.app.json': tsconfigIcon,
+  'tsconfig.node.json': tsconfigIcon,
   'jsconfig.json': jsconfigIcon,
   '.quickopsrc': jsonIcon,
   'plopfile.js': plopIcon,
