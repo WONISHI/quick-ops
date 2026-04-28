@@ -130,6 +130,7 @@ const EXACT_NAMES: Record<string, string> = {
   '.env.production': tuneIcon,
   '.env.test': tuneIcon,
   'gulpfile.js': gulpIcon,
+  'gulpfile.babel.js':gulpIcon,
   '.babelrc': babelIcon,
   'todo.md': todoIcon,
 };
