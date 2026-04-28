@@ -74,6 +74,7 @@ import commitlintIcon from 'material-icon-theme/icons/commitlint.svg';
 import browserlistIcon from 'material-icon-theme/icons/browserlist_light.svg';
 import tuneIcon from 'material-icon-theme/icons/tune.svg';
 import stylelintIcon from 'material-icon-theme/icons/stylelint_light.svg';
+import xlsxIcon from 'material-icon-theme/icons/table.svg';
 
 const EXACT_NAMES: Record<string, string> = {
   'package.json': npmIcon,
@@ -177,6 +178,7 @@ const EXTENSIONS: Record<string, string> = {
   gz: zipIcon,
   rar: zipIcon,
   '7z': zipIcon,
+  xlsx: xlsxIcon,
 };
 
 interface FileIconProps {
