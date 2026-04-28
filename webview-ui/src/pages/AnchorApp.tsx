@@ -5,6 +5,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faExpand, faCompress, faRotateRight, faMinus, faPlus, faTag, faPenToSquare, faTrash, faLink, type IconDefinition } from '@fortawesome/free-solid-svg-icons';
 import { faFolderOpen as faFolderOpenReg, faFileCode as faFileCodeReg } from '@fortawesome/free-regular-svg-icons';
 import type { TreeNodeData, TreeNode, IconTuple } from '../types/AnchorApp';
+import styles from '../assets/css/AnchorApp.module.css';
 
 function getIconSvg(iconDef: IconDefinition, className: string = '') {
   const iconArray = iconDef.icon as unknown as IconTuple;
@@ -371,78 +372,9 @@ export default function AnchorApp() {
   };
 
   return (
-    <div className="anchor-app" style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden' }}>
-      <style>{`
-        :root {
-            --node-text-color: var(--vscode-editor-foreground);
-            --tooltip-bg: var(--vscode-editorHoverWidget-background, #252526);
-            --tooltip-border: var(--vscode-editorHoverWidget-border, #454545);
-            --code-bg: var(--vscode-textBlockQuote-background, rgba(128,128,128,0.1));
-            --accent-color: var(--vscode-textLink-foreground, #3794ff);
-        }
-
-        .node circle { transition: all 0.3s ease; }
-        .node circle.outer { fill: transparent; stroke-width: 2px; }
-        .node circle.inner { stroke-width: 2.5px; }
-        .node:hover circle.outer { opacity: 0.4 !important; }
-
-        .node text.label { 
-            font: 13.5px "Segoe UI", sans-serif; font-weight: 500; fill: var(--node-text-color); 
-            paint-order: stroke; stroke: var(--vscode-editor-background); stroke-width: 3px; stroke-linecap: round; stroke-linejoin: round;
-            cursor: pointer;
-        }
-        .node:hover text.label { fill: var(--vscode-textLink-activeForeground); }
-        
-        .node text.badge { font: 10px sans-serif; fill: var(--vscode-descriptionForeground); font-weight: bold; pointer-events: none; }
-
-        .link { fill: none; stroke-width: 1.5px; stroke-opacity: 0.5; transition: all 0.3s; }
-        .link:hover { stroke-opacity: 1; stroke-width: 2.5px; }
-
-        .tooltip { 
-            position: absolute; opacity: 0; pointer-events: none; 
-            background: var(--tooltip-bg); border: 1px solid var(--tooltip-border); 
-            color: var(--vscode-editorHoverWidget-foreground); 
-            padding: 0; border-radius: 6px; font-size: 12px; z-index: 9999; 
-            box-shadow: 0 8px 24px rgba(0,0,0,0.25); 
-            transition: opacity 0.2s ease-in-out; 
-            min-width: 250px; max-width: 500px; 
-        }
-        .tooltip::before { content: ''; position: absolute; top: -10px; left: -10px; right: -10px; bottom: -10px; z-index: -1; }
-        .tooltip-header { 
-            background: var(--vscode-sideBarSectionHeader-background); 
-            padding: 8px 12px; font-weight: 600; border-bottom: 1px solid var(--vscode-panel-border);
-            display: flex; align-items: center; gap: 8px; font-size: 13px;
-            border-top-left-radius: 6px; border-top-right-radius: 6px;
-        }
-        .tooltip-header svg { color: var(--accent-color); font-size: 14px; }
-        .tooltip-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
-        .tooltip-row { display: flex; align-items: center; gap: 8px; color: var(--vscode-descriptionForeground); }
-        .tooltip-val { color: var(--vscode-editor-foreground); word-break: break-all; }
-
-        .code-block {
-            background: var(--code-bg); padding: 10px; border-radius: 4px;
-            font-family: var(--vscode-editor-font-family, 'Courier New', monospace);
-            border-left: 3px solid var(--accent-color);
-            white-space: pre-wrap; word-break: break-all; font-size: 11px; margin-top: 4px;
-            color: var(--vscode-editor-foreground); line-height: 1.4; max-height: 300px; overflow-y: auto;
-        }
-        
-        .tooltip-actions {
-            display: flex; gap: 8px; padding: 8px 12px; border-top: 1px dashed var(--vscode-panel-border);
-            background: var(--vscode-editorHoverWidget-background);
-            border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; justify-content: flex-end;
-        }
-        .tooltip-btn {
-            background: transparent; border: 1px solid var(--vscode-panel-border);
-            color: var(--vscode-editor-foreground); border-radius: 4px; padding: 4px 8px;
-            cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 6px; transition: all 0.2s;
-        }
-        .tooltip-btn:hover { background: var(--vscode-list-hoverBackground); }
-        .tooltip-btn.danger:hover { color: var(--vscode-errorForeground); border-color: var(--vscode-errorForeground); }
-      `}</style>
-
+    <div className={styles.appWrapper}>
       {/* 顶部控制栏 */}
-      <div id="controls-top-right" style={{ position: 'absolute', top: 20, right: 20, zIndex: 100, display: 'flex', gap: 10 }}>
+      <div className={styles.topControls}>
         <button className="icon-btn" onClick={handleFullscreen} title={isFullscreen.current ? '恢复默认布局' : '切换编辑器最大化'}>
           <FontAwesomeIcon icon={isFullscreen.current ? faCompress : faExpand} />
         </button>
@@ -452,7 +384,7 @@ export default function AnchorApp() {
       </div>
 
       {/* 底部缩放栏 */}
-      <div id="controls-bottom" style={{ position: 'absolute', bottom: 40, left: '50%', transform: 'translateX(-50%)', zIndex: 100, display: 'flex', gap: 12 }}>
+      <div className={styles.bottomControls}>
         <button className="icon-btn" onClick={handleZoomOut} title="缩小">
           <FontAwesomeIcon icon={faMinus} />
         </button>
@@ -465,16 +397,9 @@ export default function AnchorApp() {
       </div>
 
       {/* D3 SVG 容器 */}
-      <div
-        id="tree-container"
-        ref={containerRef}
-        style={{ width: '100%', height: '100%', cursor: 'grab' }}
-        onMouseDown={(e) => (e.currentTarget.style.cursor = 'grabbing')}
-        onMouseUp={(e) => (e.currentTarget.style.cursor = 'grab')}
-      ></div>
+      <div className={styles.treeContainer} ref={containerRef}></div>
 
-      {/* 悬浮提示窗 */}
-      <div id="tooltip" ref={tooltipRef} className="tooltip"></div>
+      <div ref={tooltipRef} className="tooltip"></div>
     </div>
   );
 }
