@@ -160,12 +160,12 @@ const EXACT_NAMES: Record<string, string> = {
   'vite.config.js': viteConfigIcon,
   'webpack.config.js': webpackIcon,
   'tailwind.config.ts': tailwindcssIcon,
+  '.DS_Store': dsStoreIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {
   sheet: sheetIcon,
   base: obsidianIcon,
-  DS_Store: dsStoreIcon,
   ftl: freemarkerIcon,
   doc: wordIcon,
   docx: wordIcon,
