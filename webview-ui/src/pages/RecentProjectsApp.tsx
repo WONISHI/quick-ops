@@ -618,9 +618,15 @@ export default function RecentProjectsApp() {
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                   }}
-                  title={searchTargetProject.originalName || searchTargetProject.name}
+                  title={
+                    searchTargetProject.projectName
+                      ? `${searchTargetProject.projectName} / ${searchTargetProject.name}`
+                      : searchTargetProject.customName || searchTargetProject.originalName || searchTargetProject.name
+                  }
                 >
-                  {searchTargetProject.originalName || searchTargetProject.name}
+                  {searchTargetProject.projectName
+                    ? <>{searchTargetProject.projectName} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>/ {searchTargetProject.name}</span></>
+                    : searchTargetProject.customName || searchTargetProject.originalName || searchTargetProject.name}
                 </span>
               </div>
 

@@ -84,11 +84,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.recordCurrentProject();
   }
 
-  // ================= 🌟 升级：移除硬编码 emoji，使用伪目录结构 =================
   private getReadOnlyUri(fsPath: string, projectName: string): vscode.Uri {
     const originalUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
     const fileName = originalUri.path.split(/[\\/]/).pop() || 'unknown';
-    const virtualPath = `/${projectName}/${fileName}`;
+    
+    const virtualPath = `/${projectName}: ${fileName}`;
 
     return vscode.Uri.from({
       scheme: 'quickops-ro',
