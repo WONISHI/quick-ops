@@ -3,7 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { IFeature } from '../core/interfaces/IFeature';
 import ColorLog from '../utils/ColorLog';
-import { RecentProjectsProvider, ReadOnlyFileSystemProvider } from '../providers/RecentProjectsProvider';
+import { RecentProjectsProvider } from '../providers/RecentProjectsProvider';
+import { ReadOnlyFileSystemProvider } from '../providers/ReadOnlyFileSystemProvider';
 
 export class RecentProjectsFeature implements IFeature {
   public readonly id = 'RecentProjectsFeature';
@@ -11,9 +12,7 @@ export class RecentProjectsFeature implements IFeature {
   public activate(context: vscode.ExtensionContext): void {
     const provider = new RecentProjectsProvider(context);
 
-    // ================= 🌟 升级：注册原生只读文件系统 =================
     const roProvider = new ReadOnlyFileSystemProvider();
-    // 这里的 { isReadonly: true } 参数会让 VS Code 完美启用原生锁图标！
     const roDocRegistration = vscode.workspace.registerFileSystemProvider('quickops-ro', roProvider, { isReadonly: true });
 
     // 注册 Webview 视图
@@ -27,27 +26,26 @@ export class RecentProjectsFeature implements IFeature {
       quickPick.placeholder = '直接输入本地绝对路径或远程URL按回车，或在下方选择';
       quickPick.items = [
         { label: '$(folder) 浏览本地项目...', description: '打开系统文件夹选择器', alwaysShow: true },
-        { label: '$(repo) 填写远程仓库...', description: '手动输入添加 GitHub / GitLab 链接', alwaysShow: true }
+        { label: '$(repo) 填写远程仓库...', description: '手动输入添加 GitHub / GitLab 链接', alwaysShow: true },
       ];
 
-      // 监听用户的实时输入，动态改变第一个选项
-      quickPick.onDidChangeValue(value => {
+      quickPick.onDidChangeValue((value) => {
         if (value.trim()) {
           const isRemote = /^(https?:\/\/|git@|vscode-vfs:\/\/)/i.test(value.trim()) || /^([^/]+\/[^/]+)$/.test(value.trim());
           quickPick.items = [
             {
               label: isRemote ? '$(repo) 识别为【远程仓库】并添加' : '$(folder) 识别为【本地项目】并添加',
               description: value,
-              alwaysShow: true
+              alwaysShow: true,
             },
             { label: '$(folder) 浏览本地项目...', description: '打开系统文件夹选择器', alwaysShow: true },
-            { label: '$(repo) 填写远程仓库...', description: '手动输入添加 GitHub / GitLab 链接', alwaysShow: true }
+            { label: '$(repo) 填写远程仓库...', description: '手动输入添加 GitHub / GitLab 链接', alwaysShow: true },
           ];
         } else {
           // 清空输入时恢复默认选项
           quickPick.items = [
             { label: '$(folder) 浏览本地项目...', description: '打开系统文件夹选择器', alwaysShow: true },
-            { label: '$(repo) 填写远程仓库...', description: '手动输入添加 GitHub / GitLab 链接', alwaysShow: true }
+            { label: '$(repo) 填写远程仓库...', description: '手动输入添加 GitHub / GitLab 链接', alwaysShow: true },
           ];
         }
       });
@@ -57,18 +55,15 @@ export class RecentProjectsFeature implements IFeature {
         const selected = quickPick.selectedItems[0];
         quickPick.hide();
         quickPick.dispose();
-
-        // 如果用户直接输入了路径并回车，或者选中了动态生成的第一个选项
         if (inputValue && selected.description === inputValue) {
           const isRemote = /^(https?:\/\/|git@|vscode-vfs:\/\/)/i.test(inputValue) || /^([^/]+\/[^/]+)$/.test(inputValue);
 
           if (isRemote) {
-            // 利用 any 绕过 private，复用 provider 中已有的完备解析逻辑
             const parsed = (provider as any).parseRemoteUrlInput(inputValue);
             if (parsed) {
               const projectName = await vscode.window.showInputBox({
                 prompt: '确认远程项目名称',
-                value: parsed.repoFullName.split('/').pop() || parsed.repoFullName
+                value: parsed.repoFullName.split('/').pop() || parsed.repoFullName,
               });
               if (projectName) {
                 await (provider as any).insertProjectToHistory(projectName, parsed.targetUriStr, parsed.platform, parsed.customDomain);
@@ -129,11 +124,7 @@ export class RecentProjectsFeature implements IFeature {
     });
 
     // 将所有注册推入订阅池 (移除了 roDecoRegistration)
-    context.subscriptions.push(
-      webviewView, roDocRegistration, 
-      addCmd, refreshCmd, syncCmd, windowFocusWatcher, clearCmd,
-      selectForCompareCmd, compareWithSelectedCmd
-    );
+    context.subscriptions.push(webviewView, roDocRegistration, addCmd, refreshCmd, syncCmd, windowFocusWatcher, clearCmd, selectForCompareCmd, compareWithSelectedCmd);
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
