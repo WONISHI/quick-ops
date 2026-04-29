@@ -1,0 +1,122 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground);
+  font-family: var(--vscode-font-family);
+  overflow: hidden;
+}
+
+.loading, .error {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.error {
+  color: var(--vscode-errorForeground);
+}
+
+.tableContainer {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+}
+
+.excelTable {
+  border-collapse: collapse;
+  min-width: 100%;
+  font-size: 13px;
+  table-layout: fixed; /* 固定列宽策略 */
+}
+
+/* 所有单元格基础样式 */
+.excelTable th,
+.excelTable td {
+  border: 1px solid var(--vscode-panel-border, #444);
+  padding: 4px 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+/* --- 数据单元格 --- */
+.excelTable td {
+  background-color: var(--vscode-editor-background);
+}
+
+/* --- 行头 (1, 2, 3...) --- */
+.excelTable td.rowHeader {
+  position: sticky;
+  left: 0;
+  background-color: var(--vscode-editorGroupHeader-tabsBackground, #252526);
+  color: var(--vscode-tab-activeForeground);
+  text-align: center;
+  font-weight: 600;
+  user-select: none;
+  z-index: 5;
+  width: 40px; /* 固定行号宽度 */
+}
+
+/* --- 列头 (A, B, C...) --- */
+.excelTable th.colHeader {
+  position: sticky;
+  top: 0;
+  background-color: var(--vscode-editorGroupHeader-tabsBackground, #252526);
+  color: var(--vscode-tab-activeForeground);
+  text-align: center;
+  font-weight: 600;
+  user-select: none;
+  z-index: 10;
+  min-width: 80px; /* 列的最小宽度 */
+}
+
+/* --- 左上角交叉空白格 --- */
+.excelTable th.cornerHeader {
+  position: sticky;
+  top: 0;
+  left: 0;
+  background-color: var(--vscode-editorGroupHeader-tabsBackground, #252526);
+  z-index: 20; /* 层级最高，确保向右和向下滚动时都不被遮挡 */
+}
+
+/* 悬停行高亮，排除表头 */
+.excelTable tbody tr:hover td:not(.rowHeader) {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.sheetTabs {
+  display: flex;
+  align-items: center;
+  overflow-x: auto;
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+  border-top: 1px solid var(--vscode-panel-border);
+  padding: 0 8px;
+  flex-shrink: 0;
+  height: 36px;
+}
+
+.sheetTab {
+  padding: 4px 16px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--vscode-tab-inactiveForeground);
+  border-bottom: 2px solid transparent;
+  transition: all 0.1s;
+  white-space: nowrap;
+}
+
+.sheetTab:hover {
+  color: var(--vscode-tab-activeForeground);
+}
+
+.sheetTab.active {
+  color: var(--vscode-tab-activeForeground);
+  border-bottom: 2px solid var(--vscode-focusBorder);
+  font-weight: bold;
+}

@@ -13,15 +13,14 @@ import MockProxyPanelApp from "./pages/MockProxyPanelApp"
 import MockRulePanelApp from './pages/MockRulePanelApp'
 import VditorApp from './pages/VditorApp';
 import GitApp from './pages/GitApp';
+import ExcelPreviewApp from './pages/ExcelPreviewApp';
 import './index.css';
 import '@vscode/codicons/dist/codicon.css';
 
-// 🌟 从 VS Code 注入的全局变量中获取初始路由，如果没有则默认走 '/'
 const initialRoute = (window as any).__ROUTE__ || '/';
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    {/* 🌟 使用 MemoryRouter，并且传入初始路由 */}
     <MemoryRouter initialEntries={[initialRoute]}>
       <Routes>
         <Route path="/compare" element={<TextCompareApp />} />
@@ -35,6 +34,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         <Route path="/mock/rule" element={<MockRulePanelApp />} />
         <Route path='/vditor' element={<VditorApp></VditorApp>}/>
         <Route path="/" element={<div>Welcome to Quick Ops Dashboard!</div>} />
+        <Route path='/xls' element={<ExcelPreviewApp></ExcelPreviewApp>} />
       </Routes>
     </MemoryRouter>
   </React.StrictMode>,
