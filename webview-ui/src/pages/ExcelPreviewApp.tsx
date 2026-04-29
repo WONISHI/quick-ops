@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { vscode } from '../utils/vscode';
 import styles from '../assets/css/ExcelPreviewApp.module.css';
 
-
+// 辅助函数：将数字索引转为 Excel 列字母 (0 -> A, 1 -> B, 26 -> AA)
 function getColumnLetter(n: number): string {
   let name = '';
   while (n >= 0) {
@@ -16,7 +16,7 @@ function getColumnLetter(n: number): string {
 export default function ExcelPreviewApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [, setFileName] = useState('');
+  const [fileName, setFileName] = useState('');
   
   // 缓存整个工作簿实例
   const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
@@ -63,9 +63,11 @@ export default function ExcelPreviewApp() {
 
   const loadSheetData = (wb: XLSX.WorkBook, sheetName: string) => {
     const ws = wb.Sheets[sheetName];
+    // header: 1 表示将数据转换为二维数组，defval: '' 确保空单元格不会导致列错位
     const data = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' });
     
-    const maxColumnCount = data.reduce((max:number, row) => Math.max(max, row.length), 0);
+    // 计算当前 sheet 的最大列数，以便渲染表头 A, B, C...
+    const maxColumnCount = data.reduce((max, row) => Math.max(max, row.length), 0);
     
     setSheetData(data);
     setMaxCols(maxColumnCount);
