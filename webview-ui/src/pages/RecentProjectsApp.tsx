@@ -1,12 +1,23 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { vscode } from '../utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMagnifyingGlass, faFolderOpen, faFolderPlus, faCodeBranch, faChevronRight, faChevronDown, faArrowRightToBracket, faFolder, faSpinner } from '@fortawesome/free-solid-svg-icons';
+import {
+  faMagnifyingGlass,
+  faFolderOpen,
+  faFolderPlus,
+  faCodeBranch,
+  faChevronRight,
+  faChevronDown,
+  faArrowRightToBracket,
+  faFolder,
+  faSpinner,
+} from '@fortawesome/free-solid-svg-icons';
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 
 import styles from '../assets/css/RecentProjectsApp.module.css';
 import FileIcon from '../components/FileIcon';
-import RecentProjectContextMenu from '../components/RecentProjectContextMenu/index';
+import RecentProjectContextMenu from '../components/RecentProjectContextMenu';
+import HighlightText from '../components/HighlightText';
 import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '../types/RecentProjectsApp';
 
 function getDisplayPath(project: Project) {
@@ -29,53 +40,6 @@ function getDisplayPath(project: Project) {
   }
   return displayPath;
 }
-
-const HighlightText = ({
-  text,
-  query,
-  globalStartIndex,
-  currentActiveMatch,
-  isLineActive,
-}: {
-  text: string;
-  query: string;
-  globalStartIndex: number;
-  currentActiveMatch: number;
-  isLineActive: boolean;
-}) => {
-  if (!query) return <span>{text}</span>;
-  const safeQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const parts = text.split(new RegExp(`(${safeQuery})`, 'gi'));
-
-  let matchCounter = 0;
-  return (
-    <span>
-      {parts.map((part, index) => {
-        const isMatch = part.toLowerCase() === query.toLowerCase();
-        if (isMatch) {
-          const thisGlobalIndex = globalStartIndex + matchCounter;
-          matchCounter++;
-          const isKeywordActive = thisGlobalIndex === currentActiveMatch;
-
-          return (
-            <span
-              key={index}
-              style={{
-                backgroundColor: isKeywordActive ? 'var(--vscode-editor-findMatchBackground, #515c6a)' : 'var(--vscode-editor-findMatchHighlightBackground, #ea5c0055)',
-                color: isKeywordActive ? '#fff' : isLineActive ? 'inherit' : 'var(--vscode-editor-findMatchForeground, inherit)',
-                border: isKeywordActive ? '1px solid var(--vscode-editor-findMatchBorder, #f48771)' : 'none',
-                borderRadius: '2px',
-              }}
-            >
-              {part}
-            </span>
-          );
-        }
-        return <span key={index}>{part}</span>;
-      })}
-    </span>
-  );
-};
 
 export default function RecentProjectsApp() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -489,13 +453,9 @@ export default function RecentProjectsApp() {
                       : searchTargetProject.customName || searchTargetProject.originalName || searchTargetProject.name
                   }
                 >
-                  {searchTargetProject.projectName ? (
-                    <>
-                      {searchTargetProject.projectName} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>/ {searchTargetProject.name}</span>
-                    </>
-                  ) : (
-                    searchTargetProject.customName || searchTargetProject.originalName || searchTargetProject.name
-                  )}
+                  {searchTargetProject.projectName
+                    ? <>{searchTargetProject.projectName} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>/ {searchTargetProject.name}</span></>
+                    : searchTargetProject.customName || searchTargetProject.originalName || searchTargetProject.name}
                 </span>
               </div>
 
