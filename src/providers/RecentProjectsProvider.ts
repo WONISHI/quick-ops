@@ -210,6 +210,19 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'searchFileName':
           this.handleSearchFileName(data.fsPath, data.query, data.isRemote);
           break;
+        case 'openImageNative':
+        case 'openImageNativeToSide': {
+          try {
+            const uri = data.fsPath.includes('://') ? vscode.Uri.parse(data.fsPath) : vscode.Uri.file(data.fsPath);
+            const viewColumn = data.type === 'openImageNativeToSide' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
+
+            // 使用 vscode.open 原生命令，VS Code 会自动根据文件类型决定使用文本编辑器还是内置图片预览器
+            await vscode.commands.executeCommand('vscode.open', uri, viewColumn);
+          } catch (e) {
+            vscode.window.showErrorMessage('无法预览该图像文件。');
+          }
+          break;
+        }
 
         case 'openFileAtLine': {
           try {

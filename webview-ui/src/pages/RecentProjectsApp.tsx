@@ -31,6 +31,8 @@ function getDisplayPath(project: Project) {
   return displayPath;
 }
 
+const isImageFile = (filePath: string) => /\.(png|jpe?g|gif|svg|webp|ico|bmp|tiff)$/i.test(filePath);
+
 export default function RecentProjectsApp() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentUri, setCurrentUri] = useState('');
@@ -225,8 +227,12 @@ export default function RecentProjectsApp() {
   const handleOpenFile = (path: string, projectName: string, id: string, isActiveProject: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedId(id);
+
+    // 🌟 拦截图片/SVG并发送原生打开命令
     if (path.toLowerCase().endsWith('.md')) {
       vscode.postMessage({ type: 'previewWithVditor', fsPath: path, projectName, isActiveProject });
+    } else if (isImageFile(path)) {
+      vscode.postMessage({ type: 'openImageNative', fsPath: path });
     } else {
       vscode.postMessage({ type: isActiveProject ? 'openFileNormal' : 'openFile', fsPath: path, projectName });
     }
@@ -306,10 +312,18 @@ export default function RecentProjectsApp() {
         vscode.postMessage({ type: 'removeProject', fsPath: payload.path });
         break;
       case 'openFileToSide':
-        vscode.postMessage({ type: payload.isActiveProject ? 'openFileNormalToSide' : 'openFileToSide', fsPath: payload.path, projectName: payload.projectName });
+        if (isImageFile(payload.path)) {
+          vscode.postMessage({ type: 'openImageNativeToSide', fsPath: payload.path });
+        } else {
+          vscode.postMessage({ type: payload.isActiveProject ? 'openFileNormalToSide' : 'openFileToSide', fsPath: payload.path, projectName: payload.projectName });
+        }
         break;
       case 'openFileInNewTab':
-        vscode.postMessage({ type: payload.isActiveProject ? 'openFileNormalInNewTab' : 'openFileInNewTab', fsPath: payload.path, projectName: payload.projectName });
+        if (isImageFile(payload.path)) {
+          vscode.postMessage({ type: 'openImageNative', fsPath: payload.path });
+        } else {
+          vscode.postMessage({ type: payload.isActiveProject ? 'openFileNormalInNewTab' : 'openFileInNewTab', fsPath: payload.path, projectName: payload.projectName });
+        }
         break;
       case 'updateBranch':
         vscode.postMessage({ type: 'updateSingleBranch', fsPath: payload.path });
@@ -429,7 +443,7 @@ export default function RecentProjectsApp() {
                   title="返回项目列表"
                   style={{ padding: '2px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 >
-                  <span className="codicon codicon-arrow-small-left" style={{ fontSize: '26px',lineHeight: '26px',position: 'relative',top: '1px' }}></span>
+                  <span className="codicon codicon-arrow-small-left" style={{ fontSize: '26px', lineHeight: '26px', position: 'relative', top: '1px' }}></span>
                 </button>
 
                 <span
