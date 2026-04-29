@@ -1146,8 +1146,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
 
     if (uri && uri[0]) {
+      const uriStr = uri[0].toString();
+      const projects = this.getRecentProjects();
+      if (projects.some((p) => p.fsPath === uriStr)) {
+        vscode.window.showWarningMessage('⚠️ 该本地项目已存在于列表中！');
+        return;
+      }
+
       const folderName = uri[0].path.split(/[\\/]/).pop() || '本地项目';
-      await this.insertProjectToHistory(folderName, uri[0].toString());
+      await this.insertProjectToHistory(folderName, uriStr);
+      vscode.window.showInformationMessage(`✅ 已添加本地项目: ${folderName}`);
     }
   }
 
@@ -1163,6 +1171,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     if (!parsed) {
       vscode.window.showErrorMessage('无效的远程地址格式，请提供规范的 Git 地址。');
+      return;
+    }
+    const projects = this.getRecentProjects();
+    if (projects.some((p) => p.fsPath === parsed.targetUriStr)) {
+      vscode.window.showWarningMessage('⚠️ 该远程项目已存在于列表中！');
       return;
     }
 

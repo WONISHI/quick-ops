@@ -60,6 +60,12 @@ export class RecentProjectsFeature implements IFeature {
           if (isRemote) {
             const parsed = (provider as any).parseRemoteUrlInput(inputValue);
             if (parsed) {
+              const existingProjects = (provider as any).getRecentProjects();
+              if (existingProjects.some((p: any) => p.fsPath === parsed.targetUriStr)) {
+                vscode.window.showWarningMessage('⚠️ 该远程项目已存在于列表中！');
+                return;
+              }
+
               const projectName = await vscode.window.showInputBox({
                 prompt: '确认远程项目名称',
                 value: parsed.repoFullName.split('/').pop() || parsed.repoFullName,
@@ -77,8 +83,15 @@ export class RecentProjectsFeature implements IFeature {
               const stat = await vscode.workspace.fs.stat(localUri);
               
               if ((stat.type & vscode.FileType.Directory) !== 0) {
-                const folderName = path.basename(inputValue) || '本地项目';
                 const uriStr = localUri.toString();
+
+                const existingProjects = (provider as any).getRecentProjects();
+                if (existingProjects.some((p: any) => p.fsPath === uriStr)) {
+                  vscode.window.showWarningMessage('⚠️ 该本地项目已存在于列表中！');
+                  return;
+                }
+
+                const folderName = path.basename(inputValue) || '本地项目';
                 await (provider as any).insertProjectToHistory(folderName, uriStr);
                 vscode.window.showInformationMessage(`✅ 已添加本地项目: ${folderName}`);
               } else {
@@ -89,7 +102,6 @@ export class RecentProjectsFeature implements IFeature {
             }
           }
         } else {
-          // 用户没有输入内容，点击了默认的固定选项
           if (selected.label.includes('浏览本地项目')) {
             await provider.addLocalProject();
           } else if (selected.label.includes('填写远程仓库')) {
