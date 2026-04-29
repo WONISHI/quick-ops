@@ -454,7 +454,6 @@ export default function RecentProjectsApp() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--vscode-sideBar-background)', color: 'var(--vscode-foreground)' }}>
-      {/* 🌟 抽离出去的右键菜单组件 */}
       <RecentProjectContextMenu
         visible={contextMenu.visible}
         x={contextMenu.x}
@@ -470,12 +469,10 @@ export default function RecentProjectsApp() {
           <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--vscode-panel-border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                {/* 🌟 使用 Codicon 替换了原生返回图标 */}
                 <button className={styles['action-btn-icon']} onClick={() => setIsSearchMode(false)} title="返回项目列表" style={{ padding: '4px', flexShrink: 0 }}>
                   <span className="codicon codicon-arrow-small-left" style={{ fontSize: '16px' }}></span>
                 </button>
 
-                {/* 🌟 动态拼接父级项目名称的标题栏 */}
                 <span
                   style={{
                     fontSize: '13px',
@@ -504,7 +501,6 @@ export default function RecentProjectsApp() {
 
               {folderSearchType === 'content' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                  {/* 🌟 使用 Codicon 替换了上下查找箭头 */}
                   <button className={styles['action-btn-icon']} style={{ padding: '2px 4px' }} onClick={handlePrevSearchMatch} disabled={totalMatches === 0} title="上一个匹配项">
                     <span className="codicon codicon-arrow-small-up" style={{ fontSize: '16px' }}></span>
                   </button>
@@ -516,7 +512,6 @@ export default function RecentProjectsApp() {
             </div>
 
             <div className={styles['search-box']} style={{ padding: '2px 4px', display: 'flex', alignItems: 'center' }}>
-              {/* 🌟 使用 Codicon 替换了文件/文件内容类型切换图标 */}
               <span
                 className={`codicon ${folderSearchType === 'content' ? 'codicon-file-text' : 'codicon-file'}`}
                 onClick={() => {
