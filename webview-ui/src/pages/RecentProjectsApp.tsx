@@ -1,17 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { vscode } from '../utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {
-  faMagnifyingGlass,
-  faFolderOpen,
-  faFolderPlus,
-  faCodeBranch,
-  faChevronRight,
-  faChevronDown,
-  faArrowRightToBracket,
-  faFolder,
-  faSpinner,
-} from '@fortawesome/free-solid-svg-icons';
+import { faMagnifyingGlass, faFolderOpen, faFolderPlus, faCodeBranch, faChevronRight, faChevronDown, faArrowRightToBracket, faFolder, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 
 import styles from '../assets/css/RecentProjectsApp.module.css';
@@ -432,20 +422,29 @@ export default function RecentProjectsApp() {
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
           <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--vscode-panel-border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                <button className={styles['action-btn-icon']} onClick={() => setIsSearchMode(false)} title="返回项目列表" style={{ padding: '4px', flexShrink: 0 }}>
-                  <span className="codicon codicon-arrow-small-left" style={{ fontSize: '16px' }}></span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
+                <button
+                  className={styles['action-btn-icon']}
+                  onClick={() => setIsSearchMode(false)}
+                  title="返回项目列表"
+                  style={{ padding: '2px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <span className="codicon codicon-arrow-small-left" style={{ fontSize: '26px',lineHeight: '26px',position: 'relative',top: '1px' }}></span>
                 </button>
 
                 <span
                   style={{
-                    fontSize: '13px',
+                    fontSize: '14px',
+                    lineHeight: 1,
                     fontWeight: 'bold',
                     color: 'var(--vscode-foreground)',
-                    flexShrink: 0,
+                    flexShrink: 1,
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
                   }}
                   title={
                     searchTargetProject.projectName
@@ -453,19 +452,35 @@ export default function RecentProjectsApp() {
                       : searchTargetProject.customName || searchTargetProject.originalName || searchTargetProject.name
                   }
                 >
-                  {searchTargetProject.projectName
-                    ? <>{searchTargetProject.projectName} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>/ {searchTargetProject.name}</span></>
-                    : searchTargetProject.customName || searchTargetProject.originalName || searchTargetProject.name}
+                  {searchTargetProject.projectName ? (
+                    <>
+                      {searchTargetProject.projectName} <span style={{ opacity: 0.6, fontWeight: 'normal', fontSize: '13px' }}>/ {searchTargetProject.name}</span>
+                    </>
+                  ) : (
+                    searchTargetProject.customName || searchTargetProject.originalName || searchTargetProject.name
+                  )}
                 </span>
               </div>
 
               {folderSearchType === 'content' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
-                  <button className={styles['action-btn-icon']} style={{ padding: '2px 4px' }} onClick={handlePrevSearchMatch} disabled={totalMatches === 0} title="上一个匹配项">
-                    <span className="codicon codicon-arrow-small-up" style={{ fontSize: '16px' }}></span>
+                  <button
+                    className={styles['action-btn-icon']}
+                    style={{ padding: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={handlePrevSearchMatch}
+                    disabled={totalMatches === 0}
+                    title="上一个匹配项"
+                  >
+                    <span className="codicon codicon-arrow-small-up" style={{ fontSize: '26px' }}></span>
                   </button>
-                  <button className={styles['action-btn-icon']} style={{ padding: '2px 4px' }} onClick={handleNextSearchMatch} disabled={totalMatches === 0} title="下一个匹配项">
-                    <span className="codicon codicon-arrow-small-down" style={{ fontSize: '16px' }}></span>
+                  <button
+                    className={styles['action-btn-icon']}
+                    style={{ padding: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={handleNextSearchMatch}
+                    disabled={totalMatches === 0}
+                    title="下一个匹配项"
+                  >
+                    <span className="codicon codicon-arrow-small-down" style={{ fontSize: '26px' }}></span>
                   </button>
                 </div>
               )}
