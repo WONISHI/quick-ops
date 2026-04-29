@@ -1,36 +1,12 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { vscode } from '../utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {
-  faMagnifyingGlass,
-  faFolderOpen,
-  faFolderPlus,
-  faCodeBranch,
-  faChevronRight,
-  faChevronDown,
-  faArrowRightToBracket,
-  faFolder,
-  faArrowUpRightFromSquare,
-  faPen,
-  faLocationDot,
-  faRotateRight,
-  faLink,
-  faGlobe,
-  faTrash,
-  faColumns,
-  faCodeCompare,
-  faSpinner,
-  faArrowLeft,
-  faArrowUp,
-  faArrowDown,
-  faFileLines,
-  faFolderTree,
-} from '@fortawesome/free-solid-svg-icons';
-import { faCopy, faSquareCheck, faClone, faFolderOpen as faFolderOpenReg, faWindowRestore } from '@fortawesome/free-regular-svg-icons';
+import { faMagnifyingGlass, faFolderOpen, faFolderPlus, faCodeBranch, faChevronRight, faChevronDown, faArrowRightToBracket, faFolder, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 
 import styles from '../assets/css/RecentProjectsApp.module.css';
 import FileIcon from '../components/FileIcon';
+import RecentProjectContextMenu from '../components/RecentProjectContextMenu/index';
 import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '../types/RecentProjectsApp';
 
 function getDisplayPath(project: Project) {
@@ -478,136 +454,28 @@ export default function RecentProjectsApp() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--vscode-sideBar-background)', color: 'var(--vscode-foreground)' }}>
-      {contextMenu.visible && (
-        <div id={styles['context-menu']} ref={menuRef} style={{ left: contextMenu.x, top: contextMenu.y }}>
-          <ul>
-            {contextMenu.type === 'top' && (
-              <>
-                {!contextMenu.payload.isActiveProject && (
-                  <>
-                    <li onClick={() => executeMenuAction('openProjectCurrent')}>
-                      <FontAwesomeIcon icon={faArrowRightToBracket} className={styles['menu-icon']} /> 在当前窗口打开
-                    </li>
-                    <li onClick={() => executeMenuAction('openInNewWindow')}>
-                      <FontAwesomeIcon icon={faArrowUpRightFromSquare} className={styles['menu-icon']} /> 在新窗口打开
-                    </li>
-                    <div className={styles['menu-separator']}></div>
-                  </>
-                )}
-
-                <li onClick={() => executeMenuAction('searchInFolder')}>
-                  <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
-                </li>
-                <div className={styles['menu-separator']}></div>
-
-                <li onClick={() => executeMenuAction('edit')}>
-                  <FontAwesomeIcon icon={faPen} className={styles['menu-icon']} /> 编辑项目名称
-                </li>
-                <li onClick={() => executeMenuAction('changeAddress')}>
-                  <FontAwesomeIcon icon={faLocationDot} className={styles['menu-icon']} /> 更换地址
-                </li>
-                {contextMenu.payload.isRemote && (
-                  <li onClick={() => executeMenuAction('switchBranch')}>
-                    <FontAwesomeIcon icon={faCodeBranch} className={styles['menu-icon']} /> 切换分支
-                  </li>
-                )}
-                <div className={styles['menu-separator']}></div>
-                <li onClick={() => executeMenuAction('copyText', contextMenu.payload.originalName)}>
-                  <FontAwesomeIcon icon={faCopy} className={styles['menu-icon']} /> 复制文件名
-                </li>
-                <li onClick={() => executeMenuAction('updateBranch')}>
-                  <FontAwesomeIcon icon={faRotateRight} className={styles['menu-icon']} /> 更新分支
-                </li>
-                {contextMenu.payload.customName && (
-                  <li onClick={() => executeMenuAction('copyText', contextMenu.payload.customName)}>
-                    <FontAwesomeIcon icon={faCopy} className={styles['menu-icon']} /> 复制项目名
-                  </li>
-                )}
-                <li onClick={() => executeMenuAction('copyText', contextMenu.payload.path)}>
-                  <FontAwesomeIcon icon={faLink} className={styles['menu-icon']} /> 复制地址链接
-                </li>
-                {contextMenu.payload.isRemote ? (
-                  <li onClick={() => executeMenuAction('openLink')}>
-                    <FontAwesomeIcon icon={faGlobe} className={styles['menu-icon']} /> 在浏览器中打开
-                  </li>
-                ) : (
-                  <li onClick={() => executeMenuAction('revealInExplorer')}>
-                    <FontAwesomeIcon icon={faFolderOpenReg} className={styles['menu-icon']} /> 在访达/资源管理器中显示
-                  </li>
-                )}
-                {!contextMenu.payload.isActiveProject && (
-                  <>
-                    <div className={styles['menu-separator']}></div>
-                    <li onClick={() => executeMenuAction('delete')} style={{ color: 'var(--vscode-errorForeground)' }}>
-                      <FontAwesomeIcon icon={faTrash} className={styles['menu-icon']} /> 移除该项目
-                    </li>
-                  </>
-                )}
-              </>
-            )}
-
-            {contextMenu.type === 'sub' && (
-              <>
-                {!contextMenu.payload.isFolder && (
-                  <>
-                    <li onClick={() => executeMenuAction('openFileToSide')}>
-                      <FontAwesomeIcon icon={faColumns} className={styles['menu-icon']} /> 向右拆分
-                    </li>
-                    <li onClick={() => executeMenuAction('openFileInNewTab')}>
-                      <FontAwesomeIcon icon={faWindowRestore} className={styles['menu-icon']} /> 在新标签页打开
-                    </li>
-                    <li onClick={() => executeMenuAction('copyFile')}>
-                      <FontAwesomeIcon icon={faCopy} className={styles['menu-icon']} /> 复制文件
-                    </li>
-                    <div className={styles['menu-separator']}></div>
-                    <li onClick={() => executeMenuAction('selectForCompare')}>
-                      <FontAwesomeIcon icon={faSquareCheck} className={styles['menu-icon']} /> 选择以进行比较
-                    </li>
-                    <li onClick={() => executeMenuAction('compareWithSelected')}>
-                      <FontAwesomeIcon icon={faCodeCompare} className={styles['menu-icon']} /> 与已选项目进行比较
-                    </li>
-                    <div className={styles['menu-separator']}></div>
-                  </>
-                )}
-
-                {contextMenu.payload.isFolder && (
-                  <>
-                    <li onClick={() => executeMenuAction('searchInFolder')}>
-                      <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
-                    </li>
-                    <div className={styles['menu-separator']}></div>
-                  </>
-                )}
-
-                <li onClick={() => executeMenuAction('copyText', contextMenu.payload.name)}>
-                  <FontAwesomeIcon icon={faClone} className={styles['menu-icon']} /> 复制名称
-                </li>
-                <li onClick={() => executeMenuAction('copyText', contextMenu.payload.path)}>
-                  <FontAwesomeIcon icon={faLink} className={styles['menu-icon']} /> 复制路径
-                </li>
-                {!contextMenu.payload.path.startsWith('vscode-vfs') && !contextMenu.payload.path.startsWith('http') && (
-                  <>
-                    <div className={styles['menu-separator']}></div>
-                    <li onClick={() => executeMenuAction('revealInExplorer', contextMenu.payload.path)}>
-                      <FontAwesomeIcon icon={faFolderOpenReg} className={styles['menu-icon']} /> 在访达/资源管理器中显示
-                    </li>
-                  </>
-                )}
-              </>
-            )}
-          </ul>
-        </div>
-      )}
+      {/* 🌟 抽离出去的右键菜单组件 */}
+      <RecentProjectContextMenu
+        visible={contextMenu.visible}
+        x={contextMenu.x}
+        y={contextMenu.y}
+        type={contextMenu.type}
+        payload={contextMenu.payload}
+        menuRef={menuRef}
+        onAction={executeMenuAction}
+      />
 
       {isSearchMode && searchTargetProject ? (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
           <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--vscode-panel-border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                {/* 🌟 使用 Codicon 替换了原生返回图标 */}
                 <button className={styles['action-btn-icon']} onClick={() => setIsSearchMode(false)} title="返回项目列表" style={{ padding: '4px', flexShrink: 0 }}>
-                  <FontAwesomeIcon icon={faArrowLeft} />
+                  <span className="codicon codicon-arrow-small-left" style={{ fontSize: '16px' }}></span>
                 </button>
 
+                {/* 🌟 动态拼接父级项目名称的标题栏 */}
                 <span
                   style={{
                     fontSize: '13px',
@@ -624,27 +492,33 @@ export default function RecentProjectsApp() {
                       : searchTargetProject.customName || searchTargetProject.originalName || searchTargetProject.name
                   }
                 >
-                  {searchTargetProject.projectName
-                    ? <>{searchTargetProject.projectName} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>/ {searchTargetProject.name}</span></>
-                    : searchTargetProject.customName || searchTargetProject.originalName || searchTargetProject.name}
+                  {searchTargetProject.projectName ? (
+                    <>
+                      {searchTargetProject.projectName} <span style={{ opacity: 0.6, fontWeight: 'normal' }}>/ {searchTargetProject.name}</span>
+                    </>
+                  ) : (
+                    searchTargetProject.customName || searchTargetProject.originalName || searchTargetProject.name
+                  )}
                 </span>
               </div>
 
               {folderSearchType === 'content' && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
+                  {/* 🌟 使用 Codicon 替换了上下查找箭头 */}
                   <button className={styles['action-btn-icon']} style={{ padding: '2px 4px' }} onClick={handlePrevSearchMatch} disabled={totalMatches === 0} title="上一个匹配项">
-                    <FontAwesomeIcon icon={faArrowUp} />
+                    <span className="codicon codicon-arrow-small-up" style={{ fontSize: '16px' }}></span>
                   </button>
                   <button className={styles['action-btn-icon']} style={{ padding: '2px 4px' }} onClick={handleNextSearchMatch} disabled={totalMatches === 0} title="下一个匹配项">
-                    <FontAwesomeIcon icon={faArrowDown} />
+                    <span className="codicon codicon-arrow-small-down" style={{ fontSize: '16px' }}></span>
                   </button>
                 </div>
               )}
             </div>
 
             <div className={styles['search-box']} style={{ padding: '2px 4px', display: 'flex', alignItems: 'center' }}>
-              <FontAwesomeIcon
-                icon={folderSearchType === 'content' ? faFileLines : faFolderTree}
+              {/* 🌟 使用 Codicon 替换了文件/文件内容类型切换图标 */}
+              <span
+                className={`codicon ${folderSearchType === 'content' ? 'codicon-file-text' : 'codicon-file'}`}
                 onClick={() => {
                   const newType = folderSearchType === 'content' ? 'name' : 'content';
                   setFolderSearchType(newType);
@@ -655,7 +529,7 @@ export default function RecentProjectsApp() {
                 }}
                 style={{ cursor: 'pointer', color: 'var(--vscode-textLink-foreground)', fontSize: '14px', marginLeft: '6px', marginRight: '6px' }}
                 title={folderSearchType === 'content' ? '当前：文件内容检索。点击切换为「文件名/文件夹」检索' : '当前：文件名/文件夹检索。点击切换为「文件内容」检索'}
-              />
+              ></span>
 
               <input
                 autoFocus
