@@ -32,6 +32,7 @@ function getDisplayPath(project: Project) {
 }
 
 const isImageFile = (filePath: string) => /\.(png|jpe?g|gif|svg|webp|ico|bmp|tiff)$/i.test(filePath);
+const isExcelFile = (filePath: string) => /\.(xlsx|xls|csv)$/i.test(filePath);
 
 export default function RecentProjectsApp() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -227,12 +228,12 @@ export default function RecentProjectsApp() {
   const handleOpenFile = (path: string, projectName: string, id: string, isActiveProject: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedId(id);
-
-    // 🌟 拦截图片/SVG并发送原生打开命令
     if (path.toLowerCase().endsWith('.md')) {
       vscode.postMessage({ type: 'previewWithVditor', fsPath: path, projectName, isActiveProject });
     } else if (isImageFile(path)) {
       vscode.postMessage({ type: 'openImageNative', fsPath: path });
+    } else if (isExcelFile(path)) {
+      vscode.postMessage({ type: 'previewWithExcel', fsPath: path, projectName, isActiveProject });
     } else {
       vscode.postMessage({ type: isActiveProject ? 'openFileNormal' : 'openFile', fsPath: path, projectName });
     }
@@ -314,6 +315,8 @@ export default function RecentProjectsApp() {
       case 'openFileToSide':
         if (isImageFile(payload.path)) {
           vscode.postMessage({ type: 'openImageNativeToSide', fsPath: payload.path });
+        } else if (isExcelFile(payload.path)) {
+          vscode.postMessage({ type: 'previewWithExcelToSide', fsPath: payload.path, projectName: payload.projectName || '未知项目', isActiveProject: !!payload.isActiveProject });
         } else {
           vscode.postMessage({ type: payload.isActiveProject ? 'openFileNormalToSide' : 'openFileToSide', fsPath: payload.path, projectName: payload.projectName });
         }
@@ -321,6 +324,8 @@ export default function RecentProjectsApp() {
       case 'openFileInNewTab':
         if (isImageFile(payload.path)) {
           vscode.postMessage({ type: 'openImageNative', fsPath: payload.path });
+        } else if (isExcelFile(payload.path)) {
+          vscode.postMessage({ type: 'previewWithExcel', fsPath: payload.path, projectName: payload.projectName || '未知项目', isActiveProject: !!payload.isActiveProject });
         } else {
           vscode.postMessage({ type: payload.isActiveProject ? 'openFileNormalInNewTab' : 'openFileInNewTab', fsPath: payload.path, projectName: payload.projectName });
         }
