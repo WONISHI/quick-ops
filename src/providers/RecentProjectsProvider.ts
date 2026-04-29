@@ -110,7 +110,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'openProjectCurrent': {
           const proj = this.getRecentProjects().find((p) => p.fsPath === data.fsPath);
           const pName = proj?.customName || proj?.name || '该项目';
-          
+
           vscode.window.showWarningMessage(
             `确定要在当前窗口打开 [ ${pName} ] 吗？\n这将会关闭您当前正在工作的工作区！`,
             { modal: true },
@@ -236,6 +236,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           break;
         }
 
+        case 'previewWithPdf':
+        case 'previewWithPdfToSide': {
+          this.openPdfPanel(
+            data.fsPath,
+            data.projectName || '未知项目',
+            data.type === 'previewWithPdfToSide' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active
+          );
+          break;
+        }
+
         case 'searchFileName':
           this.handleSearchFileName(data.fsPath, data.query, data.isRemote);
           break;
@@ -293,7 +303,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             type: 'initExcelData',
             fsPath: fsPath,
             fileName: fileName,
-            contentBase64: fileBase64 
+            contentBase64: fileBase64
           });
         }
       });
@@ -303,6 +313,50 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     } catch (e) {
       vscode.window.showErrorMessage('无法读取文件进行 Excel 预览。');
+    }
+  }
+
+  // 👇 新增打开 PDF 面板的方法
+  private async openPdfPanel(fsPath: string, projectName: string, viewColumn: vscode.ViewColumn) {
+    try {
+      const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+      const fileName = path.basename(uri.path);
+
+      // PDF 文件通常较大，建议拦截过大文件防止 OOM (可选)
+      // const stat = await vscode.workspace.fs.stat(uri);
+      // if (stat.size > 20 * 1024 * 1024) throw new Error('PDF file is too large');
+
+      const panel = vscode.window.createWebviewPanel(
+        'pdfPreviewReact',
+        `${projectName}: ${fileName}`,
+        viewColumn,
+        {
+          enableScripts: true,
+          // 极简策略：PDF 没必要切到后台还保留内存，去掉了 retainContextWhenHidden
+          localResourceRoots: [this.context.extensionUri]
+        }
+      );
+
+      panel.webview.onDidReceiveMessage(async (msg) => {
+        if (msg.command === 'webviewLoaded') {
+          try {
+            const contentBytes = await vscode.workspace.fs.readFile(uri);
+            const fileBase64 = Buffer.from(contentBytes).toString('base64');
+            panel.webview.postMessage({
+              type: 'initPdfData',
+              contentBase64: fileBase64
+            });
+          } catch (e) {
+            console.error('PDF 读取失败', e);
+          }
+        }
+      });
+
+      // 跳转到前端的 /pdf 路由
+      panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, `/pdf?type=read`);
+
+    } catch (e) {
+      vscode.window.showErrorMessage('无法读取文件进行 PDF 预览。');
     }
   }
 
@@ -328,7 +382,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
 
     const results: any[] = [];
-    const maxResults = 200; 
+    const maxResults = 200;
     let currentResults = 0;
 
     const IGNORE_DIRS = new Set(['node_modules', 'dist', 'build', '.git', '.svn', '.vscode', '.idea']);
@@ -1199,7 +1253,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     if (uri && uri[0]) {
       const uriStr = uri[0].toString();
-      
+
       const projects = this.getRecentProjects();
       if (projects.some((p) => p.fsPath === uriStr)) {
         vscode.window.showWarningMessage('⚠️ 该本地项目已存在于列表中！');
@@ -1265,14 +1319,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   public async openProject(fsPath: string) {
     const project = this.getRecentProjects().find((p) => p.fsPath === fsPath);
     const pName = project?.customName || project?.name || '该项目';
-    
+
     const choice = await vscode.window.showInformationMessage(
-      `准备打开项目 [ ${pName} ]，请选择打开方式：`, 
-      { modal: true }, 
-      '在当前窗口打开 (覆盖当前)', 
+      `准备打开项目 [ ${pName} ]，请选择打开方式：`,
+      { modal: true },
+      '在当前窗口打开 (覆盖当前)',
       '在新窗口打开'
     );
-    
+
     if (choice === '在当前窗口打开 (覆盖当前)') {
       this.executeOpen(fsPath, false, project?.branch);
     } else if (choice === '在新窗口打开') {

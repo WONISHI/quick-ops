@@ -33,6 +33,7 @@ function getDisplayPath(project: Project) {
 
 const isImageFile = (filePath: string) => /\.(png|jpe?g|gif|svg|webp|ico|bmp|tiff)$/i.test(filePath);
 const isExcelFile = (filePath: string) => /\.(xlsx|xls|csv)$/i.test(filePath);
+const isPdfFile = (filePath: string) => /\.pdf$/i.test(filePath);
 
 export default function RecentProjectsApp() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -234,6 +235,8 @@ export default function RecentProjectsApp() {
       vscode.postMessage({ type: 'openImageNative', fsPath: path });
     } else if (isExcelFile(path)) {
       vscode.postMessage({ type: 'previewWithExcel', fsPath: path, projectName, isActiveProject });
+    } else if (isPdfFile(path)) {
+      vscode.postMessage({ type: 'previewWithPdf', fsPath: path, projectName, isActiveProject });
     } else {
       vscode.postMessage({ type: isActiveProject ? 'openFileNormal' : 'openFile', fsPath: path, projectName });
     }
@@ -317,6 +320,8 @@ export default function RecentProjectsApp() {
           vscode.postMessage({ type: 'openImageNativeToSide', fsPath: payload.path });
         } else if (isExcelFile(payload.path)) {
           vscode.postMessage({ type: 'previewWithExcelToSide', fsPath: payload.path, projectName: payload.projectName || '未知项目', isActiveProject: !!payload.isActiveProject });
+        } else if (isPdfFile(payload.path)) {
+          vscode.postMessage({ type: 'previewWithPdfToSide', fsPath: payload.path, projectName: payload.projectName || '未知项目' });
         } else {
           vscode.postMessage({ type: payload.isActiveProject ? 'openFileNormalToSide' : 'openFileToSide', fsPath: payload.path, projectName: payload.projectName });
         }
@@ -326,6 +331,8 @@ export default function RecentProjectsApp() {
           vscode.postMessage({ type: 'openImageNative', fsPath: payload.path });
         } else if (isExcelFile(payload.path)) {
           vscode.postMessage({ type: 'previewWithExcel', fsPath: payload.path, projectName: payload.projectName || '未知项目', isActiveProject: !!payload.isActiveProject });
+        } else if (isPdfFile(payload.path)) {
+          vscode.postMessage({ type: 'previewWithPdf', fsPath: payload.path, projectName: payload.projectName || '未知项目' });
         } else {
           vscode.postMessage({ type: payload.isActiveProject ? 'openFileNormalInNewTab' : 'openFileInNewTab', fsPath: payload.path, projectName: payload.projectName });
         }

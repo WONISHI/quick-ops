@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { vscode } from '../utils/vscode';
 import styles from '../assets/css/ExcelPreviewApp.module.css';
@@ -16,7 +16,7 @@ function getColumnLetter(n: number): string {
 export default function ExcelPreviewApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [fileName, setFileName] = useState('');
+  const [, setFileName] = useState('');
   
   // 缓存整个工作簿实例
   const [workbook, setWorkbook] = useState<XLSX.WorkBook | null>(null);
