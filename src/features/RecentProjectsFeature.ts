@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-import * as path from 'path';
+import * as path from 'path'; // path 模块仅用于字符串处理，可以保留
 import { IFeature } from '../core/interfaces/IFeature';
 import ColorLog from '../utils/ColorLog';
 import { RecentProjectsProvider } from '../providers/RecentProjectsProvider';
@@ -73,18 +72,19 @@ export class RecentProjectsFeature implements IFeature {
               vscode.window.showErrorMessage('❌ 无效的远程地址格式，请检查。');
             }
           } else {
-            // 本地路径处理
-            if (fs.existsSync(inputValue)) {
-              const stat = fs.statSync(inputValue);
-              if (stat.isDirectory()) {
+            try {
+              const localUri = vscode.Uri.file(inputValue);
+              const stat = await vscode.workspace.fs.stat(localUri);
+              
+              if ((stat.type & vscode.FileType.Directory) !== 0) {
                 const folderName = path.basename(inputValue) || '本地项目';
-                const uriStr = vscode.Uri.file(inputValue).toString();
+                const uriStr = localUri.toString();
                 await (provider as any).insertProjectToHistory(folderName, uriStr);
                 vscode.window.showInformationMessage(`✅ 已添加本地项目: ${folderName}`);
               } else {
                 vscode.window.showErrorMessage('❌ 输入的路径是一个文件，请提供文件夹路径。');
               }
-            } else {
+            } catch (error) {
               vscode.window.showErrorMessage('❌ 找不到该本地路径，请检查拼写是否正确。');
             }
           }

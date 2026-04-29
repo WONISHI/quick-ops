@@ -1,8 +1,6 @@
 import * as vscode from 'vscode';
 import * as https from 'https';
 import * as path from 'path';
-import * as fs from 'fs';
-import * as readline from 'readline';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
 
 
@@ -187,7 +185,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           break;
 
         case 'previewWithVditor':
-          this.openVditorPanel(data.fsPath, data.isActiveProject ? 'edit' : 'read');
+          this.openVditorPanel(data.fsPath, data.projectName || '未知项目', data.isActiveProject ? 'edit' : 'read');
           break;
 
         case 'openFileNormal':
@@ -243,7 +241,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
     const nativePath = uri.fsPath;
 
-    if (!query.trim() || !fs.existsSync(nativePath)) {
+    if (!query.trim()) {
+      this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [] });
+      return;
+    }
+
+    try {
+      await vscode.workspace.fs.stat(uri);
+    } catch {
       this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [] });
       return;
     }
@@ -254,29 +259,30 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     const IGNORE_DIRS = new Set(['node_modules', 'dist', 'build', '.git', '.svn', '.vscode', '.idea']);
 
-    const searchRecursive = async (dir: string) => {
+    const searchRecursive = async (dirUri: vscode.Uri, currentNativePath: string) => {
       if (currentResults >= maxResults) return;
       try {
-        const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-        for (const entry of entries) {
+        const entries = await vscode.workspace.fs.readDirectory(dirUri);
+        for (const [name, type] of entries) {
           if (currentResults >= maxResults) break;
-          if (IGNORE_DIRS.has(entry.name) || entry.name === '.DS_Store') continue;
+          if (IGNORE_DIRS.has(name) || name === '.DS_Store') continue;
 
-          const fullPath = path.join(dir, entry.name);
+          const isDir = (type & vscode.FileType.Directory) !== 0;
+          const fullPath = path.join(currentNativePath, name);
+          const fullUri = vscode.Uri.joinPath(dirUri, name);
           const relativePath = path.relative(nativePath, fullPath).replace(/\\/g, '/');
 
-          // 如果文件名/文件夹名包含关键字
-          if (entry.name.toLowerCase().includes(query.toLowerCase())) {
+          if (name.toLowerCase().includes(query.toLowerCase())) {
             results.push({
-              path: vscode.Uri.file(fullPath).toString(),
-              name: relativePath, // 返回相对路径以便于前端清晰展示位置
-              isFolder: entry.isDirectory()
+              path: fullUri.toString(),
+              name: relativePath,
+              isFolder: isDir
             });
             currentResults++;
           }
 
-          if (entry.isDirectory()) {
-            await searchRecursive(fullPath);
+          if (isDir) {
+            await searchRecursive(fullUri, fullPath);
           }
         }
       } catch (e) { }
@@ -286,13 +292,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       location: vscode.ProgressLocation.Window,
       title: 'Quick Ops: 正在按名称检索...'
     }, async () => {
-      await searchRecursive(nativePath);
+      await searchRecursive(uri, nativePath);
     });
 
     this._view?.webview.postMessage({ type: 'searchFileNameResult', results });
   }
 
-  private async openVditorPanel(fsPath: string, type: 'read' | 'edit') {
+  private async openVditorPanel(fsPath: string, projectName: string, type: 'read' | 'edit') {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const fileName = path.basename(uri.path);
@@ -350,15 +356,17 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
         let foundPath = '';
         for (const dir of uniqueSearchDirs) {
-          if (!fs.existsSync(dir)) continue;
-
+          const dirUri = vscode.Uri.file(dir);
           try {
-            const files = fs.readdirSync(dir);
-            const matchedFile = files.find(file => file === decodedName || file === exactName);
+            const stat = await vscode.workspace.fs.stat(dirUri);
+            if ((stat.type & vscode.FileType.Directory) !== 0) {
+              const files = await vscode.workspace.fs.readDirectory(dirUri);
+              const matchedFile = files.find(([name, type]) => (type & vscode.FileType.File) !== 0 && (name === decodedName || name === exactName));
 
-            if (matchedFile) {
-              foundPath = path.join(dir, matchedFile);
-              break;
+              if (matchedFile) {
+                foundPath = path.join(dir, matchedFile[0]);
+                break;
+              }
             }
           } catch (e) { }
         }
@@ -370,7 +378,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       const panel = vscode.window.createWebviewPanel(
         'vditorPreviewReact',
-        `${fileName}`,
+        `${projectName}: ${fileName}`,
         vscode.ViewColumn.Active,
         {
           enableScripts: true,
@@ -421,7 +429,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
     const nativePath = uri.fsPath;
 
-    if (!query.trim() || !fs.existsSync(nativePath)) {
+    if (!query.trim()) {
+      this._view?.webview.postMessage({ type: 'searchFolderResult', results: [] });
+      return;
+    }
+
+    try {
+      await vscode.workspace.fs.stat(uri);
+    } catch {
       this._view?.webview.postMessage({ type: 'searchFolderResult', results: [] });
       return;
     }
@@ -444,39 +459,45 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       '.exe', '.dll', '.so', '.dylib', '.class', '.jar', '.bin', '.DS_Store', 'Thumbs.db', '.pyc', '.o'
     ]);
 
-    const searchRecursive = async (dir: string) => {
+    const searchRecursive = async (dirPath: string) => {
       if (currentResults >= maxResults) return;
       try {
+        const dirUri = vscode.Uri.file(dirPath);
         let entries;
         try {
-          entries = await fs.promises.readdir(dir, { withFileTypes: true });
+          entries = await vscode.workspace.fs.readDirectory(dirUri);
         } catch (e) { return; }
 
-        for (const entry of entries) {
+        for (const [name, type] of entries) {
           if (currentResults >= maxResults) break;
 
-          if (IGNORE_DIRS.has(entry.name) || entry.name === '.DS_Store' || entry.name === 'Thumbs.db') continue;
+          if (IGNORE_DIRS.has(name) || name === '.DS_Store' || name === 'Thumbs.db') continue;
 
-          const fullPath = path.join(dir, entry.name);
+          const fullPath = path.join(dirPath, name);
+          const isDir = (type & vscode.FileType.Directory) !== 0;
+          const isFile = (type & vscode.FileType.File) !== 0;
 
-          if (entry.isDirectory()) {
+          if (isDir) {
             await searchRecursive(fullPath);
-          } else if (entry.isFile()) {
-            const ext = path.extname(entry.name).toLowerCase();
+          } else if (isFile) {
+            const ext = path.extname(name).toLowerCase();
             if (BINARY_EXTS.has(ext)) continue;
 
+            const fileUri = vscode.Uri.file(fullPath);
             try {
-              const stat = await fs.promises.stat(fullPath);
+              const stat = await vscode.workspace.fs.stat(fileUri);
               if (stat.size > 2 * 1024 * 1024) continue;
             } catch (e) { continue; }
 
             const fileMatches = [];
             let lineNum = 1;
-            const fileStream = fs.createReadStream(fullPath, { encoding: 'utf8' });
-            const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
 
             try {
-              for await (const line of rl) {
+              const contentBytes = await vscode.workspace.fs.readFile(fileUri);
+              const contentStr = Buffer.from(contentBytes).toString('utf8');
+              const lines = contentStr.split(/\r?\n/);
+
+              for (const line of lines) {
                 if (line.toLowerCase().includes(query.toLowerCase())) {
                   fileMatches.push({
                     line: lineNum,
@@ -484,7 +505,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
                   });
                   currentResults++;
                   if (currentResults >= maxResults) {
-                    rl.close();
                     break;
                   }
                 }
@@ -715,7 +735,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
           const stat = await vscode.workspace.fs.stat(gitPath);
 
-          if (stat.type === vscode.FileType.File) {
+          if ((stat.type & vscode.FileType.File) !== 0) {
             const fileBytes = await vscode.workspace.fs.readFile(gitPath);
             const fileContent = Buffer.from(fileBytes).toString('utf8').trim();
             if (fileContent.startsWith('gitdir: ')) {
@@ -790,7 +810,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
           const stat = await vscode.workspace.fs.stat(gitPath);
 
-          if (stat.type === vscode.FileType.File) {
+          if ((stat.type & vscode.FileType.File) !== 0) {
             const fileBytes = await vscode.workspace.fs.readFile(gitPath);
             const fileContent = Buffer.from(fileBytes).toString('utf8').trim();
             if (fileContent.startsWith('gitdir: ')) {
