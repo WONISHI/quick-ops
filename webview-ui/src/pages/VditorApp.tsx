@@ -13,14 +13,14 @@ export default function VditorApp() {
 
     const handleMessage = (e: MessageEvent) => {
       const msg = e.data;
-      
+
       if (msg.type === 'initVditorData') {
         if (vditorRef.current) {
           const isEdit = msg.mode === 'edit';
           setIsReadMode(!isEdit);
 
           let processedContent = msg.content;
-          
+
           const wikiRegex = /!\[\[(.*?)\]\]/g;
           processedContent = processedContent.replace(wikiRegex, (_: string, rawImageName: string) => {
             const exactName = rawImageName.trim();
@@ -29,7 +29,6 @@ export default function VditorApp() {
             }
             return `![${exactName}](${exactName})`;
           });
-
 
           const mdRegex = /!\[(.*?)\]\((.*?)\)/g;
           processedContent = processedContent.replace(mdRegex, (match: string, alt: string, path: string) => {
@@ -46,16 +45,16 @@ export default function VditorApp() {
             theme: 'classic',
             lang: 'zh_CN',
             height: window.innerHeight,
-            toolbar: isEdit ? undefined : [], 
+            toolbar: isEdit ? undefined : [],
             toolbarConfig: {
               hide: !isEdit,
-              pin: false
+              pin: false,
             },
             cache: { enable: false },
             preview: {
               theme: {
-                current: 'classic'
-              }
+                current: 'classic',
+              },
             },
             after: () => {
               if (!isEdit) {
@@ -67,9 +66,9 @@ export default function VditorApp() {
             },
             input: () => {
               // vscode.postMessage({ command: 'saveMarkdown', content: value });
-            }
+            },
           });
-          
+
           setVditor(vd);
         }
       }
@@ -102,6 +101,11 @@ export default function VditorApp() {
             background-color: transparent !important;
           }
           
+          .vditor blockquote{
+            --vscode-textBlockQuote-background:#F2F2F2;
+            background:var(--vscode-textBlockQuote-background);
+          }
+          
           .vditor-ir, .vditor-reset {
             max-width: 100% !important;
             padding-left: 20px !important;
@@ -114,7 +118,9 @@ export default function VditorApp() {
             color: #24292e !important;
           }
 
-          ${isReadMode ? `
+          ${
+            isReadMode
+              ? `
             .vditor-toolbar { display: none !important; }
             .vditor-ir { caret-color: transparent !important; } 
 
@@ -126,7 +132,9 @@ export default function VditorApp() {
             .vditor-ir__info {
               display: none !important;
             }
-          ` : ''}
+          `
+              : ''
+          }
         `}
       </style>
       <div ref={vditorRef} style={{ border: 'none', height: '100%' }} />
