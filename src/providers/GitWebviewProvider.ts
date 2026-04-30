@@ -119,7 +119,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             const refs = await git.raw(['show-ref']).catch(() => '');
             const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
             currentState = refs + head;
-          } catch (e) {}
+          } catch (e) { }
 
           const graphChanged = currentState !== this._lastGraphState;
 
@@ -233,18 +233,48 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
 
           case 'stash': {
-            const stashMsg = await vscode.window.showInputBox({
-              prompt: '请输入贮藏备注 (留空将自动生成系统默认备注)',
-              placeHolder: '例如: 暂存前端开发进度',
+            // 1. 定义快速选择项
+            const options: vscode.QuickPickItem[] = [
+              {
+                label: '$(archive) 快速贮藏 (默认备注)',
+                description: '直接贮藏，使用系统自动生成的 WIP 备注',
+                alwaysShow: true
+              },
+              {
+                label: '$(edit) 自定义备注贮藏...',
+                description: '手动输入具体的贮藏备注信息',
+                alwaysShow: true
+              }
+            ];
+
+            const selected = await vscode.window.showQuickPick(options, {
+              placeHolder: '请选择贮藏方式'
             });
 
-            if (stashMsg === undefined) return;
+            if (!selected) return;
 
+            let stashMsg = '';
+
+            // 2. 如果用户选择了自定义，则额外弹出一个输入框
+            if (selected.label.includes('自定义备注贮藏')) {
+              const input = await vscode.window.showInputBox({
+                prompt: '请输入贮藏备注',
+                placeHolder: '例如: 暂存前端开发进度',
+              });
+
+              // 如果弹出了输入框但用户按了 Esc 取消，则直接中断
+              if (input === undefined) return;
+              stashMsg = input.trim();
+            }
+
+            // 3. 执行贮藏逻辑
             await this.executeGitOperation(async () => {
               try {
-                if (stashMsg.trim()) {
+                if (stashMsg) {
+                  // 有自定义内容
                   await git.stash(['push', '-m', stashMsg]);
                 } else {
+                  // 直接快速贮藏（无内容）
                   await git.stash(['push']);
                 }
                 vscode.window.showInformationMessage('📦 已成功贮藏工作区更改。');
@@ -482,7 +512,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 try {
                   await git.fetch(['--all', '--prune']);
                   await updateQuickPickItems();
-                } catch (e) {}
+                } catch (e) { }
               }).finally(() => {
                 quickPick.busy = false;
               });
@@ -600,7 +630,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 try {
                   await git.fetch(['--all', '--prune']);
                   await updateQuickPickItems();
-                } catch (e) {}
+                } catch (e) { }
               }).finally(() => {
                 quickPick.busy = false;
               });
@@ -683,7 +713,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 try {
                   await git.fetch(['--all', '--prune']);
                   await updateQuickPickItems();
-                } catch (e) {}
+                } catch (e) { }
               }).finally(() => {
                 quickPick.busy = false;
               });
@@ -1050,7 +1080,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               let existingContent = Buffer.alloc(0);
               try {
                 existingContent = Buffer.from(await vscode.workspace.fs.readFile(gitignoreUri));
-              } catch (e) {}
+              } catch (e) { }
 
               const appendStr = existingContent.length > 0 ? `\n${msg.file}` : msg.file;
               const appendContent = Buffer.from(appendStr, 'utf8');
@@ -1160,7 +1190,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           const refs = await git.raw(['show-ref']).catch(() => '');
           const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
           this._lastGraphState = refs + head;
-        } catch (e) {}
+        } catch (e) { }
 
         const logOptions = {
           '--all': null,
