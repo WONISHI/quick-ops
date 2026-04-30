@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
 import styles from './index.module.css';
 import CommitHoverWidget from '../CommitHoverWidget';
+import GraphSearchWidget from '../GraphSearchWidget';
 import type { GitFile } from '../../types/GitApp';
 
 export interface GraphCommit {
@@ -246,7 +247,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
     onCommitContextMenu // 🌟 从父组件传入
 }) => {
     const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit; x: number; y: number; position: 'top' | 'bottom' } | null>(null);
-    
+
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const suppressHoverUntilRef = useRef(0);
 
@@ -548,36 +549,6 @@ const GitGraph: React.FC<GitGraphProps> = ({
         );
     };
 
-    const handlePointerDown = (e: React.PointerEvent) => {
-        const target = e.target as HTMLElement;
-        if (!target.classList.contains(styles['search-gripper']) && !target.closest(`.${styles['search-gripper']}`)) return;
-
-        e.preventDefault();
-        (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-        isDragging.current = true;
-        dragStart.current = {
-            mouseX: e.clientX,
-            mouseY: e.clientY,
-            currentX: searchOffset.x,
-            currentY: searchOffset.y
-        };
-    };
-
-    const handlePointerMove = (e: React.PointerEvent) => {
-        if (!isDragging.current) return;
-        const dx = e.clientX - dragStart.current.mouseX;
-        const dy = e.clientY - dragStart.current.mouseY;
-        setSearchOffset({
-            x: dragStart.current.currentX + dx,
-            y: dragStart.current.currentY + dy
-        });
-    };
-
-    const handlePointerUp = (e: React.PointerEvent) => {
-        isDragging.current = false;
-        (e.currentTarget as HTMLDivElement).releasePointerCapture(e.pointerId);
-    };
-
     return (
         <>
             {hoverInfo && (
@@ -593,55 +564,18 @@ const GitGraph: React.FC<GitGraphProps> = ({
                 />
             )}
 
-            {isSearchOpen && (
-                <div
-                    className={styles['search-widget']}
-                    style={{ transform: `translate(${searchOffset.x}px, ${searchOffset.y}px)` }}
-                    onPointerDown={handlePointerDown}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerUp}
-                    onPointerCancel={handlePointerUp}
-                >
-                    <div className={styles['search-gripper']}>
-                        <i className="codicon codicon-gripper" />
-                    </div>
-
-                    <input
-                        ref={searchInputRef}
-                        className={styles['search-input']}
-                        placeholder="搜索提交..."
-                        value={searchQuery}
-                        onChange={(e) => {
-                            setSearchQuery(e.target.value);
-                            setCurrentMatchIndex(0); 
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault();
-                                if (e.shiftKey) {
-                                    handlePrevMatch();
-                                } else {
-                                    handleNextMatch();
-                                }
-                            } else if (e.key === 'Escape') {
-                                setIsSearchOpen(false);
-                            }
-                        }}
-                    />
-                    <div className={styles['search-count']}>
-                        {matchedIndices.length > 0 ? currentMatchIndex + 1 : 0}/{matchedIndices.length}
-                    </div>
-                    <button className={styles['search-btn']} onClick={handlePrevMatch} disabled={matchedIndices.length === 0} title="上一个 (Shift+Enter)">
-                        <i className="codicon codicon-arrow-up" />
-                    </button>
-                    <button className={styles['search-btn']} onClick={handleNextMatch} disabled={matchedIndices.length === 0} title="下一个 (Enter)">
-                        <i className="codicon codicon-arrow-down" />
-                    </button>
-                    <button className={styles['search-btn']} onClick={() => setIsSearchOpen(false)} title="关闭 (Esc)">
-                        <i className="codicon codicon-close" />
-                    </button>
-                </div>
-            )}
+            <GraphSearchWidget
+                isSearchOpen={isSearchOpen}
+                setIsSearchOpen={setIsSearchOpen}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                currentMatchIndex={currentMatchIndex}
+                setCurrentMatchIndex={setCurrentMatchIndex}
+                matchedIndices={matchedIndices}
+                handlePrevMatch={handlePrevMatch}
+                handleNextMatch={handleNextMatch}
+                anchorRef={graphContainerRef}
+            />
 
             <div
                 className={styles['graph-scroll-view']}
