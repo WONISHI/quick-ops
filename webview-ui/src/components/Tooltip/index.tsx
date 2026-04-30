@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 export type TooltipPlacement = 'top' | 'bottom' | 'left' | 'right';
 export type TooltipTrigger = 'hover' | 'click';
 export type TooltipAlign = 'start' | 'center' | 'end';
+export type TooltipTextAlign = 'left' | 'center' | 'right' | 'justify';
 
 export interface TooltipProps {
     content: React.ReactNode;
@@ -9,6 +10,7 @@ export interface TooltipProps {
     placement?: TooltipPlacement;
     trigger?: TooltipTrigger;
     align?: TooltipAlign;
+    textAlign?: TooltipTextAlign;
     showArrow?: boolean;
 }
 
@@ -18,6 +20,7 @@ const Tooltip: React.FC<TooltipProps> = ({
     placement = 'top',
     trigger = 'hover',
     align = 'center',
+    textAlign = 'left',
     showArrow = true,
 }) => {
     const [visible, setVisible] = useState(false);
@@ -210,7 +213,11 @@ const Tooltip: React.FC<TooltipProps> = ({
                         padding: '4px 8px',
                         borderRadius: '4px',
                         fontSize: '12px',
-                        whiteSpace: 'nowrap',
+                        width: 'max-content',
+                        maxWidth: 'calc(100vw - 32px)',
+                        whiteSpace: 'pre-wrap',
+                        wordBreak: 'break-word',
+                        textAlign: textAlign,
                         zIndex: 100000,
                         pointerEvents: 'none',
                         boxShadow: '0 2px 8px var(--vscode-widget-shadow)',

@@ -8,6 +8,7 @@ import styles from '../assets/css/RecentProjectsApp.module.css';
 import FileIcon from '../components/FileIcon';
 import RecentProjectContextMenu from '../components/RecentProjectContextMenu';
 import HighlightText from '../components/HighlightText';
+import Tooltip from "../components/Tooltip"
 import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '../types/RecentProjectsApp';
 
 function getDisplayPath(project: Project) {
@@ -562,12 +563,15 @@ export default function RecentProjectsApp() {
                 <ul>
                   {folderSearchResults.map((res, i) => (
                     <li key={i} style={{ marginBottom: '8px' }}>
-                      <div
-                        style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--vscode-textLink-foreground)', marginBottom: '2px', wordBreak: 'break-all', display: 'flex', alignItems: 'center' }}
-                      >
-                        <FileIcon fileName={res.file} style={{ marginRight: '6px' }} />
-                        {res.file}
-                      </div>
+                      <Tooltip content={res.file} placement='bottom' textAlign='center'>
+                        <div
+                          style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--vscode-textLink-foreground)', marginBottom: '2px', wordBreak: 'break-all', overflow: 'hidden', display: 'inline-block', whiteSpace: 'nowrap', textOverflow: 'ellipsis', alignItems: 'center', width: '100%' }}
+                          title={res.file}
+                        >
+                          <FileIcon fileName={res.file} style={{ marginRight: '6px' }} />
+                          {res.file}
+                        </div>
+                      </Tooltip>
                       <ul style={{ borderLeft: '1px solid var(--vscode-panel-border)', marginLeft: '6px' }}>
                         {res.matches.map((m: SearchMatch, j: number) => {
                           const globalStartIndex = lineStartIndexMap.get(`${i}-${j}`) || 0;
