@@ -196,8 +196,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'previewWithVditor':
           this.openVditorPanel(data.fsPath, data.projectName || '未知项目', data.isActiveProject ? 'edit' : 'read');
           break;
-
-        // 🌟 新增：处理 Excel/CSV 文件预览
         case 'previewWithExcel':
         case 'previewWithExcelToSide': {
           this.openExcelPanel(

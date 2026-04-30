@@ -580,13 +580,25 @@ export default function RecentProjectsApp() {
                               id={`search-line-${i}-${j}`}
                               onClick={() => {
                                 setCurrentActiveMatch(globalStartIndex);
-                                vscode.postMessage({
-                                  type: 'openFileAtLine',
-                                  fsPath: res.fullPath,
-                                  line: m.line,
-                                  isActiveProject: searchTargetProject.isActiveProject,
-                                  projectName: searchTargetProject.projectName || searchTargetProject.name || searchTargetProject.originalName,
-                                });
+                                const targetProjectName = searchTargetProject.projectName || searchTargetProject.name || searchTargetProject.originalName;
+                                const targetPath = res.fullPath;
+                                if (targetPath.toLowerCase().endsWith('.md')) {
+                                  vscode.postMessage({
+                                    type: 'previewWithVditor',
+                                    fsPath: targetPath,
+                                    projectName: targetProjectName,
+                                    isActiveProject: searchTargetProject.isActiveProject,
+                                    line: m.line
+                                  });
+                                } else {
+                                  vscode.postMessage({
+                                    type: 'openFileAtLine',
+                                    fsPath: targetPath,
+                                    line: m.line,
+                                    isActiveProject: searchTargetProject.isActiveProject,
+                                    projectName: targetProjectName,
+                                  });
+                                }
                               }}
                               style={{
                                 fontSize: '12px',
