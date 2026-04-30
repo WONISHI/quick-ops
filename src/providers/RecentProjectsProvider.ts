@@ -306,7 +306,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
       });
 
-      // 加载自定义的 /xls 路由
+      panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'table.svg');
+      
       panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, `/xls?type=read`);
 
     } catch (e) {
@@ -320,17 +321,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const fileName = path.basename(uri.path);
 
-      // PDF 文件通常较大，建议拦截过大文件防止 OOM (可选)
-      // const stat = await vscode.workspace.fs.stat(uri);
-      // if (stat.size > 20 * 1024 * 1024) throw new Error('PDF file is too large');
-
       const panel = vscode.window.createWebviewPanel(
         'pdfPreviewReact',
         `${projectName}: ${fileName}`,
         viewColumn,
         {
           enableScripts: true,
-          // 极简策略：PDF 没必要切到后台还保留内存，去掉了 retainContextWhenHidden
           localResourceRoots: [this.context.extensionUri]
         }
       );
@@ -350,7 +346,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
       });
 
-      // 跳转到前端的 /pdf 路由
+      panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'pdf.svg');
+
       panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, `/pdf?type=read`);
 
     } catch (e) {

@@ -97,6 +97,9 @@ export default function VditorApp() {
     <div style={{ height: '100vh', backgroundColor: '#ffffff' }}>
       <style>
         {`
+          html{
+            --vscode-scrollbarSlider-background::#F2F2F2;
+          }
           .vditor, .vditor-ir, .vditor-reset {
             background-color: transparent !important;
           }
