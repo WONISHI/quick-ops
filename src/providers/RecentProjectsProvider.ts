@@ -21,9 +21,34 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   private selectedForCompareUri?: vscode.Uri;
   private selectedForCompareName?: string;
+  private activePanels: Map<string, vscode.WebviewPanel> = new Map();
 
   constructor(private context: vscode.ExtensionContext) {
     this.recordCurrentProject();
+  }
+  private async closeExistingPreviews(fsPath: string) {
+    // 1. 关闭由我们插件自己管理的 Webview 解析面板
+    if (this.activePanels.has(fsPath)) {
+      this.activePanels.get(fsPath)?.dispose();
+      this.activePanels.delete(fsPath);
+    }
+
+    // 2. 关闭 VS Code 原生的文本编辑器 Tab (需 VS Code 1.68+ API 支持)
+    if (vscode.window.tabGroups) {
+      const tabsToClose: vscode.Tab[] = [];
+      for (const group of vscode.window.tabGroups.all) {
+        for (const tab of group.tabs) {
+          if (tab.input instanceof vscode.TabInputText) {
+            if (tab.input.uri.fsPath === fsPath) {
+              tabsToClose.push(tab);
+            }
+          }
+        }
+      }
+      if (tabsToClose.length > 0) {
+        await vscode.window.tabGroups.close(tabsToClose);
+      }
+    }
   }
 
   private getReadOnlyUri(fsPath: string, projectName: string): vscode.Uri {
@@ -269,17 +294,101 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           }
           break;
         }
+        case 'openWith': {
+          this.handleOpenWith(data.fsPath, data.projectName || '未知项目');
+          break;
+        }
       }
     });
   }
 
-  // 🌟 新增：处理 Excel Webview 面板加载和数据传输
+  // 🌟 新增：处理自定义打开方式面板（附带自动关旧开新）
+  private async handleOpenWith(fsPath: string, projectName: string) {
+    try {
+      const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+      const ext = path.extname(uri.fsPath || fsPath).toLowerCase();
+      const isSvg = ext === '.svg' || ext === '.svga';
+
+      const textOption: vscode.QuickPickItem = {
+        label: '$(code) 文本编辑器',
+        description: '以纯文本代码形式打开'
+      };
+      const previewOption: vscode.QuickPickItem = {
+        label: '$(preview) 解析编辑器',
+        description: '渲染并预览页面 / 图像'
+      };
+
+      const items = isSvg ? [previewOption, textOption] : [textOption, previewOption];
+
+      const selected = await vscode.window.showQuickPick(items, {
+        placeHolder: `选择 ${path.basename(uri.path)} 的打开方式...`
+      });
+
+      if (!selected) return;
+
+      // 在执行新的打开方式之前，先清理掉该文件之前的所有 Tab！
+      await this.closeExistingPreviews(uri.fsPath);
+
+      if (selected.label.includes('文本编辑器')) {
+        try {
+          const doc = await vscode.workspace.openTextDocument(uri);
+          await vscode.window.showTextDocument(doc);
+        } catch (err) {
+          vscode.window.showErrorMessage(`无法以文本模式打开该文件：${(err as Error).message}`);
+        }
+      } else {
+        try {
+          const contentBytes = await vscode.workspace.fs.readFile(uri);
+          const contentStr = Buffer.from(contentBytes).toString('utf8');
+
+          if (!contentStr || contentStr.trim() === '') {
+             throw new Error('文件为空或内容无法读取');
+          }
+
+          const panel = vscode.window.createWebviewPanel(
+            'customFilePreview',
+            `${projectName}: ${path.basename(uri.path)}`,
+            vscode.ViewColumn.Active,
+            {
+              enableScripts: true,
+              localResourceRoots: [vscode.Uri.file(path.dirname(uri.fsPath))]
+            }
+          );
+
+          // 记录单例
+          this.activePanels.set(uri.fsPath, panel);
+          panel.onDidDispose(() => {
+            if (this.activePanels.get(uri.fsPath) === panel) {
+              this.activePanels.delete(uri.fsPath);
+            }
+          });
+
+          if (isSvg) {
+            panel.webview.html = `<!DOCTYPE html>
+              <html lang="en">
+              <body style="background-color: transparent; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; padding: 20px; box-sizing: border-box;">
+                ${contentStr}
+              </body>
+              </html>`;
+          } else {
+            panel.webview.html = contentStr;
+          }
+        } catch (e) {
+          vscode.window.showErrorMessage(`解析渲染失败，文件可能已损坏：${(e as Error).message}`);
+        }
+      }
+    } catch (e) {
+      vscode.window.showErrorMessage('操作中断，请重试。');
+    }
+  }
+
   private async openExcelPanel(fsPath: string, projectName: string, viewColumn: vscode.ViewColumn) {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const fileName = path.basename(uri.path);
 
-      // 将文件读取为 ArrayBuffer，然后转换为 Base64，避免传递过程中二进制数据丢失
+      await this.closeExistingPreviews(uri.fsPath);
+
       const contentBytes = await vscode.workspace.fs.readFile(uri);
       const fileBase64 = Buffer.from(contentBytes).toString('base64');
 
@@ -293,6 +402,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           localResourceRoots: [this.context.extensionUri]
         }
       );
+
+      this.activePanels.set(uri.fsPath, panel);
+      panel.onDidDispose(() => {
+        if (this.activePanels.get(uri.fsPath) === panel) {
+          this.activePanels.delete(uri.fsPath);
+        }
+      });
 
       panel.webview.onDidReceiveMessage(async (msg) => {
         if (msg.command === 'webviewLoaded') {
@@ -320,6 +436,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const fileName = path.basename(uri.path);
+      await this.closeExistingPreviews(uri.fsPath);
 
       const panel = vscode.window.createWebviewPanel(
         'pdfPreviewReact',
@@ -330,6 +447,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           localResourceRoots: [this.context.extensionUri]
         }
       );
+      this.activePanels.set(uri.fsPath, panel);
+      panel.onDidDispose(() => {
+        if (this.activePanels.get(uri.fsPath) === panel) {
+          this.activePanels.delete(uri.fsPath);
+        }
+      });
 
       panel.webview.onDidReceiveMessage(async (msg) => {
         if (msg.command === 'webviewLoaded') {
@@ -355,76 +478,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async handleSearchFileName(fsPath: string, query: string, isRemote: boolean) {
-    if (isRemote) {
-      this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [], error: '远程仓库暂不支持名称检索。' });
-      return;
-    }
-
-    const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
-    const nativePath = uri.fsPath;
-
-    if (!query.trim()) {
-      this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [] });
-      return;
-    }
-
-    try {
-      await vscode.workspace.fs.stat(uri);
-    } catch {
-      this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [] });
-      return;
-    }
-
-    const results: any[] = [];
-    const maxResults = 200;
-    let currentResults = 0;
-
-    const IGNORE_DIRS = new Set(['node_modules', 'dist', 'build', '.git', '.svn', '.vscode', '.idea']);
-
-    const searchRecursive = async (dirUri: vscode.Uri, currentNativePath: string) => {
-      if (currentResults >= maxResults) return;
-      try {
-        const entries = await vscode.workspace.fs.readDirectory(dirUri);
-        for (const [name, type] of entries) {
-          if (currentResults >= maxResults) break;
-          if (IGNORE_DIRS.has(name) || name === '.DS_Store') continue;
-
-          const isDir = (type & vscode.FileType.Directory) !== 0;
-          const fullPath = path.join(currentNativePath, name);
-          const fullUri = vscode.Uri.joinPath(dirUri, name);
-          const relativePath = path.relative(nativePath, fullPath).replace(/\\/g, '/');
-
-          if (name.toLowerCase().includes(query.toLowerCase())) {
-            results.push({
-              path: fullUri.toString(),
-              name: relativePath,
-              isFolder: isDir
-            });
-            currentResults++;
-          }
-
-          if (isDir) {
-            await searchRecursive(fullUri, fullPath);
-          }
-        }
-      } catch (e) { }
-    };
-
-    await vscode.window.withProgress({
-      location: vscode.ProgressLocation.Window,
-      title: 'Quick Ops: 正在按名称检索...'
-    }, async () => {
-      await searchRecursive(uri, nativePath);
-    });
-
-    this._view?.webview.postMessage({ type: 'searchFileNameResult', results });
-  }
-
   private async openVditorPanel(fsPath: string, projectName: string, type: 'read' | 'edit') {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const fileName = path.basename(uri.path);
+      await this.closeExistingPreviews(uri.fsPath);
 
       const contentBytes = await vscode.workspace.fs.readFile(uri);
       const content = Buffer.from(contentBytes).toString('utf8');
@@ -513,6 +571,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           ]
         }
       );
+      this.activePanels.set(uri.fsPath, panel);
+      panel.onDidDispose(() => {
+        if (this.activePanels.get(uri.fsPath) === panel) {
+          this.activePanels.delete(uri.fsPath);
+        }
+      });
 
       panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'markdown.svg');
 
@@ -541,6 +605,72 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     } catch (e) {
       vscode.window.showErrorMessage('无法读取文件进行 Vditor 预览。');
     }
+  }
+
+  private async handleSearchFileName(fsPath: string, query: string, isRemote: boolean) {
+    if (isRemote) {
+      this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [], error: '远程仓库暂不支持名称检索。' });
+      return;
+    }
+
+    const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+    const nativePath = uri.fsPath;
+
+    if (!query.trim()) {
+      this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [] });
+      return;
+    }
+
+    try {
+      await vscode.workspace.fs.stat(uri);
+    } catch {
+      this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [] });
+      return;
+    }
+
+    const results: any[] = [];
+    const maxResults = 200;
+    let currentResults = 0;
+
+    const IGNORE_DIRS = new Set(['node_modules', 'dist', 'build', '.git', '.svn', '.vscode', '.idea']);
+
+    const searchRecursive = async (dirUri: vscode.Uri, currentNativePath: string) => {
+      if (currentResults >= maxResults) return;
+      try {
+        const entries = await vscode.workspace.fs.readDirectory(dirUri);
+        for (const [name, type] of entries) {
+          if (currentResults >= maxResults) break;
+          if (IGNORE_DIRS.has(name) || name === '.DS_Store') continue;
+
+          const isDir = (type & vscode.FileType.Directory) !== 0;
+          const fullPath = path.join(currentNativePath, name);
+          const fullUri = vscode.Uri.joinPath(dirUri, name);
+          const relativePath = path.relative(nativePath, fullPath).replace(/\\/g, '/');
+
+          if (name.toLowerCase().includes(query.toLowerCase())) {
+            results.push({
+              path: fullUri.toString(),
+              name: relativePath,
+              isFolder: isDir
+            });
+            currentResults++;
+          }
+
+          if (isDir) {
+            await searchRecursive(fullUri, fullPath);
+          }
+        }
+      } catch (e) { }
+    };
+
+    await vscode.window.withProgress({
+      location: vscode.ProgressLocation.Window,
+      title: 'Quick Ops: 正在按名称检索...'
+    }, async () => {
+      await searchRecursive(uri, nativePath);
+    });
+
+    this._view?.webview.postMessage({ type: 'searchFileNameResult', results });
   }
 
   private async handleSearchInFolder(fsPath: string, query: string, isRemote: boolean) {

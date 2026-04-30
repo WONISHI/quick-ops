@@ -20,9 +20,9 @@ import {
   faClone,
   faFolderOpen as faFolderOpenReg,
   faWindowRestore,
+  faFileCode,
 } from '@fortawesome/free-regular-svg-icons';
 
-// 确保这里的路径和你的文件名完全一致
 import styles from './index.module.css';
 import type { ContextMenuPayload } from '../../types/RecentProjectsApp';
 
@@ -46,6 +46,11 @@ export default function RecentProjectContextMenu({
   onAction,
 }: ContextMenuProps) {
   if (!visible) return null;
+
+  const isLocalHtmlOrSvg = 
+    !payload.path.startsWith('vscode-vfs') && 
+    !payload.path.startsWith('http') && 
+    /\.(html|htm|svg|svga)$/i.test(payload.path);
 
   return (
     <div className={styles['context-menu']} ref={menuRef as any} style={{ left: x, top: y }}>
@@ -119,6 +124,15 @@ export default function RecentProjectContextMenu({
           <>
             {!payload.isFolder && (
               <>
+                {isLocalHtmlOrSvg && (
+                  <>
+                    <li onClick={() => onAction('openWith')}>
+                      <FontAwesomeIcon icon={faFileCode} className={styles['menu-icon']} /> 打开方式...
+                    </li>
+                    <div className={styles['menu-separator']}></div>
+                  </>
+                )}
+                
                 <li onClick={() => onAction('openFileToSide')}>
                   <FontAwesomeIcon icon={faColumns} className={styles['menu-icon']} /> 向右拆分
                 </li>

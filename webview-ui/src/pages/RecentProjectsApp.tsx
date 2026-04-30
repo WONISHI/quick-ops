@@ -286,6 +286,9 @@ export default function RecentProjectsApp() {
     const { payload } = contextMenu;
 
     switch (action) {
+      case 'openWith':
+        vscode.postMessage({ type: 'openWith', fsPath: payload.path, projectName: payload.projectName || '未知项目' });
+        break;
       case 'openProjectCurrent':
         vscode.postMessage({ type: 'openProjectCurrent', fsPath: payload.path });
         break;
