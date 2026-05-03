@@ -166,13 +166,42 @@ export class GitFeature implements IFeature {
 
         const refreshItems = async () => {
           let projects: any[] = context.globalState.get(this.GIT_PROJECTS_STATE_KEY) || [];
+          let stateNeedsUpdate = false;
 
+          // 1. 如果 Git 记录为空，从总项目记录里捞一份兜底
           if (projects.length === 0) {
             const recentProjects: any[] = context.globalState.get(this.RECENT_PROJECTS_STATE_KEY) || [];
             if (recentProjects.length > 0) {
               projects = recentProjects;
-              await context.globalState.update(this.GIT_PROJECTS_STATE_KEY, projects);
+              stateNeedsUpdate = true;
             }
+          }
+
+          // 2. 🌟 核心新增：确保当前真实的 VS Code 工作区一定在列表中
+          const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+          if (defaultWorkspace) {
+            const existIndex = projects.findIndex(p => {
+              let targetFsPath = p.fsPath;
+              if (targetFsPath.startsWith('file://')) {
+                targetFsPath = vscode.Uri.parse(targetFsPath).fsPath;
+              }
+              return targetFsPath === defaultWorkspace;
+            });
+
+            // 如果当前工作区不在记录里，把它插到最前面
+            if (existIndex === -1) {
+              projects.unshift({
+                name: path.basename(defaultWorkspace),
+                fsPath: defaultWorkspace,
+                branch: '' 
+              });
+              stateNeedsUpdate = true;
+            }
+          }
+
+          // 如果发生过补偿添加，统一写入存储
+          if (stateNeedsUpdate) {
+            await context.globalState.update(this.GIT_PROJECTS_STATE_KEY, projects);
           }
 
           const items: (vscode.QuickPickItem & { targetPath: string, isAddBtn?: boolean })[] = [];
@@ -232,9 +261,15 @@ export class GitFeature implements IFeature {
 
             if (confirm === '删除') {
               let projects: any[] = context.globalState.get(this.GIT_PROJECTS_STATE_KEY) || [];
-              projects = projects.filter(p => p.fsPath !== item.targetPath);
-              await context.globalState.update(this.GIT_PROJECTS_STATE_KEY, projects);
+              projects = projects.filter(p => {
+                let targetFsPath = p.fsPath;
+                if (targetFsPath.startsWith('file://')) {
+                  targetFsPath = vscode.Uri.parse(targetFsPath).fsPath;
+                }
+                return targetFsPath !== item.targetPath;
+              });
               
+              await context.globalState.update(this.GIT_PROJECTS_STATE_KEY, projects);
               vscode.window.showInformationMessage('🗑️ 已删除记录。');
 
               // 兜底逻辑：如果删的恰好是当前正在预览的项目
@@ -269,7 +304,14 @@ export class GitFeature implements IFeature {
               const newPath = uriArray[0].fsPath;
               let projects: any[] = context.globalState.get(this.GIT_PROJECTS_STATE_KEY) || [];
               
-              const existIndex = projects.findIndex(p => p.fsPath === newPath);
+              const existIndex = projects.findIndex(p => {
+                let targetFsPath = p.fsPath;
+                if (targetFsPath.startsWith('file://')) {
+                  targetFsPath = vscode.Uri.parse(targetFsPath).fsPath;
+                }
+                return targetFsPath === newPath;
+              });
+
               if (existIndex > -1) projects.splice(existIndex, 1);
               
               projects.unshift({
