@@ -733,7 +733,7 @@ export default function GitApp() {
           </div>
 
           {isChangesOpen && (
-            <div style={{ maxHeight: '30vh', overflowY: 'auto', paddingBottom: '4px' }}>
+            <div style={{ maxHeight: '40vh', overflowY: 'auto', paddingBottom: '4px' }}>
               {/* 1. 暂存区 */}
               {stagedFiles.length > 0 && (
                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
@@ -860,7 +860,7 @@ export default function GitApp() {
           </div>
 
           {isStashesOpen && (
-            <div style={{ maxHeight: '30vh', overflowY: 'auto', paddingBottom: '4px' }}>
+            <div style={{ maxHeight: '40vh', overflowY: 'auto', paddingBottom: '4px' }}>
               {stashes.length === 0 ? (
                 <div className={styles['empty-message']}>没有贮藏记录</div>
               ) : (
@@ -1053,7 +1053,7 @@ export default function GitApp() {
           </div>
 
           {isCompareOpen && (
-            <div style={{ maxHeight: '30vh', overflowY: 'auto', paddingBottom: '4px' }}>
+            <div style={{ maxHeight: '40vh', overflowY: 'auto', paddingBottom: '4px' }}>
               {!compareTarget || !compareBase ? (
                 <div className={styles['empty-message']}>{!isRepo ? '未连接至 Git 仓库' : '点击右上角图标选择分支或查看文件历史'}</div>
               ) : (

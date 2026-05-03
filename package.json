@@ -433,6 +433,11 @@
         "command": "quick-ops.openAndSplitRight",
         "title": "向右拆分",
         "category": "QuickOps"
+      },
+      {
+        "command": "quickOps.switchGitProject",
+        "title": "切换项目查看 Git 记录",
+        "icon": "$(ellipsis)"
       }
     ],
     "keybindings": [
@@ -470,6 +475,11 @@
           "command": "quickOps.clearRecentProjects",
           "when": "view == quickOps.recentProjectsView",
           "group": "navigation@4"
+        },
+        {
+          "command": "quickOps.switchGitProject",
+          "when": "view == quickOps.gitView",
+          "group": "navigation@1"
         }
       ],
       "editor/title": [

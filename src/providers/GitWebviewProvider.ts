@@ -14,6 +14,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private _isRefreshing = false;
   private _debounceTimer: NodeJS.Timeout | null = null;
   private _lastGraphState = '';
+  private _customCwd: string | null = null;
 
   private readonly VIEW_ID = 'quickOps.gitView';
 
@@ -37,6 +38,22 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       }
     })();
     vscode.workspace.registerTextDocumentContentProvider('quickops-git', gitDiffProvider);
+  }
+
+  public async setCustomWorkspace(cwd: string | null) {
+    this._customCwd = cwd;
+    const targetCwd = this.getWorkspaceRoot();
+    if (targetCwd) {
+      await this.refreshStatus(targetCwd, true);
+    } else {
+      this._view?.webview.postMessage({ type: 'noWorkspace' });
+    }
+  }
+
+  // 🌟 修改：优先返回 _customCwd
+  private getWorkspaceRoot(): string | undefined {
+    if (this._customCwd) return this._customCwd;
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   }
 
   private async withViewProgress<T>(task: () => Promise<T>): Promise<T> {
@@ -895,11 +912,40 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
           case 'push':
             await this.executeGitOperation(async () => {
-              vscode.window.showInformationMessage('正在推送到远程...');
-              await git.push(['-u', 'origin', 'HEAD']);
-              vscode.window.showInformationMessage('🚀 推送成功！');
-              this._view?.webview.postMessage({ type: 'clearJustCommitted' });
-              await this.refreshStatus(cwd, true);
+              try {
+                const status = await git.status();
+                const hasUpstream = !!status.tracking;
+                
+                const branchSummary = await git.branchLocal();
+                const currentBranch = branchSummary.current;
+
+                if (!currentBranch) {
+                  vscode.window.showErrorMessage('无法获取当前分支状态。');
+                  return;
+                }
+
+                if (!hasUpstream) {
+                  const confirm = await vscode.window.showInformationMessage(
+                    `当前分支 [ ${currentBranch} ] 尚未在远程仓库建立跟踪，是否要创建对应的远程分支并推送？`,
+                    { modal: true },
+                    '创建远程分支并推送'
+                  );
+
+                  if (confirm !== '创建远程分支并推送') return; 
+                }
+
+                vscode.window.showInformationMessage('正在推送到远程...');
+                if (!hasUpstream) {
+                  await git.push(['-u', 'origin', currentBranch]);
+                } else {
+                  await git.push();
+                }
+                vscode.window.showInformationMessage('🚀 推送成功！');
+                this._view?.webview.postMessage({ type: 'clearJustCommitted' });
+                await this.refreshStatus(cwd, true);
+              } catch (e: any) {
+                await this.handleGitErrorWithConflictCheck(cwd, '推送 (Push)', e.message);
+              }
             });
             break;
 
@@ -1178,7 +1224,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         type: 'statusData',
         stagedFiles,
         unstagedFiles,
-        conflictedFiles, // 🌟 推送新增的 conflictedFiles
+        conflictedFiles,
         branch,
         remoteUrl,
         folderName: path.basename(cwd),
@@ -1247,9 +1293,5 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ type: 'commitSuccess' });
 
     await this.refreshStatus(cwd, true);
-  }
-
-  private getWorkspaceRoot(): string | undefined {
-    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   }
 }
