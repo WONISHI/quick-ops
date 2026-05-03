@@ -37,7 +37,6 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({ commit, y, positi
               title={`${formatRelativeTime(commit.timestamp)} (${formatAbsoluteTime(commit.timestamp)})`}
             >
               <i className="codicon codicon-clock" style={{ marginRight: '4px', fontSize: '13px', flexShrink: 0 }} />
-              {/* 🌟 专门用一个 span 包裹文本，用于触发省略号 */}
               <span className={styles['hover-time-text']}>
                 {formatRelativeTime(commit.timestamp)} ({formatAbsoluteTime(commit.timestamp)})
               </span>
@@ -67,16 +66,47 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({ commit, y, positi
       <div className={styles['hover-message']}>{commit.message}</div>
       <div className={styles['hover-divider']}></div>
 
-      <div className={styles['hover-footer']}>
-        <span className={styles['hover-action-btn']} title="复制 Hash" onClick={() => vscode.postMessage({ command: 'copy', text: commit.hash })}>
+      <div
+        className={styles['hover-footer']}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          overflow: 'hidden',
+          width: '100%' // 🌟 确保父容器有明确的宽度边界
+        }}
+      >
+        <span
+          className={styles['hover-action-btn']}
+          title="复制 Hash"
+          style={{
+            flexShrink: 0,
+            whiteSpace: 'nowrap',
+            display: 'flex',
+            alignItems: 'center'
+          }}
+          onClick={() => vscode.postMessage({ command: 'copy', text: commit.hash })}
+        >
           <i className="codicon codicon-copy" style={{ marginRight: '4px' }} /> {commit.hash.substring(0, 7)}
         </span>
 
         {remoteUrl && parseRemoteInfo(remoteUrl, commit.hash) && (
           <>
-            <span className={styles['hover-separator']}>|</span>
-            <span className={styles['hover-action-btn']} title="查看记录" onClick={() => vscode.postMessage({ command: 'openExternal', url: parseRemoteInfo(remoteUrl, commit.hash)!.url })}>
-              <i className={`codicon ${parseRemoteInfo(remoteUrl, commit.hash)!.icon}`} style={{ marginRight: '4px' }} /> 在 {parseRemoteInfo(remoteUrl, commit.hash)!.platform} 上打开
+            <span className={styles['hover-separator']} style={{ flexShrink: 0, margin: '0 6px' }}>|</span>
+            <span
+              className={styles['hover-action-btn']}
+              title="查看记录"
+              style={{
+                flex: 1,
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                display: 'block'
+              }}
+              onClick={() => vscode.postMessage({ command: 'openExternal', url: parseRemoteInfo(remoteUrl, commit.hash)!.url })}
+            >
+              <i className={`codicon ${parseRemoteInfo(remoteUrl, commit.hash)!.icon}`} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+              在 {parseRemoteInfo(remoteUrl, commit.hash)!.platform} 上打开
             </span>
           </>
         )}

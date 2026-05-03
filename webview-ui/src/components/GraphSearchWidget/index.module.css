@@ -59,14 +59,12 @@
     background: var(--vscode-toolbar-hoverBackground);
 }
 
-/* 🌟 拖拽手柄专有样式 */
 .search-gripper {
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0 4px;
     color: var(--vscode-descriptionForeground);
-    /* 只有这里显示抓取手势 */
     cursor: grab;
     opacity: 0.6;
 }
