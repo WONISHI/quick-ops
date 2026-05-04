@@ -438,6 +438,11 @@
         "command": "quickOps.switchGitProject",
         "title": "切换项目查看 Git 记录",
         "icon": "$(ellipsis)"
+      },
+      {
+        "command": "quickOps.returnToWorkspace",
+        "title": "返回当前工作区",
+        "icon": "$(target)"
       }
     ],
     "keybindings": [
@@ -480,6 +485,11 @@
           "command": "quickOps.switchGitProject",
           "when": "view == quickOps.gitView",
           "group": "navigation@1"
+        },
+        {
+          "command": "quickOps.returnToWorkspace",
+          "when": "view == quickOps.gitView",
+          "group": "navigation@2"
         }
       ],
       "editor/title": [

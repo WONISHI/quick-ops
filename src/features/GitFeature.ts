@@ -150,25 +150,62 @@ export class GitFeature implements IFeature {
     );
   }
 
+  private registerReturnToWorkspaceCommand(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+      vscode.commands.registerCommand('quickOps.returnToWorkspace', async () => {
+        const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        
+        if (!defaultWorkspace) {
+          vscode.window.showInformationMessage('当前没有打开任何工作区。');
+          return;
+        }
+
+        let currentFsPath = this._currentPreviewPath || '';
+        if (currentFsPath.startsWith('file://')) {
+          currentFsPath = vscode.Uri.parse(currentFsPath).fsPath;
+        }
+
+        if (currentFsPath === defaultWorkspace) {
+          vscode.window.showInformationMessage('当前已经在默认工作区的 Git 视图中。');
+          return;
+        }
+
+        this._currentPreviewPath = defaultWorkspace;
+        this.gitProvider.setCustomWorkspace(defaultWorkspace);
+        vscode.window.showInformationMessage('🎯 已返回当前工作区。');
+      })
+    );
+  }
+
   // 🌟 注册切换 Git 预览项目的命令 (高级 QuickPick 面板)
   private registerGitSwitchCommand(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
       vscode.commands.registerCommand('quickOps.switchGitProject', async () => {
         
-        const quickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { targetPath: string, isAddBtn?: boolean }>();
-        quickPick.placeholder = '请选择要预览 Git 记录的项目 / 添加新项目';
+        const quickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { targetPath: string }>();
+        quickPick.placeholder = '输入关键字搜索历史项目...';
+        quickPick.title = '切换 / 预览 Git 项目'; 
         quickPick.matchOnDescription = true;
+
+        // 🌟 核心破局点：使用 VS Code 原生标题栏按钮，彻底脱离列表排序机制！
+        const addProjectBtn: vscode.QuickInputButton = {
+          iconPath: new vscode.ThemeIcon('add'),
+          tooltip: '添加本地文件夹到 Git 记录中'
+        };
+        // 将“添加项目”挂载到面板右上角
+        quickPick.buttons = [addProjectBtn];
 
         const deleteBtn: vscode.QuickInputButton = {
           iconPath: new vscode.ThemeIcon('trash'),
           tooltip: '删除此记录'
         };
 
+        let activeItemToFocus: (vscode.QuickPickItem & { targetPath: string }) | undefined;
+
         const refreshItems = async () => {
           let projects: any[] = context.globalState.get(this.GIT_PROJECTS_STATE_KEY) || [];
           let stateNeedsUpdate = false;
 
-          // 1. 如果 Git 记录为空，从总项目记录里捞一份兜底
           if (projects.length === 0) {
             const recentProjects: any[] = context.globalState.get(this.RECENT_PROJECTS_STATE_KEY) || [];
             if (recentProjects.length > 0) {
@@ -177,7 +214,6 @@ export class GitFeature implements IFeature {
             }
           }
 
-          // 2. 🌟 核心新增：确保当前真实的 VS Code 工作区一定在列表中
           const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
           if (defaultWorkspace) {
             const existIndex = projects.findIndex(p => {
@@ -188,7 +224,6 @@ export class GitFeature implements IFeature {
               return targetFsPath === defaultWorkspace;
             });
 
-            // 如果当前工作区不在记录里，把它插到最前面
             if (existIndex === -1) {
               projects.unshift({
                 name: path.basename(defaultWorkspace),
@@ -199,29 +234,19 @@ export class GitFeature implements IFeature {
             }
           }
 
-          // 如果发生过补偿添加，统一写入存储
           if (stateNeedsUpdate) {
             await context.globalState.update(this.GIT_PROJECTS_STATE_KEY, projects);
           }
 
-          const items: (vscode.QuickPickItem & { targetPath: string, isAddBtn?: boolean })[] = [];
+          const items: (vscode.QuickPickItem & { targetPath: string })[] = [];
+          activeItemToFocus = undefined; 
 
-          // 置顶：“添加项目”按钮
-          items.push({
-            label: '$(add) 添加项目',
-            description: '选择一个本地文件夹并添加到 Git 记录中',
-            targetPath: 'ADD',
-            isAddBtn: true,
-            buttons: [] 
-          });
-
-          // 载入历史项目
+          // 现在列表里只放纯粹的历史记录
           projects.forEach(p => {
             const isRemote = p.fsPath.startsWith('vscode-vfs') || p.fsPath.startsWith('http');
             const icon = isRemote ? '$(repo)' : '$(folder)';
             const branchInfo = p.branch ? ` [${p.branch}]` : '';
             
-            // 🌟 核心修复：抹平路径差异，将 file:// 前缀的 URI 转为原生文件路径进行比对
             let targetFsPath = p.fsPath;
             if (targetFsPath.startsWith('file://')) {
               targetFsPath = vscode.Uri.parse(targetFsPath).fsPath;
@@ -234,65 +259,41 @@ export class GitFeature implements IFeature {
 
             const isCurrent = targetFsPath === currentFsPath;
 
-            items.push({
+            const projectItem = {
               label: `${icon} ${p.customName || p.name}`,
               description: `${p.fsPath}${branchInfo}${isCurrent ? ' (当前预览)' : ''}`,
               detail: isRemote ? '远程仓库 (需作为工作区打开)' : '本地项目 (点击无缝预览)',
               targetPath: p.fsPath,
-              // 匹配上当前预览项目的记录，隐藏垃圾桶按钮
               buttons: isCurrent ? [] : [deleteBtn] 
-            });
+            };
+
+            items.push(projectItem);
+
+            if (isCurrent) {
+              activeItemToFocus = projectItem;
+            }
           });
 
           quickPick.items = items;
+          
+          if (activeItemToFocus) {
+            quickPick.activeItems = [activeItemToFocus];
+          }
         };
 
         await refreshItems();
 
-        // 监听右侧垃圾桶点击事件
-        quickPick.onDidTriggerItemButton(async (e) => {
-          if (e.button === deleteBtn) {
-            const item = e.item;
-            const confirm = await vscode.window.showWarningMessage(
-              `确定要从 Git 记录中删除项目 [ ${item.label.replace(/\$\(.*?\) /, '')} ] 吗？`,
-              { modal: true },
-              '删除'
-            );
-
-            if (confirm === '删除') {
-              let projects: any[] = context.globalState.get(this.GIT_PROJECTS_STATE_KEY) || [];
-              projects = projects.filter(p => {
-                let targetFsPath = p.fsPath;
-                if (targetFsPath.startsWith('file://')) {
-                  targetFsPath = vscode.Uri.parse(targetFsPath).fsPath;
-                }
-                return targetFsPath !== item.targetPath;
-              });
-              
-              await context.globalState.update(this.GIT_PROJECTS_STATE_KEY, projects);
-              vscode.window.showInformationMessage('🗑️ 已删除记录。');
-
-              // 兜底逻辑：如果删的恰好是当前正在预览的项目
-              if (this._currentPreviewPath === item.targetPath) {
-                const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-                this._currentPreviewPath = defaultWorkspace;
-                this.gitProvider.setCustomWorkspace(defaultWorkspace || null);
-              }
-              
-              // 实时刷新面板项
-              await refreshItems();
-            }
+        quickPick.onDidChangeValue((value) => {
+          if (value === '' && activeItemToFocus) {
+            quickPick.activeItems = [activeItemToFocus];
           }
         });
 
-        // 监听主体项目选择事件
-        quickPick.onDidAccept(async () => {
-          const selected = quickPick.selectedItems[0];
-          if (!selected) return;
-
-          quickPick.hide();
-
-          if (selected.isAddBtn) {
+        // 🌟 监听右上角的全局按钮 (添加项目)
+        quickPick.onDidTriggerButton(async (btn) => {
+          if (btn === addProjectBtn) {
+            quickPick.hide();
+            
             const uriArray = await vscode.window.showOpenDialog({
               canSelectFiles: false,
               canSelectFolders: true,
@@ -325,8 +326,49 @@ export class GitFeature implements IFeature {
               this.gitProvider.setCustomWorkspace(newPath);
               vscode.window.showInformationMessage('✅ 已添加并切换到该项目的 Git 预览。');
             }
-            return;
           }
+        });
+
+        // 监听列表右侧的垃圾桶点击事件
+        quickPick.onDidTriggerItemButton(async (e) => {
+          if (e.button === deleteBtn) {
+            const item = e.item;
+            const confirm = await vscode.window.showWarningMessage(
+              `确定要从 Git 记录中删除项目 [ ${item.label.replace(/\$\(.*?\) /, '')} ] 吗？`,
+              { modal: true },
+              '删除'
+            );
+
+            if (confirm === '删除') {
+              let projects: any[] = context.globalState.get(this.GIT_PROJECTS_STATE_KEY) || [];
+              projects = projects.filter(p => {
+                let targetFsPath = p.fsPath;
+                if (targetFsPath.startsWith('file://')) {
+                  targetFsPath = vscode.Uri.parse(targetFsPath).fsPath;
+                }
+                return targetFsPath !== item.targetPath;
+              });
+              
+              await context.globalState.update(this.GIT_PROJECTS_STATE_KEY, projects);
+              vscode.window.showInformationMessage('🗑️ 已删除记录。');
+
+              if (this._currentPreviewPath === item.targetPath) {
+                const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                this._currentPreviewPath = defaultWorkspace;
+                this.gitProvider.setCustomWorkspace(defaultWorkspace || null);
+              }
+              
+              await refreshItems();
+            }
+          }
+        });
+
+        // 监听主体项目选择事件
+        quickPick.onDidAccept(async () => {
+          const selected = quickPick.selectedItems[0];
+          if (!selected) return;
+
+          quickPick.hide();
 
           const targetPath = selected.targetPath;
           const isRemote = targetPath.startsWith('vscode-vfs') || targetPath.startsWith('http');
@@ -366,7 +408,6 @@ export class GitFeature implements IFeature {
   }
 
   public activate(context: vscode.ExtensionContext): void {
-    // 默认赋值为当前 VS Code 工作区路径
     this._currentPreviewPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
     this.gitProvider = new GitWebviewProvider(context.extensionUri);
@@ -382,6 +423,7 @@ export class GitFeature implements IFeature {
     });
 
     this.registerGitSwitchCommand(context);
+    this.registerReturnToWorkspaceCommand(context);
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
