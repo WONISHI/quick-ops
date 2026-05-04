@@ -150,6 +150,94 @@ export class GitFeature implements IFeature {
     );
   }
 
+  // 🌟 核心更新：深层探测 Git 仓库是否具有 Remote 属性
+  private async updateCurrentPreviewPath(newPath: string | undefined) {
+    this._currentPreviewPath = newPath;
+    this.gitProvider.setCustomWorkspace(newPath || null);
+
+    let hasRemote = false;
+
+    if (newPath) {
+      try {
+        const git = simpleGit(newPath);
+        // 首先确认它是一个 Git 仓库
+        const isRepo = await git.checkIsRepo();
+        if (isRepo) {
+          // 然后获取它的所有远程仓库
+          const remotes = await git.getRemotes(true);
+          if (remotes && remotes.length > 0) {
+            hasRemote = true;
+          }
+        }
+      } catch (e) {
+        // 非 Git 仓库或无权限，静默忽略
+      }
+    }
+    
+    // 动态注入 Context，如果是有远程仓库的本地项目，右上角的 Settings 按钮就会出现
+    vscode.commands.executeCommand('setContext', 'quickOps.hasGitRemote', hasRemote);
+  }
+
+  // 🌟 核心更新：读取并修改底层的真实 Git 远程地址
+  private registerEditRemoteUrlCommand(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+      vscode.commands.registerCommand('quickOps.editRemoteUrl', async () => {
+        const currentPath = this._currentPreviewPath;
+        if (!currentPath) return;
+
+        const git = simpleGit(currentPath);
+        let remotes: any[] = [];
+        
+        try {
+          const isRepo = await git.checkIsRepo();
+          if (!isRepo) return;
+          remotes = await git.getRemotes(true);
+        } catch (e) {
+          vscode.window.showErrorMessage('无法读取 Git 配置。');
+          return;
+        }
+
+        if (remotes.length === 0) {
+          vscode.window.showInformationMessage('当前项目没有配置任何远程仓库。');
+          return;
+        }
+
+        // 默认获取名为 origin 的远程仓库，如果没有就拿第一个
+        const targetRemote = remotes.find(r => r.name === 'origin') || remotes[0];
+        // 提取当前的真实 URL
+        const currentUrl = targetRemote.refs.push || targetRemote.refs.fetch || '';
+
+        const newUrl = await vscode.window.showInputBox({
+          prompt: `修改底层远程仓库 [${targetRemote.name}] 地址`,
+          value: currentUrl,
+          validateInput: (text) => {
+            const val = text.trim();
+            if (!val) return '地址不能为空';
+            // 严谨正则：必须是合法的 http/https 网址，或者是 SSH 格式 (包含 ssh:// 或是 git@...)
+            const isValid = /^(https?:\/\/|ssh:\/\/|git@[^:]+:.+)/i.test(val);
+            return isValid ? null : '地址格式不正确，必须是有效的 HTTP 或 SSH 格式';
+          }
+        });
+
+        if (newUrl !== undefined) {
+          const trimmedUrl = newUrl.trim();
+          if (trimmedUrl !== currentUrl) {
+            try {
+              // 🌟 真正执行 Git 命令来修改本地配置
+              await git.remote(['set-url', targetRemote.name, trimmedUrl]);
+              vscode.window.showInformationMessage(`✅ 已成功将 ${targetRemote.name} 地址修改为: ${trimmedUrl}`);
+              
+              // 刷新 Git 面板视图，让底层 Provider 也知道地址变了
+              this.gitProvider.setCustomWorkspace(currentPath);
+            } catch (e: any) {
+              vscode.window.showErrorMessage(`修改远程仓库地址失败: ${e.message}`);
+            }
+          }
+        }
+      })
+    );
+  }
+
   private registerReturnToWorkspaceCommand(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
       vscode.commands.registerCommand('quickOps.returnToWorkspace', async () => {
@@ -170,8 +258,7 @@ export class GitFeature implements IFeature {
           return;
         }
 
-        this._currentPreviewPath = defaultWorkspace;
-        this.gitProvider.setCustomWorkspace(defaultWorkspace);
+        this.updateCurrentPreviewPath(defaultWorkspace);
         vscode.window.showInformationMessage('🎯 已返回当前工作区。');
       })
     );
@@ -241,9 +328,30 @@ export class GitFeature implements IFeature {
           const items: (vscode.QuickPickItem & { targetPath: string })[] = [];
           activeItemToFocus = undefined; 
 
-          // 现在列表里只放纯粹的历史记录
+          items.push({
+            label: '操作',
+            kind: vscode.QuickPickItemKind.Separator,
+            targetPath: '' 
+          });
+
+          items.push({
+            label: '$(add) 添加项目',
+            description: '选择一个本地文件夹并添加到 Git 记录中',
+            targetPath: 'ADD',
+            alwaysShow: true, 
+            buttons: [] 
+          });
+
+          if (projects.length > 0) {
+            items.push({
+              label: '最近项目',
+              kind: vscode.QuickPickItemKind.Separator,
+              targetPath: '' 
+            });
+          }
+
           projects.forEach(p => {
-            const isRemote = p.fsPath.startsWith('vscode-vfs') || p.fsPath.startsWith('http');
+            const isRemote = /^(vscode-vfs:\/\/|https?:\/\/|ssh:\/\/|git@)/i.test(p.fsPath);
             const icon = isRemote ? '$(repo)' : '$(folder)';
             const branchInfo = p.branch ? ` [${p.branch}]` : '';
             
@@ -322,8 +430,7 @@ export class GitFeature implements IFeature {
               });
               await context.globalState.update(this.GIT_PROJECTS_STATE_KEY, projects);
               
-              this._currentPreviewPath = newPath;
-              this.gitProvider.setCustomWorkspace(newPath);
+              this.updateCurrentPreviewPath(newPath);
               vscode.window.showInformationMessage('✅ 已添加并切换到该项目的 Git 预览。');
             }
           }
@@ -354,12 +461,12 @@ export class GitFeature implements IFeature {
 
               if (this._currentPreviewPath === item.targetPath) {
                 const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-                this._currentPreviewPath = defaultWorkspace;
-                this.gitProvider.setCustomWorkspace(defaultWorkspace || null);
+                this.updateCurrentPreviewPath(defaultWorkspace);
               }
               
               await refreshItems();
             }
+            return;
           }
         });
 
@@ -368,14 +475,57 @@ export class GitFeature implements IFeature {
           const selected = quickPick.selectedItems[0];
           if (!selected) return;
 
+          if (selected.kind === vscode.QuickPickItemKind.Separator) return;
+
           quickPick.hide();
 
+          if (selected.targetPath === 'ADD') {
+            const uriArray = await vscode.window.showOpenDialog({
+              canSelectFiles: false,
+              canSelectFolders: true,
+              canSelectMany: false,
+              openLabel: '添加到 Git 预览'
+            });
+
+            if (uriArray && uriArray[0]) {
+              const newPath = uriArray[0].fsPath;
+              let projects: any[] = context.globalState.get(this.GIT_PROJECTS_STATE_KEY) || [];
+              
+              const existIndex = projects.findIndex(p => {
+                let targetFsPath = p.fsPath;
+                if (targetFsPath.startsWith('file://')) {
+                  targetFsPath = vscode.Uri.parse(targetFsPath).fsPath;
+                }
+                return targetFsPath === newPath;
+              });
+
+              if (existIndex > -1) projects.splice(existIndex, 1);
+              
+              projects.unshift({
+                name: path.basename(newPath),
+                fsPath: newPath,
+                branch: '' 
+              });
+              await context.globalState.update(this.GIT_PROJECTS_STATE_KEY, projects);
+              
+              this.updateCurrentPreviewPath(newPath);
+              vscode.window.showInformationMessage('✅ 已添加并切换到该项目的 Git 预览。');
+            }
+            return;
+          }
+
           const targetPath = selected.targetPath;
-          const isRemote = targetPath.startsWith('vscode-vfs') || targetPath.startsWith('http');
+          const isRemote = /^(vscode-vfs:\/\/|https?:\/\/|ssh:\/\/|git@)/i.test(targetPath);
 
           if (isRemote) {
             try {
-              const uri = vscode.Uri.parse(targetPath);
+              let finalUriStr = targetPath;
+              if (targetPath.startsWith('git@')) {
+                 vscode.window.showWarningMessage('纯 SSH 格式不支持直接打开，请将其作为本地仓库克隆后操作。');
+                 return;
+              }
+
+              const uri = vscode.Uri.parse(finalUriStr);
               const choice = await vscode.window.showInformationMessage(
                 `远程仓库 [ ${selected.label.replace(/\$\(.*?\) /, '')} ] 无法直接进行本地预览，是否将其作为工作区打开？`,
                 { modal: true },
@@ -396,8 +546,7 @@ export class GitFeature implements IFeature {
             if (rawPath.startsWith('file://')) {
                 rawPath = vscode.Uri.parse(rawPath).fsPath;
             }
-            this._currentPreviewPath = rawPath;
-            this.gitProvider.setCustomWorkspace(rawPath);
+            this.updateCurrentPreviewPath(rawPath);
           }
         });
 
@@ -408,8 +557,6 @@ export class GitFeature implements IFeature {
   }
 
   public activate(context: vscode.ExtensionContext): void {
-    this._currentPreviewPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-
     this.gitProvider = new GitWebviewProvider(context.extensionUri);
 
     context.subscriptions.push(
@@ -418,12 +565,17 @@ export class GitFeature implements IFeature {
       })
     );
 
+    // 初始化时加载默认工作区，并触发探测
+    const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    void this.updateCurrentPreviewPath(defaultWorkspace);
+
     void this.initializeConfigSync(context).catch((error) => {
       console.error(`[${this.id}] initializeConfigSync failed:`, error);
     });
 
     this.registerGitSwitchCommand(context);
     this.registerReturnToWorkspaceCommand(context);
+    this.registerEditRemoteUrlCommand(context);
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }

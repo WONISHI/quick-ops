@@ -443,6 +443,11 @@
         "command": "quickOps.returnToWorkspace",
         "title": "返回当前工作区",
         "icon": "$(target)"
+      },
+      {
+        "command": "quickOps.editRemoteUrl",
+        "title": "修改远程仓库地址",
+        "icon": "$(settings-gear)"
       }
     ],
     "keybindings": [
@@ -490,6 +495,11 @@
           "command": "quickOps.returnToWorkspace",
           "when": "view == quickOps.gitView",
           "group": "navigation@2"
+        },
+        {
+          "command": "quickOps.editRemoteUrl",
+          "when": "view == quickOps.gitView && quickOps.hasGitRemote",
+          "group": "navigation@3"
         }
       ],
       "editor/title": [
