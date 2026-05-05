@@ -27,7 +27,6 @@ export class LivePreviewFeature implements IFeature {
       enableScripts: true,
       retainContextWhenHidden: true,
       enableFindWidget: true,
-      // 🌟 2. 允许加载本地静态资源
       localResourceRoots: [context.extensionUri]
     });
 
