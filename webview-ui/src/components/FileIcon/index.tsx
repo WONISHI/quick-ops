@@ -89,7 +89,7 @@ import vueConfigIcon from 'material-icon-theme/icons/vue-config.svg';
 import viteConfigIcon from 'material-icon-theme/icons/vite.svg';
 import webpackIcon from 'material-icon-theme/icons/webpack.svg';
 import tailwindcssIcon from 'material-icon-theme/icons/tailwindcss.svg';
-import prismaIcon from 'material-icon-theme/icons/prisma_icon.svg';
+import prismaIcon from 'material-icon-theme/icons/prisma.svg';
 import dsStoreIcon from '../../assets/icon/ds_store.svg';
 import obsidianIcon from '../../assets/icon/obsidian.svg';
 import sheetIcon from '../../assets/icon/sheet.svg';
