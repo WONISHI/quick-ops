@@ -12,15 +12,14 @@ import { getReactWebviewHtml } from '../utils/WebviewHelper';
 export class LivePreviewFeature implements IFeature {
   public readonly id = 'LivePreviewFeature';
   private panel: vscode.WebviewPanel | undefined;
-  
-  // 🌟 修复：直接使用解构出来的类型，不再使用 puppeteer.XXX
+
   private browser: Browser | undefined;
   private page: Page | undefined;
   private cdpSession: CDPSession | undefined;
 
   public activate(context: vscode.ExtensionContext): void {
     const command = vscode.commands.registerCommand('quick-ops.openLivePreview', () => {
-      this.showPreviewPanel(context);
+      void this.showPreviewPanel(context);
     });
 
     context.subscriptions.push(command);
@@ -31,8 +30,8 @@ export class LivePreviewFeature implements IFeature {
     const knownChromiums = [...Object.entries(chrome), ...Object.entries(edge)];
     for (const [key, info] of knownChromiums) {
       if (!key.startsWith('launcher')) continue;
-      const path = (info as any)?.[1]?.prototype?.DEFAULT_CMD?.[process.platform];
-      if (path && typeof path === 'string' && fs.existsSync(path)) return path;
+      const cmdPath = (info as any)?.[1]?.prototype?.DEFAULT_CMD?.[process.platform];
+      if (cmdPath && typeof cmdPath === 'string' && fs.existsSync(cmdPath)) return cmdPath;
     }
     return undefined;
   }
@@ -43,18 +42,23 @@ export class LivePreviewFeature implements IFeature {
       return;
     }
 
-    this.panel = vscode.window.createWebviewPanel('quickOpsLivePreview', '网页预览 (Screencast)', vscode.ViewColumn.Beside, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      enableFindWidget: true,
-      localResourceRoots: [context.extensionUri]
-    });
+    this.panel = vscode.window.createWebviewPanel(
+      'quickOpsLivePreview',
+      '网页预览 (Screencast)',
+      vscode.ViewColumn.Beside,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        enableFindWidget: true,
+        localResourceRoots: [context.extensionUri]
+      }
+    );
 
     this.panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
 
     this.panel.onDidDispose(() => {
       this.panel = undefined;
-      this.cleanupPuppeteer();
+      void this.cleanupPuppeteer();
     });
 
     const lastUrl = context.workspaceState.get<string>('quickOps.lastPreviewUrl') || '';
@@ -62,59 +66,40 @@ export class LivePreviewFeature implements IFeature {
 
     this.panel.webview.html = getReactWebviewHtml(context.extensionUri, this.panel.webview, '/preview');
 
-    setTimeout(() => {
-      this.panel?.webview.postMessage({ type: 'init', device: lastDevice, url: lastUrl });
-    }, 500);
-
-    // 启动后台引擎
-    await this.startPuppeteerEngine();
-
     this.panel.webview.onDidReceiveMessage(async (message) => {
       if (message.type === 'ready') {
         this.panel?.webview.postMessage({ type: 'init', device: lastDevice, url: lastUrl });
-      }
-      else if (message.type === 'saveUrl') {
+      } else if (message.type === 'saveUrl') {
         await context.workspaceState.update('quickOps.lastPreviewUrl', message.url);
-      } 
-      else if (message.type === 'saveDevice') {
+      } else if (message.type === 'saveDevice') {
         await context.workspaceState.update('quickOps.lastPreviewDevice', message.device);
-      } 
-      else if (message.type === 'searchWorkspace') {
-        vscode.commands.executeCommand('workbench.action.findInFiles', { query: message.query });
-      }
-      else if (message.type === 'reqSyncFavorites') {
+      } else if (message.type === 'searchWorkspace') {
+        await vscode.commands.executeCommand('workbench.action.findInFiles', { query: message.query });
+      } else if (message.type === 'reqSyncFavorites') {
         const favs = context.globalState.get<any[]>('quickOps.globalFavorites') || [];
         this.panel?.webview.postMessage({ type: 'syncFavorites', favorites: favs });
-      } 
-      else if (message.type === 'saveAllFavorites') {
+      } else if (message.type === 'saveAllFavorites') {
         await context.globalState.update('quickOps.globalFavorites', message.favorites);
         this.panel?.webview.postMessage({ type: 'syncFavorites', favorites: message.favorites });
-      }
-      else if (message.type === 'toggleFavorite') {
+      } else if (message.type === 'toggleFavorite') {
         let favs = context.globalState.get<any[]>('quickOps.globalFavorites') || [];
-        const index = favs.findIndex(f => f.url === message.url);
+        const index = favs.findIndex((f) => f.url === message.url);
         if (index > -1) {
           favs.splice(index, 1);
-          vscode.window.showInformationMessage('已取消收藏');
+          void vscode.window.showInformationMessage('已取消收藏');
         } else {
           favs.push({ url: message.url, title: message.title, timestamp: Date.now() });
-          vscode.window.showInformationMessage('⭐️ 已添加到全局收藏夹');
+          void vscode.window.showInformationMessage('⭐️ 已添加到全局收藏夹');
         }
         await context.globalState.update('quickOps.globalFavorites', favs);
         this.panel?.webview.postMessage({ type: 'syncFavorites', favorites: favs });
-      }
-      else if (message.type === 'openExternalBrowser') {
-        vscode.env.openExternal(vscode.Uri.parse(message.url));
-      } 
-      else if (message.type === 'showInfo') {
-        vscode.window.showInformationMessage(message.message);
-      } 
-      else if (message.type === 'showError') {
-        vscode.window.showErrorMessage(message.message);
-      }
-      
-      // Screencast 核心驱动指令
-      else if (message.type === 'navigateScreencast') {
+      } else if (message.type === 'openExternalBrowser') {
+        await vscode.env.openExternal(vscode.Uri.parse(message.url));
+      } else if (message.type === 'showInfo') {
+        void vscode.window.showInformationMessage(message.message);
+      } else if (message.type === 'showError') {
+        void vscode.window.showErrorMessage(message.message);
+      } else if (message.type === 'navigateScreencast') {
         if (this.page) {
           try {
             await this.page.goto(message.url, { waitUntil: 'domcontentloaded' });
@@ -122,30 +107,83 @@ export class LivePreviewFeature implements IFeature {
             console.error('Screencast Navigation failed', e);
           }
         }
-      }
-      else if (message.type === 'changeViewport') {
+      } else if (message.type === 'changeViewport') {
         if (this.page && message.width > 0 && message.height > 0) {
-          await this.page.setViewport({ width: message.width, height: message.height });
+          await this.page.setViewport({
+            width: Math.round(message.width),
+            height: Math.round(message.height),
+            deviceScaleFactor: 1
+          });
         }
-      }
-      else if (message.type === 'mouseMove') {
+      } else if (message.type === 'mouseMove') {
         await this.page?.mouse.move(message.x, message.y);
-      }
-      else if (message.type === 'mouseDown') {
-        await this.page?.mouse.move(message.x, message.y);
-        await this.page?.mouse.down();
-      }
-      else if (message.type === 'mouseUp') {
-        await this.page?.mouse.move(message.x, message.y);
-        await this.page?.mouse.up();
-      }
-      else if (message.type === 'mouseScroll') {
+      } else if (message.type === 'mouseClick') {
+        await this.page?.mouse.click(message.x, message.y, { button: 'left', clickCount: 1 });
+      } else if (message.type === 'mouseScroll') {
         await this.page?.mouse.wheel({ deltaY: message.deltaY });
+      } else if (message.type === 'keyboardType') {
+        if (!this.page) return;
+        if (message.key === 'Enter') await this.page.keyboard.press('Enter');
+        else if (message.key === 'Backspace') await this.page.keyboard.press('Backspace');
+        else if (message.key === 'Tab') await this.page.keyboard.press('Tab');
+        else if (message.key === 'Escape') await this.page.keyboard.press('Escape');
+        else if (message.key.length === 1) await this.page.keyboard.type(message.key);
       }
-      else if (message.type === 'keyboardType') {
-        if (message.key === 'Enter') await this.page?.keyboard.press('Enter');
-        else if (message.key === 'Backspace') await this.page?.keyboard.press('Backspace');
-        else if (message.key.length === 1) await this.page?.keyboard.type(message.key);
+    });
+
+    await this.startPuppeteerEngine();
+
+    setTimeout(() => {
+      this.panel?.webview.postMessage({ type: 'init', device: lastDevice, url: lastUrl });
+    }, 200);
+  }
+
+  private bindPageEvents() {
+    if (!this.page) return;
+
+    this.page.on('framenavigated', async (frame) => {
+      if (!this.page || frame !== this.page.mainFrame()) return;
+
+      const url = frame.url();
+      let title = url;
+
+      try {
+        const pageTitle = await this.page.title();
+        if (pageTitle?.trim()) title = pageTitle.trim();
+      } catch { }
+
+      this.panel?.webview.postMessage({
+        type: 'pageNavigated',
+        url,
+        title
+      });
+    });
+
+    this.page.on('popup', async (popup) => {
+      if (!popup) return;
+
+      try {
+        let popupUrl = popup.url();
+
+        if (!popupUrl || popupUrl === 'about:blank') {
+          try {
+            await popup.waitForNavigation({
+              waitUntil: 'domcontentloaded',
+              timeout: 5000
+            });
+            popupUrl = popup.url();
+          } catch { }
+        }
+
+        if (popupUrl && popupUrl !== 'about:blank' && this.page) {
+          await this.page.goto(popupUrl, { waitUntil: 'domcontentloaded' });
+        }
+      } catch (e) {
+        console.error('Popup redirect failed', e);
+      } finally {
+        try {
+          await popup.close();
+        } catch { }
       }
     });
   }
@@ -153,32 +191,42 @@ export class LivePreviewFeature implements IFeature {
   private async startPuppeteerEngine() {
     const executablePath = this.getChromiumPath();
     if (!executablePath) {
-      vscode.window.showErrorMessage('❌ 未检测到 Chrome/Edge 浏览器，推流引擎启动失败！');
+      void vscode.window.showErrorMessage('❌ 未检测到 Chrome/Edge 浏览器，推流引擎启动失败！');
       return;
     }
 
     this.browser = await puppeteer.launch({
-      executablePath: executablePath,
+      executablePath,
       headless: true,
-      defaultViewport: { width: 1200, height: 800 }
+      defaultViewport: { width: 1200, height: 800, deviceScaleFactor: 1 },
+      args: ['--disable-gpu']
     });
 
     this.page = await this.browser.newPage();
+    await this.page.setViewport({ width: 1200, height: 800, deviceScaleFactor: 1 });
+
+    this.bindPageEvents();
+
     this.cdpSession = await this.page.target().createCDPSession();
 
     this.cdpSession.on('Page.screencastFrame', async (frameObject) => {
       if (this.panel) {
         this.panel.webview.postMessage({
           type: 'renderFrame',
-          base64Data: frameObject.data
+          base64Data: frameObject.data,
+          format: 'png'
         });
       }
+
       try {
         await this.cdpSession?.send('Page.screencastFrameAck', { sessionId: frameObject.sessionId });
-      } catch (e) { }
+      } catch { }
     });
 
-    await this.cdpSession.send('Page.startScreencast', { format: 'jpeg', quality: 80, everyNthFrame: 1 });
+    await this.cdpSession.send('Page.startScreencast', {
+      format: 'png',
+      everyNthFrame: 1
+    });
   }
 
   private async cleanupPuppeteer() {

@@ -18,7 +18,11 @@ import {
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 import { faVuejs, faNodeJs, faReact } from '@fortawesome/free-brands-svg-icons';
 
-const isUrlLike = (str: string) => /^(https?:\/\/|file:\/\/)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})(:\d+)?(\/.*)?$/i.test(str);
+const isUrlLike = (str: string) =>
+  /^(https?:\/\/|file:\/\/)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})(:\d+)?(\/.*)?$/i.test(
+    str
+  );
+
 const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export default function LivePreviewApp() {
@@ -46,14 +50,14 @@ export default function LivePreviewApp() {
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
 
-  // 🌟 修复：提升到 useEffect 之前，解决报错
   const pushHistory = (url: string, defaultTitle: string) => {
-    if (isInternalNav.current) {
-      isInternalNav.current = false;
-      return;
-    }
     setHistoryStack((prev) => {
-      if (historyIdx > -1 && prev[historyIdx]?.url === url) return prev;
+      if (prev.length > 0 && prev[prev.length - 1]?.url === url) {
+        return prev.map((item, index) =>
+          index === prev.length - 1 ? { ...item, title: defaultTitle || item.title } : item
+        );
+      }
+
       const nextStack = prev.slice(0, historyIdx + 1);
       nextStack.push({ url, title: defaultTitle || url, timestamp: Date.now() });
       setHistoryIdx(nextStack.length - 1);
@@ -64,55 +68,93 @@ export default function LivePreviewApp() {
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
+
       if (message.type === 'init') {
         if (message.device) setDevice(message.device);
+
         if (message.url) {
           const initUrl = message.url.trim();
           setUrlInput(initUrl);
+
           if (initUrl) {
             setFrameUrl(initUrl);
-            pushHistory(initUrl, initUrl);
             vscode?.postMessage({ type: 'navigateScreencast', url: initUrl });
           }
         }
+
         vscode?.postMessage({ type: 'reqSyncFavorites' });
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
       } else if (message.type === 'renderFrame') {
-        setFrameData(message.base64Data);
+        setFrameData(message.base64Data || '');
+      } else if (message.type === 'pageNavigated') {
+        const nextUrl = message.url || '';
+        const nextTitle = message.title || nextUrl;
+
+        setFrameUrl(nextUrl);
+        setUrlInput(nextUrl);
+
+        if (isInternalNav.current) {
+          isInternalNav.current = false;
+          setHistoryStack((prev) => {
+            if (historyIdx < 0 || historyIdx >= prev.length) return prev;
+            const next = [...prev];
+            next[historyIdx] = {
+              ...next[historyIdx],
+              url: nextUrl,
+              title: nextTitle
+            };
+            return next;
+          });
+        } else {
+          pushHistory(nextUrl, nextTitle);
+        }
       }
     };
+
     window.addEventListener('message', handleMessage);
 
     const handleClickOutside = (e: MouseEvent) => {
       if (!moreBtnRef.current?.contains(e.target as Node)) setMenuOpen(false);
-      if (!suggestBoxRef.current?.contains(e.target as Node) && !(e.target as Element).closest('.address-bar-wrapper')) setShowSuggest(false);
+      if (
+        !suggestBoxRef.current?.contains(e.target as Node) &&
+        !(e.target as Element).closest('.address-bar-wrapper')
+      ) {
+        setShowSuggest(false);
+      }
     };
+
     window.addEventListener('click', handleClickOutside);
 
     return () => {
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('click', handleClickOutside);
     };
-  }, []);
+  }, [historyIdx]);
 
-  // 响应式监听壳子大小，同步给后台渲染器
   useEffect(() => {
     if (!imgContainerRef.current) return;
+
     const observer = new ResizeObserver((entries) => {
-      for (let entry of entries) {
+      for (const entry of entries) {
         const { width, height } = entry.contentRect;
         if (width > 0 && height > 0) {
-          vscode?.postMessage({ type: 'changeViewport', width: Math.round(width), height: Math.round(height) });
+          vscode?.postMessage({
+            type: 'changeViewport',
+            width: Math.round(width),
+            height: Math.round(height)
+          });
         }
       }
     });
+
     observer.observe(imgContainerRef.current);
     return () => observer.disconnect();
   }, [device, isRotated]);
 
   const navigateToHistory = (index: number) => {
     if (index < 0 || index >= historyStack.length) return;
+
     isInternalNav.current = true;
     const targetUrl = historyStack[index].url;
     setHistoryIdx(index);
@@ -126,28 +168,37 @@ export default function LivePreviewApp() {
   const handleGo = (forceUrl?: string) => {
     let finalUrl = (forceUrl !== undefined ? forceUrl : urlInput).trim();
     setShowSuggest(false);
+
     if (!finalUrl) {
       setFrameUrl('');
       setFrameData('');
       vscode?.postMessage({ type: 'saveUrl', url: '' });
       return;
     }
+
     if (!isUrlLike(finalUrl)) {
       vscode?.postMessage({ type: 'searchWorkspace', query: finalUrl });
       return;
     }
-    if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://') && !finalUrl.startsWith('file://')) {
+
+    if (
+      !finalUrl.startsWith('http://') &&
+      !finalUrl.startsWith('https://') &&
+      !finalUrl.startsWith('file://')
+    ) {
       finalUrl = 'http://' + finalUrl;
     }
+
+    isInternalNav.current = true;
     setUrlInput(finalUrl);
     setFrameUrl(finalUrl);
-    pushHistory(finalUrl, finalUrl);
     vscode?.postMessage({ type: 'saveUrl', url: finalUrl });
     vscode?.postMessage({ type: 'navigateScreencast', url: finalUrl });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
+
     if (showSuggest && suggestions.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -165,6 +216,7 @@ export default function LivePreviewApp() {
         return;
       }
     }
+
     if (e.key === 'Enter') {
       e.preventDefault();
       if (showSuggest && suggestIndex > -1) handleGo(suggestions[suggestIndex].url);
@@ -173,7 +225,10 @@ export default function LivePreviewApp() {
   };
 
   const handleRefresh = () => {
-    if (frameUrl) vscode?.postMessage({ type: 'navigateScreencast', url: frameUrl });
+    if (frameUrl) {
+      isInternalNav.current = true;
+      vscode?.postMessage({ type: 'navigateScreencast', url: frameUrl });
+    }
     setMenuOpen(false);
   };
 
@@ -189,11 +244,13 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'toggleFavorite', url: frameUrl, title: frameUrl });
   };
 
-// 交给 React Compiler 自动优化，移除手动的 useMemo
   const suggestions = (() => {
     const query = urlInput.trim().toLowerCase();
     if (!query || favorites.length === 0) return [];
-    return favorites.filter(f => f.title.toLowerCase().includes(query) || f.url.toLowerCase().includes(query));
+    return favorites.filter(
+      (f) =>
+        f.title.toLowerCase().includes(query) || f.url.toLowerCase().includes(query)
+    );
   })();
 
   const renderHighlighted = (text: string) => {
@@ -207,7 +264,7 @@ export default function LivePreviewApp() {
         </span>
       ) : (
         part
-      ),
+      )
     );
   };
 
@@ -224,95 +281,461 @@ export default function LivePreviewApp() {
   };
 
   const getMappedCoordinates = (e: React.MouseEvent | React.WheelEvent) => {
-    if (!imgRef.current) return { x: 0, y: 0 };
-    const rect = imgRef.current.getBoundingClientRect();
-    return { x: Math.round(e.clientX - rect.left), y: Math.round(e.clientY - rect.top) };
+    const img = imgRef.current;
+    if (!img) return { x: 0, y: 0 };
+
+    const rect = img.getBoundingClientRect();
+    if (!rect.width || !rect.height) return { x: 0, y: 0 };
+
+    const naturalWidth = img.naturalWidth || rect.width;
+    const naturalHeight = img.naturalHeight || rect.height;
+
+    const scaleX = naturalWidth / rect.width;
+    const scaleY = naturalHeight / rect.height;
+
+    return {
+      x: Math.round((e.clientX - rect.left) * scaleX),
+      y: Math.round((e.clientY - rect.top) * scaleY)
+    };
   };
 
   const onImgMouseMove = (e: React.MouseEvent) => {
     const { x, y } = getMappedCoordinates(e);
     vscode?.postMessage({ type: 'mouseMove', x, y });
   };
-  const onImgMouseDown = (e: React.MouseEvent) => {
+
+  const onImgClick = (e: React.MouseEvent) => {
     const { x, y } = getMappedCoordinates(e);
     imgRef.current?.focus();
-    vscode?.postMessage({ type: 'mouseDown', x, y });
+    vscode?.postMessage({ type: 'mouseClick', x, y });
   };
-  const onImgMouseUp = (e: React.MouseEvent) => {
-    const { x, y } = getMappedCoordinates(e);
-    vscode?.postMessage({ type: 'mouseUp', x, y });
+
+  const onImgWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    vscode?.postMessage({ type: 'mouseScroll', deltaY: e.deltaY });
   };
-  const onImgWheel = (e: React.WheelEvent) => vscode?.postMessage({ type: 'mouseScroll', deltaY: e.deltaY });
-  const onImgKeyDown = (e: React.KeyboardEvent) => vscode?.postMessage({ type: 'keyboardType', key: e.key });
+
+  const onImgKeyDown = (e: React.KeyboardEvent) => {
+    vscode?.postMessage({ type: 'keyboardType', key: e.key });
+  };
 
   return (
     <div className="live-preview-container">
       <style>{`
         :root {
-          --bg: var(--vscode-editor-background); --fg: var(--vscode-editor-foreground);
-          --border: var(--vscode-panel-border); --input-bg: var(--vscode-input-background);
-          --input-fg: var(--vscode-input-foreground); --input-border: var(--vscode-input-border);
-          --btn-hover: var(--vscode-toolbar-hoverBackground); --menu-bg: var(--vscode-menu-background);
-          --menu-fg: var(--vscode-menu-foreground); --menu-border: var(--vscode-menu-border);
-          --menu-hover-bg: var(--vscode-menu-selectionBackground); --menu-hover-fg: var(--vscode-menu-selectionForeground);
+          --bg: var(--vscode-editor-background);
+          --fg: var(--vscode-editor-foreground);
+          --border: var(--vscode-panel-border);
+          --input-bg: var(--vscode-input-background);
+          --input-fg: var(--vscode-input-foreground);
+          --input-border: var(--vscode-input-border);
+          --btn-hover: var(--vscode-toolbar-hoverBackground);
+          --menu-bg: var(--vscode-menu-background);
+          --menu-fg: var(--vscode-menu-foreground);
+          --menu-border: var(--vscode-menu-border);
+          --menu-hover-bg: var(--vscode-menu-selectionBackground);
+          --menu-hover-fg: var(--vscode-menu-selectionForeground);
           --focus-border: var(--vscode-focusBorder);
         }
-        .live-preview-container { height: 100vh; display: flex; flex-direction: column; background-color: var(--vscode-editorPane-background, #1e1e1e); color: var(--fg); user-select: none; overflow: hidden; }
-        .toolbar { display: flex; padding: 6px 10px; background: var(--bg); border-bottom: 1px solid var(--border); gap: 6px; align-items: center; flex-shrink: 0; }
-        .address-bar-wrapper { flex: 1; min-width: 150px; padding: 4px 8px; border: 1px solid var(--input-border); background: var(--input-bg); border-radius: 2px; display: flex; align-items: center; gap: 8px; position: relative; }
-        .address-bar-wrapper:focus-within { border-color: var(--focus-border); }
-        .address-bar { flex: 1; border: none; background: transparent; color: var(--input-fg); outline: none; font-family: monospace; font-size: 12px; padding: 0; min-width: 0; }
-        .suggest-box { position: absolute; top: 100%; left: 0; width: 100%; margin-top: 4px; background: var(--menu-bg); border: 1px solid var(--menu-border); border-radius: 4px; box-shadow: 0 6px 16px rgba(0,0,0,0.4); z-index: 100000; flex-direction: column; max-height: 280px; overflow-y: auto; }
-        .suggest-item { padding: 8px 12px; border-bottom: 1px solid var(--menu-border); cursor: pointer; display: flex; flex-direction: column; gap: 4px; }
-        .suggest-item:hover, .suggest-item.selected { background: var(--menu-hover-bg); }
-        .suggest-title { font-size: 13px; font-weight: 500; }
-        .suggest-url { font-size: 11px; color: var(--vscode-descriptionForeground); }
-        .highlight-match { color: #5dade2; font-weight: bold; }
-        .action-icon { color: var(--vscode-icon-foreground); cursor: pointer; font-size: 14px; padding: 0 4px; opacity: 0.7; }
-        .action-icon:hover { opacity: 1; color: var(--fg); }
-        .icon-btn { background: transparent; color: var(--vscode-icon-foreground); border: none; padding: 4px 6px; border-radius: 4px; cursor: pointer; display: inline-flex; min-width: 28px; min-height: 28px; outline: none; }
-        .icon-btn:hover { background: var(--btn-hover); color: var(--fg); }
-        .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-        .vscode-select { background: var(--input-bg); color: var(--input-fg); border: 1px solid var(--input-border); padding: 4px; border-radius: 2px; outline: none; cursor: pointer; font-size: 12px; width: 125px; }
-        .vscode-select:focus { border-color: var(--focus-border); }
-        .divider { width: 1px; height: 18px; background: var(--border); margin: 0 2px; }
-        .preview-container { flex: 1; overflow: auto; display: flex; justify-content: center; align-items: flex-start; padding: 20px; position: relative; }
-        .preview-container.no-padding { padding: 0 !important; }
-        #deviceWrapper { background: #fff; transition: width 0.3s ease, height 0.3s ease; box-shadow: 0 4px 16px rgba(0,0,0,0.4); border-radius: 2px; overflow: hidden; position: relative; z-index: 2; display: flex; }
-        .device-responsive { width: 100%; height: 100%; box-shadow: none !important; border-radius: 0 !important; }
-        .device-iphone-se { width: 375px; height: 667px; } .device-iphone-se.rotated { width: 667px; height: 375px; }
-        .device-iphone-xr { width: 414px; height: 896px; } .device-iphone-xr.rotated { width: 896px; height: 414px; }
-        .device-iphone-12-pro { width: 390px; height: 844px; } .device-iphone-12-pro.rotated { width: 844px; height: 390px; }
-        .device-iphone-14-pro-max { width: 430px; height: 932px; } .device-iphone-14-pro-max.rotated { width: 932px; height: 430px; }
-        .device-pixel-7 { width: 412px; height: 915px; } .device-pixel-7.rotated { width: 915px; height: 412px; }
-        .device-galaxy-s8-plus { width: 360px; height: 740px; } .device-galaxy-s8-plus.rotated { width: 740px; height: 360px; }
-        .device-ipad-mini { width: 768px; height: 1024px; } .device-ipad-mini.rotated { width: 1024px; height: 768px; }
-        .welcome-page { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: var(--bg); z-index: 1; }
-        .welcome-icon { font-size: 56px; color: var(--vscode-descriptionForeground); margin-bottom: 24px; opacity: 0.5; }
-        .welcome-title { font-size: 24px; font-weight: 300; margin-bottom: 12px; color: var(--fg); }
-        .welcome-subtitle { font-size: 13px; color: var(--vscode-descriptionForeground); margin-bottom: 32px; text-align: center; max-width: 400px; line-height: 1.6; }
-        .quick-links { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 300px; }
-        .quick-link-btn { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: rgba(255,255,255,0.05); color: var(--fg); border: 1px solid var(--border); border-radius: 4px; cursor: pointer; font-size: 13px; text-align: left; }
-        .quick-link-btn:hover { background: rgba(255,255,255,0.1); border-color: var(--focus-border); }
-        .context-menu { position: absolute; z-index: 9999; background: var(--menu-bg); border: 1px solid var(--menu-border); box-shadow: 0 2px 8px rgba(0,0,0,0.3); border-radius: 4px; padding: 4px 0; min-width: 180px; }
-        .menu-item { padding: 6px 12px; font-size: 12px; color: var(--menu-fg); cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .menu-item:hover { background: var(--menu-hover-bg); color: var(--menu-hover-fg); }
-        .fav-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 100000; display: flex; justify-content: center; align-items: center; }
-        .fav-modal { background: var(--bg); width: 440px; max-height: 80vh; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .fav-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-        .fav-header h3 { margin: 0; font-size: 14px; font-weight: bold; display: flex; align-items: center; gap: 8px; }
-        .fav-close { cursor: pointer; color: var(--vscode-icon-foreground); } .fav-close:hover { color: #e74c3c; }
-        .fav-list { flex: 1; overflow-y: auto; padding: 6px 0; }
-        .fav-item { padding: 10px 16px; border-bottom: 1px solid var(--vscode-panel-border); display: flex; justify-content: space-between; align-items: center; cursor: pointer; gap: 12px; }
-        .fav-item:hover { background: var(--menu-hover-bg); }
-        .fav-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .fav-url { font-size: 11px; color: var(--vscode-descriptionForeground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .live-preview-container {
+          height: 100vh;
+          display: flex;
+          flex-direction: column;
+          background-color: var(--vscode-editorPane-background, #1e1e1e);
+          color: var(--fg);
+          user-select: none;
+          overflow: hidden;
+        }
+
+        .toolbar {
+          display: flex;
+          padding: 6px 10px;
+          background: var(--bg);
+          border-bottom: 1px solid var(--border);
+          gap: 6px;
+          align-items: center;
+          flex-shrink: 0;
+        }
+
+        .address-bar-wrapper {
+          flex: 1;
+          min-width: 150px;
+          padding: 4px 8px;
+          border: 1px solid var(--input-border);
+          background: var(--input-bg);
+          border-radius: 2px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          position: relative;
+        }
+
+        .address-bar-wrapper:focus-within {
+          border-color: var(--focus-border);
+        }
+
+        .address-bar {
+          flex: 1;
+          border: none;
+          background: transparent;
+          color: var(--input-fg);
+          outline: none;
+          font-family: monospace;
+          font-size: 12px;
+          padding: 0;
+          min-width: 0;
+        }
+
+        .suggest-box {
+          position: absolute;
+          top: 100%;
+          left: 0;
+          width: 100%;
+          margin-top: 4px;
+          background: var(--menu-bg);
+          border: 1px solid var(--menu-border);
+          border-radius: 4px;
+          box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+          z-index: 100000;
+          flex-direction: column;
+          max-height: 280px;
+          overflow-y: auto;
+        }
+
+        .suggest-item {
+          padding: 8px 12px;
+          border-bottom: 1px solid var(--menu-border);
+          cursor: pointer;
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .suggest-item:hover, .suggest-item.selected {
+          background: var(--menu-hover-bg);
+        }
+
+        .suggest-title {
+          font-size: 13px;
+          font-weight: 500;
+        }
+
+        .suggest-url {
+          font-size: 11px;
+          color: var(--vscode-descriptionForeground);
+        }
+
+        .highlight-match {
+          color: #5dade2;
+          font-weight: bold;
+        }
+
+        .action-icon {
+          color: var(--vscode-icon-foreground);
+          cursor: pointer;
+          font-size: 14px;
+          padding: 0 4px;
+          opacity: 0.7;
+        }
+
+        .action-icon:hover {
+          opacity: 1;
+          color: var(--fg);
+        }
+
+        .icon-btn {
+          background: transparent;
+          color: var(--vscode-icon-foreground);
+          border: none;
+          padding: 4px 6px;
+          border-radius: 4px;
+          cursor: pointer;
+          display: inline-flex;
+          min-width: 28px;
+          min-height: 28px;
+          outline: none;
+        }
+
+        .icon-btn:hover {
+          background: var(--btn-hover);
+          color: var(--fg);
+        }
+
+        .icon-btn:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+        }
+
+        .vscode-select {
+          background: var(--input-bg);
+          color: var(--input-fg);
+          border: 1px solid var(--input-border);
+          padding: 4px;
+          border-radius: 2px;
+          outline: none;
+          cursor: pointer;
+          font-size: 12px;
+          width: 125px;
+        }
+
+        .vscode-select:focus {
+          border-color: var(--focus-border);
+        }
+
+        .divider {
+          width: 1px;
+          height: 18px;
+          background: var(--border);
+          margin: 0 2px;
+        }
+
+        .preview-container {
+          flex: 1;
+          overflow: auto;
+          display: flex;
+          justify-content: center;
+          align-items: flex-start;
+          padding: 20px;
+          position: relative;
+        }
+
+        .preview-container.no-padding {
+          padding: 0 !important;
+        }
+
+        #deviceWrapper {
+          background: #fff;
+          transition: width 0.3s ease, height 0.3s ease;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+          border-radius: 2px;
+          overflow: hidden;
+          position: relative;
+          z-index: 2;
+          display: flex;
+        }
+
+        .device-responsive {
+          width: 100%;
+          height: 100%;
+          box-shadow: none !important;
+          border-radius: 0 !important;
+        }
+
+        .device-iphone-se { width: 375px; height: 667px; }
+        .device-iphone-se.rotated { width: 667px; height: 375px; }
+        .device-iphone-xr { width: 414px; height: 896px; }
+        .device-iphone-xr.rotated { width: 896px; height: 414px; }
+        .device-iphone-12-pro { width: 390px; height: 844px; }
+        .device-iphone-12-pro.rotated { width: 844px; height: 390px; }
+        .device-iphone-14-pro-max { width: 430px; height: 932px; }
+        .device-iphone-14-pro-max.rotated { width: 932px; height: 430px; }
+        .device-pixel-7 { width: 412px; height: 915px; }
+        .device-pixel-7.rotated { width: 915px; height: 412px; }
+        .device-galaxy-s8-plus { width: 360px; height: 740px; }
+        .device-galaxy-s8-plus.rotated { width: 740px; height: 360px; }
+        .device-ipad-mini { width: 768px; height: 1024px; }
+        .device-ipad-mini.rotated { width: 1024px; height: 768px; }
+
+        .welcome-page {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          background-color: var(--bg);
+          z-index: 1;
+        }
+
+        .welcome-icon {
+          font-size: 56px;
+          color: var(--vscode-descriptionForeground);
+          margin-bottom: 24px;
+          opacity: 0.5;
+        }
+
+        .welcome-title {
+          font-size: 24px;
+          font-weight: 300;
+          margin-bottom: 12px;
+          color: var(--fg);
+        }
+
+        .welcome-subtitle {
+          font-size: 13px;
+          color: var(--vscode-descriptionForeground);
+          margin-bottom: 32px;
+          text-align: center;
+          max-width: 400px;
+          line-height: 1.6;
+        }
+
+        .quick-links {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          width: 100%;
+          max-width: 300px;
+        }
+
+        .quick-link-btn {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 16px;
+          background: rgba(255,255,255,0.05);
+          color: var(--fg);
+          border: 1px solid var(--border);
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 13px;
+          text-align: left;
+        }
+
+        .quick-link-btn:hover {
+          background: rgba(255,255,255,0.1);
+          border-color: var(--focus-border);
+        }
+
+        .context-menu {
+          position: absolute;
+          z-index: 9999;
+          background: var(--menu-bg);
+          border: 1px solid var(--menu-border);
+          box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+          border-radius: 4px;
+          padding: 4px 0;
+          min-width: 180px;
+        }
+
+        .menu-item {
+          padding: 6px 12px;
+          font-size: 12px;
+          color: var(--menu-fg);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .menu-item:hover {
+          background: var(--menu-hover-bg);
+          color: var(--menu-hover-fg);
+        }
+
+        .fav-overlay {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: rgba(0,0,0,0.6);
+          z-index: 100000;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+
+        .fav-modal {
+          background: var(--bg);
+          width: 440px;
+          max-height: 80vh;
+          display: flex;
+          flex-direction: column;
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        .fav-header {
+          padding: 12px 16px;
+          border-bottom: 1px solid var(--border);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+
+        .fav-header h3 {
+          margin: 0;
+          font-size: 14px;
+          font-weight: bold;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .fav-close {
+          cursor: pointer;
+          color: var(--vscode-icon-foreground);
+        }
+
+        .fav-close:hover {
+          color: #e74c3c;
+        }
+
+        .fav-list {
+          flex: 1;
+          overflow-y: auto;
+          padding: 6px 0;
+        }
+
+        .fav-item {
+          padding: 10px 16px;
+          border-bottom: 1px solid var(--vscode-panel-border);
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          cursor: pointer;
+          gap: 12px;
+        }
+
+        .fav-item:hover {
+          background: var(--menu-hover-bg);
+        }
+
+        .fav-title {
+          font-size: 13px;
+          font-weight: 600;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .fav-url {
+          font-size: 11px;
+          color: var(--vscode-descriptionForeground);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .screencast-image {
+          width: 100%;
+          height: 100%;
+          display: block;
+          object-fit: fill;
+          cursor: default;
+          outline: none;
+          image-rendering: auto;
+          user-select: none;
+          -webkit-user-drag: none;
+        }
       `}</style>
 
       <div className="toolbar">
-        <button className="icon-btn" disabled={historyIdx <= 0} onClick={() => navigateToHistory(historyIdx - 1)} title="后退">
+        <button
+          className="icon-btn"
+          disabled={historyIdx <= 0}
+          onClick={() => navigateToHistory(historyIdx - 1)}
+          title="后退"
+        >
           <FontAwesomeIcon icon={faArrowLeft} />
         </button>
+
         <button className="icon-btn" onClick={handleRefresh} title="刷新页面">
           <FontAwesomeIcon icon={faRotateRight} />
         </button>
@@ -336,6 +759,7 @@ export default function LivePreviewApp() {
             spellCheck="false"
             autoComplete="off"
           />
+
           {urlInput && (
             <FontAwesomeIcon
               icon={faXmark}
@@ -347,11 +771,24 @@ export default function LivePreviewApp() {
               title="清除"
             />
           )}
-          <FontAwesomeIcon icon={isFav ? faStarSolid : faStarRegular} className="action-icon" style={{ color: isFav ? '#f1c40f' : '' }} onClick={toggleFavorite} title="添加/取消收藏" />
+
+          <FontAwesomeIcon
+            icon={isFav ? faStarSolid : faStarRegular}
+            className="action-icon"
+            style={{ color: isFav ? '#f1c40f' : '' }}
+            onClick={toggleFavorite}
+            title="添加/取消收藏"
+          />
+
           {showSuggest && suggestions.length > 0 && (
             <div className="suggest-box" ref={suggestBoxRef} style={{ display: 'flex' }}>
               {suggestions.map((item, index) => (
-                <div key={index} className={`suggest-item ${index === suggestIndex ? 'selected' : ''}`} onMouseEnter={() => setSuggestIndex(index)} onClick={() => handleGo(item.url)}>
+                <div
+                  key={index}
+                  className={`suggest-item ${index === suggestIndex ? 'selected' : ''}`}
+                  onMouseEnter={() => setSuggestIndex(index)}
+                  onClick={() => handleGo(item.url)}
+                >
                   <div className="suggest-title">{renderHighlighted(item.title)}</div>
                   <div className="suggest-url">{renderHighlighted(item.url)}</div>
                 </div>
@@ -385,14 +822,27 @@ export default function LivePreviewApp() {
           </optgroup>
         </select>
 
-        <button className="icon-btn" disabled={device === 'device-responsive'} onClick={() => setIsRotated(!isRotated)} style={{ color: isRotated ? '#3498db' : '' }} title="横屏/竖屏切换">
+        <button
+          className="icon-btn"
+          disabled={device === 'device-responsive'}
+          onClick={() => setIsRotated(!isRotated)}
+          style={{ color: isRotated ? '#3498db' : '' }}
+          title="横屏/竖屏切换"
+        >
           <FontAwesomeIcon icon={faRotate} />
         </button>
 
         <div className="divider"></div>
-        <button className="icon-btn" disabled={!urlInput.trim()} onClick={() => vscode?.postMessage({ type: 'openExternalBrowser', url: frameUrl || urlInput })} title="在外部默认浏览器中打开">
+
+        <button
+          className="icon-btn"
+          disabled={!urlInput.trim()}
+          onClick={() => vscode?.postMessage({ type: 'openExternalBrowser', url: frameUrl || urlInput })}
+          title="在外部默认浏览器中打开"
+        >
           <FontAwesomeIcon icon={faArrowUpRightFromSquare} />
         </button>
+
         <button className="icon-btn" ref={moreBtnRef} onClick={openContextMenu} title="更多操作">
           <FontAwesomeIcon icon={faEllipsis} />
         </button>
@@ -443,24 +893,37 @@ export default function LivePreviewApp() {
           <div id="deviceWrapper" ref={imgContainerRef} className={`${device} ${isRotated ? 'rotated' : ''}`}>
             <img
               ref={imgRef}
-              src={frameData ? `data:image/jpeg;base64,${frameData}` : undefined}
+              src={frameData ? `data:image/png;base64,${frameData}` : undefined}
               draggable={false}
-              onMouseDown={onImgMouseDown}
-              onMouseUp={onImgMouseUp}
+              onClick={onImgClick}
               onMouseMove={onImgMouseMove}
               onWheel={onImgWheel}
               onKeyDown={onImgKeyDown}
+              onContextMenu={(e) => e.preventDefault()}
               tabIndex={0}
               style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'fill',
-                cursor: 'crosshair',
+                maxWidth: 'unset !important',
+                maxHeight: 'unset !important',
+                minHeight:'100%',
+                cursor: 'default',
                 outline: 'none',
                 display: frameData ? 'block' : 'none',
               }}
             />
-            {!frameData && <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>引擎加载中...</div>}
+            {!frameData && (
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#999'
+                }}
+              >
+                引擎加载中...
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -476,7 +939,11 @@ export default function LivePreviewApp() {
             </div>
             <div className="fav-list">
               {[...historyStack].reverse().map((entry, index) => (
-                <div key={index} className="fav-item" onClick={() => navigateToHistory(historyStack.length - 1 - index)}>
+                <div
+                  key={index}
+                  className="fav-item"
+                  onClick={() => navigateToHistory(historyStack.length - 1 - index)}
+                >
                   <div>
                     <div className="fav-title">{entry.title}</div>
                     <div className="fav-url">{entry.url}</div>
