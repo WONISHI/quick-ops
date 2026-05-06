@@ -70,6 +70,11 @@
           "default": true,
           "description": "是否开启 Ant Design Vue 组件的智能提示与校验"
         },
+        "quick-ops.general.inlineConstantHints": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否开启代码内联常量幽灵文字提示 (在常量右侧自动显示真实的值或中文含义)"
+        },
         "quick-ops.git.githubToken": {
           "type": "string",
           "default": "",

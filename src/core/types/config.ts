@@ -77,7 +77,8 @@ export interface ILogrcConfig {
     debug: boolean;
     anchorViewMode?: 'menu' | 'mindmap';
     mindMapPosition?: 'left' | 'right';
-    mockDir?: string; // 【新增】Mock 数据文件的存放目录
+    mockDir?: string;
+    inlineConstantHints?: boolean;
   };
   logger: { template: string; dateFormat: string };
   utils: { uuidLength: number };

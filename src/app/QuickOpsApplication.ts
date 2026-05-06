@@ -30,7 +30,7 @@ import { RecentProjectsFeature } from '../features/RecentProjectsFeature';
 import { ComponentIntellisenseFeature } from '../features/ComponentIntellisenseFeature';
 import { TextCompareFeature } from '../features/TextCompareFeature';
 import { GitFeature } from '../features/GitFeature';
-import { ConstantHoverFeature } from '../features/ConstantHoverFeature';
+import { InlineConstantHintFeature } from '../features/InlineConstantHintFeature';
 // import { ZeroConfigConsoleFeature } from '../features/InlineConsoleFeature';
 
 export class QuickOpsApplication {
@@ -81,7 +81,7 @@ export class QuickOpsApplication {
       new ComponentIntellisenseFeature(),
       new TextCompareFeature(),
       new GitFeature(),
-      new ConstantHoverFeature()
+      new InlineConstantHintFeature(),
       // new ZeroConfigConsoleFeature()
     ];
 
