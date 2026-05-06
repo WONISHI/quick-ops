@@ -2580,6 +2580,18 @@
         "snippet": "<$TAG$1 v-model:open=\"${2:open}\" title=\"${3:Basic Modal}\" @ok=\"handleOk\">\n\t<p>${4:Some contents...}</p>\n</$TAG>",
         "attributes": [
             {
+                "name": "afterClose",
+                "description": "Modal 完全关闭后的回调",
+                "type": "function",
+                "default": "-"
+            },
+            {
+                "name": "bodyStyle",
+                "description": "Modal body 样式",
+                "type": "object",
+                "default": "{}"
+            },
+            {
                 "name": "open",
                 "description": "对话框是否可见 (v4 替代 visible，支持 v-model:open)",
                 "type": "boolean",

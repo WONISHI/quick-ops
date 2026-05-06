@@ -2,6 +2,15 @@ import * as vscode from 'vscode';
 import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
 
+const COMMON_COMMANDS = [
+  { label: '刷新窗口', icon: 'refresh', command: 'workbench.action.reloadWindow' },
+  { label: '开发者工具', icon: 'terminal', command: 'workbench.action.toggleDevTools' },
+  { label: '输出面板', icon: 'output', command: 'workbench.action.output.toggleOutput' },
+  { label: '重启 TS 服务', icon: 'server-process', command: 'typescript.restartTsServer' },
+  { label: '新建终端', icon: 'add', command: 'workbench.action.terminal.new' },
+  { label: '清空终端', icon: 'clear-all', command: 'workbench.action.terminal.clear' }
+];
+
 export class DebugConsoleFeature implements IFeature {
   public readonly id = 'DebugConsoleFeature';
   private statusBarItem!: vscode.StatusBarItem;
@@ -40,7 +49,7 @@ export class DebugConsoleFeature implements IFeature {
       }),
     );
 
-    // 3. 🌟 修复：监听全局配置的变化 (不再监听物理文件)
+    // 3. 监听全局配置的变化
     this.configService.on('configChanged', () => {
       this.checkConfigAndToggle();
     });
@@ -50,7 +59,7 @@ export class DebugConsoleFeature implements IFeature {
     this.hijackConsole();
   }
 
-  // 🌟 修复：直接读取内存中的原生配置，无需 async 和 loadConfig
+  // 直接读取内存中的原生配置
   private checkConfigAndToggle() {
     const isDebug = this.configService.config.general?.debug === true;
 
@@ -72,19 +81,20 @@ export class DebugConsoleFeature implements IFeature {
     // --- 标题区 ---
     md.appendMarkdown('### $(dashboard) Q-Ops 调试中心\n\n---\n\n');
 
-    // --- 快捷操作区 (调用 VS Code 内置命令) ---
+    // --- 快捷操作区 ---
     md.appendMarkdown(`**$(settings) 常用控制**\n\n`);
 
-    // 刷新窗口 (等同于 Cmd+R)
-    md.appendMarkdown('[`$(refresh) 刷新插件 (Reload)`](command:workbench.action.reloadWindow) &nbsp;&nbsp; ');
-    // 打开开发者工具 (查看 Webview 报错和底层报错)
-    md.appendMarkdown('[`$(terminal) 开发者工具`](command:workbench.action.toggleDevTools) &nbsp;&nbsp; ');
-    // 打开底层输出面板
-    md.appendMarkdown('[`$(output) 输出面板`](command:workbench.action.output.toggleOutput)\n\n');
-    // 打开外部终端
-    md.appendMarkdown('[`$(console) 新建终端`](command:workbench.action.terminal.new)\n\n');
+    // 🌟 2. 动态渲染命令列表，并且去掉了反引号，消除了难看的灰色背景
+    const commandLinks = COMMON_COMMANDS.map(cmd => {
+      return `[$(${cmd.icon}) ${cmd.label}](command:${cmd.command})`;
+    });
 
-    md.appendMarkdown('---\n\n');
+    // 每 3 个按钮换一行，排版更整齐
+    for (let i = 0; i < commandLinks.length; i += 3) {
+      md.appendMarkdown(commandLinks.slice(i, i + 3).join(' &nbsp;&nbsp;|&nbsp;&nbsp; ') + '\\\n');
+    }
+
+    md.appendMarkdown('\n---\n\n');
 
     // --- 拦截开关区 ---
     md.appendMarkdown(`**$(debug-console) Console 弹窗拦截器**\n\n`);
@@ -102,8 +112,8 @@ export class DebugConsoleFeature implements IFeature {
       return `[${icon} ${type}](${cmdUri})`;
     });
 
-    // 将四个按钮横向排布
-    md.appendMarkdown(toggleLinks.join(' &nbsp;&nbsp;|&nbsp;&nbsp; '));
+    // 将四个开关横向排布（同样去掉了反引号）
+    md.appendMarkdown(toggleLinks.join(' &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; '));
     md.appendMarkdown('\n\n*(点击上方开关可动态启停全局 console 弹窗拦截)*');
 
     this.statusBarItem.tooltip = md;
