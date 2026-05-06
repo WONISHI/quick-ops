@@ -29,6 +29,7 @@ export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
   const [frameData, setFrameData] = useState<string>('');
+  const [frameMime, setFrameMime] = useState<'png' | 'jpeg'>('png');
 
   const [device, setDevice] = useState('device-responsive');
   const [isRotated, setIsRotated] = useState(false);
@@ -87,6 +88,7 @@ export default function LivePreviewApp() {
         setFavorites(message.favorites || []);
       } else if (message.type === 'renderFrame') {
         setFrameData(message.base64Data || '');
+        setFrameMime(message.format === 'jpeg' ? 'jpeg' : 'png');
       } else if (message.type === 'pageNavigated') {
         const nextUrl = message.url || '';
         const nextTitle = message.title || nextUrl;
@@ -142,7 +144,8 @@ export default function LivePreviewApp() {
           vscode?.postMessage({
             type: 'changeViewport',
             width: Math.round(width),
-            height: Math.round(height)
+            height: Math.round(height),
+            deviceScaleFactor: window.devicePixelRatio || 1
           });
         }
       }
@@ -893,13 +896,14 @@ export default function LivePreviewApp() {
           <div id="deviceWrapper" ref={imgContainerRef} className={`${device} ${isRotated ? 'rotated' : ''}`}>
             <img
               ref={imgRef}
-              src={frameData ? `data:image/png;base64,${frameData}` : undefined}
+              src={frameData ? `data:image/${frameMime};base64,${frameData}` : undefined}
               draggable={false}
               onClick={onImgClick}
               onMouseMove={onImgMouseMove}
               onWheel={onImgWheel}
               onKeyDown={onImgKeyDown}
               onContextMenu={(e) => e.preventDefault()}
+              onDragStart={(e) => e.preventDefault()}
               tabIndex={0}
               style={{
                 maxWidth: 'unset !important',
