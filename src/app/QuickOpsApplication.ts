@@ -30,6 +30,7 @@ import { RecentProjectsFeature } from '../features/RecentProjectsFeature';
 import { ComponentIntellisenseFeature } from '../features/ComponentIntellisenseFeature';
 import { TextCompareFeature } from '../features/TextCompareFeature';
 import { GitFeature } from '../features/GitFeature';
+import { ConstantHoverFeature } from '../features/ConstantHoverFeature';
 // import { ZeroConfigConsoleFeature } from '../features/InlineConsoleFeature';
 
 export class QuickOpsApplication {
@@ -48,12 +49,7 @@ export class QuickOpsApplication {
 
     ColorLog.black('[QuickOps]', 'Application Starting...');
 
-    this.services = [
-      ConfigurationService.getInstance(),
-      WorkspaceStateService.getInstance(),
-      EditorContextService.getInstance(),
-      TerminalExecutor.getInstance()
-    ];
+    this.services = [ConfigurationService.getInstance(), WorkspaceStateService.getInstance(), EditorContextService.getInstance(), TerminalExecutor.getInstance()];
 
     for (const service of this.services) {
       try {
@@ -85,6 +81,7 @@ export class QuickOpsApplication {
       new ComponentIntellisenseFeature(),
       new TextCompareFeature(),
       new GitFeature(),
+      new ConstantHoverFeature()
       // new ZeroConfigConsoleFeature()
     ];
 
@@ -105,7 +102,7 @@ export class QuickOpsApplication {
     this.context.subscriptions.push({
       dispose: () => {
         void this.dispose();
-      }
+      },
     });
   }
 
