@@ -7,10 +7,10 @@ import ColorLog from '../utils/ColorLog';
 export class InlineConstantHintFeature implements IFeature {
   public readonly id = 'InlineConstantHintFeature';
   
-  // 1. 幽灵文字装饰器 (放置在行尾，完美复刻 GitLens 风格，绝不干扰代码符号)
+  // 幽灵文字装饰器 (放置在行尾，完美复刻 GitLens 风格)
   private ghostTextDecorationType = vscode.window.createTextEditorDecorationType({
     after: {
-      margin: '0 0 0 30px', // 距离代码行尾保持足够的间距
+      margin: '0 0 0 30px',
       color: new vscode.ThemeColor('editorGhostText.foreground'),
       fontStyle: 'italic',
       fontWeight: 'normal'
@@ -18,10 +18,8 @@ export class InlineConstantHintFeature implements IFeature {
     rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
   });
 
-  // 2. 悬停跳转装饰器 (包裹在常量本身，提供 Hover 交互)
-  private hoverDecorationType = vscode.window.createTextEditorDecorationType({
-    // 隐形包裹，仅用于触发 HoverMessage
-  });
+  // 悬停跳转装饰器
+  private hoverDecorationType = vscode.window.createTextEditorDecorationType({});
 
   private timeout: NodeJS.Timeout | undefined = undefined;
   private fileCache = new Map<string, string>(); 
@@ -32,20 +30,18 @@ export class InlineConstantHintFeature implements IFeature {
       this.triggerUpdateDecorations(activeEditor);
     }
 
-    // 监听激活的编辑器变化
     vscode.window.onDidChangeActiveTextEditor(editor => {
       activeEditor = editor;
       if (editor) this.triggerUpdateDecorations(editor);
     }, null, context.subscriptions);
 
-    // 监听文档修改
     vscode.workspace.onDidChangeTextDocument(event => {
       if (activeEditor && event.document === activeEditor.document) {
         this.triggerUpdateDecorations(activeEditor);
       }
     }, null, context.subscriptions);
 
-    // 🌟 修复：强制实时监听 VS Code 全局配置面板的变化
+    // 强制实时监听 VS Code 全局配置面板的变化
     vscode.workspace.onDidChangeConfiguration(e => {
       if (e.affectsConfiguration('quick-ops.general.inlineConstantHints')) {
         if (activeEditor) this.triggerUpdateDecorations(activeEditor);
@@ -60,7 +56,6 @@ export class InlineConstantHintFeature implements IFeature {
       clearTimeout(this.timeout);
     }
     this.timeout = setTimeout(() => {
-      // 直接读取最新配置，确保实时生效
       const isEnabled = vscode.workspace.getConfiguration('quick-ops').get<boolean>('general.inlineConstantHints', true);
       
       if (isEnabled) {
@@ -78,12 +73,8 @@ export class InlineConstantHintFeature implements IFeature {
     }
 
     const text = editor.document.getText();
-    
-    // 收集两种 Decoration
     const eolDecorations: vscode.DecorationOptions[] = [];
     const hoverDecorations: vscode.DecorationOptions[] = [];
-
-    // 用于合并同一行的多个常量提示
     const lineHintsMap = new Map<number, string[]>();
 
     const importRegex = /import\s+(?:type\s+)?\{([^}]+)\}\s+from\s+['"]([^'"]+)['"]/g;
@@ -118,7 +109,8 @@ export class InlineConstantHintFeature implements IFeature {
       return;
     }
 
-    const usageRegex = /\b([A-Z_][A-Z0-9_]*)\[([A-Z_][A-Z0-9_]*)\.([A-Z_][A-Z0-9_]*)\]|\b([A-Z_][A-Z0-9_]*)\.([A-Z_][A-Z0-9_]*)\b/g;
+    // 🌟 修复1：放宽正则匹配，支持驼峰、帕斯卡等 Enum 常用的命名法 (允许小写字母)
+    const usageRegex = /\b([A-Za-z_][A-Za-z0-9_]*)\[([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\]|\b([A-Za-z_][A-Za-z0-9_]*)\.([A-Za-z_][A-Za-z0-9_]*)\b/g;
     
     let usageMatch;
     while ((usageMatch = usageRegex.exec(text)) !== null) {
@@ -148,22 +140,19 @@ export class InlineConstantHintFeature implements IFeature {
             const outerValue = this.extractNestedValue(outerFileContent, outerObj, innerObj, innerProp);
             if (outerValue) {
               finalDisplayValue = outerValue;
-              targetJumpPath = outerFilePath; // 跳转到提供最终中文定义的文件
+              targetJumpPath = outerFilePath;
             }
           }
         }
       }
 
-      // --- 构建悬停点击跳转卡片 ---
       const originalRange = new vscode.Range(
         editor.document.positionAt(usageMatch.index),
         editor.document.positionAt(usageMatch.index + usageMatch[0].length)
       );
 
       const md = new vscode.MarkdownString();
-      md.isTrusted = true; // 允许执行命令
-      
-      // 生成跳转命令的 URI 参数
+      md.isTrusted = true;
       const fileUri = vscode.Uri.file(targetJumpPath);
       const cmdArgs = encodeURIComponent(JSON.stringify([fileUri]));
 
@@ -176,7 +165,6 @@ export class InlineConstantHintFeature implements IFeature {
         hoverMessage: md
       });
 
-      // --- 收集行尾幽灵文字 ---
       const lineNum = editor.document.positionAt(usageMatch.index).line;
       if (!lineHintsMap.has(lineNum)) {
         lineHintsMap.set(lineNum, []);
@@ -184,10 +172,8 @@ export class InlineConstantHintFeature implements IFeature {
       lineHintsMap.get(lineNum)!.push(finalDisplayValue);
     }
 
-    // --- 批量渲染行尾幽灵文字 ---
     for (const [lineNum, hints] of lineHintsMap.entries()) {
       const lineEndPos = editor.document.lineAt(lineNum).range.end;
-      // 如果一行有多个常量，用 | 隔开
       const combinedHints = hints.join(' ｜ ');
 
       eolDecorations.push({
@@ -224,24 +210,49 @@ export class InlineConstantHintFeature implements IFeature {
     return null;
   }
 
-  // 🌟 修复正则：优化单双引号的匹配容错率，抛弃不可靠的括号闭合判断
+  // 🌟 修复2：匹配头部增加 enum，且忽略可能的冒号或等号的包裹
   private extractValue(content: string, objName: string, propName: string): string | null {
-    const objStartRegex = new RegExp(`(?:export\\s+)?(?:const|let|var)\\s+${objName}\\s*[:=]`, 's');
+    const objStartRegex = new RegExp(`(?:export\\s+)?(?:const|let|var|enum)\\s+${objName}\\s*(?:[:=]\\s*)?[^\\{]*\\{`, 's');
     const startMatch = objStartRegex.exec(content);
     if (!startMatch) return null;
 
-    const propRegex = new RegExp(`\\b${propName}\\b\\s*:\\s*(["'\`])(.*?)\\1`);
-    const res = propRegex.exec(content.substring(startMatch.index));
-    return res ? res[2] : null;
+    const startIndex = startMatch.index + startMatch[0].length;
+    let braces = 1, endIndex = startIndex;
+    for (let i = startIndex; i < content.length; i++) {
+      if (content[i] === '{') braces++;
+      if (content[i] === '}') braces--;
+      if (braces === 0) { endIndex = i; break; }
+    }
+
+    const objContent = content.substring(startIndex, endIndex);
+
+    // 🌟 修复3：同时兼容 `:` 和 `=`，并兼容数字枚举和字符串枚举
+    // 匹配如: Root = "root" 或 Root: "root" 或 Root = 1
+    const propRegex = new RegExp(`\\b${propName}\\b\\s*[:=]\\s*(?:(["'\`])(.*?)\\1|([^,\\s\\}]+))`);
+    const res = propRegex.exec(objContent);
+    
+    // res[2] 对应字符串匹配结果，res[3] 对应数字匹配结果
+    return res ? (res[2] !== undefined ? res[2] : res[3]) : null;
   }
 
   private extractNestedValue(content: string, objName: string, innerObj: string, innerProp: string): string | null {
-    const objStartRegex = new RegExp(`(?:export\\s+)?(?:const|let|var)\\s+${objName}\\s*[:=]`, 's');
+    const objStartRegex = new RegExp(`(?:export\\s+)?(?:const|let|var|enum)\\s+${objName}\\s*(?:[:=]\\s*)?[^\\{]*\\{`, 's');
     const startMatch = objStartRegex.exec(content);
     if (!startMatch) return null;
 
-    const specificRegex = new RegExp(`\\[\\s*${innerObj}\\.${innerProp}\\s*\\]\\s*:\\s*(["'\`])(.*?)\\1`);
-    const res = specificRegex.exec(content.substring(startMatch.index));
-    return res ? res[2] : null;
+    const startIndex = startMatch.index + startMatch[0].length;
+    let braces = 1, endIndex = startIndex;
+    for (let i = startIndex; i < content.length; i++) {
+      if (content[i] === '{') braces++;
+      if (content[i] === '}') braces--;
+      if (braces === 0) { endIndex = i; break; }
+    }
+
+    const objContent = content.substring(startIndex, endIndex);
+    
+    // 兼容对象计算属性中包含枚举/常量的情况
+    const specificRegex = new RegExp(`\\[\\s*${innerObj}\\.${innerProp}\\s*\\]\\s*:\\s*(?:(["'\`])(.*?)\\1|([^,\\s\\}]+))`);
+    const res = specificRegex.exec(objContent);
+    return res ? (res[2] !== undefined ? res[2] : res[3]) : null;
   }
 }
