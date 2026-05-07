@@ -154,3 +154,7 @@
     min-width: 0;
     height: 100%;
 }
+
+.empty-message{
+    text-align: center;
+}
