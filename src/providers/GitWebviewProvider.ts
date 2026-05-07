@@ -50,7 +50,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // 🌟 修改：优先返回 _customCwd
   private getWorkspaceRoot(): string | undefined {
     if (this._customCwd) return this._customCwd;
     return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
@@ -85,7 +84,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // 🌟 核心拦截器：只提示，文件展示交给侧边栏的“冲突区”
   private async handleGitErrorWithConflictCheck(cwd: string, operationName: string, originalErrorMsg: string) {
     try {
       const git = simpleGit(cwd);
@@ -94,7 +92,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
       if (conflicts.length > 0) {
         vscode.window.showWarningMessage(`【${operationName}】产生冲突！\n共检测到 ${conflicts.length} 个冲突文件，请在侧边栏的【冲突区】中逐一解决。`);
-        // 唤起原生 SCM 面板作为辅助
         vscode.commands.executeCommand('workbench.view.scm');
       } else {
         vscode.window.showErrorMessage(`${operationName} 失败: ${originalErrorMsg}`);
@@ -250,7 +247,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
 
           case 'stash': {
-            // 1. 定义快速选择项
             const options: vscode.QuickPickItem[] = [
               {
                 label: '$(archive) 快速贮藏 (默认备注)',
@@ -272,26 +268,21 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
             let stashMsg = '';
 
-            // 2. 如果用户选择了自定义，则额外弹出一个输入框
             if (selected.label.includes('自定义备注贮藏')) {
               const input = await vscode.window.showInputBox({
                 prompt: '请输入贮藏备注',
                 placeHolder: '例如: 暂存前端开发进度',
               });
 
-              // 如果弹出了输入框但用户按了 Esc 取消，则直接中断
               if (input === undefined) return;
               stashMsg = input.trim();
             }
 
-            // 3. 执行贮藏逻辑
             await this.executeGitOperation(async () => {
               try {
                 if (stashMsg) {
-                  // 有自定义内容
                   await git.stash(['push', '-m', stashMsg]);
                 } else {
-                  // 直接快速贮藏（无内容）
                   await git.stash(['push']);
                 }
                 vscode.window.showInformationMessage('📦 已成功贮藏工作区更改。');
@@ -572,10 +563,22 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   timestamp: parseInt(c.timestamp as string, 10) * 1000,
                 }));
 
+                // 🌟 获取真实的过滤后提交总数
+                let totalCommits = graphCommits.length;
+                try {
+                  const countArgs = ['rev-list', '--count'];
+                  if (selectedBranch === allOption) countArgs.push('--all');
+                  else countArgs.push(selectedBranch);
+                  
+                  const countStr = await git.raw(countArgs);
+                  totalCommits = parseInt(countStr.trim(), 10) || graphCommits.length;
+                } catch (e) {}
+
                 this._view?.webview.postMessage({
                   type: 'graphData',
                   graphCommits,
                   graphFilter: selectedBranch,
+                  totalCommits // 发送给前端
                 });
               });
             } catch (e: any) {
@@ -869,20 +872,16 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
-          // 🌟 修改点：支持原生打开冲突文件
           case 'diff': {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
 
             if (msg.status === 'C') {
-              // 1. 冲突文件：必须直接打开，交由 VS Code 原生三向合并工具接管
               vscode.commands.executeCommand('vscode.open', fileUri);
             } else if (msg.status === 'U' || msg.status === 'A') {
-              // 2. 🌟 新增的优化：全新文件也展示对比视图！(左侧设为 empty 虚拟文件，右侧为当前文件)
               const query = encodeURIComponent(JSON.stringify({ cwd, ref: 'empty' }));
               const emptyUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${query}`);
               vscode.commands.executeCommand('vscode.diff', emptyUri, fileUri, `${msg.file} (未跟踪)`);
             } else {
-              // 3. 被修改的文件 (M, D等)：正常对比 HEAD 历史版本
               const query = encodeURIComponent(JSON.stringify({ cwd, ref: 'HEAD' }));
               const originalUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${query}`);
               vscode.commands.executeCommand('vscode.diff', originalUri, fileUri, `${msg.file} (工作树)`);
@@ -987,7 +986,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
-          // 🌟 核心修改：允许 C(冲突) 状态的文件被暂存
           case 'stage': {
             await this.executeGitOperation(async () => {
               if (msg.status === 'D') {
@@ -1067,7 +1065,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           case 'getCommitFiles': {
-            // 🌟 还原为纯净的数据获取逻辑，专供前端内联展开文件树使用
             await this.withViewProgress(async () => {
               const diffRaw = await git.raw(['diff-tree', '--no-commit-id', '--name-status', '-r', '--root', msg.hash]);
               const files = diffRaw
@@ -1085,7 +1082,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 parentOid = undefined;
               }
 
-              // 只推送数据给前端，触发你的 activeCommitHash === c.hash 渲染逻辑
               this._view?.webview.postMessage({ type: 'commitFilesData', hash: msg.hash, files, parentHash: parentOid });
             });
             break;
@@ -1194,7 +1190,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       const status = await statusPromise;
       const stashRaw = await stashPromise;
 
-      // 🌟 核心修改：分离冲突文件
       const conflictedFiles: { status: string; file: string }[] = [];
       const stagedFiles: { status: string; file: string }[] = [];
       const unstagedFiles: { status: string; file: string }[] = [];
@@ -1256,7 +1251,19 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           timestamp: parseInt(c.timestamp as string, 10) * 1000,
         }));
 
-        this._view?.webview.postMessage({ type: 'graphData', graphCommits, graphFilter: '全部分支' });
+        // 🌟 新增：获取真实的 Git 提交总数
+        let totalCommits = graphCommits.length;
+        try {
+          const countStr = await git.raw(['rev-list', '--count', '--all']);
+          totalCommits = parseInt(countStr.trim(), 10) || graphCommits.length;
+        } catch (e) {}
+
+        this._view?.webview.postMessage({ 
+            type: 'graphData', 
+            graphCommits, 
+            graphFilter: '全部分支', 
+            totalCommits // 发送给前端
+        });
       }
     };
 

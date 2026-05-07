@@ -93,6 +93,7 @@ export default function GitApp() {
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
   const [isGraphLoading, setIsGraphLoading] = useState(true);
   const [remoteUrl, setRemoteUrl] = useState<string>('');
+  const [totalCommits, setTotalCommits] = useState(0);
 
   const [viewMode, setViewMode] = useState<'list' | 'tree'>('list');
   const [expandedDirs, setExpandedDirs] = useState<Record<string, boolean>>({});
@@ -145,6 +146,7 @@ export default function GitApp() {
         setUnstagedFiles([]);
         setConflictedFiles([]);
         setGraphCommits([]);
+        setTotalCommits(0); // 清空
         setCompareCommits([]);
         setExpandedCommitHashes([]);
         setCommitFilesMap({});
@@ -174,6 +176,7 @@ export default function GitApp() {
       } else if (msg.type === 'graphData') {
         const commits = msg.graphCommits || [];
         setGraphCommits(commits);
+        setTotalCommits(msg.totalCommits ?? commits.length);
         setDisplayCount(100);
 
         if (msg.graphFilter) {
@@ -1081,9 +1084,26 @@ export default function GitApp() {
 
       <div className={styles['git-graph-section']}>
         <div className={styles['changes-header']} onClick={() => setIsGraphOpen(!isGraphOpen)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <i className={`codicon ${isGraphOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px' }} />
-            图形
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
+            <i className={`codicon ${isGraphOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px', flexShrink: 0 }} />
+            <span style={{ flexShrink: 0 }}>图形</span>
+            {/* 🌟 核心：显示真实的总提交次数 */}
+            {totalCommits > 0 && (
+              <span 
+                className={styles['badge']} 
+                style={{ 
+                  flex: 1, 
+                  minWidth: 0, // 💡 必须项：防止 Flex 子元素被内容无限制撑开
+                  whiteSpace: 'nowrap', 
+                  overflow: 'hidden', 
+                  textOverflow: 'ellipsis',
+                  textAlign: 'center'
+                }}
+                title={`总提交记录: ${totalCommits} 次`} // 💡 优化：鼠标悬浮时可以查看完整的精确数字
+              >
+                {totalCommits}
+              </span>
+            )}
           </div>
 
           {isRepo && (
