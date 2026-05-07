@@ -1216,6 +1216,9 @@ export default function GitApp() {
                 e.preventDefault();
                 setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'commit', commit });
               }}
+              onOpenCommitMultiDiff={(hash) => {
+                vscode.postMessage({ command: 'openCommitMultiDiff', hash });
+              }}
             />
           ))}
       </div>

@@ -3,6 +3,7 @@ import styles from './index.module.css';
 import CommitHoverWidget from '../CommitHoverWidget';
 import GraphSearchWidget from '../GraphSearchWidget';
 import type { GitFile } from '../../types/GitApp';
+import Tooltip from '../Tooltip';
 
 export interface GraphCommit {
     hash: string;
@@ -32,6 +33,7 @@ interface GitGraphProps {
     onCommitClick: (hash: string) => void;
     renderCommitFiles: (hash: string, files: GitFile[]) => React.ReactNode;
     onCommitContextMenu: (e: React.MouseEvent, commit: GraphCommit) => void;
+    onOpenCommitMultiDiff: (hash: string) => void;
 }
 
 const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];
@@ -244,9 +246,11 @@ const GitGraph: React.FC<GitGraphProps> = ({
     setIsSearchOpen,
     onCommitClick,
     renderCommitFiles,
-    onCommitContextMenu // 🌟 从父组件传入
+    onCommitContextMenu,
+    onOpenCommitMultiDiff
 }) => {
     const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit; x: number; y: number; position: 'top' | 'bottom' } | null>(null);
+    const [hoveredRowHash, setHoveredRowHash] = useState<string | null>(null);
 
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const suppressHoverUntilRef = useRef(0);
@@ -257,9 +261,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
     const graphContainerRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
 
-    const [searchOffset, setSearchOffset] = useState({ x: 0, y: 0 });
-    const isDragging = useRef(false);
-    const dragStart = useRef({ mouseX: 0, mouseY: 0, currentX: 0, currentY: 0 });
+    const [, setSearchOffset] = useState({ x: 0, y: 0 });
 
     const [searchQuery, setSearchQuery] = useState('');
     const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
@@ -472,6 +474,8 @@ const GitGraph: React.FC<GitGraphProps> = ({
     }, [graphData, displayCount, yPositions, renderedHeight, expandedCommitHashes, resizeTrigger, graphCommits]);
 
     const handleMouseEnter = (e: React.MouseEvent, commit: GraphCommit) => {
+        setHoveredRowHash(commit.hash);
+
         const now = new Date().getTime();
         if (now < suppressHoverUntilRef.current) return;
 
@@ -493,6 +497,8 @@ const GitGraph: React.FC<GitGraphProps> = ({
     };
 
     const handleMouseLeave = () => {
+        setHoveredRowHash(null);
+
         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
         hoverTimeoutRef.current = setTimeout(() => {
             setHoverInfo(null);
@@ -679,6 +685,46 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                                         <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
                                                     </svg>
                                                 </div>
+                                            )}
+
+                                            {hoveredRowHash === c.hash && (
+                                                <Tooltip content="打开更改">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onOpenCommitMultiDiff(c.hash);
+                                                        }}
+                                                        style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            backgroundColor: 'transparent',
+                                                            color: 'var(--vscode-icon-foreground)',
+                                                            border: 'none',
+                                                            width: '22px',
+                                                            height: '22px',
+                                                            borderRadius: '4px',
+                                                            cursor: 'pointer',
+                                                            opacity: 0.8,
+                                                            transition: 'opacity 0.2s, background-color 0.2s'
+                                                        }}
+                                                        onMouseEnter={(e) => {
+                                                            // 🌟 核心拦截：当鼠标悬停在按钮上时，清除掉显示详情 Widget 的定时器，并隐藏 Widget
+                                                            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                                                            setHoverInfo(null);
+
+                                                            e.currentTarget.style.opacity = '1';
+                                                            e.currentTarget.style.backgroundColor = 'var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31))';
+                                                        }}
+                                                        onMouseLeave={(e) => {
+                                                            e.currentTarget.style.opacity = '0.8';
+                                                            e.currentTarget.style.backgroundColor = 'transparent';
+                                                        }}
+                                                    >
+                                                        {/* 🌟 核心修改：更换为 diff-multiple 图标 */}
+                                                        <i className="codicon codicon-diff-multiple" />
+                                                    </button>
+                                                </Tooltip>
                                             )}
                                         </div>
                                     </div>
