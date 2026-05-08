@@ -3,18 +3,65 @@
     z-index: 10000;
     width: max-content;
     max-width: 85vw;
-    max-height: 40vh;
-    overflow-y: auto;
-    overflow-x: hidden;
     background: var(--vscode-editorHoverWidget-background);
     border: 1px solid var(--vscode-editorHoverWidget-border);
     color: var(--vscode-editorHoverWidget-foreground);
     box-shadow: 0 2px 8px var(--vscode-widget-shadow);
     border-radius: 4px;
-    padding: 12px;
+    padding: 0;
     font-size: 12px;
     pointer-events: auto;
     box-sizing: border-box;
+    overflow: visible;
+}
+
+/* 内容滚动区域 */
+.commit-hover-content {
+    max-height: 40vh;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+/* 三角公共样式 */
+.commit-hover-widget::before,
+.commit-hover-widget::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+/* 弹窗在上方时：底部显示倒三角 */
+.hover-top::before {
+    bottom: -8px;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 8px solid var(--vscode-editorHoverWidget-border);
+}
+
+.hover-top::after {
+    bottom: -7px;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 7px solid var(--vscode-editorHoverWidget-background);
+}
+
+/* 弹窗在下方时：顶部显示正三角 */
+.hover-bottom::before {
+    top: -8px;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-bottom: 8px solid var(--vscode-editorHoverWidget-border);
+}
+
+.hover-bottom::after {
+    top: -7px;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-bottom: 7px solid var(--vscode-editorHoverWidget-background);
 }
 
 .hover-header {
@@ -37,22 +84,21 @@
     font-weight: bold;
     font-size: 11px;
     flex-shrink: 0;
-    /* 头像不允许被压缩 */
 }
 
 .hover-detail {
     display: flex;
     flex: 1;
-    align-items: center; /* 垂直居中对齐 */
-    flex-wrap: nowrap;   /* 🌟 强制作者和时间在同一行，绝不换行 */
+    align-items: center;
+    flex-wrap: nowrap;
     gap: 6px;
-    min-width: 0;        /* 🌟 核心魔法：允许 flex 子容器收缩，从而触发内部的省略号 */
+    min-width: 0;
 }
 
 .hover-author {
     font-weight: 600;
     white-space: nowrap;
-    flex-shrink: 0;      /* 🌟 保证作者名完整显示，绝不被压缩 */
+    flex-shrink: 0;
 }
 
 .hover-time {
@@ -60,39 +106,36 @@
     align-items: center;
     color: var(--vscode-descriptionForeground);
     font-size: 11px;
-    min-width: 0;        /* 🌟 允许时间容器被压缩 */
+    min-width: 0;
 }
 
-/* 🌟 新增：专门针对时间文本的单行省略号处理 */
 .hover-time-text {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
 .hover-refs {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
     margin-bottom: 4px;
-    min-width: 0; /* 🌟 魔法属性 1：确保父容器允许子元素收缩截断 */
-    width: 100%;  /* 确保占满外层可用宽度 */
+    min-width: 0;
+    width: 100%;
 }
 
 .ref-tag {
-    display: inline-block; /* 🌟 魔法属性 2：把 inline-flex 改为 inline-block 才能完美触发省略号 */
-    padding: 2px 5px;      /* 使用 padding 维持原本的垂直居中视觉效果 */
+    display: inline-block;
+    padding: 2px 5px;
     line-height: 1.2;
     border-radius: 4px;
     background: rgba(128, 128, 128, 0.15);
     border: none;
     font-size: 10px;
-    
-    /* 🌟 核心截断与省略号逻辑 */
-    max-width: 100%;         /* 标签最大宽度绝不能超过父容器 */
-    white-space: nowrap;     /* 强制文本不换行 */
-    overflow: hidden;        /* 隐藏超出的部分 */
-    text-overflow: ellipsis; /* 超出部分显示 ... */
-    
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     vertical-align: middle;
     box-sizing: border-box;
 }
@@ -119,8 +162,8 @@
 .hover-footer {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
+    overflow: hidden;
+    width: 100%;
     color: var(--vscode-textLink-foreground);
 }
 
@@ -129,6 +172,8 @@
     display: flex;
     align-items: center;
     opacity: 0.8;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .hover-action-btn:hover {
@@ -138,4 +183,15 @@
 .hover-separator {
     color: var(--vscode-descriptionForeground);
     opacity: 0.5;
+    flex-shrink: 0;
+    margin: 0 6px;
+}
+
+.hover-open-remote {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
 }
