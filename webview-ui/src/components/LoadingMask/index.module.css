@@ -1,4 +1,4 @@
-.changes-loading-mask {
+.loading-mask {
   position: absolute;
   inset: 0;
   z-index: 20;
@@ -9,14 +9,14 @@
   overflow: hidden;
 }
 
-.changes-loading-mask-bg {
+.loading-mask-bg {
   position: absolute;
   inset: 0;
   background: var(--vscode-editor-background);
-  opacity: 0.72;
+  opacity: 0.58;
 }
 
-.changes-loading-icon {
+.loading-icon {
   position: relative;
   font-size: 18px;
   color: var(--vscode-foreground);
