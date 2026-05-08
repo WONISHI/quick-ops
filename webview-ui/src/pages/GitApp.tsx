@@ -8,6 +8,7 @@ import Tooltip from '../components/Tooltip';
 import GitGraph, { type GraphCommit } from '../components/GitGraph';
 import GitCompareList from '../components/GitCompareList';
 import GitFileList from '../components/GitFileList';
+import GitNotInstalled from '../components/GitNotInstalled';
 import type { GitFile } from '../types/GitApp';
 
 import { GitContextMenu, type ContextMenuState } from '../components/GitContextMenu';
@@ -296,36 +297,7 @@ export default function GitApp() {
   };
 
   if (isGitInstalled === false) {
-    return (
-      <div
-        className={styles['git-sidebar']}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '20px',
-          textAlign: 'center',
-          height: '100vh',
-        }}
-      >
-        <i className="codicon codicon-git-merge" style={{ fontSize: '48px', marginBottom: '16px', color: 'var(--vscode-textLink-foreground)', opacity: 0.8 }} />
-        <div style={{ fontSize: '15px', marginBottom: '8px', color: 'var(--vscode-editor-foreground)', fontWeight: 600 }}>未检测到 Git 环境</div>
-        <div style={{ fontSize: '12px', marginBottom: '24px', color: 'var(--vscode-descriptionForeground)', lineHeight: 1.5 }}>
-          当前系统未安装 Git，或环境变量未配置。
-          <br />
-          请安装 Git 后 <span style={{ color: 'var(--vscode-textLink-foreground)' }}>重启 VS Code</span>。
-        </div>
-        <button
-          className={styles['commit-btn']}
-          onClick={() => vscode.postMessage({ command: 'openExternal', url: 'https://git-scm.com/downloads' })}
-          style={{ width: 'auto', padding: '0 20px', borderRadius: '4px', height: '32px' }}
-        >
-          <i className="codicon codicon-cloud-download" style={{ marginRight: '6px' }} />
-          前往官网下载 Git
-        </button>
-      </div>
-    );
+    return <GitNotInstalled />;
   }
 
   return (

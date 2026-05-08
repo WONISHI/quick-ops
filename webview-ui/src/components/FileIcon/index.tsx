@@ -143,6 +143,7 @@ const EXACT_NAMES: Record<string, string> = {
   '.env.localhost': tuneIcon,
   '.env.production': tuneIcon,
   '.env.test': tuneIcon,
+  '.env.dev': tuneIcon,
   '.env.staging': tuneIcon,
   'gulpfile.js': gulpIcon,
   'gulpfile.babel.js': gulpIcon,
@@ -239,7 +240,7 @@ const EXTENSIONS: Record<string, string> = {
   '7z': zipIcon,
   xlsx: xlsxIcon,
   'code-snippets': vscodeIcon,
-  'prisma': prismaIcon
+  prisma: prismaIcon,
 };
 
 interface FileIconProps {

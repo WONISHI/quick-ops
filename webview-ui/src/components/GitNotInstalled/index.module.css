@@ -1,0 +1,56 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+  height: 100vh;
+}
+
+.icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  color: var(--vscode-textLink-foreground);
+  opacity: 0.8;
+}
+
+.title {
+  font-size: 15px;
+  margin-bottom: 8px;
+  color: var(--vscode-editor-foreground);
+  font-weight: 600;
+}
+
+.description {
+  font-size: 12px;
+  margin-bottom: 24px;
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.5;
+}
+
+.highlight {
+  color: var(--vscode-textLink-foreground);
+}
+
+.download-btn {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  padding: 0 20px;
+  border-radius: 4px;
+  height: 32px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+}
+
+.download-btn:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.btn-icon {
+  margin-right: 6px;
+}

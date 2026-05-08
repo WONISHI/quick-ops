@@ -16,7 +16,7 @@ body {
 }
 
 /* =========================================
-   顶部工具栏与提交区域
+   顶部工具栏与标题
    ========================================= */
 .git-toolbar {
     display: flex;
@@ -27,23 +27,48 @@ body {
     border-bottom: 1px solid rgba(128, 128, 128, 0.2);
 }
 
+.toolbar-title-container {
+    flex: 1;
+    min-width: 0;
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+}
+
+.toolbar-title {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: block;
+    width: 100%;
+}
+
 .git-actions {
     display: flex;
     gap: 4px;
 }
 
-.icon-btn {
+/* 顶部与区段标题通用的小图标按钮 */
+.icon-btn,
+.action-btn {
     background: transparent;
     color: var(--vscode-icon-foreground);
     border: none;
     cursor: pointer;
-    width: 20px;
-    height: 20px;
-    border-radius: 3px;
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0.8;
+}
+
+.icon-btn {
+    width: 20px;
+    height: 20px;
+    border-radius: 3px;
+}
+
+.action-btn {
+    padding: 0;
 }
 
 .icon-btn:hover {
@@ -51,6 +76,13 @@ body {
     opacity: 1;
 }
 
+.action-btn:hover {
+    opacity: 1;
+}
+
+/* =========================================
+   提交输入区域
+   ========================================= */
 .commit-box {
     padding: 8px;
     display: flex;
@@ -119,7 +151,7 @@ body {
 }
 
 /* =========================================
-   滚动区域与区块标题
+   滚动区域与区块标题 (手风琴)
    ========================================= */
 .changes-scroll-area {
     max-height: 35vh;
@@ -167,6 +199,14 @@ body {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+}
+
+.git-graph-fallback {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+    color: var(--vscode-editor-foreground);
 }
 
 /* =========================================
@@ -217,44 +257,4 @@ body {
   height: 1px;
   background-color: var(--vscode-menu-separatorBackground, #454545);
   margin: 4px 8px;
-}
-
-.git-graph-fallback {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex: 1;
-    color: var(--vscode-editor-foreground);
-}
-
-.toolbar-title-container {
-    flex: 1;
-    min-width: 0;
-    margin-right: 10px;
-    display: flex;
-    align-items: center;
-}
-
-.toolbar-title {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: block;
-    width: 100%;
-}
-
-/* Header 区域依然使用了小按钮，保留这个共用类 */
-.action-btn {
-    background: transparent;
-    border: none;
-    color: var(--vscode-icon-foreground);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    opacity: 0.8;
-    padding: 0;
-}
-
-.action-btn:hover {
-    opacity: 1;
 }
