@@ -350,13 +350,7 @@ export default function GitApp() {
                 </button>
               </Tooltip>
             </>
-          ) : (
-            <Tooltip content="克隆仓库 (Clone)">
-              <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'clone' })}>
-                <i className="codicon codicon-repo-clone" />
-              </button>
-            </Tooltip>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -922,9 +916,8 @@ export default function GitApp() {
 
               <Tooltip content={`筛选分支 (${selectedGraphFilter})`}>
                 <button
-                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${
-                    selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
-                  } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
+                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
+                    } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     vscode.postMessage({ command: 'changeGraphFilter', current: selectedGraphFilter });

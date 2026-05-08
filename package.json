@@ -453,6 +453,11 @@
         "command": "quickOps.editRemoteUrl",
         "title": "修改远程仓库地址",
         "icon": "$(settings-gear)"
+      },
+      {
+        "command": "quickOps.cloneGitProject",
+        "title": "克隆仓库",
+        "icon": "$(cloud-download)"
       }
     ],
     "keybindings": [
@@ -502,9 +507,14 @@
           "group": "navigation@2"
         },
         {
+          "command": "quickOps.cloneGitProject",
+          "when": "view == quickOps.gitView",
+          "group": "navigation@3"
+        },
+        {
           "command": "quickOps.editRemoteUrl",
           "when": "view == quickOps.gitView && quickOps.hasGitRemote",
-          "group": "navigation@3"
+          "group": "navigation@4"
         }
       ],
       "editor/title": [
