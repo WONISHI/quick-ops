@@ -16,6 +16,8 @@ interface CommitHoverWidgetProps {
 }
 
 const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({ commit, y, position, branch, remoteUrl, onMouseEnter, onMouseLeave }) => {
+  const remoteInfo = remoteUrl ? parseRemoteInfo(remoteUrl, commit.hash) : null;
+
   return (
     <div
       className={styles['commit-hover-widget']}
@@ -72,7 +74,7 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({ commit, y, positi
           display: 'flex',
           alignItems: 'center',
           overflow: 'hidden',
-          width: '100%' // 🌟 确保父容器有明确的宽度边界
+          width: '100%'
         }}
       >
         <span
@@ -89,12 +91,12 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({ commit, y, positi
           <i className="codicon codicon-copy" style={{ marginRight: '4px' }} /> {commit.hash.substring(0, 7)}
         </span>
 
-        {remoteUrl && parseRemoteInfo(remoteUrl, commit.hash) && (
+        {remoteInfo && (
           <>
             <span className={styles['hover-separator']} style={{ flexShrink: 0, margin: '0 6px' }}>|</span>
             <span
               className={styles['hover-action-btn']}
-              title="查看记录"
+              title="查看提交记录"
               style={{
                 flex: 1,
                 minWidth: 0,
@@ -103,10 +105,12 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({ commit, y, positi
                 whiteSpace: 'nowrap',
                 display: 'block'
               }}
-              onClick={() => vscode.postMessage({ command: 'openExternal', url: parseRemoteInfo(remoteUrl, commit.hash)!.url })}
+              onClick={() => {
+                vscode.postMessage({ command: 'openExternal', url: remoteInfo.url });
+              }}
             >
-              <i className={`codicon ${parseRemoteInfo(remoteUrl, commit.hash)!.icon}`} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-              在 {parseRemoteInfo(remoteUrl, commit.hash)!.platform} 上打开
+              <i className={`codicon ${remoteInfo.icon}`} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+              在 {remoteInfo.platform} 上打开
             </span>
           </>
         )}
