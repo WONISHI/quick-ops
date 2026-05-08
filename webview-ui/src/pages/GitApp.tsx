@@ -1087,19 +1087,19 @@ export default function GitApp() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, minWidth: 0 }}>
             <i className={`codicon ${isGraphOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px', flexShrink: 0 }} />
             <span style={{ flexShrink: 0 }}>图形</span>
-            {/* 🌟 核心：显示真实的总提交次数 */}
             {totalCommits > 0 && (
               <span 
                 className={styles['badge']} 
                 style={{ 
-                  flex: 1, 
-                  minWidth: 0, // 💡 必须项：防止 Flex 子元素被内容无限制撑开
+                  flexShrink: 1,  
+                  minWidth: 0,      
+                  maxWidth: '60px',
                   whiteSpace: 'nowrap', 
                   overflow: 'hidden', 
                   textOverflow: 'ellipsis',
                   textAlign: 'center'
                 }}
-                title={`总提交记录: ${totalCommits} 次`} // 💡 优化：鼠标悬浮时可以查看完整的精确数字
+                title={`总提交记录: ${totalCommits} 次`}
               >
                 {totalCommits}
               </span>
