@@ -1,3 +1,5 @@
+import type { GitFile, TreeNode } from '../types/GitApp';
+
 export function formatRelativeTime(ms: number) {
   const diff = Date.now() - ms;
   const days = Math.floor(diff / (1000 * 60 * 60 * 24));
@@ -45,4 +47,59 @@ export function getStatusFullText(status: string) {
   if (status.includes('A')) return '新增 (Added)';
   if (status.includes('C')) return '冲突 (Conflicted)';
   return '未跟踪 (Untracked)';
+}
+
+export function buildTree(files: GitFile[]): TreeNode[] {
+  const root: TreeNode[] = [];
+  files.forEach((f) => {
+    const parts = f.file.split('/');
+    let currentLevel = root;
+    let currentPath = '';
+
+    parts.forEach((part, index) => {
+      const isFile = index === parts.length - 1;
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+
+      let existingNode = currentLevel.find((n) => n.name === part);
+      if (!existingNode) {
+        existingNode = {
+          name: part,
+          fullPath: currentPath,
+          isDirectory: !isFile,
+          children: [],
+          file: isFile ? f : undefined,
+        };
+        currentLevel.push(existingNode);
+      }
+      currentLevel = existingNode.children;
+    });
+  });
+
+  const compressTree = (nodes: TreeNode[]) => {
+    nodes.forEach((node) => {
+      if (node.isDirectory) {
+        while (node.children.length === 1 && node.children[0].isDirectory) {
+          const child = node.children[0];
+          node.name = `${node.name}/${child.name}`;
+          node.children = child.children;
+        }
+        compressTree(node.children);
+      }
+    });
+  };
+
+  const sortTree = (nodes: TreeNode[]) => {
+    nodes.sort((a, b) => {
+      if (a.isDirectory && !b.isDirectory) return -1;
+      if (!a.isDirectory && b.isDirectory) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    nodes.forEach((n) => {
+      if (n.isDirectory) sortTree(n.children);
+    });
+  };
+
+  compressTree(root);
+  sortTree(root);
+  return root;
 }

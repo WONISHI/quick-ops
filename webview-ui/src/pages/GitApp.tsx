@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { vscode } from '../utils/vscode';
-import { getStatusText, getStatusFullText } from '../utils/index';
 import styles from '../assets/css/GitApp.module.css';
 
 import '@vscode/codicons/dist/codicon.css';
@@ -8,68 +7,10 @@ import '@vscode/codicons/dist/codicon.css';
 import Tooltip from '../components/Tooltip';
 import GitGraph, { type GraphCommit } from '../components/GitGraph';
 import GitCompareList from '../components/GitCompareList';
-import type { GitFile, TreeNode } from '../types/GitApp';
+import GitFileList from '../components/GitFileList';
+import type { GitFile } from '../types/GitApp';
 
 import { GitContextMenu, type ContextMenuState } from '../components/GitContextMenu';
-import FileIcon from '../components/FileIcon';
-
-function buildTree(files: GitFile[]): TreeNode[] {
-  const root: TreeNode[] = [];
-
-  files.forEach((f) => {
-    const parts = f.file.split('/');
-    let currentLevel = root;
-    let currentPath = '';
-
-    parts.forEach((part, index) => {
-      const isFile = index === parts.length - 1;
-      currentPath = currentPath ? `${currentPath}/${part}` : part;
-
-      let existingNode = currentLevel.find((n) => n.name === part);
-      if (!existingNode) {
-        existingNode = {
-          name: part,
-          fullPath: currentPath,
-          isDirectory: !isFile,
-          children: [],
-          file: isFile ? f : undefined,
-        };
-        currentLevel.push(existingNode);
-      }
-
-      currentLevel = existingNode.children;
-    });
-  });
-
-  const compressTree = (nodes: TreeNode[]) => {
-    nodes.forEach((node) => {
-      if (node.isDirectory) {
-        while (node.children.length === 1 && node.children[0].isDirectory) {
-          const child = node.children[0];
-          node.name = `${node.name}/${child.name}`;
-          node.children = child.children;
-        }
-        compressTree(node.children);
-      }
-    });
-  };
-
-  const sortTree = (nodes: TreeNode[]) => {
-    nodes.sort((a, b) => {
-      if (a.isDirectory && !b.isDirectory) return -1;
-      if (!a.isDirectory && b.isDirectory) return 1;
-      return a.name.localeCompare(b.name);
-    });
-    nodes.forEach((n) => {
-      if (n.isDirectory) sortTree(n.children);
-    });
-  };
-
-  compressTree(root);
-  sortTree(root);
-
-  return root;
-}
 
 export default function GitApp() {
   const [isRepo, setIsRepo] = useState<boolean>(true);
@@ -322,12 +263,6 @@ export default function GitApp() {
     vscode.postMessage({ command: 'getCommitFiles', hash });
   };
 
-  const getStatusClass = (status: string) => {
-    if (status.includes('M')) return styles['status-M'];
-    if (status.includes('D')) return styles['status-D'];
-    return styles['status-A'];
-  };
-
   const toggleDir = (path: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setExpandedDirs((prev) => ({
@@ -358,192 +293,6 @@ export default function GitApp() {
       baseBranch: compareBase,
       status: file.status,
     });
-  };
-
-  // 🌟 修改点 1: 在渲染节点的地方拦截 stash-file 类型，直接发送 open 命令
-  const renderTreeNodes = (nodes: TreeNode[], listType: 'staged' | 'unstaged' | 'history' | 'compare' | 'stash-file', depth = 0, historyHash?: string): React.ReactNode => {
-    return nodes.map((node) => {
-      if (node.isDirectory) {
-        const isOpen = expandedDirs[node.fullPath] !== false;
-
-        return (
-          <React.Fragment key={node.fullPath}>
-            <li className={styles['file-item']} style={{ paddingLeft: `${depth * 12 + 4}px`, cursor: 'pointer' }} onClick={(e) => toggleDir(node.fullPath, e)}>
-              <i className={`codicon ${isOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px', opacity: 0.8, marginRight: '2px' }} />
-              <i className="codicon codicon-folder" style={{ marginRight: '6px', color: 'var(--vscode-icon-foreground)' }} />
-              <div className={styles['file-name']} style={{ opacity: 0.9 }}>
-                {node.name}
-              </div>
-            </li>
-            {isOpen && renderTreeNodes(node.children, listType, depth + 1, historyHash)}
-          </React.Fragment>
-        );
-      }
-
-      const item = node.file!;
-      const parts = item.file.split('/');
-      const fileName = parts.pop();
-
-      return (
-        <li
-          key={item.file}
-          className={`${styles['file-item']} ${activeFile === item.file ? styles['active'] : ''}`}
-          style={{ paddingLeft: `${depth * 12 + 24}px` }}
-          title={item.file}
-          onClick={() => {
-            setActiveFile(item.file);
-            if (listType === 'history') {
-              openHistoryDiff(item, historyHash);
-            } else if (listType === 'compare') {
-              openCompareDiff(item);
-            } else if (listType === 'stash-file') {
-              vscode.postMessage({ command: 'open', file: item.file });
-            } else {
-              vscode.postMessage({ command: 'diff', file: item.file, status: item.status });
-            }
-          }}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            setActiveFile(item.file);
-            setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'file', file: item, listType: listType as any });
-          }}
-        >
-          <FileIcon fileName={fileName || ''} className={styles['file-icon']} style={{ marginRight: '6px' }} />
-          <div className={styles['file-name']}>{fileName}</div>
-          <div style={{ flex: 1 }}></div>
-
-          <div className={styles['file-actions']} onClick={(e) => e.stopPropagation()}>
-            <Tooltip content="打开文件">
-              <button className={styles['action-btn']} onClick={() => vscode.postMessage({ command: 'open', file: item.file })}>
-                <i className="codicon codicon-go-to-file" />
-              </button>
-            </Tooltip>
-
-            {listType === 'unstaged' && (
-              <Tooltip content="放弃更改">
-                <button className={styles['action-btn']} onClick={() => vscode.postMessage({ command: 'discard', file: item.file, status: item.status })}>
-                  <i className="codicon codicon-discard" />
-                </button>
-              </Tooltip>
-            )}
-
-            {listType !== 'history' && listType !== 'compare' && listType !== 'stash-file' && (
-              <>
-                {listType === 'staged' ? (
-                  <Tooltip content="取消暂存更改">
-                    <button className={styles['action-btn']} onClick={() => vscode.postMessage({ command: 'unstage', file: item.file })}>
-                      <i className="codicon codicon-remove" />
-                    </button>
-                  </Tooltip>
-                ) : (
-                  <Tooltip content="暂存更改">
-                    <button className={styles['action-btn']} onClick={() => vscode.postMessage({ command: 'stage', file: item.file, status: item.status })}>
-                      <i className="codicon codicon-plus" />
-                    </button>
-                  </Tooltip>
-                )}
-              </>
-            )}
-          </div>
-
-          <Tooltip content={getStatusFullText(item.status)}>
-            <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`} style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}>
-              {getStatusText(item.status)}
-            </div>
-          </Tooltip>
-        </li>
-      );
-    });
-  };
-
-  const renderFileList = (files: GitFile[], listType: 'staged' | 'unstaged' | 'history' | 'compare' | 'stash-file', historyHash?: string) => {
-    if (viewMode === 'tree') {
-      const treeNodes = buildTree(files);
-      return <ul className={styles['file-list']}>{renderTreeNodes(treeNodes, listType, 0, historyHash)}</ul>;
-    }
-
-    return (
-      <ul className={styles['file-list']}>
-        {files.map((item, idx) => {
-          const parts = item.file.split('/');
-          const fileName = parts.pop();
-          const dirPath = parts.length > 0 ? parts.join('/') : '';
-
-          return (
-            <li
-              key={idx}
-              className={`${styles['file-item']} ${activeFile === item.file ? styles['active'] : ''}`}
-              title={item.file}
-              onClick={() => {
-                setActiveFile(item.file);
-                if (listType === 'history') {
-                  openHistoryDiff(item, historyHash);
-                } else if (listType === 'compare') {
-                  openCompareDiff(item);
-                } else if (listType === 'stash-file') {
-                  // 🌟 贮藏文件直接打开
-                  vscode.postMessage({ command: 'open', file: item.file });
-                } else {
-                  vscode.postMessage({ command: 'diff', file: item.file, status: item.status });
-                }
-              }}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                setActiveFile(item.file);
-                setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'file', file: item, listType: listType as any });
-              }}
-            >
-              <FileIcon fileName={fileName || ''} className={styles['file-icon']} style={{ marginRight: '6px' }} />
-              <div className={styles['file-name']} style={item.status.includes('D') && ['staged', 'unstaged'].includes(listType) ? { textDecoration: 'line-through', opacity: 0.6 } : {}}>
-                {fileName}
-              </div>
-              {dirPath && <div className={styles['file-dir']}>{dirPath}</div>}
-              <div style={{ flex: 1 }}></div>
-
-              <div className={styles['file-actions']} onClick={(e) => e.stopPropagation()}>
-                <Tooltip content="打开文件">
-                  <button className={styles['action-btn']} onClick={() => vscode.postMessage({ command: 'open', file: item.file })}>
-                    <i className="codicon codicon-go-to-file" />
-                  </button>
-                </Tooltip>
-
-                {listType === 'unstaged' && (
-                  <Tooltip content="放弃更改">
-                    <button className={styles['action-btn']} onClick={() => vscode.postMessage({ command: 'discard', file: item.file, status: item.status })}>
-                      <i className="codicon codicon-discard" />
-                    </button>
-                  </Tooltip>
-                )}
-
-                {listType !== 'history' && listType !== 'compare' && listType !== 'stash-file' && (
-                  <>
-                    {listType === 'staged' ? (
-                      <Tooltip content="取消暂存更改">
-                        <button className={styles['action-btn']} onClick={() => vscode.postMessage({ command: 'unstage', file: item.file })}>
-                          <i className="codicon codicon-remove" />
-                        </button>
-                      </Tooltip>
-                    ) : (
-                      <Tooltip content="暂存更改">
-                        <button className={styles['action-btn']} onClick={() => vscode.postMessage({ command: 'stage', file: item.file, status: item.status })}>
-                          <i className="codicon codicon-plus" />
-                        </button>
-                      </Tooltip>
-                    )}
-                  </>
-                )}
-              </div>
-
-              <Tooltip content={getStatusFullText(item.status)}>
-                <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`} style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}>
-                  {getStatusText(item.status)}
-                </div>
-              </Tooltip>
-            </li>
-          );
-        })}
-      </ul>
-    );
   };
 
   if (isGitInstalled === false) {
@@ -759,7 +508,18 @@ export default function GitApp() {
                       </Tooltip>
                     </div>
                   </div>
-                  {renderFileList(stagedFiles, 'staged')}
+                  <GitFileList
+                    files={stagedFiles}
+                    listType="staged"
+                    viewMode={viewMode}
+                    activeFile={activeFile}
+                    setActiveFile={setActiveFile}
+                    expandedDirs={expandedDirs}
+                    toggleDir={toggleDir}
+                    openHistoryDiff={openHistoryDiff}
+                    openCompareDiff={openCompareDiff}
+                    setContextMenu={setContextMenu}
+                  />
                 </div>
               )}
 
@@ -826,7 +586,18 @@ export default function GitApp() {
                 {unstagedFiles.length === 0 && stagedFiles.length === 0 && conflictedFiles.length === 0 ? (
                   <div className={styles['empty-message']}>{!isRepo ? '在此打开项目或进行克隆' : '没有需要提交的更改'}</div>
                 ) : (
-                  renderFileList(unstagedFiles, 'unstaged')
+                  <GitFileList
+                    files={unstagedFiles}
+                    listType="unstaged"
+                    viewMode={viewMode}
+                    activeFile={activeFile}
+                    setActiveFile={setActiveFile}
+                    expandedDirs={expandedDirs}
+                    toggleDir={toggleDir}
+                    openHistoryDiff={openHistoryDiff}
+                    openCompareDiff={openCompareDiff}
+                    setContextMenu={setContextMenu}
+                  />
                 )}
               </div>
 
@@ -842,7 +613,18 @@ export default function GitApp() {
                       </span>
                     </div>
                   </div>
-                  {renderFileList(conflictedFiles, 'unstaged')}
+                  <GitFileList
+                    files={conflictedFiles}
+                    listType="unstaged"
+                    viewMode={viewMode}
+                    activeFile={activeFile}
+                    setActiveFile={setActiveFile}
+                    expandedDirs={expandedDirs}
+                    toggleDir={toggleDir}
+                    openHistoryDiff={openHistoryDiff}
+                    openCompareDiff={openCompareDiff}
+                    setContextMenu={setContextMenu}
+                  />
                 </div>
               )}
             </div>
@@ -944,7 +726,21 @@ export default function GitApp() {
                                 加载变动文件...
                               </div>
                             ) : (
-                              <div style={{ paddingLeft: '30px' }}>{renderFileList(files, 'stash-file', `stash@{${stash.index}}`)}</div>
+                              <div style={{ paddingLeft: '30px' }}>
+                                <GitFileList
+                                  files={files}
+                                  listType="stash-file"
+                                  viewMode={viewMode}
+                                  historyHash={`stash@{${stash.index}}`}
+                                  activeFile={activeFile}
+                                  setActiveFile={setActiveFile}
+                                  expandedDirs={expandedDirs}
+                                  toggleDir={toggleDir}
+                                  openHistoryDiff={openHistoryDiff}
+                                  openCompareDiff={openCompareDiff}
+                                  setContextMenu={setContextMenu}
+                                />
+                              </div>
                             )}
                           </div>
                         )}
@@ -1073,7 +869,21 @@ export default function GitApp() {
                       toggleCommit(hash);
                     }
                   }}
-                  renderCommitFiles={(files) => renderFileList(files, compareBase === '文件历史' ? 'history' : 'compare', activeCommitHash || undefined)}
+                  renderCommitFiles={(files) => (
+                    <GitFileList
+                      files={files}
+                      listType={compareBase === '文件历史' ? 'history' : 'compare'}
+                      historyHash={activeCommitHash || undefined}
+                      viewMode={viewMode}
+                      activeFile={activeFile}
+                      setActiveFile={setActiveFile}
+                      expandedDirs={expandedDirs}
+                      toggleDir={toggleDir}
+                      openHistoryDiff={openHistoryDiff}
+                      openCompareDiff={openCompareDiff}
+                      setContextMenu={setContextMenu}
+                    />
+                  )}
                 />
               )}
             </div>
@@ -1230,7 +1040,21 @@ export default function GitApp() {
               remoteUrl={remoteUrl}
               isSearchOpen={isGraphSearchOpen}
               setIsSearchOpen={setIsGraphSearchOpen}
-              renderCommitFiles={(hash, files) => renderFileList(files, 'history', hash)}
+              renderCommitFiles={(hash, files) => (
+                <GitFileList
+                  files={files}
+                  listType="history"
+                  historyHash={hash}
+                  viewMode={viewMode}
+                  activeFile={activeFile}
+                  setActiveFile={setActiveFile}
+                  expandedDirs={expandedDirs}
+                  toggleDir={toggleDir}
+                  openHistoryDiff={openHistoryDiff}
+                  openCompareDiff={openCompareDiff}
+                  setContextMenu={setContextMenu}
+                />
+              )}
               onCommitContextMenu={(e, commit) => {
                 e.preventDefault();
                 setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'commit', commit });

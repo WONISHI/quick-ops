@@ -1,0 +1,93 @@
+.file-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    height: 22px;
+    cursor: pointer;
+    position: relative;
+    gap: 6px;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.file-item:hover,
+.file-item.active {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.file-icon {
+    width: 14px;
+    text-align: center;
+}
+
+.file-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 0;
+    max-width: 50%;
+}
+
+.file-dir {
+    font-size: 11px;
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex-shrink: 1;
+}
+
+.file-actions {
+    display: none;
+}
+
+.file-item:hover .file-actions {
+    display: flex;
+    gap: 4px;
+}
+
+/* 独立的通用按钮样式 */
+.action-btn {
+    background: transparent;
+    border: none;
+    color: var(--vscode-icon-foreground);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    opacity: 0.8;
+    padding: 0;
+}
+
+.action-btn:hover {
+    opacity: 1;
+}
+
+.status-badge {
+    font-size: 11px;
+    font-weight: bold;
+    width: 14px;
+    text-align: center;
+    margin-left: auto;
+}
+
+.status-M {
+    color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+.status-A,
+.status-\?\? {
+    color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.status-D {
+    color: var(--vscode-gitDecoration-deletedResourceForeground);
+}

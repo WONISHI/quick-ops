@@ -67,7 +67,7 @@ body {
     padding: 4px 6px;
     border-radius: 2px;
     min-height: 28px;
-    max-height: 120px; /* 🌟 自动撑开的最大高度 */
+    max-height: 120px;
     overflow-y: auto;
     font-family: inherit;
     font-size: 13px;
@@ -78,14 +78,12 @@ body {
     outline: none;
 }
 
-/* 🌟 获取焦点时的高亮边框（完全对齐 VS Code 原生体验） */
 .commit-input:focus {
     border-color: var(--vscode-focusBorder);
     outline: 1px solid var(--vscode-focusBorder);
     outline-offset: -1px;
 }
 
-/* 🌟 巧妙利用 CSS 实现 div 的 placeholder 占位符效果 */
 .commit-input:empty::before {
   content: attr(data-placeholder);
   color: var(--vscode-descriptionForeground);
@@ -93,7 +91,6 @@ body {
   pointer-events: none;
 }
 
-/* 🌟 当没有 Git 仓库（被禁用）时的样式 */
 .commit-input[contenteditable="false"] {
     opacity: 0.5;
     cursor: not-allowed;
@@ -122,7 +119,7 @@ body {
 }
 
 /* =========================================
-   文件列表区域 (包含暂存/对比)
+   滚动区域与区块标题
    ========================================= */
 .changes-scroll-area {
     max-height: 35vh;
@@ -158,99 +155,6 @@ body {
     line-height: 20px;
 }
 
-.file-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-}
-
-.file-item {
-    display: flex;
-    align-items: center;
-    padding: 0 8px;
-    height: 22px;
-    cursor: pointer;
-    position: relative;
-    gap: 6px;
-    width: 100%;
-    box-sizing: border-box;
-    overflow: hidden;
-}
-
-.file-item:hover,
-.file-item.active {
-    background: var(--vscode-list-hoverBackground);
-}
-
-.file-icon {
-    width: 14px;
-    text-align: center;
-}
-
-.file-name {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    flex-shrink: 0;
-    max-width: 50%;
-}
-
-.file-dir {
-    font-size: 11px;
-    color: var(--vscode-descriptionForeground);
-    opacity: 0.7;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
-    flex-shrink: 1;
-}
-
-.file-actions {
-    display: none;
-}
-
-.file-item:hover .file-actions {
-    display: flex;
-    gap: 4px;
-}
-
-.action-btn {
-    background: transparent;
-    border: none;
-    color: var(--vscode-icon-foreground);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    opacity: 0.8;
-    padding: 0;
-}
-
-.action-btn:hover {
-    opacity: 1;
-}
-
-.status-badge {
-    font-size: 11px;
-    font-weight: bold;
-    width: 14px;
-    text-align: center;
-    margin-left: auto;
-}
-
-.status-M {
-    color: var(--vscode-gitDecoration-modifiedResourceForeground);
-}
-
-.status-A,
-.status-\?\? {
-    color: var(--vscode-gitDecoration-addedResourceForeground);
-}
-
-.status-D {
-    color: var(--vscode-gitDecoration-deletedResourceForeground);
-}
-
 .empty-message {
     padding: 8px;
     text-align: center;
@@ -277,11 +181,6 @@ body {
     z-index: 9998;
 }
 
-/* =========================================
-   🌟 Radix UI 右键菜单 (Context Menu) 样式
-   ========================================= */
-
-/* 菜单主体 */
 .context-menu {
   background-color: var(--vscode-menu-background, #252526);
   color: var(--vscode-menu-foreground, #cccccc);
@@ -292,20 +191,18 @@ body {
   z-index: 1000;
   font-family: var(--vscode-font-family, sans-serif);
   font-size: 13px;
-  outline: none; /* 清除默认聚焦蓝框 */
+  outline: none;
 }
 
-/* 菜单项 */
 .context-menu-item {
   display: flex;
   align-items: center;
   padding: 6px 12px;
   cursor: pointer;
   gap: 8px;
-  outline: none; /* 清除焦点蓝框 */
+  outline: none;
   user-select: none;
 }
-
 
 .context-menu-item[data-highlighted] {
   background-color: var(--vscode-menu-selectionBackground, #04395e);
@@ -329,20 +226,35 @@ body {
     flex: 1;
     color: var(--vscode-editor-foreground);
 }
-/* 外层容器：控制 Flex 缩放并必须包含 min-width: 0 */
+
 .toolbar-title-container {
-    flex: 1;          /* 占据左侧所有剩余空间 */
-    min-width: 0;     /* 🌟 核心魔法：允许 flex 子元素缩小到比其内容更小的尺寸，从而触发截断 */
-    margin-right: 10px; /* 给右侧按钮留点呼吸空间 */
+    flex: 1;
+    min-width: 0;
+    margin-right: 10px;
     display: flex;
     align-items: center;
 }
 
-/* 内层文本：负责实现单行省略号 */
 .toolbar-title {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     display: block;
     width: 100%;
+}
+
+/* Header 区域依然使用了小按钮，保留这个共用类 */
+.action-btn {
+    background: transparent;
+    border: none;
+    color: var(--vscode-icon-foreground);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    opacity: 0.8;
+    padding: 0;
+}
+
+.action-btn:hover {
+    opacity: 1;
 }
