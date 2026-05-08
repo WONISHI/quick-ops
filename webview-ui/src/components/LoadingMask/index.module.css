@@ -1,0 +1,24 @@
+.changes-loading-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  overflow: hidden;
+}
+
+.changes-loading-mask-bg {
+  position: absolute;
+  inset: 0;
+  background: var(--vscode-editor-background);
+  opacity: 0.72;
+}
+
+.changes-loading-icon {
+  position: relative;
+  font-size: 18px;
+  color: var(--vscode-foreground);
+  opacity: 0.85;
+}

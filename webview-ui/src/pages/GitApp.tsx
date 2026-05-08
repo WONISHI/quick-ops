@@ -7,6 +7,7 @@ import GitGraph, { type GraphCommit } from '../components/GitGraph';
 import GitCompareList from '../components/GitCompareList';
 import GitFileList from '../components/GitFileList';
 import GitNotInstalled from '../components/GitNotInstalled';
+import LoadingMask from '../components/LoadingMask';
 import type { GitFile } from '../types/GitApp';
 
 import { GitContextMenu, type ContextMenuState } from '../components/GitContextMenu';
@@ -22,6 +23,7 @@ export default function GitApp() {
   const [branch, setBranch] = useState('');
   const [commitMsg, setCommitMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [changesRefreshing, setChangesRefreshing] = useState(false);
   const [activeFile, setActiveFile] = useState<string | null>(null);
 
   const [isChangesOpen, setIsChangesOpen] = useState(true);
@@ -80,6 +82,7 @@ export default function GitApp() {
         setIsGraphLoading(true);
       } else if (msg.type === 'noWorkspace' || msg.type === 'notRepo') {
         setLoading(false);
+        setChangesRefreshing(false);
         setIsGraphLoading(false);
         setIsRepo(false);
         setBranch(msg.type === 'noWorkspace' ? '无工作区' : '未初始化');
@@ -100,6 +103,7 @@ export default function GitApp() {
         setExpandedStashIndex(null);
       } else if (msg.type === 'statusData') {
         setIsRepo(true);
+        setChangesRefreshing(false);
         setStagedFiles(msg.stagedFiles || []);
         setUnstagedFiles(msg.unstagedFiles || []);
         setConflictedFiles(msg.conflictedFiles || []);
@@ -162,6 +166,7 @@ export default function GitApp() {
         setIsCompareOpen(true);
       } else if (msg.type === 'error') {
         setLoading(false);
+        setChangesRefreshing(false);
         setIsGraphLoading(false);
       } else if (msg.type === 'commitSuccess') {
         setJustCommitted(true);
@@ -426,6 +431,8 @@ export default function GitApp() {
                     className={styles['action-btn']}
                     onClick={(e) => {
                       e.stopPropagation();
+                      setChangesRefreshing(true);
+                      lastRefreshRef.current = Date.now();
                       vscode.postMessage({ command: 'refreshStatusOnly' });
                     }}
                     style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
@@ -454,7 +461,7 @@ export default function GitApp() {
           </div>
 
           {isChangesOpen && (
-            <div style={{ maxHeight: '40vh', overflowY: 'auto', paddingBottom: '4px' }}>
+            <div style={{ maxHeight: '40vh', overflowY: 'auto', paddingBottom: '4px', position: 'relative' }}>
               {/* 1. 暂存区 */}
               {stagedFiles.length > 0 && (
                 <div className={styles['changes-section']} style={{ marginLeft: '12px' }}>
@@ -544,7 +551,7 @@ export default function GitApp() {
                         >
                           <i className="codicon codicon-archive" />
                         </button>
-                      </Tooltip>  
+                      </Tooltip>
                     )}
 
                     {unstagedFiles.length > 0 && (
@@ -627,6 +634,8 @@ export default function GitApp() {
                   />
                 </div>
               )}
+
+              <LoadingMask visible={changesRefreshing} />
             </div>
           )}
         </div>
