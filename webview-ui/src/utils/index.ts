@@ -30,3 +30,19 @@ export function parseRemoteInfo(url: string, hash: string) {
   }
   return { platform, icon, url: `${cleanUrl}/commit/${hash}` };
 }
+
+export function getStatusText(status: string) {
+  if (status.includes('M')) return 'M';
+  if (status.includes('D')) return 'D';
+  if (status.includes('A')) return 'A';
+  if (status.includes('C')) return 'C';
+  return 'U';
+}
+
+export function getStatusFullText(status: string) {
+  if (status.includes('M')) return '已修改 (Modified)';
+  if (status.includes('D')) return '已删除 (Deleted)';
+  if (status.includes('A')) return '新增 (Added)';
+  if (status.includes('C')) return '冲突 (Conflicted)';
+  return '未跟踪 (Untracked)';
+}

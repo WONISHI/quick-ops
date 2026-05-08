@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { vscode } from '../utils/vscode';
+import { getStatusText, getStatusFullText } from '../utils/index';
 import styles from '../assets/css/GitApp.module.css';
 
 import '@vscode/codicons/dist/codicon.css';
@@ -327,14 +328,6 @@ export default function GitApp() {
     return styles['status-A'];
   };
 
-  const getStatusText = (status: string) => {
-    if (status.includes('M')) return 'M';
-    if (status.includes('D')) return 'D';
-    if (status.includes('A')) return 'A';
-    if (status.includes('C')) return 'C';
-    return 'U';
-  };
-
   const toggleDir = (path: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setExpandedDirs((prev) => ({
@@ -453,9 +446,11 @@ export default function GitApp() {
             )}
           </div>
 
-          <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`} style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}>
-            {getStatusText(item.status)}
-          </div>
+          <Tooltip content={getStatusFullText(item.status)}>
+            <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`} style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}>
+              {getStatusText(item.status)}
+            </div>
+          </Tooltip>
         </li>
       );
     });
@@ -499,7 +494,9 @@ export default function GitApp() {
               }}
             >
               <FileIcon fileName={fileName || ''} className={styles['file-icon']} style={{ marginRight: '6px' }} />
-              <div className={styles['file-name']}>{fileName}</div>
+              <div className={styles['file-name']} style={item.status.includes('D') && ['staged', 'unstaged'].includes(listType) ? { textDecoration: 'line-through', opacity: 0.6 } : {}}>
+                {fileName}
+              </div>
               {dirPath && <div className={styles['file-dir']}>{dirPath}</div>}
               <div style={{ flex: 1 }}></div>
 
@@ -537,9 +534,11 @@ export default function GitApp() {
                 )}
               </div>
 
-              <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`} style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}>
-                {getStatusText(item.status)}
-              </div>
+              <Tooltip content={getStatusFullText(item.status)}>
+                <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`} style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}>
+                  {getStatusText(item.status)}
+                </div>
+              </Tooltip>
             </li>
           );
         })}
@@ -1088,16 +1087,16 @@ export default function GitApp() {
             <i className={`codicon ${isGraphOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`} style={{ fontSize: '14px', width: '16px', flexShrink: 0 }} />
             <span style={{ flexShrink: 0 }}>图形</span>
             {totalCommits > 0 && (
-              <span 
-                className={styles['badge']} 
-                style={{ 
-                  flexShrink: 1,  
-                  minWidth: 0,      
+              <span
+                className={styles['badge']}
+                style={{
+                  flexShrink: 1,
+                  minWidth: 0,
                   maxWidth: '60px',
-                  whiteSpace: 'nowrap', 
-                  overflow: 'hidden', 
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
                   textOverflow: 'ellipsis',
-                  textAlign: 'center'
+                  textAlign: 'center',
                 }}
                 title={`总提交记录: ${totalCommits} 次`}
               >
