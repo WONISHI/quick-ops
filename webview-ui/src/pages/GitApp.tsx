@@ -633,22 +633,20 @@ export default function GitApp() {
         </div>
 
         {/* 🌟 贮藏 (Stashes) 面板 */}
-        <div className={`${styles['changes-section']} ${styles['section-top-gap']}`}>
-          <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsStashesOpen(!isStashesOpen)}>
-            <div className={styles['header-flex-title']}>
-              <i className={`codicon ${isStashesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
-              <span className={styles['text-no-shrink']}>贮藏</span>
-              <span className={`${styles['badge']} ${styles['text-no-shrink']}`}>
-                {stashes.length}
-              </span>
+        {stashes.length > 0 && (
+          <div className={`${styles['changes-section']} ${styles['section-top-gap']}`}>
+            <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsStashesOpen(!isStashesOpen)}>
+              <div className={styles['header-flex-title']}>
+                <i className={`codicon ${isStashesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
+                <span className={styles['text-no-shrink']}>贮藏</span>
+                <span className={`${styles['badge']} ${styles['text-no-shrink']}`}>
+                  {stashes.length}
+                </span>
+              </div>
             </div>
-          </div>
 
-          {isStashesOpen && (
-            <div className={styles['panel-scroll']}>
-              {stashes.length === 0 ? (
-                <div className={styles['empty-message']}>没有贮藏记录</div>
-              ) : (
+            {isStashesOpen && (
+              <div className={styles['panel-scroll']}>
                 <ul className={styles['file-list']}>
                   {stashes.map((stash, idx) => {
                     const isExpanded = expandedStashIndex === stash.index;
@@ -746,10 +744,10 @@ export default function GitApp() {
                     );
                   })}
                 </ul>
-              )}
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className={`${styles['changes-section']} ${styles['section-top-gap']}`}>
           <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsCompareOpen(!isCompareOpen)}>
