@@ -1,6 +1,6 @@
 import * as path from 'path';
-import Mocha = require('mocha'); // 1. 修复 Mocha 构造函数报错
-import { glob } from 'glob'; // 2. 修复 glob 调用报错 (适配 v10+)
+import Mocha = require('mocha');
+import { glob } from 'glob';
 
 export async function run(): Promise<void> {
   const mocha = new Mocha({

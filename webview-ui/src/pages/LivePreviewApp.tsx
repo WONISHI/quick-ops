@@ -18,41 +18,29 @@ const isUrlLike = (str: string) => /^(https?:\/\/|file:\/\/)?(localhost|\d{1,3}\
 const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export default function LivePreviewApp() {
-  // 核心状态
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
   const [device, setDevice] = useState('device-responsive');
   const [isRotated, setIsRotated] = useState(false);
   const [faviconUrl, setFaviconUrl] = useState('');
   const [faviconError, setFaviconError] = useState(false);
-
-  // 收藏夹与历史状态
   const [favorites, setFavorites] = useState<any[]>([]);
   const [historyStack, setHistoryStack] = useState<{url: string, title: string, timestamp: number}[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
   const isInternalNav = useRef(false);
-
-  // 弹窗与菜单状态
   const [activeModal, setActiveModal] = useState<'none' | 'fav' | 'history'>('none');
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const [cacheSubmenuOpen, setCacheSubmenuOpen] = useState(false);
-
-  // 收藏夹表单状态
   const [favSort, setFavSort] = useState<'time' | 'title'>('time');
   const [favForm, setFavForm] = useState({ visible: false, title: '', url: '', editingOriginalUrl: '' });
-  
-  // 智能提示状态
   const [showSuggest, setShowSuggest] = useState(false);
   const [suggestIndex, setSuggestIndex] = useState(-1);
   const [copiedUrl, setCopiedUrl] = useState('');
-
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
   const cacheMenuTimer = useRef<any>(null);
-
-  // 初始化与通信
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
@@ -103,7 +91,9 @@ export default function LivePreviewApp() {
           return next;
         });
       }
-    } catch (e) { /* 跨域忽略 */ }
+    } catch (e) { 
+      console.log('e',e)
+     }
   };
 
   const pushHistory = (url: string, defaultTitle: string) => {
@@ -215,7 +205,9 @@ export default function LivePreviewApp() {
   const toggleFavorite = () => {
     if (!frameUrl) return;
     let title = frameUrl;
-    try { title = iframeRef.current?.contentDocument?.title || urlInput; } catch(e) {}
+    try { title = iframeRef.current?.contentDocument?.title || urlInput; } catch(e) {
+      console.log('e',e)
+    }
     vscode?.postMessage({ type: 'toggleFavorite', url: frameUrl, title });
   };
 
@@ -266,6 +258,7 @@ export default function LivePreviewApp() {
       vscode?.postMessage({ type: 'showInfo', message: '✅ 缓存清理成功！' });
       handleRefresh();
     } catch(e) {
+      console.log('e',e)
       vscode?.postMessage({ type: 'showWarning', message: '⚠️ 跨域安全限制，请在开发者工具中手动清理。' });
     }
     setMenuOpen(false);
@@ -290,6 +283,7 @@ export default function LivePreviewApp() {
         frameDoc.head.appendChild(script);
       }
     } catch (e) {
+      console.log('e',e)
       vscode?.postMessage({ type: 'vConsoleFallback' });
     }
     setMenuOpen(false);
