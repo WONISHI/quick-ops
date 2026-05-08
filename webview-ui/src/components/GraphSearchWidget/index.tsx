@@ -69,7 +69,6 @@ const GraphSearchWidget: React.FC<GraphSearchWidgetProps> = ({
 
     const handleMouseUp = () => {
         isDragging.current = false;
-        // 拖拽结束时移除全局监听
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
     };
@@ -77,7 +76,6 @@ const GraphSearchWidget: React.FC<GraphSearchWidgetProps> = ({
     const handleMouseDown = (e: React.MouseEvent) => {
         const target = e.target as HTMLElement;
         
-        // 🌟 体验优化：只要点的不是输入框和按钮，点整个搜索条的任意位置都能拖拽！
         if (target.tagName.toLowerCase() === 'input' || target.closest('button')) {
             return;
         }

@@ -2,7 +2,6 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
-// 引入你的各个页面组件
 import TextCompareApp from './pages/TextCompareApp';
 import MockServerApp from './pages/MockSidebarApp';
 import RecentProjectsApp from './pages/RecentProjectsApp';
