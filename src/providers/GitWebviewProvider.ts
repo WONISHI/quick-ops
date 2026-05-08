@@ -30,8 +30,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           if (ref === 'empty') return '';
 
           const git: SimpleGit = simpleGit(cwd);
-          const content = await git.show([`${ref}:${filepath}`]);
-          return content;
+
+          if (ref === 'index') {
+            return await git.show([`:${filepath}`]);
+          }
+
+          return await git.show([`${ref}:${filepath}`]);
         } catch (e) {
           return '';
         }
@@ -67,6 +71,52 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         resolve(!error);
       });
     });
+  }
+
+  private createGitContentUri(cwd: string, ref: string, file: string): vscode.Uri {
+    const query = encodeURIComponent(JSON.stringify({ cwd, ref }));
+    return vscode.Uri.parse(`quickops-git:///${file}?${query}`);
+  }
+
+  private async openChangesEditor(
+    cwd: string,
+    title: string,
+    files: { status: string; file: string; baseRef?: string }[],
+    mode: 'working' | 'staged'
+  ): Promise<void> {
+    if (files.length === 0) {
+      vscode.window.showInformationMessage(`${title} 中没有可打开的文件。`);
+      return;
+    }
+
+    const changesArgs = files.map((f) => {
+      const status = f.status.charAt(0);
+      const fileUri = vscode.Uri.file(path.join(cwd, f.file));
+
+      let leftRef = mode === 'working' ? f.baseRef || 'HEAD' : 'HEAD';
+      let rightRef: string | null = mode === 'staged' ? 'index' : null;
+
+      if ((status === 'A' || status === 'U' || status === '?') && !f.baseRef) {
+        leftRef = 'empty';
+      }
+
+      if (status === 'D') {
+        rightRef = 'empty';
+      }
+
+      const leftUri = this.createGitContentUri(cwd, leftRef, f.file);
+
+      const rightUri =
+        mode === 'working'
+          ? rightRef === 'empty'
+            ? this.createGitContentUri(cwd, 'empty', f.file)
+            : fileUri
+          : this.createGitContentUri(cwd, rightRef || 'index', f.file);
+
+      return [fileUri, leftUri, rightUri];
+    });
+
+    await vscode.commands.executeCommand('vscode.changes', title, changesArgs);
   }
 
   private async executeGitOperation(operation: () => Promise<void> | void) {
@@ -245,6 +295,50 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           case 'refreshStatusOnly':
             await this.refreshStatus(cwd, false);
             break;
+
+          case 'openStagedChanges': {
+            await this.withViewProgress(async () => {
+              const status = await git.status();
+
+              const files = status.files
+                .filter((file) => file.index !== ' ' && file.index !== '?')
+                .map((file) => ({
+                  status: file.index,
+                  file: file.path,
+                }));
+
+              await this.openChangesEditor(cwd, '暂存区更改', files, 'staged');
+            });
+            break;
+          }
+
+          case 'openWorkingTreeChanges': {
+            await this.withViewProgress(async () => {
+              const status = await git.status();
+
+              const files = status.files
+                .filter((file) => file.working_dir !== ' ')
+                .filter((file) => !status.conflicted.includes(file.path))
+                .map((file) => {
+                  let s = file.working_dir;
+
+                  if (s === '?') {
+                    s = 'U';
+                  }
+
+                  const hasIndexVersion = file.index !== ' ' && file.index !== '?';
+
+                  return {
+                    status: s,
+                    file: file.path,
+                    baseRef: hasIndexVersion ? 'index' : undefined,
+                  };
+                });
+
+              await this.openChangesEditor(cwd, '工作区更改', files, 'working');
+            });
+            break;
+          }
 
           case 'stash': {
             const options: vscode.QuickPickItem[] = [
@@ -569,7 +663,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   const countArgs = ['rev-list', '--count'];
                   if (selectedBranch === allOption) countArgs.push('--all');
                   else countArgs.push(selectedBranch);
-                  
+
                   const countStr = await git.raw(countArgs);
                   totalCommits = parseInt(countStr.trim(), 10) || graphCommits.length;
                 } catch (e) {}
@@ -914,7 +1008,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               try {
                 const status = await git.status();
                 const hasUpstream = !!status.tracking;
-                
+
                 const branchSummary = await git.branchLocal();
                 const currentBranch = branchSummary.current;
 
@@ -930,7 +1024,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                     '创建远程分支并推送'
                   );
 
-                  if (confirm !== '创建远程分支并推送') return; 
+                  if (confirm !== '创建远程分支并推送') return;
                 }
 
                 vscode.window.showInformationMessage('正在推送到远程...');
@@ -1182,6 +1276,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         .listRemote(['--get-url'])
         .then((r) => r.trim())
         .catch(() => '');
+
       const statusPromise = git.status();
       const stashPromise = git.stashList().catch(() => ({ all: [] }));
 
@@ -1258,10 +1353,10 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           totalCommits = parseInt(countStr.trim(), 10) || graphCommits.length;
         } catch (e) {}
 
-        this._view?.webview.postMessage({ 
-            type: 'graphData', 
-            graphCommits, 
-            graphFilter: '全部分支', 
+        this._view?.webview.postMessage({
+          type: 'graphData',
+          graphCommits,
+          graphFilter: '全部分支',
             totalCommits // 发送给前端
         });
       }

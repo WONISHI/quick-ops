@@ -464,6 +464,21 @@ export default function GitApp() {
                       暂存区 <span className={styles['badge']}>{stagedFiles.length}</span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                      {stagedFiles.length > 0 && (
+                        <Tooltip content="打开更改">
+                          <button
+                            className={styles['action-btn']}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              vscode.postMessage({ command: 'openStagedChanges' });
+                            }}
+                            style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                          >
+                            <i className="codicon codicon-diff-multiple" />
+                          </button>
+                        </Tooltip>
+                      )}
+
                       <Tooltip content="取消暂存所有更改">
                         <button
                           className={styles['action-btn']}
@@ -502,7 +517,22 @@ export default function GitApp() {
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-                    {(unstagedFiles.length > 0 || stagedFiles.length > 0 || conflictedFiles.length > 0) && (
+                    {unstagedFiles.length > 0 && (
+                      <Tooltip content="打开更改">
+                        <button
+                          className={styles['action-btn']}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            vscode.postMessage({ command: 'openWorkingTreeChanges' });
+                          }}
+                          style={{ opacity: 0.8, width: '20px', height: '20px', display: 'flex', justifyContent: 'center' }}
+                        >
+                          <i className="codicon codicon-diff-multiple" />
+                        </button>
+                      </Tooltip>
+                    )}
+
+                    {unstagedFiles.length > 0 && (
                       <Tooltip content="贮藏更改 (Stash)">
                         <button
                           className={styles['action-btn']}
@@ -514,7 +544,7 @@ export default function GitApp() {
                         >
                           <i className="codicon codicon-archive" />
                         </button>
-                      </Tooltip>
+                      </Tooltip>  
                     )}
 
                     {unstagedFiles.length > 0 && (

@@ -143,15 +143,6 @@
     position: relative;
 }
 
-.commit-content {
-    display: flex;
-    flex: 1;
-    align-items: center;
-    justify-content: space-between;
-    min-width: 0;
-    height: 100%;
-}
-
 .empty-message{
     text-align: center;
 }

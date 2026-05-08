@@ -709,7 +709,6 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                                             transition: 'opacity 0.2s, background-color 0.2s'
                                                         }}
                                                         onMouseEnter={(e) => {
-                                                            // 🌟 核心拦截：当鼠标悬停在按钮上时，清除掉显示详情 Widget 的定时器，并隐藏 Widget
                                                             if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                                                             setHoverInfo(null);
 
@@ -721,7 +720,6 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                                             e.currentTarget.style.backgroundColor = 'transparent';
                                                         }}
                                                     >
-                                                        {/* 🌟 核心修改：更换为 diff-multiple 图标 */}
                                                         <i className="codicon codicon-diff-multiple" />
                                                     </button>
                                                 </Tooltip>
