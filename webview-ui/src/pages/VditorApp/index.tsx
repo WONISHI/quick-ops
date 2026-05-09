@@ -4,6 +4,7 @@ import 'vditor/dist/index.css';
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
 
+import { setupPlugins } from './plugins/setupPlugins';
 import VditorMeta from './plugins/vditor-meta';
 
 export default function VditorApp() {
@@ -49,7 +50,10 @@ export default function VditorApp() {
         if (vditorRef.current) {
           const isEdit = msg.mode === 'edit';
           setIsReadMode(!isEdit);
-          const processedContent = VditorMeta(msg.content);
+          const appPlugins = setupPlugins();
+          const processedContent = appPlugins
+            .use(VditorMeta)
+            .process(msg.content);
 
           const vd = new Vditor(vditorRef.current, {
             value: processedContent,
@@ -80,7 +84,7 @@ export default function VditorApp() {
                 }
               }
             },
-            input: () => {},
+            input: () => { },
           });
 
           vditorInstanceRef.current = vd;
