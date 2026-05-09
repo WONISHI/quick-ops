@@ -35,21 +35,6 @@ export class GitFeature implements IFeature {
     return folderName || 'repository';
   }
 
-  private async getAvailableClonePath(parentPath: string, repoName: string): Promise<string> {
-    let targetPath = path.join(parentPath, repoName);
-    let index = 1;
-
-    while (true) {
-      try {
-        await vscode.workspace.fs.stat(vscode.Uri.file(targetPath));
-        targetPath = path.join(parentPath, `${repoName}-${index}`);
-        index++;
-      } catch {
-        return targetPath;
-      }
-    }
-  }
-
   private async runWithSyncLock(task: () => Promise<void>): Promise<void> {
     this._syncDepth++;
     try {
@@ -366,7 +351,26 @@ export class GitFeature implements IFeature {
         }
 
         const repoName = this.getRepoFolderName(repoUrl);
-        const targetPath = await this.getAvailableClonePath(parentPath, repoName);
+        const targetPath = path.join(parentPath, repoName);
+
+        // 🌟 1. 检查目录是否已存在并确认覆盖
+        let isTargetExist = false;
+        try {
+          await vscode.workspace.fs.stat(vscode.Uri.file(targetPath));
+          isTargetExist = true;
+        } catch {
+          isTargetExist = false;
+        }
+
+        if (isTargetExist) {
+          // 这里使用 warningMessage 更加规范，因为它涉及到删除操作，视觉上更清晰
+          const confirmOverwrite = await vscode.window.showWarningMessage(
+            `当前目录下已存在名为 [ ${repoName} ] 的文件夹。\n是否要删除原有文件夹并覆盖克隆？`,
+            { modal: true },
+            '覆盖克隆'
+          );
+          if (confirmOverwrite !== '覆盖克隆') return;
+        }
 
         // 🌟 2. 获取远程分支列表 & 识别默认分支
         let targetBranch: string | undefined = undefined;
@@ -447,7 +451,11 @@ export class GitFeature implements IFeature {
               cancellable: false,
             },
             async () => {
-              // 🌟 3. 携带 -b 参数进行克隆
+              // 🌟 4. 如果用户同意了覆盖，在开始克隆前将其删除 (useTrash: true 移入回收站防止误删无法挽回)
+              if (isTargetExist) {
+                await vscode.workspace.fs.delete(vscode.Uri.file(targetPath), { recursive: true, useTrash: true });
+              }
+              
               const cloneOptions = targetBranch ? ['-b', targetBranch] : [];
               await simpleGit().clone(repoUrl, targetPath, cloneOptions);
             }
