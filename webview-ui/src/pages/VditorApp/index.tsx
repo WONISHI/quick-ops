@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import Vditor from 'vditor';
 import 'vditor/dist/index.css';
 import { vscode } from '../../utils/vscode';
+import styles from './index.module.css';
 
 export default function VditorApp() {
   const vditorRef = useRef<HTMLDivElement>(null);
-  const [vditor, setVditor] = useState<Vditor>();
+  const vditorInstanceRef = useRef<Vditor | null>(null);
+
+  const [, setVditor] = useState<Vditor>();
   const [isReadMode, setIsReadMode] = useState(false);
 
   useEffect(() => {
@@ -36,7 +39,7 @@ export default function VditorApp() {
             if (msg.imageMap && msg.imageMap[exactPath]) {
               return `![${alt}](${msg.imageMap[exactPath]})`;
             }
-            return match; // 找不到保持原样
+            return match;
           });
 
           const vd = new Vditor(vditorRef.current, {
@@ -69,6 +72,7 @@ export default function VditorApp() {
             },
           });
 
+          vditorInstanceRef.current = vd;
           setVditor(vd);
         }
       }
@@ -89,58 +93,13 @@ export default function VditorApp() {
     return () => {
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('resize', handleResize);
-      vditor?.destroy();
+      vditorInstanceRef.current?.destroy();
     };
   }, []);
 
   return (
-    <div style={{ height: '100vh', backgroundColor: '#ffffff' }}>
-      <style>
-        {`
-          html{
-            --vscode-scrollbarSlider-background::#F2F2F2;
-          }
-          .vditor, .vditor-ir, .vditor-reset {
-            background-color: transparent !important;
-          }
-          
-          .vditor blockquote{
-            --vscode-textBlockQuote-background:#F2F2F2;
-            background:var(--vscode-textBlockQuote-background);
-          }
-          
-          .vditor-ir, .vditor-reset {
-            max-width: 100% !important;
-            padding-left: 20px !important;
-            padding-right: 20px !important;
-            padding-top: 24px !important; 
-            padding-bottom: 24px !important;
-          }
-          
-          .vditor-ir {
-            color: #24292e !important;
-          }
-
-          ${
-            isReadMode
-              ? `
-            .vditor-toolbar { display: none !important; }
-            .vditor-ir { caret-color: transparent !important; } 
-
-            .vditor-ir__marker,
-            .vditor-ir__node--expand pre.vditor-ir__marker {
-              display: none !important;
-            }
-
-            .vditor-ir__info {
-              display: none !important;
-            }
-          `
-              : ''
-          }
-        `}
-      </style>
-      <div ref={vditorRef} style={{ border: 'none', height: '100%' }} />
+    <div className={`${styles['vditor-container']} ${isReadMode ? styles['read-mode'] : ''}`}>
+      <div ref={vditorRef} className={styles['vditor-wrapper']} />
     </div>
   );
 }

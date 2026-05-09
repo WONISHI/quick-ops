@@ -1,0 +1,117 @@
+.vditor-container {
+    height: 100vh;
+    background-color: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    display: flex;
+    flex-direction: column;
+}
+
+.vditor-wrapper {
+    flex: 1;
+    border: none !important;
+}
+
+
+/* 抹除默认边框和背景 */
+:global(.vditor) {
+    border: none !important;
+    background-color: transparent !important;
+}
+
+:global(.vditor-toolbar) {
+    background-color: var(--vscode-editorGroupHeader-tabsBackground) !important;
+    border-bottom: 1px solid var(--vscode-panel-border) !important;
+}
+
+:global(.vditor-toolbar__item) {
+    color: var(--vscode-icon-foreground) !important;
+}
+
+:global(.vditor-toolbar__item:hover) {
+    background-color: var(--vscode-toolbar-hoverBackground) !important;
+    color: var(--vscode-icon-foreground) !important;
+}
+
+:global(.vditor-ir),
+:global(.vditor-reset) {
+    background-color: transparent !important;
+    color: var(--vscode-editor-foreground) !important;
+    max-width: 100% !important;
+    padding: 24px 20px !important;
+    font-family: var(--vscode-editor-font-family), "Helvetica Neue", sans-serif !important;
+}
+
+/* 标题适配 */
+:global(.vditor-reset h1),
+:global(.vditor-reset h2),
+:global(.vditor-reset h3),
+:global(.vditor-reset h4),
+:global(.vditor-reset h5),
+:global(.vditor-reset h6) {
+    color: var(--vscode-editor-foreground) !important;
+    border-bottom-color: var(--vscode-panel-border) !important;
+}
+
+/* 引用块适配 */
+:global(.vditor-reset blockquote) {
+    background-color: var(--vscode-textBlockQuote-background) !important;
+    border-left: 4px solid var(--vscode-textBlockQuote-border) !important;
+    color: var(--vscode-descriptionForeground) !important;
+}
+
+/* 链接适配 */
+:global(.vditor-reset a),
+:global(.vditor-ir__link) {
+    color: var(--vscode-textLink-foreground) !important;
+}
+:global(.vditor-reset a:hover),
+:global(.vditor-ir__link:hover)  {
+    color: var(--vscode-textLink-activeForeground) !important;
+}
+
+/* 行内代码与代码块适配 */
+:global(.vditor-reset p code),
+:global(.vditor-reset li code) {
+    background-color: var(--vscode-textCodeBlock-background) !important;
+    color: var(--vscode-textPreformat-foreground) !important;
+}
+
+:global(.vditor-reset pre) {
+    background-color: var(--vscode-textCodeBlock-background) !important;
+    border: 1px solid var(--vscode-panel-border) !important;
+}
+
+/* 🌟 VS Code 风格的滚动条 */
+:global(.vditor-ir::-webkit-scrollbar) {
+    width: 10px;
+    height: 10px;
+}
+:global(.vditor-ir::-webkit-scrollbar-track) {
+    background: transparent;
+}
+:global(.vditor-ir::-webkit-scrollbar-thumb) {
+    background-color: var(--vscode-scrollbarSlider-background);
+}
+:global(.vditor-ir::-webkit-scrollbar-thumb:hover) {
+    background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+:global(.vditor-ir::-webkit-scrollbar-thumb:active) {
+    background-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/* =========================================
+   🌟 只读模式 (Read Mode) 逻辑
+   ========================================= */
+.read-mode :global(.vditor-toolbar) {
+    display: none !important;
+}
+
+.read-mode :global(.vditor-ir) {
+    caret-color: transparent !important;
+}
+
+.read-mode :global(.vditor-ir__marker),
+.read-mode :global(.vditor-ir__node--expand pre.vditor-ir__marker),
+.read-mode :global(.vditor-ir__info) {
+    display: none !important;
+}
