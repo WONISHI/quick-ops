@@ -12,11 +12,8 @@ export class GitFeature implements IFeature {
 
   private readonly RECENT_PROJECTS_STATE_KEY = 'quickOps.recentProjectsHistory';
   private readonly GIT_PROJECTS_STATE_KEY = 'quickOps.gitProjectsHistory';
-  // 🌟 新增：用于记录上一次克隆目录的 Key
-  private readonly LAST_CLONE_PATH_KEY = 'quickOps.lastClonePath'; 
-
+  private readonly LAST_CLONE_PATH_KEY = 'quickOps.lastClonePath';
   private gitProvider!: GitWebviewProvider;
-
   private _currentPreviewPath: string | undefined;
 
   private createGit() {
@@ -24,14 +21,20 @@ export class GitFeature implements IFeature {
   }
 
   private getRepoFolderName(repoUrl: string): string {
-    const cleanedUrl = repoUrl.trim().replace(/\/+$/, '').replace(/\.git$/i, '');
+    const cleanedUrl = repoUrl
+      .trim()
+      .replace(/\/+$/, '')
+      .replace(/\.git$/i, '');
     let rawName = '';
     if (/^git@[^:]+:.+/i.test(cleanedUrl)) {
       rawName = cleanedUrl.substring(cleanedUrl.lastIndexOf(':') + 1);
     } else {
       rawName = cleanedUrl.substring(cleanedUrl.lastIndexOf('/') + 1);
     }
-    const folderName = path.basename(rawName).replace(/[\\/:*?"<>|]/g, '-').trim();
+    const folderName = path
+      .basename(rawName)
+      .replace(/[\\/:*?"<>|]/g, '-')
+      .trim();
     return folderName || 'repository';
   }
 
@@ -59,11 +62,11 @@ export class GitFeature implements IFeature {
 
     try {
       name = (await git.raw(['config', '--global', 'user.name'])).trim();
-    } catch { }
+    } catch {}
 
     try {
       email = (await git.raw(['config', '--global', 'user.email'])).trim();
-    } catch { }
+    } catch {}
 
     return { name, email };
   }
@@ -99,7 +102,7 @@ export class GitFeature implements IFeature {
     const action = await vscode.window.showInformationMessage(
       `检测到 Git 账号信息更改，是否同步为 Git 全局配置？\n\n[用户名] ${oldName || '未设置'} ➜ ${newName || '未设置'}\n[邮箱] ${oldEmail || '未设置'} ➜ ${newEmail || '未设置'}`,
       { modal: true },
-      '确认设置为全局'
+      '确认设置为全局',
     );
 
     if (action !== '确认设置为全局') {
@@ -114,7 +117,7 @@ export class GitFeature implements IFeature {
 
     if (newName !== oldName) {
       if (!newName) {
-        await git.raw(['config', '--global', '--unset', 'user.name']).catch(() => { });
+        await git.raw(['config', '--global', '--unset', 'user.name']).catch(() => {});
       } else {
         await git.raw(['config', '--global', 'user.name', newName]);
       }
@@ -122,7 +125,7 @@ export class GitFeature implements IFeature {
 
     if (newEmail !== oldEmail) {
       if (!newEmail) {
-        await git.raw(['config', '--global', '--unset', 'user.email']).catch(() => { });
+        await git.raw(['config', '--global', '--unset', 'user.email']).catch(() => {});
       } else {
         await git.raw(['config', '--global', 'user.email', newEmail]);
       }
@@ -133,10 +136,7 @@ export class GitFeature implements IFeature {
 
   private async handleConfigurationChange(e: vscode.ConfigurationChangeEvent): Promise<void> {
     if (this._syncDepth > 0) return;
-    if (
-      !e.affectsConfiguration('quick-ops.git.userName') &&
-      !e.affectsConfiguration('quick-ops.git.userEmail')
-    ) {
+    if (!e.affectsConfiguration('quick-ops.git.userName') && !e.affectsConfiguration('quick-ops.git.userEmail')) {
       return;
     }
 
@@ -159,7 +159,7 @@ export class GitFeature implements IFeature {
     context.subscriptions.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
         void this.handleConfigurationChange(e);
-      })
+      }),
     );
   }
 
@@ -214,7 +214,7 @@ export class GitFeature implements IFeature {
         }
 
         // 默认获取名为 origin 的远程仓库，如果没有就拿第一个
-        const targetRemote = remotes.find(r => r.name === 'origin') || remotes[0];
+        const targetRemote = remotes.find((r) => r.name === 'origin') || remotes[0];
         // 提取当前的真实 URL
         const currentUrl = targetRemote.refs.push || targetRemote.refs.fetch || '';
 
@@ -227,7 +227,7 @@ export class GitFeature implements IFeature {
             // 严谨正则：必须是合法的 http/https 网址，或者是 SSH 格式 (包含 ssh:// 或是 git@...)
             const isValid = /^(https?:\/\/|ssh:\/\/|git@[^:]+:.+)/i.test(val);
             return isValid ? null : '地址格式不正确，必须是有效的 HTTP 或 SSH 格式';
-          }
+          },
         });
 
         if (newUrl !== undefined) {
@@ -245,7 +245,7 @@ export class GitFeature implements IFeature {
             }
           }
         }
-      })
+      }),
     );
   }
 
@@ -271,7 +271,7 @@ export class GitFeature implements IFeature {
 
         this.updateCurrentPreviewPath(defaultWorkspace);
         vscode.window.showInformationMessage('🎯 已返回当前工作区。');
-      })
+      }),
     );
   }
 
@@ -291,7 +291,10 @@ export class GitFeature implements IFeature {
           placeHolder: '例如：https://github.com/user/repo.git 或 git@github.com:user/repo.git',
           ignoreFocusOut: true,
           validateInput: (value) => {
-            const url = value.trim().replace(/^git\s+clone\s+/i, '').trim();
+            const url = value
+              .trim()
+              .replace(/^git\s+clone\s+/i, '')
+              .trim();
 
             if (!url) return '仓库地址不能为空';
 
@@ -303,20 +306,26 @@ export class GitFeature implements IFeature {
 
         if (!inputUrl) return;
 
-        const repoUrl = inputUrl.trim().replace(/^git\s+clone\s+/i, '').trim();
+        const repoUrl = inputUrl
+          .trim()
+          .replace(/^git\s+clone\s+/i, '')
+          .trim();
         let parentPath = '';
 
         // 🌟 1. 优化：记忆上一次克隆的目录
         const lastClonePath = context.globalState.get<string>(this.LAST_CLONE_PATH_KEY);
 
         if (lastClonePath) {
-          const choice = await vscode.window.showQuickPick([
-            { label: '$(folder) 存放在上一次目录', description: lastClonePath, targetPath: lastClonePath },
-            { label: '$(folder-opened) 选择新的存放目录...', description: '', targetPath: 'NEW' }
-          ], { 
-            placeHolder: '请选择克隆存放的目录',
-            ignoreFocusOut: true
-          });
+          const choice = await vscode.window.showQuickPick(
+            [
+              { label: '$(folder) 存放在上一次目录', description: lastClonePath, targetPath: lastClonePath },
+              { label: '$(folder-opened) 选择新的存放目录...', description: '', targetPath: 'NEW' },
+            ],
+            {
+              placeHolder: '请选择克隆存放的目录',
+              ignoreFocusOut: true,
+            },
+          );
 
           if (!choice) return;
 
@@ -364,11 +373,7 @@ export class GitFeature implements IFeature {
 
         if (isTargetExist) {
           // 这里使用 warningMessage 更加规范，因为它涉及到删除操作，视觉上更清晰
-          const confirmOverwrite = await vscode.window.showWarningMessage(
-            `当前目录下已存在名为 [ ${repoName} ] 的文件夹。\n是否要删除原有文件夹并覆盖克隆？`,
-            { modal: true },
-            '覆盖克隆'
-          );
+          const confirmOverwrite = await vscode.window.showWarningMessage(`当前目录下已存在名为 [ ${repoName} ] 的文件夹。\n是否要删除原有文件夹并覆盖克隆？`, { modal: true }, '覆盖克隆');
           if (confirmOverwrite !== '覆盖克隆') return;
         }
 
@@ -378,31 +383,35 @@ export class GitFeature implements IFeature {
         let defaultBranch: string | undefined = undefined;
 
         try {
-          await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: '正在解析远程分支...',
-            cancellable: false
-          }, async () => {
-            // 使用 --symref 可以直接拿到 HEAD 指向的默认分支信息
-            const remoteOutput = await simpleGit().listRemote(['--symref', repoUrl]);
-            
-            // 提取默认分支
-            const defaultMatch = remoteOutput.match(/ref:\s+refs\/heads\/(.+?)\s+HEAD/);
-            if (defaultMatch) {
-              defaultBranch = defaultMatch[1];
-            }
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: '正在解析远程分支...',
+              cancellable: false,
+            },
+            async () => {
+              // 使用 --symref 可以直接拿到 HEAD 指向的默认分支信息
+              const remoteOutput = await simpleGit().listRemote(['--symref', repoUrl]);
 
-            // 提取所有分支
-            remoteBranches = remoteOutput.split('\n')
-              .map(line => {
-                const match = line.match(/^[0-9a-fA-F]+\s+refs\/heads\/(.+)$/);
-                return match ? match[1] : null;
-              })
-              .filter(Boolean) as string[];
-              
-            // 去重
-            remoteBranches = [...new Set(remoteBranches)];
-          });
+              // 提取默认分支
+              const defaultMatch = remoteOutput.match(/ref:\s+refs\/heads\/(.+?)\s+HEAD/);
+              if (defaultMatch) {
+                defaultBranch = defaultMatch[1];
+              }
+
+              // 提取所有分支
+              remoteBranches = remoteOutput
+                .split('\n')
+                .map((line) => {
+                  const match = line.match(/^[0-9a-fA-F]+\s+refs\/heads\/(.+)$/);
+                  return match ? match[1] : null;
+                })
+                .filter(Boolean) as string[];
+
+              // 去重
+              remoteBranches = [...new Set(remoteBranches)];
+            },
+          );
         } catch (error) {
           // 如果获取失败（如无权限/网络问题），静默跳过，按常规无参数 clone 兜底
         }
@@ -416,15 +425,15 @@ export class GitFeature implements IFeature {
             qp.title = `选择克隆分支 - ${repoName}`;
             qp.placeholder = '请选择要克隆的远程分支 (取消则放弃克隆)';
             qp.ignoreFocusOut = true;
-            
-            qp.items = remoteBranches.map(b => ({
+
+            qp.items = remoteBranches.map((b) => ({
               label: b,
-              description: b === defaultBranch ? '默认分支' : ''
+              description: b === defaultBranch ? '默认分支' : '',
             }));
 
             // 设置默认焦点
             if (defaultBranch) {
-              const active = qp.items.find(i => i.label === defaultBranch);
+              const active = qp.items.find((i) => i.label === defaultBranch);
               if (active) qp.activeItems = [active];
             }
 
@@ -436,10 +445,10 @@ export class GitFeature implements IFeature {
               qp.dispose();
               resolve(undefined);
             });
-            
+
             qp.show();
           });
-          
+
           if (!targetBranch) return; // 用户取消了分支选择，终止流程
         }
 
@@ -455,28 +464,20 @@ export class GitFeature implements IFeature {
               if (isTargetExist) {
                 await vscode.workspace.fs.delete(vscode.Uri.file(targetPath), { recursive: true, useTrash: true });
               }
-              
+
               const cloneOptions = targetBranch ? ['-b', targetBranch] : [];
               await simpleGit().clone(repoUrl, targetPath, cloneOptions);
-            }
+            },
           );
 
           // 🌟 4. 克隆完成后的操作选项
-          const action = await vscode.window.showInformationMessage(
-            `✅ 仓库已成功克隆到：${targetPath}`,
-            '在当前窗口打开',
-            '在新窗口打开'
-          );
+          const action = await vscode.window.showInformationMessage(`✅ 仓库已成功克隆到：${targetPath}`, '在当前窗口打开', '在新窗口打开');
 
           if (action === '在新窗口打开') {
             await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(targetPath), true);
           } else if (action === '在当前窗口打开') {
             // 🌟 5. 当前窗口打开时的覆盖警告（同截图设计）
-            const confirm = await vscode.window.showWarningMessage(
-              `确定要在当前窗口打开 [ ${repoName} ] 吗？\n这将会关闭您当前正在工作的工作区！`,
-              { modal: true },
-              '确认覆盖打开'
-            );
+            const confirm = await vscode.window.showWarningMessage(`确定要在当前窗口打开 [ ${repoName} ] 吗？\n这将会关闭您当前正在工作的工作区！`, { modal: true }, '确认覆盖打开');
 
             if (confirm === '确认覆盖打开') {
               await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(targetPath), false);
@@ -485,30 +486,27 @@ export class GitFeature implements IFeature {
         } catch (error: any) {
           vscode.window.showErrorMessage(`克隆仓库失败: ${error?.message ?? String(error)}`);
         }
-      })
+      }),
     );
   }
 
   private registerGitSwitchCommand(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
       vscode.commands.registerCommand('quickOps.switchGitProject', async () => {
-
         const quickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { targetPath: string }>();
         quickPick.placeholder = '输入关键字搜索历史项目...';
         quickPick.title = '切换 / 预览 Git 项目';
         quickPick.matchOnDescription = true;
 
-        // 🌟 核心破局点：使用 VS Code 原生标题栏按钮，彻底脱离列表排序机制！
         const addProjectBtn: vscode.QuickInputButton = {
           iconPath: new vscode.ThemeIcon('add'),
-          tooltip: '添加本地文件夹到 Git 记录中'
+          tooltip: '添加本地文件夹到 Git 记录中',
         };
-        // 将“添加项目”挂载到面板右上角
         quickPick.buttons = [addProjectBtn];
 
         const deleteBtn: vscode.QuickInputButton = {
           iconPath: new vscode.ThemeIcon('trash'),
-          tooltip: '删除此记录'
+          tooltip: '删除此记录',
         };
 
         let activeItemToFocus: (vscode.QuickPickItem & { targetPath: string }) | undefined;
@@ -527,7 +525,7 @@ export class GitFeature implements IFeature {
 
           const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
           if (defaultWorkspace) {
-            const existIndex = projects.findIndex(p => {
+            const existIndex = projects.findIndex((p) => {
               let targetFsPath = p.fsPath;
               if (targetFsPath.startsWith('file://')) {
                 targetFsPath = vscode.Uri.parse(targetFsPath).fsPath;
@@ -539,7 +537,7 @@ export class GitFeature implements IFeature {
               projects.unshift({
                 name: path.basename(defaultWorkspace),
                 fsPath: defaultWorkspace,
-                branch: ''
+                branch: '',
               });
               stateNeedsUpdate = true;
             }
@@ -552,32 +550,17 @@ export class GitFeature implements IFeature {
           const items: (vscode.QuickPickItem & { targetPath: string })[] = [];
           activeItemToFocus = undefined;
 
-          items.push({
-            label: '操作',
-            kind: vscode.QuickPickItemKind.Separator,
-            targetPath: ''
-          });
-
-          items.push({
-            label: '$(add) 添加项目',
-            description: '选择一个本地文件夹并添加到 Git 记录中',
-            targetPath: 'ADD',
-            alwaysShow: true,
-            buttons: []
-          });
-
           if (projects.length > 0) {
             items.push({
               label: '最近项目',
               kind: vscode.QuickPickItemKind.Separator,
-              targetPath: ''
+              targetPath: '',
             });
           }
 
-          projects.forEach(p => {
+          projects.forEach((p) => {
             const isRemote = /^(vscode-vfs:\/\/|https?:\/\/|ssh:\/\/|git@)/i.test(p.fsPath);
             const icon = isRemote ? '$(repo)' : '$(folder)';
-            const branchInfo = p.branch ? ` [${p.branch}]` : '';
 
             let targetFsPath = p.fsPath;
             if (targetFsPath.startsWith('file://')) {
@@ -590,13 +573,23 @@ export class GitFeature implements IFeature {
             }
 
             const isCurrent = targetFsPath === currentFsPath;
+            const projectName = p.customName || p.name;
+            const branchDisplay = p.branch ? ` : ${p.branch}` : '';
+            const currentTag = isCurrent ? ' 【当前预览】' : '';
+
+            let decodedPath = targetFsPath;
+            try {
+              decodedPath = decodeURIComponent(targetFsPath);
+            } catch (e) {
+              console.log('e', e);
+            }
 
             const projectItem = {
-              label: `${icon} ${p.customName || p.name}`,
-              description: `${p.fsPath}${branchInfo}${isCurrent ? ' (当前预览)' : ''}`,
-              detail: isRemote ? '远程仓库 (需作为工作区打开)' : '本地项目 (点击无缝预览)',
+              label: `${icon} ${projectName}`,
+              description: `${projectName}${branchDisplay}${currentTag}`,
+              detail: decodedPath,
               targetPath: p.fsPath,
-              buttons: isCurrent ? [] : [deleteBtn]
+              buttons: isCurrent ? [] : [deleteBtn],
             };
 
             items.push(projectItem);
@@ -621,7 +614,6 @@ export class GitFeature implements IFeature {
           }
         });
 
-        // 🌟 监听右上角的全局按钮 (添加项目)
         quickPick.onDidTriggerButton(async (btn) => {
           if (btn === addProjectBtn) {
             quickPick.hide();
@@ -630,14 +622,14 @@ export class GitFeature implements IFeature {
               canSelectFiles: false,
               canSelectFolders: true,
               canSelectMany: false,
-              openLabel: '添加到 Git 预览'
+              openLabel: '添加到 Git 预览',
             });
 
             if (uriArray && uriArray[0]) {
               const newPath = uriArray[0].fsPath;
               let projects: any[] = context.globalState.get(this.GIT_PROJECTS_STATE_KEY) || [];
 
-              const existIndex = projects.findIndex(p => {
+              const existIndex = projects.findIndex((p) => {
                 let targetFsPath = p.fsPath;
                 if (targetFsPath.startsWith('file://')) {
                   targetFsPath = vscode.Uri.parse(targetFsPath).fsPath;
@@ -650,7 +642,7 @@ export class GitFeature implements IFeature {
               projects.unshift({
                 name: path.basename(newPath),
                 fsPath: newPath,
-                branch: ''
+                branch: '',
               });
               await context.globalState.update(this.GIT_PROJECTS_STATE_KEY, projects);
 
@@ -660,19 +652,14 @@ export class GitFeature implements IFeature {
           }
         });
 
-        // 监听列表右侧的垃圾桶点击事件
         quickPick.onDidTriggerItemButton(async (e) => {
           if (e.button === deleteBtn) {
             const item = e.item;
-            const confirm = await vscode.window.showWarningMessage(
-              `确定要从 Git 记录中删除项目 [ ${item.label.replace(/\$\(.*?\) /, '')} ] 吗？`,
-              { modal: true },
-              '删除'
-            );
+            const confirm = await vscode.window.showWarningMessage(`确定要从 Git 记录中删除项目 [ ${item.label.replace(/\$\(.*?\) /, '')} ] 吗？`, { modal: true }, '删除');
 
             if (confirm === '删除') {
               let projects: any[] = context.globalState.get(this.GIT_PROJECTS_STATE_KEY) || [];
-              projects = projects.filter(p => {
+              projects = projects.filter((p) => {
                 let targetFsPath = p.fsPath;
                 if (targetFsPath.startsWith('file://')) {
                   targetFsPath = vscode.Uri.parse(targetFsPath).fsPath;
@@ -694,7 +681,6 @@ export class GitFeature implements IFeature {
           }
         });
 
-        // 监听主体项目选择事件
         quickPick.onDidAccept(async () => {
           const selected = quickPick.selectedItems[0];
           if (!selected) return;
@@ -702,41 +688,6 @@ export class GitFeature implements IFeature {
           if (selected.kind === vscode.QuickPickItemKind.Separator) return;
 
           quickPick.hide();
-
-          if (selected.targetPath === 'ADD') {
-            const uriArray = await vscode.window.showOpenDialog({
-              canSelectFiles: false,
-              canSelectFolders: true,
-              canSelectMany: false,
-              openLabel: '添加到 Git 预览'
-            });
-
-            if (uriArray && uriArray[0]) {
-              const newPath = uriArray[0].fsPath;
-              let projects: any[] = context.globalState.get(this.GIT_PROJECTS_STATE_KEY) || [];
-
-              const existIndex = projects.findIndex(p => {
-                let targetFsPath = p.fsPath;
-                if (targetFsPath.startsWith('file://')) {
-                  targetFsPath = vscode.Uri.parse(targetFsPath).fsPath;
-                }
-                return targetFsPath === newPath;
-              });
-
-              if (existIndex > -1) projects.splice(existIndex, 1);
-
-              projects.unshift({
-                name: path.basename(newPath),
-                fsPath: newPath,
-                branch: ''
-              });
-              await context.globalState.update(this.GIT_PROJECTS_STATE_KEY, projects);
-
-              this.updateCurrentPreviewPath(newPath);
-              vscode.window.showInformationMessage('✅ 已添加并切换到该项目的 Git 预览。');
-            }
-            return;
-          }
 
           const targetPath = selected.targetPath;
           const isRemote = /^(vscode-vfs:\/\/|https?:\/\/|ssh:\/\/|git@)/i.test(targetPath);
@@ -754,7 +705,7 @@ export class GitFeature implements IFeature {
                 `远程仓库 [ ${selected.label.replace(/\$\(.*?\) /, '')} ] 无法直接进行本地预览，是否将其作为工作区打开？`,
                 { modal: true },
                 '在当前窗口打开',
-                '在新窗口打开'
+                '在新窗口打开',
               );
 
               if (choice === '在当前窗口打开') {
@@ -776,7 +727,7 @@ export class GitFeature implements IFeature {
 
         quickPick.onDidHide(() => quickPick.dispose());
         quickPick.show();
-      })
+      }),
     );
   }
 
@@ -785,8 +736,8 @@ export class GitFeature implements IFeature {
 
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider('quickOps.gitView', this.gitProvider, {
-        webviewOptions: { retainContextWhenHidden: true }
-      })
+        webviewOptions: { retainContextWhenHidden: true },
+      }),
     );
 
     // 初始化时加载默认工作区，并触发探测
