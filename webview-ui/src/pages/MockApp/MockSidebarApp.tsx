@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { vscode } from '../utils/vscode';
+import { vscode } from '../../utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faServer, faCircle, faGear, faTrash, faPen, faPlus, faFileCode } from '@fortawesome/free-solid-svg-icons';
 import { faFolderOpen, faCopy, faFile } from '@fortawesome/free-regular-svg-icons';

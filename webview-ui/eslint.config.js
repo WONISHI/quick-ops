@@ -17,7 +17,8 @@ export default defineConfig([
     rules: {
       'prefer-const': 'off',
       '@typescript-eslint/prefer-const': 'off',
-      '@typescript-eslint/no-explicit-any':'off'
+      '@typescript-eslint/no-explicit-any': 'off',
+      'no-unused-vars': 'off',
     },
   },
 ]);

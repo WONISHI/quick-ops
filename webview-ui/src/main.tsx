@@ -3,13 +3,13 @@ import ReactDOM from 'react-dom/client';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
 import TextCompareApp from './pages/TextCompareApp';
-import MockServerApp from './pages/MockSidebarApp';
+import MockServerApp from './pages/MockApp/MockSidebarApp';
 import RecentProjectsApp from './pages/RecentProjectsApp';
 import LivePreviewApp from './pages/LivePreviewApp';
 import AnchorApp from "./pages/AnchorApp"
-import MockSidebarApp from './pages/MockSidebarApp'
-import MockProxyPanelApp from "./pages/MockProxyPanelApp"
-import MockRulePanelApp from './pages/MockRulePanelApp'
+import MockSidebarApp from './pages/MockApp/MockSidebarApp'
+import MockProxyPanelApp from "./pages/MockApp/MockProxyPanelApp"
+import MockRulePanelApp from './pages/MockApp/MockRulePanelApp'
 import VditorApp from './pages/VditorApp';
 import GitApp from './pages/GitApp';
 import ExcelPreviewApp from './pages/ExcelPreviewApp';

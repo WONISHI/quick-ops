@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { vscode } from '../utils/vscode';
-import styles from '../assets/css/GitApp.module.css';
+import { vscode } from '../../utils/vscode';
+import styles from './index.module.css';
 
-import Tooltip from '../components/Tooltip';
-import GitGraph, { type GraphCommit } from '../components/GitGraph';
-import GitCompareList from '../components/GitCompareList';
-import GitFileList from '../components/GitFileList';
-import GitNotInstalled from '../components/GitNotInstalled';
-import LoadingMask from '../components/LoadingMask';
-import type { GitFile } from '../types/GitApp';
+import Tooltip from '../../components/Tooltip';
+import GitGraph, { type GraphCommit } from '../../components/GitGraph';
+import GitCompareList from '../../components/GitCompareList';
+import GitFileList from '../../components/GitFileList';
+import GitNotInstalled from '../../components/GitNotInstalled';
+import LoadingMask from '../../components/LoadingMask';
+import type { GitFile } from '../../types/GitApp';
 
-import { GitContextMenu, type ContextMenuState } from '../components/GitContextMenu';
+import { GitContextMenu, type ContextMenuState } from '../../components/GitContextMenu';
 
 export default function GitApp() {
   const [isRepo, setIsRepo] = useState<boolean>(true);

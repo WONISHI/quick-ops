@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { vscode } from '../utils/vscode';
+import { vscode } from '../../utils/vscode';
 
 export default function MockProxyPanelApp() {
   const [proxyId, setProxyId] = useState('');

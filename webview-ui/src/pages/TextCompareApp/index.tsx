@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import * as Diff from 'diff';
-import { vscode } from '../utils/vscode';
+import { vscode } from '../../utils/vscode';
 
 const EMPTY_TOKEN = "___EMPTY_SLOT___";
 

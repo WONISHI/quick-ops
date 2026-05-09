@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { vscode } from '../utils/vscode';
+import { vscode } from '../../utils/vscode';
 
-// 🌟 引入所有需要的 FontAwesome 图标
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faArrowLeft, faRotateRight, faGlobe, faXmark, faStar as faStarSolid, 
@@ -79,7 +78,6 @@ export default function LivePreviewApp() {
     };
   }, []);
 
-  // 监听 Iframe Title 更新历史记录
   const handleIframeLoad = () => {
     if (!iframeRef.current || historyIdx < 0) return;
     try {

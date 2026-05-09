@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Vditor from 'vditor';
 import 'vditor/dist/index.css';
-import { vscode } from '../utils/vscode';
+import { vscode } from '../../utils/vscode';
 
 export default function VditorApp() {
   const vditorRef = useRef<HTMLDivElement>(null);

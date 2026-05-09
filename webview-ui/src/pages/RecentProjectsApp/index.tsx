@@ -1,15 +1,15 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { vscode } from '../utils/vscode';
+import { vscode } from '../../utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMagnifyingGlass, faFolderOpen, faFolderPlus, faCodeBranch, faChevronRight, faChevronDown, faArrowRightToBracket, faFolder, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 
-import styles from '../assets/css/RecentProjectsApp.module.css';
-import FileIcon from '../components/FileIcon';
-import RecentProjectContextMenu from '../components/RecentProjectContextMenu';
-import HighlightText from '../components/HighlightText';
-import Tooltip from "../components/Tooltip"
-import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '../types/RecentProjectsApp';
+import styles from './index.module.css';
+import FileIcon from '../../components/FileIcon';
+import RecentProjectContextMenu from '../../components/RecentProjectContextMenu';
+import HighlightText from '../../components/HighlightText';
+import Tooltip from "../../components/Tooltip"
+import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '../../types/RecentProjectsApp';
 
 function getDisplayPath(project: Project) {
   let displayPath = project.fsPath;
