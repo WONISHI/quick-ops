@@ -3,6 +3,7 @@ import Vditor from 'vditor';
 import 'vditor/dist/index.css';
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
+import { parseFileUriInfo } from "../../utils/index"
 
 import { setupPlugins } from './plugins/setupPlugins';
 import VditorMeta from './plugins/vditor-meta';
@@ -38,7 +39,8 @@ export default function VditorApp() {
         event.preventDefault();
         event.stopPropagation();
 
-        vscode.postMessage({ command: 'copyToClipboard', text: href });
+        // 抛出指令给 VS Code 后端，让其调用原生浏览器打开
+        vscode.postMessage({ command: 'openExternal', url: href });
       }
     };
 
@@ -48,13 +50,15 @@ export default function VditorApp() {
       const msg = e.data;
 
       if (msg.type === 'initVditorData') {
+        const { fileName } = parseFileUriInfo(msg.fsPath)
         if (vditorRef.current) {
           const isEdit = msg.mode === 'edit';
           setIsReadMode(!isEdit);
+
           const appPlugins = setupPlugins();
           const processedContent = appPlugins
             .use(VditorMeta)
-            .use(VditorCompat, { title: msg.projectName || '文档预览' })
+            .use(VditorCompat, { title: fileName || '文档预览' })
             .process(msg.content);
 
           const vd = new Vditor(vditorRef.current, {

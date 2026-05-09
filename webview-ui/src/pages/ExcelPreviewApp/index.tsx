@@ -2,16 +2,7 @@ import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
-
-
-function getColumnLetter(n: number): string {
-  let name = '';
-  while (n >= 0) {
-    name = String.fromCharCode((n % 26) + 65) + name;
-    n = Math.floor(n / 26) - 1;
-  }
-  return name;
-}
+import { getColumnLetter } from "../../utils"
 
 export default function ExcelPreviewApp() {
   const [loading, setLoading] = useState(true);
@@ -45,7 +36,7 @@ export default function ExcelPreviewApp() {
             loadSheetData(wb, wb.SheetNames[0]);
           }
           setLoading(false);
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
         } catch (err) {
           setError('解析表格文件失败，可能是文件已损坏或格式不受支持。');
           setLoading(false);

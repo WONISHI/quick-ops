@@ -1,21 +1,18 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { vscode } from '../../utils/vscode';
+import { isUrlLike, escapeRegExp } from "../../utils"
 import styles from './index.module.css';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { 
-  faArrowLeft, faRotateRight, faGlobe, faXmark, faStar as faStarSolid, 
-  faArrowRight, faRotate, faArrowUpRightFromSquare, faEllipsis, 
-  faLayerGroup, faPlus, faClockRotateLeft, faBroom, faChevronRight, 
-  faDatabase, faBoxArchive, faCookieBite, faTerminal, faBug, faPen, 
-  faTrash, faCheck 
+import {
+  faArrowLeft, faRotateRight, faGlobe, faXmark, faStar as faStarSolid,
+  faArrowRight, faRotate, faArrowUpRightFromSquare, faEllipsis,
+  faLayerGroup, faPlus, faClockRotateLeft, faBroom, faChevronRight,
+  faDatabase, faBoxArchive, faCookieBite, faTerminal, faBug, faPen,
+  faTrash, faCheck
 } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular, faCopy as faCopyRegular } from '@fortawesome/free-regular-svg-icons';
 import { faVuejs, faNodeJs, faReact } from '@fortawesome/free-brands-svg-icons';
-
-// 工具函数
-const isUrlLike = (str: string) => /^(https?:\/\/|file:\/\/)?(localhost|\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}|([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,})(:\d+)?(\/.*)?$/i.test(str);
-const escapeRegExp = (string: string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
@@ -25,7 +22,7 @@ export default function LivePreviewApp() {
   const [faviconUrl, setFaviconUrl] = useState('');
   const [faviconError, setFaviconError] = useState(false);
   const [favorites, setFavorites] = useState<any[]>([]);
-  const [historyStack, setHistoryStack] = useState<{url: string, title: string, timestamp: number}[]>([]);
+  const [historyStack, setHistoryStack] = useState<{ url: string, title: string, timestamp: number }[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
   const isInternalNav = useRef(false);
   const [activeModal, setActiveModal] = useState<'none' | 'fav' | 'history'>('none');
@@ -37,10 +34,8 @@ export default function LivePreviewApp() {
   const [showSuggest, setShowSuggest] = useState(false);
   const [suggestIndex, setSuggestIndex] = useState(-1);
   const [copiedUrl, setCopiedUrl] = useState('');
-  
-  // 🌟 修改点 1：将 iframeRef 改为 objectRef
+
   const objectRef = useRef<HTMLObjectElement>(null);
-  
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
   const cacheMenuTimer = useRef<any>(null);
@@ -65,7 +60,7 @@ export default function LivePreviewApp() {
       }
     };
     window.addEventListener('message', handleMessage);
-    
+
     const handleClickOutside = (e: MouseEvent) => {
       if (!moreBtnRef.current?.contains(e.target as Node)) {
         setMenuOpen(false);
@@ -95,8 +90,8 @@ export default function LivePreviewApp() {
           return next;
         });
       }
-    } catch (e) { 
-      console.log('e',e);
+    } catch (e) {
+      console.log('e', e);
     }
   };
 
@@ -161,7 +156,7 @@ export default function LivePreviewApp() {
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
-    
+
     if (showSuggest && suggestions.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -209,8 +204,8 @@ export default function LivePreviewApp() {
   const toggleFavorite = () => {
     if (!frameUrl) return;
     let title = frameUrl;
-    try { title = objectRef.current?.contentDocument?.title || urlInput; } catch(e) {
-      console.log('e',e);
+    try { title = objectRef.current?.contentDocument?.title || urlInput; } catch (e) {
+      console.log('e', e);
     }
     vscode?.postMessage({ type: 'toggleFavorite', url: frameUrl, title });
   };
@@ -225,7 +220,7 @@ export default function LivePreviewApp() {
     const query = urlInput.trim();
     if (!query) return text;
     const parts = text.split(new RegExp(`(${escapeRegExp(query)})`, 'gi'));
-    return parts.map((part, i) => 
+    return parts.map((part, i) =>
       part.toLowerCase() === query.toLowerCase() ? <span key={i} className={styles['highlight-match']}>{part}</span> : part
     );
   };
@@ -260,8 +255,8 @@ export default function LivePreviewApp() {
       }
       vscode?.postMessage({ type: 'showInfo', message: '✅ 缓存清理成功！' });
       handleRefresh();
-    } catch(e) {
-      console.log('e',e);
+    } catch (e) {
+      console.log('e', e);
       vscode?.postMessage({ type: 'showWarning', message: '⚠️ 跨域安全限制，请在开发者工具中手动清理。' });
     }
     setMenuOpen(false);
@@ -287,7 +282,7 @@ export default function LivePreviewApp() {
         frameDoc.head.appendChild(script);
       }
     } catch (e) {
-      console.log('e',e);
+      console.log('e', e);
       vscode?.postMessage({ type: 'vConsoleFallback' });
     }
     setMenuOpen(false);
@@ -354,42 +349,42 @@ export default function LivePreviewApp() {
         <button className={styles['icon-btn']} onClick={handleRefresh} title="刷新页面">
           <FontAwesomeIcon icon={faRotateRight} />
         </button>
-        
+
         <div className={styles['address-bar-wrapper']}>
           {faviconUrl && !faviconError && urlInput.trim() ? (
-             <img src={faviconUrl} onError={() => setFaviconError(true)} className={styles['favicon-img']} />
+            <img src={faviconUrl} onError={() => setFaviconError(true)} className={styles['favicon-img']} />
           ) : (
-             <FontAwesomeIcon icon={faGlobe} className={styles['globe-icon']} />
+            <FontAwesomeIcon icon={faGlobe} className={styles['globe-icon']} />
           )}
-          
-          <input 
-            type="text" 
-            className={styles['address-bar']} 
-            value={urlInput} 
+
+          <input
+            type="text"
+            className={styles['address-bar']}
+            value={urlInput}
             onChange={e => {
               setUrlInput(e.target.value);
               setShowSuggest(true);
               setSuggestIndex(-1);
             }}
             onKeyDown={handleKeyDown}
-            onFocus={() => { if(urlInput.trim()) setShowSuggest(true); }}
-            placeholder="输入网址 或 搜索内容" 
+            onFocus={() => { if (urlInput.trim()) setShowSuggest(true); }}
+            placeholder="输入网址 或 搜索内容"
             spellCheck="false"
             autoComplete="off"
           />
-          
+
           {urlInput && (
-            <FontAwesomeIcon 
-              icon={faXmark} 
-              className={styles['action-icon']} 
-              onClick={() => { setUrlInput(''); setShowSuggest(false); }} 
+            <FontAwesomeIcon
+              icon={faXmark}
+              className={styles['action-icon']}
+              onClick={() => { setUrlInput(''); setShowSuggest(false); }}
               title="清除"
             />
           )}
-          <FontAwesomeIcon 
-            icon={isFav ? faStarSolid : faStarRegular} 
+          <FontAwesomeIcon
+            icon={isFav ? faStarSolid : faStarRegular}
             className={`${styles['action-icon']} ${isFav ? styles['fav-active'] : ''}`}
-            onClick={toggleFavorite} 
+            onClick={toggleFavorite}
             title="添加/取消收藏 (跨工作区同步)"
           />
 
@@ -397,8 +392,8 @@ export default function LivePreviewApp() {
           {showSuggest && suggestions.length > 0 && (
             <div className={styles['suggest-box']} ref={suggestBoxRef}>
               {suggestions.map((item, index) => (
-                <div 
-                  key={index} 
+                <div
+                  key={index}
                   className={`${styles['suggest-item']} ${index === suggestIndex ? styles['selected'] : ''}`}
                   onMouseEnter={() => setSuggestIndex(index)}
                   onClick={() => {
@@ -416,7 +411,7 @@ export default function LivePreviewApp() {
         <button className={styles['icon-btn']} onClick={() => handleGo()} title="访问 / 搜索">
           <FontAwesomeIcon icon={faArrowRight} />
         </button>
-        
+
         <div className={styles['divider']}></div>
 
         <select className={styles['vscode-select']} value={device} onChange={handleDeviceChange} title="选择预览设备">
@@ -442,9 +437,9 @@ export default function LivePreviewApp() {
           </optgroup>
         </select>
 
-        <button 
+        <button
           className={`${styles['icon-btn']} ${isRotated ? styles['active-blue'] : ''}`}
-          disabled={device === 'device-responsive'} 
+          disabled={device === 'device-responsive'}
           onClick={() => setIsRotated(!isRotated)}
           title="横屏/竖屏切换"
         >
@@ -472,10 +467,10 @@ export default function LivePreviewApp() {
           <div className={styles['menu-item']} onClick={() => { setActiveModal('history'); setMenuOpen(false); }}>
             <FontAwesomeIcon icon={faClockRotateLeft} className={styles['menu-icon']} /> 历史记录
           </div>
-          
+
           <div className={styles['menu-divider']}></div>
-          <div 
-            className={`${styles['menu-item']} ${styles['has-submenu']}`} 
+          <div
+            className={`${styles['menu-item']} ${styles['has-submenu']}`}
             onMouseEnter={() => { clearTimeout(cacheMenuTimer.current); setCacheSubmenuOpen(true); }}
             onMouseLeave={() => { cacheMenuTimer.current = setTimeout(() => setCacheSubmenuOpen(false), 300); }}
           >
@@ -506,8 +501,8 @@ export default function LivePreviewApp() {
           <div className={styles['welcome-page']}>
             <FontAwesomeIcon icon={faLayerGroup} className={styles['welcome-icon']} />
             <h1 className={styles['welcome-title']}>Live Preview</h1>
-            <p className={styles['welcome-subtitle']}>在上方地址栏输入您的本地开发服务器地址，或直接输入关键词进行搜索。<br/>您也可以点击下方快捷选项快速填入：</p>
-            
+            <p className={styles['welcome-subtitle']}>在上方地址栏输入您的本地开发服务器地址，或直接输入关键词进行搜索。<br />您也可以点击下方快捷选项快速填入：</p>
+
             <div className={styles['quick-links']}>
               <button className={styles['quick-link-btn']} onClick={() => handleGo('localhost:5173')}>
                 <FontAwesomeIcon icon={faVuejs} className={styles['brand-icon-vue']} /> <span>Vite 默认端口 (5173)</span>
@@ -523,13 +518,13 @@ export default function LivePreviewApp() {
         ) : (
           <div id="deviceWrapper" className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}>
             {/* 🌟 修改点 6：替换 iframe 为 object */}
-            <object 
-              ref={objectRef} 
-              data={frameUrl} 
+            <object
+              ref={objectRef}
+              data={frameUrl}
               type="text/html"
               onLoad={handleObjectLoad}
               className={styles['fromPage']}
-              title="preview" 
+              title="preview"
             >
               {/* 如果内容无法加载，会回退显示这段文字 */}
               <div style={{ padding: 20, textAlign: 'center' }}>无法加载预览，可能由于跨域或网页安全策略限制。</div>
@@ -549,36 +544,36 @@ export default function LivePreviewApp() {
                   <option value="time">按时间 (最新优先)</option>
                   <option value="title">按标题 (A-Z)</option>
                 </select>
-                <FontAwesomeIcon 
-                  icon={faPlus} 
-                  className={`${styles['action-icon']} ${styles['fav-header-plus']}`} 
-                  title="新增收藏" 
+                <FontAwesomeIcon
+                  icon={faPlus}
+                  className={`${styles['action-icon']} ${styles['fav-header-plus']}`}
+                  title="新增收藏"
                   onClick={() => setFavForm({ visible: true, title: '', url: '', editingOriginalUrl: '' })}
                 />
                 <div className={styles['fav-header-divider']}></div>
                 <FontAwesomeIcon icon={faXmark} className={styles['fav-close']} onClick={() => setActiveModal('none')} title="关闭" />
               </div>
             </div>
-            
+
             {favForm.visible && (
               <div className={styles['fav-form']}>
-                <input 
-                  type="text" 
-                  className={styles['fav-input']} 
-                  placeholder="输入网站标题" 
+                <input
+                  type="text"
+                  className={styles['fav-input']}
+                  placeholder="输入网站标题"
                   value={favForm.title}
-                  onChange={e => setFavForm({...favForm, title: e.target.value})}
+                  onChange={e => setFavForm({ ...favForm, title: e.target.value })}
                   autoFocus
                 />
-                <input 
-                  type="text" 
-                  className={styles['fav-input']} 
-                  placeholder="输入规范的网址 (如 https://...)" 
+                <input
+                  type="text"
+                  className={styles['fav-input']}
+                  placeholder="输入规范的网址 (如 https://...)"
                   value={favForm.url}
-                  onChange={e => setFavForm({...favForm, url: e.target.value})}
+                  onChange={e => setFavForm({ ...favForm, url: e.target.value })}
                 />
                 <div className={styles['fav-form-btns']}>
-                  <button className={styles['fav-btn']} onClick={() => setFavForm({...favForm, visible: false})}>取消</button>
+                  <button className={styles['fav-btn']} onClick={() => setFavForm({ ...favForm, visible: false })}>取消</button>
                   <button className={`${styles['fav-btn']} ${styles['primary']}`} onClick={saveFavorite}>保存</button>
                 </div>
               </div>
@@ -595,25 +590,25 @@ export default function LivePreviewApp() {
                       <div className={styles['fav-url']} title={f.url}>{f.url}</div>
                     </div>
                     <div className={styles['fav-actions']}>
-                      <FontAwesomeIcon 
-                        icon={copiedUrl === f.url ? faCheck : faCopyRegular} 
-                        className={`${styles['fav-action-btn']} ${styles['copy']} ${copiedUrl === f.url ? styles['copy-success'] : ''}`} 
-                        title="复制链接" 
+                      <FontAwesomeIcon
+                        icon={copiedUrl === f.url ? faCheck : faCopyRegular}
+                        className={`${styles['fav-action-btn']} ${styles['copy']} ${copiedUrl === f.url ? styles['copy-success'] : ''}`}
+                        title="复制链接"
                         onClick={(e) => { e.stopPropagation(); handleCopy(f.url); }}
                       />
-                      <FontAwesomeIcon 
-                        icon={faPen} 
-                        className={`${styles['fav-action-btn']} ${styles['edit']}`} 
-                        title="编辑" 
+                      <FontAwesomeIcon
+                        icon={faPen}
+                        className={`${styles['fav-action-btn']} ${styles['edit']}`}
+                        title="编辑"
                         onClick={(e) => {
                           e.stopPropagation();
                           setFavForm({ visible: true, title: f.title, url: f.url, editingOriginalUrl: f.url });
                         }}
                       />
-                      <FontAwesomeIcon 
-                        icon={faTrash} 
-                        className={`${styles['fav-action-btn']} ${styles['delete']}`} 
-                        title="删除" 
+                      <FontAwesomeIcon
+                        icon={faTrash}
+                        className={`${styles['fav-action-btn']} ${styles['delete']}`}
+                        title="删除"
                         onClick={(e) => { e.stopPropagation(); deleteFavorite(f.url); }}
                       />
                     </div>
@@ -641,8 +636,8 @@ export default function LivePreviewApp() {
                   const originalIndex = historyStack.length - 1 - index;
                   const isCurrent = originalIndex === historyIdx;
                   return (
-                    <div 
-                      key={originalIndex} 
+                    <div
+                      key={originalIndex}
                       className={`${styles['fav-item']} ${isCurrent ? styles['current-history'] : ''}`}
                       onClick={() => !isCurrent && navigateToHistory(originalIndex)}
                     >

@@ -9,32 +9,8 @@ import FileIcon from '../../components/FileIcon';
 import RecentProjectContextMenu from '../../components/RecentProjectContextMenu';
 import HighlightText from '../../components/HighlightText';
 import Tooltip from "../../components/Tooltip"
+import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from "../../utils"
 import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '../../types/RecentProjectsApp';
-
-function getDisplayPath(project: Project) {
-  let displayPath = project.fsPath;
-  try {
-    const isFile = !project.fsPath.startsWith('vscode-vfs') && !project.fsPath.startsWith('http');
-    if (isFile) {
-      let cleanPath = decodeURIComponent(project.fsPath);
-      cleanPath = cleanPath.replace(/^file:\/\//i, '');
-      cleanPath = cleanPath.replace(/^\/?[a-zA-Z]:[\\/]/i, '/');
-      displayPath = cleanPath;
-    } else if (project.customDomain) {
-      const pathPart = project.fsPath.split('/').slice(3).join('/');
-      displayPath = `Self-Hosted: ${project.customDomain}/${pathPart}`;
-    } else {
-      displayPath = project.fsPath.replace('vscode-vfs://github/', 'GitHub: ').replace('vscode-vfs://gitlab/', 'GitLab: ');
-    }
-  } catch (e) {
-    console.log('e', e);
-  }
-  return displayPath;
-}
-
-const isImageFile = (filePath: string) => /\.(png|jpe?g|gif|svg|webp|ico|bmp|tiff)$/i.test(filePath);
-const isExcelFile = (filePath: string) => /\.(xlsx|xls|csv)$/i.test(filePath);
-const isPdfFile = (filePath: string) => /\.pdf$/i.test(filePath);
 
 export default function RecentProjectsApp() {
   const [projects, setProjects] = useState<Project[]>([]);

@@ -342,7 +342,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const contentStr = Buffer.from(contentBytes).toString('utf8');
 
           if (!contentStr || contentStr.trim() === '') {
-             throw new Error('文件为空或内容无法读取');
+            throw new Error('文件为空或内容无法读取');
           }
 
           const panel = vscode.window.createWebviewPanel(
@@ -423,7 +423,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'table.svg');
-      
+
       panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, `/xls?type=read`);
 
     } catch (e) {
@@ -478,7 +478,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
- private async openVditorPanel(fsPath: string, projectName: string, type: 'read' | 'edit') {
+  private async openVditorPanel(fsPath: string, projectName: string, type: 'read' | 'edit') {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const fileName = path.basename(uri.path);
@@ -513,7 +513,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'markdown.svg');
 
-panel.webview.onDidReceiveMessage(async (msg) => {
+      panel.webview.onDidReceiveMessage(async (msg) => {
         if (msg.command === 'webviewLoaded') {
           panel.webview.postMessage({
             type: 'initVditorData',
@@ -524,6 +524,12 @@ panel.webview.onDidReceiveMessage(async (msg) => {
         } else if (msg.command === 'saveMarkdown' && type === 'edit') {
           await vscode.workspace.fs.writeFile(uri, Buffer.from(msg.content, 'utf8'));
           vscode.window.showInformationMessage('✅ Markdown 已保存');
+        } else if (msg.command === 'openExternal') {
+          try {
+            await vscode.env.openExternal(vscode.Uri.parse(msg.url));
+          } catch (e) {
+            vscode.window.showErrorMessage('无法打开该外部链接。');
+          }
         } else if (msg.command === 'copyToClipboard') {
           vscode.env.clipboard.writeText(msg.text);
           vscode.window.showInformationMessage(`🔗 链接已复制: ${msg.text}`);

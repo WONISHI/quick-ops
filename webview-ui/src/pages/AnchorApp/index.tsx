@@ -2,23 +2,11 @@ import { useEffect, useRef } from 'react';
 import * as d3 from 'd3';
 import { vscode } from '../../utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faExpand, faCompress, faRotateRight, faMinus, faPlus, faTag, faPenToSquare, faTrash, faLink, type IconDefinition } from '@fortawesome/free-solid-svg-icons';
+import { faExpand, faCompress, faRotateRight, faMinus, faPlus, faTag, faPenToSquare, faTrash, faLink } from '@fortawesome/free-solid-svg-icons';
 import { faFolderOpen as faFolderOpenReg, faFileCode as faFileCodeReg } from '@fortawesome/free-regular-svg-icons';
 import type { TreeNodeData, TreeNode, IconTuple } from '../../types/AnchorApp';
 import styles from './index.module.css';
-
-function getIconSvg(iconDef: IconDefinition, className: string = '') {
-  const iconArray = iconDef.icon as unknown as IconTuple;
-  const width = iconArray[0];
-  const height = iconArray[1];
-  const path = iconArray[4];
-  return `<svg class="${className}" viewBox="0 0 ${width} ${height}" width="1em" height="1em" fill="currentColor"><path d="${path}"></path></svg>`;
-}
-
-function escapeHtml(text: string) {
-  if (!text) return '';
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
-}
+import { getIconSvg, escapeHtml } from "../../utils"
 
 export default function AnchorApp() {
   const containerRef = useRef<HTMLDivElement>(null);
