@@ -458,6 +458,11 @@
         "command": "quickOps.cloneGitProject",
         "title": "克隆仓库",
         "icon": "$(cloud-download)"
+      },
+      {
+        "command": "quickOps.openProject",
+        "title": "在编辑器中打开此项目",
+        "icon": "$(open-in-product)"
       }
     ],
     "keybindings": [
@@ -512,9 +517,14 @@
           "group": "navigation@3"
         },
         {
+          "command": "quickOps.openProject",
+          "when": "view == quickOps.gitView && quickOps.isPreviewingOther",
+          "group": "navigation@4"
+        },
+        {
           "command": "quickOps.editRemoteUrl",
           "when": "view == quickOps.gitView && quickOps.hasGitRemote",
-          "group": "navigation@4"
+          "group": "navigation@5"
         }
       ],
       "editor/title": [

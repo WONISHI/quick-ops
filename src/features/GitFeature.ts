@@ -186,8 +186,42 @@ export class GitFeature implements IFeature {
       }
     }
 
-    // 动态注入 Context，如果是有远程仓库的本地项目，右上角的 Settings 按钮就会出现
+    // 🌟 1. 控制是否显示远程编辑按钮
     vscode.commands.executeCommand('setContext', 'quickOps.hasGitRemote', hasRemote);
+
+    // 🌟 2. 核心：判断当前预览目录是否是工作区，若不是则显示“打开项目”按钮
+    const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const isPreviewingOther = !!newPath && newPath !== defaultWorkspace;
+    vscode.commands.executeCommand('setContext', 'quickOps.isPreviewingOther', isPreviewingOther);
+  }
+
+  // 🌟 新增：注册右上角“打开项目”的命令
+  private registerOpenProjectCommand(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+      vscode.commands.registerCommand('quickOps.openProject', async () => {
+        const currentPath = this._currentPreviewPath;
+        if (!currentPath) return;
+
+        const projectName = path.basename(currentPath);
+
+        const choice = await vscode.window.showInformationMessage(
+          `是否要在编辑器中打开预览的项目 [ ${projectName} ]？`,
+          { modal: true },
+          '在当前窗口打开',
+          '在新窗口打开'
+        );
+
+        if (choice === '在当前窗口打开') {
+          // 警告：当前窗口打开会替换掉现有的工作区
+          const confirm = await vscode.window.showWarningMessage(`确定要在当前窗口打开吗？\n这将会关闭您当前正在工作的工作区！`, { modal: true }, '确认替换打开');
+          if (confirm === '确认替换打开') {
+            await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(currentPath), false);
+          }
+        } else if (choice === '在新窗口打开') {
+          await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(currentPath), true);
+        }
+      })
+    );
   }
 
   private registerEditRemoteUrlCommand(context: vscode.ExtensionContext): void {
@@ -752,6 +786,7 @@ export class GitFeature implements IFeature {
     this.registerReturnToWorkspaceCommand(context);
     this.registerCloneGitProjectCommand(context);
     this.registerEditRemoteUrlCommand(context);
+    this.registerOpenProjectCommand(context);
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
