@@ -12,6 +12,8 @@ export class GitFeature implements IFeature {
 
   private readonly RECENT_PROJECTS_STATE_KEY = 'quickOps.recentProjectsHistory';
   private readonly GIT_PROJECTS_STATE_KEY = 'quickOps.gitProjectsHistory';
+  // 🌟 新增：用于记录上一次克隆目录的 Key
+  private readonly LAST_CLONE_PATH_KEY = 'quickOps.lastClonePath'; 
 
   private gitProvider!: GitWebviewProvider;
 
@@ -317,52 +319,121 @@ export class GitFeature implements IFeature {
         if (!inputUrl) return;
 
         const repoUrl = inputUrl.trim().replace(/^git\s+clone\s+/i, '').trim();
+        let parentPath = '';
 
-        const folderUris = await vscode.window.showOpenDialog({
-          title: '选择仓库存放文件夹',
-          openLabel: '克隆到此文件夹',
-          canSelectFiles: false,
-          canSelectFolders: true,
-          canSelectMany: false,
-        });
+        // 🌟 1. 优化：记忆上一次克隆的目录
+        const lastClonePath = context.globalState.get<string>(this.LAST_CLONE_PATH_KEY);
 
-        if (!folderUris || !folderUris[0]) return;
+        if (lastClonePath) {
+          const choice = await vscode.window.showQuickPick([
+            { label: '$(folder) 存放在上一次目录', description: lastClonePath, targetPath: lastClonePath },
+            { label: '$(folder-opened) 选择新的存放目录...', description: '', targetPath: 'NEW' }
+          ], { 
+            placeHolder: '请选择克隆存放的目录',
+            ignoreFocusOut: true
+          });
 
-        const parentPath = folderUris[0].fsPath;
+          if (!choice) return;
+
+          if (choice.targetPath === 'NEW') {
+            const folderUris = await vscode.window.showOpenDialog({
+              title: '选择新仓库存放文件夹',
+              openLabel: '克隆到此文件夹',
+              canSelectFiles: false,
+              canSelectFolders: true,
+              canSelectMany: false,
+            });
+            if (!folderUris || !folderUris[0]) return;
+            parentPath = folderUris[0].fsPath;
+            // 更新缓存
+            await context.globalState.update(this.LAST_CLONE_PATH_KEY, parentPath);
+          } else {
+            parentPath = choice.targetPath;
+          }
+        } else {
+          // 没有历史记录，直接弹出选择框
+          const folderUris = await vscode.window.showOpenDialog({
+            title: '选择仓库存放文件夹',
+            openLabel: '克隆到此文件夹',
+            canSelectFiles: false,
+            canSelectFolders: true,
+            canSelectMany: false,
+          });
+          if (!folderUris || !folderUris[0]) return;
+          parentPath = folderUris[0].fsPath;
+          // 记录本次选择
+          await context.globalState.update(this.LAST_CLONE_PATH_KEY, parentPath);
+        }
+
         const repoName = this.getRepoFolderName(repoUrl);
         const targetPath = await this.getAvailableClonePath(parentPath, repoName);
 
-        // 🌟 1. 获取远程分支列表
+        // 🌟 2. 获取远程分支列表 & 识别默认分支
         let targetBranch: string | undefined = undefined;
         let remoteBranches: string[] = [];
+        let defaultBranch: string | undefined = undefined;
 
         try {
-          remoteBranches = await vscode.window.withProgress({
+          await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: '正在获取远程分支信息...',
+            title: '正在解析远程分支...',
             cancellable: false
           }, async () => {
-            const remoteOutput = await simpleGit().listRemote(['--heads', repoUrl]);
-            return remoteOutput.split('\n')
-              .filter(line => line.trim())
+            // 使用 --symref 可以直接拿到 HEAD 指向的默认分支信息
+            const remoteOutput = await simpleGit().listRemote(['--symref', repoUrl]);
+            
+            // 提取默认分支
+            const defaultMatch = remoteOutput.match(/ref:\s+refs\/heads\/(.+?)\s+HEAD/);
+            if (defaultMatch) {
+              defaultBranch = defaultMatch[1];
+            }
+
+            // 提取所有分支
+            remoteBranches = remoteOutput.split('\n')
               .map(line => {
-                const match = line.match(/refs\/heads\/(.+)$/);
+                const match = line.match(/^[0-9a-fA-F]+\s+refs\/heads\/(.+)$/);
                 return match ? match[1] : null;
               })
               .filter(Boolean) as string[];
+              
+            // 去重
+            remoteBranches = [...new Set(remoteBranches)];
           });
         } catch (error) {
-          // 如果获取失败（如认证问题），则回退到默认的全量克隆，不阻断流程
+          // 如果获取失败（如无权限/网络问题），静默跳过，按常规无参数 clone 兜底
         }
 
-        // 🌟 2. 分支选择逻辑
+        // 🌟 3. 弹出分支选择（设置 activeItems 默认选中默认分支）
         if (remoteBranches.length === 1) {
           targetBranch = remoteBranches[0];
         } else if (remoteBranches.length > 1) {
-          targetBranch = await vscode.window.showQuickPick(remoteBranches, {
-            placeHolder: '请选择要克隆的远程分支 (取消则放弃克隆)',
-            title: `选择克隆分支 - ${repoName}`,
-            ignoreFocusOut: true
+          targetBranch = await new Promise<string | undefined>((resolve) => {
+            const qp = vscode.window.createQuickPick();
+            qp.title = `选择克隆分支 - ${repoName}`;
+            qp.placeholder = '请选择要克隆的远程分支 (取消则放弃克隆)';
+            qp.ignoreFocusOut = true;
+            
+            qp.items = remoteBranches.map(b => ({
+              label: b,
+              description: b === defaultBranch ? '默认分支' : ''
+            }));
+
+            // 设置默认焦点
+            if (defaultBranch) {
+              const active = qp.items.find(i => i.label === defaultBranch);
+              if (active) qp.activeItems = [active];
+            }
+
+            qp.onDidAccept(() => {
+              resolve(qp.selectedItems[0]?.label);
+              qp.hide();
+            });
+            qp.onDidHide(() => {
+              qp.dispose();
+              resolve(undefined);
+            });
+            
+            qp.show();
           });
           
           if (!targetBranch) return; // 用户取消了分支选择，终止流程
