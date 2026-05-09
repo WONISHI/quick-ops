@@ -216,7 +216,7 @@
     font-size: 12px;
 }
 
-:global(.meta-tag .meat-icon){
+:global(.meta-tag .meta-icon){
     color: var(--vscode-badge-foreground) !important;
 }
 
