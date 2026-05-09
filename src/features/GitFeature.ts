@@ -332,26 +332,76 @@ export class GitFeature implements IFeature {
         const repoName = this.getRepoFolderName(repoUrl);
         const targetPath = await this.getAvailableClonePath(parentPath, repoName);
 
+        // 🌟 1. 获取远程分支列表
+        let targetBranch: string | undefined = undefined;
+        let remoteBranches: string[] = [];
+
+        try {
+          remoteBranches = await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: '正在获取远程分支信息...',
+            cancellable: false
+          }, async () => {
+            const remoteOutput = await simpleGit().listRemote(['--heads', repoUrl]);
+            return remoteOutput.split('\n')
+              .filter(line => line.trim())
+              .map(line => {
+                const match = line.match(/refs\/heads\/(.+)$/);
+                return match ? match[1] : null;
+              })
+              .filter(Boolean) as string[];
+          });
+        } catch (error) {
+          // 如果获取失败（如认证问题），则回退到默认的全量克隆，不阻断流程
+        }
+
+        // 🌟 2. 分支选择逻辑
+        if (remoteBranches.length === 1) {
+          targetBranch = remoteBranches[0];
+        } else if (remoteBranches.length > 1) {
+          targetBranch = await vscode.window.showQuickPick(remoteBranches, {
+            placeHolder: '请选择要克隆的远程分支 (取消则放弃克隆)',
+            title: `选择克隆分支 - ${repoName}`,
+            ignoreFocusOut: true
+          });
+          
+          if (!targetBranch) return; // 用户取消了分支选择，终止流程
+        }
+
         try {
           await vscode.window.withProgress(
             {
               location: vscode.ProgressLocation.Notification,
-              title: `正在克隆 ${repoName}...`,
+              title: targetBranch ? `正在克隆 ${repoName} (分支: ${targetBranch})...` : `正在克隆 ${repoName}...`,
               cancellable: false,
             },
             async () => {
-              await simpleGit().clone(repoUrl, targetPath);
+              // 🌟 3. 携带 -b 参数进行克隆
+              const cloneOptions = targetBranch ? ['-b', targetBranch] : [];
+              await simpleGit().clone(repoUrl, targetPath, cloneOptions);
             }
           );
 
+          // 🌟 4. 克隆完成后的操作选项
           const action = await vscode.window.showInformationMessage(
-            `✅ 仓库已克隆到：${targetPath}`,
-            '立即打开',
-            '稍后'
+            `✅ 仓库已成功克隆到：${targetPath}`,
+            '在当前窗口打开',
+            '在新窗口打开'
           );
 
-          if (action === '立即打开') {
-            await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(targetPath), false);
+          if (action === '在新窗口打开') {
+            await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(targetPath), true);
+          } else if (action === '在当前窗口打开') {
+            // 🌟 5. 当前窗口打开时的覆盖警告（同截图设计）
+            const confirm = await vscode.window.showWarningMessage(
+              `确定要在当前窗口打开 [ ${repoName} ] 吗？\n这将会关闭您当前正在工作的工作区！`,
+              { modal: true },
+              '确认覆盖打开'
+            );
+
+            if (confirm === '确认覆盖打开') {
+              await vscode.commands.executeCommand('vscode.openFolder', vscode.Uri.file(targetPath), false);
+            }
           }
         } catch (error: any) {
           vscode.window.showErrorMessage(`克隆仓库失败: ${error?.message ?? String(error)}`);
