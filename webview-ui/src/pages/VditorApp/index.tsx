@@ -4,6 +4,8 @@ import 'vditor/dist/index.css';
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
 
+import VditorMeta from './plugins/vditor-meta';
+
 export default function VditorApp() {
   const vditorRef = useRef<HTMLDivElement>(null);
   const vditorInstanceRef = useRef<Vditor | null>(null);
@@ -15,13 +17,25 @@ export default function VditorApp() {
 
     const handleGlobalClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
+
+      const copyBtn = target.closest('.meta-copy-btn');
+      if (copyBtn) {
+        const textToCopy = copyBtn.getAttribute('data-copy');
+        if (textToCopy) {
+          event.preventDefault();
+          event.stopPropagation();
+          vscode.postMessage({ command: 'copyToClipboard', text: textToCopy });
+          return;
+        }
+      }
+
       const anchor = target.closest('a');
       const href = anchor?.getAttribute('href');
 
       if (anchor && href && (href.startsWith('http://') || href.startsWith('https://'))) {
         event.preventDefault();
         event.stopPropagation();
-        
+
         vscode.postMessage({ command: 'copyToClipboard', text: href });
       }
     };
@@ -35,9 +49,10 @@ export default function VditorApp() {
         if (vditorRef.current) {
           const isEdit = msg.mode === 'edit';
           setIsReadMode(!isEdit);
+          const processedContent = VditorMeta(msg.content);
 
           const vd = new Vditor(vditorRef.current, {
-            value: msg.content,
+            value: processedContent,
             mode: 'ir',
             theme: 'classic',
             lang: 'zh_CN',
@@ -55,7 +70,7 @@ export default function VditorApp() {
               markdown: {
                 linkBase: '',
                 linkPrefix: '',
-              }
+              },
             },
             after: () => {
               if (!isEdit) {

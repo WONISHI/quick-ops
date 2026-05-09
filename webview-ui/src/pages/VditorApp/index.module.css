@@ -79,7 +79,7 @@
     border: 1px solid var(--vscode-panel-border) !important;
 }
 
-/* 🌟 VS Code 风格的滚动条 */
+/* VS Code 风格的滚动条 */
 :global(.vditor-ir::-webkit-scrollbar) {
     width: 10px;
     height: 10px;
@@ -98,7 +98,7 @@
 }
 
 /* =========================================
-   🌟 只读模式 (Read Mode) 逻辑
+   只读模式 (Read Mode) 逻辑
    ========================================= */
 .read-mode :global(.vditor-toolbar) {
     display: none !important;
@@ -112,4 +112,130 @@
 .read-mode :global(.vditor-ir__node--expand pre.vditor-ir__marker),
 .read-mode :global(.vditor-ir__info) {
     display: none !important;
+}
+
+/* =========================================
+   🌟 自定义 Frontmatter 表格解析样式
+   ========================================= */
+
+:global(.frontmatter-table-container) {
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: var(--vscode-editor-background);
+}
+
+:global(.frontmatter-table) {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    line-height: 1.6;
+    margin-bottom:0 !important;
+}
+
+:global(.frontmatter-table) {
+    border-color:var(--vscode-panel-border) !important;
+}
+
+:global(.frontmatter-table td) {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    vertical-align: middle;
+}
+
+:global(.frontmatter-table tr:last-child td) {
+    border-bottom: none;
+}
+
+/* 第一列：Key */
+:global(.frontmatter-table .meta-key) {
+    width: 140px;
+    font-weight: 600;
+    color: var(--vscode-descriptionForeground);
+    background-color: var(--vscode-editorGroupHeader-tabsBackground);
+    border: 1px solid var(--vscode-panel-border);
+    white-space: nowrap;
+}
+
+/* 第二列：Value */
+:global(.frontmatter-table .meta-value) {
+    color: var(--vscode-descriptionForeground);
+    background-color: var(--vscode-editorGroupHeader-tabsBackground);
+    word-break: break-all;
+    border-color:var(--vscode-panel-border);
+}
+
+/* --- 各类型 Value 的定制组件 --- */
+
+/* 1. 链接块 */
+:global(.meta-link-box) {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+:global(.meta-link) {
+    color: var(--vscode-textLink-foreground) !important;
+    text-decoration: none;
+    flex: 1;
+}
+
+:global(.meta-link:hover) {
+    color: var(--vscode-textLink-activeForeground) !important;
+    text-decoration: underline;
+}
+
+/* 隐藏复制按钮，Hover 时显示 */
+:global(.meta-copy-btn) {
+    cursor: pointer;
+    opacity: 0;
+    color: var(--vscode-icon-foreground);
+    padding: 4px;
+    border-radius: 3px;
+    transition: opacity 0.2s, background-color 0.2s;
+}
+
+:global(.meta-link-box:hover .meta-copy-btn) {
+    opacity: 0.6;
+}
+
+:global(.meta-copy-btn:hover) {
+    opacity: 1 !important;
+    background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+/* 2. Tag 块 */
+:global(.meta-tag) {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background-color: var(--vscode-badge-background);
+    color: var(--vscode-badge-foreground);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+}
+
+:global(.meta-tag .meat-icon){
+    color: var(--vscode-badge-foreground) !important;
+}
+
+/* 3. 日期块 */
+:global(.meta-date) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--vscode-editor-foreground);
+}
+
+/* 4. Checkbox 块 */
+:global(.meta-checkbox) {
+    display: flex;
+    align-items: center;
+}
+
+/* 通用 Icon 大小 */
+:global(.meta-icon) {
+    font-size: 14px;
+    color: var(--vscode-icon-foreground);
 }
