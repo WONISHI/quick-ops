@@ -478,7 +478,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async openVditorPanel(fsPath: string, projectName: string, type: 'read' | 'edit') {
+ private async openVditorPanel(fsPath: string, projectName: string, type: 'read' | 'edit') {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const fileName = path.basename(uri.path);
@@ -489,73 +489,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       const mdDir = path.dirname(uri.fsPath);
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-
-      const imageMap: Record<string, string> = {};
-
-      const wikiRegex = /!\[\[(.*?)\]\]/g;
-      const mdRegex = /!\[.*?\]\((.*?)\)/g;
-
-      const foundNames = new Set<string>();
-      let match;
-
-      while ((match = wikiRegex.exec(content)) !== null) { foundNames.add(match[1].trim()); }
-      while ((match = mdRegex.exec(content)) !== null) {
-        const p = match[1].trim();
-        if (p.includes('Pasted image')) {
-          foundNames.add(p);
-        }
-      }
-
-      for (const exactName of foundNames) {
-        let decodedName = exactName;
-        try {
-          decodedName = decodeURIComponent(exactName);
-        } catch (e) { }
-
-        const searchDirs: string[] = [];
-
-        searchDirs.push(
-          path.join(mdDir, 'assets'),
-          path.join(mdDir, 'img'),
-          path.join(mdDir, 'images')
-        );
-
-        if (workspaceRoot) {
-          searchDirs.push(
-            path.join(workspaceRoot, 'assets'),
-            path.join(workspaceRoot, 'img'),
-            path.join(workspaceRoot, 'images')
-          );
-        }
-
-        searchDirs.push(mdDir);
-        if (workspaceRoot) {
-          searchDirs.push(workspaceRoot);
-        }
-
-        const uniqueSearchDirs = Array.from(new Set(searchDirs));
-
-        let foundPath = '';
-        for (const dir of uniqueSearchDirs) {
-          const dirUri = vscode.Uri.file(dir);
-          try {
-            const stat = await vscode.workspace.fs.stat(dirUri);
-            if ((stat.type & vscode.FileType.Directory) !== 0) {
-              const files = await vscode.workspace.fs.readDirectory(dirUri);
-              const matchedFile = files.find(([name, type]) => (type & vscode.FileType.File) !== 0 && (name === decodedName || name === exactName));
-
-              if (matchedFile) {
-                foundPath = path.join(dir, matchedFile[0]);
-                break;
-              }
-            }
-          } catch (e) { }
-        }
-
-        if (foundPath) {
-          imageMap[exactName] = foundPath;
-        }
-      }
 
       const panel = vscode.window.createWebviewPanel(
         'vditorPreviewReact',
@@ -580,23 +513,20 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'markdown.svg');
 
-      const finalImageMap: Record<string, string> = {};
-      for (const [rawName, absPath] of Object.entries(imageMap)) {
-        finalImageMap[rawName] = panel.webview.asWebviewUri(vscode.Uri.file(absPath)).toString();
-      }
-
-      panel.webview.onDidReceiveMessage(async (msg) => {
+panel.webview.onDidReceiveMessage(async (msg) => {
         if (msg.command === 'webviewLoaded') {
           panel.webview.postMessage({
             type: 'initVditorData',
             content: content,
             mode: type,
-            fsPath: fsPath,
-            imageMap: finalImageMap
+            fsPath: fsPath
           });
         } else if (msg.command === 'saveMarkdown' && type === 'edit') {
           await vscode.workspace.fs.writeFile(uri, Buffer.from(msg.content, 'utf8'));
           vscode.window.showInformationMessage('✅ Markdown 已保存');
+        } else if (msg.command === 'copyToClipboard') {
+          vscode.env.clipboard.writeText(msg.text);
+          vscode.window.showInformationMessage(`🔗 链接已复制: ${msg.text}`);
         }
       });
 

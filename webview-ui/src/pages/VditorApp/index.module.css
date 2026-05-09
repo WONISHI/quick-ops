@@ -11,8 +11,6 @@
     border: none !important;
 }
 
-
-/* 抹除默认边框和背景 */
 :global(.vditor) {
     border: none !important;
     background-color: transparent !important;

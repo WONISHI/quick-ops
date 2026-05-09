@@ -7,12 +7,26 @@ import styles from './index.module.css';
 export default function VditorApp() {
   const vditorRef = useRef<HTMLDivElement>(null);
   const vditorInstanceRef = useRef<Vditor | null>(null);
-
   const [, setVditor] = useState<Vditor>();
   const [isReadMode, setIsReadMode] = useState(false);
 
   useEffect(() => {
     vscode.postMessage({ command: 'webviewLoaded' });
+
+    const handleGlobalClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      const anchor = target.closest('a');
+      const href = anchor?.getAttribute('href');
+
+      if (anchor && href && (href.startsWith('http://') || href.startsWith('https://'))) {
+        event.preventDefault();
+        event.stopPropagation();
+        
+        vscode.postMessage({ command: 'copyToClipboard', text: href });
+      }
+    };
+
+    window.addEventListener('click', handleGlobalClick, true);
 
     const handleMessage = (e: MessageEvent) => {
       const msg = e.data;
@@ -22,28 +36,8 @@ export default function VditorApp() {
           const isEdit = msg.mode === 'edit';
           setIsReadMode(!isEdit);
 
-          let processedContent = msg.content;
-
-          const wikiRegex = /!\[\[(.*?)\]\]/g;
-          processedContent = processedContent.replace(wikiRegex, (_: string, rawImageName: string) => {
-            const exactName = rawImageName.trim();
-            if (msg.imageMap && msg.imageMap[exactName]) {
-              return `![${exactName}](${msg.imageMap[exactName]})`;
-            }
-            return `![${exactName}](${exactName})`;
-          });
-
-          const mdRegex = /!\[(.*?)\]\((.*?)\)/g;
-          processedContent = processedContent.replace(mdRegex, (match: string, alt: string, path: string) => {
-            const exactPath = path.trim();
-            if (msg.imageMap && msg.imageMap[exactPath]) {
-              return `![${alt}](${msg.imageMap[exactPath]})`;
-            }
-            return match;
-          });
-
           const vd = new Vditor(vditorRef.current, {
-            value: processedContent,
+            value: msg.content,
             mode: 'ir',
             theme: 'classic',
             lang: 'zh_CN',
@@ -58,6 +52,10 @@ export default function VditorApp() {
               theme: {
                 current: 'classic',
               },
+              markdown: {
+                linkBase: '',
+                linkPrefix: '',
+              }
             },
             after: () => {
               if (!isEdit) {
@@ -67,9 +65,7 @@ export default function VditorApp() {
                 }
               }
             },
-            input: () => {
-              // vscode.postMessage({ command: 'saveMarkdown', content: value });
-            },
+            input: () => {},
           });
 
           vditorInstanceRef.current = vd;
@@ -93,6 +89,7 @@ export default function VditorApp() {
     return () => {
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('resize', handleResize);
+      window.removeEventListener('click', handleGlobalClick, true);
       vditorInstanceRef.current?.destroy();
     };
   }, []);
