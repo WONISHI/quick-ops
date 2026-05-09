@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { vscode } from '../../utils/vscode';
-import styles from './index.module.css'; // 🌟 使用 CSS Module 导入
+import styles from './index.module.css';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
@@ -37,7 +37,10 @@ export default function LivePreviewApp() {
   const [showSuggest, setShowSuggest] = useState(false);
   const [suggestIndex, setSuggestIndex] = useState(-1);
   const [copiedUrl, setCopiedUrl] = useState('');
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  
+  // 🌟 修改点 1：将 iframeRef 改为 objectRef
+  const objectRef = useRef<HTMLObjectElement>(null);
+  
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
   const cacheMenuTimer = useRef<any>(null);
@@ -80,10 +83,11 @@ export default function LivePreviewApp() {
     };
   }, []);
 
-  const handleIframeLoad = () => {
-    if (!iframeRef.current || historyIdx < 0) return;
+  // 🌟 修改点 2：适配 Object 元素的加载事件
+  const handleObjectLoad = () => {
+    if (!objectRef.current || historyIdx < 0) return;
     try {
-      const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
+      const doc = objectRef.current.contentDocument || objectRef.current.contentWindow?.document;
       if (doc && doc.title) {
         setHistoryStack(prev => {
           const next = [...prev];
@@ -92,8 +96,8 @@ export default function LivePreviewApp() {
         });
       }
     } catch (e) { 
-      console.log('e',e)
-     }
+      console.log('e',e);
+    }
   };
 
   const pushHistory = (url: string, defaultTitle: string) => {
@@ -201,11 +205,12 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'saveDevice', device: newDevice });
   };
 
+  // 🌟 修改点 3：适配 Object 的 contentDocument 获取
   const toggleFavorite = () => {
     if (!frameUrl) return;
     let title = frameUrl;
-    try { title = iframeRef.current?.contentDocument?.title || urlInput; } catch(e) {
-      console.log('e',e)
+    try { title = objectRef.current?.contentDocument?.title || urlInput; } catch(e) {
+      console.log('e',e);
     }
     vscode?.postMessage({ type: 'toggleFavorite', url: frameUrl, title });
   };
@@ -237,9 +242,10 @@ export default function LivePreviewApp() {
     setMenuOpen(!menuOpen);
   };
 
+  // 🌟 修改点 4：适配 Object 的 Window 获取
   const handleCacheClear = (type: 'local' | 'session' | 'cookie') => {
     try {
-      const win = iframeRef.current?.contentWindow;
+      const win = objectRef.current?.contentWindow;
       if (!win) throw new Error("No Access");
       if (type === 'local') win.localStorage.clear();
       else if (type === 'session') win.sessionStorage.clear();
@@ -255,15 +261,16 @@ export default function LivePreviewApp() {
       vscode?.postMessage({ type: 'showInfo', message: '✅ 缓存清理成功！' });
       handleRefresh();
     } catch(e) {
-      console.log('e',e)
+      console.log('e',e);
       vscode?.postMessage({ type: 'showWarning', message: '⚠️ 跨域安全限制，请在开发者工具中手动清理。' });
     }
     setMenuOpen(false);
   };
 
+  // 🌟 修改点 5：适配 Object 的 Document 获取
   const handleInjectVConsole = () => {
     try {
-      const frameDoc = iframeRef.current?.contentDocument || iframeRef.current?.contentWindow?.document;
+      const frameDoc = objectRef.current?.contentDocument || objectRef.current?.contentWindow?.document;
       if (!frameDoc) throw new Error("No Access");
       if (frameDoc.getElementById('vconsole-script-injected')) {
         vscode?.postMessage({ type: 'showInfo', message: 'vConsole 已经注入，请查看页面右下角！' });
@@ -280,7 +287,7 @@ export default function LivePreviewApp() {
         frameDoc.head.appendChild(script);
       }
     } catch (e) {
-      console.log('e',e)
+      console.log('e',e);
       vscode?.postMessage({ type: 'vConsoleFallback' });
     }
     setMenuOpen(false);
@@ -515,14 +522,18 @@ export default function LivePreviewApp() {
           </div>
         ) : (
           <div id="deviceWrapper" className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}>
-            <iframe 
-              ref={iframeRef} 
-              src={frameUrl} 
-              onLoad={handleIframeLoad}
+            {/* 🌟 修改点 6：替换 iframe 为 object */}
+            <object 
+              ref={objectRef} 
+              data={frameUrl} 
+              type="text/html"
+              onLoad={handleObjectLoad}
+              className={styles['fromPage']}
               title="preview" 
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads"
-              allow="clipboard-read; clipboard-write;"
-            ></iframe>
+            >
+              {/* 如果内容无法加载，会回退显示这段文字 */}
+              <div style={{ padding: 20, textAlign: 'center' }}>无法加载预览，可能由于跨域或网页安全策略限制。</div>
+            </object>
           </div>
         )}
       </div>
