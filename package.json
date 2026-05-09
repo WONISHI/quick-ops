@@ -534,8 +534,7 @@
         },
         {
           "command": "quick-ops.openLivePreview",
-          "group": "navigation@2",
-          "when": "resourceScheme == file"
+          "group": "navigation@2"
         },
         {
           "command": "quick-ops.anchor.showMenu",
