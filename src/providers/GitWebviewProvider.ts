@@ -28,6 +28,14 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           const filepath = uri.path.substring(1);
 
           if (ref === 'empty') return '';
+          if (ref === 'working') {
+            try {
+              const content = await vscode.workspace.fs.readFile(vscode.Uri.file(path.join(cwd, filepath)));
+              return Buffer.from(content).toString('utf8');
+            } catch {
+              return '';
+            }
+          }
 
           const git: SimpleGit = simpleGit(cwd);
 
@@ -78,16 +86,13 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     return vscode.Uri.parse(`quickops-git:///${file}?${query}`);
   }
 
-  private async openChangesEditor(
-    cwd: string,
-    title: string,
-    files: { status: string; file: string; baseRef?: string }[],
-    mode: 'working' | 'staged'
-  ): Promise<void> {
+  private async openChangesEditor(cwd: string, title: string, files: { status: string; file: string; baseRef?: string }[], mode: 'working' | 'staged'): Promise<void> {
     if (files.length === 0) {
       vscode.window.showInformationMessage(`${title} 中没有可打开的文件。`);
       return;
     }
+    const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const isCurrentWorkspace = defaultWorkspace && cwd === defaultWorkspace;
 
     const changesArgs = files.map((f) => {
       const status = f.status.charAt(0);
@@ -106,12 +111,16 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
       const leftUri = this.createGitContentUri(cwd, leftRef, f.file);
 
-      const rightUri =
-        mode === 'working'
-          ? rightRef === 'empty'
-            ? this.createGitContentUri(cwd, 'empty', f.file)
-            : fileUri
-          : this.createGitContentUri(cwd, rightRef || 'index', f.file);
+      let rightUri: vscode.Uri;
+      if (mode === 'working') {
+        if (rightRef === 'empty') {
+          rightUri = this.createGitContentUri(cwd, 'empty', f.file);
+        } else {
+          rightUri = isCurrentWorkspace ? fileUri : this.createGitContentUri(cwd, 'working', f.file);
+        }
+      } else {
+        rightUri = this.createGitContentUri(cwd, rightRef || 'index', f.file);
+      }
 
       return [fileUri, leftUri, rightUri];
     });
@@ -183,7 +192,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             const refs = await git.raw(['show-ref']).catch(() => '');
             const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
             currentState = refs + head;
-          } catch (e) { }
+          } catch (e) {}
 
           const graphChanged = currentState !== this._lastGraphState;
 
@@ -345,17 +354,17 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               {
                 label: '$(archive) 快速贮藏 (默认备注)',
                 description: '直接贮藏，使用系统自动生成的 WIP 备注',
-                alwaysShow: true
+                alwaysShow: true,
               },
               {
                 label: '$(edit) 自定义备注贮藏...',
                 description: '手动输入具体的贮藏备注信息',
-                alwaysShow: true
-              }
+                alwaysShow: true,
+              },
             ];
 
             const selected = await vscode.window.showQuickPick(options, {
-              placeHolder: '请选择贮藏方式'
+              placeHolder: '请选择贮藏方式',
             });
 
             if (!selected) return;
@@ -614,7 +623,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 try {
                   await git.fetch(['--all', '--prune']);
                   await updateQuickPickItems();
-                } catch (e) { }
+                } catch (e) {}
               }).finally(() => {
                 quickPick.busy = false;
               });
@@ -672,7 +681,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   type: 'graphData',
                   graphCommits,
                   graphFilter: selectedBranch,
-                  totalCommits // 发送给前端
+                  totalCommits, // 发送给前端
                 });
               });
             } catch (e: any) {
@@ -744,7 +753,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 try {
                   await git.fetch(['--all', '--prune']);
                   await updateQuickPickItems();
-                } catch (e) { }
+                } catch (e) {}
               }).finally(() => {
                 quickPick.busy = false;
               });
@@ -827,7 +836,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 try {
                   await git.fetch(['--all', '--prune']);
                   await updateQuickPickItems();
-                } catch (e) { }
+                } catch (e) {}
               }).finally(() => {
                 quickPick.busy = false;
               });
@@ -968,17 +977,20 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
           case 'diff': {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
-
+            const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            const isCurrentWorkspace = defaultWorkspace && cwd === defaultWorkspace;
             if (msg.status === 'C') {
               vscode.commands.executeCommand('vscode.open', fileUri);
             } else if (msg.status === 'U' || msg.status === 'A') {
               const query = encodeURIComponent(JSON.stringify({ cwd, ref: 'empty' }));
               const emptyUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${query}`);
-              vscode.commands.executeCommand('vscode.diff', emptyUri, fileUri, `${msg.file} (未跟踪)`);
+              const rightUri = isCurrentWorkspace ? fileUri : this.createGitContentUri(cwd, 'working', msg.file);
+              vscode.commands.executeCommand('vscode.diff', emptyUri, rightUri, `${msg.file} (未跟踪)`);
             } else {
               const query = encodeURIComponent(JSON.stringify({ cwd, ref: 'HEAD' }));
               const originalUri = vscode.Uri.parse(`quickops-git:///${msg.file}?${query}`);
-              vscode.commands.executeCommand('vscode.diff', originalUri, fileUri, `${msg.file} (工作树)`);
+              const rightUri = isCurrentWorkspace ? fileUri : this.createGitContentUri(cwd, 'working', msg.file);
+              vscode.commands.executeCommand('vscode.diff', originalUri, rightUri, `${msg.file} (工作树)`);
             }
             break;
           }
@@ -1021,7 +1033,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   const confirm = await vscode.window.showInformationMessage(
                     `当前分支 [ ${currentBranch} ] 尚未在远程仓库建立跟踪，是否要创建对应的远程分支并推送？`,
                     { modal: true },
-                    '创建远程分支并推送'
+                    '创建远程分支并推送',
                   );
 
                   if (confirm !== '创建远程分支并推送') return;
@@ -1216,7 +1228,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               let existingContent = Buffer.alloc(0);
               try {
                 existingContent = Buffer.from(await vscode.workspace.fs.readFile(gitignoreUri));
-              } catch (e) { }
+              } catch (e) {}
 
               const appendStr = existingContent.length > 0 ? `\n${msg.file}` : msg.file;
               const appendContent = Buffer.from(appendStr, 'utf8');
@@ -1326,7 +1338,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           const refs = await git.raw(['show-ref']).catch(() => '');
           const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
           this._lastGraphState = refs + head;
-        } catch (e) { }
+        } catch (e) {}
 
         const logOptions = {
           '--all': null,
@@ -1357,7 +1369,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           type: 'graphData',
           graphCommits,
           graphFilter: '全部分支',
-            totalCommits // 发送给前端
+          totalCommits, // 发送给前端
         });
       }
     };
