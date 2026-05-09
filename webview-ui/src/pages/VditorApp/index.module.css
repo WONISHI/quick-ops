@@ -239,3 +239,24 @@
     font-size: 14px;
     color: var(--vscode-icon-foreground);
 }
+
+:global(.vditor-ir__node[data-type="html-block"]) :global(.vditor-ir__preview) {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* 覆盖 pre 标签传递下来的代码字体和换行规则 */
+:global(.frontmatter-table-container) {
+    white-space: normal !important; /* 核心：打破 pre 标签的换行锁定 */
+    font-family: var(--vscode-editor-font-family), "Helvetica Neue", sans-serif !important; /* 覆盖代码等宽字体 */
+    
+    /* 下面是你原有的样式保持不变 */
+    margin-bottom: 20px;
+    border: 1px solid var(--vscode-panel-border);
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: var(--vscode-editor-background);
+}

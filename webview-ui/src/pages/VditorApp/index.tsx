@@ -6,6 +6,7 @@ import styles from './index.module.css';
 
 import { setupPlugins } from './plugins/setupPlugins';
 import VditorMeta from './plugins/vditor-meta';
+import VditorCompat from './plugins/vditor-compat';
 
 export default function VditorApp() {
   const vditorRef = useRef<HTMLDivElement>(null);
@@ -53,6 +54,7 @@ export default function VditorApp() {
           const appPlugins = setupPlugins();
           const processedContent = appPlugins
             .use(VditorMeta)
+            .use(VditorCompat, { title: msg.projectName || '文档预览' })
             .process(msg.content);
 
           const vd = new Vditor(vditorRef.current, {
