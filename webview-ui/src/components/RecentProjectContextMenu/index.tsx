@@ -13,6 +13,7 @@ import {
   faTrash,
   faColumns,
   faCodeCompare,
+  faListUl
 } from '@fortawesome/free-solid-svg-icons';
 import {
   faCopy,
@@ -74,6 +75,11 @@ export default function RecentProjectContextMenu({
             </li>
             <div className={styles['menu-separator']}></div>
 
+            {/* 🌟 新增：添加到Git记录列表 */}
+            <li onClick={() => onAction('addToGitList')}>
+              <FontAwesomeIcon icon={faListUl} className={styles['menu-icon']} /> 添加到Git记录列表
+            </li>
+
             <li onClick={() => onAction('edit')}>
               <FontAwesomeIcon icon={faPen} className={styles['menu-icon']} /> 编辑项目名称
             </li>
@@ -124,6 +130,12 @@ export default function RecentProjectContextMenu({
           <>
             {!payload.isFolder && (
               <>
+                {/* 🌟 新增：在VS Code打开 (携带位置记忆) */}
+                <li onClick={() => onAction('openInVsCode')}>
+                  <FontAwesomeIcon icon={faFileCode} className={styles['menu-icon']} style={{ color: '#5dade2' }} /> 在 VS Code 打开...
+                </li>
+                <div className={styles['menu-separator']}></div>
+
                 {isLocalHtmlOrSvg && (
                   <>
                     <li onClick={() => onAction('openWith')}>

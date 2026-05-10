@@ -19,7 +19,7 @@ export default function RecentProjectsApp() {
 
   const [lastOpenedPath, setLastOpenedPath] = useState('');
   const [searchQuery, setSearchQuery] = useState<string>((vscode.getState() as any)?.searchQuery || '');
-  
+
   const [selectedPath, setSelectedPath] = useState<string>('');
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
@@ -100,7 +100,7 @@ export default function RecentProjectsApp() {
           if (msg.currentUriStr) validPaths.add(msg.currentUriStr as string);
 
           Object.keys(newMap).forEach(key => {
-             if (!validPaths.has(key)) delete newMap[key];
+            if (!validPaths.has(key)) delete newMap[key];
           });
 
           data.forEach((p: Project) => {
@@ -140,11 +140,11 @@ export default function RecentProjectsApp() {
           setFolderSearchError('');
           setFileNameSearchResults((msg.results as DirChild[]) || []);
         }
-      } 
+      }
       else if (msg.type === 'revealPath') {
         const { targetPath, parentPaths, projectName } = msg as any;
         setSelectedPath(targetPath);
-        
+
         setExpandedPaths((prev) => {
           const next = new Set(prev);
           parentPaths.forEach((p: string) => next.add(p));
@@ -152,10 +152,10 @@ export default function RecentProjectsApp() {
         });
 
         parentPaths.forEach((p: string) => {
-           if (!dirChildrenRef.current[p]) {
-             setLoadingPaths(l => new Set(l).add(p));
-             vscode.postMessage({ type: 'readDir', fsPath: p, projectName });
-           }
+          if (!dirChildrenRef.current[p]) {
+            setLoadingPaths(l => new Set(l).add(p));
+            vscode.postMessage({ type: 'readDir', fsPath: p, projectName });
+          }
         });
       }
     };
@@ -228,7 +228,7 @@ export default function RecentProjectsApp() {
   const currentBaseUri = currentUri.split('?')[0];
   const projectInHistory = projects.find((p) => p.fsPath.split('?')[0] === currentBaseUri);
   const inHistory = !!projectInHistory;
-  
+
   const activeProjectToRender = projectInHistory || (currentWorkspace ? { ...currentWorkspace, timestamp: Date.now() } as Project : null);
   const otherProjects = projects.filter((p) => p.fsPath.split('?')[0] !== currentBaseUri);
 
@@ -280,10 +280,9 @@ export default function RecentProjectsApp() {
       setExpandedPaths((prev) => {
         const next = new Set(prev);
         const isExpanding = !next.has(path);
-        
+
         if (isExpanding) {
           next.add(path);
-          // 🌟 安全检查：如果正要展开且没有缓存数据，则触发加载
           if (!dirChildrenRef.current[path]) {
             setLoadingPaths((l) => new Set(l).add(path));
             vscode.postMessage({ type: 'readDir', fsPath: path, projectName });
@@ -315,6 +314,12 @@ export default function RecentProjectsApp() {
     const { payload } = contextMenu;
 
     switch (action) {
+      case 'addToGitList':
+        vscode.postMessage({ type: 'addToGitList', fsPath: payload.path });
+        break;
+      case 'openInVsCode':
+        vscode.postMessage({ type: 'openInVsCode', fsPath: payload.path });
+        break;
       case 'openWith':
         vscode.postMessage({ type: 'openWith', fsPath: payload.path, projectName: payload.projectName || '未知项目' });
         break;
@@ -419,7 +424,7 @@ export default function RecentProjectsApp() {
         </div>
       );
     }
-    
+
     if (!children) return null;
     if (children.length === 0) return <div className={styles['empty-node']}>（空文件夹/无读取权限）</div>;
 

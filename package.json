@@ -35,6 +35,7 @@
     "url": "https://github.com/WONISHI/quick-ops.git"
   },
   "activationEvents": [
+    "onStartupFinished",
     "onLanguage:vue",
     "onLanguage:html",
     "onLanguage:javascriptreact",

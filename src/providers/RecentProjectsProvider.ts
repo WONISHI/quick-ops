@@ -28,23 +28,50 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   constructor(private context: vscode.ExtensionContext) {
     this.initializeCurrentWorkspace();
 
-    // 🌟 1. 启动时主动探测一次当前是否有打开的文件
+    // 🌟 1. 跨窗口位置追踪：检测是否有前一个窗口丢给我们的待办跳转文件
+    this.checkPendingFileOpen();
+
     if (vscode.window.activeTextEditor) {
       this.handleEditorChange(vscode.window.activeTextEditor);
     }
 
-    // 🌟 2. 监听原生代码文件 (TextEditor) 的切换
     vscode.window.onDidChangeActiveTextEditor(editor => {
       this.handleEditorChange(editor);
     });
   }
 
-  // 🌟 核心修复：分离事件处理，坚决不写 else { setContext(false) } 
-  // 防止用户点击侧边栏面板时焦点丢失导致按钮消失
+  // 🌟 核心魔法：自动从 globalState 中读取并跳转到跨窗口传来的精确坐标
+  private async checkPendingFileOpen() {
+    const pending = this.context.globalState.get<{path: string, line: number, char: number, targetWorkspace?: string}>('quickOps.pendingOpenFile');
+    if (pending) {
+      // 校验是不是发给当前被激活的工作区的，防止被其他无关窗口截胡
+      const currentWorkspaceStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+      if (pending.targetWorkspace && currentWorkspaceStr !== pending.targetWorkspace) {
+        return; 
+      }
+
+      // 确认是自己的，消费掉它，防止下次启动再次弹开
+      await this.context.globalState.update('quickOps.pendingOpenFile', undefined);
+      
+      // 延迟 1.5 秒，等待新窗口的 Workspace 和文件树彻底加载完毕再打开，确保丝滑
+      setTimeout(async () => {
+        try {
+          const targetUri = pending.path.includes('://') ? vscode.Uri.parse(pending.path) : vscode.Uri.file(pending.path);
+          const doc = await vscode.workspace.openTextDocument(targetUri);
+          const editor = await vscode.window.showTextDocument(doc, { preview: false });
+          const pos = new vscode.Position(pending.line, pending.char);
+          editor.selection = new vscode.Selection(pos, pos);
+          editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+        } catch (e) {
+          console.error('[Quick Ops] 跨窗口恢复坐标失败:', e);
+        }
+      }, 1500);
+    }
+  }
+
   private handleEditorChange(editor: vscode.TextEditor | undefined) {
     if (editor) {
       let activePath = editor.document.uri.toString();
-      // 逆向解析虚拟只读路径
       if (editor.document.uri.scheme === 'quickops-ro') {
         const match = editor.document.uri.query.match(/target=([^&]+)/);
         if (match) {
@@ -110,7 +137,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     if (!rootProj) return;
 
-    // 向上逐级回溯，收集需要展开的全部父文件夹
     const parentPaths: string[] = [];
     const uri = vscode.Uri.parse(realPath);
     const rootUri = vscode.Uri.parse(rootProj.fsPath);
@@ -220,7 +246,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       },
       async () => {
         await this.refreshBranchesAsync();
-        // 🌟 即使历史记录为空，也要同步当前窗口的分支
         const currentUriStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
         if (currentUriStr && !this.getRecentProjects().some(p => p.fsPath === currentUriStr)) {
           await this.updateSingleBranch(currentUriStr, true);
@@ -242,6 +267,82 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
+        case 'addToGitList': {
+          const gitProjects = this.context.globalState.get<any[]>('quickOps.gitProjectsHistory') || [];
+          if (!gitProjects.find(p => p.fsPath === data.fsPath)) {
+            const proj = this.getRecentProjects().find(p => p.fsPath === data.fsPath);
+            gitProjects.unshift(proj || { fsPath: data.fsPath, name: path.basename(data.fsPath) });
+            await this.context.globalState.update('quickOps.gitProjectsHistory', gitProjects);
+            vscode.window.showInformationMessage('✅ 已添加到 Git 记录列表');
+            vscode.commands.executeCommand('quickOps.refreshGitProjects').then(undefined, () => {});
+          } else {
+            vscode.window.showWarningMessage('⚠️ 该项目已在 Git 记录列表中');
+          }
+          break;
+        }
+
+        // 🌟 重点新增：在 VS Code 打开文件并继承预览坐标位置
+        case 'openInVsCode': {
+          let currentLine = 0;
+          let currentChar = 0;
+          const targetUri = data.fsPath.includes('://') ? vscode.Uri.parse(data.fsPath) : vscode.Uri.file(data.fsPath);
+
+          // 去当前所有的活动 TextEditor 里找，看有没有此时正处于“只读预览”状态的文件，抓取它的精确光标
+          for (const editor of vscode.window.visibleTextEditors) {
+            if (
+              editor.document.uri.fsPath === targetUri.fsPath || 
+              (editor.document.uri.scheme === 'quickops-ro' && editor.document.uri.query.includes(encodeURIComponent(data.fsPath)))
+            ) {
+              currentLine = editor.selection.active.line;
+              currentChar = editor.selection.active.character;
+              break;
+            }
+          }
+
+          const choice = await vscode.window.showInformationMessage(
+            `要在 VS Code 原生资源管理器中完全打开该文件吗？`,
+            { modal: true },
+            '在当前窗口打开 (替换工作区)',
+            '在新窗口打开',
+            '仅作为散文件打开' // 不切换左侧的资源管理器文件夹
+          );
+
+          if (!choice) return;
+
+          if (choice === '仅作为散文件打开') {
+            try {
+              const doc = await vscode.workspace.openTextDocument(targetUri);
+              // preview: false 表示它是一个固定标签，不会被一点击就替换掉
+              const editor = await vscode.window.showTextDocument(doc, { preview: false });
+              const pos = new vscode.Position(currentLine, currentChar);
+              editor.selection = new vscode.Selection(pos, pos);
+              editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+            } catch (e) {
+              vscode.window.showErrorMessage('无法打开该文件');
+            }
+          } else {
+            // 无论是替换当前窗口还是新窗口，都需要切换 Workspace
+            const projects = this.getRecentProjects();
+            // 寻找该文件所属的项目根目录
+            const rootProj = projects.find(p => data.fsPath.startsWith(p.fsPath));
+            const workspaceUri = rootProj 
+              ? (rootProj.fsPath.includes('://') ? vscode.Uri.parse(rootProj.fsPath) : vscode.Uri.file(rootProj.fsPath)) 
+              : vscode.Uri.joinPath(targetUri, '..'); // 兜底用它的父级目录
+
+            // 把这颗“坐标种子”塞进 globalState
+            await this.context.globalState.update('quickOps.pendingOpenFile', {
+              path: data.fsPath,
+              line: currentLine,
+              char: currentChar,
+              targetWorkspace: workspaceUri.toString()
+            });
+
+            const forceNewWindow = choice === '在新窗口打开';
+            await vscode.commands.executeCommand('vscode.openFolder', workspaceUri, forceNewWindow);
+          }
+          break;
+        }
+
         case 'refresh':
           this.refresh();
           if (this.currentActivePath) {
@@ -995,7 +1096,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private async fetchDefaultBranch(platform: string, domain: string, repoFullName: string): Promise<string | undefined> {
     return new Promise((resolve) => {
       let options: any = {};
-      const token = vscode.workspace.getConfiguration('quick-ops.git').get('githubToken');
+      const token = vscode.workspace.getConfiguration('quickOps.git').get('githubToken');
       const headers: any = { 'User-Agent': 'VSCode-QuickOps-Extension' };
       if (token && platform !== 'gitlab') {
         headers['Authorization'] = `token ${token}`;
@@ -1101,7 +1202,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // 🌟 修改：支持拉取非历史记录列表中当前活动项目的分支信息
   public async updateSingleBranch(fsPath: string, silent: boolean = false) {
     let projects = this.getRecentProjects();
     const index = projects.findIndex((p) => p.fsPath === fsPath);
@@ -1110,7 +1210,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (index > -1) {
       p = projects[index];
     } else {
-      // 当前活动项目不在历史记录里，也照样去拉取它的分支信息
       const folders = vscode.workspace.workspaceFolders;
       if (folders && folders[0].uri.toString() === fsPath) {
         let platform, customDomain;
@@ -1120,7 +1219,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
         p = { name: folders[0].name, fsPath: fsPath, timestamp: 0, platform, customDomain };
       } else {
-        return; // 即不在历史中，也不是当前工作区，不处理
+        return; 
       }
     }
 
@@ -1181,7 +1280,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       this._view?.webview.postMessage({ type: 'updateBranchTag', fsPath: p.fsPath, branch: newBranch });
 
       if (p.branch !== newBranch) {
-        // 如果它在持久化数组中，则更新它
         const currentProjects = this.getRecentProjects();
         const currentIndex = currentProjects.findIndex((cp) => cp.fsPath === fsPath);
         if (currentIndex > -1) {
@@ -1419,7 +1517,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       };
     }
     
-    // 获取当前活动代码文件
     const activeEditor = vscode.window.activeTextEditor;
     const activeFilePath = activeEditor ? activeEditor.document.uri.toString() : '';
 
@@ -1429,7 +1526,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       currentUriStr: currentUriStr,
       currentWorkspace: currentWorkspaceInfo,
       lastOpenedPath: this.lastOpenedPath,
-      activeFilePath: activeFilePath
+      activeFilePath: this.currentActivePath || activeFilePath
     });
   }
 
@@ -1555,7 +1652,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.updateWebview();
   }
 
-  // 🌟 修改：清空记录时，触发一次拉取当前活动窗口分支的逻辑，保证体验平滑
   public async clearAll() {
     await this.context.globalState.update(this.stateKey, []);
     this.updateWebview();
