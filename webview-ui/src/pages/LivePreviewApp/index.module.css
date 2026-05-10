@@ -30,7 +30,6 @@
   overflow: hidden;
 }
 
-/* ==================== 顶部工具栏 ==================== */
 .toolbar {
   display: flex;
   padding: 6px 10px;
@@ -41,7 +40,6 @@
   flex-shrink: 0;
 }
 
-/* 地址栏 */
 .address-bar-wrapper {
   flex: 1;
   min-width: 150px;
@@ -72,7 +70,6 @@
   min-width: 0;
 }
 
-/* ==================== 智能提示框 ==================== */
 .suggest-box {
   position: absolute;
   top: 100%;
@@ -91,15 +88,13 @@
 }
 
 .suggest-item {
-  padding: 6px 9px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--menu-border);
   cursor: pointer;
   display: flex;
-  flex-direction: row;
   align-items: flex-start;
-  gap: 7px;
+  gap: 8px;
   transition: background 0.1s;
-  min-width: 0;
 }
 
 .suggest-item:last-child {
@@ -113,33 +108,28 @@
 }
 
 .suggest-logo-wrap {
-  width: 16px;
-  height: 16px;
-  margin-top: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
   flex-shrink: 0;
-  border-radius: 3px;
-  background: var(--vscode-editor-background);
-  border: 1px solid rgba(128, 128, 128, 0.18);
+  margin-top: 1px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background: var(--vscode-input-background);
+  border: 1px solid var(--border);
   overflow: hidden;
 }
 
 .suggest-logo {
-  width: 13px;
-  height: 13px;
-  max-width: 13px;
-  max-height: 13px;
+  width: 12px;
+  height: 12px;
   object-fit: contain;
-  object-position: center;
-  display: block;
 }
 
 .suggest-logo-placeholder {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--desc-color);
-  opacity: 0.8;
 }
 
 .suggest-content {
@@ -147,7 +137,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
 }
 
 .suggest-title-row {
@@ -166,23 +156,20 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
-  line-height: 16px;
 }
 
 .suggest-default-tag {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 9px;
   line-height: 14px;
   padding: 0 5px;
   border-radius: 999px;
   color: var(--vscode-button-foreground);
   background: var(--vscode-button-background);
-  opacity: 0.9;
 }
 
 .suggest-description {
   font-size: 11px;
-  line-height: 16px;
   color: var(--desc-color);
   opacity: 0.9;
   overflow: hidden;
@@ -191,13 +178,12 @@
 }
 
 .suggest-url {
-  font-size: 11px;
-  line-height: 15px;
-  color: var(--info-color);
-  opacity: 0.9;
+  font-size: 10px;
+  color: var(--desc-color);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  opacity: 0.85;
 }
 
 .highlight-match {
@@ -205,16 +191,13 @@
   font-weight: bold;
 }
 
-/* 按钮图标体系 */
 .action-icon {
   color: var(--vscode-icon-foreground);
   cursor: pointer;
   font-size: 14px;
   padding: 0 4px;
   opacity: 0.7;
-  transition:
-    opacity 0.2s,
-    color 0.2s;
+  transition: opacity 0.2s, color 0.2s;
 }
 
 .action-icon:hover {
@@ -286,7 +269,6 @@
   margin: 0 2px;
 }
 
-/* ==================== 右键/下拉菜单 ==================== */
 .context-menu {
   position: absolute;
   z-index: 9999;
@@ -336,7 +318,6 @@
   margin-right: 4px;
 }
 
-/* ==================== 预览区域与设备边框 ==================== */
 .preview-container {
   flex: 1;
   overflow: auto;
@@ -354,9 +335,7 @@
 
 #deviceWrapper {
   background: var(--vscode-editorPane-background, #fff);
-  transition:
-    width 0.3s ease,
-    height 0.3s ease;
+  transition: width 0.3s ease, height 0.3s ease;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   border-radius: 2px;
   overflow: hidden;
@@ -364,7 +343,6 @@
   z-index: 2;
 }
 
-/* 设备尺寸预设 */
 .device-responsive {
   width: 100%;
   height: 100%;
@@ -490,7 +468,6 @@
   display: block;
 }
 
-/* ==================== 欢迎页 ==================== */
 .welcome-page {
   position: absolute;
   top: 0;
@@ -567,7 +544,18 @@
   border-color: var(--focus-border);
 }
 
-/* ==================== 模态框体系 ==================== */
+.brand-icon-vue {
+  color: #42b883;
+}
+
+.brand-icon-node {
+  color: #68a063;
+}
+
+.brand-icon-react {
+  color: #61dafb;
+}
+
 .fav-overlay {
   position: absolute;
   top: 0;
@@ -781,29 +769,31 @@
   font-size: 13px;
 }
 
-/* ==================== 抽离出的小组件专属样式 ==================== */
 .favicon-img {
   width: 14px;
   height: 14px;
   border-radius: 2px;
   object-fit: contain;
+  flex-shrink: 0;
 }
 
 .globe-icon {
   font-size: 13px;
   color: var(--desc-color);
+  flex-shrink: 0;
 }
 
 .spiner-icon {
   font-size: 13px;
   color: var(--desc-color);
+  flex-shrink: 0;
 }
 
 .menu-icon {
   width: 16px !important;
 }
 
-.menu-icon.star {
+.fav-star {
   color: var(--warning-color);
 }
 
@@ -886,4 +876,29 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.history-logo-wrap {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--vscode-input-background);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  margin-right: 8px;
+}
+
+.history-logo {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+}
+
+.history-logo-placeholder {
+  font-size: 12px;
+  color: var(--desc-color);
 }
