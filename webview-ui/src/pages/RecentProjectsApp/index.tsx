@@ -15,8 +15,11 @@ import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload }
 export default function RecentProjectsApp() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentUri, setCurrentUri] = useState('');
-  const [lastOpenedPath, setLastOpenedPath] = useState('');
+  
+  // 🌟 独立保存当前工作区数据
+  const [currentWorkspace, setCurrentWorkspace] = useState<Project | null>(null);
 
+  const [lastOpenedPath, setLastOpenedPath] = useState('');
   const [searchQuery, setSearchQuery] = useState<string>((vscode.getState() as any)?.searchQuery || '');
   const [selectedId, setSelectedId] = useState<string>('');
 
@@ -37,10 +40,8 @@ export default function RecentProjectsApp() {
   const [isSearchMode, setIsSearchMode] = useState(false);
   const [searchTargetProject, setSearchTargetProject] = useState<ContextMenuPayload | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
-
   const [folderSearchType, setFolderSearchType] = useState<'content' | 'name'>('content');
   const [fileNameSearchResults, setFileNameSearchResults] = useState<DirChild[]>([]);
-
   const [folderSearchResults, setFolderSearchResults] = useState<SearchResult[]>([]);
   const [isSearchingFolder, setIsSearchingFolder] = useState(false);
   const [folderSearchError, setFolderSearchError] = useState('');
@@ -87,11 +88,24 @@ export default function RecentProjectsApp() {
         setProjects(data);
         setCurrentUri((msg.currentUriStr as string) || '');
         setLastOpenedPath((msg.lastOpenedPath as string) || '');
-        const initialBranches: Record<string, string> = {};
-        data.forEach((p: Project) => {
-          if (p.branch) initialBranches[p.fsPath] = p.branch;
+        
+        setCurrentWorkspace((msg.currentWorkspace as Project) || null);
+
+        setBranchMap((prev) => {
+          const newMap = { ...prev };
+          const validPaths = new Set(data.map(p => p.fsPath));
+          if (msg.currentUriStr) validPaths.add(msg.currentUriStr as string);
+
+          Object.keys(newMap).forEach(key => {
+             if (!validPaths.has(key)) delete newMap[key];
+          });
+
+          data.forEach((p: Project) => {
+            if (p.branch) newMap[p.fsPath] = p.branch;
+          });
+          return newMap;
         });
-        setBranchMap(initialBranches);
+
       } else if (msg.type === 'updateBranchTag') {
         setBranchMap((prev) => ({ ...prev, [msg.fsPath as string]: msg.branch as string }));
       } else if (msg.type === 'readDirResult') {
@@ -177,8 +191,11 @@ export default function RecentProjectsApp() {
   };
 
   const currentBaseUri = currentUri.split('?')[0];
-  const currentProject = projects.find((p) => p.fsPath.split('?')[0] === currentBaseUri);
-  const otherProjects = projects.filter((p) => p !== currentProject);
+  const projectInHistory = projects.find((p) => p.fsPath.split('?')[0] === currentBaseUri);
+  const inHistory = !!projectInHistory;
+  
+  const activeProjectToRender = projectInHistory || (currentWorkspace ? { ...currentWorkspace, timestamp: Date.now() } as Project : null);
+  const otherProjects = projects.filter((p) => p.fsPath.split('?')[0] !== currentBaseUri);
 
   const matchSearch = (p: Project) => {
     if (!searchQuery) return true;
@@ -189,8 +206,7 @@ export default function RecentProjectsApp() {
   };
 
   const filteredOtherProjects = otherProjects.filter(matchSearch);
-  const isCurrentVisible = currentProject && matchSearch(currentProject);
-
+  const isCurrentVisible = activeProjectToRender && matchSearch(activeProjectToRender);
   const clickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleOpenProject = (path: string) => {
@@ -689,7 +705,7 @@ export default function RecentProjectsApp() {
           )}
 
           <div className={styles['list-container']} onScroll={() => setContextMenu((p) => ({ ...p, visible: false }))}>
-            {projects.length === 0 ? (
+            {projects.length === 0 && !activeProjectToRender ? (
               <div className={styles['empty-state']}>
                 <div className={styles['empty-text']}>暂无项目记录，请添加：</div>
                 <div className={styles['bottom-bar']}>
@@ -703,10 +719,11 @@ export default function RecentProjectsApp() {
               </div>
             ) : (
               <>
+                {/* 🌟 核心修改：渲染活动项目，并根据在历史记录中与否分配字体颜色 */}
                 {isCurrentVisible &&
-                  currentProject &&
+                  activeProjectToRender &&
                   (() => {
-                    const p = currentProject;
+                    const p = activeProjectToRender;
                     const isRemote = p.fsPath.startsWith('vscode-vfs') || p.fsPath.startsWith('http');
                     const isGitlab = p.platform === 'gitlab' || p.fsPath.startsWith('vscode-vfs://gitlab');
                     const icon = isRemote ? (isGitlab ? faGitlab : faGithub) : faFolderOpen;
@@ -717,12 +734,16 @@ export default function RecentProjectsApp() {
 
                     const rootId = 'active-top';
                     const isExpanded = expandedNodes.has(rootId);
+                    
+                    // 👉 决定颜色：在记录中显示为蓝色(vscode链接色)，不在记录中显示深灰色
+                    const textColor = inHistory ? 'var(--vscode-textLink-foreground)' : 'var(--vscode-descriptionForeground)';
 
                     return (
                       <div key={rootId}>
                         <div
                           className={`${styles['active-top-project']} ${selectedId === rootId ? styles['selected'] : ''}`}
-                          title="当前窗口正在运行的项目"
+                          title={inHistory ? "当前窗口正在运行的项目" : "当前正在运行的项目（未在历史记录中）"}
+                          style={{ borderRightColor: textColor, borderLeftColor: textColor }} // 🌟 动态设置 border 的颜色
                           onContextMenu={(e) =>
                             handleContextMenu(
                               e,
@@ -738,13 +759,14 @@ export default function RecentProjectsApp() {
                               <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} style={{ fontSize: '10px' }} />
                             </div>
                             <div className={styles['info']}>
-                              <div className={styles['title']}>
-                                <FontAwesomeIcon icon={icon} className={`${styles['project-icon']} ${styles['icon-opened']}`} />
-                                <span className={styles['project-name']} title={title}>
+                              <div className={styles['title']} style={{ color: textColor }}>
+                                {/* 🌟 动态决定是否追加 icon-opened 样式，以防止被 CSS !important 强行染成蓝色 */}
+                                <FontAwesomeIcon icon={icon} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} style={{ color: textColor }} />
+                                <span className={styles['project-name']} title={title} style={{ color: textColor }}>
                                   {title}
                                 </span>
                                 {branch && (
-                                  <span className={styles['branch-tag']} title={branch}>
+                                  <span className={styles['branch-tag']} title={branch} style={{ borderColor: inHistory ? 'var(--vscode-textLink-foreground)' : 'var(--vscode-descriptionForeground)', color: textColor }}>
                                     <FontAwesomeIcon icon={faCodeBranch} style={{ fontSize: '10px', flexShrink: 0 }} />
                                     <span className={styles['branch-text']}>{branch}</span>
                                   </span>
@@ -828,8 +850,7 @@ export default function RecentProjectsApp() {
               </>
             )}
           </div>
-
-          {projects.length > 0 && (
+          {(projects.length > 0 || activeProjectToRender) && (
             <div className={styles['bottom-bar']}>
               <button className={styles['action-btn']} onClick={() => vscode.postMessage({ type: 'addLocal' })} style={{ marginBottom: 0 }}>
                 <FontAwesomeIcon icon={faFolderPlus} /> 添加本地

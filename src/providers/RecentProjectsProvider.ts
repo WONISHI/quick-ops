@@ -26,14 +26,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   constructor(private context: vscode.ExtensionContext) {
     this.recordCurrentProject();
   }
+
   private async closeExistingPreviews(fsPath: string) {
-    // 1. 关闭由我们插件自己管理的 Webview 解析面板
     if (this.activePanels.has(fsPath)) {
       this.activePanels.get(fsPath)?.dispose();
       this.activePanels.delete(fsPath);
     }
-
-    // 2. 关闭 VS Code 原生的文本编辑器 Tab (需 VS Code 1.68+ API 支持)
     if (vscode.window.tabGroups) {
       const tabsToClose: vscode.Tab[] = [];
       for (const group of vscode.window.tabGroups.all) {
@@ -109,6 +107,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       },
       async () => {
         await this.refreshBranchesAsync();
+        // 🌟 即使历史记录为空，也要同步当前窗口的分支
+        const currentUriStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+        if (currentUriStr && !this.getRecentProjects().some(p => p.fsPath === currentUriStr)) {
+          await this.updateSingleBranch(currentUriStr, true);
+        }
       }
     );
     vscode.window.showInformationMessage('🎉 所有项目分支状态已同步更新完毕！');
@@ -230,8 +233,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           );
           break;
         }
-
-        // 🌟 新增：处理原生图片/SVG打开指令
         case 'openImageNative':
         case 'openImageNativeToSide': {
           try {
@@ -302,7 +303,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  // 🌟 新增：处理自定义打开方式面板（附带自动关旧开新）
   private async handleOpenWith(fsPath: string, projectName: string) {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
@@ -326,7 +326,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       if (!selected) return;
 
-      // 在执行新的打开方式之前，先清理掉该文件之前的所有 Tab！
       await this.closeExistingPreviews(uri.fsPath);
 
       if (selected.label.includes('文本编辑器')) {
@@ -342,7 +341,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const contentStr = Buffer.from(contentBytes).toString('utf8');
 
           if (!contentStr || contentStr.trim() === '') {
-            throw new Error('文件为空或内容无法读取');
+             throw new Error('文件为空或内容无法读取');
           }
 
           const panel = vscode.window.createWebviewPanel(
@@ -355,7 +354,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             }
           );
 
-          // 记录单例
           this.activePanels.set(uri.fsPath, panel);
           panel.onDidDispose(() => {
             if (this.activePanels.get(uri.fsPath) === panel) {
@@ -412,7 +410,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       panel.webview.onDidReceiveMessage(async (msg) => {
         if (msg.command === 'webviewLoaded') {
-          // 向 React 前端页面派发文件数据
           panel.webview.postMessage({
             type: 'initExcelData',
             fsPath: fsPath,
@@ -423,7 +420,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'table.svg');
-
       panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, `/xls?type=read`);
 
     } catch (e) {
@@ -431,7 +427,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  // 👇 新增打开 PDF 面板的方法
   private async openPdfPanel(fsPath: string, projectName: string, viewColumn: vscode.ViewColumn) {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
@@ -470,7 +465,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'pdf.svg');
-
       panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, `/pdf?type=read`);
 
     } catch (e) {
@@ -963,12 +957,29 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  // 🌟 修改：支持拉取非历史记录列表中当前活动项目的分支信息
   public async updateSingleBranch(fsPath: string, silent: boolean = false) {
     let projects = this.getRecentProjects();
     const index = projects.findIndex((p) => p.fsPath === fsPath);
-    if (index === -1) return;
 
-    const p = projects[index];
+    let p: RecentProject;
+    if (index > -1) {
+      p = projects[index];
+    } else {
+      // 当前活动项目不在历史记录里，也照样去拉取它的分支信息
+      const folders = vscode.workspace.workspaceFolders;
+      if (folders && folders[0].uri.toString() === fsPath) {
+        let platform, customDomain;
+        if (fsPath.startsWith('vscode-vfs://') || fsPath.startsWith('http')) {
+          const parsed = this.parseRemoteUrlInput(fsPath);
+          if (parsed) { platform = parsed.platform; customDomain = parsed.customDomain; }
+        }
+        p = { name: folders[0].name, fsPath: fsPath, timestamp: 0, platform, customDomain };
+      } else {
+        return; // 即不在历史中，也不是当前工作区，不处理
+      }
+    }
+
     const displayName = p.customName || p.name;
 
     const fetchTask = async () => {
@@ -1026,6 +1037,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       this._view?.webview.postMessage({ type: 'updateBranchTag', fsPath: p.fsPath, branch: newBranch });
 
       if (p.branch !== newBranch) {
+        // 如果它在持久化数组中，则更新它
         const currentProjects = this.getRecentProjects();
         const currentIndex = currentProjects.findIndex((cp) => cp.fsPath === fsPath);
         if (currentIndex > -1) {
@@ -1234,18 +1246,43 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  // 🌟 修改：主动发送当前活动的 Workspace，哪怕它不在历史记录中
   private updateWebview() {
     if (!this._view) return;
     const projects = this.getRecentProjects();
-    const currentUriStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString() || '';
+    
+    let currentUriStr = '';
+    let currentWorkspaceInfo = null;
+
+    const folders = vscode.workspace.workspaceFolders;
+    if (folders && folders.length > 0) {
+      currentUriStr = folders[0].uri.toString();
+      const currentName = folders[0].name;
+
+      let platform, customDomain;
+      if (currentUriStr.startsWith('vscode-vfs://') || currentUriStr.startsWith('http')) {
+        const parsed = this.parseRemoteUrlInput(currentUriStr);
+        if (parsed) {
+          platform = parsed.platform;
+          customDomain = parsed.customDomain;
+        }
+      }
+
+      currentWorkspaceInfo = {
+        name: currentName,
+        fsPath: currentUriStr,
+        platform,
+        customDomain
+      };
+    }
 
     this._view.webview.postMessage({
       type: 'updateProjects',
       data: projects,
       currentUriStr: currentUriStr,
+      currentWorkspace: currentWorkspaceInfo,
       lastOpenedPath: this.lastOpenedPath
     });
-
   }
 
   private getRecentProjects(): RecentProject[] {
@@ -1401,8 +1438,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.updateWebview();
   }
 
+  // 🌟 修改：清空记录时，触发一次拉取当前活动窗口分支的逻辑，保证体验平滑
   public async clearAll() {
     await this.context.globalState.update(this.stateKey, []);
     this.updateWebview();
+    const currentUriStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+    if (currentUriStr) {
+      this.updateSingleBranch(currentUriStr, true);
+    }
   }
 }

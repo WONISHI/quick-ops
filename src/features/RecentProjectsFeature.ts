@@ -135,7 +135,7 @@ export class RecentProjectsFeature implements IFeature {
       if (e.focused) provider.refresh();
     });
 
-    // 将所有注册推入订阅池 (移除了 roDecoRegistration)
+    // 将所有注册推入订阅池
     context.subscriptions.push(webviewView, roDocRegistration, addCmd, refreshCmd, syncCmd, windowFocusWatcher, clearCmd, selectForCompareCmd, compareWithSelectedCmd);
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
