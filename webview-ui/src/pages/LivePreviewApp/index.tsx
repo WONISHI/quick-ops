@@ -36,6 +36,7 @@ import VditorApp from '../VditorApp';
 import PdfPreviewApp from '../PdfPreviewApp';
 import ExcelPreviewApp from '../ExcelPreviewApp';
 import PreviewError from '../../components/PreviewError';
+import FloatingPet from '../../components/FloatingPet';
 
 interface FavoriteItem {
   url: string;
@@ -112,9 +113,7 @@ export default function LivePreviewApp() {
 
     if (!targetUrl) return undefined;
 
-    return favorites.find((item) => {
-      return normalizeFavoriteUrl(item.url) === targetUrl;
-    });
+    return favorites.find((item) => normalizeFavoriteUrl(item.url) === targetUrl);
   };
 
   const getKnownLogoByUrl = (url: string) => {
@@ -371,7 +370,7 @@ export default function LivePreviewApp() {
           message: '页面长时间没有完成加载。该页面可能禁止 iframe 嵌入，建议使用外部浏览器打开。',
           url,
         });
-      }, 7000);
+      }, 10000);
     }
 
     setFrameUrl(url);
@@ -417,11 +416,15 @@ export default function LivePreviewApp() {
         e.preventDefault();
         setSuggestIndex((prev) => (prev + 1) % suggestions.length);
         return;
-      } else if (e.key === 'ArrowUp') {
+      }
+
+      if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSuggestIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
         return;
-      } else if (e.key === 'Escape') {
+      }
+
+      if (e.key === 'Escape') {
         e.preventDefault();
         setShowSuggest(false);
         return;
@@ -796,13 +799,7 @@ export default function LivePreviewApp() {
 
         <div className={styles['divider']}></div>
 
-        <select
-          className={styles['vscode-select']}
-          value={device}
-          onChange={handleDeviceChange}
-          title="选择预览设备"
-          disabled={previewType !== 'web' && previewType !== 'html'}
-        >
+        <select className={styles['vscode-select']} value={device} onChange={handleDeviceChange} title="选择预览设备" disabled={previewType !== 'web' && previewType !== 'html'}>
           <optgroup label="响应式">
             <option value="device-responsive">响应式铺满</option>
           </optgroup>
@@ -1202,6 +1199,8 @@ export default function LivePreviewApp() {
           </div>
         </div>
       )}
+
+      <FloatingPet scale={0.72} />
     </div>
   );
 }
