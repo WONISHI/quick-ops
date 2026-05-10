@@ -15,6 +15,7 @@ export default function RecentProjectsApp() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentUri, setCurrentUri] = useState('');
   const [currentWorkspace, setCurrentWorkspace] = useState<Project | null>(null);
+  const [isInitLoading, setIsInitLoading] = useState(true);
 
   const [lastOpenedPath, setLastOpenedPath] = useState('');
   const [searchQuery, setSearchQuery] = useState<string>((vscode.getState() as any)?.searchQuery || '');
@@ -23,7 +24,11 @@ export default function RecentProjectsApp() {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const [dirChildren, setDirChildren] = useState<Record<string, DirChild[]>>({});
-  
+  const dirChildrenRef = useRef<Record<string, DirChild[]>>({});
+  useEffect(() => {
+    dirChildrenRef.current = dirChildren;
+  }, [dirChildren]);
+
   const [branchMap, setBranchMap] = useState<Record<string, string>>({});
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
@@ -85,6 +90,7 @@ export default function RecentProjectsApp() {
         setCurrentUri((msg.currentUriStr as string) || '');
         setLastOpenedPath((msg.lastOpenedPath as string) || '');
         setCurrentWorkspace((msg.currentWorkspace as Project) || null);
+        setIsInitLoading(false);
 
         if (msg.activeFilePath) setSelectedPath(msg.activeFilePath as string);
 
@@ -135,22 +141,21 @@ export default function RecentProjectsApp() {
           setFileNameSearchResults((msg.results as DirChild[]) || []);
         }
       } 
-      // 🌟 监听“定位文件”的消息指令
       else if (msg.type === 'revealPath') {
         const { targetPath, parentPaths, projectName } = msg as any;
         setSelectedPath(targetPath);
         
-        // 自动逐层展开所有的父级文件夹
         setExpandedPaths((prev) => {
           const next = new Set(prev);
           parentPaths.forEach((p: string) => next.add(p));
           return next;
         });
 
-        // 对没展开（没数据）的文件夹发起后端请求读取
         parentPaths.forEach((p: string) => {
-           setLoadingPaths(l => new Set(l).add(p));
-           vscode.postMessage({ type: 'readDir', fsPath: p, projectName });
+           if (!dirChildrenRef.current[p]) {
+             setLoadingPaths(l => new Set(l).add(p));
+             vscode.postMessage({ type: 'readDir', fsPath: p, projectName });
+           }
         });
       }
     };
@@ -169,7 +174,6 @@ export default function RecentProjectsApp() {
     };
   }, []);
 
-  // 🌟 追加依赖 dirChildren：一旦数据获取完毕、树节点被渲染，它就会完美自动平滑滚动到位
   useEffect(() => {
     if (selectedPath && !isSearchMode) {
       const safeId = `tree-node-${encodeURIComponent(selectedPath)}`;
@@ -275,18 +279,17 @@ export default function RecentProjectsApp() {
     clickTimeout.current = setTimeout(() => {
       setExpandedPaths((prev) => {
         const next = new Set(prev);
-        if (next.has(path)) {
-          next.delete(path);
-        } else {
+        const isExpanding = !next.has(path);
+        
+        if (isExpanding) {
           next.add(path);
-          if (!dirChildren[path]) {
-            setLoadingPaths((l) => {
-              const n = new Set(l);
-              n.add(path);
-              return n;
-            });
+          // 🌟 安全检查：如果正要展开且没有缓存数据，则触发加载
+          if (!dirChildrenRef.current[path]) {
+            setLoadingPaths((l) => new Set(l).add(path));
             vscode.postMessage({ type: 'readDir', fsPath: path, projectName });
           }
+        } else {
+          next.delete(path);
         }
         return next;
       });
@@ -407,13 +410,16 @@ export default function RecentProjectsApp() {
 
   const renderTreeChildren = (parentPath: string, projectName: string, isActiveProject: boolean = false) => {
     const children = dirChildren[parentPath];
-    if (loadingPaths.has(parentPath)) {
+    const isLoading = loadingPaths.has(parentPath);
+
+    if (isLoading && !children) {
       return (
         <div className={styles['empty-node']}>
-          <FontAwesomeIcon icon={faSpinner} spin /> 加载中...
+          <FontAwesomeIcon icon={faSpinner} spin style={{ marginRight: '6px' }} /> 正在读取目录...
         </div>
       );
     }
+    
     if (!children) return null;
     if (children.length === 0) return <div className={styles['empty-node']}>（空文件夹/无读取权限）</div>;
 
@@ -422,6 +428,7 @@ export default function RecentProjectsApp() {
         {children.map((child) => {
           const childPath = child.path;
           const isExpanded = expandedPaths.has(childPath);
+          const childLoading = loadingPaths.has(childPath);
           const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
           const elementId = `tree-node-${encodeURIComponent(childPath)}`;
 
@@ -435,7 +442,12 @@ export default function RecentProjectsApp() {
                   onContextMenu={(e) => handleContextMenu(e, 'sub', { path: childPath, name: child.name, isFolder: true, projectName, isActiveProject })}
                 >
                   <div className={styles['tree-chevron']}>
-                    <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+                    {/* 🌟 核心视觉反馈：加载时显示旋转 Spinner，否则显示箭头 */}
+                    {childLoading ? (
+                      <FontAwesomeIcon icon={faSpinner} spin className={styles['chevron-icon']} style={{ opacity: 1, color: 'var(--vscode-textLink-foreground)' }} />
+                    ) : (
+                      <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+                    )}
                   </div>
                   <FontAwesomeIcon icon={faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']}`} />
                   <span className={styles['sub-name']}>{child.name}</span>
@@ -464,6 +476,16 @@ export default function RecentProjectsApp() {
       </>
     );
   };
+
+  // 🌟 如果应用还在启动中（等待第一条 updateProjects 消息），直接展示全局 Loading
+  if (isInitLoading) {
+    return (
+      <div className={styles['app-wrapper']} style={{ justifyContent: 'center', alignItems: 'center' }}>
+        <FontAwesomeIcon icon={faSpinner} spin style={{ fontSize: '24px', opacity: 0.5, marginBottom: '10px' }} />
+        <span style={{ fontSize: '13px', opacity: 0.7 }}>正在加载项目视图...</span>
+      </div>
+    );
+  }
 
   return (
     <div className={styles['app-wrapper']}>
@@ -719,6 +741,7 @@ export default function RecentProjectsApp() {
                     const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
                     const branch = branchMap[p.fsPath] || p.branch;
                     const isExpanded = expandedPaths.has(rootPath);
+                    const rootLoading = loadingPaths.has(rootPath);
                     const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
 
                     return (
@@ -738,7 +761,12 @@ export default function RecentProjectsApp() {
                         >
                           <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}>
                             <div className={styles['tree-chevron']}>
-                              <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+                              {/* 🌟 应用主项目展开时的 Spinner */}
+                              {rootLoading ? (
+                                <FontAwesomeIcon icon={faSpinner} spin className={styles['chevron-icon']} style={{ opacity: 1, color: 'inherit' }} />
+                              ) : (
+                                <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+                              )}
                             </div>
                             <div className={styles['info']}>
                               <div className={styles['title']}>
@@ -774,6 +802,7 @@ export default function RecentProjectsApp() {
                     const displayPath = getDisplayPath(p);
                     const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
                     const isExpanded = expandedPaths.has(rootPath);
+                    const itemLoading = loadingPaths.has(rootPath);
                     const branch = branchMap[p.fsPath] || p.branch;
                     const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
 
@@ -795,7 +824,11 @@ export default function RecentProjectsApp() {
                         >
                           <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}>
                             <div className={styles['tree-chevron']}>
-                              <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+                              {itemLoading ? (
+                                <FontAwesomeIcon icon={faSpinner} spin className={styles['chevron-icon']} style={{ opacity: 1, color: 'var(--vscode-textLink-foreground)' }} />
+                              ) : (
+                                <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+                              )}
                             </div>
                             <div className={styles['info']}>
                               <div className={styles['title']}>
