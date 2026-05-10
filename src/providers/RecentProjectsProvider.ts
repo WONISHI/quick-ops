@@ -220,6 +220,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       },
       async () => {
         await this.refreshBranchesAsync();
+        // 🌟 即使历史记录为空，也要同步当前窗口的分支
         const currentUriStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
         if (currentUriStr && !this.getRecentProjects().some(p => p.fsPath === currentUriStr)) {
           await this.updateSingleBranch(currentUriStr, true);
@@ -1100,6 +1101,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  // 🌟 修改：支持拉取非历史记录列表中当前活动项目的分支信息
   public async updateSingleBranch(fsPath: string, silent: boolean = false) {
     let projects = this.getRecentProjects();
     const index = projects.findIndex((p) => p.fsPath === fsPath);
@@ -1108,6 +1110,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (index > -1) {
       p = projects[index];
     } else {
+      // 当前活动项目不在历史记录里，也照样去拉取它的分支信息
       const folders = vscode.workspace.workspaceFolders;
       if (folders && folders[0].uri.toString() === fsPath) {
         let platform, customDomain;
@@ -1117,7 +1120,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
         p = { name: folders[0].name, fsPath: fsPath, timestamp: 0, platform, customDomain };
       } else {
-        return; 
+        return; // 即不在历史中，也不是当前工作区，不处理
       }
     }
 
@@ -1178,6 +1181,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       this._view?.webview.postMessage({ type: 'updateBranchTag', fsPath: p.fsPath, branch: newBranch });
 
       if (p.branch !== newBranch) {
+        // 如果它在持久化数组中，则更新它
         const currentProjects = this.getRecentProjects();
         const currentIndex = currentProjects.findIndex((cp) => cp.fsPath === fsPath);
         if (currentIndex > -1) {
@@ -1551,6 +1555,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.updateWebview();
   }
 
+  // 🌟 修改：清空记录时，触发一次拉取当前活动窗口分支的逻辑，保证体验平滑
   public async clearAll() {
     await this.context.globalState.update(this.stateKey, []);
     this.updateWebview();
