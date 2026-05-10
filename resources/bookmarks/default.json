@@ -3,48 +3,48 @@
     "name": "Lorem Picsum",
     "url": "https://picsum.photos/",
     "description": "随机图片占位服务，可快速生成指定尺寸、灰度、模糊、固定 seed 或指定 ID 的测试图片。",
-    "logo": "https://www.google.com/s2/favicons?sz=64&domain_url=https://picsum.photos/"
+    "logo": "https://picsum.photos/favicon.ico"
   },
   {
     "name": "MingCute Icon",
     "url": "https://www.mingcute.com/",
     "description": "精心设计的开源图标库，适合在前端项目、设计稿和插件界面中快速查找并使用图标。",
-    "logo": "https://www.google.com/s2/favicons?sz=64&domain_url=https://www.mingcute.com/"
+    "logo": "https://www.mingcute.com/favicon.ico"
   },
   {
     "name": "Webpack css-loader / style-loader 教程",
     "url": "https://awdr74100.github.io/2020-02-26-webpack-cssloader-styleloader/",
     "description": "Roya's Blog 的 Webpack 教程文章，讲解如何使用 css-loader 与 style-loader 处理和注入样式表。",
-    "logo": "https://www.google.com/s2/favicons?sz=64&domain_url=https://awdr74100.github.io/"
+    "logo": "https://awdr74100.github.io//images/favicon-none.svg?v=7.4.2"
   },
   {
     "name": "TypeScript 类型声明完全指南",
     "url": "https://pengfeixc.com/blogs/javascript/typescript-declarations.html",
     "description": "系统讲解 TypeScript .d.ts 类型声明文件、全局声明、模块声明、环境声明和类型扩展的技术文章。",
-    "logo": "https://www.google.com/s2/favicons?sz=64&domain_url=https://pengfeixc.com/"
+    "logo": "https://pengfeixc.com/blogs/assests/images/icon.jpg"
   },
   {
     "name": "Ant Design 组件总览",
     "url": "https://ant.design/components/overview-cn/",
     "description": "Ant Design 官方中文组件总览页面，可快速查找 Button、Form、Table、Modal、Upload 等 React UI 组件文档。",
-    "logo": "https://www.google.com/s2/favicons?sz=64&domain_url=https://ant.design/"
+    "icon":"https://gw.alipayobjects.com/zos/rmsportal/rlpTLlbMzTNYuZGGCVYM.png"
   },
   {
     "name": "CSS Loaders Classic",
     "url": "https://css-loaders.com/classic/",
     "description": "CSS Loaders 的经典加载动画集合，提供大量单元素 CSS loading 动画，点击即可复制 CSS。",
-    "logo": "https://www.google.com/s2/favicons?sz=64&domain_url=https://css-loaders.com/"
+    "logo": "https://css-loaders.com/fav"
   },
   {
     "name": "NestJS 中文文档",
     "url": "http://nestjs.inode.club/",
     "description": "NestJS 中文文档站点，面向 TypeScript 服务端开发，适合查询控制器、模块、Provider、中间件等 NestJS 用法。",
-    "logo": "https://www.google.com/s2/favicons?sz=64&domain_url=http://nestjs.inode.club/"
+    "logo": "http://nestjs.inode.club/favicon.ico"
   },
   {
     "name": "Box Shadow CSS Generator",
     "url": "https://box-shadow.dev/",
     "description": "在线 box-shadow 可视化生成器，可通过拖拽和参数调整快速生成 CSS 阴影代码。",
-    "logo": "https://www.google.com/s2/favicons?sz=64&domain_url=https://box-shadow.dev/"
+    "logo": "https://box-shadow.dev/favicon.svg"
   }
 ]
