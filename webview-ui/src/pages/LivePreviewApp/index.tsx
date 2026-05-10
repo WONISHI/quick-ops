@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { vscode } from '../../utils/vscode';
-import { isUrlLike, escapeRegExp } from "../../utils"
+import { escapeRegExp } from "../../utils"
 import UrlParser from "../../utils/UrlParser"
 import styles from './index.module.css';
 
@@ -11,7 +11,7 @@ import {
   faLayerGroup, faPlus, faClockRotateLeft, faBroom, faChevronRight,
   faDatabase, faBoxArchive, faCookieBite, faTerminal, faPen,
   faTrash, faCheck,
-  faSpinner // 🌟 1. 引入 Spinner 图标
+  faSpinner
 } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular, faCopy as faCopyRegular } from '@fortawesome/free-regular-svg-icons';
 import { faVuejs, faNodeJs, faReact } from '@fortawesome/free-brands-svg-icons';
@@ -20,21 +20,31 @@ import VditorApp from '../VditorApp';
 import PdfPreviewApp from '../PdfPreviewApp';
 import ExcelPreviewApp from '../ExcelPreviewApp';
 
+interface FavoriteItem {
+  url: string;
+  title: string;
+  timestamp: number;
+  description?: string;
+  logo?: string;
+  isDefault?: boolean;
+  source?: 'builtin' | 'user';
+}
+
 export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
-  
+
   const [previewType, setPreviewType] = useState<'web' | 'md' | 'pdf' | 'excel' | 'html'>('web');
 
   const [device, setDevice] = useState('device-responsive');
   const [isRotated, setIsRotated] = useState(false);
   const [faviconUrl, setFaviconUrl] = useState('');
   const [faviconError, setFaviconError] = useState(false);
-  
+
   // 🌟 2. 引入 Favicon 专属的加载状态
   const [isFaviconLoading, setIsFaviconLoading] = useState(false);
 
-  const [favorites, setFavorites] = useState<any[]>([]);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [historyStack, setHistoryStack] = useState<{ url: string, title: string, timestamp: number }[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
   const isInternalNav = useRef(false);
@@ -90,19 +100,46 @@ export default function LivePreviewApp() {
     };
   }, []);
 
+  const updateCurrentHistoryTitle = (title: string) => {
+    setHistoryStack((prev) => {
+      const next = [...prev];
+
+      if (next[historyIdx]) {
+        next[historyIdx].title = title || next[historyIdx].url;
+      }
+
+      return next;
+    });
+  };
+
+  const canReadIframeDocument = (targetUrl: string) => {
+    try {
+      if (!targetUrl) return false;
+
+      const target = new URL(targetUrl);
+      const current = new URL(window.location.href);
+
+      return target.origin === current.origin;
+    } catch {
+      return false;
+    }
+  };
+
   const handleIframeLoad = () => {
     if (!iframeRef.current || historyIdx < 0 || (previewType !== 'web' && previewType !== 'html')) return;
+
+    const fallbackTitle = urlInput || frameUrl;
+
+    if (!canReadIframeDocument(frameUrl)) {
+      updateCurrentHistoryTitle(fallbackTitle);
+      return;
+    }
+
     try {
       const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
-      if (doc && doc.title) {
-        setHistoryStack(prev => {
-          const next = [...prev];
-          if (next[historyIdx]) next[historyIdx].title = doc.title;
-          return next;
-        });
-      }
-    } catch (e) {
-      console.log('Iframe cross-origin restriction:', e);
+      updateCurrentHistoryTitle(doc?.title || fallbackTitle);
+    } catch {
+      updateCurrentHistoryTitle(fallbackTitle);
     }
   };
 
@@ -149,12 +186,12 @@ export default function LivePreviewApp() {
 
       imgLoader.onload = () => {
         setFaviconUrl(targetIconUrl);
-        setIsFaviconLoading(false); 
+        setIsFaviconLoading(false);
       };
 
       imgLoader.onerror = () => {
         setFaviconError(true);
-        setIsFaviconLoading(false); 
+        setIsFaviconLoading(false);
       };
     } catch {
       setFaviconError(true);
@@ -172,14 +209,14 @@ export default function LivePreviewApp() {
       if (lower.endsWith('.md')) pType = 'md';
       else if (lower.endsWith('.pdf')) pType = 'pdf';
       else if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) pType = 'excel';
-      else if (lower.endsWith('.html') || lower.endsWith('.htm')) pType = 'html'; 
+      else if (lower.endsWith('.html') || lower.endsWith('.htm')) pType = 'html';
     }
 
     setPreviewType(pType);
 
     if (pType !== 'web' && pType !== 'html') {
       vscode?.postMessage({ type: 'setPendingLocalFile', fsPath: url, fileType: pType });
-      setFaviconUrl(''); 
+      setFaviconUrl('');
       setIsFaviconLoading(false);
     } else {
       updateFavicon(url);
@@ -253,14 +290,10 @@ export default function LivePreviewApp() {
 
   const toggleFavorite = () => {
     if (!frameUrl) return;
-    let title = frameUrl;
-    try {
-      if (previewType === 'web' || previewType === 'html') {
-        title = iframeRef.current?.contentDocument?.title || urlInput;
-      }
-    } catch (e) {
-      console.log('e', e);
-    }
+
+    const currentHistory = historyIdx >= 0 ? historyStack[historyIdx] : undefined;
+    const title = currentHistory?.title || urlInput || frameUrl;
+
     vscode?.postMessage({ type: 'toggleFavorite', url: frameUrl, title });
   };
 
@@ -333,36 +366,81 @@ export default function LivePreviewApp() {
 
   const saveFavorite = () => {
     const t = favForm.title.trim();
-    let u = UrlParser.parse(favForm.url);
-    if (!t || !u) return vscode?.postMessage({ type: 'showError', message: '标题和链接不能为空' });
+    const u = UrlParser.parse(favForm.url);
+
+    if (!t || !u) {
+      return vscode?.postMessage({ type: 'showError', message: '标题和链接不能为空' });
+    }
+
+    const editingTarget = favorites.find((f) => f.url === favForm.editingOriginalUrl);
+
+    if (editingTarget?.isDefault) {
+      return vscode?.postMessage({ type: 'showInfo', message: '默认收藏不能编辑。' });
+    }
 
     let newFavs = [...favorites];
+
     if (favForm.editingOriginalUrl) {
-      const index = newFavs.findIndex(f => f.url === favForm.editingOriginalUrl);
+      const index = newFavs.findIndex((f) => f.url === favForm.editingOriginalUrl && !f.isDefault);
+
       if (index > -1) {
-        if (u !== favForm.editingOriginalUrl && newFavs.some(f => f.url === u)) {
+        if (u !== favForm.editingOriginalUrl && newFavs.some((f) => f.url === u)) {
           return vscode?.postMessage({ type: 'showError', message: '该链接已存在！' });
         }
-        newFavs[index].title = t;
-        newFavs[index].url = u;
+
+        newFavs[index] = {
+          ...newFavs[index],
+          title: t,
+          url: u,
+          isDefault: false,
+          source: 'user',
+        };
       }
     } else {
-      if (newFavs.some(f => f.url === u)) return vscode?.postMessage({ type: 'showError', message: '该链接已存在！' });
-      newFavs.push({ url: u, title: t, timestamp: Date.now() });
+      if (newFavs.some((f) => f.url === u)) {
+        return vscode?.postMessage({ type: 'showError', message: '该链接已存在！' });
+      }
+
+      newFavs.push({
+        url: u,
+        title: t,
+        timestamp: Date.now(),
+        isDefault: false,
+        source: 'user',
+      });
     }
-    vscode?.postMessage({ type: 'saveAllFavorites', favorites: newFavs });
+
+    vscode?.postMessage({
+      type: 'saveAllFavorites',
+      favorites: newFavs.filter((item) => !item.isDefault),
+    });
+
     setFavForm({ visible: false, title: '', url: '', editingOriginalUrl: '' });
   };
 
-  const deleteFavorite = (url: string) => {
-    const newFavs = favorites.filter(f => f.url !== url);
+  const deleteFavorite = (favorite: FavoriteItem) => {
+    if (favorite.isDefault) {
+      vscode?.postMessage({ type: 'showInfo', message: '该收藏是插件内置默认书签，不能删除。' });
+      return;
+    }
+
+    const newFavs = favorites.filter((f) => f.url !== favorite.url || f.isDefault);
     vscode?.postMessage({ type: 'saveAllFavorites', favorites: newFavs });
   };
 
   const sortedFavorites = useMemo(() => {
-    const list = [...favorites];
-    if (favSort === 'time') return list.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-    return list.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
+    const defaultList = favorites.filter((item) => item.isDefault);
+    const userList = favorites.filter((item) => !item.isDefault);
+
+    const sortedUserList = [...userList];
+
+    if (favSort === 'time') {
+      sortedUserList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    } else {
+      sortedUserList.sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
+    }
+
+    return [...defaultList, ...sortedUserList];
   }, [favorites, favSort]);
 
   return (
@@ -447,12 +525,12 @@ export default function LivePreviewApp() {
 
         <div className={styles['divider']}></div>
 
-        <select 
-          className={styles['vscode-select']} 
-          value={device} 
-          onChange={handleDeviceChange} 
+        <select
+          className={styles['vscode-select']}
+          value={device}
+          onChange={handleDeviceChange}
           title="选择预览设备"
-          disabled={previewType !== 'web' && previewType !== 'html'} 
+          disabled={previewType !== 'web' && previewType !== 'html'}
         >
           <optgroup label="响应式">
             <option value="device-responsive">响应式铺满</option>
@@ -622,11 +700,36 @@ export default function LivePreviewApp() {
                 <div className={styles['fav-empty']}>暂无收藏。点击右上角 + 号，或地址栏星号添加。</div>
               ) : (
                 sortedFavorites.map((f, i) => (
-                  <div key={i} className={styles['fav-item']} onClick={() => { handleGo(f.url); setActiveModal('none'); }}>
+                  <div key={`${f.isDefault ? 'default' : 'user'}-${f.url}-${i}`} className={styles['fav-item']} onClick={() => { handleGo(f.url); setActiveModal('none'); }}>
+                    <div className={styles['fav-logo-wrap']}>
+                      {f.logo ? (
+                        <img
+                          className={styles['fav-logo']}
+                          src={f.logo}
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <FontAwesomeIcon icon={faGlobe} className={styles['fav-logo-placeholder']} />
+                      )}
+                    </div>
+
                     <div className={styles['fav-item-info']}>
-                      <div className={styles['fav-title']} title={f.title}>{f.title}</div>
+                      <div className={styles['fav-title-row']}>
+                        <div className={styles['fav-title']} title={f.title}>{f.title}</div>
+                        {f.isDefault && <span className={styles['fav-default-tag']}>默认</span>}
+                      </div>
+
+                      {f.description && (
+                        <div className={styles['fav-description']} title={f.description}>
+                          {f.description}
+                        </div>
+                      )}
+
                       <div className={styles['fav-url']} title={f.url}>{f.url}</div>
                     </div>
+
                     <div className={styles['fav-actions']}>
                       <FontAwesomeIcon
                         icon={copiedUrl === f.url ? faCheck : faCopyRegular}
@@ -634,21 +737,27 @@ export default function LivePreviewApp() {
                         title="复制链接"
                         onClick={(e) => { e.stopPropagation(); handleCopy(f.url); }}
                       />
-                      <FontAwesomeIcon
-                        icon={faPen}
-                        className={`${styles['fav-action-btn']} ${styles['edit']}`}
-                        title="编辑"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFavForm({ visible: true, title: f.title, url: f.url, editingOriginalUrl: f.url });
-                        }}
-                      />
-                      <FontAwesomeIcon
-                        icon={faTrash}
-                        className={`${styles['fav-action-btn']} ${styles['delete']}`}
-                        title="删除"
-                        onClick={(e) => { e.stopPropagation(); deleteFavorite(f.url); }}
-                      />
+
+                      {!f.isDefault && (
+                        <>
+                          <FontAwesomeIcon
+                            icon={faPen}
+                            className={`${styles['fav-action-btn']} ${styles['edit']}`}
+                            title="编辑"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setFavForm({ visible: true, title: f.title, url: f.url, editingOriginalUrl: f.url });
+                            }}
+                          />
+
+                          <FontAwesomeIcon
+                            icon={faTrash}
+                            className={`${styles['fav-action-btn']} ${styles['delete']}`}
+                            title="删除"
+                            onClick={(e) => { e.stopPropagation(); deleteFavorite(f); }}
+                          />
+                        </>
+                      )}
                     </div>
                   </div>
                 ))
