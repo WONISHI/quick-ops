@@ -174,6 +174,7 @@ export class LivePreviewFeature implements IFeature {
 
   private async saveUserFavorites(context: vscode.ExtensionContext, favorites: any[]): Promise<void> {
     const userFavorites = this.normalizeUserFavorites(favorites);
+
     await context.globalState.update(this.GLOBAL_FAVORITES_KEY, userFavorites);
     await this.syncFavorites(context);
   }
@@ -248,6 +249,8 @@ export class LivePreviewFeature implements IFeature {
           favs.push({
             url: message.url,
             title: message.title || message.url,
+            logo: typeof message.logo === 'string' ? message.logo : '',
+            description: typeof message.description === 'string' ? message.description : '',
             timestamp: Date.now(),
             isDefault: false,
             source: 'user',
@@ -278,6 +281,7 @@ export class LivePreviewFeature implements IFeature {
 
             if (fileType === 'md') {
               const contentStr = Buffer.from(contentBytes).toString('utf8');
+
               this.panel?.webview.postMessage({
                 type: 'initVditorData',
                 content: contentStr,
@@ -286,6 +290,7 @@ export class LivePreviewFeature implements IFeature {
               });
             } else if (fileType === 'pdf') {
               const fileBase64 = Buffer.from(contentBytes).toString('base64');
+
               this.panel?.webview.postMessage({
                 type: 'initPdfData',
                 contentBase64: fileBase64,
@@ -293,6 +298,7 @@ export class LivePreviewFeature implements IFeature {
               });
             } else if (fileType === 'excel') {
               const fileBase64 = Buffer.from(contentBytes).toString('base64');
+
               this.panel?.webview.postMessage({
                 type: 'initExcelData',
                 fsPath,
