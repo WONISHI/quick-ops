@@ -23,37 +23,113 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private selectedForCompareName?: string;
   private activePanels: Map<string, vscode.WebviewPanel> = new Map();
   
-  // 🌟 核心：全局追踪当前正在查看的文件绝对路径
   private currentActivePath: string = '';
 
   constructor(private context: vscode.ExtensionContext) {
     this.initializeCurrentWorkspace();
 
-    // 🌟 1. 监听原生代码文件 (TextEditor) 的切换
+    // 🌟 1. 启动时主动探测一次当前是否有打开的文件
+    if (vscode.window.activeTextEditor) {
+      this.handleEditorChange(vscode.window.activeTextEditor);
+    }
+
+    // 🌟 2. 监听原生代码文件 (TextEditor) 的切换
     vscode.window.onDidChangeActiveTextEditor(editor => {
-      if (editor) {
-        let activePath = editor.document.uri.toString();
-        // 逆向解析：如果是我们虚拟的只读文件，从中提取真正的物理路径，实现联动
-        if (editor.document.uri.scheme === 'quickops-ro') {
-          const match = editor.document.uri.query.match(/target=([^&]+)/);
-          if (match) {
-            activePath = decodeURIComponent(match[1]);
-          }
-        }
-        this.setActivePath(activePath);
-      }
+      this.handleEditorChange(editor);
     });
   }
 
-  // 🌟 统一的路径派发器：推送给 React 前端高亮
+  // 🌟 核心修复：分离事件处理，坚决不写 else { setContext(false) } 
+  // 防止用户点击侧边栏面板时焦点丢失导致按钮消失
+  private handleEditorChange(editor: vscode.TextEditor | undefined) {
+    if (editor) {
+      let activePath = editor.document.uri.toString();
+      // 逆向解析虚拟只读路径
+      if (editor.document.uri.scheme === 'quickops-ro') {
+        const match = editor.document.uri.query.match(/target=([^&]+)/);
+        if (match) {
+          activePath = decodeURIComponent(match[1]);
+        }
+      }
+      this.setActivePath(activePath);
+    }
+  }
+
+  private updateRevealContext(activePath: string) {
+    let canReveal = false;
+    const projects = this.getRecentProjects();
+    const currentWorkspaceStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+
+    const isInside = (child: string, parent: string) => {
+      const normalizedParent = parent.endsWith('/') ? parent : parent + '/';
+      return child === parent || child.startsWith(normalizedParent);
+    };
+
+    if (currentWorkspaceStr && isInside(activePath, currentWorkspaceStr)) {
+      canReveal = true;
+    } else if (projects.some(p => isInside(activePath, p.fsPath))) {
+      canReveal = true;
+    }
+
+    vscode.commands.executeCommand('setContext', 'quickOps.canRevealInRecent', canReveal);
+  }
+
   private setActivePath(fsPath: string) {
     this.currentActivePath = fsPath;
+    this.updateRevealContext(fsPath);
     if (this._view) {
       this._view.webview.postMessage({
         type: 'activeEditorChanged',
         fsPath: fsPath
       });
     }
+  }
+
+  public revealCurrentActive() {
+    if (!this.currentActivePath) return;
+
+    let realPath = this.currentActivePath;
+    if (this.currentActivePath.startsWith('quickops-ro:')) {
+      const match = this.currentActivePath.match(/target=([^&]+)/);
+      if (match) realPath = decodeURIComponent(match[1]);
+    }
+
+    const projects = this.getRecentProjects();
+    const currentWorkspaceStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
+    
+    const isInside = (child: string, parent: string) => {
+      const normalizedParent = parent.endsWith('/') ? parent : parent + '/';
+      return child === parent || child.startsWith(normalizedParent);
+    };
+
+    let rootProj = projects.find(p => isInside(realPath, p.fsPath));
+    
+    if (!rootProj && currentWorkspaceStr && isInside(realPath, currentWorkspaceStr)) {
+      rootProj = { name: vscode.workspace.workspaceFolders![0].name, fsPath: currentWorkspaceStr } as any;
+    }
+
+    if (!rootProj) return;
+
+    // 向上逐级回溯，收集需要展开的全部父文件夹
+    const parentPaths: string[] = [];
+    const uri = vscode.Uri.parse(realPath);
+    const rootUri = vscode.Uri.parse(rootProj.fsPath);
+
+    let p = uri.path;
+    while (p.length > rootUri.path.length && p !== '/') {
+      p = path.posix.dirname(p);
+      parentPaths.push(uri.with({ path: p }).toString());
+    }
+    parentPaths.push(rootProj.fsPath);
+
+    const projectName = rootProj.customName || rootProj.name;
+
+    this._view?.webview.postMessage({
+      type: 'revealPath',
+      targetPath: realPath,
+      parentPaths: parentPaths,
+      projectName
+    });
   }
 
   private initializeCurrentWorkspace() {
@@ -167,6 +243,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       switch (data.type) {
         case 'refresh':
           this.refresh();
+          if (this.currentActivePath) {
+             this.setActivePath(this.currentActivePath);
+          }
           break;
         case 'openProject':
           this.openProject(data.fsPath);
@@ -392,7 +471,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
           this.activePanels.set(uri.fsPath, panel);
           
-          // 🌟 2. 监听自定义 Webview 面板切换焦点
           panel.onDidChangeViewState(({ webviewPanel }) => {
             if (webviewPanel.active) {
               this.setActivePath(fsPath);
@@ -447,7 +525,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       this.activePanels.set(uri.fsPath, panel);
       
-      // 🌟 3. 监听 Excel Webview 面板切换焦点
       panel.onDidChangeViewState(({ webviewPanel }) => {
         if (webviewPanel.active) {
           this.setActivePath(fsPath);
@@ -496,7 +573,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       );
       this.activePanels.set(uri.fsPath, panel);
       
-      // 🌟 4. 监听 PDF Webview 面板切换焦点
       panel.onDidChangeViewState(({ webviewPanel }) => {
         if (webviewPanel.active) {
           this.setActivePath(fsPath);
@@ -560,7 +636,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       );
       this.activePanels.set(uri.fsPath, panel);
       
-      // 🌟 5. 监听 Vditor Webview 面板切换焦点
       panel.onDidChangeViewState(({ webviewPanel }) => {
         if (webviewPanel.active) {
           this.setActivePath(fsPath);
@@ -1207,7 +1282,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `正在查询 ${repoFullName.split('/').pop()} 的远程分支...`, cancellable: false }, async () => {
         return new Promise<any[]>((resolve, reject) => {
           let options: any = {};
-          const token = vscode.workspace.getConfiguration('quick-ops.git').get('githubToken');
+          const token = vscode.workspace.getConfiguration('quickOps.git').get('githubToken');
           const headers: any = { 'User-Agent': 'VSCode-QuickOps-Extension' };
           if (token && platform !== 'gitlab') {
             headers['Authorization'] = `token ${token}`;
@@ -1339,6 +1414,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         customDomain
       };
     }
+    
+    // 获取当前活动代码文件
+    const activeEditor = vscode.window.activeTextEditor;
+    const activeFilePath = activeEditor ? activeEditor.document.uri.toString() : '';
 
     this._view.webview.postMessage({
       type: 'updateProjects',
@@ -1346,7 +1425,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       currentUriStr: currentUriStr,
       currentWorkspace: currentWorkspaceInfo,
       lastOpenedPath: this.lastOpenedPath,
-      activeFilePath: this.currentActivePath
+      activeFilePath: activeFilePath
     });
   }
 

@@ -463,6 +463,11 @@
         "command": "quickOps.openProject",
         "title": "在编辑器中打开此项目",
         "icon": "$(open-in-product)"
+      },
+      {
+        "command": "quickOps.revealInRecentProjects",
+        "title": "在项目中定位",
+        "icon": "$(target)"
       }
     ],
     "keybindings": [
@@ -487,19 +492,24 @@
           "group": "navigation@1"
         },
         {
-          "command": "quickOps.syncBranches",
+          "command": "quickOps.revealInRecentProjects",
           "when": "view == quickOps.recentProjectsView",
           "group": "navigation@2"
         },
         {
-          "command": "quickOps.refreshRecentProjects",
+          "command": "quickOps.syncBranches",
           "when": "view == quickOps.recentProjectsView",
           "group": "navigation@3"
         },
         {
-          "command": "quickOps.clearRecentProjects",
+          "command": "quickOps.refreshRecentProjects",
           "when": "view == quickOps.recentProjectsView",
           "group": "navigation@4"
+        },
+        {
+          "command": "quickOps.clearRecentProjects",
+          "when": "view == quickOps.recentProjectsView",
+          "group": "navigation@5"
         },
         {
           "command": "quickOps.switchGitProject",

@@ -19,7 +19,6 @@ export default function RecentProjectsApp() {
   const [lastOpenedPath, setLastOpenedPath] = useState('');
   const [searchQuery, setSearchQuery] = useState<string>((vscode.getState() as any)?.searchQuery || '');
   
-  // 🌟 统一使用物理绝对路径追踪选中状态
   const [selectedPath, setSelectedPath] = useState<string>('');
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
@@ -105,7 +104,6 @@ export default function RecentProjectsApp() {
         });
 
       } else if (msg.type === 'activeEditorChanged') {
-        // 🌟 后端推送：任何代码页/面板切换，前端自动高亮响应的树节点
         setSelectedPath(msg.fsPath as string);
       } else if (msg.type === 'updateBranchTag') {
         setBranchMap((prev) => ({ ...prev, [msg.fsPath as string]: msg.branch as string }));
@@ -136,6 +134,24 @@ export default function RecentProjectsApp() {
           setFolderSearchError('');
           setFileNameSearchResults((msg.results as DirChild[]) || []);
         }
+      } 
+      // 🌟 监听“定位文件”的消息指令
+      else if (msg.type === 'revealPath') {
+        const { targetPath, parentPaths, projectName } = msg as any;
+        setSelectedPath(targetPath);
+        
+        // 自动逐层展开所有的父级文件夹
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+          parentPaths.forEach((p: string) => next.add(p));
+          return next;
+        });
+
+        // 对没展开（没数据）的文件夹发起后端请求读取
+        parentPaths.forEach((p: string) => {
+           setLoadingPaths(l => new Set(l).add(p));
+           vscode.postMessage({ type: 'readDir', fsPath: p, projectName });
+        });
       }
     };
 
@@ -153,18 +169,18 @@ export default function RecentProjectsApp() {
     };
   }, []);
 
-  // 🌟 自动滚屏追踪：如果这个文件在当前被展开的文件夹里，就滚到它那里
+  // 🌟 追加依赖 dirChildren：一旦数据获取完毕、树节点被渲染，它就会完美自动平滑滚动到位
   useEffect(() => {
     if (selectedPath && !isSearchMode) {
       const safeId = `tree-node-${encodeURIComponent(selectedPath)}`;
       const el = document.getElementById(safeId);
       if (el) {
         setTimeout(() => {
-          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }, 50);
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
       }
     }
-  }, [selectedPath, expandedPaths, isSearchMode]);
+  }, [selectedPath, expandedPaths, isSearchMode, dirChildren]);
 
   useEffect(() => {
     if (!isSearchMode || !searchTargetProject) return;
@@ -253,9 +269,6 @@ export default function RecentProjectsApp() {
 
   const handleToggleExpand = (path: string, projectName: string, _: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
-    
-    // 🌟 此处不再调用 setSelectedPath(path); 
-    // 让“点击文件夹仅仅用来展开”，而不抢夺文件自身的深蓝色高亮焦点！
 
     if (clickTimeout.current) clearTimeout(clickTimeout.current);
 
@@ -283,7 +296,6 @@ export default function RecentProjectsApp() {
   const handleContextMenu = (e: React.MouseEvent, type: 'top' | 'sub', payload: ContextMenuPayload) => {
     e.preventDefault();
     e.stopPropagation();
-    // 用户右键主动呼出菜单时，将高亮转移到该元素
     setSelectedPath(payload.path);
 
     let x = e.pageX;

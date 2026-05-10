@@ -19,6 +19,11 @@ export class RecentProjectsFeature implements IFeature {
       webviewOptions: { retainContextWhenHidden: true },
     });
 
+    // 🌟 注册定位命令
+    const revealCmd = vscode.commands.registerCommand('quickOps.revealInRecentProjects', () => {
+      provider.revealCurrentActive();
+    });
+
     // 输入+选择双模式的添加逻辑
     const addCmd = vscode.commands.registerCommand('quickOps.addRecentProject', async () => {
       const quickPick = vscode.window.createQuickPick();
@@ -136,7 +141,7 @@ export class RecentProjectsFeature implements IFeature {
     });
 
     // 将所有注册推入订阅池
-    context.subscriptions.push(webviewView, roDocRegistration, addCmd, refreshCmd, syncCmd, windowFocusWatcher, clearCmd, selectForCompareCmd, compareWithSelectedCmd);
+    context.subscriptions.push(webviewView, roDocRegistration, revealCmd, addCmd, refreshCmd, syncCmd, windowFocusWatcher, clearCmd, selectForCompareCmd, compareWithSelectedCmd);
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
