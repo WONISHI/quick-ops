@@ -7,7 +7,11 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
     import.meta.url,
 ).toString();
 
-export default function PdfPreviewApp() {
+interface PdfPreviewAppProps {
+    initialScale?: number; // 允许从 React Prop 传入 (例如 1.2)
+}
+
+export default function PdfPreviewApp({ initialScale = 1.2 }: PdfPreviewAppProps) {
     const [loading, setLoading] = useState(true);
     const [pdfBase64, setPdfBase64] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -15,7 +19,7 @@ export default function PdfPreviewApp() {
     // PDF 控制状态
     const [numPages, setNumPages] = useState<number | null>(null);
     const [pageNumber, setPageNumber] = useState(1);
-    const [scale, setScale] = useState(1.2); // 默认缩放比例
+    const [scale, setScale] = useState(initialScale);
 
     useEffect(() => {
         const handleMessage = (e: MessageEvent) => {
@@ -27,13 +31,16 @@ export default function PdfPreviewApp() {
                     return;
                 }
                 setPdfBase64(msg.contentBase64);
+                if (msg.initialScale) {
+                    const finalScale = msg.initialScale > 10 ? msg.initialScale / 100 : msg.initialScale;
+                    setScale(finalScale);
+                }
+
                 setLoading(false);
             }
         };
 
         window.addEventListener('message', handleMessage);
-
-        // 通知后端 Webview 已就绪，可以发送 PDF 数据了
         vscode.postMessage({ command: 'webviewLoaded' });
 
         return () => window.removeEventListener('message', handleMessage);
@@ -45,10 +52,7 @@ export default function PdfPreviewApp() {
     };
 
     const changePage = (offset: number) => {
-        setPageNumber((prevPageNumber) => {
-            const newPage = prevPageNumber + offset;
-            return Math.min(Math.max(1, newPage), numPages || 1);
-        });
+        setPageNumber((prev) => Math.min(Math.max(1, prev + offset), numPages || 1));
     };
 
     if (loading) {
@@ -85,21 +89,13 @@ export default function PdfPreviewApp() {
                 flexShrink: 0
             }}>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                        onClick={() => setScale(s => Math.max(0.5, s - 0.2))}
-                        style={btnStyle}
-                        title="缩小"
-                    >
+                    <button onClick={() => setScale(s => Math.max(0.3, s - 0.1))} style={btnStyle} title="缩小">
                         <span className="codicon codicon-zoom-out"></span>
                     </button>
-                    <span style={{ fontSize: '13px', minWidth: '40px', textAlign: 'center', lineHeight: '24px' }}>
+                    <span style={{ fontSize: '12px', minWidth: '40px', textAlign: 'center', lineHeight: '24px' }}>
                         {Math.round(scale * 100)}%
                     </span>
-                    <button
-                        onClick={() => setScale(s => Math.min(3.0, s + 0.2))}
-                        style={btnStyle}
-                        title="放大"
-                    >
+                    <button onClick={() => setScale(s => Math.min(5.0, s + 0.1))} style={btnStyle} title="放大">
                         <span className="codicon codicon-zoom-in"></span>
                     </button>
                 </div>
@@ -107,42 +103,24 @@ export default function PdfPreviewApp() {
                 <div style={{ width: '1px', height: '16px', backgroundColor: 'var(--vscode-panel-border)' }}></div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button
-                        onClick={() => changePage(-1)}
-                        disabled={pageNumber <= 1}
-                        style={{ ...btnStyle, opacity: pageNumber <= 1 ? 0.5 : 1, cursor: pageNumber <= 1 ? 'not-allowed' : 'pointer' }}
-                    >
+                    <button onClick={() => changePage(-1)} disabled={pageNumber <= 1} style={{ ...btnStyle, opacity: pageNumber <= 1 ? 0.4 : 1 }}>
                         <span className="codicon codicon-chevron-left"></span>
                     </button>
-
-                    <span style={{ fontSize: '13px' }}>
-                        第 {pageNumber} 页，共 {numPages || '--'} 页
-                    </span>
-
-                    <button
-                        onClick={() => changePage(1)}
-                        disabled={pageNumber >= (numPages || 1)}
-                        style={{ ...btnStyle, opacity: pageNumber >= (numPages || 1) ? 0.5 : 1, cursor: pageNumber >= (numPages || 1) ? 'not-allowed' : 'pointer' }}
-                    >
+                    <span style={{ fontSize: '12px' }}> 第 {pageNumber} / {numPages || '--'} 页 </span>
+                    <button onClick={() => changePage(1)} disabled={pageNumber >= (numPages || 1)} style={{ ...btnStyle, opacity: pageNumber >= (numPages || 1) ? 0.4 : 1 }}>
                         <span className="codicon codicon-chevron-right"></span>
                     </button>
                 </div>
             </div>
 
-            {/* PDF 渲染区域 */}
+            {/* 渲染区域 */}
             <div style={{ flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', padding: '20px' }}>
                 <Document
                     file={`data:application/pdf;base64,${pdfBase64}`}
                     onLoadSuccess={onDocumentLoadSuccess}
-                    onLoadError={(err) => setError(`PDF 引擎解析失败: ${err.message}`)}
-                    loading={
-                        <div style={{ color: 'var(--vscode-descriptionForeground)' }}>
-                            正在解析文档页面...
-                        </div>
-                    }
+                    onLoadError={(err) => setError(`PDF 解析失败: ${err.message}`)}
                 >
-                    {/* 将背景设置为白色，因为很多 PDF 是透明背景，在暗色主题下会看不清字 */}
-                    <div style={{ backgroundColor: '#ffffff', boxShadow: '0 4px 8px rgba(0,0,0,0.2)' }}>
+                    <div style={{ backgroundColor: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
                         <Page
                             pageNumber={pageNumber}
                             scale={scale}

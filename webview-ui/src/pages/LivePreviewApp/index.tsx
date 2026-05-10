@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { vscode } from '../../utils/vscode';
 import { isUrlLike, escapeRegExp } from "../../utils"
+import UrlParser from "../../utils/UrlParser"
 import styles from './index.module.css';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -8,15 +9,23 @@ import {
   faArrowLeft, faRotateRight, faGlobe, faXmark, faStar as faStarSolid,
   faArrowRight, faRotate, faArrowUpRightFromSquare, faEllipsis,
   faLayerGroup, faPlus, faClockRotateLeft, faBroom, faChevronRight,
-  faDatabase, faBoxArchive, faCookieBite, faTerminal, faBug, faPen,
+  faDatabase, faBoxArchive, faCookieBite, faTerminal, faPen,
   faTrash, faCheck
 } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular, faCopy as faCopyRegular } from '@fortawesome/free-regular-svg-icons';
 import { faVuejs, faNodeJs, faReact } from '@fortawesome/free-brands-svg-icons';
 
+import VditorApp from '../VditorApp';
+import PdfPreviewApp from '../PdfPreviewApp';
+import ExcelPreviewApp from '../ExcelPreviewApp';
+
 export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
+  
+  // 🌟 新增：追踪当前的预览组件模式
+  const [previewType, setPreviewType] = useState<'web' | 'md' | 'pdf' | 'excel'>('web');
+
   const [device, setDevice] = useState('device-responsive');
   const [isRotated, setIsRotated] = useState(false);
   const [faviconUrl, setFaviconUrl] = useState('');
@@ -49,9 +58,8 @@ export default function LivePreviewApp() {
           const initUrl = message.url.trim();
           setUrlInput(initUrl);
           if (initUrl) {
-            setFrameUrl(initUrl);
+            loadPreviewTarget(initUrl);
             pushHistory(initUrl, initUrl);
-            updateFavicon(initUrl);
           }
         }
         vscode?.postMessage({ type: 'reqSyncFavorites' });
@@ -78,9 +86,8 @@ export default function LivePreviewApp() {
     };
   }, []);
 
-  // 🌟 修改点 2：适配 Object 元素的加载事件
   const handleObjectLoad = () => {
-    if (!objectRef.current || historyIdx < 0) return;
+    if (!objectRef.current || historyIdx < 0 || previewType !== 'web') return;
     try {
       const doc = objectRef.current.contentDocument || objectRef.current.contentWindow?.document;
       if (doc && doc.title) {
@@ -115,9 +122,7 @@ export default function LivePreviewApp() {
     const targetUrl = historyStack[index].url;
     setHistoryIdx(index);
     setUrlInput(targetUrl);
-    setFrameUrl(targetUrl);
-    updateFavicon(targetUrl);
-    vscode?.postMessage({ type: 'saveUrl', url: targetUrl });
+    loadPreviewTarget(targetUrl);
     setActiveModal('none');
   };
 
@@ -131,27 +136,47 @@ export default function LivePreviewApp() {
     }
   };
 
+  // 🌟 新增：处理组件加载及消息通知封装
+  const loadPreviewTarget = (url: string) => {
+    setFrameUrl(url);
+    vscode?.postMessage({ type: 'saveUrl', url });
+
+    let pType: 'web' | 'md' | 'pdf' | 'excel' = 'web';
+    if (UrlParser.isAbsolutePath(url)) {
+      const lower = url.toLowerCase();
+      if (lower.endsWith('.md')) pType = 'md';
+      else if (lower.endsWith('.pdf')) pType = 'pdf';
+      else if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) pType = 'excel';
+    }
+
+    setPreviewType(pType);
+
+    if (pType !== 'web') {
+      // 预先告知后端我们需要准备这个文件的流，组件加载完会自己去取
+      vscode?.postMessage({ type: 'setPendingLocalFile', fsPath: url, fileType: pType });
+      setFaviconUrl(''); // 本地文件无需 favicon
+    } else {
+      updateFavicon(url);
+    }
+  };
+
   const handleGo = (forceUrl?: string) => {
-    let finalUrl = (forceUrl !== undefined ? forceUrl : urlInput).trim();
+    const rawUrl = forceUrl !== undefined ? forceUrl : urlInput;
+    const finalUrl = UrlParser.parse(rawUrl);
+
     setShowSuggest(false);
+
     if (!finalUrl) {
       setFrameUrl('');
+      setPreviewType('web');
       updateFavicon('');
       vscode?.postMessage({ type: 'saveUrl', url: '' });
       return;
     }
-    if (isUrlLike(finalUrl)) {
-      if (!finalUrl.startsWith('http://') && !finalUrl.startsWith('https://') && !finalUrl.startsWith('file://')) {
-        finalUrl = 'http://' + finalUrl;
-      }
-    } else {
-      finalUrl = 'https://www.bing.com/search?q=' + encodeURIComponent(finalUrl);
-    }
+
     setUrlInput(finalUrl);
-    setFrameUrl(finalUrl);
-    updateFavicon(finalUrl);
+    loadPreviewTarget(finalUrl);
     pushHistory(finalUrl, finalUrl);
-    vscode?.postMessage({ type: 'saveUrl', url: finalUrl });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -200,11 +225,14 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'saveDevice', device: newDevice });
   };
 
-  // 🌟 修改点 3：适配 Object 的 contentDocument 获取
   const toggleFavorite = () => {
     if (!frameUrl) return;
     let title = frameUrl;
-    try { title = objectRef.current?.contentDocument?.title || urlInput; } catch (e) {
+    try {
+      if (previewType === 'web') {
+        title = objectRef.current?.contentDocument?.title || urlInput;
+      }
+    } catch (e) {
       console.log('e', e);
     }
     vscode?.postMessage({ type: 'toggleFavorite', url: frameUrl, title });
@@ -237,9 +265,9 @@ export default function LivePreviewApp() {
     setMenuOpen(!menuOpen);
   };
 
-  // 🌟 修改点 4：适配 Object 的 Window 获取
   const handleCacheClear = (type: 'local' | 'session' | 'cookie') => {
     try {
+      if (previewType !== 'web') throw new Error("Not a web preview");
       const win = objectRef.current?.contentWindow;
       if (!win) throw new Error("No Access");
       if (type === 'local') win.localStorage.clear();
@@ -257,33 +285,7 @@ export default function LivePreviewApp() {
       handleRefresh();
     } catch (e) {
       console.log('e', e);
-      vscode?.postMessage({ type: 'showWarning', message: '⚠️ 跨域安全限制，请在开发者工具中手动清理。' });
-    }
-    setMenuOpen(false);
-  };
-
-  // 🌟 修改点 5：适配 Object 的 Document 获取
-  const handleInjectVConsole = () => {
-    try {
-      const frameDoc = objectRef.current?.contentDocument || objectRef.current?.contentWindow?.document;
-      if (!frameDoc) throw new Error("No Access");
-      if (frameDoc.getElementById('vconsole-script-injected')) {
-        vscode?.postMessage({ type: 'showInfo', message: 'vConsole 已经注入，请查看页面右下角！' });
-      } else {
-        const script = frameDoc.createElement('script');
-        script.id = 'vconsole-script-injected';
-        script.src = 'https://unpkg.com/vconsole@latest/dist/vconsole.min.js';
-        script.onload = () => {
-          const initScript = frameDoc.createElement('script');
-          initScript.innerHTML = 'window.__vconsole = new window.VConsole();';
-          frameDoc.body.appendChild(initScript);
-          vscode?.postMessage({ type: 'showInfo', message: '🚀 vConsole 注入成功！' });
-        };
-        frameDoc.head.appendChild(script);
-      }
-    } catch (e) {
-      console.log('e', e);
-      vscode?.postMessage({ type: 'vConsoleFallback' });
+      vscode?.postMessage({ type: 'showWarning', message: '⚠️ 此页面不支持清理缓存' });
     }
     setMenuOpen(false);
   };
@@ -305,10 +307,8 @@ export default function LivePreviewApp() {
 
   const saveFavorite = () => {
     const t = favForm.title.trim();
-    let u = favForm.url.trim();
+    let u = UrlParser.parse(favForm.url);
     if (!t || !u) return vscode?.postMessage({ type: 'showError', message: '标题和链接不能为空' });
-    if (!isUrlLike(u)) return vscode?.postMessage({ type: 'showError', message: '请输入有效的网址格式' });
-    if (!u.startsWith('http://') && !u.startsWith('https://') && !u.startsWith('file://')) u = 'http://' + u;
 
     let newFavs = [...favorites];
     if (favForm.editingOriginalUrl) {
@@ -368,7 +368,7 @@ export default function LivePreviewApp() {
             }}
             onKeyDown={handleKeyDown}
             onFocus={() => { if (urlInput.trim()) setShowSuggest(true); }}
-            placeholder="输入网址 或 搜索内容"
+            placeholder="输入网址、本地绝对路径 或 搜索内容"
             spellCheck="false"
             autoComplete="off"
           />
@@ -414,7 +414,13 @@ export default function LivePreviewApp() {
 
         <div className={styles['divider']}></div>
 
-        <select className={styles['vscode-select']} value={device} onChange={handleDeviceChange} title="选择预览设备">
+        <select 
+          className={styles['vscode-select']} 
+          value={device} 
+          onChange={handleDeviceChange} 
+          title="选择预览设备"
+          disabled={previewType !== 'web'} // 🌟 本地文件不支持调整设备
+        >
           <optgroup label="响应式">
             <option value="device-responsive">响应式铺满</option>
           </optgroup>
@@ -439,7 +445,7 @@ export default function LivePreviewApp() {
 
         <button
           className={`${styles['icon-btn']} ${isRotated ? styles['active-blue'] : ''}`}
-          disabled={device === 'device-responsive'}
+          disabled={device === 'device-responsive' || previewType !== 'web'}
           onClick={() => setIsRotated(!isRotated)}
           title="横屏/竖屏切换"
         >
@@ -447,7 +453,7 @@ export default function LivePreviewApp() {
         </button>
 
         <div className={styles['divider']}></div>
-        <button className={styles['icon-btn']} disabled={!urlInput.trim()} onClick={() => vscode?.postMessage({ type: 'openExternalBrowser', url: frameUrl || urlInput })} title="在外部默认浏览器中打开">
+        <button className={styles['icon-btn']} disabled={!urlInput.trim() || previewType !== 'web'} onClick={() => vscode?.postMessage({ type: 'openExternalBrowser', url: frameUrl || urlInput })} title="在外部默认浏览器中打开">
           <FontAwesomeIcon icon={faArrowUpRightFromSquare} />
         </button>
         <button className={styles['icon-btn']} ref={moreBtnRef} onClick={openContextMenu} title="更多操作">
@@ -489,14 +495,11 @@ export default function LivePreviewApp() {
           <div className={styles['menu-item']} onClick={() => { vscode?.postMessage({ type: 'openDevTools' }); setMenuOpen(false); }}>
             <FontAwesomeIcon icon={faTerminal} className={styles['menu-icon']} /> 开发者工具
           </div>
-          <div className={`${styles['menu-item']} ${styles['menu-item-vconsole']}`} onClick={handleInjectVConsole}>
-            <FontAwesomeIcon icon={faBug} className={styles['menu-icon']} /> 注入 vConsole
-          </div>
         </div>
       )}
 
-      {/* 预览区域 */}
-      <div className={`${styles['preview-container']} ${device === 'device-responsive' ? styles['no-padding'] : ''}`}>
+      {/* 🌟 核心修改：动态渲染预览内容区域 */}
+      <div className={`${styles['preview-container']} ${device === 'device-responsive' || previewType !== 'web' ? styles['no-padding'] : ''}`}>
         {!frameUrl ? (
           <div className={styles['welcome-page']}>
             <FontAwesomeIcon icon={faLayerGroup} className={styles['welcome-icon']} />
@@ -515,9 +518,14 @@ export default function LivePreviewApp() {
               </button>
             </div>
           </div>
+        ) : previewType === 'md' ? (
+          <VditorApp key={frameUrl} />
+        ) : previewType === 'pdf' ? (
+          <PdfPreviewApp key={frameUrl} />
+        ) : previewType === 'excel' ? (
+          <ExcelPreviewApp key={frameUrl} />
         ) : (
           <div id="deviceWrapper" className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}>
-            {/* 🌟 修改点 6：替换 iframe 为 object */}
             <object
               ref={objectRef}
               data={frameUrl}
@@ -526,7 +534,6 @@ export default function LivePreviewApp() {
               className={styles['fromPage']}
               title="preview"
             >
-              {/* 如果内容无法加载，会回退显示这段文字 */}
               <div style={{ padding: 20, textAlign: 'center' }}>无法加载预览，可能由于跨域或网页安全策略限制。</div>
             </object>
           </div>
