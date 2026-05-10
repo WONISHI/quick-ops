@@ -22,7 +22,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private selectedForCompareUri?: vscode.Uri;
   private selectedForCompareName?: string;
   private activePanels: Map<string, vscode.WebviewPanel> = new Map();
-  
+
   private currentActivePath: string = '';
 
   constructor(private context: vscode.ExtensionContext) {
@@ -42,30 +42,55 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   // 🌟 核心魔法：自动从 globalState 中读取并跳转到跨窗口传来的精确坐标
   private async checkPendingFileOpen() {
-    const pending = this.context.globalState.get<{path: string, line: number, char: number, targetWorkspace?: string}>('quickOps.pendingOpenFile');
+    const pending = this.context.globalState.get<{ path: string, line: number, char: number, targetWorkspace?: string }>('quickOps.pendingOpenFile');
     if (pending) {
       // 校验是不是发给当前被激活的工作区的，防止被其他无关窗口截胡
       const currentWorkspaceStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
       if (pending.targetWorkspace && currentWorkspaceStr !== pending.targetWorkspace) {
-        return; 
+        return;
       }
 
       // 确认是自己的，消费掉它，防止下次启动再次弹开
       await this.context.globalState.update('quickOps.pendingOpenFile', undefined);
-      
-      // 延迟 1.5 秒，等待新窗口的 Workspace 和文件树彻底加载完毕再打开，确保丝滑
-      setTimeout(async () => {
+
+      const targetUri = pending.path.includes('://') ? vscode.Uri.parse(pending.path) : vscode.Uri.file(pending.path);
+
+      // 🚀 核心优化：智能高频轮询探测，替代原先的 1.5 秒死等
+      let attempts = 0;
+      const maxAttempts = 40; // 最大重试 40 次 (最多兜底等 2 秒)
+      const delay = 50;       // 每 50 毫秒探测一次
+
+      const tryOpenDoc = async () => {
         try {
-          const targetUri = pending.path.includes('://') ? vscode.Uri.parse(pending.path) : vscode.Uri.file(pending.path);
+          // 尝试去读取文件状态，如果报错说明 VS Code 的 Workspace 还没准备好
+          await vscode.workspace.fs.stat(targetUri);
+
+          // 只要没报错，立刻瞬间打开它，不浪费一毫秒！
           const doc = await vscode.workspace.openTextDocument(targetUri);
           const editor = await vscode.window.showTextDocument(doc, { preview: false });
           const pos = new vscode.Position(pending.line, pending.char);
           editor.selection = new vscode.Selection(pos, pos);
           editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+          return true; // 成功打开
         } catch (e) {
-          console.error('[Quick Ops] 跨窗口恢复坐标失败:', e);
+          return false; // 还未就绪，继续等
         }
-      }, 1500);
+      };
+
+      const poll = async () => {
+        const success = await tryOpenDoc();
+        if (!success) {
+          attempts++;
+          if (attempts < maxAttempts) {
+            setTimeout(poll, delay);
+          } else {
+            console.error('[Quick Ops] 跨窗口恢复坐标失败: 等待文件系统超时');
+          }
+        }
+      };
+
+      // 立刻发起第一次尝试
+      poll();
     }
   }
 
@@ -123,14 +148,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     const projects = this.getRecentProjects();
     const currentWorkspaceStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
-    
+
     const isInside = (child: string, parent: string) => {
       const normalizedParent = parent.endsWith('/') ? parent : parent + '/';
       return child === parent || child.startsWith(normalizedParent);
     };
 
     let rootProj = projects.find(p => isInside(realPath, p.fsPath));
-    
+
     if (!rootProj && currentWorkspaceStr && isInside(realPath, currentWorkspaceStr)) {
       rootProj = { name: vscode.workspace.workspaceFolders![0].name, fsPath: currentWorkspaceStr } as any;
     }
@@ -161,7 +186,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private initializeCurrentWorkspace() {
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) return;
-    
+
     const currentUriStr = folders[0].uri.toString();
     this.updateSingleBranch(currentUriStr, true);
   }
@@ -274,7 +299,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             gitProjects.unshift(proj || { fsPath: data.fsPath, name: path.basename(data.fsPath) });
             await this.context.globalState.update('quickOps.gitProjectsHistory', gitProjects);
             vscode.window.showInformationMessage('✅ 已添加到 Git 记录列表');
-            vscode.commands.executeCommand('quickOps.refreshGitProjects').then(undefined, () => {});
+            vscode.commands.executeCommand('quickOps.refreshGitProjects').then(undefined, () => { });
           } else {
             vscode.window.showWarningMessage('⚠️ 该项目已在 Git 记录列表中');
           }
@@ -290,7 +315,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           // 去当前所有的活动 TextEditor 里找，看有没有此时正处于“只读预览”状态的文件，抓取它的精确光标
           for (const editor of vscode.window.visibleTextEditors) {
             if (
-              editor.document.uri.fsPath === targetUri.fsPath || 
+              editor.document.uri.fsPath === targetUri.fsPath ||
               (editor.document.uri.scheme === 'quickops-ro' && editor.document.uri.query.includes(encodeURIComponent(data.fsPath)))
             ) {
               currentLine = editor.selection.active.line;
@@ -325,8 +350,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             const projects = this.getRecentProjects();
             // 寻找该文件所属的项目根目录
             const rootProj = projects.find(p => data.fsPath.startsWith(p.fsPath));
-            const workspaceUri = rootProj 
-              ? (rootProj.fsPath.includes('://') ? vscode.Uri.parse(rootProj.fsPath) : vscode.Uri.file(rootProj.fsPath)) 
+            const workspaceUri = rootProj
+              ? (rootProj.fsPath.includes('://') ? vscode.Uri.parse(rootProj.fsPath) : vscode.Uri.file(rootProj.fsPath))
               : vscode.Uri.joinPath(targetUri, '..'); // 兜底用它的父级目录
 
             // 把这颗“坐标种子”塞进 globalState
@@ -346,7 +371,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'refresh':
           this.refresh();
           if (this.currentActivePath) {
-             this.setActivePath(this.currentActivePath);
+            this.setActivePath(this.currentActivePath);
           }
           break;
         case 'openProject':
@@ -558,7 +583,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const contentStr = Buffer.from(contentBytes).toString('utf8');
 
           if (!contentStr || contentStr.trim() === '') {
-             throw new Error('文件为空或内容无法读取');
+            throw new Error('文件为空或内容无法读取');
           }
 
           const panel = vscode.window.createWebviewPanel(
@@ -572,7 +597,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           );
 
           this.activePanels.set(uri.fsPath, panel);
-          
+
           panel.onDidChangeViewState(({ webviewPanel }) => {
             if (webviewPanel.active) {
               this.setActivePath(fsPath);
@@ -626,7 +651,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       );
 
       this.activePanels.set(uri.fsPath, panel);
-      
+
       panel.onDidChangeViewState(({ webviewPanel }) => {
         if (webviewPanel.active) {
           this.setActivePath(fsPath);
@@ -674,7 +699,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
       );
       this.activePanels.set(uri.fsPath, panel);
-      
+
       panel.onDidChangeViewState(({ webviewPanel }) => {
         if (webviewPanel.active) {
           this.setActivePath(fsPath);
@@ -737,7 +762,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
       );
       this.activePanels.set(uri.fsPath, panel);
-      
+
       panel.onDidChangeViewState(({ webviewPanel }) => {
         if (webviewPanel.active) {
           this.setActivePath(fsPath);
@@ -1219,7 +1244,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
         p = { name: folders[0].name, fsPath: fsPath, timestamp: 0, platform, customDomain };
       } else {
-        return; 
+        return;
       }
     }
 
@@ -1491,7 +1516,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private updateWebview() {
     if (!this._view) return;
     const projects = this.getRecentProjects();
-    
+
     let currentUriStr = '';
     let currentWorkspaceInfo = null;
 
@@ -1516,7 +1541,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         customDomain
       };
     }
-    
+
     const activeEditor = vscode.window.activeTextEditor;
     const activeFilePath = activeEditor ? activeEditor.document.uri.toString() : '';
 
