@@ -705,7 +705,6 @@ ul {
 
 .active-top-project.in-history .branch-tag {
   border-color: var(--vscode-textLink-foreground);
-  color: var(--vscode-textLink-foreground);
 }
 
 .active-top-project.not-in-history .branch-tag {

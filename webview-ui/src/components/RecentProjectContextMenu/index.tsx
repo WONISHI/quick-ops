@@ -59,7 +59,7 @@ export default function RecentProjectContextMenu({
       <ul>
         {type === 'top' && (
           <>
-            {/* 🌟 新增：如果是当前运行的项目，动态显示 添加/移除 按钮 */}
+            {/* 🌟 顶部管理：如果是当前正在运行的项目，动态显示 添加/移除 按钮 */}
             {payload.isActiveProject && (
               <>
                 {!(payload as any).inHistory ? (
@@ -92,9 +92,8 @@ export default function RecentProjectContextMenu({
             </li>
             <div className={styles['menu-separator']}></div>
 
-            {/* 🌟 新增：添加到Git记录列表 */}
             <li onClick={() => onAction('addToGitList')}>
-              <FontAwesomeIcon icon={faListUl} className={styles['menu-icon']} /> 添加到Git记录列表
+              <FontAwesomeIcon icon={faListUl} className={styles['menu-icon']} /> 添加到 Git 记录列表
             </li>
 
             <li onClick={() => onAction('edit')}>
@@ -132,13 +131,22 @@ export default function RecentProjectContextMenu({
                 <FontAwesomeIcon icon={faFolderOpenReg} className={styles['menu-icon']} /> 在访达/资源管理器中显示
               </li>
             )}
-            {!payload.isActiveProject && (
-              <>
-                <div className={styles['menu-separator']}></div>
-                <li onClick={() => onAction('delete')} style={{ color: 'var(--vscode-errorForeground)' }}>
-                  <FontAwesomeIcon icon={faTrash} className={styles['menu-icon']} /> 移除该项目
+
+            <div className={styles['menu-separator']}></div>
+            {payload.isActiveProject ? (
+              !(payload as any).inHistory ? (
+                <li onClick={() => onAction('addToHistory')}>
+                  <FontAwesomeIcon icon={faFolderPlus} className={styles['menu-icon']} /> 添加到资源管理器记录
                 </li>
-              </>
+              ) : (
+                <li onClick={() => onAction('delete')} style={{ color: 'var(--vscode-errorForeground)' }}>
+                  <FontAwesomeIcon icon={faTrash} className={styles['menu-icon']} /> 从资源管理器记录中移除
+                </li>
+              )
+            ) : (
+              <li onClick={() => onAction('delete')} style={{ color: 'var(--vscode-errorForeground)' }}>
+                <FontAwesomeIcon icon={faTrash} className={styles['menu-icon']} /> 移除该项目
+              </li>
             )}
           </>
         )}
@@ -147,12 +155,6 @@ export default function RecentProjectContextMenu({
           <>
             {!payload.isFolder && (
               <>
-                {/* 🌟 新增：在VS Code打开 (携带位置记忆) */}
-                <li onClick={() => onAction('openInVsCode')}>
-                  <FontAwesomeIcon icon={faFileCode} className={styles['menu-icon']} style={{ color: '#5dade2' }} /> 在 VS Code 打开...
-                </li>
-                <div className={styles['menu-separator']}></div>
-
                 {isLocalHtmlOrSvg && (
                   <>
                     <li onClick={() => onAction('openWith')}>
@@ -202,6 +204,16 @@ export default function RecentProjectContextMenu({
                 <div className={styles['menu-separator']}></div>
                 <li onClick={() => onAction('revealInExplorer', payload.path)}>
                   <FontAwesomeIcon icon={faFolderOpenReg} className={styles['menu-icon']} /> 在访达/资源管理器中显示
+                </li>
+              </>
+            )}
+
+            {/* 🌟 核心优化：如果它本来就是当前正在运行的项目，那它就在 VS Code 原生状态下，不需要这个按钮！ */}
+            {!payload.isFolder && !payload.isActiveProject && (
+              <>
+                <div className={styles['menu-separator']}></div>
+                <li onClick={() => onAction('openInVsCode')}>
+                  <FontAwesomeIcon icon={faFileCode} className={styles['menu-icon']} /> 在 VS Code 中打开...
                 </li>
               </>
             )}
