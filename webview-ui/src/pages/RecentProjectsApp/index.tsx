@@ -3,7 +3,6 @@ import { vscode } from '../../utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMagnifyingGlass, faFolderOpen, faFolderPlus, faCodeBranch, faChevronRight, faChevronDown, faArrowRightToBracket, faFolder, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
-
 import styles from './index.module.css';
 import FileIcon from '../../components/FileIcon';
 import RecentProjectContextMenu from '../../components/RecentProjectContextMenu';
@@ -15,19 +14,18 @@ import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload }
 export default function RecentProjectsApp() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentUri, setCurrentUri] = useState('');
-  
-  // 🌟 独立保存当前工作区数据
   const [currentWorkspace, setCurrentWorkspace] = useState<Project | null>(null);
 
   const [lastOpenedPath, setLastOpenedPath] = useState('');
   const [searchQuery, setSearchQuery] = useState<string>((vscode.getState() as any)?.searchQuery || '');
-  const [selectedId, setSelectedId] = useState<string>('');
-
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-  const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set());
+  
+  // 🌟 统一使用物理绝对路径追踪选中状态
+  const [selectedPath, setSelectedPath] = useState<string>('');
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+  const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const [dirChildren, setDirChildren] = useState<Record<string, DirChild[]>>({});
+  
   const [branchMap, setBranchMap] = useState<Record<string, string>>({});
-
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
     x: number;
@@ -61,14 +59,13 @@ export default function RecentProjectsApp() {
       res.matches.forEach((m: SearchMatch, matchIndex: number) => {
         const startIdx = idx;
         map.set(`${fileIndex}-${matchIndex}`, startIdx);
-
         let occurrencesCount = 0;
         const parts = m.text.split(regex);
         parts.forEach((part: string) => {
           if (part.toLowerCase() === folderSearchQuery.toLowerCase()) occurrencesCount++;
         });
-
         const count = Math.max(1, occurrencesCount);
+
         for (let k = 0; k < count; k++) {
           list.push({ fileIndex, matchIndex, lineGlobalIndex: startIdx, fullPath: res.fullPath, lineNum: m.line });
         }
@@ -88,8 +85,9 @@ export default function RecentProjectsApp() {
         setProjects(data);
         setCurrentUri((msg.currentUriStr as string) || '');
         setLastOpenedPath((msg.lastOpenedPath as string) || '');
-        
         setCurrentWorkspace((msg.currentWorkspace as Project) || null);
+
+        if (msg.activeFilePath) setSelectedPath(msg.activeFilePath as string);
 
         setBranchMap((prev) => {
           const newMap = { ...prev };
@@ -106,15 +104,19 @@ export default function RecentProjectsApp() {
           return newMap;
         });
 
+      } else if (msg.type === 'activeEditorChanged') {
+        // 🌟 后端推送：任何代码页/面板切换，前端自动高亮响应的树节点
+        setSelectedPath(msg.fsPath as string);
       } else if (msg.type === 'updateBranchTag') {
         setBranchMap((prev) => ({ ...prev, [msg.fsPath as string]: msg.branch as string }));
       } else if (msg.type === 'readDirResult') {
-        setLoadingNodes((prev) => {
+        const pathKey = msg.fsPath as string;
+        setLoadingPaths((prev) => {
           const n = new Set(prev);
-          n.delete(msg.id as string);
+          n.delete(pathKey);
           return n;
         });
-        setDirChildren((prev) => ({ ...prev, [msg.id as string]: msg.children as DirChild[] }));
+        setDirChildren((prev) => ({ ...prev, [pathKey]: msg.children as DirChild[] }));
       } else if (msg.type === 'searchFolderResult') {
         setIsSearchingFolder(false);
         if (msg.error) {
@@ -150,6 +152,19 @@ export default function RecentProjectsApp() {
       window.removeEventListener('blur', handleClickOutside);
     };
   }, []);
+
+  // 🌟 自动滚屏追踪：如果这个文件在当前被展开的文件夹里，就滚到它那里
+  useEffect(() => {
+    if (selectedPath && !isSearchMode) {
+      const safeId = `tree-node-${encodeURIComponent(selectedPath)}`;
+      const el = document.getElementById(safeId);
+      if (el) {
+        setTimeout(() => {
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 50);
+      }
+    }
+  }, [selectedPath, expandedPaths, isSearchMode]);
 
   useEffect(() => {
     if (!isSearchMode || !searchTargetProject) return;
@@ -219,9 +234,10 @@ export default function RecentProjectsApp() {
     vscode.postMessage({ type: 'openProjectCurrent', fsPath: path });
   };
 
-  const handleOpenFile = (path: string, projectName: string, id: string, isActiveProject: boolean, e: React.MouseEvent) => {
+  const handleOpenFile = (path: string, projectName: string, isActiveProject: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedId(id);
+    setSelectedPath(path);
+
     if (path.toLowerCase().endsWith('.md')) {
       vscode.postMessage({ type: 'previewWithVditor', fsPath: path, projectName, isActiveProject });
     } else if (isImageFile(path)) {
@@ -235,24 +251,28 @@ export default function RecentProjectsApp() {
     }
   };
 
-  const handleToggleExpand = (id: string, path: string, projectName: string, _: boolean, e: React.MouseEvent) => {
+  const handleToggleExpand = (path: string, projectName: string, _: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
-    setSelectedId(id);
+    
+    // 🌟 此处不再调用 setSelectedPath(path); 
+    // 让“点击文件夹仅仅用来展开”，而不抢夺文件自身的深蓝色高亮焦点！
+
     if (clickTimeout.current) clearTimeout(clickTimeout.current);
+
     clickTimeout.current = setTimeout(() => {
-      setExpandedNodes((prev) => {
+      setExpandedPaths((prev) => {
         const next = new Set(prev);
-        if (next.has(id)) {
-          next.delete(id);
+        if (next.has(path)) {
+          next.delete(path);
         } else {
-          next.add(id);
-          if (!dirChildren[id]) {
-            setLoadingNodes((l) => {
+          next.add(path);
+          if (!dirChildren[path]) {
+            setLoadingPaths((l) => {
               const n = new Set(l);
-              n.add(id);
+              n.add(path);
               return n;
             });
-            vscode.postMessage({ type: 'readDir', id, fsPath: path, projectName });
+            vscode.postMessage({ type: 'readDir', fsPath: path, projectName });
           }
         }
         return next;
@@ -260,13 +280,15 @@ export default function RecentProjectsApp() {
     }, 250);
   };
 
-  const handleContextMenu = (e: React.MouseEvent, type: 'top' | 'sub', payload: ContextMenuPayload, elementId: string) => {
+  const handleContextMenu = (e: React.MouseEvent, type: 'top' | 'sub', payload: ContextMenuPayload) => {
     e.preventDefault();
     e.stopPropagation();
-    setSelectedId(elementId);
+    // 用户右键主动呼出菜单时，将高亮转移到该元素
+    setSelectedPath(payload.path);
 
     let x = e.pageX;
     let y = e.pageY;
+
     if (x + 200 > window.innerWidth) x = window.innerWidth - 200;
     if (y + 300 > window.innerHeight) y = window.innerHeight - 300;
 
@@ -357,6 +379,7 @@ export default function RecentProjectsApp() {
     if (totalMatches === 0) return;
     setCurrentActiveMatch((prev) => (prev + 1) % totalMatches);
   };
+
   const handlePrevSearchMatch = () => {
     if (totalMatches === 0) return;
     setCurrentActiveMatch((prev) => (prev - 1 + totalMatches) % totalMatches);
@@ -370,9 +393,9 @@ export default function RecentProjectsApp() {
     }
   }, [currentActiveMatch, totalMatches, isSearchMode, flatMatchesList]);
 
-  const renderTreeChildren = (parentId: string, projectName: string, isActiveProject: boolean = false) => {
-    const children = dirChildren[parentId];
-    if (loadingNodes.has(parentId)) {
+  const renderTreeChildren = (parentPath: string, projectName: string, isActiveProject: boolean = false) => {
+    const children = dirChildren[parentPath];
+    if (loadingPaths.has(parentPath)) {
       return (
         <div className={styles['empty-node']}>
           <FontAwesomeIcon icon={faSpinner} spin /> 加载中...
@@ -384,18 +407,20 @@ export default function RecentProjectsApp() {
 
     return (
       <>
-        {children.map((child, index) => {
-          const childId = `${parentId}_${index}`;
-          const isExpanded = expandedNodes.has(childId);
-          const isRemote = child.path.startsWith('vscode-vfs') || child.path.startsWith('http');
+        {children.map((child) => {
+          const childPath = child.path;
+          const isExpanded = expandedPaths.has(childPath);
+          const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
+          const elementId = `tree-node-${encodeURIComponent(childPath)}`;
 
           if (child.isFolder) {
             return (
-              <div key={childId}>
+              <div key={childPath}>
                 <div
-                  className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedId === childId ? styles['selected'] : ''} ${styles['search-name-sub-item']}`}
-                  onClick={(e) => handleToggleExpand(childId, child.path, projectName, isRemote, e)}
-                  onContextMenu={(e) => handleContextMenu(e, 'sub', { path: child.path, name: child.name, isFolder: true, projectName, isActiveProject }, childId)}
+                  id={elementId}
+                  className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item']}`}
+                  onClick={(e) => handleToggleExpand(childPath, projectName, isRemote, e)}
+                  onContextMenu={(e) => handleContextMenu(e, 'sub', { path: childPath, name: child.name, isFolder: true, projectName, isActiveProject })}
                 >
                   <div className={styles['tree-chevron']}>
                     <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
@@ -403,16 +428,17 @@ export default function RecentProjectsApp() {
                   <FontAwesomeIcon icon={faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']}`} />
                   <span className={styles['sub-name']}>{child.name}</span>
                 </div>
-                {isExpanded && <div className={`${styles['tree-children']} ${styles['search-name-tree-children']}`}>{renderTreeChildren(childId, projectName, isActiveProject)}</div>}
+                {isExpanded && <div className={`${styles['tree-children']} ${styles['search-name-tree-children']}`}>{renderTreeChildren(childPath, projectName, isActiveProject)}</div>}
               </div>
             );
           } else {
             return (
-              <div key={childId}>
+              <div key={childPath}>
                 <div
-                  className={`${styles['sub-item']} ${selectedId === childId ? styles['selected'] : ''} ${styles['search-name-sub-item-clickable']}`}
-                  onClick={(e) => handleOpenFile(child.path, projectName, childId, isActiveProject, e)}
-                  onContextMenu={(e) => handleContextMenu(e, 'sub', { path: child.path, name: child.name, isFolder: false, projectName, isActiveProject }, childId)}
+                  id={elementId}
+                  className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item-clickable']}`}
+                  onClick={(e) => handleOpenFile(childPath, projectName, isActiveProject, e)}
+                  onContextMenu={(e) => handleContextMenu(e, 'sub', { path: childPath, name: child.name, isFolder: false, projectName, isActiveProject })}
                   title={isActiveProject ? '点击打开文件' : '点击预览'}
                 >
                   <div className={styles['chevron-placeholder']}></div>
@@ -594,18 +620,18 @@ export default function RecentProjectsApp() {
               <div className={styles['search-empty-msg']}>没有找到匹配的文件或文件夹</div>
             ) : (
               <ul>
-                {fileNameSearchResults.map((child, idx) => {
-                  const childId = `name_search_${idx}_${child.path}`;
-                  const isExpanded = expandedNodes.has(childId);
-                  const isRemote = child.path.startsWith('vscode-vfs') || child.path.startsWith('http');
+                {fileNameSearchResults.map((child) => {
+                  const childPath = child.path;
+                  const isExpanded = expandedPaths.has(childPath);
+                  const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
                   const targetProjName = searchTargetProject.projectName || searchTargetProject.name || searchTargetProject.originalName || '';
 
                   if (child.isFolder) {
                     return (
-                      <li key={childId} className={styles['search-name-list-item']}>
+                      <li key={childPath} className={styles['search-name-list-item']}>
                         <div
-                          className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedId === childId ? styles['selected'] : ''} ${styles['search-name-sub-item']}`}
-                          onClick={(e) => handleToggleExpand(childId, child.path, targetProjName, isRemote, e)}
+                          className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item']}`}
+                          onClick={(e) => handleToggleExpand(childPath, targetProjName, isRemote, e)}
                         >
                           <div className={styles['tree-chevron']}>
                             <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
@@ -617,17 +643,17 @@ export default function RecentProjectsApp() {
                         </div>
                         {isExpanded && (
                           <div className={`${styles['tree-children']} ${styles['search-name-tree-children']}`}>
-                            {renderTreeChildren(childId, targetProjName, searchTargetProject.isActiveProject)}
+                            {renderTreeChildren(childPath, targetProjName, searchTargetProject.isActiveProject)}
                           </div>
                         )}
                       </li>
                     );
                   } else {
                     return (
-                      <li key={childId} className={styles['search-name-list-item']}>
+                      <li key={childPath} className={styles['search-name-list-item']}>
                         <div
-                          className={`${styles['sub-item']} ${selectedId === childId ? styles['selected'] : ''} ${styles['search-name-sub-item-clickable']}`}
-                          onClick={(e) => handleOpenFile(child.path, targetProjName, childId, !!searchTargetProject.isActiveProject, e)}
+                          className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item-clickable']}`}
+                          onClick={(e) => handleOpenFile(childPath, targetProjName, !!searchTargetProject.isActiveProject, e)}
                         >
                           <div className={styles['chevron-placeholder']}></div>
                           <FileIcon fileName={child.name} className={styles['sub-icon']} />
@@ -653,7 +679,6 @@ export default function RecentProjectsApp() {
               </div>
             </div>
           )}
-
           <div className={styles['list-container']} onScroll={() => setContextMenu((p) => ({ ...p, visible: false }))}>
             {projects.length === 0 && !activeProjectToRender ? (
               <div className={styles['empty-state']}>
@@ -673,6 +698,7 @@ export default function RecentProjectsApp() {
                   activeProjectToRender &&
                   (() => {
                     const p = activeProjectToRender;
+                    const rootPath = p.fsPath;
                     const isRemote = p.fsPath.startsWith('vscode-vfs') || p.fsPath.startsWith('http');
                     const isGitlab = p.platform === 'gitlab' || p.fsPath.startsWith('vscode-vfs://gitlab');
                     const icon = isRemote ? (isGitlab ? faGitlab : faGithub) : faFolderOpen;
@@ -680,25 +706,25 @@ export default function RecentProjectsApp() {
                     const displayPath = getDisplayPath(p);
                     const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
                     const branch = branchMap[p.fsPath] || p.branch;
-                    const rootId = 'active-top';
-                    const isExpanded = expandedNodes.has(rootId);
+                    const isExpanded = expandedPaths.has(rootPath);
+                    const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
 
                     return (
-                      <div key={rootId}>
+                      <div key={rootPath}>
                         <div
-                          className={`${styles['active-top-project']} ${selectedId === rootId ? styles['selected'] : ''} ${inHistory ? styles['in-history'] : styles['not-in-history']}`}
+                          id={elementId}
+                          className={`${styles['active-top-project']} ${selectedPath === rootPath ? styles['selected'] : ''} ${inHistory ? styles['in-history'] : styles['not-in-history']}`}
                           title={inHistory ? "当前窗口正在运行的项目" : "当前正在运行的项目（未在历史记录中）"}
                           onContextMenu={(e) =>
                             handleContextMenu(
                               e,
                               'top',
-                              { path: p.fsPath, isRemote, originalName: p.name, customName: p.customName, platform: p.platform || 'github', customDomain: p.customDomain, isActiveProject: true },
-                              rootId,
+                              { path: rootPath, isRemote, originalName: p.name, customName: p.customName, platform: p.platform || 'github', customDomain: p.customDomain, isActiveProject: true }
                             )
                           }
-                          onClick={() => setSelectedId(rootId)}
+                          onClick={() => setSelectedPath(rootPath)}
                         >
-                          <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootId, p.fsPath, title, isRemote, e)}>
+                          <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}>
                             <div className={styles['tree-chevron']}>
                               <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
                             </div>
@@ -719,7 +745,7 @@ export default function RecentProjectsApp() {
                             </div>
                           </div>
                         </div>
-                        {isExpanded && <div className={styles['tree-children']}>{renderTreeChildren(rootId, title, true)}</div>}
+                        {isExpanded && <div className={styles['tree-children']}>{renderTreeChildren(rootPath, title, true)}</div>}
                         <div className={styles['top-divider']}></div>
                       </div>
                     );
@@ -727,7 +753,7 @@ export default function RecentProjectsApp() {
 
                 <ul>
                   {filteredOtherProjects.map((p) => {
-                    const rootId = `root_${p.timestamp}`;
+                    const rootPath = p.fsPath;
                     const isJustOpened = p.fsPath === lastOpenedPath;
                     const isRemote = p.fsPath.startsWith('vscode-vfs') || p.fsPath.startsWith('http');
                     const isGitlab = p.platform === 'gitlab' || p.fsPath.startsWith('vscode-vfs://gitlab');
@@ -735,26 +761,27 @@ export default function RecentProjectsApp() {
                     const title = p.customName || p.name;
                     const displayPath = getDisplayPath(p);
                     const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
-                    const isExpanded = expandedNodes.has(rootId);
+                    const isExpanded = expandedPaths.has(rootPath);
                     const branch = branchMap[p.fsPath] || p.branch;
+                    const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
 
                     return (
-                      <li key={rootId}>
+                      <li key={rootPath}>
                         <div
-                          className={`${styles['project-item']} ${isJustOpened ? styles['just-opened'] : ''} ${selectedId === rootId ? styles['selected'] : ''}`}
+                          id={elementId}
+                          className={`${styles['project-item']} ${isJustOpened ? styles['just-opened'] : ''} ${selectedPath === rootPath ? styles['selected'] : ''}`}
                           onDoubleClick={() => handleOpenProject(p.fsPath)}
                           title={isJustOpened ? '刚刚在此窗口中唤起过' : ''}
                           onContextMenu={(e) =>
                             handleContextMenu(
                               e,
                               'top',
-                              { path: p.fsPath, isRemote, originalName: p.name, customName: p.customName, platform: p.platform || 'github', customDomain: p.customDomain, isActiveProject: false },
-                              rootId,
+                              { path: rootPath, isRemote, originalName: p.name, customName: p.customName, platform: p.platform || 'github', customDomain: p.customDomain, isActiveProject: false }
                             )
                           }
-                          onClick={() => setSelectedId(rootId)}
+                          onClick={() => setSelectedPath(rootPath)}
                         >
-                          <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootId, p.fsPath, title, isRemote, e)}>
+                          <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}>
                             <div className={styles['tree-chevron']}>
                               <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
                             </div>
@@ -780,7 +807,7 @@ export default function RecentProjectsApp() {
                             </button>
                           </div>
                         </div>
-                        {isExpanded && <div className={styles['tree-children']}>{renderTreeChildren(rootId, title)}</div>}
+                        {isExpanded && <div className={styles['tree-children']}>{renderTreeChildren(rootPath, title)}</div>}
                       </li>
                     );
                   })}
@@ -793,10 +820,10 @@ export default function RecentProjectsApp() {
           </div>
           {(projects.length > 0 || activeProjectToRender) && (
             <div className={styles['bottom-bar']}>
-              <button className={styles['action-btn']} onClick={() => vscode.postMessage({ type: 'addLocal' })}>
+              <button className={styles['action-btn']} onClick={() => vscode.postMessage({ type: 'addLocal' })} style={{ marginBottom: 0 }}>
                 <FontAwesomeIcon icon={faFolderPlus} /> 添加本地
               </button>
-              <button className={`${styles['action-btn']} ${styles['secondary']}`} onClick={() => vscode.postMessage({ type: 'addRemote' })}>
+              <button className={`${styles['action-btn']} ${styles['secondary']}`} onClick={() => vscode.postMessage({ type: 'addRemote' })} style={{ marginBottom: 0 }}>
                 <FontAwesomeIcon icon={faGithub} /> 添加远程
               </button>
             </div>

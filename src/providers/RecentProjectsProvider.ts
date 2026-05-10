@@ -22,9 +22,38 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private selectedForCompareUri?: vscode.Uri;
   private selectedForCompareName?: string;
   private activePanels: Map<string, vscode.WebviewPanel> = new Map();
+  
+  // 🌟 核心：全局追踪当前正在查看的文件绝对路径
+  private currentActivePath: string = '';
 
   constructor(private context: vscode.ExtensionContext) {
     this.initializeCurrentWorkspace();
+
+    // 🌟 1. 监听原生代码文件 (TextEditor) 的切换
+    vscode.window.onDidChangeActiveTextEditor(editor => {
+      if (editor) {
+        let activePath = editor.document.uri.toString();
+        // 逆向解析：如果是我们虚拟的只读文件，从中提取真正的物理路径，实现联动
+        if (editor.document.uri.scheme === 'quickops-ro') {
+          const match = editor.document.uri.query.match(/target=([^&]+)/);
+          if (match) {
+            activePath = decodeURIComponent(match[1]);
+          }
+        }
+        this.setActivePath(activePath);
+      }
+    });
+  }
+
+  // 🌟 统一的路径派发器：推送给 React 前端高亮
+  private setActivePath(fsPath: string) {
+    this.currentActivePath = fsPath;
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: 'activeEditorChanged',
+        fsPath: fsPath
+      });
+    }
   }
 
   private initializeCurrentWorkspace() {
@@ -178,7 +207,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           this.switchRemoteBranch(data.fsPath);
           break;
         case 'readDir':
-          this.readDirectory(data.id, data.fsPath, data.projectName);
+          this.readDirectory(data.fsPath, data.projectName);
           break;
         case 'openFile':
           this.openFileReadOnly(data.fsPath, data.projectName || '未知项目');
@@ -362,6 +391,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           );
 
           this.activePanels.set(uri.fsPath, panel);
+          
+          // 🌟 2. 监听自定义 Webview 面板切换焦点
+          panel.onDidChangeViewState(({ webviewPanel }) => {
+            if (webviewPanel.active) {
+              this.setActivePath(fsPath);
+            }
+          });
+
           panel.onDidDispose(() => {
             if (this.activePanels.get(uri.fsPath) === panel) {
               this.activePanels.delete(uri.fsPath);
@@ -409,6 +446,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       );
 
       this.activePanels.set(uri.fsPath, panel);
+      
+      // 🌟 3. 监听 Excel Webview 面板切换焦点
+      panel.onDidChangeViewState(({ webviewPanel }) => {
+        if (webviewPanel.active) {
+          this.setActivePath(fsPath);
+        }
+      });
+
       panel.onDidDispose(() => {
         if (this.activePanels.get(uri.fsPath) === panel) {
           this.activePanels.delete(uri.fsPath);
@@ -450,6 +495,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
       );
       this.activePanels.set(uri.fsPath, panel);
+      
+      // 🌟 4. 监听 PDF Webview 面板切换焦点
+      panel.onDidChangeViewState(({ webviewPanel }) => {
+        if (webviewPanel.active) {
+          this.setActivePath(fsPath);
+        }
+      });
+
       panel.onDidDispose(() => {
         if (this.activePanels.get(uri.fsPath) === panel) {
           this.activePanels.delete(uri.fsPath);
@@ -506,6 +559,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
       );
       this.activePanels.set(uri.fsPath, panel);
+      
+      // 🌟 5. 监听 Vditor Webview 面板切换焦点
+      panel.onDidChangeViewState(({ webviewPanel }) => {
+        if (webviewPanel.active) {
+          this.setActivePath(fsPath);
+        }
+      });
+
       panel.onDidDispose(() => {
         if (this.activePanels.get(uri.fsPath) === panel) {
           this.activePanels.delete(uri.fsPath);
@@ -1042,7 +1103,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       this._view?.webview.postMessage({ type: 'updateBranchTag', fsPath: p.fsPath, branch: newBranch });
 
       if (p.branch !== newBranch) {
-        // 如果它在持久化数组中，则更新它
         const currentProjects = this.getRecentProjects();
         const currentIndex = currentProjects.findIndex((cp) => cp.fsPath === fsPath);
         if (currentIndex > -1) {
@@ -1218,13 +1278,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async readDirectory(id: string, fsPath: string, projectName: string) {
+  private async readDirectory(fsPath: string, projectName: string) {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const uriStr = uri.toString();
 
       if (this.dirCache.has(uriStr)) {
-        this._view?.webview.postMessage({ type: 'readDirResult', id, children: this.dirCache.get(uriStr), projectName });
+        this._view?.webview.postMessage({ type: 'readDirResult', fsPath: uriStr, children: this.dirCache.get(uriStr), projectName });
         return;
       }
 
@@ -1244,14 +1304,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       this.dirCache.set(uriStr, children);
 
-      this._view?.webview.postMessage({ type: 'readDirResult', id, children, projectName });
+      this._view?.webview.postMessage({ type: 'readDirResult', fsPath: uriStr, children, projectName });
     } catch (e) {
       vscode.window.showWarningMessage(`读取失败：可能是网络超时或触发了 GitHub API 限制，请稍后再试。`);
-      this._view?.webview.postMessage({ type: 'readDirResult', id, children: [], projectName });
+      this._view?.webview.postMessage({ type: 'readDirResult', fsPath, children: [], projectName });
     }
   }
 
-  // 🌟 修改：主动发送当前活动的 Workspace，哪怕它不在历史记录中
   private updateWebview() {
     if (!this._view) return;
     const projects = this.getRecentProjects();
@@ -1286,7 +1345,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       data: projects,
       currentUriStr: currentUriStr,
       currentWorkspace: currentWorkspaceInfo,
-      lastOpenedPath: this.lastOpenedPath
+      lastOpenedPath: this.lastOpenedPath,
+      activeFilePath: this.currentActivePath
     });
   }
 
@@ -1412,7 +1472,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.updateWebview();
   }
 
-  // 🌟 修改：清空记录时，触发一次拉取当前活动窗口分支的逻辑，保证体验平滑
   public async clearAll() {
     await this.context.globalState.update(this.stateKey, []);
     this.updateWebview();
