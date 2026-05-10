@@ -314,6 +314,9 @@ export default function RecentProjectsApp() {
     const { payload } = contextMenu;
 
     switch (action) {
+      case 'addToHistory': // 🌟 新增指令响应
+        vscode.postMessage({ type: 'addToHistory', fsPath: payload.path, projectName: payload.originalName || payload.name });
+        break;
       case 'addToGitList':
         vscode.postMessage({ type: 'addToGitList', fsPath: payload.path });
         break;
@@ -447,7 +450,6 @@ export default function RecentProjectsApp() {
                   onContextMenu={(e) => handleContextMenu(e, 'sub', { path: childPath, name: child.name, isFolder: true, projectName, isActiveProject })}
                 >
                   <div className={styles['tree-chevron']}>
-                    {/* 🌟 核心视觉反馈：加载时显示旋转 Spinner，否则显示箭头 */}
                     {childLoading ? (
                       <FontAwesomeIcon icon={faSpinner} spin className={styles['chevron-icon']} style={{ opacity: 1, color: 'var(--vscode-textLink-foreground)' }} />
                     ) : (
@@ -482,7 +484,6 @@ export default function RecentProjectsApp() {
     );
   };
 
-  // 🌟 如果应用还在启动中（等待第一条 updateProjects 消息），直接展示全局 Loading
   if (isInitLoading) {
     return (
       <div className={styles['app-wrapper']} style={{ justifyContent: 'center', alignItems: 'center' }}>
@@ -759,14 +760,13 @@ export default function RecentProjectsApp() {
                             handleContextMenu(
                               e,
                               'top',
-                              { path: rootPath, isRemote, originalName: p.name, customName: p.customName, platform: p.platform || 'github', customDomain: p.customDomain, isActiveProject: true }
+                              { path: rootPath, isRemote, originalName: p.name, customName: p.customName, platform: p.platform || 'github', customDomain: p.customDomain, isActiveProject: true, inHistory: inHistory }
                             )
                           }
                           onClick={() => setSelectedPath(rootPath)}
                         >
                           <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}>
                             <div className={styles['tree-chevron']}>
-                              {/* 🌟 应用主项目展开时的 Spinner */}
                               {rootLoading ? (
                                 <FontAwesomeIcon icon={faSpinner} spin className={styles['chevron-icon']} style={{ opacity: 1, color: 'inherit' }} />
                               ) : (

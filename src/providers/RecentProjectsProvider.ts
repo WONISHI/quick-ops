@@ -28,7 +28,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   constructor(private context: vscode.ExtensionContext) {
     this.initializeCurrentWorkspace();
 
-    // 🌟 1. 跨窗口位置追踪：检测是否有前一个窗口丢给我们的待办跳转文件
     this.checkPendingFileOpen();
 
     if (vscode.window.activeTextEditor) {
@@ -40,40 +39,33 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  // 🌟 核心魔法：自动从 globalState 中读取并跳转到跨窗口传来的精确坐标
   private async checkPendingFileOpen() {
     const pending = this.context.globalState.get<{ path: string, line: number, char: number, targetWorkspace?: string }>('quickOps.pendingOpenFile');
     if (pending) {
-      // 校验是不是发给当前被激活的工作区的，防止被其他无关窗口截胡
       const currentWorkspaceStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
       if (pending.targetWorkspace && currentWorkspaceStr !== pending.targetWorkspace) {
         return;
       }
 
-      // 确认是自己的，消费掉它，防止下次启动再次弹开
       await this.context.globalState.update('quickOps.pendingOpenFile', undefined);
 
       const targetUri = pending.path.includes('://') ? vscode.Uri.parse(pending.path) : vscode.Uri.file(pending.path);
 
-      // 🚀 核心优化：智能高频轮询探测，替代原先的 1.5 秒死等
       let attempts = 0;
-      const maxAttempts = 40; // 最大重试 40 次 (最多兜底等 2 秒)
-      const delay = 50;       // 每 50 毫秒探测一次
+      const maxAttempts = 40; 
+      const delay = 50;       
 
       const tryOpenDoc = async () => {
         try {
-          // 尝试去读取文件状态，如果报错说明 VS Code 的 Workspace 还没准备好
           await vscode.workspace.fs.stat(targetUri);
-
-          // 只要没报错，立刻瞬间打开它，不浪费一毫秒！
           const doc = await vscode.workspace.openTextDocument(targetUri);
           const editor = await vscode.window.showTextDocument(doc, { preview: false });
           const pos = new vscode.Position(pending.line, pending.char);
           editor.selection = new vscode.Selection(pos, pos);
           editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
-          return true; // 成功打开
+          return true; 
         } catch (e) {
-          return false; // 还未就绪，继续等
+          return false; 
         }
       };
 
@@ -292,6 +284,22 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
+
+        case 'addToHistory': {
+          const currentWorkspace = vscode.workspace.workspaceFolders?.find(f => f.uri.toString() === data.fsPath);
+          const name = currentWorkspace ? currentWorkspace.name : (data.projectName || path.basename(data.fsPath));
+          
+          let platform, customDomain;
+          if (data.fsPath.startsWith('vscode-vfs://') || data.fsPath.startsWith('http')) {
+            const parsed = this.parseRemoteUrlInput(data.fsPath);
+            if (parsed) { platform = parsed.platform; customDomain = parsed.customDomain; }
+          }
+          
+          await this.insertProjectToHistory(name, data.fsPath, platform, customDomain);
+          vscode.window.showInformationMessage('✅ 已将当前项目添加到资源管理器记录');
+          break;
+        }
+
         case 'addToGitList': {
           const gitProjects = this.context.globalState.get<any[]>('quickOps.gitProjectsHistory') || [];
           if (!gitProjects.find(p => p.fsPath === data.fsPath)) {
@@ -306,13 +314,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           break;
         }
 
-        // 🌟 重点新增：在 VS Code 打开文件并继承预览坐标位置
         case 'openInVsCode': {
           let currentLine = 0;
           let currentChar = 0;
           const targetUri = data.fsPath.includes('://') ? vscode.Uri.parse(data.fsPath) : vscode.Uri.file(data.fsPath);
 
-          // 去当前所有的活动 TextEditor 里找，看有没有此时正处于“只读预览”状态的文件，抓取它的精确光标
           for (const editor of vscode.window.visibleTextEditors) {
             if (
               editor.document.uri.fsPath === targetUri.fsPath ||
@@ -329,7 +335,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             { modal: true },
             '在当前窗口打开 (替换工作区)',
             '在新窗口打开',
-            '仅作为散文件打开' // 不切换左侧的资源管理器文件夹
+            '仅作为散文件打开' 
           );
 
           if (!choice) return;
@@ -583,7 +589,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const contentStr = Buffer.from(contentBytes).toString('utf8');
 
           if (!contentStr || contentStr.trim() === '') {
-            throw new Error('文件为空或内容无法读取');
+             throw new Error('文件为空或内容无法读取');
           }
 
           const panel = vscode.window.createWebviewPanel(
@@ -1244,7 +1250,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
         p = { name: folders[0].name, fsPath: fsPath, timestamp: 0, platform, customDomain };
       } else {
-        return;
+        return; 
       }
     }
 
@@ -1516,7 +1522,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private updateWebview() {
     if (!this._view) return;
     const projects = this.getRecentProjects();
-
+    
     let currentUriStr = '';
     let currentWorkspaceInfo = null;
 
@@ -1541,7 +1547,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         customDomain
       };
     }
-
+    
     const activeEditor = vscode.window.activeTextEditor;
     const activeFilePath = activeEditor ? activeEditor.document.uri.toString() : '';
 

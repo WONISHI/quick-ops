@@ -36,4 +36,5 @@ export interface ContextMenuPayload {
   isActiveProject?: boolean;
   isFolder?: boolean;
   projectName?: string;
+  inHistory?: boolean;
 }

@@ -13,7 +13,8 @@ import {
   faTrash,
   faColumns,
   faCodeCompare,
-  faListUl
+  faListUl,
+  faFolderPlus
 } from '@fortawesome/free-solid-svg-icons';
 import {
   faCopy,
@@ -58,6 +59,22 @@ export default function RecentProjectContextMenu({
       <ul>
         {type === 'top' && (
           <>
+            {/* 🌟 新增：如果是当前运行的项目，动态显示 添加/移除 按钮 */}
+            {payload.isActiveProject && (
+              <>
+                {!(payload as any).inHistory ? (
+                  <li onClick={() => onAction('addToHistory')}>
+                    <FontAwesomeIcon icon={faFolderPlus} className={styles['menu-icon']} style={{ color: '#5dade2' }} /> 添加到资源管理器记录
+                  </li>
+                ) : (
+                  <li onClick={() => onAction('delete')} style={{ color: 'var(--vscode-errorForeground)' }}>
+                    <FontAwesomeIcon icon={faTrash} className={styles['menu-icon']} /> 从资源管理器记录中移除
+                  </li>
+                )}
+                <div className={styles['menu-separator']}></div>
+              </>
+            )}
+
             {!payload.isActiveProject && (
               <>
                 <li onClick={() => onAction('openProjectCurrent')}>
