@@ -30,11 +30,19 @@ interface FavoriteItem {
   source?: 'builtin' | 'user';
 }
 
+interface HistoryItem {
+  url: string;
+  title: string;
+  timestamp: number;
+  logo?: string;
+}
+
 export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
 
   const [previewType, setPreviewType] = useState<'web' | 'md' | 'pdf' | 'excel' | 'html'>('web');
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const [device, setDevice] = useState('device-responsive');
   const [isRotated, setIsRotated] = useState(false);
@@ -44,7 +52,7 @@ export default function LivePreviewApp() {
   const [isFaviconLoading, setIsFaviconLoading] = useState(false);
 
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
-  const [historyStack, setHistoryStack] = useState<{ url: string, title: string, timestamp: number }[]>([]);
+  const [historyStack, setHistoryStack] = useState<HistoryItem[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
   const isInternalNav = useRef(false);
   const [activeModal, setActiveModal] = useState<'none' | 'fav' | 'history'>('none');
@@ -73,6 +81,45 @@ export default function LivePreviewApp() {
 
     return favorites.find((item) => {
       return item.isDefault && item.logo && normalizeFavoriteUrl(item.url) === targetUrl;
+    });
+  };
+
+  const getFavoriteByUrl = (url: string) => {
+    const targetUrl = normalizeFavoriteUrl(url);
+
+    if (!targetUrl) return undefined;
+
+    return favorites.find((item) => {
+      return normalizeFavoriteUrl(item.url) === targetUrl;
+    });
+  };
+
+  const getKnownLogoByUrl = (url: string) => {
+    const favorite = getFavoriteByUrl(url);
+    if (favorite?.logo) return favorite.logo;
+
+    if (normalizeFavoriteUrl(url) === normalizeFavoriteUrl(frameUrl) && faviconUrl && !faviconError) {
+      return faviconUrl;
+    }
+
+    return '';
+  };
+
+  const updateHistoryLogo = (url: string, logo: string) => {
+    if (!url || !logo) return;
+
+    const targetUrl = normalizeFavoriteUrl(url);
+
+    setHistoryStack((prev) => {
+      return prev.map((item) => {
+        if (normalizeFavoriteUrl(item.url) !== targetUrl) return item;
+        if (item.logo) return item;
+
+        return {
+          ...item,
+          logo,
+        };
+      });
     });
   };
 
@@ -143,6 +190,10 @@ export default function LivePreviewApp() {
   };
 
   const handleIframeLoad = () => {
+    if (frameUrl === 'about:blank') return;
+
+    setPreviewLoading(false);
+
     if (!iframeRef.current || historyIdx < 0 || (previewType !== 'web' && previewType !== 'html')) return;
 
     const fallbackTitle = urlInput || frameUrl;
@@ -165,10 +216,20 @@ export default function LivePreviewApp() {
       isInternalNav.current = false;
       return;
     }
+
     setHistoryStack(prev => {
       if (historyIdx > -1 && prev[historyIdx]?.url === url) return prev;
+
       const nextStack = prev.slice(0, historyIdx + 1);
-      nextStack.push({ url, title: defaultTitle || url, timestamp: Date.now() });
+      const logo = getKnownLogoByUrl(url);
+
+      nextStack.push({
+        url,
+        title: defaultTitle || url,
+        timestamp: Date.now(),
+        logo,
+      });
+
       setHistoryIdx(nextStack.length - 1);
       return nextStack;
     });
@@ -198,6 +259,7 @@ export default function LivePreviewApp() {
       setFaviconUrl(defaultFavorite.logo);
       setFaviconError(false);
       setIsFaviconLoading(false);
+      updateHistoryLogo(urlStr, defaultFavorite.logo);
       return;
     }
 
@@ -214,6 +276,7 @@ export default function LivePreviewApp() {
       imgLoader.onload = () => {
         setFaviconUrl(targetIconUrl);
         setIsFaviconLoading(false);
+        updateHistoryLogo(urlStr, targetIconUrl);
       };
 
       imgLoader.onerror = () => {
@@ -227,12 +290,11 @@ export default function LivePreviewApp() {
   };
 
   const loadPreviewTarget = (url: string) => {
-    setFrameUrl(url);
-    vscode?.postMessage({ type: 'saveUrl', url });
-
     let pType: 'web' | 'md' | 'pdf' | 'excel' | 'html' = 'web';
+
     if (UrlParser.isAbsolutePath(url)) {
       const lower = url.toLowerCase();
+
       if (lower.endsWith('.md')) pType = 'md';
       else if (lower.endsWith('.pdf')) pType = 'pdf';
       else if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) pType = 'excel';
@@ -240,6 +302,10 @@ export default function LivePreviewApp() {
     }
 
     setPreviewType(pType);
+    setPreviewLoading(pType === 'web' || pType === 'html');
+
+    setFrameUrl(url);
+    vscode?.postMessage({ type: 'saveUrl', url });
 
     if (pType !== 'web' && pType !== 'html') {
       vscode?.postMessage({ type: 'setPendingLocalFile', fsPath: url, fileType: pType });
@@ -260,6 +326,7 @@ export default function LivePreviewApp() {
     if (!finalUrl) {
       setFrameUrl('');
       setPreviewType('web');
+      setPreviewLoading(false);
       updateFavicon('');
       vscode?.postMessage({ type: 'saveUrl', url: '' });
       return;
@@ -301,9 +368,20 @@ export default function LivePreviewApp() {
 
   const handleRefresh = () => {
     if (!frameUrl) return;
+
     const temp = frameUrl;
+    const shouldShowLoading = previewType === 'web' || previewType === 'html';
+
+    if (shouldShowLoading) {
+      setPreviewLoading(true);
+    }
+
     setFrameUrl('about:blank');
-    setTimeout(() => setFrameUrl(temp), 50);
+
+    setTimeout(() => {
+      setFrameUrl(temp);
+    }, 50);
+
     setMenuOpen(false);
   };
 
@@ -321,14 +399,21 @@ export default function LivePreviewApp() {
 
     const currentHistory = historyIdx >= 0 ? historyStack[historyIdx] : undefined;
     const title = currentHistory?.title || urlInput || frameUrl;
+    const logo = activeDefaultFavorite?.logo || faviconUrl || '';
 
-    vscode?.postMessage({ type: 'toggleFavorite', url: frameUrl, title });
+    vscode?.postMessage({ type: 'toggleFavorite', url: frameUrl, title, logo });
   };
 
   const suggestions = useMemo(() => {
     const query = urlInput.trim().toLowerCase();
     if (!query || favorites.length === 0) return [];
-    return favorites.filter(f => f.title.toLowerCase().includes(query) || f.url.toLowerCase().includes(query));
+    return favorites.filter(f => {
+      return (
+        f.title.toLowerCase().includes(query) ||
+        f.url.toLowerCase().includes(query) ||
+        (f.description || '').toLowerCase().includes(query)
+      );
+    });
   }, [urlInput, favorites]);
 
   const renderHighlighted = (text: string) => {
@@ -340,7 +425,7 @@ export default function LivePreviewApp() {
     );
   };
 
-  const isFav = favorites.some(f => f.url === frameUrl);
+  const isFav = favorites.some(f => normalizeFavoriteUrl(f.url) === normalizeFavoriteUrl(frameUrl));
 
   const openContextMenu = () => {
     if (!moreBtnRef.current) return;
@@ -420,12 +505,13 @@ export default function LivePreviewApp() {
           ...newFavs[index],
           title: t,
           url: u,
+          logo: newFavs[index].logo || '',
           isDefault: false,
           source: 'user',
         };
       }
     } else {
-      if (newFavs.some((f) => f.url === u)) {
+      if (newFavs.some((f) => normalizeFavoriteUrl(f.url) === normalizeFavoriteUrl(u))) {
         return vscode?.postMessage({ type: 'showError', message: '该链接已存在！' });
       }
 
@@ -433,6 +519,7 @@ export default function LivePreviewApp() {
         url: u,
         title: t,
         timestamp: Date.now(),
+        logo: getKnownLogoByUrl(u),
         isDefault: false,
         source: 'user',
       });
@@ -472,7 +559,7 @@ export default function LivePreviewApp() {
   }, [favorites, favSort]);
 
   const renderPreviewLoadingMask = () => {
-    if (!isFaviconLoading) return null;
+    if (!previewLoading) return null;
 
     return (
       <div className={styles['preview-loading-mask']}>
@@ -484,7 +571,6 @@ export default function LivePreviewApp() {
 
   return (
     <div className={styles['live-preview-container']}>
-      {/* 顶部工具栏 */}
       <div className={styles['toolbar']}>
         <button className={styles['icon-btn']} disabled={historyIdx <= 0} onClick={() => navigateToHistory(historyIdx - 1)} title="后退">
           <FontAwesomeIcon icon={faArrowLeft} />
@@ -545,7 +631,6 @@ export default function LivePreviewApp() {
             title="添加/取消收藏 (跨工作区同步)"
           />
 
-          {/* 智能提示框 */}
           {showSuggest && suggestions.length > 0 && (
             <div className={styles['suggest-box']} ref={suggestBoxRef}>
               {suggestions.map((item, index) => (
@@ -644,7 +729,6 @@ export default function LivePreviewApp() {
         </button>
       </div>
 
-      {/* 更多菜单 (Context Menu) */}
       {menuOpen && (
         <div className={styles['context-menu']} style={{ left: menuPos.x, top: menuPos.y }}>
           <div className={styles['menu-item']} onClick={() => { handleRefresh(); setMenuOpen(false); }}>
@@ -681,7 +765,6 @@ export default function LivePreviewApp() {
         </div>
       )}
 
-      {/* 渲染预览内容区域 */}
       <div className={`${styles['preview-container']} ${(device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel') ? styles['no-padding'] : ''}`}>
         {renderPreviewLoadingMask()}
 
@@ -717,13 +800,13 @@ export default function LivePreviewApp() {
               className={styles['fromPage']}
               title="preview"
               onLoad={handleIframeLoad}
+              onError={() => setPreviewLoading(false)}
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
             />
           </div>
         )}
       </div>
 
-      {/* 收藏夹弹窗 */}
       {activeModal === 'fav' && (
         <div className={styles['fav-overlay']} onClick={() => setActiveModal('none')}>
           <div className={styles['fav-modal']} onClick={e => e.stopPropagation()}>
@@ -841,7 +924,6 @@ export default function LivePreviewApp() {
         </div>
       )}
 
-      {/* 历史记录弹窗 */}
       {activeModal === 'history' && (
         <div className={styles['fav-overlay']} onClick={() => setActiveModal('none')}>
           <div className={styles['fav-modal']} onClick={e => e.stopPropagation()}>
@@ -856,12 +938,28 @@ export default function LivePreviewApp() {
                 [...historyStack].reverse().map((entry, index) => {
                   const originalIndex = historyStack.length - 1 - index;
                   const isCurrent = originalIndex === historyIdx;
+                  const logo = entry.logo || getKnownLogoByUrl(entry.url);
+
                   return (
                     <div
                       key={originalIndex}
                       className={`${styles['fav-item']} ${isCurrent ? styles['current-history'] : ''}`}
                       onClick={() => !isCurrent && navigateToHistory(originalIndex)}
                     >
+                      <div className={styles['fav-logo-wrap']}>
+                        {logo ? (
+                          <img
+                            className={styles['fav-logo']}
+                            src={logo}
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <FontAwesomeIcon icon={faGlobe} className={styles['fav-logo-placeholder']} />
+                        )}
+                      </div>
+
                       <div className={styles['fav-item-info']}>
                         <div className={styles['fav-title']} title={entry.title}>{entry.title} {isCurrent ? '(当前)' : ''}</div>
                         <div className={styles['fav-url']} title={entry.url}>{entry.url}</div>
