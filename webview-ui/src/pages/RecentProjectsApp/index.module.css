@@ -422,3 +422,293 @@ ul {
 .search-tag:hover .tag-text {
   opacity: 0.6;
 }
+
+/* =========================================
+   🌟 新抽离的布局与搜索相关类名
+   ========================================= */
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--vscode-sideBar-background);
+  color: var(--vscode-foreground);
+}
+
+.search-view-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.search-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.search-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.search-header-title-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.search-back-btn {
+  padding: 2px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-back-icon {
+  font-size: 26px;
+  line-height: 26px;
+  position: relative;
+  top: 1px;
+}
+
+.search-target-title {
+  font-size: 14px;
+  line-height: 1;
+  font-weight: bold;
+  color: var(--vscode-foreground);
+  flex-shrink: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.search-target-subtitle {
+  opacity: 0.6;
+  font-weight: normal;
+  font-size: 13px;
+}
+
+.search-nav-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.search-nav-btn {
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-nav-icon {
+  font-size: 26px;
+}
+
+.search-box-compact {
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+}
+
+.search-type-icon {
+  cursor: pointer;
+  color: var(--vscode-textLink-foreground);
+  font-size: 14px;
+  margin-left: 6px;
+  margin-right: 6px;
+}
+
+.search-input-compact {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--vscode-input-foreground);
+  outline: none;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.search-match-count {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  min-width: 40px;
+  text-align: center;
+  padding-right: 4px;
+  flex-shrink: 0;
+}
+
+.search-results-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.search-status-msg {
+  text-align: center;
+  padding: 20px;
+  opacity: 0.7;
+}
+
+.search-error-msg {
+  color: var(--vscode-errorForeground);
+  font-size: 12px;
+  padding: 10px;
+  text-align: center;
+}
+
+.search-empty-msg {
+  text-align: center;
+  opacity: 0.6;
+  font-size: 12px;
+  padding: 20px;
+}
+
+.search-file-list-item {
+  margin-bottom: 8px;
+}
+
+.search-file-title {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--vscode-textLink-foreground);
+  margin-bottom: 2px;
+  word-break: break-all;
+  overflow: hidden;
+  display: inline-flex;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  align-items: center;
+  width: 100%;
+}
+
+.search-file-icon {
+  margin-right: 6px;
+}
+
+.search-matches-list {
+  border-left: 1px solid var(--vscode-panel-border);
+  margin-left: 6px;
+}
+
+/* 🌟 通过 CSS 覆盖取代 JS 鼠标事件绑定 */
+.search-match-item {
+  font-size: 12px;
+  padding: 2px 8px;
+  cursor: pointer;
+  white-space: pre-wrap;
+  word-break: break-all;
+  transition: background 0.1s;
+  line-height: 1.4;
+  background-color: transparent;
+  color: inherit;
+}
+
+.search-match-item:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.search-match-item.active {
+  background-color: var(--vscode-list-activeSelectionBackground) !important;
+  color: var(--vscode-list-activeSelectionForeground) !important;
+}
+
+.search-match-line-num {
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.8;
+  margin-right: 8px;
+  display: inline-block;
+  min-width: 24px;
+  text-align: right;
+}
+
+.search-match-item.active .search-match-line-num {
+  color: inherit;
+}
+
+.search-name-list-item {
+  margin-bottom: 2px;
+}
+
+.search-name-sub-item {
+  padding-left: 4px;
+}
+
+.search-name-sub-item-clickable {
+  padding-left: 4px;
+  cursor: pointer;
+}
+
+.search-name-tree-children {
+  padding-left: 8px;
+}
+
+.search-magnify-icon {
+  color: var(--vscode-input-placeholderForeground);
+  font-size: 12px;
+}
+
+.no-match-msg {
+  text-align: center;
+  padding: 20px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.chevron-icon {
+  font-size: 10px;
+}
+
+.branch-icon {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+.clickable-cursor {
+  cursor: pointer;
+}
+
+/* =========================================
+   🌟 活动项目状态渲染覆盖 (消灭内联 style)
+   ========================================= */
+.active-top-project.in-history {
+  border-left-color: var(--vscode-textLink-foreground);
+  border-right-color: var(--vscode-textLink-foreground);
+}
+
+.active-top-project.not-in-history {
+  border-left-color: var(--vscode-descriptionForeground);
+  border-right-color: var(--vscode-descriptionForeground);
+}
+
+.active-top-project.in-history .title,
+.active-top-project.in-history .project-icon,
+.active-top-project.in-history .project-name {
+  color: var(--vscode-textLink-foreground);
+}
+
+.active-top-project.not-in-history .title,
+.active-top-project.not-in-history .project-icon,
+.active-top-project.not-in-history .project-name {
+  color: var(--vscode-descriptionForeground);
+}
+
+.active-top-project.in-history .branch-tag {
+  border-color: var(--vscode-textLink-foreground);
+  color: var(--vscode-textLink-foreground);
+}
+
+.active-top-project.not-in-history .branch-tag {
+  border-color: var(--vscode-descriptionForeground);
+  color: var(--vscode-descriptionForeground);
+}
