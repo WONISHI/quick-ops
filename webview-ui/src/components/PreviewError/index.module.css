@@ -1,0 +1,89 @@
+.preview-error-page {
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg, var(--vscode-editor-background));
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.preview-error-card {
+  width: min(520px, 90%);
+  padding: 28px 24px;
+  border: 1px solid var(--border, var(--vscode-panel-border));
+  border-radius: 8px;
+  background: var(--vscode-editor-background);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  text-align: center;
+}
+
+.preview-error-icon {
+  font-size: 36px;
+  color: var(--warning-color, var(--vscode-list-warningForeground));
+  margin-bottom: 16px;
+}
+
+.preview-error-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--fg, var(--vscode-editor-foreground));
+  margin-bottom: 8px;
+}
+
+.preview-error-message {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--desc-color, var(--vscode-descriptionForeground));
+  margin-bottom: 14px;
+}
+
+.preview-error-url {
+  max-width: 100%;
+  padding: 7px 10px;
+  border-radius: 4px;
+  background: var(--input-bg, var(--vscode-input-background));
+  color: var(--desc-color, var(--vscode-descriptionForeground));
+  font-size: 12px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+  margin-bottom: 18px;
+}
+
+.preview-error-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.preview-error-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border, var(--vscode-panel-border));
+  background: transparent;
+  color: var(--fg, var(--vscode-editor-foreground));
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.preview-error-btn:hover {
+  background: var(--btn-hover, var(--vscode-toolbar-hoverBackground));
+}
+
+.preview-error-btn.primary {
+  border-color: transparent;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.preview-error-btn.primary:hover {
+  background: var(--vscode-button-hoverBackground);
+}
