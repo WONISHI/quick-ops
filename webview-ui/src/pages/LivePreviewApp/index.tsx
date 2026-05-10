@@ -10,7 +10,8 @@ import {
   faArrowRight, faRotate, faArrowUpRightFromSquare, faEllipsis,
   faLayerGroup, faPlus, faClockRotateLeft, faBroom, faChevronRight,
   faDatabase, faBoxArchive, faCookieBite, faTerminal, faPen,
-  faTrash, faCheck
+  faTrash, faCheck,
+  faSpinner // 🌟 1. 引入 Spinner 图标
 } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular, faCopy as faCopyRegular } from '@fortawesome/free-regular-svg-icons';
 import { faVuejs, faNodeJs, faReact } from '@fortawesome/free-brands-svg-icons';
@@ -23,13 +24,16 @@ export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
   
-  // 🌟 新增：追踪当前的预览组件模式
-  const [previewType, setPreviewType] = useState<'web' | 'md' | 'pdf' | 'excel'>('web');
+  const [previewType, setPreviewType] = useState<'web' | 'md' | 'pdf' | 'excel' | 'html'>('web');
 
   const [device, setDevice] = useState('device-responsive');
   const [isRotated, setIsRotated] = useState(false);
   const [faviconUrl, setFaviconUrl] = useState('');
   const [faviconError, setFaviconError] = useState(false);
+  
+  // 🌟 2. 引入 Favicon 专属的加载状态
+  const [isFaviconLoading, setIsFaviconLoading] = useState(false);
+
   const [favorites, setFavorites] = useState<any[]>([]);
   const [historyStack, setHistoryStack] = useState<{ url: string, title: string, timestamp: number }[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
@@ -44,7 +48,7 @@ export default function LivePreviewApp() {
   const [suggestIndex, setSuggestIndex] = useState(-1);
   const [copiedUrl, setCopiedUrl] = useState('');
 
-  const objectRef = useRef<HTMLObjectElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
   const cacheMenuTimer = useRef<any>(null);
@@ -86,10 +90,10 @@ export default function LivePreviewApp() {
     };
   }, []);
 
-  const handleObjectLoad = () => {
-    if (!objectRef.current || historyIdx < 0 || previewType !== 'web') return;
+  const handleIframeLoad = () => {
+    if (!iframeRef.current || historyIdx < 0 || (previewType !== 'web' && previewType !== 'html')) return;
     try {
-      const doc = objectRef.current.contentDocument || objectRef.current.contentWindow?.document;
+      const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
       if (doc && doc.title) {
         setHistoryStack(prev => {
           const next = [...prev];
@@ -98,7 +102,7 @@ export default function LivePreviewApp() {
         });
       }
     } catch (e) {
-      console.log('e', e);
+      console.log('Iframe cross-origin restriction:', e);
     }
   };
 
@@ -126,35 +130,57 @@ export default function LivePreviewApp() {
     setActiveModal('none');
   };
 
+  // 🌟 3. 异步后台加载：防阻塞解析逻辑
   const updateFavicon = (urlStr: string) => {
+    if (!urlStr) {
+      setFaviconUrl('');
+      setIsFaviconLoading(false);
+      return;
+    }
     try {
       const urlObj = new URL(urlStr);
-      setFaviconUrl(`${urlObj.origin}/favicon.ico`);
+      const targetIconUrl = `${urlObj.origin}/favicon.ico`;
+
+      setIsFaviconLoading(true);
       setFaviconError(false);
+
+      const imgLoader = new Image();
+      imgLoader.src = targetIconUrl;
+
+      imgLoader.onload = () => {
+        setFaviconUrl(targetIconUrl);
+        setIsFaviconLoading(false); 
+      };
+
+      imgLoader.onerror = () => {
+        setFaviconError(true);
+        setIsFaviconLoading(false); 
+      };
     } catch {
       setFaviconError(true);
+      setIsFaviconLoading(false);
     }
   };
 
-  // 🌟 新增：处理组件加载及消息通知封装
   const loadPreviewTarget = (url: string) => {
     setFrameUrl(url);
     vscode?.postMessage({ type: 'saveUrl', url });
 
-    let pType: 'web' | 'md' | 'pdf' | 'excel' = 'web';
+    let pType: 'web' | 'md' | 'pdf' | 'excel' | 'html' = 'web';
     if (UrlParser.isAbsolutePath(url)) {
       const lower = url.toLowerCase();
       if (lower.endsWith('.md')) pType = 'md';
       else if (lower.endsWith('.pdf')) pType = 'pdf';
       else if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) pType = 'excel';
+      else if (lower.endsWith('.html') || lower.endsWith('.htm')) pType = 'html'; 
     }
 
     setPreviewType(pType);
 
-    if (pType !== 'web') {
-      // 预先告知后端我们需要准备这个文件的流，组件加载完会自己去取
+    if (pType !== 'web' && pType !== 'html') {
       vscode?.postMessage({ type: 'setPendingLocalFile', fsPath: url, fileType: pType });
-      setFaviconUrl(''); // 本地文件无需 favicon
+      setFaviconUrl(''); 
+      setIsFaviconLoading(false);
     } else {
       updateFavicon(url);
     }
@@ -229,8 +255,8 @@ export default function LivePreviewApp() {
     if (!frameUrl) return;
     let title = frameUrl;
     try {
-      if (previewType === 'web') {
-        title = objectRef.current?.contentDocument?.title || urlInput;
+      if (previewType === 'web' || previewType === 'html') {
+        title = iframeRef.current?.contentDocument?.title || urlInput;
       }
     } catch (e) {
       console.log('e', e);
@@ -267,8 +293,8 @@ export default function LivePreviewApp() {
 
   const handleCacheClear = (type: 'local' | 'session' | 'cookie') => {
     try {
-      if (previewType !== 'web') throw new Error("Not a web preview");
-      const win = objectRef.current?.contentWindow;
+      if (previewType !== 'web' && previewType !== 'html') throw new Error("Not a web preview");
+      const win = iframeRef.current?.contentWindow;
       if (!win) throw new Error("No Access");
       if (type === 'local') win.localStorage.clear();
       else if (type === 'session') win.sessionStorage.clear();
@@ -285,7 +311,7 @@ export default function LivePreviewApp() {
       handleRefresh();
     } catch (e) {
       console.log('e', e);
-      vscode?.postMessage({ type: 'showWarning', message: '⚠️ 此页面不支持清理缓存' });
+      vscode?.postMessage({ type: 'showWarning', message: '⚠️ 此页面不支持清理缓存或存在跨域限制' });
     }
     setMenuOpen(false);
   };
@@ -351,8 +377,15 @@ export default function LivePreviewApp() {
         </button>
 
         <div className={styles['address-bar-wrapper']}>
-          {faviconUrl && !faviconError && urlInput.trim() ? (
-            <img src={faviconUrl} onError={() => setFaviconError(true)} className={styles['favicon-img']} />
+          {/* 🌟 4. 地址栏图标三态逻辑：加载中转为旋转的 faSpinner */}
+          {urlInput.trim() ? (
+            isFaviconLoading ? (
+              <FontAwesomeIcon icon={faSpinner} spin className={styles['spiner-icon']} />
+            ) : faviconUrl && !faviconError ? (
+              <img src={faviconUrl} className={styles['favicon-img']} />
+            ) : (
+              <FontAwesomeIcon icon={faGlobe} className={styles['globe-icon']} />
+            )
           ) : (
             <FontAwesomeIcon icon={faGlobe} className={styles['globe-icon']} />
           )}
@@ -419,7 +452,7 @@ export default function LivePreviewApp() {
           value={device} 
           onChange={handleDeviceChange} 
           title="选择预览设备"
-          disabled={previewType !== 'web'} // 🌟 本地文件不支持调整设备
+          disabled={previewType !== 'web' && previewType !== 'html'} 
         >
           <optgroup label="响应式">
             <option value="device-responsive">响应式铺满</option>
@@ -445,7 +478,7 @@ export default function LivePreviewApp() {
 
         <button
           className={`${styles['icon-btn']} ${isRotated ? styles['active-blue'] : ''}`}
-          disabled={device === 'device-responsive' || previewType !== 'web'}
+          disabled={(previewType !== 'web' && previewType !== 'html') || device === 'device-responsive'}
           onClick={() => setIsRotated(!isRotated)}
           title="横屏/竖屏切换"
         >
@@ -453,7 +486,7 @@ export default function LivePreviewApp() {
         </button>
 
         <div className={styles['divider']}></div>
-        <button className={styles['icon-btn']} disabled={!urlInput.trim() || previewType !== 'web'} onClick={() => vscode?.postMessage({ type: 'openExternalBrowser', url: frameUrl || urlInput })} title="在外部默认浏览器中打开">
+        <button className={styles['icon-btn']} disabled={!urlInput.trim() || (previewType !== 'web' && previewType !== 'html')} onClick={() => vscode?.postMessage({ type: 'openExternalBrowser', url: frameUrl || urlInput })} title="在外部默认浏览器中打开">
           <FontAwesomeIcon icon={faArrowUpRightFromSquare} />
         </button>
         <button className={styles['icon-btn']} ref={moreBtnRef} onClick={openContextMenu} title="更多操作">
@@ -498,8 +531,8 @@ export default function LivePreviewApp() {
         </div>
       )}
 
-      {/* 🌟 核心修改：动态渲染预览内容区域 */}
-      <div className={`${styles['preview-container']} ${device === 'device-responsive' || previewType !== 'web' ? styles['no-padding'] : ''}`}>
+      {/* 渲染预览内容区域 */}
+      <div className={`${styles['preview-container']} ${(device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel') ? styles['no-padding'] : ''}`}>
         {!frameUrl ? (
           <div className={styles['welcome-page']}>
             <FontAwesomeIcon icon={faLayerGroup} className={styles['welcome-icon']} />
@@ -521,21 +554,19 @@ export default function LivePreviewApp() {
         ) : previewType === 'md' ? (
           <VditorApp key={frameUrl} />
         ) : previewType === 'pdf' ? (
-          <PdfPreviewApp key={frameUrl} />
+          <PdfPreviewApp key={frameUrl} initialScale={0.8} />
         ) : previewType === 'excel' ? (
           <ExcelPreviewApp key={frameUrl} />
         ) : (
           <div id="deviceWrapper" className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}>
-            <object
-              ref={objectRef}
-              data={frameUrl}
-              type="text/html"
-              onLoad={handleObjectLoad}
+            <iframe
+              ref={iframeRef}
+              src={previewType === 'html' ? UrlParser.parse(frameUrl) : frameUrl}
               className={styles['fromPage']}
               title="preview"
-            >
-              <div style={{ padding: 20, textAlign: 'center' }}>无法加载预览，可能由于跨域或网页安全策略限制。</div>
-            </object>
+              onLoad={handleIframeLoad}
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+            />
           </div>
         )}
       </div>

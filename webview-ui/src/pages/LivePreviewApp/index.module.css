@@ -618,13 +618,12 @@
 }
 
 .fav-item {
-  padding: 10px 16px;
+  padding: 5px 8px;
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
   align-items: center;
   cursor: pointer;
-  gap: 12px;
 }
 
 .fav-item:last-child {
@@ -646,7 +645,6 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 
 .fav-title {
@@ -716,6 +714,11 @@
 }
 
 .globe-icon {
+  font-size: 13px;
+  color: var(--desc-color);
+}
+
+.spiner-icon {
   font-size: 13px;
   color: var(--desc-color);
 }
