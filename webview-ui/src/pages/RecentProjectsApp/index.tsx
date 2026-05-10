@@ -21,6 +21,8 @@ export default function RecentProjectsApp() {
   const [searchQuery, setSearchQuery] = useState<string>((vscode.getState() as any)?.searchQuery || '');
 
   const [selectedPath, setSelectedPath] = useState<string>('');
+  const autoScrollTarget = useRef<string | null>(null);
+
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const [dirChildren, setDirChildren] = useState<Record<string, DirChild[]>>({});
@@ -92,7 +94,10 @@ export default function RecentProjectsApp() {
         setCurrentWorkspace((msg.currentWorkspace as Project) || null);
         setIsInitLoading(false);
 
-        if (msg.activeFilePath) setSelectedPath(msg.activeFilePath as string);
+        if (msg.activeFilePath) {
+          setSelectedPath(msg.activeFilePath as string);
+          autoScrollTarget.current = msg.activeFilePath as string; 
+        }
 
         setBranchMap((prev) => {
           const newMap = { ...prev };
@@ -111,6 +116,7 @@ export default function RecentProjectsApp() {
 
       } else if (msg.type === 'activeEditorChanged') {
         setSelectedPath(msg.fsPath as string);
+        autoScrollTarget.current = msg.fsPath as string; 
       } else if (msg.type === 'updateBranchTag') {
         setBranchMap((prev) => ({ ...prev, [msg.fsPath as string]: msg.branch as string }));
       } else if (msg.type === 'readDirResult') {
@@ -144,6 +150,7 @@ export default function RecentProjectsApp() {
       else if (msg.type === 'revealPath') {
         const { targetPath, parentPaths, projectName } = msg as any;
         setSelectedPath(targetPath);
+        autoScrollTarget.current = targetPath; 
 
         setExpandedPaths((prev) => {
           const next = new Set(prev);
@@ -175,16 +182,18 @@ export default function RecentProjectsApp() {
   }, []);
 
   useEffect(() => {
-    if (selectedPath && !isSearchMode) {
-      const safeId = `tree-node-${encodeURIComponent(selectedPath)}`;
+    if (autoScrollTarget.current && !isSearchMode) {
+      const target = autoScrollTarget.current;
+      const safeId = `tree-node-${encodeURIComponent(target)}`;
       const el = document.getElementById(safeId);
       if (el) {
         setTimeout(() => {
           el.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 100);
+        autoScrollTarget.current = null; 
       }
     }
-  }, [selectedPath, expandedPaths, isSearchMode, dirChildren]);
+  }, [expandedPaths, isSearchMode, dirChildren, selectedPath]);
 
   useEffect(() => {
     if (!isSearchMode || !searchTargetProject) return;
@@ -241,7 +250,10 @@ export default function RecentProjectsApp() {
   };
 
   const filteredOtherProjects = otherProjects.filter(matchSearch);
+  
+  // 🌟 补齐缺失的 isCurrentVisible 声明！
   const isCurrentVisible = activeProjectToRender && matchSearch(activeProjectToRender);
+  
   const clickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleOpenProject = (path: string) => {
@@ -257,6 +269,7 @@ export default function RecentProjectsApp() {
   const handleOpenFile = (path: string, projectName: string, isActiveProject: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
     setSelectedPath(path);
+    setContextMenu((prev) => ({ ...prev, visible: false }));
 
     if (path.toLowerCase().endsWith('.md')) {
       vscode.postMessage({ type: 'previewWithVditor', fsPath: path, projectName, isActiveProject });
@@ -273,6 +286,7 @@ export default function RecentProjectsApp() {
 
   const handleToggleExpand = (path: string, projectName: string, _: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
+    setContextMenu((prev) => ({ ...prev, visible: false }));
 
     if (clickTimeout.current) clearTimeout(clickTimeout.current);
 
@@ -298,15 +312,11 @@ export default function RecentProjectsApp() {
   const handleContextMenu = (e: React.MouseEvent, type: 'top' | 'sub', payload: ContextMenuPayload) => {
     e.preventDefault();
     e.stopPropagation();
+    
     setSelectedPath(payload.path);
 
-    let x = e.pageX;
-    let y = e.pageY;
-
-    if (x + 200 > window.innerWidth) x = window.innerWidth - 200;
-    if (y + 300 > window.innerHeight) y = window.innerHeight - 300;
-
-    setContextMenu({ visible: true, x, y, type, payload });
+    // 🌟 仅仅向组件传递真实的原始坐标，不再这里进行生硬的高度/宽度判断翻转
+    setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type, payload });
   };
 
   const executeMenuAction = (action: string, arg?: string) => {
@@ -314,7 +324,7 @@ export default function RecentProjectsApp() {
     const { payload } = contextMenu;
 
     switch (action) {
-      case 'addToHistory': // 🌟 新增指令响应
+      case 'addToHistory':
         vscode.postMessage({ type: 'addToHistory', fsPath: payload.path, projectName: payload.originalName || payload.name });
         break;
       case 'addToGitList':
@@ -719,7 +729,7 @@ export default function RecentProjectsApp() {
               </div>
             </div>
           )}
-          <div className={styles['list-container']} onScroll={() => setContextMenu((p) => ({ ...p, visible: false }))}>
+          <div className={styles['list-container']}>
             {projects.length === 0 && !activeProjectToRender ? (
               <div className={styles['empty-state']}>
                 <div className={styles['empty-text']}>暂无项目记录，请添加：</div>

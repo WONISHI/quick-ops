@@ -1,14 +1,27 @@
 .context-menu {
-  position: fixed;
-  background: var(--vscode-menu-background);
-  color: var(--vscode-menu-foreground);
-  border: 1px solid var(--vscode-menu-border);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
-  border-radius: 6px;
+  position: fixed !important;
   z-index: 9999;
-  min-width: 180px;
+  max-height: calc(100vh - 20px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--vscode-menu-border);
+  background-color: var(--vscode-menu-background);
+  border-radius: 4px;
   padding: 4px 0;
-  font-size: 13px;
+  white-space: 'nowrap';
+  width: 'max-content';
+  max-width: 'calc(100vw - 20%)'
+}
+
+/* 隐藏菜单内部可能的滚动条背景，使其更美观 */
+.context-menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.context-menu::-webkit-scrollbar-thumb {
+  background: var(--vscode-scrollbarSlider-background);
+  border-radius: 2px;
 }
 
 .context-menu ul {

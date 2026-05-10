@@ -49,32 +49,28 @@ export default function RecentProjectContextMenu({
 }: ContextMenuProps) {
   if (!visible) return null;
 
-  const isLocalHtmlOrSvg = 
-    !payload.path.startsWith('vscode-vfs') && 
-    !payload.path.startsWith('http') && 
+  const isLocalHtmlOrSvg =
+    !payload.path.startsWith('vscode-vfs') &&
+    !payload.path.startsWith('http') &&
     /\.(html|htm|svg|svga)$/i.test(payload.path);
 
+  const menuStyle: React.CSSProperties = {};
+
+  const estimatedWidth = 230;
+  menuStyle.left = Math.max(4, Math.min(x, window.innerWidth - estimatedWidth));
+  if (y > window.innerHeight / 2) {
+    menuStyle.bottom = window.innerHeight - y;
+    menuStyle.top = 'auto';
+  } else {
+    menuStyle.top = y;
+    menuStyle.bottom = 'auto';
+  }
+
   return (
-    <div className={styles['context-menu']} ref={menuRef as any} style={{ left: x, top: y }}>
+    <div className={styles['context-menu']} ref={menuRef as any} style={menuStyle}>
       <ul>
         {type === 'top' && (
           <>
-            {/* 🌟 顶部管理：如果是当前正在运行的项目，动态显示 添加/移除 按钮 */}
-            {payload.isActiveProject && (
-              <>
-                {!(payload as any).inHistory ? (
-                  <li onClick={() => onAction('addToHistory')}>
-                    <FontAwesomeIcon icon={faFolderPlus} className={styles['menu-icon']} style={{ color: '#5dade2' }} /> 添加到资源管理器记录
-                  </li>
-                ) : (
-                  <li onClick={() => onAction('delete')} style={{ color: 'var(--vscode-errorForeground)' }}>
-                    <FontAwesomeIcon icon={faTrash} className={styles['menu-icon']} /> 从资源管理器记录中移除
-                  </li>
-                )}
-                <div className={styles['menu-separator']}></div>
-              </>
-            )}
-
             {!payload.isActiveProject && (
               <>
                 <li onClick={() => onAction('openProjectCurrent')}>
@@ -163,7 +159,7 @@ export default function RecentProjectContextMenu({
                     <div className={styles['menu-separator']}></div>
                   </>
                 )}
-                
+
                 <li onClick={() => onAction('openFileToSide')}>
                   <FontAwesomeIcon icon={faColumns} className={styles['menu-icon']} /> 向右拆分
                 </li>
@@ -208,7 +204,6 @@ export default function RecentProjectContextMenu({
               </>
             )}
 
-            {/* 🌟 核心优化：如果它本来就是当前正在运行的项目，那它就在 VS Code 原生状态下，不需要这个按钮！ */}
             {!payload.isFolder && !payload.isActiveProject && (
               <>
                 <div className={styles['menu-separator']}></div>
