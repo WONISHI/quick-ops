@@ -36,7 +36,7 @@ import VditorApp from '../VditorApp';
 import PdfPreviewApp from '../PdfPreviewApp';
 import ExcelPreviewApp from '../ExcelPreviewApp';
 import PreviewError from '../../components/PreviewError';
-import FloatingPet from '../../components/FloatingPet';
+// import FloatingPet from '../../components/FloatingPet';
 
 interface FavoriteItem {
   url: string;
@@ -1200,7 +1200,7 @@ export default function LivePreviewApp() {
         </div>
       )}
 
-      <FloatingPet scale={0.72} />
+      {/* <FloatingPet scale={0.72} /> */}
     </div>
   );
 }
