@@ -4,6 +4,7 @@ import * as fs from 'fs/promises';
 import { IFeature } from '../core/interfaces/IFeature';
 import ColorLog from '../utils/ColorLog';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
+import { HtmlParserService } from '../services/HtmlParserService';
 
 interface BuiltinBookmark {
   name: string;
@@ -179,6 +180,35 @@ export class LivePreviewFeature implements IFeature {
     await this.syncFavorites(context);
   }
 
+  // 🌟 核心封装：将外部输入的安全解码为系统 URI
+  private parseToSafeUri(rawPath: string): vscode.Uri {
+    const decodedPath = decodeURIComponent(rawPath);
+    if (decodedPath.toLowerCase().startsWith('file://')) {
+      return vscode.Uri.parse(decodedPath);
+    }
+    return vscode.Uri.file(decodedPath);
+  }
+
+  // 🌟 核心封装：动态授予 Webview 对当前磁盘（如 E盘）的访问权限
+  private grantAccessToDrive(fileUri: vscode.Uri, context: vscode.ExtensionContext) {
+    if (!this.panel) return;
+    
+    // 获取文件的根目录（比如 Windows 下的 e:\）
+    const fileRoot = vscode.Uri.file(path.parse(fileUri.fsPath).root);
+    
+    // 获取现有的权限列表
+    const currentRoots = this.panel.webview.options.localResourceRoots || [context.extensionUri];
+    
+    // 如果还没包含该根目录，动态加进去
+    const hasRoot = currentRoots.some(root => root.fsPath === fileRoot.fsPath);
+    if (!hasRoot) {
+      this.panel.webview.options = {
+        enableScripts: true,
+        localResourceRoots: [...currentRoots, fileRoot]
+      };
+    }
+  }
+
   private showPreviewPanel(context: vscode.ExtensionContext) {
     if (this.panel) {
       this.panel.reveal(vscode.ViewColumn.Beside);
@@ -190,7 +220,10 @@ export class LivePreviewFeature implements IFeature {
       enableScripts: true,
       retainContextWhenHidden: true,
       enableFindWidget: true,
-      localResourceRoots: [context.extensionUri],
+      localResourceRoots: [
+        context.extensionUri,
+        vscode.Uri.file('/') // 允许访问系统所有根路径
+      ],
     });
 
     this.panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
@@ -276,37 +309,29 @@ export class LivePreviewFeature implements IFeature {
           const { fsPath, fileType } = this.pendingLocalFile;
 
           try {
-            const fileUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
-            const contentBytes = await vscode.workspace.fs.readFile(fileUri);
+            const fileUri = this.parseToSafeUri(fsPath);
+            this.grantAccessToDrive(fileUri, context); // 赋予被加载文档目录权限
 
-            if (fileType === 'md') {
-              const contentStr = Buffer.from(contentBytes).toString('utf8');
-
-              this.panel?.webview.postMessage({
-                type: 'initVditorData',
-                content: contentStr,
-                mode: 'read',
-                fsPath,
-              });
-            } else if (fileType === 'pdf') {
-              const fileBase64 = Buffer.from(contentBytes).toString('base64');
-
-              this.panel?.webview.postMessage({
-                type: 'initPdfData',
-                contentBase64: fileBase64,
-                initialScale: 0.8,
-              });
-            } else if (fileType === 'excel') {
-              const fileBase64 = Buffer.from(contentBytes).toString('base64');
-
-              this.panel?.webview.postMessage({
-                type: 'initExcelData',
-                fsPath,
-                fileName: path.basename(fsPath),
-                contentBase64: fileBase64,
-              });
+            // 🌟 核心：发现是 html 时，调用服务类读取并转换！
+            if (fileType === 'html') {
+               const parsedHtml = await HtmlParserService.parseAndResolveHtml(fileUri.fsPath, this.panel!.webview);
+               this.panel?.webview.postMessage({
+                 type: 'initHtmlContent', // 告诉前端，发送的是具体的代码结构
+                 content: parsedHtml
+               });
+            } else {
+               // 处理 md, pdf, excel
+               const contentBytes = await vscode.workspace.fs.readFile(fileUri);
+               if (fileType === 'md') {
+                 this.panel?.webview.postMessage({ type: 'initVditorData', content: Buffer.from(contentBytes).toString('utf8'), mode: 'read', fsPath });
+               } else if (fileType === 'pdf') {
+                 this.panel?.webview.postMessage({ type: 'initPdfData', contentBase64: Buffer.from(contentBytes).toString('base64'), initialScale: 0.8 });
+               } else if (fileType === 'excel') {
+                 this.panel?.webview.postMessage({ type: 'initExcelData', fsPath, fileName: path.basename(fileUri.fsPath), contentBase64: Buffer.from(contentBytes).toString('base64') });
+               }
             }
           } catch (e) {
+            console.error('[QuickOps LivePreview] File Read Error:', e);
             vscode.window.showErrorMessage(`文件读取失败: ${fsPath}`);
           }
         }

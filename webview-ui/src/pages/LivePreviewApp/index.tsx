@@ -6,28 +6,11 @@ import styles from './index.module.css';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faArrowLeft,
-  faRotateRight,
-  faGlobe,
-  faXmark,
-  faStar as faStarSolid,
-  faArrowRight,
-  faRotate,
-  faArrowUpRightFromSquare,
-  faEllipsis,
-  faLayerGroup,
-  faPlus,
-  faClockRotateLeft,
-  faBroom,
-  faChevronRight,
-  faDatabase,
-  faBoxArchive,
-  faCookieBite,
-  faTerminal,
-  faPen,
-  faTrash,
-  faCheck,
-  faSpinner,
+  faArrowLeft, faRotateRight, faGlobe, faXmark, faStar as faStarSolid,
+  faArrowRight, faRotate, faArrowUpRightFromSquare, faEllipsis,
+  faLayerGroup, faPlus, faClockRotateLeft, faBroom, faChevronRight,
+  faDatabase, faBoxArchive, faCookieBite, faTerminal, faPen,
+  faTrash, faCheck, faSpinner,
 } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular, faCopy as faCopyRegular } from '@fortawesome/free-regular-svg-icons';
 import { faVuejs, faNodeJs, faReact } from '@fortawesome/free-brands-svg-icons';
@@ -36,7 +19,7 @@ import VditorApp from '../VditorApp';
 import PdfPreviewApp from '../PdfPreviewApp';
 import ExcelPreviewApp from '../ExcelPreviewApp';
 import PreviewError from '../../components/PreviewError';
-import FloatingPet from '../../components/FloatingPet';
+import HtmlPreviewApp from '../HtmlPreviewApp';
 
 interface FavoriteItem {
   url: string;
@@ -110,28 +93,22 @@ export default function LivePreviewApp() {
 
   const getFavoriteByUrl = (url: string) => {
     const targetUrl = normalizeFavoriteUrl(url);
-
     if (!targetUrl) return undefined;
-
     return favorites.find((item) => normalizeFavoriteUrl(item.url) === targetUrl);
   };
 
   const getKnownLogoByUrl = (url: string) => {
     const favorite = getFavoriteByUrl(url);
     if (favorite?.logo) return favorite.logo;
-
     if (normalizeFavoriteUrl(url) === normalizeFavoriteUrl(frameUrl) && faviconUrl && !faviconError) {
       return faviconUrl;
     }
-
     return '';
   };
 
   const activeDefaultFavorite = useMemo(() => {
     const targetUrl = normalizeFavoriteUrl(frameUrl || urlInput);
-
     if (!targetUrl) return undefined;
-
     return favorites.find((item) => {
       return item.isDefault && item.logo && normalizeFavoriteUrl(item.url) === targetUrl;
     });
@@ -139,18 +116,12 @@ export default function LivePreviewApp() {
 
   const updateHistoryLogo = (url: string, logo: string) => {
     if (!url || !logo) return;
-
     const targetUrl = normalizeFavoriteUrl(url);
-
     setHistoryStack((prev) => {
       return prev.map((item) => {
         if (normalizeFavoriteUrl(item.url) !== targetUrl) return item;
         if (item.logo) return item;
-
-        return {
-          ...item,
-          logo,
-        };
+        return { ...item, logo };
       });
     });
   };
@@ -158,11 +129,9 @@ export default function LivePreviewApp() {
   const updateCurrentHistoryTitle = (title: string) => {
     setHistoryStack((prev) => {
       const next = [...prev];
-
       if (next[historyIdx]) {
         next[historyIdx].title = title || next[historyIdx].url;
       }
-
       return next;
     });
   };
@@ -170,10 +139,8 @@ export default function LivePreviewApp() {
   const canReadIframeDocument = (targetUrl: string) => {
     try {
       if (!targetUrl) return false;
-
       const target = new URL(targetUrl);
       const current = new URL(window.location.href);
-
       return target.origin === current.origin;
     } catch {
       return false;
@@ -189,15 +156,12 @@ export default function LivePreviewApp() {
 
         if (message.url) {
           const initUrl = message.url.trim();
-
           setUrlInput(initUrl);
-
           if (initUrl) {
             loadPreviewTarget(initUrl);
             pushHistory(initUrl, initUrl);
           }
         }
-
         vscode?.postMessage({ type: 'reqSyncFavorites' });
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
@@ -211,7 +175,6 @@ export default function LivePreviewApp() {
         setMenuOpen(false);
         setCacheSubmenuOpen(false);
       }
-
       if (!suggestBoxRef.current?.contains(e.target as Node) && !(e.target as Element).closest(`.${styles['address-bar-wrapper']}`)) {
         setShowSuggest(false);
       }
@@ -233,7 +196,7 @@ export default function LivePreviewApp() {
     setPreviewLoading(false);
     setPreviewError(null);
 
-    if (!iframeRef.current || historyIdx < 0 || (previewType !== 'web' && previewType !== 'html')) return;
+    if (!iframeRef.current || historyIdx < 0 || previewType !== 'web') return;
 
     const fallbackTitle = urlInput || frameUrl;
 
@@ -269,7 +232,6 @@ export default function LivePreviewApp() {
 
     setHistoryStack((prev) => {
       if (historyIdx > -1 && prev[historyIdx]?.url === url) return prev;
-
       const nextStack = prev.slice(0, historyIdx + 1);
       const logo = getKnownLogoByUrl(url);
 
@@ -289,7 +251,6 @@ export default function LivePreviewApp() {
     if (index < 0 || index >= historyStack.length) return;
 
     isInternalNav.current = true;
-
     const targetUrl = historyStack[index].url;
 
     setHistoryIdx(index);
@@ -347,7 +308,6 @@ export default function LivePreviewApp() {
 
     if (UrlParser.isAbsolutePath(url)) {
       const lower = url.toLowerCase();
-
       if (lower.endsWith('.md')) pType = 'md';
       else if (lower.endsWith('.pdf')) pType = 'pdf';
       else if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) pType = 'excel';
@@ -376,7 +336,7 @@ export default function LivePreviewApp() {
     setFrameUrl(url);
     vscode?.postMessage({ type: 'saveUrl', url });
 
-    if (pType !== 'web' && pType !== 'html') {
+    if (pType !== 'web') {
       vscode?.postMessage({ type: 'setPendingLocalFile', fsPath: url, fileType: pType });
       setFaviconUrl('');
       setFaviconError(false);
@@ -417,13 +377,11 @@ export default function LivePreviewApp() {
         setSuggestIndex((prev) => (prev + 1) % suggestions.length);
         return;
       }
-
       if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSuggestIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
         return;
       }
-
       if (e.key === 'Escape') {
         e.preventDefault();
         setShowSuggest(false);
@@ -433,7 +391,6 @@ export default function LivePreviewApp() {
 
     if (e.key === 'Enter') {
       e.preventDefault();
-
       if (showSuggest && suggestIndex > -1) {
         handleGo(suggestions[suggestIndex].url);
       } else {
@@ -475,13 +432,10 @@ export default function LivePreviewApp() {
 
   const handleDeviceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newDevice = e.target.value;
-
     setDevice(newDevice);
-
     if (newDevice === 'device-responsive') {
       setIsRotated(false);
     }
-
     vscode?.postMessage({ type: 'saveDevice', device: newDevice });
   };
 
@@ -511,11 +465,8 @@ export default function LivePreviewApp() {
 
   const renderHighlighted = (text: string) => {
     const query = urlInput.trim();
-
     if (!query) return text;
-
     const parts = text.split(new RegExp(`(${escapeRegExp(query)})`, 'gi'));
-
     return parts.map((part, i) =>
       part.toLowerCase() === query.toLowerCase() ? (
         <span key={i} className={styles['highlight-match']}>
@@ -531,13 +482,10 @@ export default function LivePreviewApp() {
 
   const openContextMenu = () => {
     if (!moreBtnRef.current) return;
-
     const rect = moreBtnRef.current.getBoundingClientRect();
     let x = rect.left - 180;
     const y = rect.bottom + 5;
-
     if (x + 200 > window.innerWidth) x = window.innerWidth - 210;
-
     setMenuPos({ x, y });
     setMenuOpen(!menuOpen);
   };
@@ -556,7 +504,6 @@ export default function LivePreviewApp() {
         win.sessionStorage.clear();
       } else if (type === 'cookie') {
         const cookies = win.document.cookie.split(';');
-
         for (let i = 0; i < cookies.length; i++) {
           const cookie = cookies[i];
           const eqPos = cookie.indexOf('=');
@@ -571,7 +518,6 @@ export default function LivePreviewApp() {
       console.log('e', e);
       vscode?.postMessage({ type: 'showWarning', message: '⚠️ 此页面不支持清理缓存或存在跨域限制' });
     }
-
     setMenuOpen(false);
   };
 
@@ -586,7 +532,6 @@ export default function LivePreviewApp() {
       document.execCommand('copy');
       document.body.removeChild(input);
     }
-
     setCopiedUrl(url);
     setTimeout(() => setCopiedUrl(''), 1500);
   };
@@ -962,6 +907,8 @@ export default function LivePreviewApp() {
           <PdfPreviewApp key={frameUrl} initialScale={0.8} />
         ) : previewType === 'excel' ? (
           <ExcelPreviewApp key={frameUrl} />
+        ) : previewType === 'html' ? (
+          <HtmlPreviewApp key={frameUrl} />
         ) : previewError ? (
           <PreviewError
             url={previewError.url}
@@ -983,7 +930,7 @@ export default function LivePreviewApp() {
           <div id="deviceWrapper" className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}>
             <iframe
               ref={iframeRef}
-              src={previewType === 'html' ? UrlParser.parse(frameUrl) : frameUrl}
+              src={frameUrl}
               className={styles['fromPage']}
               title="preview"
               onLoad={handleIframeLoad}
@@ -1001,7 +948,6 @@ export default function LivePreviewApp() {
               <h3>
                 <FontAwesomeIcon icon={faStarSolid} className={styles['fav-header-icon']} /> 我的收藏夹
               </h3>
-
               <div className={styles['fav-header-actions']}>
                 <select className={styles['fav-sort-select']} value={favSort} onChange={(e) => setFavSort(e.target.value as any)}>
                   <option value="time">按时间 (最新优先)</option>
@@ -1149,7 +1095,6 @@ export default function LivePreviewApp() {
               <h3>
                 <FontAwesomeIcon icon={faClockRotateLeft} className={styles['history-header-icon']} /> 历史记录
               </h3>
-
               <FontAwesomeIcon icon={faXmark} className={styles['fav-close']} onClick={() => setActiveModal('none')} title="关闭" />
             </div>
 
@@ -1199,8 +1144,6 @@ export default function LivePreviewApp() {
           </div>
         </div>
       )}
-
-      <FloatingPet scale={0.72} />
     </div>
   );
 }
