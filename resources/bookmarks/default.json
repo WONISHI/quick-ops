@@ -29,6 +29,12 @@
         "description": "Ant Design 官方中文组件总览页面，可快速查找 Button、Form、Table、Modal、Upload 等 React UI 组件文档。",
         "logo": "https://gw.alipayobjects.com/zos/rmsportal/KDpgvguMpGfqaHPjicRK.svg"
     },
+     {
+        "name": "Ant Design Vue 组件总览",
+        "url": "https://www.antdv.com/components/overview-cn/",
+        "description": "基于 Ant Design 设计体系的 Vue.js UI 组件库",
+        "logo": "https://www.antdv.com/favicon.ico"
+    },
     {
         "name": "CSS Loaders Classic",
         "url": "https://css-loaders.com/classic/",
