@@ -15,6 +15,7 @@ import {
   faRotate,
   faArrowUpRightFromSquare,
   faEllipsis,
+  faLayerGroup,
   faPlus,
   faClockRotateLeft,
   faBroom,
@@ -29,14 +30,13 @@ import {
   faSpinner,
 } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular, faCopy as faCopyRegular } from '@fortawesome/free-regular-svg-icons';
+import { faVuejs, faNodeJs, faReact } from '@fortawesome/free-brands-svg-icons';
 
 import VditorApp from '../VditorApp';
 import PdfPreviewApp from '../PdfPreviewApp';
 import ExcelPreviewApp from '../ExcelPreviewApp';
 import HtmlPreviewApp from '../HtmlPreviewApp';
 import PreviewError from '../../components/PreviewError';
-import WelcomePage from '../../components/WelcomePage';
-// import FloatingPet from '../../components/FloatingPet';
 
 interface FavoriteItem {
   url: string;
@@ -75,7 +75,6 @@ export default function LivePreviewApp() {
   const [isRotated, setIsRotated] = useState(false);
   const [faviconUrl, setFaviconUrl] = useState('');
   const [faviconError, setFaviconError] = useState(false);
-
   const [isFaviconLoading, setIsFaviconLoading] = useState(false);
 
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
@@ -93,11 +92,17 @@ export default function LivePreviewApp() {
   const [suggestIndex, setSuggestIndex] = useState(-1);
   const [copiedUrl, setCopiedUrl] = useState('');
 
+  const [isPageLoaded, setIsPageLoaded] = useState(false);
+
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
   const cacheMenuTimer = useRef<any>(null);
   const previewLoadTimerRef = useRef<number | null>(null);
+
+  const previewRequestIdRef = useRef(0);
+  const pageLoadedRef = useRef(false);
+  const faviconResolvedRef = useRef(false);
 
   const normalizeFavoriteUrl = (url: string) => {
     return (url || '').trim().replace(/\/+$/, '');
@@ -138,6 +143,16 @@ export default function LivePreviewApp() {
       return item.isDefault && item.logo && normalizeFavoriteUrl(item.url) === targetUrl;
     });
   }, [favorites, frameUrl, urlInput]);
+
+  const isDefaultFavoriteUrl = (url: string) => {
+    const targetUrl = normalizeFavoriteUrl(url);
+
+    if (!targetUrl) return false;
+
+    return favorites.some((item) => {
+      return item.isDefault && normalizeFavoriteUrl(item.url) === targetUrl;
+    });
+  };
 
   const updateHistoryLogo = (url: string, logo: string) => {
     if (!url || !logo) return;
@@ -180,6 +195,128 @@ export default function LivePreviewApp() {
     } catch {
       return false;
     }
+  };
+
+  const updateFavicon = (urlStr: string, options?: { onResolved?: (logo: string) => void }) => {
+    if (!urlStr) {
+      setFaviconUrl('');
+      setFaviconError(false);
+      setIsFaviconLoading(false);
+      return;
+    }
+
+    const favorite = getFavoriteByUrl(urlStr);
+
+    if (favorite?.logo) {
+      setFaviconUrl(favorite.logo);
+      setFaviconError(false);
+      setIsFaviconLoading(false);
+      updateHistoryLogo(urlStr, favorite.logo);
+      options?.onResolved?.(favorite.logo);
+      return;
+    }
+
+    try {
+      const urlObj = new URL(urlStr);
+      const targetIconUrl = `${urlObj.origin}/favicon.ico`;
+
+      setIsFaviconLoading(true);
+      setFaviconError(false);
+
+      const imgLoader = new Image();
+      imgLoader.src = targetIconUrl;
+
+      imgLoader.onload = () => {
+        setFaviconUrl(targetIconUrl);
+        setFaviconError(false);
+        setIsFaviconLoading(false);
+        updateHistoryLogo(urlStr, targetIconUrl);
+        options?.onResolved?.(targetIconUrl);
+      };
+
+      imgLoader.onerror = () => {
+        setFaviconError(true);
+        setIsFaviconLoading(false);
+      };
+    } catch {
+      setFaviconError(true);
+      setIsFaviconLoading(false);
+    }
+  };
+
+  const showPreviewErrorByRequest = (requestId: number, url: string, title: string, message: string) => {
+    if (previewRequestIdRef.current !== requestId) return;
+    if (pageLoadedRef.current) return;
+
+    clearPreviewLoadTimer();
+
+    setPreviewLoading(false);
+    setIsPageLoaded(false);
+
+    setPreviewError({
+      title,
+      message,
+      url,
+    });
+  };
+
+  const startWebPreviewGuard = (url: string) => {
+    const requestId = previewRequestIdRef.current + 1;
+
+    previewRequestIdRef.current = requestId;
+    pageLoadedRef.current = false;
+    faviconResolvedRef.current = false;
+
+    setIsPageLoaded(false);
+    setPreviewLoading(true);
+    setPreviewError(null);
+
+    clearPreviewLoadTimer();
+
+    const isDefaultBookmark = isDefaultFavoriteUrl(url);
+
+    if (isDefaultBookmark) {
+      updateFavicon(url);
+
+      previewLoadTimerRef.current = window.setTimeout(() => {
+        showPreviewErrorByRequest(
+          requestId,
+          url,
+          '页面加载超时',
+          '该地址是默认书签，已等待 15 秒仍未完成加载。目标网站可能禁止 iframe 嵌入，建议使用外部浏览器打开。'
+        );
+      }, 15000);
+
+      return;
+    }
+
+    previewLoadTimerRef.current = window.setTimeout(() => {
+      if (previewRequestIdRef.current !== requestId) return;
+      if (pageLoadedRef.current) return;
+      if (faviconResolvedRef.current) return;
+
+      showPreviewErrorByRequest(requestId, url, '页面加载失败', '10 秒内没有成功解析到网站图标。可能是地址错误、网络异常，或者目标网站无法访问。');
+    }, 10000);
+
+    updateFavicon(url, {
+      onResolved: () => {
+        if (previewRequestIdRef.current !== requestId) return;
+        if (pageLoadedRef.current) return;
+
+        faviconResolvedRef.current = true;
+
+        clearPreviewLoadTimer();
+
+        previewLoadTimerRef.current = window.setTimeout(() => {
+          showPreviewErrorByRequest(
+            requestId,
+            url,
+            '页面加载超时',
+            '已成功解析到网站图标，但页面仍未完成加载。目标网站可能禁止 iframe 嵌入，建议使用外部浏览器打开。'
+          );
+        }, 10000);
+      },
+    });
   };
 
   useEffect(() => {
@@ -230,6 +367,9 @@ export default function LivePreviewApp() {
   const handleIframeLoad = () => {
     if (frameUrl === 'about:blank') return;
 
+    pageLoadedRef.current = true;
+    setIsPageLoaded(true);
+
     clearPreviewLoadTimer();
     setPreviewLoading(false);
     setPreviewError(null);
@@ -252,6 +392,9 @@ export default function LivePreviewApp() {
   };
 
   const handleIframeError = () => {
+    pageLoadedRef.current = false;
+    setIsPageLoaded(false);
+
     clearPreviewLoadTimer();
     setPreviewLoading(false);
 
@@ -299,50 +442,6 @@ export default function LivePreviewApp() {
     setActiveModal('none');
   };
 
-  const updateFavicon = (urlStr: string) => {
-    if (!urlStr) {
-      setFaviconUrl('');
-      setFaviconError(false);
-      setIsFaviconLoading(false);
-      return;
-    }
-
-    const favorite = getFavoriteByUrl(urlStr);
-
-    if (favorite?.logo) {
-      setFaviconUrl(favorite.logo);
-      setFaviconError(false);
-      setIsFaviconLoading(false);
-      updateHistoryLogo(urlStr, favorite.logo);
-      return;
-    }
-
-    try {
-      const urlObj = new URL(urlStr);
-      const targetIconUrl = `${urlObj.origin}/favicon.ico`;
-
-      setIsFaviconLoading(true);
-      setFaviconError(false);
-
-      const imgLoader = new Image();
-      imgLoader.src = targetIconUrl;
-
-      imgLoader.onload = () => {
-        setFaviconUrl(targetIconUrl);
-        setIsFaviconLoading(false);
-        updateHistoryLogo(urlStr, targetIconUrl);
-      };
-
-      imgLoader.onerror = () => {
-        setFaviconError(true);
-        setIsFaviconLoading(false);
-      };
-    } catch {
-      setFaviconError(true);
-      setIsFaviconLoading(false);
-    }
-  };
-
   const getPreviewTypeByUrl = (url: string): PreviewType => {
     if (!UrlParser.isAbsolutePath(url)) return 'web';
 
@@ -363,39 +462,35 @@ export default function LivePreviewApp() {
     setPreviewError(null);
     clearPreviewLoadTimer();
 
-    const isRemoteWebPreview = pType === 'web';
+    pageLoadedRef.current = false;
+    faviconResolvedRef.current = false;
 
-    setPreviewLoading(isRemoteWebPreview);
-
-    if (isRemoteWebPreview) {
-      previewLoadTimerRef.current = window.setTimeout(() => {
-        setPreviewLoading(false);
-        setPreviewError({
-          title: '页面加载超时',
-          message: '页面长时间没有完成加载。该页面可能禁止 iframe 嵌入，建议使用外部浏览器打开。',
-          url,
-        });
-      }, 10000);
-    }
-
+    setIsPageLoaded(false);
     setFrameUrl(url);
+
     vscode?.postMessage({ type: 'saveUrl', url });
 
-    if (pType !== 'web') {
-      if (pType !== 'html') {
-        vscode?.postMessage({
-          type: 'setPendingLocalFile',
-          fsPath: url,
-          fileType: pType,
-        });
-      }
-
-      setFaviconUrl('');
-      setFaviconError(false);
-      setIsFaviconLoading(false);
-    } else {
-      updateFavicon(url);
+    if (pType === 'web') {
+      startWebPreviewGuard(url);
+      return;
     }
+
+    previewRequestIdRef.current += 1;
+
+    setPreviewLoading(false);
+    setIsPageLoaded(true);
+
+    if (pType !== 'html') {
+      vscode?.postMessage({
+        type: 'setPendingLocalFile',
+        fsPath: url,
+        fileType: pType,
+      });
+    }
+
+    setFaviconUrl('');
+    setFaviconError(false);
+    setIsFaviconLoading(false);
   };
 
   const handleGo = (forceUrl?: string) => {
@@ -406,10 +501,17 @@ export default function LivePreviewApp() {
 
     if (!finalUrl) {
       clearPreviewLoadTimer();
+
+      previewRequestIdRef.current += 1;
+      pageLoadedRef.current = false;
+      faviconResolvedRef.current = false;
+
       setFrameUrl('');
       setPreviewType('web');
       setPreviewLoading(false);
       setPreviewError(null);
+      setIsPageLoaded(false);
+
       updateFavicon('');
       vscode?.postMessage({ type: 'saveUrl', url: '' });
       return;
@@ -476,6 +578,10 @@ export default function LivePreviewApp() {
     setPreviewError(null);
     clearPreviewLoadTimer();
 
+    pageLoadedRef.current = false;
+    faviconResolvedRef.current = false;
+    setIsPageLoaded(false);
+
     if (previewType !== 'web') {
       if (previewType !== 'html') {
         vscode?.postMessage({
@@ -489,27 +595,18 @@ export default function LivePreviewApp() {
 
       window.setTimeout(() => {
         setFrameUrl(temp);
+        setIsPageLoaded(true);
       }, 50);
 
       setMenuOpen(false);
       return;
     }
 
-    setPreviewLoading(true);
-
-    previewLoadTimerRef.current = window.setTimeout(() => {
-      setPreviewLoading(false);
-      setPreviewError({
-        title: '页面加载超时',
-        message: '页面长时间没有完成加载。该页面可能禁止 iframe 嵌入，建议使用外部浏览器打开。',
-        url: temp,
-      });
-    }, 10000);
-
     setFrameUrl('about:blank');
 
     window.setTimeout(() => {
       setFrameUrl(temp);
+      startWebPreviewGuard(temp);
     }, 50);
 
     setMenuOpen(false);
@@ -527,8 +624,12 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'saveDevice', device: newDevice });
   };
 
+  const isFav = favorites.some((f) => normalizeFavoriteUrl(f.url) === normalizeFavoriteUrl(frameUrl));
+
+  const canToggleFavorite = !!frameUrl && previewType === 'web' && isPageLoaded && !previewLoading && !previewError;
+
   const toggleFavorite = () => {
-    if (!frameUrl) return;
+    if (!canToggleFavorite) return;
 
     const currentHistory = historyIdx >= 0 ? historyStack[historyIdx] : undefined;
     const title = currentHistory?.title || urlInput || frameUrl;
@@ -554,8 +655,6 @@ export default function LivePreviewApp() {
       )
     );
   };
-
-  const isFav = favorites.some((f) => normalizeFavoriteUrl(f.url) === normalizeFavoriteUrl(frameUrl));
 
   const openContextMenu = () => {
     if (!moreBtnRef.current) return;
@@ -773,12 +872,16 @@ export default function LivePreviewApp() {
             />
           )}
 
-          <FontAwesomeIcon
-            icon={isFav ? faStarSolid : faStarRegular}
-            className={`${styles['action-icon']} ${isFav ? styles['fav-active'] : ''}`}
+          <button
+            type="button"
+            className={`${styles['star-action-btn']} ${isFav ? styles['fav-active'] : ''}`}
+            disabled={!canToggleFavorite}
             onClick={toggleFavorite}
-            title="添加/取消收藏 (跨工作区同步)"
-          />
+            title={canToggleFavorite ? '添加/取消收藏 (跨工作区同步)' : previewLoading ? '页面加载中，暂不能添加收藏' : '页面加载成功后才能添加收藏'}
+            aria-disabled={!canToggleFavorite}
+          >
+            <FontAwesomeIcon icon={isFav ? faStarSolid : faStarRegular} />
+          </button>
 
           {showSuggest && suggestions.length > 0 && (
             <div className={styles['suggest-box']} ref={suggestBoxRef}>
@@ -954,13 +1057,38 @@ export default function LivePreviewApp() {
       )}
 
       <div
-        className={`${styles['preview-container']} ${device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''
-          }`}
+        className={`${styles['preview-container']} ${
+          device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''
+        }`}
       >
         {renderPreviewLoadingMask()}
 
         {!frameUrl ? (
-          <WelcomePage onQuickOpen={handleGo} />
+          <div className={styles['welcome-page']}>
+            <FontAwesomeIcon icon={faLayerGroup} className={styles['welcome-icon']} />
+
+            <h1 className={styles['welcome-title']}>Live Preview</h1>
+
+            <p className={styles['welcome-subtitle']}>
+              在上方地址栏输入您的本地开发服务器地址，或直接输入关键词进行搜索。
+              <br />
+              您也可以点击下方快捷选项快速填入：
+            </p>
+
+            <div className={styles['quick-links']}>
+              <button className={styles['quick-link-btn']} onClick={() => handleGo('localhost:5173')}>
+                <FontAwesomeIcon icon={faVuejs} className={styles['brand-icon-vue']} /> <span>Vite 默认端口 (5173)</span>
+              </button>
+
+              <button className={styles['quick-link-btn']} onClick={() => handleGo('localhost:8080')}>
+                <FontAwesomeIcon icon={faNodeJs} className={styles['brand-icon-node']} /> <span>Vue CLI / Webpack (8080)</span>
+              </button>
+
+              <button className={styles['quick-link-btn']} onClick={() => handleGo('localhost:3000')}>
+                <FontAwesomeIcon icon={faReact} className={styles['brand-icon-react']} /> <span>React / Next.js (3000)</span>
+              </button>
+            </div>
+          </div>
         ) : previewType === 'md' ? (
           <VditorApp key={frameUrl} />
         ) : previewType === 'pdf' ? (
@@ -1215,8 +1343,6 @@ export default function LivePreviewApp() {
           </div>
         </div>
       )}
-
-      {/* <FloatingPet scale={0.72} /> */}
     </div>
   );
 }

@@ -823,3 +823,39 @@
 .history-header-icon {
   color: var(--info-color);
 }
+
+.disabled-action-icon {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+}
+
+.star-action-btn {
+  background: transparent;
+  border: none;
+  color: var(--vscode-icon-foreground);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  opacity: 0.7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  transition: opacity 0.2s, color 0.2s;
+}
+
+.star-action-btn:hover:not(:disabled) {
+  opacity: 1;
+  color: var(--fg);
+}
+
+.star-action-btn.fav-active {
+  color: var(--warning-color);
+  opacity: 1;
+}
+
+.star-action-btn:disabled {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+  color: var(--vscode-icon-foreground) !important;
+}
