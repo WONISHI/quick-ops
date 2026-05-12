@@ -32,9 +32,9 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         <Route path="/mock" element={<MockSidebarApp />} />
         <Route path="/mock/proxy" element={<MockProxyPanelApp />} />
         <Route path="/mock/rule" element={<MockRulePanelApp />} />
-        <Route path='/vditor' element={<VditorApp></VditorApp>} />
-        <Route path='/pdf' element={<PdfPreviewApp></PdfPreviewApp>} />
-        <Route path='/xls' element={<ExcelPreviewApp></ExcelPreviewApp>} />
+        <Route path='/vditor' element={<VditorApp />} />
+        <Route path='/pdf' element={<PdfPreviewApp />} />
+        <Route path='/xls' element={<ExcelPreviewApp />} />
         <Route path="/" element={<div>Welcome to Quick Ops Dashboard!</div>} />
       </Routes>
     </MemoryRouter>

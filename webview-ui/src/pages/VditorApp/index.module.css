@@ -1,262 +1,488 @@
 .vditor-container {
-    height: 100vh;
-    background-color: var(--vscode-editor-background);
-    color: var(--vscode-editor-foreground);
-    display: flex;
-    flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
+  background-color: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground);
 }
 
 .vditor-wrapper {
-    flex: 1;
-    border: none !important;
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box;
+  border: none !important;
 }
 
-:global(.vditor) {
-    border: none !important;
-    background-color: transparent !important;
-}
-
-:global(.vditor-toolbar) {
-    background-color: var(--vscode-editorGroupHeader-tabsBackground) !important;
-    border-bottom: 1px solid var(--vscode-panel-border) !important;
-}
-
-:global(.vditor-toolbar__item) {
-    color: var(--vscode-icon-foreground) !important;
-}
-
-:global(.vditor-toolbar__item:hover) {
-    background-color: var(--vscode-toolbar-hoverBackground) !important;
-    color: var(--vscode-icon-foreground) !important;
-}
-
-:global(.vditor-ir),
-:global(.vditor-reset) {
-    background-color: transparent !important;
-    color: var(--vscode-editor-foreground) !important;
-    max-width: 100% !important;
-    padding: 24px 20px !important;
-    font-family: var(--vscode-editor-font-family), "Helvetica Neue", sans-serif !important;
-}
-
-/* 标题适配 */
-:global(.vditor-reset h1),
-:global(.vditor-reset h2),
-:global(.vditor-reset h3),
-:global(.vditor-reset h4),
-:global(.vditor-reset h5),
-:global(.vditor-reset h6) {
-    color: var(--vscode-editor-foreground) !important;
-    border-bottom-color: var(--vscode-panel-border) !important;
-}
-
-/* 引用块适配 */
-:global(.vditor-reset blockquote) {
-    background-color: var(--vscode-textBlockQuote-background) !important;
-    border-left: 4px solid var(--vscode-textBlockQuote-border) !important;
-    color: var(--vscode-descriptionForeground) !important;
-}
-
-/* 链接适配 */
-:global(.vditor-reset a),
-:global(.vditor-ir__link) {
-    color: var(--vscode-textLink-foreground) !important;
-}
-:global(.vditor-reset a:hover),
-:global(.vditor-ir__link:hover)  {
-    color: var(--vscode-textLink-activeForeground) !important;
-}
-
-/* 行内代码与代码块适配 */
-:global(.vditor-reset p code),
-:global(.vditor-reset li code) {
-    background-color: var(--vscode-textCodeBlock-background) !important;
-    color: var(--vscode-textPreformat-foreground) !important;
-}
-
-:global(.vditor-reset pre) {
-    background-color: var(--vscode-textCodeBlock-background) !important;
-    border: 1px solid var(--vscode-panel-border) !important;
-}
-
-/* VS Code 风格的滚动条 */
-:global(.vditor-ir::-webkit-scrollbar) {
-    width: 10px;
-    height: 10px;
-}
-:global(.vditor-ir::-webkit-scrollbar-track) {
-    background: transparent;
-}
-:global(.vditor-ir::-webkit-scrollbar-thumb) {
-    background-color: var(--vscode-scrollbarSlider-background);
-}
-:global(.vditor-ir::-webkit-scrollbar-thumb:hover) {
-    background-color: var(--vscode-scrollbarSlider-hoverBackground);
-}
-:global(.vditor-ir::-webkit-scrollbar-thumb:active) {
-    background-color: var(--vscode-scrollbarSlider-activeBackground);
+.vditor-error {
+  width: 100%;
+  height: 100%;
+  min-height: 240px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vscode-errorForeground);
+  font-size: 13px;
+  padding: 24px;
+  box-sizing: border-box;
 }
 
 /* =========================================
-   只读模式 (Read Mode) 逻辑
+   Vditor 基础样式
    ========================================= */
+
+:global(.vditor) {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  border: none !important;
+  background-color: transparent !important;
+  box-sizing: border-box !important;
+}
+
+:global(.vditor-toolbar) {
+  flex: 0 0 auto;
+  background-color: var(--vscode-editorGroupHeader-tabsBackground) !important;
+  border-bottom: 1px solid var(--vscode-panel-border) !important;
+}
+
+:global(.vditor-toolbar__item) {
+  color: var(--vscode-icon-foreground) !important;
+}
+
+:global(.vditor-toolbar__item:hover) {
+  background-color: var(--vscode-toolbar-hoverBackground) !important;
+  color: var(--vscode-icon-foreground) !important;
+}
+
+/* =========================================
+   编辑模式 ir
+   ========================================= */
+
+:global(.vditor-ir) {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: auto !important;
+  padding: 24px 36px 80px !important;
+  box-sizing: border-box !important;
+  background-color: transparent !important;
+  color: var(--vscode-editor-foreground) !important;
+  font-family: var(--vscode-editor-font-family), "Helvetica Neue", sans-serif !important;
+}
+
+/* =========================================
+   只读预览模式 Vditor.preview 生成的内容
+   注意：滚动条在 .vditor-wrapper 上，不在 .vditor-reset 上
+   ========================================= */
+
+:global(.vditor-reset) {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 100%;
+  padding: 24px 36px 80px !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  box-sizing: border-box !important;
+  background-color: transparent !important;
+  color: var(--vscode-editor-foreground) !important;
+  font-family: var(--vscode-editor-font-family), "Helvetica Neue", sans-serif !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* =========================================
+   只读模式
+   ========================================= */
+
 .read-mode :global(.vditor-toolbar) {
-    display: none !important;
+  display: none !important;
 }
 
 .read-mode :global(.vditor-ir) {
-    caret-color: transparent !important;
+  caret-color: transparent !important;
 }
 
 .read-mode :global(.vditor-ir__marker),
 .read-mode :global(.vditor-ir__node--expand pre.vditor-ir__marker),
 .read-mode :global(.vditor-ir__info) {
-    display: none !important;
+  display: none !important;
 }
 
 /* =========================================
-   🌟 自定义 Frontmatter 表格解析样式
+   标题
+   ========================================= */
+
+:global(.vditor-reset h1),
+:global(.vditor-reset h2),
+:global(.vditor-reset h3),
+:global(.vditor-reset h4),
+:global(.vditor-reset h5),
+:global(.vditor-reset h6),
+:global(.vditor-ir h1),
+:global(.vditor-ir h2),
+:global(.vditor-ir h3),
+:global(.vditor-ir h4),
+:global(.vditor-ir h5),
+:global(.vditor-ir h6) {
+  color: var(--vscode-editor-foreground) !important;
+  border-bottom-color: var(--vscode-panel-border) !important;
+}
+
+:global(.vditor-reset h1) {
+  font-size: 28px;
+  line-height: 1.35;
+}
+
+:global(.vditor-reset h2) {
+  font-size: 24px;
+  line-height: 1.4;
+}
+
+:global(.vditor-reset h3) {
+  font-size: 20px;
+  line-height: 1.45;
+}
+
+/* =========================================
+   普通文本 / 列表 / 长文本换行
+   ========================================= */
+
+:global(.vditor-reset p),
+:global(.vditor-reset li),
+:global(.vditor-reset td),
+:global(.vditor-reset th),
+:global(.vditor-ir p),
+:global(.vditor-ir li),
+:global(.vditor-ir td),
+:global(.vditor-ir th) {
+  max-width: 100%;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+:global(.vditor-reset ul),
+:global(.vditor-reset ol) {
+  padding-left: 24px;
+}
+
+/* =========================================
+   图片
+   ========================================= */
+
+:global(.vditor-reset img),
+:global(.vditor-ir img) {
+  max-width: 100% !important;
+  height: auto !important;
+  box-sizing: border-box !important;
+}
+
+/* =========================================
+   引用块
+   ========================================= */
+
+:global(.vditor-reset blockquote),
+:global(.vditor-ir blockquote) {
+  background-color: var(--vscode-textBlockQuote-background) !important;
+  border-left: 4px solid var(--vscode-textBlockQuote-border) !important;
+  color: var(--vscode-descriptionForeground) !important;
+  box-sizing: border-box !important;
+}
+
+/* =========================================
+   链接：去掉点击后的蓝色/橙色边框
+   ========================================= */
+
+:global(.vditor-reset a),
+:global(.vditor-ir__link) {
+  color: var(--vscode-textLink-foreground) !important;
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:global(.vditor-reset a:hover),
+:global(.vditor-ir__link:hover) {
+  color: var(--vscode-textLink-activeForeground) !important;
+}
+
+:global(.vditor-reset a:focus),
+:global(.vditor-reset a:focus-visible),
+:global(.vditor-reset a:active),
+:global(.vditor-ir__link:focus),
+:global(.vditor-ir__link:focus-visible),
+:global(.vditor-ir__link:active) {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+/* 兜底：去掉 Vditor 内容区域内的 focus 边框 */
+:global(.vditor-reset *:focus),
+:global(.vditor-reset *:focus-visible) {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* =========================================
+   行内代码
+   ========================================= */
+
+:global(.vditor-reset p code),
+:global(.vditor-reset li code),
+:global(.vditor-ir p code),
+:global(.vditor-ir li code) {
+  background-color: var(--vscode-textCodeBlock-background) !important;
+  color: var(--vscode-textPreformat-foreground) !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
+/* =========================================
+   代码块：代码块内部横向滚动，不撑开整个页面
+   ========================================= */
+
+:global(.vditor-reset pre),
+:global(.vditor-ir pre) {
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  box-sizing: border-box !important;
+  background-color: var(--vscode-textCodeBlock-background) !important;
+  border: 1px solid var(--vscode-panel-border) !important;
+  border-radius: 4px;
+}
+
+:global(.vditor-reset pre code),
+:global(.vditor-ir pre code) {
+  white-space: pre !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+}
+
+/* =========================================
+   表格：表格内部横向滚动，不撑开整个页面
+   ========================================= */
+
+:global(.vditor-reset table),
+:global(.vditor-ir table) {
+  display: block !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+  border-collapse: collapse;
+  box-sizing: border-box !important;
+}
+
+:global(.vditor-reset table th),
+:global(.vditor-reset table td),
+:global(.vditor-ir table th),
+:global(.vditor-ir table td) {
+  border-color: var(--vscode-panel-border) !important;
+}
+
+/* =========================================
+   VS Code 风格滚动条
+   ========================================= */
+
+.vditor-wrapper::-webkit-scrollbar,
+:global(.vditor-ir::-webkit-scrollbar),
+:global(.vditor-reset pre::-webkit-scrollbar),
+:global(.vditor-reset table::-webkit-scrollbar),
+:global(.vditor-ir pre::-webkit-scrollbar),
+:global(.vditor-ir table::-webkit-scrollbar) {
+  width: 10px;
+  height: 10px;
+}
+
+.vditor-wrapper::-webkit-scrollbar-track,
+:global(.vditor-ir::-webkit-scrollbar-track),
+:global(.vditor-reset pre::-webkit-scrollbar-track),
+:global(.vditor-reset table::-webkit-scrollbar-track),
+:global(.vditor-ir pre::-webkit-scrollbar-track),
+:global(.vditor-ir table::-webkit-scrollbar-track) {
+  background: transparent;
+}
+
+.vditor-wrapper::-webkit-scrollbar-thumb,
+:global(.vditor-ir::-webkit-scrollbar-thumb),
+:global(.vditor-reset pre::-webkit-scrollbar-thumb),
+:global(.vditor-reset table::-webkit-scrollbar-thumb),
+:global(.vditor-ir pre::-webkit-scrollbar-thumb),
+:global(.vditor-ir table::-webkit-scrollbar-thumb) {
+  background-color: var(--vscode-scrollbarSlider-background);
+  border-radius: 6px;
+}
+
+.vditor-wrapper::-webkit-scrollbar-thumb:hover,
+:global(.vditor-ir::-webkit-scrollbar-thumb:hover),
+:global(.vditor-reset pre::-webkit-scrollbar-thumb:hover),
+:global(.vditor-reset table::-webkit-scrollbar-thumb:hover),
+:global(.vditor-ir pre::-webkit-scrollbar-thumb:hover),
+:global(.vditor-ir table::-webkit-scrollbar-thumb:hover) {
+  background-color: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.vditor-wrapper::-webkit-scrollbar-thumb:active,
+:global(.vditor-ir::-webkit-scrollbar-thumb:active),
+:global(.vditor-reset pre::-webkit-scrollbar-thumb:active),
+:global(.vditor-reset table::-webkit-scrollbar-thumb:active),
+:global(.vditor-ir pre::-webkit-scrollbar-thumb:active),
+:global(.vditor-ir table::-webkit-scrollbar-thumb:active) {
+  background-color: var(--vscode-scrollbarSlider-activeBackground);
+}
+
+/* =========================================
+   自定义 Frontmatter 表格解析样式
    ========================================= */
 
 :global(.frontmatter-table-container) {
-    border: 1px solid var(--vscode-panel-border);
-    border-radius: 4px;
-    overflow: hidden;
-    background-color: var(--vscode-editor-background);
+  max-width: 100% !important;
+  white-space: normal !important;
+  font-family: var(--vscode-editor-font-family), "Helvetica Neue", sans-serif !important;
+  margin-bottom: 20px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  overflow: auto;
+  background-color: var(--vscode-editor-background);
+  box-sizing: border-box;
 }
 
 :global(.frontmatter-table) {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-    line-height: 1.6;
-    margin-bottom:0 !important;
-}
-
-:global(.frontmatter-table) {
-    border-color:var(--vscode-panel-border) !important;
+  width: 100%;
+  min-width: 0;
+  border-collapse: collapse;
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 0 !important;
+  border-color: var(--vscode-panel-border) !important;
 }
 
 :global(.frontmatter-table td) {
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--vscode-panel-border);
-    vertical-align: middle;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  vertical-align: middle;
 }
 
 :global(.frontmatter-table tr:last-child td) {
-    border-bottom: none;
+  border-bottom: none;
 }
 
 /* 第一列：Key */
 :global(.frontmatter-table .meta-key) {
-    width: 140px;
-    font-weight: 600;
-    color: var(--vscode-descriptionForeground);
-    background-color: var(--vscode-editorGroupHeader-tabsBackground);
-    border: 1px solid var(--vscode-panel-border);
-    white-space: nowrap;
+  width: 140px;
+  font-weight: 600;
+  color: var(--vscode-descriptionForeground);
+  background-color: var(--vscode-editorGroupHeader-tabsBackground);
+  border: 1px solid var(--vscode-panel-border);
+  white-space: nowrap;
 }
 
 /* 第二列：Value */
 :global(.frontmatter-table .meta-value) {
-    color: var(--vscode-descriptionForeground);
-    background-color: var(--vscode-editorGroupHeader-tabsBackground);
-    word-break: break-all;
-    border-color:var(--vscode-panel-border);
+  color: var(--vscode-descriptionForeground);
+  background-color: var(--vscode-editorGroupHeader-tabsBackground);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  border-color: var(--vscode-panel-border);
 }
 
-/* --- 各类型 Value 的定制组件 --- */
-
-/* 1. 链接块 */
+/* 链接块 */
 :global(.meta-link-box) {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
 }
 
 :global(.meta-link) {
-    color: var(--vscode-textLink-foreground) !important;
-    text-decoration: none;
-    flex: 1;
+  color: var(--vscode-textLink-foreground) !important;
+  text-decoration: none;
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 :global(.meta-link:hover) {
-    color: var(--vscode-textLink-activeForeground) !important;
-    text-decoration: underline;
+  color: var(--vscode-textLink-activeForeground) !important;
+  text-decoration: underline;
 }
 
-/* 隐藏复制按钮，Hover 时显示 */
+/* 复制按钮 */
 :global(.meta-copy-btn) {
-    cursor: pointer;
-    opacity: 0;
-    color: var(--vscode-icon-foreground);
-    padding: 4px;
-    border-radius: 3px;
-    transition: opacity 0.2s, background-color 0.2s;
+  cursor: pointer;
+  opacity: 0;
+  color: var(--vscode-icon-foreground);
+  padding: 4px;
+  border-radius: 3px;
+  transition: opacity 0.2s, background-color 0.2s;
 }
 
 :global(.meta-link-box:hover .meta-copy-btn) {
-    opacity: 0.6;
+  opacity: 0.6;
 }
 
 :global(.meta-copy-btn:hover) {
-    opacity: 1 !important;
-    background-color: var(--vscode-toolbar-hoverBackground);
+  opacity: 1 !important;
+  background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-/* 2. Tag 块 */
+/* Tag */
 :global(.meta-tag) {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background-color: var(--vscode-badge-background);
-    color: var(--vscode-badge-foreground);
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
 }
 
-:global(.meta-tag .meta-icon){
-    color: var(--vscode-badge-foreground) !important;
+:global(.meta-tag .meta-icon) {
+  color: var(--vscode-badge-foreground) !important;
 }
 
-/* 3. 日期块 */
+/* 日期 */
 :global(.meta-date) {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--vscode-editor-foreground);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--vscode-editor-foreground);
 }
 
-/* 4. Checkbox 块 */
+/* Checkbox */
 :global(.meta-checkbox) {
-    display: flex;
-    align-items: center;
+  display: flex;
+  align-items: center;
 }
 
-/* 通用 Icon 大小 */
+/* 通用 Icon */
 :global(.meta-icon) {
-    font-size: 14px;
-    color: var(--vscode-icon-foreground);
+  font-size: 14px;
+  color: var(--vscode-icon-foreground);
 }
 
-:global(.vditor-ir__node[data-type="html-block"]) :global(.vditor-ir__preview) {
-    margin: 0 !important;
-    padding: 0 !important;
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
-}
-
-/* 覆盖 pre 标签传递下来的代码字体和换行规则 */
-:global(.frontmatter-table-container) {
-    white-space: normal !important; /* 核心：打破 pre 标签的换行锁定 */
-    font-family: var(--vscode-editor-font-family), "Helvetica Neue", sans-serif !important; /* 覆盖代码等宽字体 */
-    
-    /* 下面是你原有的样式保持不变 */
-    margin-bottom: 20px;
-    border: 1px solid var(--vscode-panel-border);
-    border-radius: 4px;
-    overflow: hidden;
-    background-color: var(--vscode-editor-background);
+/* HTML block 预览区域 */
+:global(.vditor-ir__node[data-type="html-block"] .vditor-ir__preview) {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }

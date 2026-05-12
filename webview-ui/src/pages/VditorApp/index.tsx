@@ -3,7 +3,7 @@ import Vditor from 'vditor';
 import 'vditor/dist/index.css';
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
-import { parseFileUriInfo } from "../../utils/index"
+import { parseFileUriInfo } from '../../utils/index';
 
 import { setupPlugins } from './plugins/setupPlugins';
 import VditorMeta from './plugins/vditor-meta';
@@ -12,18 +12,110 @@ import VditorCompat from './plugins/vditor-compat';
 export default function VditorApp() {
   const vditorRef = useRef<HTMLDivElement>(null);
   const vditorInstanceRef = useRef<Vditor | null>(null);
-  const [, setVditor] = useState<Vditor>();
   const [isReadMode, setIsReadMode] = useState(false);
 
-  useEffect(() => {
-    vscode.postMessage({ command: 'webviewLoaded' });
+  const destroyVditor = () => {
+    try {
+      vditorInstanceRef.current?.destroy();
+    } catch {
+      // ignore
+    }
 
+    vditorInstanceRef.current = null;
+
+    if (vditorRef.current) {
+      vditorRef.current.innerHTML = '';
+    }
+  };
+
+  const renderMarkdown = async (content: string, fsPath: string, mode: 'read' | 'edit') => {
+    if (!vditorRef.current) return;
+
+    destroyVditor();
+
+    const { fileName } = parseFileUriInfo(fsPath);
+    const isEdit = mode === 'edit';
+
+    setIsReadMode(!isEdit);
+
+    const appPlugins = setupPlugins();
+    const processedContent = appPlugins
+      .use(VditorMeta)
+      .use(VditorCompat, { title: fileName || '文档预览' })
+      .process(content || '');
+
+    if (!isEdit) {
+      await Vditor.preview(vditorRef.current, processedContent, {
+        mode: 'light',
+        theme: {
+          current: 'classic',
+        },
+        markdown: {
+          linkBase: '',
+          linkPrefix: '',
+          sanitize: false,
+        },
+        after: () => {
+          const links = vditorRef.current?.querySelectorAll('a[href]') || [];
+
+          links.forEach((link) => {
+            const href = link.getAttribute('href') || '';
+
+            if (href.startsWith('http://') || href.startsWith('https://')) {
+              link.setAttribute('target', '_blank');
+              link.setAttribute('rel', 'noopener noreferrer');
+            }
+          });
+        },
+      } as any);
+
+      return;
+    }
+
+    const vd = new Vditor(vditorRef.current, {
+      value: processedContent,
+      mode: 'ir',
+      theme: 'classic',
+      lang: 'zh_CN',
+      height: '100%',
+      toolbar: undefined,
+      toolbarConfig: {
+        hide: false,
+        pin: false,
+      },
+      cache: { enable: false },
+      preview: {
+        theme: {
+          current: 'classic',
+        },
+        markdown: {
+          linkBase: '',
+          linkPrefix: '',
+          sanitize: false,
+        },
+      },
+      after: () => {
+        const vditorElement = vditorRef.current?.querySelector('.vditor') as HTMLElement | null;
+
+        if (vditorElement) {
+          vditorElement.style.height = '100%';
+        }
+      },
+      input: () => {},
+    });
+
+    vditorInstanceRef.current = vd;
+  };
+
+  useEffect(() => {
     const handleGlobalClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
 
       const copyBtn = target.closest('.meta-copy-btn');
+
       if (copyBtn) {
         const textToCopy = copyBtn.getAttribute('data-copy');
+
         if (textToCopy) {
           event.preventDefault();
           event.stopPropagation();
@@ -39,83 +131,39 @@ export default function VditorApp() {
         event.preventDefault();
         event.stopPropagation();
 
-        // 抛出指令给 VS Code 后端，让其调用原生浏览器打开
-        vscode.postMessage({ command: 'openExternal', url: href });
+        vscode.postMessage({
+          command: 'openExternal',
+          url: href,
+        });
       }
     };
-
-    window.addEventListener('click', handleGlobalClick, true);
 
     const handleMessage = (e: MessageEvent) => {
       const msg = e.data;
 
       if (msg.type === 'initVditorData') {
-        const { fileName } = parseFileUriInfo(msg.fsPath)
+        void renderMarkdown(msg.content || '', msg.fsPath || '', msg.mode === 'edit' ? 'edit' : 'read');
+      }
+
+      if (msg.type === 'initLocalFileError') {
+        destroyVditor();
+
         if (vditorRef.current) {
-          const isEdit = msg.mode === 'edit';
-          setIsReadMode(!isEdit);
-
-          const appPlugins = setupPlugins();
-          const processedContent = appPlugins
-            .use(VditorMeta)
-            .use(VditorCompat, { title: fileName || '文档预览' })
-            .process(msg.content);
-
-          const vd = new Vditor(vditorRef.current, {
-            value: processedContent,
-            mode: 'ir',
-            theme: 'classic',
-            lang: 'zh_CN',
-            height: window.innerHeight,
-            toolbar: isEdit ? undefined : [],
-            toolbarConfig: {
-              hide: !isEdit,
-              pin: false,
-            },
-            cache: { enable: false },
-            preview: {
-              theme: {
-                current: 'classic',
-              },
-              markdown: {
-                linkBase: '',
-                linkPrefix: '',
-              },
-            },
-            after: () => {
-              if (!isEdit) {
-                const irElement = vditorRef.current?.querySelector('.vditor-ir');
-                if (irElement) {
-                  irElement.setAttribute('contenteditable', 'false');
-                }
-              }
-            },
-            input: () => { },
-          });
-
-          vditorInstanceRef.current = vd;
-          setVditor(vd);
+          vditorRef.current.innerHTML = `<div class="${styles['vditor-error']}">${msg.message || 'Markdown 文件读取失败'}</div>`;
         }
       }
     };
 
     window.addEventListener('message', handleMessage);
+    window.addEventListener('click', handleGlobalClick, true);
 
-    const handleResize = () => {
-      if (vditorRef.current) {
-        const vditorElement = vditorRef.current.querySelector('.vditor') as HTMLElement;
-        if (vditorElement) {
-          vditorElement.style.height = `${window.innerHeight}px`;
-        }
-      }
-    };
-    window.addEventListener('resize', handleResize);
+    // 注意：一定要先注册 message 监听，再通知插件读取文件
+    vscode.postMessage({ command: 'webviewLoaded' });
 
     return () => {
       window.removeEventListener('message', handleMessage);
-      window.removeEventListener('resize', handleResize);
       window.removeEventListener('click', handleGlobalClick, true);
-      vditorInstanceRef.current?.destroy();
+      destroyVditor();
     };
   }, []);
 
