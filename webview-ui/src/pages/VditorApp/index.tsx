@@ -9,7 +9,17 @@ import { setupPlugins } from './plugins/setupPlugins';
 import VditorMeta from './plugins/vditor-meta';
 import VditorCompat from './plugins/vditor-compat';
 
-export default function VditorApp() {
+interface VditorAppProps {
+  /**
+   * true：作为独立路由页面使用
+   * false：作为其它页面里的组件使用
+   */
+  pageMode?: boolean;
+}
+
+export default function VditorApp(props: VditorAppProps) {
+  const { pageMode = false } = props;
+
   const vditorRef = useRef<HTMLDivElement>(null);
   const vditorInstanceRef = useRef<Vditor | null>(null);
   const [isReadMode, setIsReadMode] = useState(false);
@@ -39,9 +49,12 @@ export default function VditorApp() {
     setIsReadMode(!isEdit);
 
     const appPlugins = setupPlugins();
+
     const processedContent = appPlugins
       .use(VditorMeta)
-      .use(VditorCompat, { title: fileName || '文档预览' })
+      .use(VditorCompat, {
+        title: fileName || '文档预览',
+      })
       .process(content || '');
 
     if (!isEdit) {
@@ -83,7 +96,9 @@ export default function VditorApp() {
         hide: false,
         pin: false,
       },
-      cache: { enable: false },
+      cache: {
+        enable: false,
+      },
       preview: {
         theme: {
           current: 'classic',
@@ -119,7 +134,12 @@ export default function VditorApp() {
         if (textToCopy) {
           event.preventDefault();
           event.stopPropagation();
-          vscode.postMessage({ command: 'copyToClipboard', text: textToCopy });
+
+          vscode.postMessage({
+            command: 'copyToClipboard',
+            text: textToCopy,
+          });
+
           return;
         }
       }
@@ -157,8 +177,9 @@ export default function VditorApp() {
     window.addEventListener('message', handleMessage);
     window.addEventListener('click', handleGlobalClick, true);
 
-    // 注意：一定要先注册 message 监听，再通知插件读取文件
-    vscode.postMessage({ command: 'webviewLoaded' });
+    vscode.postMessage({
+      command: 'webviewLoaded',
+    });
 
     return () => {
       window.removeEventListener('message', handleMessage);
@@ -168,7 +189,11 @@ export default function VditorApp() {
   }, []);
 
   return (
-    <div className={`${styles['vditor-container']} ${isReadMode ? styles['read-mode'] : ''}`}>
+    <div
+      className={`${styles['vditor-container']} ${pageMode ? styles['page-mode'] : ''} ${
+        isReadMode ? styles['read-mode'] : ''
+      }`}
+    >
       <div ref={vditorRef} className={styles['vditor-wrapper']} />
     </div>
   );

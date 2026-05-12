@@ -5,12 +5,22 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
   box-sizing: border-box;
   background-color: var(--vscode-editor-background);
   color: var(--vscode-editor-foreground);
 }
 
+/* 独立路由页面模式：不依赖父级高度 */
+.page-mode {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* 真正的滚动容器 */
 .vditor-wrapper {
   flex: 1 1 auto;
   width: 100%;
@@ -36,10 +46,7 @@
   box-sizing: border-box;
 }
 
-/* =========================================
-   Vditor 基础样式
-   ========================================= */
-
+/* Vditor 基础 */
 :global(.vditor) {
   width: 100% !important;
   height: 100% !important;
@@ -65,33 +72,26 @@
   color: var(--vscode-icon-foreground) !important;
 }
 
-/* =========================================
-   编辑模式 ir
-   ========================================= */
-
+/* 编辑模式 ir */
 :global(.vditor-ir) {
   width: 100% !important;
   height: 100% !important;
   min-width: 0 !important;
   min-height: 0 !important;
   overflow: auto !important;
-  padding: 24px 36px 80px !important;
+  padding: 24px 36px !important;
   box-sizing: border-box !important;
   background-color: transparent !important;
   color: var(--vscode-editor-foreground) !important;
   font-family: var(--vscode-editor-font-family), "Helvetica Neue", sans-serif !important;
 }
 
-/* =========================================
-   只读预览模式 Vditor.preview 生成的内容
-   注意：滚动条在 .vditor-wrapper 上，不在 .vditor-reset 上
-   ========================================= */
-
+/* Vditor.preview 生成的内容 */
 :global(.vditor-reset) {
   width: 100% !important;
   max-width: 100% !important;
   min-height: 100%;
-  padding: 24px 36px 80px !important;
+  padding: 24px 36px !important;
   margin: 0 !important;
   overflow: visible !important;
   box-sizing: border-box !important;
@@ -102,10 +102,7 @@
   overflow-wrap: anywhere !important;
 }
 
-/* =========================================
-   只读模式
-   ========================================= */
-
+/* 只读模式 */
 .read-mode :global(.vditor-toolbar) {
   display: none !important;
 }
@@ -120,10 +117,7 @@
   display: none !important;
 }
 
-/* =========================================
-   标题
-   ========================================= */
-
+/* 标题 */
 :global(.vditor-reset h1),
 :global(.vditor-reset h2),
 :global(.vditor-reset h3),
@@ -155,10 +149,7 @@
   line-height: 1.45;
 }
 
-/* =========================================
-   普通文本 / 列表 / 长文本换行
-   ========================================= */
-
+/* 普通文本 */
 :global(.vditor-reset p),
 :global(.vditor-reset li),
 :global(.vditor-reset td),
@@ -177,10 +168,7 @@
   padding-left: 24px;
 }
 
-/* =========================================
-   图片
-   ========================================= */
-
+/* 图片 */
 :global(.vditor-reset img),
 :global(.vditor-ir img) {
   max-width: 100% !important;
@@ -188,10 +176,7 @@
   box-sizing: border-box !important;
 }
 
-/* =========================================
-   引用块
-   ========================================= */
-
+/* 引用 */
 :global(.vditor-reset blockquote),
 :global(.vditor-ir blockquote) {
   background-color: var(--vscode-textBlockQuote-background) !important;
@@ -200,10 +185,7 @@
   box-sizing: border-box !important;
 }
 
-/* =========================================
-   链接：去掉点击后的蓝色/橙色边框
-   ========================================= */
-
+/* 链接 */
 :global(.vditor-reset a),
 :global(.vditor-ir__link) {
   color: var(--vscode-textLink-foreground) !important;
@@ -229,17 +211,13 @@
   border: none !important;
 }
 
-/* 兜底：去掉 Vditor 内容区域内的 focus 边框 */
 :global(.vditor-reset *:focus),
 :global(.vditor-reset *:focus-visible) {
   outline: none !important;
   box-shadow: none !important;
 }
 
-/* =========================================
-   行内代码
-   ========================================= */
-
+/* 行内代码 */
 :global(.vditor-reset p code),
 :global(.vditor-reset li code),
 :global(.vditor-ir p code),
@@ -253,10 +231,7 @@
   padding: 2px 4px;
 }
 
-/* =========================================
-   代码块：代码块内部横向滚动，不撑开整个页面
-   ========================================= */
-
+/* 代码块内部横向滚动 */
 :global(.vditor-reset pre),
 :global(.vditor-ir pre) {
   max-width: 100% !important;
@@ -275,10 +250,7 @@
   overflow-wrap: normal !important;
 }
 
-/* =========================================
-   表格：表格内部横向滚动，不撑开整个页面
-   ========================================= */
-
+/* 表格内部横向滚动 */
 :global(.vditor-reset table),
 :global(.vditor-ir table) {
   display: block !important;
@@ -295,10 +267,7 @@
   border-color: var(--vscode-panel-border) !important;
 }
 
-/* =========================================
-   VS Code 风格滚动条
-   ========================================= */
-
+/* VS Code 风格滚动条 */
 .vditor-wrapper::-webkit-scrollbar,
 :global(.vditor-ir::-webkit-scrollbar),
 :global(.vditor-reset pre::-webkit-scrollbar),
@@ -346,10 +315,7 @@
   background-color: var(--vscode-scrollbarSlider-activeBackground);
 }
 
-/* =========================================
-   自定义 Frontmatter 表格解析样式
-   ========================================= */
-
+/* Frontmatter 表格 */
 :global(.frontmatter-table-container) {
   max-width: 100% !important;
   white-space: normal !important;
@@ -382,7 +348,6 @@
   border-bottom: none;
 }
 
-/* 第一列：Key */
 :global(.frontmatter-table .meta-key) {
   width: 140px;
   font-weight: 600;
@@ -392,7 +357,6 @@
   white-space: nowrap;
 }
 
-/* 第二列：Value */
 :global(.frontmatter-table .meta-value) {
   color: var(--vscode-descriptionForeground);
   background-color: var(--vscode-editorGroupHeader-tabsBackground);
@@ -401,7 +365,6 @@
   border-color: var(--vscode-panel-border);
 }
 
-/* 链接块 */
 :global(.meta-link-box) {
   display: flex;
   align-items: center;
@@ -423,7 +386,6 @@
   text-decoration: underline;
 }
 
-/* 复制按钮 */
 :global(.meta-copy-btn) {
   cursor: pointer;
   opacity: 0;
@@ -442,7 +404,6 @@
   background-color: var(--vscode-toolbar-hoverBackground);
 }
 
-/* Tag */
 :global(.meta-tag) {
   display: inline-flex;
   align-items: center;
@@ -458,7 +419,6 @@
   color: var(--vscode-badge-foreground) !important;
 }
 
-/* 日期 */
 :global(.meta-date) {
   display: inline-flex;
   align-items: center;
@@ -466,19 +426,16 @@
   color: var(--vscode-editor-foreground);
 }
 
-/* Checkbox */
 :global(.meta-checkbox) {
   display: flex;
   align-items: center;
 }
 
-/* 通用 Icon */
 :global(.meta-icon) {
   font-size: 14px;
   color: var(--vscode-icon-foreground);
 }
 
-/* HTML block 预览区域 */
 :global(.vditor-ir__node[data-type="html-block"] .vditor-ir__preview) {
   margin: 0 !important;
   padding: 0 !important;
