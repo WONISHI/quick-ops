@@ -374,6 +374,8 @@ export default function VditorApp(props: VditorAppProps) {
           const links = vditorRef.current?.querySelectorAll('a[href]') || [];
 
           links.forEach((link) => {
+            link.setAttribute('draggable', 'false');
+
             const href = link.getAttribute('href') || '';
 
             if (href.startsWith('http://') || href.startsWith('https://')) {
@@ -418,7 +420,7 @@ export default function VditorApp(props: VditorAppProps) {
           vditorElement.style.height = '100%';
         }
       },
-      input: () => {},
+      input: () => { },
     });
 
     vditorInstanceRef.current = vd;
@@ -487,6 +489,38 @@ export default function VditorApp(props: VditorAppProps) {
       }
     };
 
+    /**
+     * 点击其它区域时，清空当前选中的文字。
+     * 不影响链接、复制按钮、meta 图标原有逻辑。
+     */
+    const handleClearSelectionOnOtherClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+
+      if (!target) return;
+
+      const selection = window.getSelection();
+
+      if (!selection || selection.isCollapsed) return;
+
+      /**
+       * 点击链接本身不清空。
+       * 否则会影响链接文字里的局部选中。
+       */
+      if (target.closest('a')) {
+        return;
+      }
+
+      /**
+       * 点击复制按钮、meta 图标、meta action 元素不清空。
+       * 避免影响你现有的复制 / 图标点击 / action 逻辑。
+       */
+      if (target.closest('.meta-copy-btn') || target.closest('.meta-icon') || target.closest('[data-meta-action="true"]')) {
+        return;
+      }
+
+      selection.removeAllRanges();
+    };
+
     const handleMessage = (e: MessageEvent) => {
       const msg = e.data;
 
@@ -503,9 +537,36 @@ export default function VditorApp(props: VditorAppProps) {
       }
     };
 
+    /**
+ * 双击指定区域时，不保留浏览器默认选中的文字。
+ * 不影响拖动选择文本，只处理双击后的选中效果。
+ */
+    const handleClearSelectionOnDoubleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+
+      if (!target) return;
+
+      /**
+       * 这里只处理你不希望双击选中的区域。
+       * 目前先处理链接和 meta action 区域。
+       */
+      const shouldClear =
+        target.closest('a') ||
+        target.closest('[data-meta-action="true"]') ||
+        target.closest('.meta-link-box');
+
+      if (!shouldClear) return;
+
+      window.setTimeout(() => {
+        window.getSelection()?.removeAllRanges();
+      }, 0);
+    };
+
     window.addEventListener('message', handleMessage);
     window.addEventListener('click', handleAnchorSingleClickBlocker, true);
     window.addEventListener('dblclick', handleFallbackAnchorDoubleClick, true);
+    window.addEventListener('mousedown', handleClearSelectionOnOtherClick, true);
+    window.addEventListener('dblclick', handleClearSelectionOnDoubleClick, true);
 
     vscode.postMessage({
       command: 'webviewLoaded',
@@ -515,6 +576,8 @@ export default function VditorApp(props: VditorAppProps) {
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('click', handleAnchorSingleClickBlocker, true);
       window.removeEventListener('dblclick', handleFallbackAnchorDoubleClick, true);
+      window.removeEventListener('mousedown', handleClearSelectionOnOtherClick, true);
+      window.removeEventListener('dblclick', handleClearSelectionOnDoubleClick, true);
 
       disposers.forEach((dispose) => dispose());
 

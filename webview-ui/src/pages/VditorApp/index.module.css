@@ -443,3 +443,16 @@
   border: none !important;
   box-shadow: none !important;
 }
+
+:global(a.meta-link),
+:global(.vditor-reset a) {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  -webkit-user-drag: none;
+}
+
+:global(.meta-copy-btn),
+:global(.meta-icon[data-meta-action="true"]) {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}

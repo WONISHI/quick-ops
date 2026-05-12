@@ -353,7 +353,7 @@ function renderLinkValue(key: string, value: string, action: ResolvedVditorMetaA
   return [
     '<div class="meta-link-box">',
     renderIcon({ key, value, type, iconType: 'link' }, action),
-    `<a href="${escapeAttr(value)}" class="meta-link" ${createActionAttrs({ key, value, type, role: 'link' }, action)}>${escapeHtml(value)}</a>`,
+    `<a href="${escapeAttr(value)}" draggable="false" class="meta-link" ${createActionAttrs({ key, value, type, role: 'link' }, action)}>${escapeHtml(value)}</a>`,
     renderCopyButton({ key, value, type }, action, '复制链接'),
     '</div>',
   ].join('');
