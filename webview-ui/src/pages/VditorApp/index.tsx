@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Vditor from 'vditor';
 import 'vditor/dist/index.css';
 import { vscode } from '../../utils/vscode';
@@ -17,12 +17,312 @@ interface VditorAppProps {
   pageMode?: boolean;
 }
 
+type MetaValueType = 'link' | 'tag' | 'boolean' | 'date' | 'text' | 'empty';
+
+type MetaRole = 'link' | 'copy' | 'icon';
+
+type MetaDomEventName = keyof HTMLElementEventMap | string;
+
+interface MetaActionContext {
+  event: Event;
+  element: HTMLElement;
+  key: string;
+  value: string;
+  type: MetaValueType;
+  role: MetaRole;
+  iconType?: string;
+}
+
+interface MetaActionTools {
+  postMessage: (message: any) => void;
+  copy: (text: string) => Promise<void>;
+  openExternal: (url: string) => Promise<void>;
+  toast: (message: string) => void;
+  emit: (eventName: string, payload?: any) => void;
+}
+
+interface MetaActionTrigger {
+  on: MetaDomEventName;
+  when?: (ctx: MetaActionContext) => boolean;
+  preventDefault?: boolean | ((ctx: MetaActionContext) => boolean);
+  stopPropagation?: boolean | ((ctx: MetaActionContext) => boolean);
+  stopImmediatePropagation?: boolean | ((ctx: MetaActionContext) => boolean);
+  run?: (ctx: MetaActionContext, tools: MetaActionTools) => void | Promise<void>;
+  command?: string;
+  payload?: Record<string, string>;
+}
+
+interface MetaActionNodeConfig {
+  enabled?: boolean;
+  triggers?: MetaActionTrigger[];
+}
+
+interface MetaCopyActionConfig extends MetaActionNodeConfig {
+  visible?: 'hover' | 'always' | 'never';
+  title?: string;
+}
+
+interface MetaIconActionConfig {
+  enabled?: boolean;
+  default?: MetaActionNodeConfig;
+  byType?: Partial<Record<MetaValueType, MetaActionNodeConfig>>;
+}
+
+interface VditorMetaActionConfig {
+  link?: MetaActionNodeConfig;
+  copy?: MetaCopyActionConfig;
+  icon?: MetaIconActionConfig;
+}
+
+function collectTriggerEventNames(action: VditorMetaActionConfig): string[] {
+  const eventNames = new Set<string>();
+
+  const collectNode = (node?: MetaActionNodeConfig | MetaCopyActionConfig) => {
+    node?.triggers?.forEach((trigger) => {
+      if (trigger.on) {
+        eventNames.add(trigger.on);
+      }
+    });
+  };
+
+  collectNode(action.link);
+  collectNode(action.copy);
+  collectNode(action.icon?.default);
+
+  Object.values(action.icon?.byType || {}).forEach((node) => {
+    collectNode(node);
+  });
+
+  return Array.from(eventNames);
+}
+
+function getMetaActionNode(action: VditorMetaActionConfig, role: string, type: string, iconType: string): MetaActionNodeConfig | MetaCopyActionConfig | undefined {
+  if (role === 'link') {
+    return action.link;
+  }
+
+  if (role === 'copy') {
+    return action.copy;
+  }
+
+  if (role === 'icon') {
+    return action.icon?.byType?.[(iconType || type) as MetaValueType] || action.icon?.default;
+  }
+
+  return undefined;
+}
+
+function resolveBooleanFlag(value: boolean | ((ctx: MetaActionContext) => boolean) | undefined, ctx: MetaActionContext): boolean {
+  if (typeof value === 'function') return value(ctx);
+  return !!value;
+}
+
+function resolveTemplateValue(template: string, ctx: MetaActionContext): string {
+  return String(template || '')
+    .replace(/\$key/g, ctx.key)
+    .replace(/\$value/g, ctx.value)
+    .replace(/\$type/g, ctx.type)
+    .replace(/\$role/g, ctx.role)
+    .replace(/\$iconType/g, ctx.iconType || '');
+}
+
+function resolvePayload(payload: Record<string, string> | undefined, ctx: MetaActionContext): Record<string, string> {
+  const result: Record<string, string> = {};
+
+  Object.entries(payload || {}).forEach(([key, value]) => {
+    result[key] = resolveTemplateValue(value, ctx);
+  });
+
+  return result;
+}
+
+async function handleMetaActionEvent(event: Event, action: VditorMetaActionConfig, tools: MetaActionTools): Promise<boolean> {
+  const target = event.target as HTMLElement | null;
+  const actionEl = target?.closest?.('[data-meta-action="true"]') as HTMLElement | null;
+
+  if (!actionEl) return false;
+
+  const role = actionEl.dataset.metaRole || '';
+  const type = actionEl.dataset.metaType || '';
+  const iconType = actionEl.dataset.metaIconType || '';
+
+  const node = getMetaActionNode(action, role, type, iconType);
+
+  if (!node?.enabled || !node.triggers?.length) {
+    return false;
+  }
+
+  const ctx: MetaActionContext = {
+    event,
+    element: actionEl,
+    key: actionEl.dataset.metaKey || '',
+    value: actionEl.dataset.metaValue || '',
+    type: (type || 'text') as MetaValueType,
+    role: role as MetaRole,
+    iconType,
+  };
+
+  const matchedTriggers = node.triggers.filter((trigger) => trigger.on === event.type);
+
+  if (matchedTriggers.length === 0) return false;
+
+  let handled = false;
+
+  for (const trigger of matchedTriggers) {
+    if (trigger.when && !trigger.when(ctx)) {
+      continue;
+    }
+
+    if (resolveBooleanFlag(trigger.preventDefault, ctx)) {
+      event.preventDefault();
+    }
+
+    if (resolveBooleanFlag(trigger.stopPropagation, ctx)) {
+      event.stopPropagation();
+    }
+
+    if (resolveBooleanFlag(trigger.stopImmediatePropagation, ctx)) {
+      event.stopImmediatePropagation();
+    }
+
+    if (trigger.run) {
+      await trigger.run(ctx, tools);
+      handled = true;
+      continue;
+    }
+
+    if (trigger.command) {
+      tools.postMessage({
+        command: trigger.command,
+        ...resolvePayload(trigger.payload, ctx),
+        meta: {
+          key: ctx.key,
+          value: ctx.value,
+          type: ctx.type,
+          role: ctx.role,
+          iconType: ctx.iconType,
+        },
+      });
+
+      handled = true;
+    }
+  }
+
+  return handled;
+}
+
+function createMetaActionTools(): MetaActionTools {
+  return {
+    postMessage: (message) => {
+      vscode.postMessage(message);
+    },
+
+    copy: async (text) => {
+      vscode.postMessage({
+        command: 'copyToClipboard',
+        text,
+      });
+    },
+
+    openExternal: async (url) => {
+      vscode.postMessage({
+        command: 'openExternal',
+        url,
+      });
+    },
+
+    toast: (message) => {
+      vscode.postMessage({
+        command: 'showInfo',
+        message,
+      });
+    },
+
+    emit: (eventName, payload) => {
+      window.dispatchEvent(
+        new CustomEvent(`meta:${eventName}`, {
+          detail: payload,
+        })
+      );
+    },
+  };
+}
+
 export default function VditorApp(props: VditorAppProps) {
   const { pageMode = false } = props;
 
   const vditorRef = useRef<HTMLDivElement>(null);
   const vditorInstanceRef = useRef<Vditor | null>(null);
   const [isReadMode, setIsReadMode] = useState(false);
+
+  const metaAction = useMemo<VditorMetaActionConfig>(() => {
+    return {
+      /**
+       * a 标签：
+       * 单击不打开，双击才打开外部浏览器。
+       */
+      link: {
+        enabled: true,
+        triggers: [
+          {
+            on: 'dblclick',
+            preventDefault: true,
+            stopPropagation: true,
+            run: async (ctx, tools) => {
+              await tools.openExternal(ctx.value);
+            },
+          },
+        ],
+      },
+
+      /**
+       * 复制按钮：
+       * 仍然是单击复制，不改成双击。
+       */
+      copy: {
+        enabled: true,
+        visible: 'hover',
+        title: '复制内容',
+        triggers: [
+          {
+            on: 'click',
+            preventDefault: true,
+            stopPropagation: true,
+            run: async (ctx, tools) => {
+              await tools.copy(ctx.value);
+            },
+          },
+        ],
+      },
+
+      /**
+       * 图标：
+       * 链接图标单击复制链接，其它类型暂不绑定。
+       */
+      icon: {
+        enabled: true,
+        default: {
+          enabled: false,
+          triggers: [],
+        },
+        byType: {
+          link: {
+            enabled: true,
+            triggers: [
+              {
+                on: 'click',
+                preventDefault: true,
+                stopPropagation: true,
+                run: async (ctx, tools) => {
+                  await tools.copy(ctx.value);
+                },
+              },
+            ],
+          },
+        },
+      },
+    };
+  }, []);
 
   const destroyVditor = () => {
     try {
@@ -51,7 +351,9 @@ export default function VditorApp(props: VditorAppProps) {
     const appPlugins = setupPlugins();
 
     const processedContent = appPlugins
-      .use(VditorMeta)
+      .use(VditorMeta, {
+        action: metaAction,
+      })
       .use(VditorCompat, {
         title: fileName || '文档预览',
       })
@@ -123,25 +425,52 @@ export default function VditorApp(props: VditorAppProps) {
   };
 
   useEffect(() => {
-    const handleGlobalClick = (event: MouseEvent) => {
-      const target = event.target as HTMLElement;
+    const tools = createMetaActionTools();
+    const eventNames = collectTriggerEventNames(metaAction);
 
-      const copyBtn = target.closest('.meta-copy-btn');
+    const disposers = eventNames.map((eventName) => {
+      const handler = (event: Event) => {
+        void handleMetaActionEvent(event, metaAction, tools);
+      };
 
-      if (copyBtn) {
-        const textToCopy = copyBtn.getAttribute('data-copy');
+      window.addEventListener(eventName, handler, true);
 
-        if (textToCopy) {
-          event.preventDefault();
-          event.stopPropagation();
+      return () => {
+        window.removeEventListener(eventName, handler, true);
+      };
+    });
 
-          vscode.postMessage({
-            command: 'copyToClipboard',
-            text: textToCopy,
-          });
+    /**
+     * 单击 a 标签时，阻止默认跳转。
+     * 真正打开动作放到 dblclick 里处理。
+     *
+     * 这里也会处理普通 Markdown 链接：
+     * - 单击：不打开
+     * - 双击：打开
+     */
+    const handleAnchorSingleClickBlocker = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      const anchor = target?.closest?.('a');
+      const href = anchor?.getAttribute('href');
 
-          return;
-        }
+      if (anchor && href && (href.startsWith('http://') || href.startsWith('https://'))) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+
+    /**
+     * 兜底处理普通 Markdown a 标签。
+     * frontmatter meta 里的 a 标签如果已经有 data-meta-action，
+     * 会被 metaAction 的 dblclick 处理，这里不重复处理。
+     */
+    const handleFallbackAnchorDoubleClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+
+      if (!target) return;
+
+      if (target.closest('[data-meta-action="true"]')) {
+        return;
       }
 
       const anchor = target.closest('a');
@@ -175,7 +504,8 @@ export default function VditorApp(props: VditorAppProps) {
     };
 
     window.addEventListener('message', handleMessage);
-    window.addEventListener('click', handleGlobalClick, true);
+    window.addEventListener('click', handleAnchorSingleClickBlocker, true);
+    window.addEventListener('dblclick', handleFallbackAnchorDoubleClick, true);
 
     vscode.postMessage({
       command: 'webviewLoaded',
@@ -183,17 +513,17 @@ export default function VditorApp(props: VditorAppProps) {
 
     return () => {
       window.removeEventListener('message', handleMessage);
-      window.removeEventListener('click', handleGlobalClick, true);
+      window.removeEventListener('click', handleAnchorSingleClickBlocker, true);
+      window.removeEventListener('dblclick', handleFallbackAnchorDoubleClick, true);
+
+      disposers.forEach((dispose) => dispose());
+
       destroyVditor();
     };
-  }, []);
+  }, [metaAction]);
 
   return (
-    <div
-      className={`${styles['vditor-container']} ${pageMode ? styles['page-mode'] : ''} ${
-        isReadMode ? styles['read-mode'] : ''
-      }`}
-    >
+    <div className={`${styles['vditor-container']} ${pageMode ? styles['page-mode'] : ''} ${isReadMode ? styles['read-mode'] : ''}`}>
       <div ref={vditorRef} className={styles['vditor-wrapper']} />
     </div>
   );
