@@ -31,6 +31,7 @@
 }
 
 /* ==================== 顶部工具栏 ==================== */
+
 .toolbar {
   display: flex;
   padding: 6px 10px;
@@ -41,7 +42,8 @@
   flex-shrink: 0;
 }
 
-/* 地址栏 */
+/* ==================== 地址栏 ==================== */
+
 .address-bar-wrapper {
   flex: 1;
   min-width: 150px;
@@ -73,6 +75,7 @@
 }
 
 /* ==================== 智能提示框 ==================== */
+
 .suggest-box {
   position: absolute;
   top: 100%;
@@ -196,7 +199,8 @@
   font-weight: bold;
 }
 
-/* ==================== 按钮图标体系 ==================== */
+/* ==================== 通用按钮与图标 ==================== */
+
 .action-icon {
   color: var(--vscode-icon-foreground);
   cursor: pointer;
@@ -209,11 +213,6 @@
 .action-icon:hover {
   opacity: 1;
   color: var(--fg);
-}
-
-.action-icon.fav-active {
-  color: var(--warning-color);
-  opacity: 1;
 }
 
 .icon-btn {
@@ -249,6 +248,42 @@
   color: var(--info-color);
 }
 
+.star-action-btn {
+  background: transparent;
+  border: none;
+  color: var(--vscode-icon-foreground);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0 4px;
+  opacity: 0.7;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  transition: opacity 0.2s, color 0.2s;
+}
+
+.star-action-btn:hover:not(:disabled) {
+  opacity: 1;
+  color: var(--fg);
+}
+
+.star-action-btn.fav-active {
+  color: var(--warning-color);
+  opacity: 1;
+}
+
+.star-action-btn:disabled {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+  color: var(--vscode-icon-foreground) !important;
+}
+
+.disabled-action-icon {
+  opacity: 0.35 !important;
+  cursor: not-allowed !important;
+}
+
 .vscode-select {
   background: var(--input-bg);
   color: var(--input-fg);
@@ -268,6 +303,11 @@
   border-color: var(--focus-border);
 }
 
+.vscode-select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .divider {
   width: 1px;
   height: 18px;
@@ -275,7 +315,8 @@
   margin: 0 2px;
 }
 
-/* ==================== 右键/下拉菜单 ==================== */
+/* ==================== 右键 / 更多菜单 ==================== */
+
 .context-menu {
   position: absolute;
   z-index: 9999;
@@ -325,7 +366,26 @@
   margin-right: 4px;
 }
 
-/* ==================== 预览区域与设备边框 ==================== */
+.menu-icon {
+  width: 16px !important;
+}
+
+.fav-star {
+  color: var(--warning-color);
+}
+
+.menu-chevron {
+  margin-left: auto;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.menu-item-vconsole {
+  color: var(--success-color);
+}
+
+/* ==================== 预览区域 ==================== */
+
 .preview-container {
   flex: 1;
   overflow: auto;
@@ -377,7 +437,16 @@
   z-index: 2;
 }
 
-/* 设备尺寸预设 */
+.fromPage {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: #fff;
+  display: block;
+}
+
+/* ==================== 设备尺寸预设 ==================== */
+
 .device-responsive {
   width: 100%;
   height: 100%;
@@ -495,281 +564,98 @@
   height: 912px;
 }
 
-.fromPage {
-  width: 100%;
-  height: 100%;
-  border: none;
-  background: #fff;
-  display: block;
-}
+/* ==================== 欢迎页 WelcomePage ==================== */
 
-/* ==================== 模态框体系 ==================== */
-.fav-overlay {
+.welcome-page {
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 100000;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.fav-modal {
-  background: var(--bg);
-  width: 440px;
-  max-height: 80vh;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-}
-
-.fav-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: center;
+  background-color: var(--bg);
+  z-index: 1;
+  padding: 20px;
+  box-sizing: border-box;
 }
 
-.fav-header h3 {
-  margin: 0;
-  font-size: 14px;
-  font-weight: bold;
+.welcome-icon {
+  font-size: 56px;
+  color: var(--desc-color);
+  margin-bottom: 24px;
+  opacity: 0.5;
+}
+
+.welcome-title {
+  font-size: 24px;
+  font-weight: 300;
+  margin: 0 0 12px;
   color: var(--fg);
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
-.fav-header-actions {
+.welcome-subtitle {
+  font-size: 13px;
+  color: var(--desc-color);
+  margin: 0 0 32px;
+  text-align: center;
+  max-width: 400px;
+  line-height: 1.6;
+}
+
+.quick-links {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 300px;
+}
+
+.quick-link-btn {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.fav-sort-select {
-  background: var(--input-bg);
-  color: var(--fg);
-  border: 1px solid var(--input-border);
-  padding: 2px 4px;
-  border-radius: 2px;
+  padding: 10px 16px;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s;
   outline: none;
-  font-size: 12px;
-  cursor: pointer;
+  text-align: left;
 }
 
-.fav-close {
-  cursor: pointer;
-  color: var(--vscode-icon-foreground);
-  transition: 0.2s;
+.quick-link-btn svg {
   font-size: 16px;
+  opacity: 0.8;
+  width: 20px;
+  text-align: center;
+  color: inherit;
 }
 
-.fav-close:hover {
-  color: var(--error-color);
-}
-
-.fav-form {
-  padding: 12px 16px;
-  background: var(--menu-bg);
-  border-bottom: 1px solid var(--border);
-}
-
-.fav-input {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid var(--input-border);
-  background: var(--input-bg);
-  color: var(--input-fg);
-  padding: 6px 8px;
-  margin-bottom: 8px;
-  border-radius: 2px;
-  outline: none;
-  font-size: 12px;
-}
-
-.fav-input:focus {
+.quick-link-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
   border-color: var(--focus-border);
 }
 
-.fav-form-btns {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+.brand-icon-vue {
+  color: #42b883 !important;
 }
 
-.fav-btn {
-  background: transparent;
-  color: var(--fg);
-  border: 1px solid var(--border);
-  padding: 4px 12px;
-  border-radius: 2px;
-  cursor: pointer;
-  font-size: 12px;
+.brand-icon-node {
+  color: #68a063 !important;
 }
 
-.fav-btn.primary {
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-  border: none;
+.brand-icon-react {
+  color: #61dafb !important;
 }
 
-.fav-btn:hover {
-  opacity: 0.9;
-}
+/* ==================== 小图标状态 ==================== */
 
-.fav-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 6px 0;
-}
-
-.fav-item {
-  padding: 5px 8px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-}
-
-.fav-item:last-child {
-  border-bottom: none;
-}
-
-.fav-item:hover {
-  background: var(--action-hover-bg);
-}
-
-.fav-item.current-history {
-  border-left: 3px solid var(--info-color);
-  background: var(--action-hover-bg);
-  padding-left: 5px;
-}
-
-.fav-logo-wrap {
-  width: 24px;
-  height: 24px;
-  border-radius: 5px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--vscode-input-background);
-  border: 1px solid var(--border);
-  overflow: hidden;
-  margin-right: 8px;
-}
-
-.fav-logo {
-  width: 16px;
-  height: 16px;
-  object-fit: contain;
-}
-
-.fav-logo-placeholder {
-  font-size: 12px;
-  color: var(--desc-color);
-}
-
-.fav-item-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.fav-title-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-.fav-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--fg);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.fav-default-tag {
-  flex-shrink: 0;
-  font-size: 10px;
-  line-height: 16px;
-  padding: 0 6px;
-  border-radius: 999px;
-  color: var(--vscode-button-foreground);
-  background: var(--vscode-button-background);
-}
-
-.fav-description {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--desc-color);
-  opacity: 0.9;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.fav-url {
-  font-size: 11px;
-  color: var(--desc-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  opacity: 0.8;
-}
-
-.fav-actions {
-  display: flex;
-  gap: 8px;
-  opacity: 0;
-  transition: opacity 0.2s;
-  align-items: center;
-}
-
-.fav-item:hover .fav-actions {
-  opacity: 1;
-}
-
-.fav-action-btn {
-  color: var(--vscode-icon-foreground);
-  padding: 4px;
-  border-radius: 4px;
-  font-size: 13px;
-  transition: 0.2s;
-}
-
-.fav-action-btn:hover {
-  background: var(--btn-hover);
-  color: var(--fg);
-}
-
-.fav-action-btn.delete:hover {
-  color: var(--error-color);
-}
-
-.fav-action-btn.copy-success {
-  color: var(--success-color) !important;
-}
-
-.fav-empty {
-  padding: 30px;
-  text-align: center;
-  color: var(--desc-color);
-  font-size: 13px;
-}
-
-/* ==================== 抽离出的小组件专属样式 ==================== */
 .favicon-img {
   width: 14px;
   height: 14px;
@@ -785,77 +671,4 @@
 .spiner-icon {
   font-size: 13px;
   color: var(--desc-color);
-}
-
-.menu-icon {
-  width: 16px !important;
-}
-
-.menu-icon.star {
-  color: var(--warning-color);
-}
-
-.menu-chevron {
-  margin-left: auto;
-  font-size: 10px;
-  opacity: 0.7;
-}
-
-.menu-item-vconsole {
-  color: var(--success-color);
-}
-
-.fav-header-icon {
-  color: var(--warning-color);
-}
-
-.fav-header-plus {
-  font-size: 15px;
-}
-
-.fav-header-divider {
-  width: 1px;
-  height: 14px;
-  background: var(--border);
-  margin: 0 4px;
-}
-
-.history-header-icon {
-  color: var(--info-color);
-}
-
-.disabled-action-icon {
-  opacity: 0.35 !important;
-  cursor: not-allowed !important;
-}
-
-.star-action-btn {
-  background: transparent;
-  border: none;
-  color: var(--vscode-icon-foreground);
-  cursor: pointer;
-  font-size: 14px;
-  padding: 0 4px;
-  opacity: 0.7;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  outline: none;
-  transition: opacity 0.2s, color 0.2s;
-}
-
-.star-action-btn:hover:not(:disabled) {
-  opacity: 1;
-  color: var(--fg);
-}
-
-.star-action-btn.fav-active {
-  color: var(--warning-color);
-  opacity: 1;
-}
-
-.star-action-btn:disabled {
-  opacity: 0.35 !important;
-  cursor: not-allowed !important;
-  color: var(--vscode-icon-foreground) !important;
 }

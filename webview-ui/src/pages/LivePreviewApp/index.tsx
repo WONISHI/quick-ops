@@ -15,8 +15,6 @@ import {
   faRotate,
   faArrowUpRightFromSquare,
   faEllipsis,
-  faLayerGroup,
-  faPlus,
   faClockRotateLeft,
   faBroom,
   faChevronRight,
@@ -24,19 +22,19 @@ import {
   faBoxArchive,
   faCookieBite,
   faTerminal,
-  faPen,
-  faTrash,
-  faCheck,
   faSpinner,
 } from '@fortawesome/free-solid-svg-icons';
-import { faStar as faStarRegular, faCopy as faCopyRegular } from '@fortawesome/free-regular-svg-icons';
-import { faVuejs, faNodeJs, faReact } from '@fortawesome/free-brands-svg-icons';
+import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 
 import VditorApp from '../VditorApp';
 import PdfPreviewApp from '../PdfPreviewApp';
 import ExcelPreviewApp from '../ExcelPreviewApp';
 import HtmlPreviewApp from '../HtmlPreviewApp';
 import PreviewError from '../../components/PreviewError';
+
+import WelcomePage from '../../components/WelcomePage';
+import FavoriteModal from '../../components/FavoriteModal';
+import HistoryModal from '../../components/HistoryModal';
 
 interface FavoriteItem {
   url: string;
@@ -87,11 +85,15 @@ export default function LivePreviewApp() {
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
   const [cacheSubmenuOpen, setCacheSubmenuOpen] = useState(false);
   const [favSort, setFavSort] = useState<'time' | 'title'>('time');
-  const [favForm, setFavForm] = useState({ visible: false, title: '', url: '', editingOriginalUrl: '' });
+  const [favForm, setFavForm] = useState({
+    visible: false,
+    title: '',
+    url: '',
+    editingOriginalUrl: '',
+  });
   const [showSuggest, setShowSuggest] = useState(false);
   const [suggestIndex, setSuggestIndex] = useState(-1);
   const [copiedUrl, setCopiedUrl] = useState('');
-
   const [isPageLoaded, setIsPageLoaded] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -117,7 +119,6 @@ export default function LivePreviewApp() {
 
   const getFavoriteByUrl = (url: string) => {
     const targetUrl = normalizeFavoriteUrl(url);
-
     if (!targetUrl) return undefined;
 
     return favorites.find((item) => normalizeFavoriteUrl(item.url) === targetUrl);
@@ -136,7 +137,6 @@ export default function LivePreviewApp() {
 
   const activeDefaultFavorite = useMemo(() => {
     const targetUrl = normalizeFavoriteUrl(frameUrl || urlInput);
-
     if (!targetUrl) return undefined;
 
     return favorites.find((item) => {
@@ -146,12 +146,9 @@ export default function LivePreviewApp() {
 
   const isDefaultFavoriteUrl = (url: string) => {
     const targetUrl = normalizeFavoriteUrl(url);
-
     if (!targetUrl) return false;
 
-    return favorites.some((item) => {
-      return item.isDefault && normalizeFavoriteUrl(item.url) === targetUrl;
-    });
+    return favorites.some((item) => item.isDefault && normalizeFavoriteUrl(item.url) === targetUrl);
   };
 
   const updateHistoryLogo = (url: string, logo: string) => {
@@ -295,7 +292,12 @@ export default function LivePreviewApp() {
       if (pageLoadedRef.current) return;
       if (faviconResolvedRef.current) return;
 
-      showPreviewErrorByRequest(requestId, url, '页面加载失败', '10 秒内没有成功解析到网站图标。可能是地址错误、网络异常，或者目标网站无法访问。');
+      showPreviewErrorByRequest(
+        requestId,
+        url,
+        '页面加载失败',
+        '10 秒内没有成功解析到网站图标。可能是地址错误、网络异常，或者目标网站无法访问。'
+      );
     }, 10000);
 
     updateFavicon(url, {
@@ -928,7 +930,7 @@ export default function LivePreviewApp() {
           <FontAwesomeIcon icon={faArrowRight} />
         </button>
 
-        <div className={styles['divider']}></div>
+        <div className={styles['divider']} />
 
         <select className={styles['vscode-select']} value={device} onChange={handleDeviceChange} title="选择预览设备" disabled={previewType !== 'web' && previewType !== 'html'}>
           <optgroup label="响应式">
@@ -962,7 +964,7 @@ export default function LivePreviewApp() {
           <FontAwesomeIcon icon={faRotate} />
         </button>
 
-        <div className={styles['divider']}></div>
+        <div className={styles['divider']} />
 
         <button
           className={styles['icon-btn']}
@@ -1010,7 +1012,7 @@ export default function LivePreviewApp() {
             <FontAwesomeIcon icon={faClockRotateLeft} className={styles['menu-icon']} /> 历史记录
           </div>
 
-          <div className={styles['menu-divider']}></div>
+          <div className={styles['menu-divider']} />
 
           <div
             className={`${styles['menu-item']} ${styles['has-submenu']}`}
@@ -1042,7 +1044,7 @@ export default function LivePreviewApp() {
             )}
           </div>
 
-          <div className={styles['menu-divider']}></div>
+          <div className={styles['menu-divider']} />
 
           <div
             className={styles['menu-item']}
@@ -1064,31 +1066,7 @@ export default function LivePreviewApp() {
         {renderPreviewLoadingMask()}
 
         {!frameUrl ? (
-          <div className={styles['welcome-page']}>
-            <FontAwesomeIcon icon={faLayerGroup} className={styles['welcome-icon']} />
-
-            <h1 className={styles['welcome-title']}>Live Preview</h1>
-
-            <p className={styles['welcome-subtitle']}>
-              在上方地址栏输入您的本地开发服务器地址，或直接输入关键词进行搜索。
-              <br />
-              您也可以点击下方快捷选项快速填入：
-            </p>
-
-            <div className={styles['quick-links']}>
-              <button className={styles['quick-link-btn']} onClick={() => handleGo('localhost:5173')}>
-                <FontAwesomeIcon icon={faVuejs} className={styles['brand-icon-vue']} /> <span>Vite 默认端口 (5173)</span>
-              </button>
-
-              <button className={styles['quick-link-btn']} onClick={() => handleGo('localhost:8080')}>
-                <FontAwesomeIcon icon={faNodeJs} className={styles['brand-icon-node']} /> <span>Vue CLI / Webpack (8080)</span>
-              </button>
-
-              <button className={styles['quick-link-btn']} onClick={() => handleGo('localhost:3000')}>
-                <FontAwesomeIcon icon={faReact} className={styles['brand-icon-react']} /> <span>React / Next.js (3000)</span>
-              </button>
-            </div>
-          </div>
+          <WelcomePage onQuickOpen={handleGo} />
         ) : previewType === 'md' ? (
           <VditorApp key={frameUrl} />
         ) : previewType === 'pdf' ? (
@@ -1138,211 +1116,32 @@ export default function LivePreviewApp() {
         )}
       </div>
 
-      {activeModal === 'fav' && (
-        <div className={styles['fav-overlay']} onClick={() => setActiveModal('none')}>
-          <div className={styles['fav-modal']} onClick={(e) => e.stopPropagation()}>
-            <div className={styles['fav-header']}>
-              <h3>
-                <FontAwesomeIcon icon={faStarSolid} className={styles['fav-header-icon']} /> 我的收藏夹
-              </h3>
+      <FavoriteModal
+        visible={activeModal === 'fav'}
+        sortedFavorites={sortedFavorites}
+        favSort={favSort}
+        favForm={favForm}
+        copiedUrl={copiedUrl}
+        setFavSort={setFavSort}
+        setFavForm={setFavForm}
+        onClose={() => setActiveModal('none')}
+        onOpenUrl={(url) => {
+          handleGo(url);
+          setActiveModal('none');
+        }}
+        onCopy={handleCopy}
+        onSaveFavorite={saveFavorite}
+        onDeleteFavorite={deleteFavorite}
+      />
 
-              <div className={styles['fav-header-actions']}>
-                <select className={styles['fav-sort-select']} value={favSort} onChange={(e) => setFavSort(e.target.value as any)}>
-                  <option value="time">按时间 (最新优先)</option>
-                  <option value="title">按标题 (A-Z)</option>
-                </select>
-
-                <FontAwesomeIcon
-                  icon={faPlus}
-                  className={`${styles['action-icon']} ${styles['fav-header-plus']}`}
-                  title="新增收藏"
-                  onClick={() => setFavForm({ visible: true, title: '', url: '', editingOriginalUrl: '' })}
-                />
-
-                <div className={styles['fav-header-divider']}></div>
-
-                <FontAwesomeIcon icon={faXmark} className={styles['fav-close']} onClick={() => setActiveModal('none')} title="关闭" />
-              </div>
-            </div>
-
-            {favForm.visible && (
-              <div className={styles['fav-form']}>
-                <input
-                  type="text"
-                  className={styles['fav-input']}
-                  placeholder="输入网站标题"
-                  value={favForm.title}
-                  onChange={(e) => setFavForm({ ...favForm, title: e.target.value })}
-                  autoFocus
-                />
-
-                <input
-                  type="text"
-                  className={styles['fav-input']}
-                  placeholder="输入规范的网址 (如 https://...)"
-                  value={favForm.url}
-                  onChange={(e) => setFavForm({ ...favForm, url: e.target.value })}
-                />
-
-                <div className={styles['fav-form-btns']}>
-                  <button className={styles['fav-btn']} onClick={() => setFavForm({ ...favForm, visible: false })}>
-                    取消
-                  </button>
-
-                  <button className={`${styles['fav-btn']} ${styles['primary']}`} onClick={saveFavorite}>
-                    保存
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className={styles['fav-list']}>
-              {sortedFavorites.length === 0 ? (
-                <div className={styles['fav-empty']}>暂无收藏。点击右上角 + 号，或地址栏星号添加。</div>
-              ) : (
-                sortedFavorites.map((f, i) => (
-                  <div
-                    key={`${f.isDefault ? 'default' : 'user'}-${f.url}-${i}`}
-                    className={styles['fav-item']}
-                    onClick={() => {
-                      handleGo(f.url);
-                      setActiveModal('none');
-                    }}
-                  >
-                    <div className={styles['fav-logo-wrap']}>
-                      {f.logo ? (
-                        <img
-                          className={styles['fav-logo']}
-                          src={f.logo}
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <FontAwesomeIcon icon={faGlobe} className={styles['fav-logo-placeholder']} />
-                      )}
-                    </div>
-
-                    <div className={styles['fav-item-info']}>
-                      <div className={styles['fav-title-row']}>
-                        <div className={styles['fav-title']} title={f.title}>
-                          {f.title}
-                        </div>
-
-                        {f.isDefault && <span className={styles['fav-default-tag']}>默认</span>}
-                      </div>
-
-                      {f.description && (
-                        <div className={styles['fav-description']} title={f.description}>
-                          {f.description}
-                        </div>
-                      )}
-
-                      <div className={styles['fav-url']} title={f.url}>
-                        {f.url}
-                      </div>
-                    </div>
-
-                    <div className={styles['fav-actions']}>
-                      <FontAwesomeIcon
-                        icon={copiedUrl === f.url ? faCheck : faCopyRegular}
-                        className={`${styles['fav-action-btn']} ${styles['copy']} ${copiedUrl === f.url ? styles['copy-success'] : ''}`}
-                        title="复制链接"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCopy(f.url);
-                        }}
-                      />
-
-                      {!f.isDefault && (
-                        <>
-                          <FontAwesomeIcon
-                            icon={faPen}
-                            className={`${styles['fav-action-btn']} ${styles['edit']}`}
-                            title="编辑"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setFavForm({ visible: true, title: f.title, url: f.url, editingOriginalUrl: f.url });
-                            }}
-                          />
-
-                          <FontAwesomeIcon
-                            icon={faTrash}
-                            className={`${styles['fav-action-btn']} ${styles['delete']}`}
-                            title="删除"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteFavorite(f);
-                            }}
-                          />
-                        </>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {activeModal === 'history' && (
-        <div className={styles['fav-overlay']} onClick={() => setActiveModal('none')}>
-          <div className={styles['fav-modal']} onClick={(e) => e.stopPropagation()}>
-            <div className={styles['fav-header']}>
-              <h3>
-                <FontAwesomeIcon icon={faClockRotateLeft} className={styles['history-header-icon']} /> 历史记录
-              </h3>
-
-              <FontAwesomeIcon icon={faXmark} className={styles['fav-close']} onClick={() => setActiveModal('none')} title="关闭" />
-            </div>
-
-            <div className={styles['fav-list']}>
-              {historyStack.length === 0 ? (
-                <div className={styles['fav-empty']}>暂无历史记录</div>
-              ) : (
-                [...historyStack].reverse().map((entry, index) => {
-                  const originalIndex = historyStack.length - 1 - index;
-                  const isCurrent = originalIndex === historyIdx;
-                  const logo = entry.logo || getKnownLogoByUrl(entry.url);
-
-                  return (
-                    <div
-                      key={originalIndex}
-                      className={`${styles['fav-item']} ${isCurrent ? styles['current-history'] : ''}`}
-                      onClick={() => !isCurrent && navigateToHistory(originalIndex)}
-                    >
-                      <div className={styles['fav-logo-wrap']}>
-                        {logo ? (
-                          <img
-                            className={styles['fav-logo']}
-                            src={logo}
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <FontAwesomeIcon icon={faGlobe} className={styles['fav-logo-placeholder']} />
-                        )}
-                      </div>
-
-                      <div className={styles['fav-item-info']}>
-                        <div className={styles['fav-title']} title={entry.title}>
-                          {entry.title} {isCurrent ? '(当前)' : ''}
-                        </div>
-
-                        <div className={styles['fav-url']} title={entry.url}>
-                          {entry.url}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <HistoryModal
+        visible={activeModal === 'history'}
+        historyStack={historyStack}
+        historyIdx={historyIdx}
+        getKnownLogoByUrl={getKnownLogoByUrl}
+        onClose={() => setActiveModal('none')}
+        onNavigateToHistory={navigateToHistory}
+      />
     </div>
   );
 }
