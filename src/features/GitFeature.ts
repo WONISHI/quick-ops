@@ -195,7 +195,6 @@ export class GitFeature implements IFeature {
     vscode.commands.executeCommand('setContext', 'quickOps.isPreviewingOther', isPreviewingOther);
   }
 
-  // 🌟 新增：注册右上角“打开项目”的命令
   private registerOpenProjectCommand(context: vscode.ExtensionContext): void {
     context.subscriptions.push(
       vscode.commands.registerCommand('quickOps.openProject', async () => {
@@ -258,7 +257,6 @@ export class GitFeature implements IFeature {
           validateInput: (text) => {
             const val = text.trim();
             if (!val) return '地址不能为空';
-            // 严谨正则：必须是合法的 http/https 网址，或者是 SSH 格式 (包含 ssh:// 或是 git@...)
             const isValid = /^(https?:\/\/|ssh:\/\/|git@[^:]+:.+)/i.test(val);
             return isValid ? null : '地址格式不正确，必须是有效的 HTTP 或 SSH 格式';
           },
@@ -268,11 +266,9 @@ export class GitFeature implements IFeature {
           const trimmedUrl = newUrl.trim();
           if (trimmedUrl !== currentUrl) {
             try {
-              // 🌟 真正执行 Git 命令来修改本地配置
               await git.remote(['set-url', targetRemote.name, trimmedUrl]);
               vscode.window.showInformationMessage(`✅ 已成功将 ${targetRemote.name} 地址修改为: ${trimmedUrl}`);
 
-              // 刷新 Git 面板视图，让底层 Provider 也知道地址变了
               this.gitProvider.setCustomWorkspace(currentPath);
             } catch (e: any) {
               vscode.window.showErrorMessage(`修改远程仓库地址失败: ${e.message}`);

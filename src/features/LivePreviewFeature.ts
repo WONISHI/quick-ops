@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs/promises';
 import { IFeature } from '../core/interfaces/IFeature';
 import ColorLog from '../utils/ColorLog';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
@@ -22,6 +21,8 @@ interface FavoriteItem {
   source?: 'builtin' | 'user';
 }
 
+type LocalPreviewFileType = 'md' | 'pdf' | 'excel' | 'html';
+
 export class LivePreviewFeature implements IFeature {
   public readonly id = 'LivePreviewFeature';
 
@@ -29,7 +30,7 @@ export class LivePreviewFeature implements IFeature {
 
   private panel: vscode.WebviewPanel | undefined;
 
-  private pendingLocalFile: { fsPath: string; fileType: string } | null = null;
+  private pendingLocalFile: { fsPath: string; fileType: LocalPreviewFileType } | null = null;
   private defaultFavoritesCache: FavoriteItem[] | null = null;
 
   public activate(context: vscode.ExtensionContext): void {
@@ -81,17 +82,23 @@ export class LivePreviewFeature implements IFeature {
   private async loadDefaultFavorites(context: vscode.ExtensionContext): Promise<FavoriteItem[]> {
     if (this.defaultFavoritesCache) return this.defaultFavoritesCache;
 
-    const bookmarksDir = path.join(context.extensionUri.fsPath, 'resources', 'bookmarks');
+    const bookmarksDirUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'bookmarks');
     const result: FavoriteItem[] = [];
     const usedUrls = new Set<string>();
 
     try {
-      const files = await fs.readdir(bookmarksDir);
-      const jsonFiles = files.filter((file) => file.toLowerCase().endsWith('.json'));
+      const entries = await vscode.workspace.fs.readDirectory(bookmarksDirUri);
+
+      const jsonFiles = entries
+        .filter(([fileName, fileType]) => {
+          return fileType === vscode.FileType.File && fileName.toLowerCase().endsWith('.json');
+        })
+        .map(([fileName]) => fileName);
 
       for (const file of jsonFiles) {
-        const filePath = path.join(bookmarksDir, file);
-        const content = await fs.readFile(filePath, 'utf8');
+        const fileUri = vscode.Uri.joinPath(bookmarksDirUri, file);
+        const contentBytes = await vscode.workspace.fs.readFile(fileUri);
+        const content = Buffer.from(contentBytes).toString('utf8');
         const jsonData = JSON.parse(content);
         const list = this.extractFavoriteArray(jsonData);
 
@@ -179,6 +186,282 @@ export class LivePreviewFeature implements IFeature {
     await this.syncFavorites(context);
   }
 
+  private getDefaultLocalResourceRoots(context: vscode.ExtensionContext): vscode.Uri[] {
+    const roots: vscode.Uri[] = [context.extensionUri];
+
+    const workspaceFolders = vscode.workspace.workspaceFolders || [];
+
+    for (const folder of workspaceFolders) {
+      roots.push(folder.uri);
+    }
+
+    return roots;
+  }
+
+  private getLocalResourceRoots(context: vscode.ExtensionContext, fileUri?: vscode.Uri): vscode.Uri[] {
+    const roots = this.getDefaultLocalResourceRoots(context);
+
+    if (fileUri?.scheme === 'file') {
+      const fileDir = path.dirname(fileUri.fsPath);
+      roots.push(vscode.Uri.file(fileDir));
+
+      const parentDir = path.dirname(fileDir);
+
+      if (parentDir && parentDir !== fileDir) {
+        roots.push(vscode.Uri.file(parentDir));
+      }
+    }
+
+    const uniqueMap = new Map<string, vscode.Uri>();
+
+    for (const uri of roots) {
+      uniqueMap.set(uri.toString(), uri);
+    }
+
+    return Array.from(uniqueMap.values());
+  }
+
+  private updateWebviewLocalRoots(context: vscode.ExtensionContext, fileUri?: vscode.Uri): void {
+    if (!this.panel) return;
+
+    this.panel.webview.options = {
+      ...this.panel.webview.options,
+      localResourceRoots: this.getLocalResourceRoots(context, fileUri),
+    };
+  }
+
+  private parseLocalFileUri(fsPath: string): vscode.Uri {
+    const value = String(fsPath || '').trim();
+
+    if (/^file:\/\//i.test(value)) {
+      return vscode.Uri.parse(value);
+    }
+
+    if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(value)) {
+      return vscode.Uri.parse(value);
+    }
+
+    return vscode.Uri.file(value);
+  }
+
+  private parseExternalUri(rawUrl: string): vscode.Uri {
+    const value = String(rawUrl || '').trim();
+
+    if (/^file:\/\//i.test(value)) {
+      return vscode.Uri.parse(value);
+    }
+
+    if (/^[a-zA-Z]:[\\/]/.test(value) || value.startsWith('/')) {
+      return vscode.Uri.file(value);
+    }
+
+    return vscode.Uri.parse(value);
+  }
+
+  private isSkipRewriteUrl(rawUrl: string): boolean {
+    const url = rawUrl.trim();
+
+    if (!url) return true;
+
+    return (
+      url.startsWith('#') ||
+      url.startsWith('//') ||
+      /^(https?:|data:|blob:|mailto:|tel:|javascript:|vscode-webview-resource:|vscode-resource:|vscode-webview:)/i.test(url)
+    );
+  }
+
+  private splitUrlSuffix(rawUrl: string): { pathname: string; suffix: string } {
+    const match = rawUrl.match(/^([^?#]*)([?#].*)?$/);
+
+    return {
+      pathname: match?.[1] || rawUrl,
+      suffix: match?.[2] || '',
+    };
+  }
+
+  private async uriExists(uri: vscode.Uri): Promise<boolean> {
+    try {
+      await vscode.workspace.fs.stat(uri);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async resolveHtmlAssetUri(rawUrl: string, htmlFileUri: vscode.Uri): Promise<vscode.Uri | null> {
+    const { pathname } = this.splitUrlSuffix(rawUrl);
+
+    if (!pathname) return null;
+
+    try {
+      if (/^file:\/\//i.test(pathname)) {
+        return vscode.Uri.parse(pathname);
+      }
+
+      if (/^[a-zA-Z]:[\\/]/.test(pathname)) {
+        return vscode.Uri.file(pathname);
+      }
+
+      const htmlDir = path.dirname(htmlFileUri.fsPath);
+
+      if (pathname.startsWith('/')) {
+        const cleanPath = pathname.replace(/^[/\\]+/, '');
+
+        const htmlDirCandidate = vscode.Uri.file(path.join(htmlDir, cleanPath));
+
+        if (await this.uriExists(htmlDirCandidate)) {
+          return htmlDirCandidate;
+        }
+
+        const workspaceFolders = vscode.workspace.workspaceFolders || [];
+
+        for (const folder of workspaceFolders) {
+          const workspaceCandidate = vscode.Uri.joinPath(folder.uri, cleanPath);
+
+          if (await this.uriExists(workspaceCandidate)) {
+            return workspaceCandidate;
+          }
+        }
+
+        return vscode.Uri.file(pathname);
+      }
+
+      if (path.isAbsolute(pathname)) {
+        return vscode.Uri.file(pathname);
+      }
+
+      const absolutePath = path.resolve(htmlDir, pathname);
+
+      return vscode.Uri.file(absolutePath);
+    } catch {
+      return null;
+    }
+  }
+
+  private escapeHtmlAttribute(value: string): string {
+    return value
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  private async toWebviewAssetUrl(rawUrl: string, htmlFileUri: vscode.Uri, webview: vscode.Webview): Promise<string> {
+    const trimmed = String(rawUrl || '').trim();
+
+    if (this.isSkipRewriteUrl(trimmed)) {
+      return rawUrl;
+    }
+
+    const { suffix } = this.splitUrlSuffix(trimmed);
+    const assetUri = await this.resolveHtmlAssetUri(trimmed, htmlFileUri);
+
+    if (!assetUri) {
+      return rawUrl;
+    }
+
+    return `${webview.asWebviewUri(assetUri).toString()}${suffix}`;
+  }
+
+  private async rewriteTagAttr(tag: string, htmlFileUri: vscode.Uri, webview: vscode.Webview): Promise<string> {
+    const attrReg = /\s(href|src|poster)=("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
+
+    let result = '';
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = attrReg.exec(tag))) {
+      const matchIndex = match.index ?? 0;
+
+      result += tag.slice(lastIndex, matchIndex);
+
+      const full = match[0];
+      const attrName = match[1];
+      const rawValue = match[2];
+      const doubleValue = match[3];
+      const singleValue = match[4];
+      const noQuoteValue = match[5];
+
+      const value = doubleValue ?? singleValue ?? noQuoteValue ?? '';
+
+      if (!value) {
+        result += full;
+        lastIndex = matchIndex + full.length;
+        continue;
+      }
+
+      const nextValue = await this.toWebviewAssetUrl(value, htmlFileUri, webview);
+      const safeValue = this.escapeHtmlAttribute(nextValue);
+
+      if (rawValue.startsWith("'")) {
+        result += ` ${attrName}='${safeValue}'`;
+      } else {
+        result += ` ${attrName}="${safeValue}"`;
+      }
+
+      lastIndex = matchIndex + full.length;
+    }
+
+    result += tag.slice(lastIndex);
+
+    return result;
+  }
+
+  private async rewriteLocalHtmlAssets(html: string, htmlFileUri: vscode.Uri, webview: vscode.Webview): Promise<string> {
+    if (!html) return html;
+
+    const tagReg = /<(link|script|img|source|video|audio|iframe)\b[^>]*>/gi;
+
+    let result = '';
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = tagReg.exec(html))) {
+      const matchIndex = match.index ?? 0;
+      const tag = match[0];
+
+      result += html.slice(lastIndex, matchIndex);
+      result += await this.rewriteTagAttr(tag, htmlFileUri, webview);
+
+      lastIndex = matchIndex + tag.length;
+    }
+
+    result += html.slice(lastIndex);
+
+    return result;
+  }
+
+  private async readLocalFile(fileUri: vscode.Uri): Promise<Uint8Array> {
+    return vscode.workspace.fs.readFile(fileUri);
+  }
+
+  private async loadLocalHtmlFile(context: vscode.ExtensionContext, fsPath: string): Promise<void> {
+    try {
+      const fileUri = this.parseLocalFileUri(fsPath);
+
+      this.updateWebviewLocalRoots(context, fileUri);
+
+      const contentBytes = await vscode.workspace.fs.readFile(fileUri);
+      const contentStr = Buffer.from(contentBytes).toString('utf8');
+      const rewrittenHtml = await this.rewriteLocalHtmlAssets(contentStr, fileUri, this.panel!.webview);
+
+      this.panel?.webview.postMessage({
+        type: 'initHtmlData',
+        fsPath,
+        fileName: path.basename(fileUri.fsPath || fsPath),
+        content: rewrittenHtml,
+      });
+    } catch (e) {
+      vscode.window.showErrorMessage(`HTML 文件读取失败: ${fsPath}`);
+
+      this.panel?.webview.postMessage({
+        type: 'initLocalFileError',
+        fsPath,
+        message: `HTML 文件读取失败: ${fsPath}`,
+      });
+    }
+  }
+
   private showPreviewPanel(context: vscode.ExtensionContext) {
     if (this.panel) {
       this.panel.reveal(vscode.ViewColumn.Beside);
@@ -190,7 +473,7 @@ export class LivePreviewFeature implements IFeature {
       enableScripts: true,
       retainContextWhenHidden: true,
       enableFindWidget: true,
-      localResourceRoots: [context.extensionUri],
+      localResourceRoots: this.getLocalResourceRoots(context),
     });
 
     this.panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
@@ -203,6 +486,7 @@ export class LivePreviewFeature implements IFeature {
 
     this.panel.onDidDispose(() => {
       this.panel = undefined;
+      this.pendingLocalFile = null;
     });
 
     const lastUrl = context.workspaceState.get<string>('quickOps.lastPreviewUrl') || '';
@@ -210,16 +494,17 @@ export class LivePreviewFeature implements IFeature {
 
     this.panel.webview.html = getReactWebviewHtml(context.extensionUri, this.panel.webview, '/preview');
 
-    setTimeout(() => {
-      this.panel?.webview.postMessage({ type: 'init', device: lastDevice, url: lastUrl });
-    }, 500);
-
     this.panel.webview.onDidReceiveMessage(async (message) => {
       if (message.type === 'ready') {
-        this.panel?.webview.postMessage({ type: 'init', device: lastDevice, url: lastUrl });
+        this.panel?.webview.postMessage({
+          type: 'init',
+          device: lastDevice,
+          url: lastUrl,
+        });
+
         await this.syncFavorites(context);
       } else if (message.type === 'saveUrl') {
-        await context.workspaceState.update('quickOps.lastPreviewUrl', message.url);
+        await context.workspaceState.update('quickOps.lastPreviewUrl', message.url || '');
       } else if (message.type === 'saveDevice') {
         await context.workspaceState.update('quickOps.lastPreviewDevice', message.device);
       } else if (message.type === 'reqSyncFavorites') {
@@ -268,47 +553,65 @@ export class LivePreviewFeature implements IFeature {
       } else if (message.type === 'openDevTools') {
         vscode.commands.executeCommand('workbench.action.webview.openDeveloperTools');
       } else if (message.type === 'openExternalBrowser') {
-        vscode.env.openExternal(vscode.Uri.parse(message.url));
+        vscode.env.openExternal(this.parseExternalUri(message.url));
+      } else if (message.type === 'loadLocalHtmlFile') {
+        await this.loadLocalHtmlFile(context, message.fsPath);
       } else if (message.type === 'setPendingLocalFile') {
-        this.pendingLocalFile = { fsPath: message.fsPath, fileType: message.fileType };
+        this.pendingLocalFile = {
+          fsPath: message.fsPath,
+          fileType: message.fileType as LocalPreviewFileType,
+        };
+
+        try {
+          const fileUri = this.parseLocalFileUri(message.fsPath);
+          this.updateWebviewLocalRoots(context, fileUri);
+        } catch {
+          this.updateWebviewLocalRoots(context);
+        }
       } else if (message.command === 'webviewLoaded') {
-        if (this.pendingLocalFile) {
-          const { fsPath, fileType } = this.pendingLocalFile;
+        if (!this.pendingLocalFile) return;
 
-          try {
-            const fileUri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
-            const contentBytes = await vscode.workspace.fs.readFile(fileUri);
+        const { fsPath, fileType } = this.pendingLocalFile;
 
-            if (fileType === 'md') {
-              const contentStr = Buffer.from(contentBytes).toString('utf8');
+        try {
+          const fileUri = this.parseLocalFileUri(fsPath);
+          const contentBytes = await this.readLocalFile(fileUri);
 
-              this.panel?.webview.postMessage({
-                type: 'initVditorData',
-                content: contentStr,
-                mode: 'read',
-                fsPath,
-              });
-            } else if (fileType === 'pdf') {
-              const fileBase64 = Buffer.from(contentBytes).toString('base64');
+          if (fileType === 'md') {
+            const contentStr = Buffer.from(contentBytes).toString('utf8');
 
-              this.panel?.webview.postMessage({
-                type: 'initPdfData',
-                contentBase64: fileBase64,
-                initialScale: 0.8,
-              });
-            } else if (fileType === 'excel') {
-              const fileBase64 = Buffer.from(contentBytes).toString('base64');
+            this.panel?.webview.postMessage({
+              type: 'initVditorData',
+              content: contentStr,
+              mode: 'read',
+              fsPath,
+            });
+          } else if (fileType === 'pdf') {
+            const fileBase64 = Buffer.from(contentBytes).toString('base64');
 
-              this.panel?.webview.postMessage({
-                type: 'initExcelData',
-                fsPath,
-                fileName: path.basename(fsPath),
-                contentBase64: fileBase64,
-              });
-            }
-          } catch (e) {
-            vscode.window.showErrorMessage(`文件读取失败: ${fsPath}`);
+            this.panel?.webview.postMessage({
+              type: 'initPdfData',
+              contentBase64: fileBase64,
+              initialScale: 0.8,
+            });
+          } else if (fileType === 'excel') {
+            const fileBase64 = Buffer.from(contentBytes).toString('base64');
+
+            this.panel?.webview.postMessage({
+              type: 'initExcelData',
+              fsPath,
+              fileName: path.basename(fileUri.fsPath || fsPath),
+              contentBase64: fileBase64,
+            });
           }
+        } catch (e) {
+          vscode.window.showErrorMessage(`文件读取失败: ${fsPath}`);
+
+          this.panel?.webview.postMessage({
+            type: 'initLocalFileError',
+            fsPath,
+            message: `文件读取失败: ${fsPath}`,
+          });
         }
       }
     });

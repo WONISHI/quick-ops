@@ -35,6 +35,7 @@ import { faVuejs, faNodeJs, faReact } from '@fortawesome/free-brands-svg-icons';
 import VditorApp from '../VditorApp';
 import PdfPreviewApp from '../PdfPreviewApp';
 import ExcelPreviewApp from '../ExcelPreviewApp';
+import HtmlPreviewApp from '../HtmlPreviewApp';
 import PreviewError from '../../components/PreviewError';
 // import FloatingPet from '../../components/FloatingPet';
 
@@ -61,11 +62,13 @@ interface PreviewErrorState {
   url: string;
 }
 
+type PreviewType = 'web' | 'md' | 'pdf' | 'excel' | 'html';
+
 export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
 
-  const [previewType, setPreviewType] = useState<'web' | 'md' | 'pdf' | 'excel' | 'html'>('web');
+  const [previewType, setPreviewType] = useState<PreviewType>('web');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<PreviewErrorState | null>(null);
 
@@ -91,7 +94,7 @@ export default function LivePreviewApp() {
   const [suggestIndex, setSuggestIndex] = useState(-1);
   const [copiedUrl, setCopiedUrl] = useState('');
 
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
   const cacheMenuTimer = useRef<any>(null);
@@ -187,15 +190,12 @@ export default function LivePreviewApp() {
       if (message.type === 'init') {
         if (message.device) setDevice(message.device);
 
-        if (message.url) {
+        if (typeof message.url === 'string' && message.url.trim()) {
           const initUrl = message.url.trim();
 
           setUrlInput(initUrl);
-
-          if (initUrl) {
-            loadPreviewTarget(initUrl);
-            pushHistory(initUrl, initUrl);
-          }
+          loadPreviewTarget(initUrl);
+          pushHistory(initUrl, initUrl);
         }
 
         vscode?.postMessage({ type: 'reqSyncFavorites' });
@@ -219,6 +219,8 @@ export default function LivePreviewApp() {
 
     window.addEventListener('click', handleClickOutside);
 
+    vscode?.postMessage({ type: 'ready' });
+
     return () => {
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('click', handleClickOutside);
@@ -233,7 +235,7 @@ export default function LivePreviewApp() {
     setPreviewLoading(false);
     setPreviewError(null);
 
-    if (!iframeRef.current || historyIdx < 0 || (previewType !== 'web' && previewType !== 'html')) return;
+    if (!iframeRef.current || historyIdx < 0 || previewType !== 'web') return;
 
     const fallbackTitle = urlInput || frameUrl;
 
@@ -342,27 +344,31 @@ export default function LivePreviewApp() {
     }
   };
 
+  const getPreviewTypeByUrl = (url: string): PreviewType => {
+    if (!UrlParser.isAbsolutePath(url)) return 'web';
+
+    const lower = url.toLowerCase();
+
+    if (lower.endsWith('.md')) return 'md';
+    if (lower.endsWith('.pdf')) return 'pdf';
+    if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) return 'excel';
+    if (lower.endsWith('.html') || lower.endsWith('.htm')) return 'html';
+
+    return 'web';
+  };
+
   const loadPreviewTarget = (url: string) => {
-    let pType: 'web' | 'md' | 'pdf' | 'excel' | 'html' = 'web';
-
-    if (UrlParser.isAbsolutePath(url)) {
-      const lower = url.toLowerCase();
-
-      if (lower.endsWith('.md')) pType = 'md';
-      else if (lower.endsWith('.pdf')) pType = 'pdf';
-      else if (lower.endsWith('.xlsx') || lower.endsWith('.xls') || lower.endsWith('.csv')) pType = 'excel';
-      else if (lower.endsWith('.html') || lower.endsWith('.htm')) pType = 'html';
-    }
+    const pType = getPreviewTypeByUrl(url);
 
     setPreviewType(pType);
     setPreviewError(null);
     clearPreviewLoadTimer();
 
-    const isIframePreview = pType === 'web' || pType === 'html';
+    const isRemoteWebPreview = pType === 'web';
 
-    setPreviewLoading(isIframePreview);
+    setPreviewLoading(isRemoteWebPreview);
 
-    if (isIframePreview) {
+    if (isRemoteWebPreview) {
       previewLoadTimerRef.current = window.setTimeout(() => {
         setPreviewLoading(false);
         setPreviewError({
@@ -376,8 +382,15 @@ export default function LivePreviewApp() {
     setFrameUrl(url);
     vscode?.postMessage({ type: 'saveUrl', url });
 
-    if (pType !== 'web' && pType !== 'html') {
-      vscode?.postMessage({ type: 'setPendingLocalFile', fsPath: url, fileType: pType });
+    if (pType !== 'web') {
+      if (pType !== 'html') {
+        vscode?.postMessage({
+          type: 'setPendingLocalFile',
+          fsPath: url,
+          fileType: pType,
+        });
+      }
+
       setFaviconUrl('');
       setFaviconError(false);
       setIsFaviconLoading(false);
@@ -407,6 +420,20 @@ export default function LivePreviewApp() {
     loadPreviewTarget(finalUrl);
     pushHistory(finalUrl, finalUrl);
   };
+
+  const suggestions = useMemo(() => {
+    const query = urlInput.trim().toLowerCase();
+
+    if (!query || favorites.length === 0) return [];
+
+    return favorites.filter((f) => {
+      return (
+        f.title.toLowerCase().includes(query) ||
+        f.url.toLowerCase().includes(query) ||
+        (f.description || '').toLowerCase().includes(query)
+      );
+    });
+  }, [urlInput, favorites]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
@@ -446,27 +473,43 @@ export default function LivePreviewApp() {
     if (!frameUrl) return;
 
     const temp = frameUrl;
-    const shouldShowLoading = previewType === 'web' || previewType === 'html';
 
     setPreviewError(null);
     clearPreviewLoadTimer();
 
-    if (shouldShowLoading) {
-      setPreviewLoading(true);
-
-      previewLoadTimerRef.current = window.setTimeout(() => {
-        setPreviewLoading(false);
-        setPreviewError({
-          title: '页面加载超时',
-          message: '页面长时间没有完成加载。该页面可能禁止 iframe 嵌入，建议使用外部浏览器打开。',
-          url: temp,
+    if (previewType !== 'web') {
+      if (previewType !== 'html') {
+        vscode?.postMessage({
+          type: 'setPendingLocalFile',
+          fsPath: temp,
+          fileType: previewType,
         });
-      }, 10000);
+      }
+
+      setFrameUrl('');
+
+      window.setTimeout(() => {
+        setFrameUrl(temp);
+      }, 50);
+
+      setMenuOpen(false);
+      return;
     }
+
+    setPreviewLoading(true);
+
+    previewLoadTimerRef.current = window.setTimeout(() => {
+      setPreviewLoading(false);
+      setPreviewError({
+        title: '页面加载超时',
+        message: '页面长时间没有完成加载。该页面可能禁止 iframe 嵌入，建议使用外部浏览器打开。',
+        url: temp,
+      });
+    }, 10000);
 
     setFrameUrl('about:blank');
 
-    setTimeout(() => {
+    window.setTimeout(() => {
       setFrameUrl(temp);
     }, 50);
 
@@ -494,20 +537,6 @@ export default function LivePreviewApp() {
 
     vscode?.postMessage({ type: 'toggleFavorite', url: frameUrl, title, logo });
   };
-
-  const suggestions = useMemo(() => {
-    const query = urlInput.trim().toLowerCase();
-
-    if (!query || favorites.length === 0) return [];
-
-    return favorites.filter((f) => {
-      return (
-        f.title.toLowerCase().includes(query) ||
-        f.url.toLowerCase().includes(query) ||
-        (f.description || '').toLowerCase().includes(query)
-      );
-    });
-  }, [urlInput, favorites]);
 
   const renderHighlighted = (text: string) => {
     const query = urlInput.trim();
@@ -588,7 +617,7 @@ export default function LivePreviewApp() {
     }
 
     setCopiedUrl(url);
-    setTimeout(() => setCopiedUrl(''), 1500);
+    window.setTimeout(() => setCopiedUrl(''), 1500);
   };
 
   const saveFavorite = () => {
@@ -605,7 +634,7 @@ export default function LivePreviewApp() {
       return vscode?.postMessage({ type: 'showInfo', message: '默认收藏不能编辑。' });
     }
 
-    let newFavs = [...favorites];
+    const newFavs = [...favorites];
 
     if (favForm.editingOriginalUrl) {
       const index = newFavs.findIndex((f) => f.url === favForm.editingOriginalUrl && !f.isDefault);
@@ -888,7 +917,7 @@ export default function LivePreviewApp() {
               setCacheSubmenuOpen(true);
             }}
             onMouseLeave={() => {
-              cacheMenuTimer.current = setTimeout(() => setCacheSubmenuOpen(false), 300);
+              cacheMenuTimer.current = window.setTimeout(() => setCacheSubmenuOpen(false), 300);
             }}
           >
             <FontAwesomeIcon icon={faBroom} className={styles['menu-icon']} /> 清理页面缓存
@@ -962,6 +991,17 @@ export default function LivePreviewApp() {
           <PdfPreviewApp key={frameUrl} initialScale={0.8} />
         ) : previewType === 'excel' ? (
           <ExcelPreviewApp key={frameUrl} />
+        ) : previewType === 'html' ? (
+          <div id="deviceWrapper" className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}>
+            <HtmlPreviewApp
+              key={frameUrl}
+              fsPath={frameUrl}
+              iframeRef={iframeRef}
+              onTitleChange={(title) => {
+                updateCurrentHistoryTitle(title);
+              }}
+            />
+          </div>
         ) : previewError ? (
           <PreviewError
             url={previewError.url}
@@ -983,7 +1023,7 @@ export default function LivePreviewApp() {
           <div id="deviceWrapper" className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}>
             <iframe
               ref={iframeRef}
-              src={previewType === 'html' ? UrlParser.parse(frameUrl) : frameUrl}
+              src={frameUrl}
               className={styles['fromPage']}
               title="preview"
               onLoad={handleIframeLoad}
