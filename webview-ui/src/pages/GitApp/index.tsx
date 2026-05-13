@@ -12,6 +12,31 @@ import type { GitFile } from '../../types/GitApp';
 
 import { GitContextMenu, type ContextMenuState } from '../../components/GitContextMenu';
 
+interface RemoteSyncState {
+  hasRemote: boolean;
+  hasUpstream: boolean;
+  branch: string;
+  upstream: string;
+  ahead: number;
+  behind: number;
+  needsPull: boolean;
+  needsPush: boolean;
+  checkedAt: number;
+  error?: string;
+}
+
+const EMPTY_REMOTE_SYNC: RemoteSyncState = {
+  hasRemote: false,
+  hasUpstream: false,
+  branch: '',
+  upstream: '',
+  ahead: 0,
+  behind: 0,
+  needsPull: false,
+  needsPush: false,
+  checkedAt: 0,
+};
+
 export default function GitApp() {
   const [isRepo, setIsRepo] = useState<boolean>(true);
   const [isGitInstalled, setIsGitInstalled] = useState<boolean | null>(null);
@@ -36,6 +61,7 @@ export default function GitApp() {
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
   const [isGraphLoading, setIsGraphLoading] = useState(true);
   const [remoteUrl, setRemoteUrl] = useState<string>('');
+  const [remoteSync, setRemoteSync] = useState<RemoteSyncState>(EMPTY_REMOTE_SYNC);
   const [totalCommits, setTotalCommits] = useState(0);
 
   const [viewMode, setViewMode] = useState<'list' | 'tree'>('list');
@@ -101,6 +127,7 @@ export default function GitApp() {
         setStashFilesMap({});
         setStashFilesLoading({});
         setExpandedStashIndex(null);
+        setRemoteSync(EMPTY_REMOTE_SYNC);
       } else if (msg.type === 'statusData') {
         setIsRepo(true);
         setChangesRefreshing(false);
@@ -110,8 +137,20 @@ export default function GitApp() {
         setBranch(msg.branch || '');
         setRemoteUrl(msg.remoteUrl || '');
         setFolderName(msg.folderName || '');
-        if (msg.stashes) setStashes(msg.stashes);
+
+        if (msg.remoteSync) {
+          setRemoteSync(msg.remoteSync);
+        } else {
+          setRemoteSync(EMPTY_REMOTE_SYNC);
+        }
+
+        if (msg.stashes) {
+          setStashes(msg.stashes);
+        }
+
         setLoading(false);
+      } else if (msg.type === 'remoteSyncData') {
+        setRemoteSync(msg.remoteSync || EMPTY_REMOTE_SYNC);
       } else if (msg.type === 'stashData') {
         setStashes(msg.stashes || []);
       } else if (msg.type === 'stashFilesData') {
@@ -120,12 +159,14 @@ export default function GitApp() {
         setCommitParentHashMap((prev) => ({ ...prev, [msg.hash]: msg.parentHash }));
       } else if (msg.type === 'graphData') {
         const commits = msg.graphCommits || [];
+
         setGraphCommits(commits);
         setTotalCommits(msg.totalCommits ?? commits.length);
         setDisplayCount(100);
 
         if (msg.graphFilter) {
           setSelectedGraphFilter(msg.graphFilter);
+
           if (filterRef.current !== msg.graphFilter) {
             setFlashBranchBtn(true);
             setTimeout(() => setFlashBranchBtn(false), 800);
@@ -149,10 +190,12 @@ export default function GitApp() {
             setExpandedDirs((prev) => {
               const next = { ...prev };
               let currentPath = '';
+
               parts.forEach((p: string) => {
                 currentPath = currentPath ? `${currentPath}/${p}` : p;
                 next[currentPath] = true;
               });
+
               return next;
             });
           }
@@ -162,6 +205,7 @@ export default function GitApp() {
           setCompareTarget(msg.targetBranch);
           setCompareBase(msg.baseBranch);
         }
+
         setCompareCommits(msg.commits || []);
         setIsCompareOpen(true);
       } else if (msg.type === 'error') {
@@ -174,6 +218,7 @@ export default function GitApp() {
         setJustCommitted(false);
       } else if (msg.type === 'gitInstallationStatus') {
         setIsGitInstalled(msg.isInstalled);
+
         if (msg.isInit && msg.defaultSkipVerify !== undefined) {
           setSkipVerify(msg.defaultSkipVerify);
         }
@@ -188,6 +233,7 @@ export default function GitApp() {
 
     const triggerSmartRefresh = () => {
       const now = Date.now();
+
       if (now - lastRefreshRef.current > 5000 && isRepo) {
         vscode.postMessage({ command: 'refreshStatusOnly' });
         lastRefreshRef.current = now;
@@ -195,10 +241,14 @@ export default function GitApp() {
     };
 
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') triggerSmartRefresh();
+      if (document.visibilityState === 'visible') {
+        triggerSmartRefresh();
+      }
     };
 
-    const handleFocus = () => triggerSmartRefresh();
+    const handleFocus = () => {
+      triggerSmartRefresh();
+    };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
@@ -212,6 +262,7 @@ export default function GitApp() {
 
   const insertPlainTextAtCursor = (text: string) => {
     const selection = window.getSelection();
+
     if (!selection || selection.rangeCount === 0) return;
 
     const range = selection.getRangeAt(0);
@@ -221,7 +272,10 @@ export default function GitApp() {
     const fragment = document.createDocumentFragment();
 
     lines.forEach((line, index) => {
-      if (index > 0) fragment.appendChild(document.createElement('br'));
+      if (index > 0) {
+        fragment.appendChild(document.createElement('br'));
+      }
+
       fragment.appendChild(document.createTextNode(line));
     });
 
@@ -241,7 +295,13 @@ export default function GitApp() {
     if (!commitMsg.trim()) return;
 
     setLoading(true);
-    vscode.postMessage({ command: 'commit', message: commitMsg, skipVerify });
+
+    vscode.postMessage({
+      command: 'commit',
+      message: commitMsg,
+      skipVerify,
+    });
+
     setCommitMsg('');
 
     if (commitInputRef.current) {
@@ -254,7 +314,9 @@ export default function GitApp() {
 
     const alreadyExpanded = expandedCommitHashes.includes(hash);
 
-    setExpandedCommitHashes((prev) => (alreadyExpanded ? prev.filter((h) => h !== hash) : [...prev, hash]));
+    setExpandedCommitHashes((prev) => {
+      return alreadyExpanded ? prev.filter((h) => h !== hash) : [...prev, hash];
+    });
 
     if (alreadyExpanded) return;
     if (commitFilesMap[hash]) return;
@@ -264,11 +326,15 @@ export default function GitApp() {
       [hash]: true,
     }));
 
-    vscode.postMessage({ command: 'getCommitFiles', hash });
+    vscode.postMessage({
+      command: 'getCommitFiles',
+      hash,
+    });
   };
 
   const toggleDir = (path: string, e: React.MouseEvent) => {
     e.stopPropagation();
+
     setExpandedDirs((prev) => ({
       ...prev,
       [path]: prev[path] === false ? true : false,
@@ -299,6 +365,18 @@ export default function GitApp() {
     });
   };
 
+  const getPullTooltip = () => {
+    if (remoteSync.needsPull) {
+      return `需要 Pull：当前分支落后 ${remoteSync.upstream || '远程分支'} ${remoteSync.behind} 个提交`;
+    }
+
+    if (remoteSync.hasRemote && !remoteSync.hasUpstream) {
+      return '当前分支没有绑定上游分支';
+    }
+
+    return '拉取 (Pull)';
+  };
+
   if (isGitInstalled === false) {
     return <GitNotInstalled />;
   }
@@ -324,21 +402,35 @@ export default function GitApp() {
                   className={`${styles['icon-btn']} ${!skipVerify ? styles['shield-enabled'] : ''}`}
                   onClick={() => {
                     const newValue = !skipVerify;
+
                     setSkipVerify(newValue);
-                    vscode.postMessage({ command: 'toggleSkipVerify', value: newValue });
+
+                    vscode.postMessage({
+                      command: 'toggleSkipVerify',
+                      value: newValue,
+                    });
                   }}
                 >
                   <i className="codicon codicon-shield" />
                 </button>
               </Tooltip>
 
-              <Tooltip content="拉取 (Pull)">
-                <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'pull' })}>
+              <Tooltip content={getPullTooltip()}>
+                <button
+                  className={`${styles['icon-btn']} ${remoteSync.needsPull ? styles['pull-needed'] : ''}`}
+                  onClick={() => vscode.postMessage({ command: 'pull' })}
+                >
                   <i className="codicon codicon-repo-pull" />
+
+                  {remoteSync.needsPull && (
+                    <span className={styles['pull-badge']}>
+                      {remoteSync.behind > 99 ? '99+' : remoteSync.behind}
+                    </span>
+                  )}
                 </button>
               </Tooltip>
 
-              <Tooltip content="推送 (Push)">
+              <Tooltip content={remoteSync.needsPush ? `需要 Push：当前分支领先远程 ${remoteSync.ahead} 个提交` : '推送 (Push)'}>
                 <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'push' })}>
                   <i className="codicon codicon-repo-push" />
                 </button>
@@ -381,8 +473,11 @@ export default function GitApp() {
           }}
           onPaste={(e) => {
             e.preventDefault();
+
             const text = e.clipboardData.getData('text/plain');
+
             if (!text) return;
+
             insertPlainTextAtCursor(text);
 
             const el = e.currentTarget;
@@ -403,7 +498,11 @@ export default function GitApp() {
           suppressContentEditableWarning={true}
         />
 
-        <button className={styles['commit-btn']} disabled={!isRepo || loading || !commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0)} onClick={handleCommit}>
+        <button
+          className={styles['commit-btn']}
+          disabled={!isRepo || loading || !commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0)}
+          onClick={handleCommit}
+        >
           {loading ? (
             <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} />
           ) : (
@@ -430,7 +529,10 @@ export default function GitApp() {
                       e.stopPropagation();
                       setChangesRefreshing(true);
                       lastRefreshRef.current = Date.now();
-                      vscode.postMessage({ command: 'refreshStatusOnly' });
+
+                      vscode.postMessage({
+                        command: 'refreshStatusOnly',
+                      });
                     }}
                   >
                     <i className="codicon codicon-refresh" />
@@ -443,7 +545,11 @@ export default function GitApp() {
                       className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        vscode.postMessage({ command: 'undoLastCommit' });
+
+                        vscode.postMessage({
+                          command: 'undoLastCommit',
+                        });
+
                         setJustCommitted(false);
                       }}
                     >
@@ -457,7 +563,6 @@ export default function GitApp() {
 
           {isChangesOpen && (
             <div className={styles['changes-content']}>
-              {/* 1. 暂存区 */}
               {stagedFiles.length > 0 && (
                 <div className={`${styles['changes-section']} ${styles['nested-section']}`}>
                   <div className={`${styles['changes-header']} ${styles['subsection-header']}`}>
@@ -473,7 +578,10 @@ export default function GitApp() {
                             className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              vscode.postMessage({ command: 'openStagedChanges' });
+
+                              vscode.postMessage({
+                                command: 'openStagedChanges',
+                              });
                             }}
                           >
                             <i className="codicon codicon-diff-multiple" />
@@ -486,7 +594,10 @@ export default function GitApp() {
                           className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            vscode.postMessage({ command: 'unstageAll' });
+
+                            vscode.postMessage({
+                              command: 'unstageAll',
+                            });
                           }}
                         >
                           <i className="codicon codicon-remove" />
@@ -510,7 +621,6 @@ export default function GitApp() {
                 </div>
               )}
 
-              {/* 2. 工作区 */}
               <div className={`${styles['changes-section']} ${styles['nested-section']}`}>
                 <div className={`${styles['changes-header']} ${styles['subsection-header']}`}>
                   <div className={styles['header-title-row']}>
@@ -525,7 +635,10 @@ export default function GitApp() {
                           className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            vscode.postMessage({ command: 'openWorkingTreeChanges' });
+
+                            vscode.postMessage({
+                              command: 'openWorkingTreeChanges',
+                            });
                           }}
                         >
                           <i className="codicon codicon-diff-multiple" />
@@ -539,7 +652,10 @@ export default function GitApp() {
                           className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            vscode.postMessage({ command: 'stash' });
+
+                            vscode.postMessage({
+                              command: 'stash',
+                            });
                           }}
                         >
                           <i className="codicon codicon-archive" />
@@ -554,10 +670,18 @@ export default function GitApp() {
                             className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                             onClick={(e) => {
                               e.stopPropagation();
+
                               if (unstagedFiles.length === 1) {
-                                vscode.postMessage({ command: 'discard', file: unstagedFiles[0].file, status: unstagedFiles[0].status });
+                                vscode.postMessage({
+                                  command: 'discard',
+                                  file: unstagedFiles[0].file,
+                                  status: unstagedFiles[0].status,
+                                });
                               } else {
-                                vscode.postMessage({ command: 'discardAll', count: unstagedFiles.length });
+                                vscode.postMessage({
+                                  command: 'discardAll',
+                                  count: unstagedFiles.length,
+                                });
                               }
                             }}
                           >
@@ -570,7 +694,10 @@ export default function GitApp() {
                             className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                             onClick={(e) => {
                               e.stopPropagation();
-                              vscode.postMessage({ command: 'stageAll' });
+
+                              vscode.postMessage({
+                                command: 'stageAll',
+                              });
                             }}
                           >
                             <i className="codicon codicon-plus" />
@@ -599,16 +726,12 @@ export default function GitApp() {
                 )}
               </div>
 
-              {/* 3. 冲突区 */}
               {conflictedFiles.length > 0 && (
                 <div className={`${styles['changes-section']} ${styles['nested-section']} ${styles['conflict-section']}`}>
                   <div className={`${styles['changes-header']} ${styles['subsection-header']}`}>
                     <div className={`${styles['header-title-row']} ${styles['conflict-title']}`}>
                       <i className={`codicon codicon-warning ${styles['section-chevron']}`} />
-                      冲突区{' '}
-                      <span className={`${styles['badge']} ${styles['conflict-badge']}`}>
-                        {conflictedFiles.length}
-                      </span>
+                      冲突区 <span className={`${styles['badge']} ${styles['conflict-badge']}`}>{conflictedFiles.length}</span>
                     </div>
                   </div>
 
@@ -632,16 +755,13 @@ export default function GitApp() {
           )}
         </div>
 
-        {/* 🌟 贮藏 (Stashes) 面板 */}
         {stashes.length > 0 && (
           <div className={`${styles['changes-section']} ${styles['section-top-gap']}`}>
             <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsStashesOpen(!isStashesOpen)}>
               <div className={styles['header-flex-title']}>
                 <i className={`codicon ${isStashesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
                 <span className={styles['text-no-shrink']}>贮藏</span>
-                <span className={`${styles['badge']} ${styles['text-no-shrink']}`}>
-                  {stashes.length}
-                </span>
+                <span className={`${styles['badge']} ${styles['text-no-shrink']}`}>{stashes.length}</span>
               </div>
             </div>
 
@@ -663,15 +783,24 @@ export default function GitApp() {
                               setExpandedStashIndex(null);
                             } else {
                               setExpandedStashIndex(stash.index);
+
                               if (!stashFilesMap[stash.index]) {
-                                setStashFilesLoading((prev) => ({ ...prev, [stash.index]: true }));
-                                vscode.postMessage({ command: 'getStashFiles', index: stash.index });
+                                setStashFilesLoading((prev) => ({
+                                  ...prev,
+                                  [stash.index]: true,
+                                }));
+
+                                vscode.postMessage({
+                                  command: 'getStashFiles',
+                                  index: stash.index,
+                                });
                               }
                             }
                           }}
                         >
                           <i className={`codicon ${isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['stash-chevron']}`} />
                           <i className={`codicon codicon-archive ${styles['stash-icon']}`} />
+
                           <div className={styles['file-name']}>{stash.message}</div>
                           <div className={styles['flex-spacer']}></div>
 
@@ -681,7 +810,11 @@ export default function GitApp() {
                                 className={styles['action-btn']}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  vscode.postMessage({ command: 'stashApply', index: stash.index });
+
+                                  vscode.postMessage({
+                                    command: 'stashApply',
+                                    index: stash.index,
+                                  });
                                 }}
                               >
                                 <i className="codicon codicon-git-stash-apply" />
@@ -693,7 +826,11 @@ export default function GitApp() {
                                 className={styles['action-btn']}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  vscode.postMessage({ command: 'stashPop', index: stash.index });
+
+                                  vscode.postMessage({
+                                    command: 'stashPop',
+                                    index: stash.index,
+                                  });
                                 }}
                               >
                                 <i className="codicon codicon-git-stash-pop" />
@@ -705,7 +842,11 @@ export default function GitApp() {
                                 className={styles['action-btn']}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  vscode.postMessage({ command: 'stashDrop', index: stash.index });
+
+                                  vscode.postMessage({
+                                    command: 'stashDrop',
+                                    index: stash.index,
+                                  });
                                 }}
                               >
                                 <i className="codicon codicon-trash" />
@@ -764,9 +905,7 @@ export default function GitApp() {
                 </span>
               )}
 
-              <span className={`${styles['badge']} ${styles['text-no-shrink']}`}>
-                {compareCommits.length}
-              </span>
+              <span className={`${styles['badge']} ${styles['text-no-shrink']}`}>{compareCommits.length}</span>
             </div>
 
             {isRepo && (
@@ -776,14 +915,20 @@ export default function GitApp() {
                     className={`${styles['action-btn']} ${styles['section-action-btn']} ${!activeFile ? styles['action-btn-disabled'] : ''}`}
                     onClick={(e) => {
                       e.stopPropagation();
+
                       if (!activeFile) {
                         vscode.postMessage({
                           command: 'error',
                           message: '当前没有在编辑器中打开任何文件，无法查看历史记录。',
                         });
+
                         return;
                       }
-                      vscode.postMessage({ command: 'viewFileHistory', file: activeFile });
+
+                      vscode.postMessage({
+                        command: 'viewFileHistory',
+                        file: activeFile,
+                      });
                     }}
                   >
                     <i className="codicon codicon-history" />
@@ -795,7 +940,10 @@ export default function GitApp() {
                     className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      vscode.postMessage({ command: 'compareFileAcrossBranches' });
+
+                      vscode.postMessage({
+                        command: 'compareFileAcrossBranches',
+                      });
                     }}
                   >
                     <i className="codicon codicon-git-compare" />
@@ -867,6 +1015,7 @@ export default function GitApp() {
           <div className={styles['header-flex-title']}>
             <i className={`codicon ${isGraphOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
             <span className={styles['text-no-shrink']}>图形</span>
+
             {totalCommits > 0 && (
               <span className={`${styles['badge']} ${styles['graph-total-badge']}`} title={`总提交记录: ${totalCommits} 次`}>
                 {totalCommits}
@@ -881,7 +1030,10 @@ export default function GitApp() {
                   className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    vscode.postMessage({ command: 'createBranch' });
+
+                    vscode.postMessage({
+                      command: 'createBranch',
+                    });
                   }}
                 >
                   <i className="codicon codicon-git-branch-staged-changes" />
@@ -893,7 +1045,10 @@ export default function GitApp() {
                   className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    vscode.postMessage({ command: 'checkoutBranch' });
+
+                    vscode.postMessage({
+                      command: 'checkoutBranch',
+                    });
                   }}
                 >
                   <i className="codicon codicon-git-branch" />
@@ -905,7 +1060,10 @@ export default function GitApp() {
                   className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    vscode.postMessage({ command: 'mergeBranch' });
+
+                    vscode.postMessage({
+                      command: 'mergeBranch',
+                    });
                   }}
                 >
                   <i className="codicon codicon-merge" />
@@ -914,11 +1072,16 @@ export default function GitApp() {
 
               <Tooltip content={`筛选分支 (${selectedGraphFilter})`}>
                 <button
-                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
-                    } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
+                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${
+                    selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
+                  } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    vscode.postMessage({ command: 'changeGraphFilter', current: selectedGraphFilter });
+
+                    vscode.postMessage({
+                      command: 'changeGraphFilter',
+                      current: selectedGraphFilter,
+                    });
                   }}
                 >
                   <i className="codicon codicon-filter" />
@@ -942,9 +1105,13 @@ export default function GitApp() {
                   className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                   onClick={(e) => {
                     e.stopPropagation();
+
                     setIsGraphLoading(true);
                     lastRefreshRef.current = Date.now();
-                    vscode.postMessage({ command: 'refresh' });
+
+                    vscode.postMessage({
+                      command: 'refresh',
+                    });
                   }}
                 >
                   <i className="codicon codicon-refresh" />
@@ -992,10 +1159,20 @@ export default function GitApp() {
               )}
               onCommitContextMenu={(e, commit) => {
                 e.preventDefault();
-                setContextMenu({ visible: true, x: e.clientX, y: e.clientY, type: 'commit', commit });
+
+                setContextMenu({
+                  visible: true,
+                  x: e.clientX,
+                  y: e.clientY,
+                  type: 'commit',
+                  commit,
+                });
               }}
               onOpenCommitMultiDiff={(hash) => {
-                vscode.postMessage({ command: 'openCommitMultiDiff', hash });
+                vscode.postMessage({
+                  command: 'openCommitMultiDiff',
+                  hash,
+                });
               }}
             />
           ))}
