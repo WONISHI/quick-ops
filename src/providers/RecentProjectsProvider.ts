@@ -664,6 +664,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, '/html-preview');
+      panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'html.svg');
     } catch (e) {
       vscode.window.showErrorMessage('无法打开 HTML 预览。');
     }
