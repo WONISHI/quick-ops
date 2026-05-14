@@ -910,45 +910,68 @@ export default function GitApp() {
 
             {isRepo && (
               <div className={styles['inline-actions-fixed']}>
-                <Tooltip content={activeFile ? `查看当前文件历史` : '查看当前文件历史 (请先打开文件)'}>
-                  <button
-                    className={`${styles['action-btn']} ${styles['section-action-btn']} ${!activeFile ? styles['action-btn-disabled'] : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
+                {(!compareTarget || !compareBase) && (
+                  <>
+                    <Tooltip content={activeFile ? `查看当前文件历史` : '查看当前文件历史 (请先打开文件)'}>
+                      <button
+                        className={`${styles['action-btn']} ${styles['section-action-btn']} ${!activeFile ? styles['action-btn-disabled'] : ''}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
 
-                      if (!activeFile) {
+                          if (!activeFile) {
+                            vscode.postMessage({
+                              command: 'error',
+                              message: '当前没有在编辑器中打开任何文件，无法查看历史记录。',
+                            });
+
+                            return;
+                          }
+
+                          vscode.postMessage({
+                            command: 'viewFileHistory',
+                            file: activeFile,
+                          });
+                        }}
+                      >
+                        <i className="codicon codicon-history" />
+                      </button>
+                    </Tooltip>
+
+                    <Tooltip content="跨分支对比">
+                      <button
+                        className={`${styles['action-btn']} ${styles['section-action-btn']}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+
+                          vscode.postMessage({
+                            command: 'compareFileAcrossBranches',
+                          });
+                        }}
+                      >
+                        <i className="codicon codicon-git-compare" />
+                      </button>
+                    </Tooltip>
+                  </>
+                )}
+
+                {compareTarget && compareBase && compareBase !== '文件历史' && (
+                  <Tooltip content="重新打开分支文件对比">
+                    <button
+                      className={`${styles['action-btn']} ${styles['section-action-btn']}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+
                         vscode.postMessage({
-                          command: 'error',
-                          message: '当前没有在编辑器中打开任何文件，无法查看历史记录。',
+                          command: 'compareFileAcrossBranches',
+                          baseBranch: compareBase,
+                          targetBranch: compareTarget,
                         });
-
-                        return;
-                      }
-
-                      vscode.postMessage({
-                        command: 'viewFileHistory',
-                        file: activeFile,
-                      });
-                    }}
-                  >
-                    <i className="codicon codicon-history" />
-                  </button>
-                </Tooltip>
-
-                <Tooltip content="跨分支对比">
-                  <button
-                    className={`${styles['action-btn']} ${styles['section-action-btn']}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-
-                      vscode.postMessage({
-                        command: 'compareFileAcrossBranches',
-                      });
-                    }}
-                  >
-                    <i className="codicon codicon-git-compare" />
-                  </button>
-                </Tooltip>
+                      }}
+                    >
+                      <i className="codicon codicon-diff-multiple" />
+                    </button>
+                  </Tooltip>
+                )}
 
                 {compareTarget && compareBase && (
                   <Tooltip content="关闭对比">
@@ -1078,9 +1101,8 @@ export default function GitApp() {
 
               <Tooltip content={`筛选分支 (${selectedGraphFilter})`}>
                 <button
-                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${
-                    selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
-                  } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
+                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
+                    } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
 

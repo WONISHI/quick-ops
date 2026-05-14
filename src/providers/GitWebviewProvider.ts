@@ -927,91 +927,94 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
           case 'compareFileAcrossBranches': {
             try {
-              const quickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { branchName: string }>();
+              let baseBranch: string | undefined = msg.baseBranch;
+              let targetBranch: string | undefined = msg.targetBranch;
 
-              quickPick.placeholder = '1/2: 请选择【基准分支】(Base Branch，支持远程分支)';
-              quickPick.matchOnDescription = true;
+              if (!baseBranch || !targetBranch) {
+                const quickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { branchName: string }>();
 
-              const updateQuickPickItems = async () => {
-                await this.withViewProgress(async () => {
-                  const branchNames = await this.gitService.getAllBranches(cwd);
-                  const prevActive = quickPick.activeItems[0]?.branchName;
+                quickPick.placeholder = '1/2: 请选择【基准分支】(Base Branch，支持远程分支)';
+                quickPick.matchOnDescription = true;
 
-                  const items = branchNames.map((b) => ({
-                    label: b,
-                    branchName: b,
-                  }));
+                const updateQuickPickItems = async () => {
+                  await this.withViewProgress(async () => {
+                    const branchNames = await this.gitService.getAllBranches(cwd);
+                    const prevActive = quickPick.activeItems[0]?.branchName;
 
-                  quickPick.items = items;
+                    const items = branchNames.map((b) => ({
+                      label: b,
+                      branchName: b,
+                    }));
 
-                  if (prevActive) {
-                    const newActive = items.find((i) => i.branchName === prevActive);
+                    quickPick.items = items;
 
-                    if (newActive) {
-                      quickPick.activeItems = [newActive];
+                    if (prevActive) {
+                      const newActive = items.find((i) => i.branchName === prevActive);
+
+                      if (newActive) {
+                        quickPick.activeItems = [newActive];
+                      }
                     }
+                  });
+                };
+
+                await updateQuickPickItems();
+                quickPick.show();
+
+                quickPick.busy = true;
+
+                this.executeGitOperation(async () => {
+                  try {
+                    await this.gitService.fetchAllPrune(cwd);
+                    await updateQuickPickItems();
+                  } catch {
+                    // ignore
                   }
-                });
-              };
-
-              await updateQuickPickItems();
-              quickPick.show();
-
-              quickPick.busy = true;
-
-              this.executeGitOperation(async () => {
-                try {
-                  await this.gitService.fetchAllPrune(cwd);
-                  await updateQuickPickItems();
-                } catch {
-                  // ignore
-                }
-              }).finally(() => {
-                quickPick.busy = false;
-              });
-
-              const baseBranch = await new Promise<string | undefined>((resolve) => {
-                quickPick.onDidAccept(() => {
-                  const selection = quickPick.selectedItems[0];
-                  resolve(selection ? selection.branchName : undefined);
-                  quickPick.hide();
+                }).finally(() => {
+                  quickPick.busy = false;
                 });
 
-                quickPick.onDidHide(() => {
-                  quickPick.dispose();
-                  resolve(undefined);
+                baseBranch = await new Promise<string | undefined>((resolve) => {
+                  quickPick.onDidAccept(() => {
+                    const selection = quickPick.selectedItems[0];
+                    resolve(selection ? selection.branchName : undefined);
+                    quickPick.hide();
+                  });
+
+                  quickPick.onDidHide(() => {
+                    quickPick.dispose();
+                    resolve(undefined);
+                  });
                 });
-              });
 
-              if (!baseBranch) return;
+                if (!baseBranch) return;
 
-              let targetBranch: string | undefined;
+                await this.withViewProgress(async () => {
+                  const branchesAfterFetch = await this.gitService.getAllBranches(cwd);
+                  const branchNamesAfterFetch = branchesAfterFetch.filter((b) => b !== baseBranch);
+
+                  targetBranch = await vscode.window.showQuickPick(branchNamesAfterFetch, {
+                    placeHolder: `2/2: 请选择【目标分支】(查看 ${baseBranch} 中没有的记录)`,
+                    matchOnDescription: true,
+                  });
+                });
+
+                if (!targetBranch) return;
+              }
 
               await this.withViewProgress(async () => {
-                const branchesAfterFetch = await this.gitService.getAllBranches(cwd);
-                const branchNamesAfterFetch = branchesAfterFetch.filter((b) => b !== baseBranch);
-
-                targetBranch = await vscode.window.showQuickPick(branchNamesAfterFetch, {
-                  placeHolder: `2/2: 请选择【目标分支】(查看 ${baseBranch} 中没有的记录)`,
-                  matchOnDescription: true,
-                });
-              });
-
-              if (!targetBranch) return;
-
-              await this.withViewProgress(async () => {
-                const commits = await this.gitService.getCompareCommits(cwd, baseBranch, targetBranch!);
+                const commits = await this.gitService.getCompareCommits(cwd, baseBranch!, targetBranch!);
 
                 this._view?.webview.postMessage({
                   type: 'compareData',
-                  baseBranch,
-                  targetBranch,
+                  baseBranch: baseBranch!,
+                  targetBranch: targetBranch!,
                   commits,
                 });
               });
 
               await this.withViewProgress(async () => {
-                const diffFiles = await this.gitService.getDiffFilesBetweenBranches(cwd, baseBranch, targetBranch!);
+                const diffFiles = await this.gitService.getDiffFilesBetweenBranches(cwd, baseBranch!, targetBranch!);
 
                 if (diffFiles.length === 0) {
                   vscode.window.showInformationMessage(`分支 ${baseBranch} 和 ${targetBranch} 之间没有任何文件差异。`);
@@ -1019,7 +1022,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 }
 
                 const changesArgs = diffFiles.map((f) => {
-                  let leftRef = baseBranch;
+                  let leftRef = baseBranch!;
                   let rightRef = targetBranch!;
 
                   if (f.status === 'A') leftRef = 'empty';
