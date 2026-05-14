@@ -1,5 +1,3 @@
-/* src/assets/css/GitGraph.module.css */
-
 /* =========================================
    Git Graph 提交树容器与行
    ========================================= */
@@ -30,6 +28,16 @@
     position: relative;
 }
 
+.graph-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: var(--graph-canvas-height);
+    pointer-events: none;
+    z-index: 1;
+}
+
 .commit-row {
     display: flex;
     align-items: center;
@@ -37,6 +45,8 @@
     cursor: pointer;
     box-sizing: border-box;
     transition: background-color 0.1s;
+    overflow: hidden;
+    padding-right: 8px;
 }
 
 .commit-row:hover,
@@ -259,3 +269,108 @@
     height: 100%;
 }
 
+.graph-lane-spacer {
+    width: var(--graph-lane-spacer-width);
+    flex-shrink: 0;
+}
+
+.commit-message-wrap {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.commit-message {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 13px;
+    line-height: 16px;
+}
+
+.commit-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+
+.local-ref-badge {
+    display: flex;
+    align-items: center;
+    background-color: #3168d1;
+    color: #ffffff;
+    padding: 0 6px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: bold;
+    gap: 3px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    height: 20px;
+}
+
+.remote-sync-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #6a2a88;
+    color: #ffffff;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+
+.commit-open-diff-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: transparent;
+    color: var(--vscode-icon-foreground);
+    border: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.2s, background-color 0.2s;
+}
+
+.commit-open-diff-btn:hover {
+    opacity: 1;
+    background-color: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
+.commit-expanded-block {
+    display: flex;
+    padding-top: 2px;
+    padding-bottom: 4px;
+}
+
+.commit-files-loading {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    opacity: 0.6;
+    font-size: 11px;
+    padding: 0 12px;
+}
+
+.commit-files-loading-icon {
+    margin-right: 6px;
+}
+
+.graph-search-highlight {
+    background-color: var(--vscode-editor-findMatchHighlightBackground, #ea5c0055);
+    color: inherit;
+    border: none;
+    border-radius: 2px;
+}
+
+.graph-search-highlight-active {
+    background-color: var(--vscode-editor-findMatchBackground, #515c6a);
+    border: 1px solid var(--vscode-editor-findMatchBorder, #f48771);
+}

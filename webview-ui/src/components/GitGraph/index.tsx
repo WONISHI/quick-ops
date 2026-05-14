@@ -538,14 +538,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
             part.toLowerCase() === query.toLowerCase() ? (
                 <span
                     key={i}
-                    style={{
-                        backgroundColor: isActiveMatch
-                            ? 'var(--vscode-editor-findMatchBackground, #515c6a)'
-                            : 'var(--vscode-editor-findMatchHighlightBackground, #ea5c0055)',
-                        color: 'inherit',
-                        border: isActiveMatch ? '1px solid var(--vscode-editor-findMatchBorder, #f48771)' : 'none',
-                        borderRadius: '2px'
-                    }}
+                    className={`${styles['graph-search-highlight']} ${isActiveMatch ? styles['graph-search-highlight-active'] : ''}`}
                 >
                     {part}
                 </span>
@@ -587,13 +580,13 @@ const GitGraph: React.FC<GitGraphProps> = ({
                 className={styles['graph-scroll-view']}
                 ref={graphContainerRef}
                 onScroll={handleGraphScroll}
-                style={{ position: 'relative', flex: 1, overflowY: 'auto' }}
             >
                 <canvas
                     ref={canvasRef}
-                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: `${renderedHeight}px`, pointerEvents: 'none', zIndex: 1 }}
+                    className={styles['graph-canvas']}
+                    style={{ '--graph-canvas-height': `${renderedHeight}px` } as React.CSSProperties}
                 />
-                <ul className={styles['commit-timeline']} style={{ position: 'relative', zIndex: 2, margin: 0, padding: 0, listStyle: 'none' }}>
+                <ul className={styles['commit-timeline']}>
                     {graphData.vertices.slice(0, displayCount).map((v, idx) => {
                         const c = graphCommits[idx];
                         const paddingWidth = (v.getNextPoint().x + 1) * LANE_WIDTH + 14;
@@ -621,40 +614,27 @@ const GitGraph: React.FC<GitGraphProps> = ({
                         }
 
                         return (
-                            <li key={c.hash} className={styles['commit-log-item']} style={{ position: 'relative' }}>
+                            <li key={c.hash} className={styles['commit-log-item']}>
                                 <div
                                     className={`${styles['commit-row']} ${activeCommitHash === c.hash ? styles['active'] : ''}`}
                                     onClick={() => handleItemClick(c.hash)}
                                     onMouseEnter={(e) => handleMouseEnter(e, c)}
                                     onMouseLeave={handleMouseLeave}
                                     onContextMenu={(e) => onCommitContextMenu(e, c)}
-                                    style={{ height: `${ROW_HEIGHT}px`, display: 'flex', alignItems: 'center', overflow: 'hidden', paddingRight: '8px', cursor: 'pointer' }}
                                 >
-                                    <div style={{ width: paddingWidth, flexShrink: 0 }} />
+                                    <div className={styles['graph-lane-spacer']} style={{ '--graph-lane-spacer-width': `${paddingWidth}px` } as React.CSSProperties} />
 
-                                    <div className={styles['commit-content']} style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'space-between', minWidth: 0, height: '100%' }}>
-                                        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-                                            <div className={styles['commit-message']} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '13px', lineHeight: '16px' }}>
+                                    <div className={styles['commit-content']}>
+                                        <div className={styles['commit-message-wrap']}>
+                                            <div className={styles['commit-message']}>
                                                 {isSearchOpen ? highlightText(c.message, searchQuery, isActiveMatch) : c.message}
                                             </div>
                                         </div>
 
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginLeft: '8px' }}>
+                                        <div className={styles['commit-row-actions']}>
                                             {localRef && (
                                                 <div
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        backgroundColor: '#3168d1',
-                                                        color: '#ffffff',
-                                                        padding: '0 6px',
-                                                        borderRadius: '10px',
-                                                        fontSize: '11px',
-                                                        fontWeight: 'bold',
-                                                        gap: '3px',
-                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
-                                                        height: '20px'
-                                                    }}
+                                                    className={styles['local-ref-badge']}
                                                     title={`本地分支: ${localRef}`}
                                                 >
                                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -668,17 +648,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
                                             {isRemotePush && (
                                                 <div
-                                                    style={{
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        backgroundColor: '#6a2a88',
-                                                        color: '#ffffff',
-                                                        width: '20px',
-                                                        height: '20px',
-                                                        borderRadius: '50%',
-                                                        boxShadow: '0 1px 2px rgba(0,0,0,0.2)'
-                                                    }}
+                                                    className={styles['remote-sync-badge']}
                                                     title="已同步至远程仓库"
                                                 >
                                                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -690,34 +660,14 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                             {hoveredRowHash === c.hash && (
                                                 <Tooltip content="打开更改">
                                                     <button
+                                                        className={styles['commit-open-diff-btn']}
                                                         onClick={(e) => {
                                                             e.stopPropagation();
                                                             onOpenCommitMultiDiff(c.hash);
                                                         }}
-                                                        style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            backgroundColor: 'transparent',
-                                                            color: 'var(--vscode-icon-foreground)',
-                                                            border: 'none',
-                                                            width: '22px',
-                                                            height: '22px',
-                                                            borderRadius: '4px',
-                                                            cursor: 'pointer',
-                                                            opacity: 0.8,
-                                                            transition: 'opacity 0.2s, background-color 0.2s'
-                                                        }}
-                                                        onMouseEnter={(e) => {
+                                                        onMouseEnter={() => {
                                                             if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
                                                             setHoverInfo(null);
-
-                                                            e.currentTarget.style.opacity = '1';
-                                                            e.currentTarget.style.backgroundColor = 'var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31))';
-                                                        }}
-                                                        onMouseLeave={(e) => {
-                                                            e.currentTarget.style.opacity = '0.8';
-                                                            e.currentTarget.style.backgroundColor = 'transparent';
                                                         }}
                                                     >
                                                         <i className="codicon codicon-diff-multiple" />
@@ -734,16 +684,15 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                             expandedBlockRefs.current[c.hash] = el;
                                         }}
                                         data-hash={c.hash}
-                                        style={{ display: 'flex', paddingTop: '2px', paddingBottom: '4px' }}
+                                        className={styles['commit-expanded-block']}
                                     >
-                                        <div style={{ width: paddingWidth, flexShrink: 0 }} />
+                                        <div className={styles['graph-lane-spacer']} style={{ '--graph-lane-spacer-width': `${paddingWidth}px` } as React.CSSProperties} />
                                         <div
                                             className={styles['commit-files-wrapper']}
-                                            style={{ marginLeft: 0, flex: 1, minWidth: 0 }}
                                         >
                                             {isLoading ? (
-                                                <div style={{ height: '32px', display: 'flex', alignItems: 'center', opacity: 0.6, fontSize: '11px', padding: '0 12px' }}>
-                                                    <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} />
+                                                <div className={styles['commit-files-loading']}>
+                                                    <i className={`codicon codicon-loading codicon-modifier-spin ${styles['commit-files-loading-icon']}`} />
                                                     加载变动文件...
                                                 </div>
                                             ) : (
