@@ -437,7 +437,7 @@ export class GitService {
     const stashHash = `stash@{${index}}`;
     const parentHash = `${stashHash}^1`;
 
-    const diffRaw = await git.raw(['diff', '--name-status', parentHash, stashHash]);
+    const diffRaw = await git.raw(['-c', 'core.quotepath=false', 'diff', '--name-status', parentHash, stashHash]);
     const files = this.parseNameStatus(diffRaw);
 
     return {
@@ -508,7 +508,7 @@ export class GitService {
   }
 
   public async getDiffFilesBetweenBranches(cwd: string, baseBranch: string, targetBranch: string): Promise<GitFileItem[]> {
-    const diffRaw = await this.createGit(cwd).raw(['diff', '--name-status', baseBranch, targetBranch]);
+    const diffRaw = await this.createGit(cwd).raw(['-c', 'core.quotepath=false', 'diff', '--name-status', baseBranch, targetBranch]);
 
     return this.parseNameStatus(diffRaw);
   }
@@ -516,7 +516,7 @@ export class GitService {
   public async getCommitFiles(cwd: string, hash: string): Promise<CommitFilesResult> {
     const git = this.createGit(cwd);
 
-    const diffRaw = await git.raw(['diff-tree', '--no-commit-id', '--name-status', '-r', '--root', hash]);
+    const diffRaw = await git.raw(['-c', 'core.quotepath=false', 'diff-tree', '--no-commit-id', '--name-status', '-r', '--root', hash]);
     const files = this.parseNameStatus(diffRaw);
 
     let parentHash: string | undefined;
