@@ -628,6 +628,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                         <div className={styles['commit-message-wrap']}>
                                             <div className={styles['commit-message']}>
                                                 {isSearchOpen ? highlightText(c.message, searchQuery, isActiveMatch) : c.message}
+                                                <span className={styles['commit-author']}> {c.author}</span>
                                             </div>
                                         </div>
 
