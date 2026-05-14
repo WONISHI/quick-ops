@@ -4,6 +4,7 @@ import { GitWebviewProvider } from '../providers/GitWebviewProvider';
 import ColorLog from '../utils/ColorLog';
 import simpleGit from 'simple-git';
 import { execFile } from 'child_process';
+import GitDetailWebviewPanel from '../providers/GitDetailWebviewPanel';
 import * as path from 'path';
 
 export class GitFeature implements IFeature {
@@ -14,10 +15,19 @@ export class GitFeature implements IFeature {
   private readonly GIT_PROJECTS_STATE_KEY = 'quickOps.gitProjectsHistory';
   private readonly LAST_CLONE_PATH_KEY = 'quickOps.lastClonePath';
   private gitProvider!: GitWebviewProvider;
+  private gitDetailPanel!: GitDetailWebviewPanel;
   private _currentPreviewPath: string | undefined;
 
   private createGit() {
     return simpleGit();
+  }
+
+  private registerOpenGitDetailCommand(context: vscode.ExtensionContext): void {
+    context.subscriptions.push(
+      vscode.commands.registerCommand('quickOps.openGitDetail', () => {
+        this.gitDetailPanel.open();
+      }),
+    );
   }
 
   private getRepoFolderName(repoUrl: string): string {
@@ -62,11 +72,11 @@ export class GitFeature implements IFeature {
 
     try {
       name = (await git.raw(['config', '--global', 'user.name'])).trim();
-    } catch {}
+    } catch { }
 
     try {
       email = (await git.raw(['config', '--global', 'user.email'])).trim();
-    } catch {}
+    } catch { }
 
     return { name, email };
   }
@@ -117,7 +127,7 @@ export class GitFeature implements IFeature {
 
     if (newName !== oldName) {
       if (!newName) {
-        await git.raw(['config', '--global', '--unset', 'user.name']).catch(() => {});
+        await git.raw(['config', '--global', '--unset', 'user.name']).catch(() => { });
       } else {
         await git.raw(['config', '--global', 'user.name', newName]);
       }
@@ -125,7 +135,7 @@ export class GitFeature implements IFeature {
 
     if (newEmail !== oldEmail) {
       if (!newEmail) {
-        await git.raw(['config', '--global', '--unset', 'user.email']).catch(() => {});
+        await git.raw(['config', '--global', '--unset', 'user.email']).catch(() => { });
       } else {
         await git.raw(['config', '--global', 'user.email', newEmail]);
       }
@@ -764,6 +774,8 @@ export class GitFeature implements IFeature {
   public activate(context: vscode.ExtensionContext): void {
     this.gitProvider = new GitWebviewProvider(context.extensionUri);
 
+    this.gitDetailPanel = new GitDetailWebviewPanel(context.extensionUri, () => this.gitProvider.getWorkspaceRoot());
+
     context.subscriptions.push(
       vscode.window.registerWebviewViewProvider('quickOps.gitView', this.gitProvider, {
         webviewOptions: { retainContextWhenHidden: true },
@@ -783,6 +795,7 @@ export class GitFeature implements IFeature {
     this.registerCloneGitProjectCommand(context);
     this.registerEditRemoteUrlCommand(context);
     this.registerOpenProjectCommand(context);
+    this.registerOpenGitDetailCommand(context);
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }

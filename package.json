@@ -469,6 +469,11 @@
         "command": "quickOps.revealInRecentProjects",
         "title": "在项目中定位",
         "icon": "$(target)"
+      },
+      {
+        "command": "quickOps.openGitDetail",
+        "title": "Git 详情",
+        "icon": "$(list-tree)"
       }
     ],
     "keybindings": [
@@ -536,6 +541,11 @@
           "command": "quickOps.editRemoteUrl",
           "when": "view == quickOps.gitView && quickOps.hasGitRemote",
           "group": "navigation@5"
+        },
+        {
+          "command": "quickOps.openGitDetail",
+          "when": "view == quickOps.gitView",
+          "group": "navigation@6"
         }
       ],
       "editor/title": [

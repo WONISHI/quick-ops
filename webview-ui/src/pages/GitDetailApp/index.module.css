@@ -1,0 +1,355 @@
+.git-detail-page {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+  font-size: 13px;
+}
+
+.git-detail-toolbar {
+  height: 44px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  box-sizing: border-box;
+  background: var(--vscode-sideBar-background);
+}
+
+.git-detail-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.branch-name {
+  color: var(--vscode-descriptionForeground);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.total-badge {
+  height: 22px;
+  line-height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.git-detail-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-btn {
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 4px;
+  color: var(--vscode-button-secondaryForeground);
+  background: var(--vscode-button-secondaryBackground);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.toolbar-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.detail-table-header {
+  height: 34px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-sideBar-background);
+  color: var(--vscode-descriptionForeground);
+  font-weight: 600;
+  box-sizing: border-box;
+}
+
+.graph-header {
+  width: 120px;
+  flex-shrink: 0;
+  padding-left: 28px;
+  box-sizing: border-box;
+}
+
+.desc-header {
+  flex: 1;
+  min-width: 0;
+}
+
+.date-header {
+  width: 200px;
+  flex-shrink: 0;
+  padding-left: 28px;
+  box-sizing: border-box;
+}
+
+.author-header {
+  width: 150px;
+  flex-shrink: 0;
+  padding-left: 28px;
+  box-sizing: border-box;
+}
+
+.commit-header {
+  width: 120px;
+  flex-shrink: 0;
+  padding-left: 28px;
+  box-sizing: border-box;
+}
+
+.git-detail-content {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: var(--vscode-sideBar-background);
+}
+
+.commit-list-scroll {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+.graph-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.commit-list {
+  position: relative;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.commit-item {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+.commit-row {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.commit-row:hover,
+.commit-row.active {
+  background: rgba(128, 128, 128, 0.15);
+}
+
+.graph-space {
+  flex-shrink: 0;
+  height: 100%;
+}
+
+.commit-desc {
+  flex: 1;
+  min-width: 0;
+}
+
+.commit-message-line {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 24px;
+  line-height: 24px;
+  overflow: hidden;
+}
+
+.commit-message {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--vscode-foreground);
+}
+
+.commit-date {
+  width: 200px;
+  flex-shrink: 0;
+  padding-left: 28px;
+  box-sizing: border-box;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commit-author {
+  width: 150px;
+  flex-shrink: 0;
+  padding-left: 28px;
+  box-sizing: border-box;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commit-hash {
+  width: 120px;
+  flex-shrink: 0;
+  padding-left: 28px;
+  box-sizing: border-box;
+  color: var(--vscode-descriptionForeground);
+  font-family: var(--vscode-editor-font-family);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ref-tag {
+  height: 20px;
+  line-height: 20px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+  padding: 0 9px;
+  border-radius: 4px;
+  background: rgba(128, 128, 128, 0.16);
+  color: var(--vscode-foreground);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ref-tag.head {
+  background: #3168d1;
+  color: #ffffff;
+}
+
+.ref-tag.remote {
+  background: #6a2a88;
+  color: #ffffff;
+}
+
+.commit-detail-box {
+  position: absolute;
+  left: 120px;
+  right: 0;
+  height: 206px;
+  display: flex;
+  border-top: 1px solid var(--vscode-panel-border);
+  border-bottom: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-editor-background);
+  box-sizing: border-box;
+}
+
+.detail-left-space {
+  display: none;
+}
+
+.detail-info {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px;
+  box-sizing: border-box;
+}
+
+.detail-row {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  line-height: 24px;
+}
+
+.detail-label {
+  width: 82px;
+  flex-shrink: 0;
+  color: var(--vscode-descriptionForeground);
+  font-weight: 600;
+}
+
+.detail-value {
+  min-width: 0;
+  color: var(--vscode-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail-link {
+  min-width: 0;
+  color: var(--vscode-textLink-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail-message {
+  margin-top: 20px;
+  color: var(--vscode-foreground);
+  line-height: 22px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail-actions {
+  width: 260px;
+  flex-shrink: 0;
+  padding: 14px 16px;
+  border-left: 1px solid var(--vscode-panel-border);
+  box-sizing: border-box;
+}
+
+.open-changes-btn {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 4px;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.open-changes-btn:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.loading-view,
+.empty-view {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--vscode-descriptionForeground);
+}

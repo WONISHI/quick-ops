@@ -57,7 +57,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private getWorkspaceRoot(): string | undefined {
+  public getWorkspaceRoot(): string | undefined {
     if (this._customCwd) return this._customCwd;
     return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
   }
