@@ -52,8 +52,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const targetUri = pending.path.includes('://') ? vscode.Uri.parse(pending.path) : vscode.Uri.file(pending.path);
 
       let attempts = 0;
-      const maxAttempts = 40; 
-      const delay = 50;       
+      const maxAttempts = 40;
+      const delay = 50;
 
       const tryOpenDoc = async () => {
         try {
@@ -63,9 +63,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const pos = new vscode.Position(pending.line, pending.char);
           editor.selection = new vscode.Selection(pos, pos);
           editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
-          return true; 
+          return true;
         } catch (e) {
-          return false; 
+          return false;
         }
       };
 
@@ -288,13 +288,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'addToHistory': {
           const currentWorkspace = vscode.workspace.workspaceFolders?.find(f => f.uri.toString() === data.fsPath);
           const name = currentWorkspace ? currentWorkspace.name : (data.projectName || path.basename(data.fsPath));
-          
+
           let platform, customDomain;
           if (data.fsPath.startsWith('vscode-vfs://') || data.fsPath.startsWith('http')) {
             const parsed = this.parseRemoteUrlInput(data.fsPath);
             if (parsed) { platform = parsed.platform; customDomain = parsed.customDomain; }
           }
-          
+
           await this.insertProjectToHistory(name, data.fsPath, platform, customDomain);
           vscode.window.showInformationMessage('✅ 已将当前项目添加到资源管理器记录');
           break;
@@ -335,7 +335,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             { modal: true },
             '在当前窗口打开 (替换工作区)',
             '在新窗口打开',
-            '仅作为散文件打开' 
+            '仅作为散文件打开'
           );
 
           if (!choice) return;
@@ -584,54 +584,88 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           vscode.window.showErrorMessage(`无法以文本模式打开该文件：${(err as Error).message}`);
         }
       } else {
-        try {
-          const contentBytes = await vscode.workspace.fs.readFile(uri);
-          const contentStr = Buffer.from(contentBytes).toString('utf8');
-
-          if (!contentStr || contentStr.trim() === '') {
-             throw new Error('文件为空或内容无法读取');
-          }
-
-          const panel = vscode.window.createWebviewPanel(
-            'customFilePreview',
-            `${projectName}: ${path.basename(uri.path)}`,
-            vscode.ViewColumn.Active,
-            {
-              enableScripts: true,
-              localResourceRoots: [vscode.Uri.file(path.dirname(uri.fsPath))]
-            }
-          );
-
-          this.activePanels.set(uri.fsPath, panel);
-
-          panel.onDidChangeViewState(({ webviewPanel }) => {
-            if (webviewPanel.active) {
-              this.setActivePath(fsPath);
-            }
-          });
-
-          panel.onDidDispose(() => {
-            if (this.activePanels.get(uri.fsPath) === panel) {
-              this.activePanels.delete(uri.fsPath);
-            }
-          });
-
-          if (isSvg) {
-            panel.webview.html = `<!DOCTYPE html>
-              <html lang="en">
-              <body style="background-color: transparent; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; padding: 20px; box-sizing: border-box;">
-                ${contentStr}
-              </body>
-              </html>`;
-          } else {
-            panel.webview.html = contentStr;
-          }
-        } catch (e) {
-          vscode.window.showErrorMessage(`解析渲染失败，文件可能已损坏：${(e as Error).message}`);
-        }
+        this.openHtmlPreviewPanel(fsPath, projectName, vscode.ViewColumn.Active);
       }
     } catch (e) {
       vscode.window.showErrorMessage('操作中断，请重试。');
+    }
+  }
+
+  private openHtmlPreviewPanel(fsPath: string, projectName: string, viewColumn: vscode.ViewColumn) {
+    try {
+      const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+      const fileName = path.basename(uri.path);
+
+      const panel = vscode.window.createWebviewPanel(
+        'htmlPreviewReact',
+        `${projectName}: ${fileName}`,
+        viewColumn,
+        {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: [
+            this.context.extensionUri,
+            vscode.Uri.file(path.dirname(uri.fsPath))
+          ]
+        }
+      );
+
+      this.activePanels.set(uri.fsPath, panel);
+
+      panel.onDidChangeViewState(({ webviewPanel }) => {
+        if (webviewPanel.active) {
+          this.setActivePath(fsPath);
+        }
+      });
+
+      panel.onDidDispose(() => {
+        if (this.activePanels.get(uri.fsPath) === panel) {
+          this.activePanels.delete(uri.fsPath);
+        }
+      });
+
+      panel.webview.onDidReceiveMessage(async (msg) => {
+        if (msg.command === 'webviewLoaded') {
+          panel.webview.postMessage({
+            type: 'initHtmlPreviewPath',
+            fsPath,
+          });
+        }
+
+        if (msg.type === 'loadLocalHtmlFile') {
+          const targetFsPath = msg.fsPath || fsPath;
+
+          try {
+            const targetUri = targetFsPath.includes('://') ? vscode.Uri.parse(targetFsPath) : vscode.Uri.file(targetFsPath);
+            const contentBytes = await vscode.workspace.fs.readFile(targetUri);
+            const content = Buffer.from(contentBytes).toString('utf8');
+
+            panel.webview.postMessage({
+              type: 'initHtmlData',
+              fsPath: targetFsPath,
+              content,
+            });
+          } catch (e: any) {
+            panel.webview.postMessage({
+              type: 'initLocalFileError',
+              fsPath: targetFsPath,
+              message: e?.message || 'HTML 文件读取失败',
+            });
+          }
+        }
+
+        if (msg.command === 'openExternal') {
+          try {
+            await vscode.env.openExternal(vscode.Uri.parse(msg.url));
+          } catch (e) {
+            vscode.window.showErrorMessage('无法打开该外部链接。');
+          }
+        }
+      });
+
+      panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, '/html-preview');
+    } catch (e) {
+      vscode.window.showErrorMessage('无法打开 HTML 预览。');
     }
   }
 
@@ -1250,7 +1284,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
         p = { name: folders[0].name, fsPath: fsPath, timestamp: 0, platform, customDomain };
       } else {
-        return; 
+        return;
       }
     }
 
@@ -1522,7 +1556,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private updateWebview() {
     if (!this._view) return;
     const projects = this.getRecentProjects();
-    
+
     let currentUriStr = '';
     let currentWorkspaceInfo = null;
 
@@ -1547,7 +1581,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         customDomain
       };
     }
-    
+
     const activeEditor = vscode.window.activeTextEditor;
     const activeFilePath = activeEditor ? activeEditor.document.uri.toString() : '';
 

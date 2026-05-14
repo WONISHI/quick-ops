@@ -4,17 +4,18 @@ import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
 
 interface HtmlPreviewAppProps {
-  fsPath: string;
+  fsPath?: string;
   iframeRef?: RefObject<HTMLIFrameElement | null>;
   onTitleChange?: (title: string) => void;
 }
 
 export default function HtmlPreviewApp(props: HtmlPreviewAppProps) {
-  const { fsPath, iframeRef, onTitleChange } = props;
+  const { iframeRef, onTitleChange } = props;
 
   const internalIframeRef = useRef<HTMLIFrameElement | null>(null);
   const currentIframeRef = iframeRef || internalIframeRef;
 
+  const [currentFsPath, setCurrentFsPath] = useState(props.fsPath || '');
   const [htmlContent, setHtmlContent] = useState('');
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -23,8 +24,12 @@ export default function HtmlPreviewApp(props: HtmlPreviewAppProps) {
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
 
+      if (message.type === 'initHtmlPreviewPath') {
+        setCurrentFsPath(message.fsPath || '');
+      }
+
       if (message.type === 'initHtmlData') {
-        if (message.fsPath && message.fsPath !== fsPath) return;
+        if (message.fsPath && currentFsPath && message.fsPath !== currentFsPath) return;
 
         setHtmlContent(message.content || '');
         setErrorMessage('');
@@ -32,7 +37,7 @@ export default function HtmlPreviewApp(props: HtmlPreviewAppProps) {
       }
 
       if (message.type === 'initLocalFileError') {
-        if (message.fsPath && message.fsPath !== fsPath) return;
+        if (message.fsPath && currentFsPath && message.fsPath !== currentFsPath) return;
 
         setHtmlContent('');
         setErrorMessage(message.message || 'HTML 文件读取失败');
@@ -42,19 +47,27 @@ export default function HtmlPreviewApp(props: HtmlPreviewAppProps) {
 
     window.addEventListener('message', handleMessage);
 
+    vscode?.postMessage({
+      command: 'webviewLoaded',
+    });
+
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [currentFsPath]);
+
+  useEffect(() => {
+    if (!currentFsPath) return;
+
     setLoading(true);
     setErrorMessage('');
     setHtmlContent('');
 
     vscode?.postMessage({
       type: 'loadLocalHtmlFile',
-      fsPath,
+      fsPath: currentFsPath,
     });
-
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
-  }, [fsPath]);
+  }, [currentFsPath]);
 
   const handleIframeLoad = () => {
     try {

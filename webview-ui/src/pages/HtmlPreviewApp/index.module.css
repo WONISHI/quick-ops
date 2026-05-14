@@ -1,6 +1,7 @@
 .html-preview-iframe {
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   border: none;
   outline: none;
   display: block;
@@ -8,8 +9,9 @@
 }
 
 .html-preview-state {
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
   min-height: 240px;
   display: flex;
   flex-direction: column;
