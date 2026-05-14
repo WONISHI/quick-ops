@@ -1,7 +1,7 @@
 .loading-mask {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: 999;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -18,6 +18,7 @@
 
 .loading-icon {
   position: relative;
+  z-index: 1;
   font-size: 18px;
   color: var(--vscode-foreground);
   opacity: 0.85;
