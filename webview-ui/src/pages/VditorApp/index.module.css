@@ -52,9 +52,20 @@
   height: 100% !important;
   min-width: 0 !important;
   min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
   border: none !important;
   background-color: transparent !important;
   box-sizing: border-box !important;
+}
+
+:global(.vditor-content) {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
 }
 
 :global(.vditor-toolbar) {
@@ -74,11 +85,13 @@
 
 /* 编辑模式 ir */
 :global(.vditor-ir) {
+  flex: 1 1 auto !important;
   width: 100% !important;
-  height: 100% !important;
+  height: auto !important;
   min-width: 0 !important;
   min-height: 0 !important;
-  overflow: auto !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
   padding: 24px 36px !important;
   box-sizing: border-box !important;
   background-color: transparent !important;
@@ -455,4 +468,32 @@
 :global(.meta-icon[data-meta-action="true"]) {
   user-select: none !important;
   -webkit-user-select: none !important;
+}
+
+.vditor-container:not(.read-mode) .vditor-wrapper {
+  overflow: hidden !important;
+}
+
+.vditor-container:not(.read-mode) :global(.vditor-content) {
+  flex: 1 1 auto !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.vditor-container:not(.read-mode) :global(.vditor-ir) {
+  flex: 1 1 auto !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+.vditor-container:not(.read-mode) :global(.vditor-ir .vditor-reset) {
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  padding: 24px 36px !important;
+  box-sizing: border-box !important;
 }
