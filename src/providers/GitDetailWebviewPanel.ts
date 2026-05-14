@@ -91,6 +91,8 @@ export class GitDetailWebviewPanel {
 
     this._panel.webview.html = getReactWebviewHtml(this._extensionUri, this._panel.webview, '/git-detail');
 
+    this._panel.iconPath = vscode.Uri.joinPath(this._extensionUri, 'resources', 'icons', 'git.png');
+
     const cwd = this.getWorkspaceRoot();
 
     if (cwd) {
