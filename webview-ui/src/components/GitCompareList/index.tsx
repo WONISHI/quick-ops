@@ -3,6 +3,7 @@ import styles from './index.module.css'; // 请确保这个路径正确指向你
 import { type GraphCommit } from '../GitGraph';
 import CommitHoverWidget from '../CommitHoverWidget';
 import type { GitFile } from '../../types/GitApp';
+import Tooltip from '../Tooltip';
 
 interface GitCompareListProps {
   commits: GraphCommit[];
@@ -13,9 +14,10 @@ interface GitCompareListProps {
   remoteUrl?: string;
   onCommitClick: (hash: string) => void;
   renderCommitFiles: (files: GitFile[]) => React.ReactNode;
+  onOpenCommitMultiDiff: (hash: string) => void;
 }
 
-const GitCompareList: React.FC<GitCompareListProps> = ({ commits, activeCommitHash, loadedCommitHash, commitFilesLoading, commitFiles, remoteUrl, onCommitClick, renderCommitFiles }) => {
+const GitCompareList: React.FC<GitCompareListProps> = ({ commits, activeCommitHash, loadedCommitHash, commitFilesLoading, commitFiles, remoteUrl, onCommitClick, renderCommitFiles, onOpenCommitMultiDiff }) => {
   const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit; x: number; y: number; position: 'top' | 'bottom' } | null>(null);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -77,11 +79,11 @@ const GitCompareList: React.FC<GitCompareListProps> = ({ commits, activeCommitHa
         />
       )}
 
-      <ul className={`${styles['file-list']} ${styles['compare-list']}`}>
+      <ul className={`${styles['file-list']} ${styles['compare-commit-list']}`}>
         {commits.map((c) => (
-          <li key={c.hash} className={styles['compare-list-item']}>
+          <li key={c.hash} className={styles['compare-commit-item']}>
             <div
-              className={`${styles['file-item']} ${styles['compare-commit-item']}`}
+              className={`${styles['file-item']} ${styles['compare-commit-row']}`}
               onClick={() => handleItemClick(c.hash)}
               onMouseEnter={(e) => handleMouseEnter(e, c)}
               onMouseLeave={handleMouseLeave} 
@@ -92,6 +94,18 @@ const GitCompareList: React.FC<GitCompareListProps> = ({ commits, activeCommitHa
 
               <div className={styles['compare-commit-content']}>
                 <div className={styles['compare-commit-message']}>{c.message}</div>
+
+                <Tooltip content="打开更改">
+                  <button
+                    className={styles['compare-commit-open-btn']}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onOpenCommitMultiDiff(c.hash);
+                    }}
+                  >
+                    <i className="codicon codicon-diff-multiple" />
+                  </button>
+                </Tooltip>
               </div>
             </div>
 
