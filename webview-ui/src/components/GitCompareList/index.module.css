@@ -146,3 +146,69 @@
 .empty-message{
     text-align: center;
 }
+
+.compare-list {
+    padding: 0;
+    margin: 0;
+}
+
+.compare-list-item {
+    padding: 0;
+}
+
+.compare-commit-item {
+    height: auto;
+    padding: 4px 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.compare-commit-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--vscode-icon-foreground);
+}
+
+.compare-commit-icon {
+    font-size: 16px;
+    color: #007acc;
+}
+
+.compare-commit-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.compare-commit-message {
+    font-size: 14px;
+    color: var(--vscode-foreground);
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.compare-commit-files-wrapper {
+    margin-left: 28px;
+    margin-right: 8px;
+    margin-bottom: 4px;
+}
+
+.compare-commit-loading {
+    height: 24px;
+    display: flex;
+    align-items: center;
+    opacity: 0.6;
+    font-size: 11px;
+}
+
+.compare-commit-loading-icon {
+    margin-right: 6px;
+}

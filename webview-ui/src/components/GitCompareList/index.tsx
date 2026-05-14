@@ -77,39 +77,29 @@ const GitCompareList: React.FC<GitCompareListProps> = ({ commits, activeCommitHa
         />
       )}
 
-      <ul className={styles['file-list']} style={{ padding: 0, margin: 0 }}>
+      <ul className={`${styles['file-list']} ${styles['compare-list']}`}>
         {commits.map((c) => (
-          <li key={c.hash} style={{ padding: 0 }}>
+          <li key={c.hash} className={styles['compare-list-item']}>
             <div
-              className={styles['file-item']}
-              style={{ height: 'auto', padding: '4px 8px', display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer' }}
+              className={`${styles['file-item']} ${styles['compare-commit-item']}`}
               onClick={() => handleItemClick(c.hash)}
               onMouseEnter={(e) => handleMouseEnter(e, c)}
               onMouseLeave={handleMouseLeave} 
             >
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  marginTop: '2px',
-                  color: 'var(--vscode-icon-foreground)',
-                }}
-              >
-                <i className="codicon codicon-git-commit" style={{ fontSize: '16px', color: '#007acc' }} />
+              <div className={styles['compare-commit-icon-wrap']}>
+                <i className={`codicon codicon-git-commit ${styles['compare-commit-icon']}`} />
               </div>
 
-              <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ fontSize: '14px', color: 'var(--vscode-foreground)', lineHeight: '1.4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.message}</div>
+              <div className={styles['compare-commit-content']}>
+                <div className={styles['compare-commit-message']}>{c.message}</div>
               </div>
             </div>
 
             {activeCommitHash === c.hash && (
-              <div className={styles['commit-files-wrapper']} style={{ marginLeft: '28px', marginRight: '8px', marginBottom: '4px' }}>
+              <div className={`${styles['commit-files-wrapper']} ${styles['compare-commit-files-wrapper']}`}>
                 {commitFilesLoading || loadedCommitHash !== c.hash ? (
-                  <div style={{ height: '24px', display: 'flex', alignItems: 'center', opacity: 0.6, fontSize: '11px' }}>
-                    <i className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '6px' }} /> 加载变动文件...
+                  <div className={styles['compare-commit-loading']}>
+                    <i className={`codicon codicon-loading codicon-modifier-spin ${styles['compare-commit-loading-icon']}`} /> 加载变动文件...
                   </div>
                 ) : (
                   renderCommitFiles(commitFiles)
