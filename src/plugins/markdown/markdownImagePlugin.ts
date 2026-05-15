@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs/promises';
 import * as path from 'path';
-import type { MarkdownProcessResult } from '../setupMarkdown';
+import type { MarkdownProcessResult } from './setupMarkdown';
 
 const WEB_URL_RE = /^(https?:\/\/|data:|blob:|vscode-webview-resource:|vscode-resource:|mailto:|#)/i;
 const IMAGE_DIR_NAMES = ['img', 'images', 'assets'];
@@ -97,7 +96,7 @@ async function exists(filePath: string) {
   }
 
   try {
-    await fs.stat(filePath);
+    await vscode.workspace.fs.stat(vscode.Uri.file(filePath));
     statCache.set(filePath, true);
     return true;
   } catch {
@@ -108,8 +107,8 @@ async function exists(filePath: string) {
 
 async function isDirectory(filePath: string) {
   try {
-    const stat = await fs.stat(filePath);
-    return stat.isDirectory();
+    const stat = await vscode.workspace.fs.stat(vscode.Uri.file(filePath));
+    return (stat.type & vscode.FileType.Directory) !== 0;
   } catch {
     return false;
   }
@@ -198,38 +197,32 @@ async function buildImageFileMap(dir: string) {
   const fileMap = new Map<string, string>();
 
   const walk = async (currentDir: string) => {
-    let entries: string[] = [];
+    let entries: [string, vscode.FileType][] = [];
 
     try {
-      entries = await fs.readdir(currentDir);
+      entries = await vscode.workspace.fs.readDirectory(vscode.Uri.file(currentDir));
     } catch {
       return;
     }
 
     await Promise.all(
-      entries.map(async (entry) => {
+      entries.map(async ([entry, type]) => {
         const fullPath = path.join(currentDir, entry);
 
-        try {
-          const stat = await fs.stat(fullPath);
-
-          if (stat.isFile()) {
-            if (!fileMap.has(entry)) {
-              fileMap.set(entry, fullPath);
-            }
-
-            const lowerEntry = entry.toLowerCase();
-
-            if (!fileMap.has(lowerEntry)) {
-              fileMap.set(lowerEntry, fullPath);
-            }
+        if ((type & vscode.FileType.File) !== 0) {
+          if (!fileMap.has(entry)) {
+            fileMap.set(entry, fullPath);
           }
 
-          if (stat.isDirectory()) {
-            await walk(fullPath);
+          const lowerEntry = entry.toLowerCase();
+
+          if (!fileMap.has(lowerEntry)) {
+            fileMap.set(lowerEntry, fullPath);
           }
-        } catch {
-          // ignore
+        }
+
+        if ((type & vscode.FileType.Directory) !== 0) {
+          await walk(fullPath);
         }
       }),
     );
