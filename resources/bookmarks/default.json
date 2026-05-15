@@ -29,7 +29,7 @@
         "description": "Ant Design 官方中文组件总览页面，可快速查找 Button、Form、Table、Modal、Upload 等 React UI 组件文档。",
         "logo": "https://gw.alipayobjects.com/zos/rmsportal/KDpgvguMpGfqaHPjicRK.svg"
     },
-     {
+    {
         "name": "Ant Design Vue 组件总览",
         "url": "https://www.antdv.com/components/overview-cn/",
         "description": "基于 Ant Design 设计体系的 Vue.js UI 组件库",
@@ -82,5 +82,17 @@
         "url": "https://yesicon.app/",
         "description": "高质量开源图标搜索工具，聚合大量免费图标集，支持多语言搜索、样式筛选、复制 SVG 和代码。",
         "logo": "https://yesicon.app/favicon-32x32.png"
+    },
+    {
+        "name": "TinyPNG",
+        "url": "https://tinypng.com/cn/",
+        "description": "在线图片压缩工具，支持 PNG、JPEG、WebP 等图片格式，可在尽量保持画质的情况下减小图片体积。",
+        "logo": "https://tinypng.com/images/favicon.ico"
+    },
+    {
+        "name": "GGradient",
+        "url": "https://ggradient.com/",
+        "description": "在线 CSS 渐变背景生成工具，提供丰富的渐变色模板，可快速复制 CSS 渐变代码用于页面设计。",
+        "logo": "https://ggradient.com/favicon.svg"
     }
-]
+]   
