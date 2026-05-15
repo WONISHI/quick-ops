@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import * as https from 'https';
 import * as path from 'path';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
+import { setupMarkdown } from '../plugins/markdown/setupMarkdown';
+import markdownImagePlugin, { restoreMarkdownImagePaths } from '../plugins/markdown/markdownImagePlugin';
 
 export interface RecentProject {
   name: string;
@@ -24,6 +26,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private activePanels: Map<string, vscode.WebviewPanel> = new Map();
 
   private currentActivePath: string = '';
+  private markdownImageAssets = new Map<string, Record<string, string>>();
 
   constructor(private context: vscode.ExtensionContext) {
     this.initializeCurrentWorkspace();
@@ -804,6 +807,17 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       );
       this.activePanels.set(uri.fsPath, panel);
 
+      const markdownResult = await setupMarkdown({
+        content,
+        fsPath: uri.fsPath,
+        workspaceRoot,
+        webview: panel.webview,
+      })
+        .use(markdownImagePlugin)
+        .end();
+
+      this.markdownImageAssets.set(uri.fsPath, markdownResult.assets);
+
       panel.onDidChangeViewState(({ webviewPanel }) => {
         if (webviewPanel.active) {
           this.setActivePath(fsPath);
@@ -814,6 +828,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         if (this.activePanels.get(uri.fsPath) === panel) {
           this.activePanels.delete(uri.fsPath);
         }
+
+        this.markdownImageAssets.delete(uri.fsPath);
       });
 
       panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'markdown.svg');
@@ -822,12 +838,15 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         if (msg.command === 'webviewLoaded') {
           panel.webview.postMessage({
             type: 'initVditorData',
-            content: content,
+            content: markdownResult.content,
             mode: type,
             fsPath: fsPath
           });
         } else if (msg.command === 'saveMarkdown' && type === 'edit') {
-          await vscode.workspace.fs.writeFile(uri, Buffer.from(msg.content, 'utf8'));
+          const assets = this.markdownImageAssets.get(uri.fsPath) || {};
+          const saveContent = restoreMarkdownImagePaths(msg.content || '', assets);
+
+          await vscode.workspace.fs.writeFile(uri, Buffer.from(saveContent, 'utf8'));
           vscode.window.showInformationMessage('✅ Markdown 已保存');
         } else if (msg.command === 'openExternal') {
           try {
