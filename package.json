@@ -46,6 +46,20 @@
     "configuration": {
       "title": "Quick Ops",
       "properties": {
+        "quick-ops.general": {
+          "type": "object",
+          "default": {
+            "mockDir": ""
+          },
+          "description": "Quick Ops 通用配置",
+          "properties": {
+            "mockDir": {
+              "type": "string",
+              "default": "",
+              "description": "Mock 数据默认存放目录"
+            }
+          }
+        },
         "quick-ops.general.debug": {
           "type": "boolean",
           "default": true,
