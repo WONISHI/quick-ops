@@ -3,6 +3,7 @@ import { vscode } from '../../utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCheck, faArrowsRotate, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { faFolderOpen, faCopy } from '@fortawesome/free-regular-svg-icons';
+import styles from './index.module.css';
 
 export default function MockRulePanelApp() {
   const [proxyId, setProxyId] = useState('');
@@ -135,56 +136,26 @@ export default function MockRulePanelApp() {
   };
 
   return (
-    <div style={{ padding: '20px 30px' }}>
-      <style>{`
-        body { font-family: var(--vscode-font-family); font-size: var(--vscode-font-size, 13px); background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); }
-        .panel-container { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
-        h2 { font-weight: 400; font-size: 20px; margin: 0; color: var(--vscode-editor-foreground); }
-        .form-row { display: flex; gap: 24px; align-items: flex-end; }
-        .form-group { flex: 1; display: flex; flex-direction: column; gap: 6px; }
-        label { color: var(--vscode-descriptionForeground); font-size: 12px; }
-        input, select, textarea { width: 100%; box-sizing: border-box; padding: 6px; border-radius: 2px; font-family: var(--vscode-font-family); font-size: 13px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border); }
-        select { background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border); }
-        input:focus, select:focus, textarea:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; border-color: var(--vscode-focusBorder); }
-        button { padding: 6px 14px; cursor: pointer; border: 1px solid transparent; border-radius: 2px; font-size: 13px; font-family: var(--vscode-font-family); display: inline-flex; align-items: center; justify-content: center; gap: 6px;}
-        .btn-pri { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
-        .btn-pri:hover { background: var(--vscode-button-hoverBackground); }
-        .btn-sec { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
-        .btn-sec:hover { background: var(--vscode-button-secondaryHoverBackground); }
-        .btn-icon-only { background: transparent; color: var(--vscode-icon-foreground); border: none; padding: 4px; border-radius: 4px; cursor: pointer;}
-        .btn-icon-only:hover { background: var(--vscode-toolbar-hoverBackground); }
-        .tabs { display: flex; border-bottom: 1px solid var(--vscode-panel-border); margin-top: 10px; gap: 20px; }
-        .tab { padding: 8px 0; cursor: pointer; color: var(--vscode-panelTitle-inactiveForeground); text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; border-bottom: 1px solid transparent; margin-bottom: -1px; }
-        .tab.active { color: var(--vscode-panelTitle-activeForeground); border-bottom: 1px solid var(--vscode-panelTitle-activeBorder); }
-        .tab-content { padding-top: 16px; }
-        .actions-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--vscode-panel-border); }
-        .textarea-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-        .copy-btn { font-size: 11px; padding: 2px 6px; cursor: pointer; color: var(--vscode-textLink-activeForeground); background: transparent; border: none; }
-        .copy-btn:hover { text-decoration: underline; }
-        .file-tags-container { border: 1px solid var(--vscode-input-border); background: var(--vscode-input-background); min-height: 28px; padding: 4px; border-radius: 2px; flex: 1; display: flex; flex-wrap: wrap; gap: 4px;}
-        .file-tag { display: inline-flex; align-items: center; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); padding: 2px 6px; border-radius: 3px; font-size: 11px; word-break: break-all; }
-        .file-tag-close { margin-left: 6px; cursor: pointer; opacity: 0.7; }
-        .file-tag-close:hover { opacity: 1; color: var(--vscode-errorForeground); }
-      `}</style>
-      <div className="panel-container">
+    <div className={styles['mock-rule-root']}>
+      <div className={styles['panel-container']}>
         <h2>配置拦截规则</h2>
-        <div className="form-row">
-          <div className="form-group" style={{ flex: '0 0 100px' }}>
+        <div className={styles['form-row']}>
+          <div className={styles['form-group']} style={{ flex: '0 0 100px' }}>
             <label>Method</label>
             <select value={method} onChange={e => setMethod(e.target.value)}>
               <option value="GET">GET</option><option value="POST">POST</option>
               <option value="PUT">PUT</option><option value="DELETE">DELETE</option>
             </select>
           </div>
-          <div className="form-group">
+          <div className={styles['form-group']}>
             <label>API Path</label>
             <input type="text" value={url} onChange={e => setUrl(e.target.value)} placeholder="/api/user/info" />
           </div>
-          <div className="form-group" style={{ flex: '0 0 80px' }}>
+          <div className={styles['form-group']} style={{ flex: '0 0 80px' }}>
             <label>状态码</label>
             <input type="number" value={statusCode} onChange={e => setStatusCode(e.target.value)} placeholder="200" />
           </div>
-          <div className="form-group" style={{ flex: '0 0 160px' }}>
+          <div className={styles['form-group']} style={{ flex: '0 0 160px' }}>
             <label>Content-Type</label>
             <select value={contentType} onChange={e => setContentType(e.target.value)}>
               <option value="application/json">application/json</option>
@@ -198,59 +169,59 @@ export default function MockRulePanelApp() {
           </div>
         </div>
 
-        <div className="form-row">
-          <div className="form-group" style={{ flex: '0 0 100px' }}>
+        <div className={styles['form-row']}>
+          <div className={styles['form-group']} style={{ flex: '0 0 100px' }}>
             <label>延时返回(ms)</label>
             <input type="number" value={delay} onChange={e => setDelay(e.target.value)} min="0" />
           </div>
-          <div className="form-group">
+          <div className={styles['form-group']}>
             <label>注入请求头 (合法 JSON 格式)</label>
             <input type="text" value={reqHeaders} onChange={e => setReqHeaders(e.target.value)} placeholder='{"X-Custom-Auth": "token123"}' />
           </div>
         </div>
 
-        <div className="form-row">
-          <div className="form-group">
+        <div className={styles['form-row']}>
+          <div className={styles['form-group']}>
             <label>规则配置存放路径 (必填)</label>
-            <div style={{ display: 'flex', gap: '6px' }}>
+            <div className={styles['path-input-row']}>
               <input type="text" value={dataPath} onChange={e => setDataPath(e.target.value)} placeholder="相对于工作区的路径" />
-              <button className="btn-sec" onClick={() => vscode.postMessage({ type: 'selectRuleMockDir', currentPath: dataPath })}>
+              <button className={styles['btn-sec']} onClick={() => vscode.postMessage({ type: 'selectRuleMockDir', currentPath: dataPath })}>
                 <FontAwesomeIcon icon={faFolderOpen} />
               </button>
             </div>
           </div>
         </div>
 
-        <div className="tabs">
-          <div className={`tab ${mode === 'mock' ? 'active' : ''}`} onClick={() => setMode('mock')}>Mock 模板配置</div>
-          <div className={`tab ${mode === 'custom' ? 'active' : ''}`} onClick={() => setMode('custom')}>静态 JSON</div>
-          <div className={`tab ${mode === 'file' ? 'active' : ''}`} onClick={() => setMode('file')}>文件下发</div>
+        <div className={styles['tabs']}>
+          <div className={`${styles['tab']} ${mode === 'mock' ? styles['active'] : ''}`} onClick={() => setMode('mock')}>Mock 模板配置</div>
+          <div className={`${styles['tab']} ${mode === 'custom' ? styles['active'] : ''}`} onClick={() => setMode('custom')}>静态 JSON</div>
+          <div className={`${styles['tab']} ${mode === 'file' ? styles['active'] : ''}`} onClick={() => setMode('file')}>文件下发</div>
         </div>
 
-        <div className="tab-content">
+        <div className={styles['tab-content']}>
           {mode === 'mock' && (
             <div>
-              <div className="textarea-header">
+              <div className={styles['textarea-header']}>
                 <label>Mock.js 模板代码</label>
-                <button className="copy-btn" onClick={() => handleCopy(mockTemplate, 'mock')}>
+                <button className={styles['copy-btn']} onClick={() => handleCopy(mockTemplate, 'mock')}>
                   {copyStatus['mock'] ? <><FontAwesomeIcon icon={faCheck} style={{ color: 'var(--success)' }} /> 已复制</> : <><FontAwesomeIcon icon={faCopy} /> 复制</>}
                 </button>
               </div>
-              <textarea value={mockTemplate} onChange={e => setMockTemplate(e.target.value)} style={{ height: '240px', fontFamily: 'var(--vscode-editor-font-family, monospace)' }} />
+              <textarea value={mockTemplate} onChange={e => setMockTemplate(e.target.value)} className={styles['mock-template-textarea']} />
 
-              <div style={{ marginTop: '16px', borderTop: '1px dashed var(--vscode-panel-border)', paddingTop: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <div className={styles['preview-section']}>
+                <div className={styles['preview-header']}>
                   <label>实时预览 (Preview)</label>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <button className="copy-btn" onClick={() => handleCopy(previewResult, 'preview')}>
+                  <div className={styles['preview-actions']}>
+                    <button className={styles['copy-btn']} onClick={() => handleCopy(previewResult, 'preview')}>
                       {copyStatus['preview'] ? <><FontAwesomeIcon icon={faCheck} style={{ color: 'var(--success)' }} /> 已复制</> : <><FontAwesomeIcon icon={faCopy} /> 复制</>}
                     </button>
-                    <button className="btn-icon-only" onClick={() => vscode.postMessage({ type: 'simulate', template: mockTemplate, mode: 'mock' })}>
+                    <button className={styles['btn-icon-only']} onClick={() => vscode.postMessage({ type: 'simulate', template: mockTemplate, mode: 'mock' })}>
                       <FontAwesomeIcon icon={faArrowsRotate} />
                     </button>
                   </div>
                 </div>
-                <div style={{ background: 'var(--vscode-input-background)', border: '1px solid var(--vscode-input-border)', borderRadius: '2px', padding: '12px', fontFamily: 'var(--vscode-editor-font-family, monospace)', fontSize: '12px', maxHeight: '180px', overflow: 'auto', whiteSpace: 'pre-wrap' }}>
+                <div className={styles['preview-box']}>
                   {previewResult}
                 </div>
               </div>
@@ -259,44 +230,44 @@ export default function MockRulePanelApp() {
 
           {mode === 'custom' && (
             <div>
-              <div className="textarea-header">
+              <div className={styles['textarea-header']}>
                 <label>静态 JSON 数据</label>
-                <button className="copy-btn" onClick={() => handleCopy(customJson, 'custom')}>
+                <button className={styles['copy-btn']} onClick={() => handleCopy(customJson, 'custom')}>
                   {copyStatus['custom'] ? <><FontAwesomeIcon icon={faCheck} style={{ color: 'var(--success)' }} /> 已复制</> : <><FontAwesomeIcon icon={faCopy} /> 复制</>}
                 </button>
               </div>
-              <textarea value={customJson} onChange={e => setCustomJson(e.target.value)} style={{ height: '420px', fontFamily: 'var(--vscode-editor-font-family, monospace)' }} />
+              <textarea value={customJson} onChange={e => setCustomJson(e.target.value)} className={styles['custom-json-textarea']} />
             </div>
           )}
 
           {mode === 'file' && (
             <div>
-              <div className="form-group" style={{ marginBottom: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                  <label style={{ margin: 0 }}>选择要作为接口返回的本地文件</label>
-                  <select value={fileMode} onChange={e => setFileMode(e.target.value)} style={{ width: '100px', padding: '2px 4px', fontSize: '11px', height: '22px' }}>
+              <div className={styles['form-group']} style={{ marginBottom: '20px' }}>
+                <div className={styles['file-mode-header']}>
+                  <label>选择要作为接口返回的本地文件</label>
+                  <select value={fileMode} onChange={e => setFileMode(e.target.value)} className={styles['file-mode-select']}>
                     <option value="single">单文件</option>
                     <option value="multiple">多文件分发</option>
                   </select>
                 </div>
-                <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-start' }}>
+                <div className={styles['file-select-row']}>
                   {fileMode === 'single' ? (
                     <input type="text" value={filePathSingle} onChange={e => setFilePathSingle(e.target.value)} placeholder="例如: public/logo.png 或 绝对路径" style={{ flex: 1 }} />
                   ) : (
-                    <div className="file-tags-container">
-                      {filePathsMultiple.length === 0 ? <span style={{ color: 'var(--text-sub)', fontSize: '11px', padding: '2px' }}>尚未选择文件...</span> : filePathsMultiple.map((path, idx) => (
-                        <div key={idx} className="file-tag">
-                          <span title={path}>{path}</span> <FontAwesomeIcon icon={faXmark} className="file-tag-close" onClick={() => setFilePathsMultiple(filePathsMultiple.filter((_, i) => i !== idx))} />
+                    <div className={styles['file-tags-container']}>
+                      {filePathsMultiple.length === 0 ? <span className={styles['file-empty-text']}>尚未选择文件...</span> : filePathsMultiple.map((path, idx) => (
+                        <div key={idx} className={styles['file-tag']}>
+                          <span title={path}>{path}</span> <FontAwesomeIcon icon={faXmark} className={styles['file-tag-close']} onClick={() => setFilePathsMultiple(filePathsMultiple.filter((_, i) => i !== idx))} />
                         </div>
                       ))}
                     </div>
                   )}
-                  <button className="btn-sec" style={{ height: '28px' }} onClick={() => vscode.postMessage({ type: 'selectFileReturnPath', currentPath: fileMode === 'single' ? filePathSingle : (filePathsMultiple[0] || ''), multiple: fileMode === 'multiple' })}>
+                  <button className={styles['btn-sec']} style={{ height: '28px' }} onClick={() => vscode.postMessage({ type: 'selectFileReturnPath', currentPath: fileMode === 'single' ? filePathSingle : (filePathsMultiple[0] || ''), multiple: fileMode === 'multiple' })}>
                     <FontAwesomeIcon icon={faFolderOpen} />
                   </button>
                 </div>
               </div>
-              <div className="form-group">
+              <div className={styles['form-group']}>
                 <label>响应方式 (Content-Disposition)</label>
                 <select value={fileDisposition} onChange={e => setFileDisposition(e.target.value)}>
                   <option value="inline">浏览器内预览 (Inline)</option>
@@ -307,9 +278,9 @@ export default function MockRulePanelApp() {
           )}
         </div>
 
-        <div className="actions-footer">
-          <button className="btn-sec" onClick={() => vscode.postMessage({ type: 'cancel' })}>取消</button>
-          <button className="btn-pri" onClick={save}>保存规则</button>
+        <div className={styles['actions-footer']}>
+          <button className={styles['btn-sec']} onClick={() => vscode.postMessage({ type: 'cancel' })}>取消</button>
+          <button className={styles['btn-pri']} onClick={save}>保存规则</button>
         </div>
       </div>
     </div>
