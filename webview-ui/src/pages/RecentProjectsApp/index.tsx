@@ -96,7 +96,6 @@ export default function RecentProjectsApp() {
 
         if (msg.activeFilePath) {
           setSelectedPath(msg.activeFilePath as string);
-          autoScrollTarget.current = msg.activeFilePath as string; 
         }
 
         setBranchMap((prev) => {
@@ -116,7 +115,6 @@ export default function RecentProjectsApp() {
 
       } else if (msg.type === 'activeEditorChanged') {
         setSelectedPath(msg.fsPath as string);
-        autoScrollTarget.current = msg.fsPath as string; 
       } else if (msg.type === 'updateBranchTag') {
         setBranchMap((prev) => ({ ...prev, [msg.fsPath as string]: msg.branch as string }));
       } else if (msg.type === 'readDirResult') {
@@ -253,6 +251,31 @@ export default function RecentProjectsApp() {
   
   // 🌟 补齐缺失的 isCurrentVisible 声明！
   const isCurrentVisible = activeProjectToRender && matchSearch(activeProjectToRender);
+
+  const revealVisibleProjectPaths = useMemo(() => {
+    const paths: string[] = [];
+
+    if (isSearchMode && searchTargetProject?.path) {
+      paths.push(searchTargetProject.path);
+    } else {
+      paths.push(...filteredOtherProjects.map((p) => p.fsPath));
+
+      if (isCurrentVisible && activeProjectToRender) {
+        paths.unshift(activeProjectToRender.fsPath);
+      }
+    }
+
+    return paths;
+  }, [isSearchMode, searchTargetProject?.path, filteredOtherProjects, isCurrentVisible, activeProjectToRender]);
+
+  const revealVisibleProjectPathKey = revealVisibleProjectPaths.join('\n');
+
+  useEffect(() => {
+    vscode.postMessage({
+      type: 'updateRevealVisibility',
+      visibleProjectPaths: revealVisibleProjectPaths,
+    });
+  }, [revealVisibleProjectPathKey]);
   
   const clickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 

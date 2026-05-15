@@ -26,6 +26,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private activePanels: Map<string, vscode.WebviewPanel> = new Map();
 
   private currentActivePath: string = '';
+  private revealVisibleInWebview: boolean = true;
+  private revealVisibleProjectPaths: string[] | undefined = undefined;
   private markdownImageAssets = new Map<string, Record<string, string>>();
 
   constructor(private context: vscode.ExtensionContext) {
@@ -102,23 +104,45 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private normalizeComparePath(value: string) {
+    if (!value) return '';
+
+    let result = value.split('?')[0];
+
+    if (result.startsWith('file://')) {
+      result = decodeURIComponent(result.replace(/^file:\/\//, ''));
+
+      if (/^\/[a-zA-Z]:\//.test(result)) {
+        result = result.slice(1);
+      }
+    }
+
+    return result.replace(/\\/g, '/').replace(/\/+$/, '');
+  }
+
+  private isInsidePath(child: string, parent: string) {
+    const childBase = this.normalizeComparePath(child);
+    const parentBase = this.normalizeComparePath(parent);
+    const normalizedParent = parentBase.endsWith('/') ? parentBase : parentBase + '/';
+    return childBase === parentBase || childBase.startsWith(normalizedParent);
+  }
+
   private updateRevealContext(activePath: string) {
     let canReveal = false;
     const projects = this.getRecentProjects();
     const currentWorkspaceStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
 
-    const isInside = (child: string, parent: string) => {
-      const normalizedParent = parent.endsWith('/') ? parent : parent + '/';
-      return child === parent || child.startsWith(normalizedParent);
-    };
-
-    if (currentWorkspaceStr && isInside(activePath, currentWorkspaceStr)) {
-      canReveal = true;
-    } else if (projects.some(p => isInside(activePath, p.fsPath))) {
-      canReveal = true;
+    if (activePath) {
+      if (Array.isArray(this.revealVisibleProjectPaths)) {
+        canReveal = this.revealVisibleProjectPaths.some(p => this.isInsidePath(activePath, p));
+      } else if (currentWorkspaceStr && this.isInsidePath(activePath, currentWorkspaceStr)) {
+        canReveal = true;
+      } else if (projects.some(p => this.isInsidePath(activePath, p.fsPath))) {
+        canReveal = true;
+      }
     }
 
-    vscode.commands.executeCommand('setContext', 'quickOps.canRevealInRecent', canReveal);
+    vscode.commands.executeCommand('setContext', 'quickOps.canRevealInRecent', canReveal && this.revealVisibleInWebview);
   }
 
   private setActivePath(fsPath: string) {
@@ -144,22 +168,17 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const projects = this.getRecentProjects();
     const currentWorkspaceStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
 
-    const isInside = (child: string, parent: string) => {
-      const normalizedParent = parent.endsWith('/') ? parent : parent + '/';
-      return child === parent || child.startsWith(normalizedParent);
-    };
+    let rootProj = projects.find(p => this.isInsidePath(realPath, p.fsPath));
 
-    let rootProj = projects.find(p => isInside(realPath, p.fsPath));
-
-    if (!rootProj && currentWorkspaceStr && isInside(realPath, currentWorkspaceStr)) {
+    if (!rootProj && currentWorkspaceStr && this.isInsidePath(realPath, currentWorkspaceStr)) {
       rootProj = { name: vscode.workspace.workspaceFolders![0].name, fsPath: currentWorkspaceStr } as any;
     }
 
     if (!rootProj) return;
 
     const parentPaths: string[] = [];
-    const uri = vscode.Uri.parse(realPath);
-    const rootUri = vscode.Uri.parse(rootProj.fsPath);
+    const uri = realPath.includes('://') ? vscode.Uri.parse(realPath) : vscode.Uri.file(realPath);
+    const rootUri = rootProj.fsPath.includes('://') ? vscode.Uri.parse(rootProj.fsPath) : vscode.Uri.file(rootProj.fsPath);
 
     let p = uri.path;
     while (p.length > rootUri.path.length && p !== '/') {
@@ -358,7 +377,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             // 无论是替换当前窗口还是新窗口，都需要切换 Workspace
             const projects = this.getRecentProjects();
             // 寻找该文件所属的项目根目录
-            const rootProj = projects.find(p => data.fsPath.startsWith(p.fsPath));
+            const rootProj = projects.find(p => this.isInsidePath(data.fsPath, p.fsPath));
             const workspaceUri = rootProj
               ? (rootProj.fsPath.includes('://') ? vscode.Uri.parse(rootProj.fsPath) : vscode.Uri.file(rootProj.fsPath))
               : vscode.Uri.joinPath(targetUri, '..'); // 兜底用它的父级目录
@@ -383,6 +402,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             this.setActivePath(this.currentActivePath);
           }
           break;
+
+        case 'updateRevealVisibility':
+          this.revealVisibleInWebview = true;
+          this.revealVisibleProjectPaths = Array.isArray(data.visibleProjectPaths) ? data.visibleProjectPaths : undefined;
+          this.updateRevealContext(this.currentActivePath);
+          break;
+
         case 'openProject':
           this.openProject(data.fsPath);
           break;

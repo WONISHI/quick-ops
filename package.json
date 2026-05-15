@@ -499,7 +499,7 @@
         },
         {
           "command": "quickOps.revealInRecentProjects",
-          "when": "view == quickOps.recentProjectsView",
+          "when": "view == quickOps.recentProjectsView && quickOps.canRevealInRecent",
           "group": "navigation@2"
         },
         {
