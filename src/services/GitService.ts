@@ -1,6 +1,6 @@
+import * as vscode from 'vscode';
 import simpleGit, { SimpleGit } from 'simple-git';
 import { execFile } from 'child_process';
-import * as fs from 'fs/promises';
 import * as path from 'path';
 
 export interface GitFileItem {
@@ -624,10 +624,15 @@ export class GitService {
 
   public async discardFile(cwd: string, file: string, status: string): Promise<void> {
     if (status === 'U') {
-      await fs.rm(path.join(cwd, file), {
-        force: true,
-        recursive: true,
-      });
+      try {
+        await vscode.workspace.fs.delete(vscode.Uri.file(path.join(cwd, file)), {
+          recursive: true,
+          useTrash: false,
+        });
+      } catch {
+        // ignore
+      }
+
       return;
     }
 
@@ -681,18 +686,20 @@ export class GitService {
 
   public async addToGitignore(cwd: string, file: string): Promise<void> {
     const gitignorePath = path.join(cwd, '.gitignore');
+    const gitignoreUri = vscode.Uri.file(gitignorePath);
 
     let existingContent = '';
 
     try {
-      existingContent = await fs.readFile(gitignorePath, 'utf8');
+      const contentBytes = await vscode.workspace.fs.readFile(gitignoreUri);
+      existingContent = Buffer.from(contentBytes).toString('utf8');
     } catch {
       existingContent = '';
     }
 
     const appendStr = existingContent.length > 0 ? `\n${file}` : file;
 
-    await fs.writeFile(gitignorePath, existingContent + appendStr, 'utf8');
+    await vscode.workspace.fs.writeFile(gitignoreUri, Buffer.from(existingContent + appendStr, 'utf8'));
   }
 
   public async getFileContent(cwd: string, ref: string, file: string): Promise<string> {
@@ -700,7 +707,8 @@ export class GitService {
       if (ref === 'empty') return '';
 
       if (ref === 'working') {
-        return await fs.readFile(path.join(cwd, file), 'utf8');
+        const contentBytes = await vscode.workspace.fs.readFile(vscode.Uri.file(path.join(cwd, file)));
+        return Buffer.from(contentBytes).toString('utf8');
       }
 
       const git = this.createGit(cwd);
