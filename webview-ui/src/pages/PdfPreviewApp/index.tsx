@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { vscode } from '../../utils/vscode';
 import { Document, Page, pdfjs } from 'react-pdf';
+import styles from './index.module.css';
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
     'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -8,7 +9,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 interface PdfPreviewAppProps {
-    initialScale?: number; // 允许从 React Prop 传入 (例如 1.2)
+    initialScale?: number;
 }
 
 export default function PdfPreviewApp({ initialScale = 1.2 }: PdfPreviewAppProps) {
@@ -57,70 +58,61 @@ export default function PdfPreviewApp({ initialScale = 1.2 }: PdfPreviewAppProps
 
     if (loading) {
         return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--vscode-editor-foreground)', fontSize: '14px' }}>
-                <span className="codicon codicon-loading codicon-modifier-spin" style={{ marginRight: '8px', fontSize: '18px' }}></span>
-                正在加载 PDF 文档...
+            <div className={styles['status-view']}>
+                <span className={`codicon codicon-loading codicon-modifier-spin ${styles['status-icon']} ${styles['loading-text']}`}></span>
+                <span className={styles['loading-text']}>正在加载 PDF 文档...</span>
             </div>
         );
     }
 
     if (error || !pdfBase64) {
         return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', color: 'var(--vscode-errorForeground)' }}>
-                <span className="codicon codicon-error" style={{ marginRight: '8px', fontSize: '24px' }}></span>
-                {error || '加载失败或文件为空。'}
+            <div className={styles['status-view']}>
+                <span className={`codicon codicon-error ${styles['status-icon']} ${styles['error-icon']} ${styles['error-text']}`}></span>
+                <span className={styles['error-text']}>{error || '加载失败或文件为空。'}</span>
             </div>
         );
     }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', backgroundColor: 'var(--vscode-editor-background)' }}>
-
+        <div className={styles['app-container']}>
             {/* 顶部工具栏 */}
-            <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '16px',
-                padding: '8px',
-                backgroundColor: 'var(--vscode-editorGroupHeader-tabsBackground)',
-                borderBottom: '1px solid var(--vscode-panel-border)',
-                color: 'var(--vscode-foreground)',
-                flexShrink: 0
-            }}>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                    <button onClick={() => setScale(s => Math.max(0.3, s - 0.1))} style={btnStyle} title="缩小">
+            <div className={styles.toolbar}>
+                <div className={styles['toolbar-group']}>
+                    <button onClick={() => setScale(s => Math.max(0.3, s - 0.1))} className={styles['icon-btn']} title="缩小">
                         <span className="codicon codicon-zoom-out"></span>
                     </button>
-                    <span style={{ fontSize: '12px', minWidth: '40px', textAlign: 'center', lineHeight: '24px' }}>
+                    <span className={styles['scale-text']}>
                         {Math.round(scale * 100)}%
                     </span>
-                    <button onClick={() => setScale(s => Math.min(5.0, s + 0.1))} style={btnStyle} title="放大">
+                    <button onClick={() => setScale(s => Math.min(5.0, s + 0.1))} className={styles['icon-btn']} title="放大">
                         <span className="codicon codicon-zoom-in"></span>
                     </button>
                 </div>
 
-                <div style={{ width: '1px', height: '16px', backgroundColor: 'var(--vscode-panel-border)' }}></div>
+                <div className={styles.divider}></div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button onClick={() => changePage(-1)} disabled={pageNumber <= 1} style={{ ...btnStyle, opacity: pageNumber <= 1 ? 0.4 : 1 }}>
+                <div className={styles['toolbar-group']}>
+                    <button onClick={() => changePage(-1)} disabled={pageNumber <= 1} className={styles['icon-btn']} title="上一页">
                         <span className="codicon codicon-chevron-left"></span>
                     </button>
-                    <span style={{ fontSize: '12px' }}> 第 {pageNumber} / {numPages || '--'} 页 </span>
-                    <button onClick={() => changePage(1)} disabled={pageNumber >= (numPages || 1)} style={{ ...btnStyle, opacity: pageNumber >= (numPages || 1) ? 0.4 : 1 }}>
+                    <span className={styles['page-text']}>
+                        第 {pageNumber} / {numPages || '--'} 页
+                    </span>
+                    <button onClick={() => changePage(1)} disabled={pageNumber >= (numPages || 1)} className={styles['icon-btn']} title="下一页">
                         <span className="codicon codicon-chevron-right"></span>
                     </button>
                 </div>
             </div>
 
             {/* 渲染区域 */}
-            <div style={{ flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', padding: '20px' }}>
+            <div className={styles['render-area']}>
                 <Document
                     file={`data:application/pdf;base64,${pdfBase64}`}
                     onLoadSuccess={onDocumentLoadSuccess}
                     onLoadError={(err) => setError(`PDF 解析失败: ${err.message}`)}
                 >
-                    <div style={{ backgroundColor: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                    <div className={styles['page-wrapper']}>
                         <Page
                             pageNumber={pageNumber}
                             scale={scale}
@@ -133,16 +125,3 @@ export default function PdfPreviewApp({ initialScale = 1.2 }: PdfPreviewAppProps
         </div>
     );
 }
-
-// 统一的按钮内联样式（适配 VS Code 质感）
-const btnStyle: React.CSSProperties = {
-    background: 'transparent',
-    border: 'none',
-    color: 'var(--vscode-icon-foreground)',
-    cursor: 'pointer',
-    padding: '4px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: '3px'
-};

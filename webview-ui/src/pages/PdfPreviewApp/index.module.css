@@ -1,0 +1,106 @@
+.app-container {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: var(--vscode-editor-background);
+}
+
+/* 状态视图：加载与错误 */
+.status-view {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.loading-text {
+    color: var(--vscode-editor-foreground);
+    font-size: 14px;
+}
+
+.error-text {
+    color: var(--vscode-errorForeground);
+}
+
+.status-icon {
+    margin-right: 8px;
+    font-size: 18px;
+}
+
+.error-icon {
+    font-size: 24px;
+}
+
+/* 顶部工具栏 */
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 8px;
+    background-color: var(--vscode-editorGroupHeader-tabsBackground);
+    border-bottom: 1px solid var(--vscode-panel-border);
+    color: var(--vscode-foreground);
+    flex-shrink: 0;
+}
+
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.divider {
+    width: 1px;
+    height: 16px;
+    background-color: var(--vscode-panel-border);
+}
+
+/* 文字与标识 */
+.scale-text {
+    font-size: 12px;
+    min-width: 40px;
+    text-align: center;
+    line-height: 24px;
+}
+
+.page-text {
+    font-size: 12px;
+}
+
+/* 图标按钮 */
+.icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--vscode-icon-foreground);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 3px;
+    transition: background-color 0.1s;
+}
+
+.icon-btn:hover:not(:disabled) {
+    background: var(--vscode-toolbar-hoverBackground);
+}
+
+.icon-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* PDF 渲染区域 */
+.render-area {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+}
+
+.page-wrapper {
+    background-color: #ffffff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
