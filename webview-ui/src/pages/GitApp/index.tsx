@@ -415,17 +415,10 @@ export default function GitApp() {
               </Tooltip>
 
               <Tooltip content={getPullTooltip()}>
-                <button
-                  className={`${styles['icon-btn']} ${remoteSync.needsPull ? styles['pull-needed'] : ''}`}
-                  onClick={() => vscode.postMessage({ command: 'pull' })}
-                >
+                <button className={`${styles['icon-btn']} ${remoteSync.needsPull ? styles['pull-needed'] : ''}`} onClick={() => vscode.postMessage({ command: 'pull' })}>
                   <i className="codicon codicon-repo-pull" />
 
-                  {remoteSync.needsPull && (
-                    <span className={styles['pull-badge']}>
-                      {remoteSync.behind > 99 ? '99+' : remoteSync.behind}
-                    </span>
-                  )}
+                  {remoteSync.needsPull && <span className={styles['pull-badge']}>{remoteSync.behind > 99 ? '99+' : remoteSync.behind}</span>}
                 </button>
               </Tooltip>
 
@@ -497,16 +490,8 @@ export default function GitApp() {
           suppressContentEditableWarning={true}
         />
 
-        <button
-          className={styles['commit-btn']}
-          disabled={!isRepo || loading || !commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0)}
-          onClick={handleCommit}
-        >
-          {loading ? (
-            <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} />
-          ) : (
-            <i className={`codicon codicon-check ${styles['icon-right-6']}`} />
-          )}
+        <button className={styles['commit-btn']} disabled={!isRepo || loading || !commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0)} onClick={handleCommit}>
+          {loading ? <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} /> : <i className={`codicon codicon-check ${styles['icon-right-6']}`} />}
           提交 (Commit)
         </button>
       </div>
@@ -774,85 +759,85 @@ export default function GitApp() {
 
                     return (
                       <React.Fragment key={idx}>
-                        <li
-                          className={`${styles['file-item']} ${styles['stash-row']}`}
-                          title={stash.message}
-                          onClick={() => {
-                            if (isExpanded) {
-                              setExpandedStashIndex(null);
-                            } else {
-                              setExpandedStashIndex(stash.index);
+                        <Tooltip content={stash.message} placement="bottom" delay={1000}>
+                          <li
+                            className={`${styles['file-item']} ${styles['stash-row']}`}
+                            onClick={() => {
+                              if (isExpanded) {
+                                setExpandedStashIndex(null);
+                              } else {
+                                setExpandedStashIndex(stash.index);
 
-                              if (!stashFilesMap[stash.index]) {
-                                setStashFilesLoading((prev) => ({
-                                  ...prev,
-                                  [stash.index]: true,
-                                }));
+                                if (!stashFilesMap[stash.index]) {
+                                  setStashFilesLoading((prev) => ({
+                                    ...prev,
+                                    [stash.index]: true,
+                                  }));
 
-                                vscode.postMessage({
-                                  command: 'getStashFiles',
-                                  index: stash.index,
-                                });
+                                  vscode.postMessage({
+                                    command: 'getStashFiles',
+                                    index: stash.index,
+                                  });
+                                }
                               }
-                            }
-                          }}
-                        >
-                          <i className={`codicon ${isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['stash-chevron']}`} />
-                          <i className={`codicon codicon-archive ${styles['stash-icon']}`} />
+                            }}
+                          >
+                            <i className={`codicon ${isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['stash-chevron']}`} />
+                            <i className={`codicon codicon-archive ${styles['stash-icon']}`} />
+                            <div className={styles['file-name']}>{stash.message}</div>
+                            <div className={styles['flex-spacer']}></div>
 
-                          <div className={styles['file-name']}>{stash.message}</div>
-                          <div className={styles['flex-spacer']}></div>
+                            <div className={styles['file-actions']}>
+                              <Tooltip content="应用贮藏并保留 (Apply)">
+                                <button
+                                  className={styles['action-btn']}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
 
-                          <div className={styles['file-actions']}>
-                            <Tooltip content="应用贮藏并保留 (Apply)">
-                              <button
-                                className={styles['action-btn']}
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                                    vscode.postMessage({
+                                      command: 'stashApply',
+                                      index: stash.index,
+                                    });
+                                  }}
+                                >
+                                  <i className="codicon codicon-git-stash-apply" />
+                                </button>
+                              </Tooltip>
 
-                                  vscode.postMessage({
-                                    command: 'stashApply',
-                                    index: stash.index,
-                                  });
-                                }}
-                              >
-                                <i className="codicon codicon-git-stash-apply" />
-                              </button>
-                            </Tooltip>
+                              <Tooltip content="应用并删除贮藏 (Pop)">
+                                <button
+                                  className={styles['action-btn']}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
 
-                            <Tooltip content="应用并删除贮藏 (Pop)">
-                              <button
-                                className={styles['action-btn']}
-                                onClick={(e) => {
-                                  e.stopPropagation();
+                                    vscode.postMessage({
+                                      command: 'stashPop',
+                                      index: stash.index,
+                                    });
+                                  }}
+                                >
+                                  <i className="codicon codicon-git-stash-pop" />
+                                </button>
+                              </Tooltip>
 
-                                  vscode.postMessage({
-                                    command: 'stashPop',
-                                    index: stash.index,
-                                  });
-                                }}
-                              >
-                                <i className="codicon codicon-git-stash-pop" />
-                              </button>
-                            </Tooltip>
+                              <Tooltip content="删除此贮藏 (Drop)">
+                                <button
+                                  className={styles['action-btn']}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
 
-                            <Tooltip content="删除此贮藏 (Drop)">
-                              <button
-                                className={styles['action-btn']}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-
-                                  vscode.postMessage({
-                                    command: 'stashDrop',
-                                    index: stash.index,
-                                  });
-                                }}
-                              >
-                                <i className="codicon codicon-trash" />
-                              </button>
-                            </Tooltip>
-                          </div>
-                        </li>
+                                    vscode.postMessage({
+                                      command: 'stashDrop',
+                                      index: stash.index,
+                                    });
+                                  }}
+                                >
+                                  <i className="codicon codicon-trash" />
+                                </button>
+                              </Tooltip>
+                            </div>
+                          </li>
+                        </Tooltip>
 
                         {isExpanded && (
                           <div className={styles['stash-expanded']}>
@@ -896,10 +881,7 @@ export default function GitApp() {
               <span className={styles['text-no-shrink']}>{compareBase === '文件历史' ? '文件历史' : '对比'}</span>
 
               {compareTarget && compareBase && (
-                <span
-                  className={styles['compare-title']}
-                  title={compareBase === '文件历史' ? `文件: ${compareTarget}` : `${compareTarget} ↔ ${compareBase}`}
-                >
+                <span className={styles['compare-title']} title={compareBase === '文件历史' ? `文件: ${compareTarget}` : `${compareTarget} ↔ ${compareBase}`}>
                   {compareBase === '文件历史' ? `(${compareTarget})` : `(${compareTarget} ↔ ${compareBase})`}
                 </span>
               )}
@@ -1100,8 +1082,9 @@ export default function GitApp() {
 
               <Tooltip content={`筛选分支 (${selectedGraphFilter})`}>
                 <button
-                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
-                    } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
+                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${
+                    selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
+                  } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
 

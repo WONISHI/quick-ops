@@ -12,6 +12,7 @@ export interface TooltipProps {
     align?: TooltipAlign;
     textAlign?: TooltipTextAlign;
     showArrow?: boolean;
+    delay?: number;
 }
 
 const Tooltip: React.FC<TooltipProps> = ({
@@ -22,6 +23,7 @@ const Tooltip: React.FC<TooltipProps> = ({
     align = 'center',
     textAlign = 'left',
     showArrow = true,
+    delay = 300,
 }) => {
     const [visible, setVisible] = useState(false);
     const [opacity, setOpacity] = useState(0);
@@ -36,7 +38,7 @@ const Tooltip: React.FC<TooltipProps> = ({
         if (!content) return;
         if (trigger === 'hover') {
             clearTimeout(timerRef.current);
-            timerRef.current = setTimeout(() => setVisible(true), 300);
+            timerRef.current = setTimeout(() => setVisible(true), delay);
         } else {
             setVisible(true);
         }
