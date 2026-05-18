@@ -15,9 +15,6 @@ body {
     font-size: 13px;
 }
 
-/* =========================================
-   顶部工具栏与标题
-   ========================================= */
 .git-toolbar {
     display: flex;
     justify-content: space-between;
@@ -48,7 +45,6 @@ body {
     gap: 4px;
 }
 
-/* 顶部与区段标题通用的小图标按钮 */
 .icon-btn,
 .action-btn {
     background: transparent;
@@ -389,15 +385,38 @@ body {
    贮藏区
    ========================================= */
 .stash-row {
-    padding-left: 12px;
-    cursor: pointer;
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+  cursor: pointer;
+  width: 100%;
+  box-sizing: border-box;
+  height: 26px; 
 }
 
-.stash-chevron {
-    font-size: 14px;
-    width: 16px;
-    opacity: 0.8;
-    margin-right: 2px;
+.stash-chevron,
+.stash-icon {
+  flex-shrink: 0;
+}
+
+.file-name {
+  flex: 1;                 /* 占据除图标和按钮外的剩余全部空间 */
+  min-width: 0;            /* 【关键】允许 flex 子项在宽度不足时收缩，触发内部文字截断 */
+  white-space: nowrap;     /* 强制文本不换行 */
+  overflow: hidden;        /* 超出部分隐藏 */
+  text-overflow: ellipsis; /* 超出部分显示省略号 */
+}
+
+.flex-spacer {
+  flex-shrink: 0;
+}
+
+.file-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;        
+  gap: 2px;
+  padding-right: 8px;
 }
 
 .stash-icon {

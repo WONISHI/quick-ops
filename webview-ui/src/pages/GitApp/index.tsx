@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
-
 import Tooltip from '../../components/Tooltip';
 import GitGraph, { type GraphCommit } from '../../components/GitGraph';
 import GitCompareList from '../../components/GitCompareList';
