@@ -20,33 +20,15 @@ const CY = 17;
 
 const NULL_VERTEX_ID = -1;
 
-interface Point {
-  x: number;
-  y: number;
-}
-
-interface Line {
-  p1: Point;
-  p2: Point;
-  lockedFirst: boolean;
-}
-
-interface UnavailablePoint {
-  connectsTo: Vertex | null;
-  onBranch: Branch;
-}
+interface Point { x: number; y: number; }
+interface Line { p1: Point; p2: Point; lockedFirst: boolean; }
+interface UnavailablePoint { connectsTo: Vertex | null; onBranch: Branch; }
 
 class Branch {
   public colour: number;
   public lines: Line[] = [];
-
-  constructor(colour: number) {
-    this.colour = colour;
-  }
-
-  addLine(p1: Point, p2: Point, lockedFirst: boolean) {
-    this.lines.push({ p1, p2, lockedFirst });
-  }
+  constructor(colour: number) { this.colour = colour; }
+  addLine(p1: Point, p2: Point, lockedFirst: boolean) { this.lines.push({ p1, p2, lockedFirst }); }
 }
 
 class Vertex {
@@ -59,63 +41,23 @@ class Vertex {
   private nextX = 0;
   private connections: UnavailablePoint[] = [];
 
-  constructor(id: number) {
-    this.id = id;
-  }
-
-  addChild(v: Vertex) {
-    this.children.push(v);
-  }
-
-  addParent(v: Vertex) {
-    this.parents.push(v);
-  }
-
-  getNextParent(): Vertex | null {
-    return this.nextParent < this.parents.length ? this.parents[this.nextParent] : null;
-  }
-
-  registerParentProcessed() {
-    this.nextParent++;
-  }
-
-  isMerge() {
-    return this.parents.length > 1;
-  }
-
-  addToBranch(b: Branch, x: number) {
-    if (!this.onBranch) {
-      this.onBranch = b;
-      this.x = x;
-    }
-  }
-
-  isNotOnBranch() {
-    return this.onBranch === null;
-  }
-
-  getBranch() {
-    return this.onBranch;
-  }
-
-  getPoint(): Point {
-    return { x: this.x, y: this.id };
-  }
-
-  getNextPoint(): Point {
-    return { x: this.nextX, y: this.id };
-  }
-
+  constructor(id: number) { this.id = id; }
+  addChild(v: Vertex) { this.children.push(v); }
+  addParent(v: Vertex) { this.parents.push(v); }
+  getNextParent(): Vertex | null { return this.nextParent < this.parents.length ? this.parents[this.nextParent] : null; }
+  registerParentProcessed() { this.nextParent++; }
+  isMerge() { return this.parents.length > 1; }
+  addToBranch(b: Branch, x: number) { if (!this.onBranch) { this.onBranch = b; this.x = x; } }
+  isNotOnBranch() { return this.onBranch === null; }
+  getBranch() { return this.onBranch; }
+  getPoint(): Point { return { x: this.x, y: this.id }; }
+  getNextPoint(): Point { return { x: this.nextX, y: this.id }; }
   getPointConnectingTo(v: Vertex | null, b: Branch) {
     for (let i = 0; i < this.connections.length; i++) {
-      if (this.connections[i] && this.connections[i].connectsTo === v && this.connections[i].onBranch === b) {
-        return { x: i, y: this.id };
-      }
+      if (this.connections[i] && this.connections[i].connectsTo === v && this.connections[i].onBranch === b) return { x: i, y: this.id };
     }
-
     return null;
   }
-
   registerUnavailablePoint(x: number, v: Vertex | null, b: Branch) {
     if (x === this.nextX) {
       this.nextX = x + 1;
@@ -127,11 +69,9 @@ class Vertex {
 function buildGraphEngine(commits: GraphCommit[]) {
   const vertices = commits.map((_, i) => new Vertex(i));
   const commitLookup: Record<string, number> = {};
-
   commits.forEach((c, i) => (commitLookup[c.hash] = i));
 
   const nullVertex = new Vertex(NULL_VERTEX_ID);
-
   commits.forEach((c, i) => {
     (c.parents || []).forEach((pHash) => {
       if (commitLookup[pHash] !== undefined) {
@@ -147,10 +87,7 @@ function buildGraphEngine(commits: GraphCommit[]) {
   const availableColours: number[] = [];
 
   const getAvailableColour = (startAt: number) => {
-    for (let i = 0; i < availableColours.length; i++) {
-      if (startAt > availableColours[i]) return i;
-    }
-
+    for (let i = 0; i < availableColours.length; i++) if (startAt > availableColours[i]) return i;
     availableColours.push(0);
     return availableColours.length - 1;
   };
@@ -163,104 +100,70 @@ function buildGraphEngine(commits: GraphCommit[]) {
     let lastPoint = vertex.isNotOnBranch() ? vertex.getNextPoint() : vertex.getPoint();
     let curPoint;
 
-    if (
-      parentVertex !== null &&
-      parentVertex.id !== NULL_VERTEX_ID &&
-      vertex.isMerge() &&
-      !vertex.isNotOnBranch() &&
-      !parentVertex.isNotOnBranch()
-    ) {
+    if (parentVertex !== null && parentVertex.id !== NULL_VERTEX_ID && vertex.isMerge() && !vertex.isNotOnBranch() && !parentVertex.isNotOnBranch()) {
       let foundPointToParent = false;
       const parentBranch = parentVertex.getBranch()!;
 
       for (i = startAt + 1; i < vertices.length; i++) {
         curVertex = vertices[i];
         curPoint = curVertex.getPointConnectingTo(parentVertex, parentBranch);
-
-        if (curPoint !== null) {
-          foundPointToParent = true;
-        } else {
-          curPoint = curVertex.getNextPoint();
-        }
+        if (curPoint !== null) foundPointToParent = true;
+        else curPoint = curVertex.getNextPoint();
 
         parentBranch.addLine(lastPoint, curPoint, !foundPointToParent && curVertex !== parentVertex ? lastPoint.x < curPoint.x : true);
         curVertex.registerUnavailablePoint(curPoint.x, parentVertex, parentBranch);
         lastPoint = curPoint;
-
-        if (foundPointToParent) {
-          vertex.registerParentProcessed();
-          break;
-        }
+        if (foundPointToParent) { vertex.registerParentProcessed(); break; }
       }
     } else {
       const branch = new Branch(getAvailableColour(startAt));
-
       vertex.addToBranch(branch, lastPoint.x);
       vertex.registerUnavailablePoint(lastPoint.x, vertex, branch);
 
       for (i = startAt + 1; i < vertices.length; i++) {
         curVertex = vertices[i];
         curPoint = parentVertex === curVertex && !parentVertex.isNotOnBranch() ? curVertex.getPoint() : curVertex.getNextPoint();
-
         branch.addLine(lastPoint, curPoint, lastPoint.x < curPoint.x);
         curVertex.registerUnavailablePoint(curPoint.x, parentVertex, branch);
         lastPoint = curPoint;
 
         if (parentVertex === curVertex) {
           vertex.registerParentProcessed();
-
           const parentVertexOnBranch = !parentVertex.isNotOnBranch();
-
           parentVertex.addToBranch(branch, curPoint.x);
           vertex = parentVertex;
           parentVertex = vertex.getNextParent();
-
           if (parentVertex === null || parentVertexOnBranch) break;
         }
       }
-
-      if (i === vertices.length && parentVertex !== null && parentVertex.id === NULL_VERTEX_ID) {
-        vertex.registerParentProcessed();
-      }
-
+      if (i === vertices.length && parentVertex !== null && parentVertex.id === NULL_VERTEX_ID) vertex.registerParentProcessed();
       branches.push(branch);
       availableColours[branch.colour] = i;
     }
   };
 
   let idx = 0;
-
   while (idx < vertices.length) {
-    if (vertices[idx].getNextParent() !== null || vertices[idx].isNotOnBranch()) {
-      determinePath(idx);
-    } else {
-      idx++;
-    }
+    if (vertices[idx].getNextParent() !== null || vertices[idx].isNotOnBranch()) determinePath(idx);
+    else idx++;
   }
-
   return { vertices, branches };
 }
 
 function formatDate(timestamp?: number) {
   if (!timestamp) return '';
-
   const date = new Date(timestamp);
   const y = date.getFullYear();
   const m = `${date.getMonth() + 1}`.padStart(2, '0');
   const d = `${date.getDate()}`.padStart(2, '0');
   const h = `${date.getHours()}`.padStart(2, '0');
   const min = `${date.getMinutes()}`.padStart(2, '0');
-
   return `${y}-${m}-${d} ${h}:${min}`;
 }
 
 function getRefs(refs?: string) {
   if (!refs) return [];
-
-  return refs
-    .split(',')
-    .map((ref) => ref.trim())
-    .filter(Boolean);
+  return refs.split(',').map((ref) => ref.trim()).filter(Boolean);
 }
 
 export default function GitCommitDetailApp() {
@@ -274,41 +177,77 @@ export default function GitCommitDetailApp() {
   const [remoteUrl, setRemoteUrl] = useState('');
   const [loading, setLoading] = useState(true);
 
+  // 🌟 新增：过滤相关的状态
+  const [descFilter, setDescFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
+  const [authorFilter, setAuthorFilter] = useState<string[]>([]);
+  const [hashFilter, setHashFilter] = useState('');
+  const [activePopup, setActivePopup] = useState<'desc' | 'date' | 'author' | 'hash' | null>(null);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const graphData = useMemo(() => buildGraphEngine(graphCommits), [graphCommits]);
+  // 🌟 提取所有唯一的作者供勾选使用
+  const allAuthors = useMemo(() => {
+    const authors = new Set<string>();
+    graphCommits.forEach((c) => authors.add(c.author));
+    return Array.from(authors);
+  }, [graphCommits]);
+
+  // 🌟 核心：计算出过滤后的 commits
+  const filteredCommits = useMemo(() => {
+    return graphCommits.filter((c) => {
+      // 过滤描述
+      if (descFilter && !c.message.toLowerCase().includes(descFilter.toLowerCase())) return false;
+      // 过滤提交哈希
+      if (hashFilter && !c.hash.toLowerCase().includes(hashFilter.toLowerCase())) return false;
+      // 过滤日期 (跨年也支持，基于时间戳)
+      if (dateFilter.start) {
+        const startMs = new Date(dateFilter.start).getTime();
+        if (c.timestamp && c.timestamp < startMs) return false;
+      }
+      if (dateFilter.end) {
+        const endMs = new Date(dateFilter.end).getTime() + 86399999; // 加一天减一毫秒以包含当天
+        if (c.timestamp && c.timestamp > endMs) return false;
+      }
+      // 过滤作者 (勾选了才过滤，未勾选任意则显示全部)
+      if (authorFilter.length > 0 && !authorFilter.includes(c.author)) return false;
+
+      return true;
+    });
+  }, [graphCommits, descFilter, dateFilter, authorFilter, hashFilter]);
+
+  // 过滤条件变化时，回到顶部
+  useEffect(() => {
+    setDisplayCount(100);
+  }, [filteredCommits.length]);
+
+  // 🌟 重新计算 Graph（基于筛选后的记录）
+  const graphData = useMemo(() => buildGraphEngine(filteredCommits), [filteredCommits]);
 
   const yPositions = useMemo(() => {
     const positions: number[] = [];
     let currentY = 0;
 
-    for (let i = 0; i < graphCommits.length; i++) {
-      const hash = graphCommits[i].hash;
-
+    for (let i = 0; i < filteredCommits.length; i++) {
+      const hash = filteredCommits[i].hash;
       positions.push(currentY);
       currentY += ROW_HEIGHT;
-
       if (activeCommitHash === hash) {
         currentY += DETAIL_HEIGHT;
       }
     }
-
     positions.push(currentY);
-
     return positions;
-  }, [graphCommits, activeCommitHash]);
+  }, [filteredCommits, activeCommitHash]);
 
-  const visibleCommits = graphCommits.slice(0, displayCount);
-  const renderedHeight = yPositions[Math.min(displayCount, graphCommits.length)] || 0;
+  const visibleCommits = filteredCommits.slice(0, displayCount);
+  const renderedHeight = yPositions[Math.min(displayCount, filteredCommits.length)] || 0;
 
   useEffect(() => {
     vscode.postMessage({ command: 'gitDetailLoaded' });
-
     const handleMessage = (event: MessageEvent) => {
-      console.log('🚀🚀🚀', 'GitDetailApp/index.tsx', '第309行', event.data);
       const msg = event.data;
-
       if (msg.type === 'gitDetailLoading' || msg.type === 'startLoading') {
         setLoading(true);
       } else if (msg.type === 'statusData') {
@@ -317,83 +256,55 @@ export default function GitCommitDetailApp() {
         setRemoteUrl(msg.remoteUrl || '');
       } else if (msg.type === 'gitDetailGraphData' || msg.type === 'graphData') {
         const commits = msg.graphCommits || [];
-
         setGraphCommits(commits);
         setTotalCommits(msg.totalCommits ?? commits.length);
         setSelectedGraphFilter(msg.graphFilter || '全部分支');
         setDisplayCount(100);
-
-        if (msg.folderName !== undefined) {
-          setFolderName(msg.folderName || '');
-        }
-
-        if (msg.branch !== undefined) {
-          setBranch(msg.branch || '');
-        }
-
-        if (msg.remoteUrl !== undefined) {
-          setRemoteUrl(msg.remoteUrl || '');
-        }
-
+        if (msg.folderName !== undefined) setFolderName(msg.folderName || '');
+        if (msg.branch !== undefined) setBranch(msg.branch || '');
+        if (msg.remoteUrl !== undefined) setRemoteUrl(msg.remoteUrl || '');
         setActiveCommitHash(null);
         setLoading(false);
-      } else if (
-        msg.type === 'gitDetailNoWorkspace' ||
-        msg.type === 'gitDetailNotRepo' ||
-        msg.type === 'gitDetailError' ||
-        msg.type === 'noWorkspace' ||
-        msg.type === 'notRepo' ||
-        msg.type === 'error'
-      ) {
+      } else if (['gitDetailNoWorkspace', 'gitDetailNotRepo', 'gitDetailError', 'noWorkspace', 'notRepo', 'error'].includes(msg.type)) {
         setGraphCommits([]);
         setTotalCommits(0);
         setActiveCommitHash(null);
         setLoading(false);
       }
     };
-
     window.addEventListener('message', handleMessage);
-
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
+    return () => window.removeEventListener('message', handleMessage);
   }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = listRef.current;
 
-    if (!canvas || !container || graphCommits.length === 0) return;
+    if (!canvas || !container || filteredCommits.length === 0) return;
 
     const ctx = canvas.getContext('2d');
-
     if (!ctx) return;
 
     const dpr = window.devicePixelRatio || 1;
     const containerWidth = container.clientWidth || 800;
-
     canvas.width = containerWidth * dpr;
     canvas.height = renderedHeight * dpr;
-
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, containerWidth, renderedHeight);
 
     graphData.branches.forEach((branchItem) => {
       const color = COLORS[branchItem.colour % COLORS.length];
-
       ctx.beginPath();
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-
       let lastPt: { x: number; y: number } | null = null;
 
       branchItem.lines.forEach((line, i) => {
         const x1 = line.p1.x * LANE_WIDTH + 40;
         const y1Base = yPositions[line.p1.y];
         const y1 = y1Base + CY;
-
         const x2 = line.p2.x * LANE_WIDTH + 40;
         const y2Base = yPositions[line.p2.y];
         const y2 = y2Base + CY;
@@ -404,7 +315,6 @@ export default function GitCommitDetailApp() {
           ctx.lineTo(x2, y2);
         } else {
           const d = 12;
-
           if (line.lockedFirst) {
             const curveEndY = y1Base + ROW_HEIGHT;
             ctx.bezierCurveTo(x1, y1 + d, x2, curveEndY - d, x2, curveEndY);
@@ -415,24 +325,20 @@ export default function GitCommitDetailApp() {
             ctx.bezierCurveTo(x1, curveStartY + d, x2, y2 - d, x2, y2);
           }
         }
-
         lastPt = { x: x2, y: y2 };
       });
-
       ctx.stroke();
     });
 
     const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--vscode-sideBar-background').trim() || '#252526';
-
     graphData.vertices.slice(0, displayCount).forEach((v, idx) => {
       const cx = v.getPoint().x * LANE_WIDTH + 40;
       const cy = yPositions[idx] + CY;
-      const commit = graphCommits[idx];
+      const commit = filteredCommits[idx];
       const isHead = commit.refs?.includes('HEAD');
 
       ctx.beginPath();
       ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
-
       const vBranch = v.getBranch();
       const dotColor = vBranch ? COLORS[vBranch.colour % COLORS.length] : '#808080';
 
@@ -447,39 +353,26 @@ export default function GitCommitDetailApp() {
         ctx.fill();
       }
     });
-  }, [graphData, graphCommits, displayCount, yPositions, renderedHeight]);
+  }, [graphData, filteredCommits, displayCount, yPositions, renderedHeight]);
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
-
     if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
-      if (displayCount < graphCommits.length) {
-        setDisplayCount((prev) => prev + 50);
-      }
+      if (displayCount < filteredCommits.length) setDisplayCount((prev) => prev + 50);
     }
   };
 
   const handleOpenChanges = (hash: string) => {
-    vscode.postMessage({
-      command: 'openCommitMultiDiff',
-      hash,
-    });
+    vscode.postMessage({ command: 'openCommitMultiDiff', hash });
   };
 
   const handleRefresh = () => {
     setLoading(true);
-
-    vscode.postMessage({
-      command: 'refreshGitDetail',
-      graphFilter: selectedGraphFilter,
-    });
+    vscode.postMessage({ command: 'refreshGitDetail', graphFilter: selectedGraphFilter });
   };
 
   const handleChangeGraphFilter = () => {
-    vscode.postMessage({
-      command: 'changeGitDetailFilter',
-      current: selectedGraphFilter,
-    });
+    vscode.postMessage({ command: 'changeGitDetailFilter', current: selectedGraphFilter });
   };
 
   return (
@@ -488,7 +381,11 @@ export default function GitCommitDetailApp() {
         <div className={styles['git-detail-title']}>
           <span>{folderName || 'quick-ops'}</span>
           <span className={styles['branch-name']}>{branch}</span>
-          {totalCommits > 0 && <span className={styles['total-badge']}>{totalCommits}</span>}
+          {totalCommits > 0 && (
+            <span className={styles['total-badge']}>
+              {filteredCommits.length === totalCommits ? totalCommits : `${filteredCommits.length} / ${totalCommits}`}
+            </span>
+          )}
         </div>
 
         <div className={styles['git-detail-actions']}>
@@ -496,7 +393,6 @@ export default function GitCommitDetailApp() {
             <i className="codicon codicon-filter" />
             筛选分支
           </button>
-
           <button className={styles['toolbar-btn']} onClick={handleRefresh}>
             <i className="codicon codicon-refresh" />
             刷新
@@ -506,10 +402,109 @@ export default function GitCommitDetailApp() {
 
       <div className={styles['detail-table-header']}>
         <div className={styles['graph-header']}>图形</div>
-        <div className={styles['desc-header']}>描述</div>
-        <div className={styles['date-header']}>日期</div>
-        <div className={styles['author-header']}>作者</div>
-        <div className={styles['commit-header']}>提交</div>
+        
+        {/* 🌟 1. 描述筛选 */}
+        <div className={styles['desc-header']}>
+          描述
+          <i
+            className={`codicon codicon-filter ${styles['filter-icon']} ${descFilter ? styles['has-filter'] : ''}`}
+            onClick={() => setActivePopup(activePopup === 'desc' ? null : 'desc')}
+          />
+          {activePopup === 'desc' && (
+            <div className={styles['filter-popup']}>
+              <input
+                type="text"
+                value={descFilter}
+                onChange={(e) => setDescFilter(e.target.value)}
+                placeholder="输入关键词"
+                className={styles['filter-input']}
+              />
+              <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
+                <button className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`} onClick={() => { setDescFilter(''); setActivePopup(null); }}>清除</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 🌟 2. 日期筛选 */}
+        <div className={styles['date-header']}>
+          日期
+          <i
+            className={`codicon codicon-filter ${styles['filter-icon']} ${(dateFilter.start || dateFilter.end) ? styles['has-filter'] : ''}`}
+            onClick={() => setActivePopup(activePopup === 'date' ? null : 'date')}
+          />
+          {activePopup === 'date' && (
+            <div className={styles['filter-popup']} style={{ width: '220px' }}>
+              <div style={{ marginBottom: '6px' }}>
+                开始: <input type="date" value={dateFilter.start} onChange={(e) => setDateFilter({ ...dateFilter, start: e.target.value })} className={styles['filter-input']} />
+              </div>
+              <div>
+                结束: <input type="date" value={dateFilter.end} onChange={(e) => setDateFilter({ ...dateFilter, end: e.target.value })} className={styles['filter-input']} />
+              </div>
+              <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
+                <button className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`} onClick={() => { setDateFilter({ start: '', end: '' }); setActivePopup(null); }}>清除</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 🌟 3. 作者筛选 */}
+        <div className={styles['author-header']}>
+          作者
+          <i
+            className={`codicon codicon-filter ${styles['filter-icon']} ${authorFilter.length > 0 ? styles['has-filter'] : ''}`}
+            onClick={() => setActivePopup(activePopup === 'author' ? null : 'author')}
+          />
+          {activePopup === 'author' && (
+            <div className={styles['filter-popup']}>
+              <div className={styles['filter-checkbox-list']}>
+                {allAuthors.map((author) => (
+                  <label key={author} className={styles['filter-checkbox-label']}>
+                    <input
+                      type="checkbox"
+                      checked={authorFilter.includes(author)}
+                      onChange={(e) => {
+                        if (e.target.checked) setAuthorFilter([...authorFilter, author]);
+                        else setAuthorFilter(authorFilter.filter((a) => a !== author));
+                      }}
+                    />
+                    {author}
+                  </label>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
+                <button className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`} onClick={() => { setAuthorFilter([]); setActivePopup(null); }}>清除</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 🌟 4. 提交(Hash)筛选 */}
+        <div className={styles['commit-header']}>
+          提交
+          <i
+            className={`codicon codicon-filter ${styles['filter-icon']} ${hashFilter ? styles['has-filter'] : ''}`}
+            onClick={() => setActivePopup(activePopup === 'hash' ? null : 'hash')}
+          />
+          {activePopup === 'hash' && (
+            <div className={styles['filter-popup']}>
+              <input
+                type="text"
+                value={hashFilter}
+                onChange={(e) => setHashFilter(e.target.value)}
+                placeholder="输入 Commit 过滤"
+                className={styles['filter-input']}
+              />
+              <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
+                <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
+                <button className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`} onClick={() => { setHashFilter(''); setActivePopup(null); }}>清除</button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className={styles['git-detail-content']}>
@@ -518,8 +513,8 @@ export default function GitCommitDetailApp() {
             <i className="codicon codicon-loading codicon-modifier-spin" />
             正在加载提交记录...
           </div>
-        ) : graphCommits.length === 0 ? (
-          <div className={styles['empty-view']}>暂无提交记录</div>
+        ) : filteredCommits.length === 0 ? (
+          <div className={styles['empty-view']}>{graphCommits.length === 0 ? '暂无提交记录' : '没有匹配的筛选结果'}</div>
         ) : (
           <div className={styles['commit-list-scroll']} ref={listRef} onScroll={handleScroll}>
             <canvas ref={canvasRef} className={styles['graph-canvas']} style={{ height: `${renderedHeight}px` }} />
@@ -535,7 +530,8 @@ export default function GitCommitDetailApp() {
                   <li key={commit.hash} className={styles['commit-item']} style={{ top: `${yPositions[index]}px` }}>
                     <div
                       className={`${styles['commit-row']} ${isActive ? styles['active'] : ''}`}
-                      onClick={() => setActiveCommitHash(isActive ? null : commit.hash)}
+                      // @ts-ignore
+                      onClick={() => setActivePopup(null) || setActiveCommitHash(isActive ? null : commit.hash)}
                     >
                       <div className={styles['graph-space']} style={{ width: `${paddingWidth}px` }} />
 
@@ -549,7 +545,6 @@ export default function GitCommitDetailApp() {
                               {ref}
                             </span>
                           ))}
-
                           <span className={styles['commit-message']}>{commit.message}</span>
                         </div>
                       </div>
@@ -564,36 +559,31 @@ export default function GitCommitDetailApp() {
                         <div className={styles['detail-left-space']} />
 
                         <div className={styles['detail-info']}>
+                          {/* 🌟 区域2 改成中文 */}
                           <div className={styles['detail-row']}>
-                            <span className={styles['detail-label']}>Commit:</span>
+                            <span className={styles['detail-label']}>提交:</span>
                             <span className={styles['detail-value']}>{commit.hash}</span>
                           </div>
-
                           <div className={styles['detail-row']}>
-                            <span className={styles['detail-label']}>Parents:</span>
+                            <span className={styles['detail-label']}>父节点:</span>
                             <span className={styles['detail-link']}>{commit.parents?.join(' ') || ''}</span>
                           </div>
-
                           <div className={styles['detail-row']}>
-                            <span className={styles['detail-label']}>Author:</span>
+                            <span className={styles['detail-label']}>作者:</span>
                             <span className={styles['detail-value']}>{commit.author}</span>
                           </div>
-
                           <div className={styles['detail-row']}>
-                            <span className={styles['detail-label']}>Committer:</span>
+                            <span className={styles['detail-label']}>提交者:</span>
                             <span className={styles['detail-value']}>{commit.author}</span>
                           </div>
-
                           <div className={styles['detail-row']}>
-                            <span className={styles['detail-label']}>Date:</span>
+                            <span className={styles['detail-label']}>日期:</span>
                             <span className={styles['detail-value']}>{formatDate(commit.timestamp)}</span>
                           </div>
-
                           <div className={styles['detail-row']}>
-                            <span className={styles['detail-label']}>Remote:</span>
+                            <span className={styles['detail-label']}>远程:</span>
                             <span className={styles['detail-value']}>{remoteUrl}</span>
                           </div>
-
                           <div className={styles['detail-message']}>{commit.message}</div>
                         </div>
 

@@ -22,12 +22,6 @@ export class SnippetGeneratorFeature implements IFeature {
 
   public activate(context: vscode.ExtensionContext): void {
     this.extensionContext = context;
-
-    // 🌟 优化 1：不再在 activate 中调用 loadAllSnippets！
-    // 插件启动时什么都不读，真正的“零耗时”启动！
-
-    // 🌟 优化 2：配置改变时，我们不去立刻读取文件，而是把标志位设为 false
-    // 这样下次用户敲击键盘时，自然会重新触发最新的加载逻辑
     this.configService.on('configChanged', () => {
       this.isSnippetsLoaded = false;
     });
