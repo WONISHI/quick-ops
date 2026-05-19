@@ -37,7 +37,7 @@ export class LivePreviewFeature implements IFeature {
     context.globalState.setKeysForSync([this.GLOBAL_FAVORITES_KEY]);
 
     const command = vscode.commands.registerCommand('quick-ops.openLivePreview', () => {
-      this.showPreviewPanel(context);
+      this.togglePreviewPanel(context);
     });
 
     const windowFocusWatcher = vscode.window.onDidChangeWindowState((state) => {
@@ -49,6 +49,15 @@ export class LivePreviewFeature implements IFeature {
     context.subscriptions.push(command, windowFocusWatcher);
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
+  }
+
+  private togglePreviewPanel(context: vscode.ExtensionContext) {
+    if (this.panel?.visible) {
+      this.panel.dispose();
+      return;
+    }
+
+    this.showPreviewPanel(context);
   }
 
   private normalizeFavoriteUrl(url: string): string {

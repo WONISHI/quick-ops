@@ -94,5 +94,11 @@
         "url": "https://ggradient.com/",
         "description": "在线 CSS 渐变背景生成工具，提供丰富的渐变色模板，可快速复制 CSS 渐变代码用于页面设计。",
         "logo": "https://ggradient.com/favicon.svg"
+    },
+    {
+        "name": "Lodash 中文文档",
+        "url": "https://www.lodashjs.com/",
+        "description": "Lodash 中文文档站点，提供数组、对象、集合、函数、防抖节流、深拷贝等常用工具函数的 API 查询和示例。",
+        "logo": "https://www.lodashjs.com/img/favicon.ico"
     }
-]   
+]
