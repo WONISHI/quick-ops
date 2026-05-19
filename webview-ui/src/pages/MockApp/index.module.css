@@ -313,6 +313,9 @@
 /* MockRulePanelApp */
 
 .mock-rule-root {
+    height: 100vh;
+    overflow-y: auto;
+    box-sizing: border-box;
     padding: 20px 30px;
     font-family: var(--vscode-font-family);
     font-size: var(--vscode-font-size, 13px);
@@ -611,6 +614,9 @@
 /* MockProxyPanelApp */
 
 .mock-proxy-root {
+    height: 100vh;
+    overflow-y: auto;
+    box-sizing: border-box;
     padding: 30px;
     font-family: var(--vscode-font-family);
     font-size: var(--vscode-font-size, 13px);

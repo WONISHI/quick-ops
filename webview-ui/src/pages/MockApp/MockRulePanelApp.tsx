@@ -14,9 +14,8 @@ export default function MockRulePanelApp() {
   const [contentType, setContentType] = useState('application/json');
   const [delay, setDelay] = useState('0');
   const [reqHeaders, setReqHeaders] = useState('');
-  const [dataPath, setDataPath] = useState('');
 
-  const [mode, setMode] = useState('mock'); // mock | custom | file
+  const [mode, setMode] = useState('mock');
   const [mockTemplate, setMockTemplate] = useState('{\n  "code": 200,\n  "data": {}\n}');
   const [customJson, setCustomJson] = useState('');
   const [previewResult, setPreviewResult] = useState('');
@@ -29,6 +28,10 @@ export default function MockRulePanelApp() {
   const [copyStatus, setCopyStatus] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
+    vscode.postMessage({ type: 'webviewLoaded' });
+  }, []);
+
+  useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       const msg = e.data;
       if (msg.type === 'init') {
@@ -39,7 +42,6 @@ export default function MockRulePanelApp() {
         setUrl(rule ? rule.url : '');
         setContentType(rule?.contentType || 'application/json');
         setStatusCode(rule?.statusCode?.toString() || '200');
-        setDataPath(rule?.dataPath || (msg.globalMockDir ? msg.globalMockDir + '/' : ''));
         setDelay(rule?.delay?.toString() || '0');
         setReqHeaders(rule?.reqHeaders ? JSON.stringify(rule.reqHeaders) : '');
         setFileDisposition(rule?.fileDisposition || 'inline');
@@ -66,18 +68,16 @@ export default function MockRulePanelApp() {
         } else if (currMode === 'mock') {
           setMockTemplate(typeof rule?.template === 'object' ? JSON.stringify(rule.template, null, 2) : (rule?.template || '{\n  "code": 200,\n  "data": {}\n}'));
         }
-      } else if (msg.type === 'ruleDirSelected') {
-        setDataPath(msg.path.endsWith('/') ? msg.path : msg.path + '/');
       } else if (msg.type === 'fileReturnPathSelected') {
         const newPaths = msg.path.split('\n').map((p: string) => p.trim()).filter(Boolean);
-        if (fileMode === 'single') { // This requires tracking fileMode via a ref or functional setState if closed over, but simpler to just use current state if updated correctly.
-            setFilePathSingle(newPaths[0] || '');
+        if (fileMode === 'single') {
+          setFilePathSingle(newPaths[0] || '');
         } else {
-            setFilePathsMultiple(prev => {
-                const updated = [...prev];
-                newPaths.forEach((p: string) => { if (!updated.includes(p)) updated.push(p); });
-                return updated;
-            });
+          setFilePathsMultiple(prev => {
+            const updated = [...prev];
+            newPaths.forEach((p: string) => { if (!updated.includes(p)) updated.push(p); });
+            return updated;
+          });
         }
       } else if (msg.type === 'simulateResult') {
         setPreviewResult(msg.error ? 'Error: ' + msg.error : JSON.stringify(msg.result, null, 2));
@@ -85,9 +85,8 @@ export default function MockRulePanelApp() {
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [fileMode]); // 注意这里最好加上 fileMode 依赖以解决上面注释里提到的闭包问题
+  }, [fileMode]);
 
-  // Simulate generation when mock template changes
   useEffect(() => {
     if (mode === 'mock' && mockTemplate.trim()) {
       vscode.postMessage({ type: 'simulate', template: mockTemplate, mode: 'mock' });
@@ -110,7 +109,7 @@ export default function MockRulePanelApp() {
         reqHeadersObj = JSON.parse(reqHeaders);
         if (typeof reqHeadersObj !== 'object' || Array.isArray(reqHeadersObj)) throw new Error();
       } catch (e) {
-        console.log('e',e)
+        console.log('e', e);
         return vscode.postMessage({ type: 'error', message: '注入请求头必须是合法的 JSON 对象格式！' });
       }
     }
@@ -125,9 +124,22 @@ export default function MockRulePanelApp() {
       }
 
       vscode.postMessage({
-        type: 'saveRule', payload: {
-          id: ruleId, proxyId, method, url, contentType, enabled: true, dataPath,
-          template: tpl, data, mode, filePath, fileDisposition, delay: parsedDelay, reqHeaders: reqHeadersObj, statusCode: parseInt(statusCode) || 200
+        type: 'saveRule',
+        payload: {
+          id: ruleId,
+          proxyId,
+          method,
+          url,
+          contentType,
+          enabled: true,
+          template: tpl,
+          data,
+          mode,
+          filePath,
+          fileDisposition,
+          delay: parsedDelay,
+          reqHeaders: reqHeadersObj,
+          statusCode: parseInt(statusCode) || 200
         }
       });
     } catch (e: any) {
@@ -177,18 +189,6 @@ export default function MockRulePanelApp() {
           <div className={styles['form-group']}>
             <label>注入请求头 (合法 JSON 格式)</label>
             <input type="text" value={reqHeaders} onChange={e => setReqHeaders(e.target.value)} placeholder='{"X-Custom-Auth": "token123"}' />
-          </div>
-        </div>
-
-        <div className={styles['form-row']}>
-          <div className={styles['form-group']}>
-            <label>规则配置存放路径 (必填)</label>
-            <div className={styles['path-input-row']}>
-              <input type="text" value={dataPath} onChange={e => setDataPath(e.target.value)} placeholder="相对于工作区的路径" />
-              <button className={styles['btn-sec']} onClick={() => vscode.postMessage({ type: 'selectRuleMockDir', currentPath: dataPath })}>
-                <FontAwesomeIcon icon={faFolderOpen} />
-              </button>
-            </div>
           </div>
         </div>
 

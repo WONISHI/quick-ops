@@ -56,7 +56,7 @@
             "mockDir": {
               "type": "string",
               "default": "",
-              "description": "Mock 数据默认存放目录"
+              "description": "Mock YAML 接口文件默认存放目录"
             }
           }
         },

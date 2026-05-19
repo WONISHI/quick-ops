@@ -1,17 +1,19 @@
 import * as vscode from 'vscode';
 import { nanoid } from 'nanoid';
-import * as path from 'path';
 
 import { ConfigurationService } from '../services/ConfigurationService';
 import { MockServerFeature } from '../features/MockServerFeature';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
-import type { IMockRuleConfig, IProxyConfig } from '../core/types/config';
+import { IMockRuleConfig, IProxyConfig, MockYamlStore } from '../utils/MockYamlStore';
 
 export class MockWebviewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
 
   private proxyPanel: vscode.WebviewPanel | undefined;
   private rulePanel: vscode.WebviewPanel | undefined;
+
+  private yamlStore = new MockYamlStore();
+  private draftProxies: IProxyConfig[] = [];
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -21,78 +23,69 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
   public resolveWebviewView(webviewView: vscode.WebviewView, context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken) {
     this._view = webviewView;
     webviewView.webview.options = { enableScripts: true, localResourceRoots: [this._extensionUri] };
-    
-    // 侧边栏主面板，为其分配路由 '/mock'
+
     webviewView.webview.html = getReactWebviewHtml(this._extensionUri, webviewView.webview, '/mock');
-    
+
     webviewView.webview.onDidReceiveMessage(async (data) => {
       await this.handleMessage(data, webviewView.webview);
     });
   }
 
-  private getWorkspaceRoot(): string | undefined {
+  private getWorkspaceRootUri(): vscode.Uri | undefined {
     const folders = vscode.workspace.workspaceFolders;
-    return folders && folders.length > 0 ? folders[0].uri.fsPath : undefined;
-  }
-
-  private getMockDataPath(dataPath: string): string | undefined {
-    if (path.isAbsolute(dataPath)) return dataPath;
-    const root = this.getWorkspaceRoot();
-    if (!root) return undefined;
-    return path.join(root, dataPath);
+    return folders && folders.length > 0 ? folders[0].uri : undefined;
   }
 
   private getDefaultUri(currentPath?: string): vscode.Uri | undefined {
-    const rootPath = this.getWorkspaceRoot();
     if (currentPath && currentPath.trim() !== '') {
-      let absPath = currentPath;
-      if (!path.isAbsolute(currentPath)) {
-        if (!rootPath) return undefined;
-        absPath = path.join(rootPath, currentPath);
-      }
-
-      let currentSearch = absPath;
-      while (currentSearch && currentSearch !== path.dirname(currentSearch)) {
-        return vscode.Uri.file(currentSearch);
-      }
+      const currentUri = this.yamlStore.resolvePathToUri(currentPath);
+      if (currentUri) return currentUri;
     }
-    return rootPath ? vscode.Uri.file(rootPath) : undefined;
+
+    const mockDir = this.yamlStore.getMockDir();
+    if (mockDir) {
+      const mockDirUri = this.yamlStore.resolvePathToUri(mockDir);
+      if (mockDirUri) return mockDirUri;
+    }
+
+    return this.getWorkspaceRootUri();
   }
 
   private async getFullConfig() {
-    const configService = ConfigurationService.getInstance();
+    const proxyList = await this.yamlStore.readAllServices();
+    const endpoints = await this.yamlStore.readAllEndpoints();
 
-    let proxyList = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
-    let mockList = Array.isArray(configService.config.mock) ? configService.config.mock : [];
-    const mockDir = configService.config.general?.mockDir || '';
+    const proxyMap = new Map<string, IProxyConfig>();
 
-    const fullMockListPromises = mockList.map(async (rule: IMockRuleConfig) => {
-      const fullRule = { ...rule };
-      if (rule.dataPath && rule.mode !== 'file') {
-        const absPath = this.getMockDataPath(rule.dataPath);
-        if (absPath) {
-          try {
-            const fileUri = vscode.Uri.file(absPath);
-            const fileData = await vscode.workspace.fs.readFile(fileUri);
-            const parsedContent = JSON.parse(Buffer.from(fileData).toString('utf8'));
-            if (rule.mode === 'custom') fullRule.data = parsedContent;
-            else fullRule.template = parsedContent;
-          } catch (e) {}
-        }
+    for (const item of proxyList) {
+      proxyMap.set(item.id, item);
+    }
+
+    for (const item of this.draftProxies) {
+      if (!proxyMap.has(item.id)) {
+        proxyMap.set(item.id, item);
       }
-      return fullRule;
+    }
+
+    const mockList = endpoints.map((item) => {
+      const { _yamlUri, ...rest } = item;
+      return rest;
     });
 
-    const fullMockList = await Promise.all(fullMockListPromises);
-    return { proxyList, mockList: fullMockList, mockDir };
+    const mockDir = this.yamlStore.getMockDir();
+
+    return {
+      proxyList: Array.from(proxyMap.values()),
+      mockList,
+      mockDir,
+    };
   }
 
   public async handleMessage(data: any, webview: vscode.Webview) {
     const configService = ConfigurationService.getInstance();
-    const { proxyList, mockList: fullMockList, mockDir } = await this.getFullConfig();
+    const { proxyList, mockList: fullMockList } = await this.getFullConfig();
 
     switch (data.type) {
-      // 🌟 握手机制：收到前端 React 加载完成的信号后，推送配置数据
       case 'webviewLoaded':
         this.refreshSidebar();
         break;
@@ -100,6 +93,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
       case 'error':
         vscode.window.showErrorMessage(data.message);
         break;
+
       case 'refresh':
         this.refreshSidebar();
         break;
@@ -109,18 +103,22 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
           vscode.window.showWarningMessage('操作失败：请先添加 Mock 服务！');
           break;
         }
-        const newStatus = data.value; 
-        let pList = proxyList.map((p: IProxyConfig) => ({ ...p, enabled: newStatus }));
 
-        await configService.updateConfig('proxy', pList);
-        await this._mockFeature.syncServers(); 
-        this.refreshSidebar(); 
+        await this.yamlStore.setAllEnabled(data.value);
+        this.draftProxies = this.draftProxies.map((item) => ({
+          ...item,
+          enabled: data.value,
+        }));
+
+        await this._mockFeature.syncServers();
+        this.refreshSidebar();
         break;
       }
 
       case 'copyText':
         vscode.env.clipboard.writeText(data.payload).then(() => vscode.window.showInformationMessage('复制成功：' + data.payload));
         break;
+
       case 'selectGlobalMockDir': {
         const defaultUri = this.getDefaultUri(data.currentPath);
         const uri = await vscode.window.showOpenDialog({
@@ -128,23 +126,37 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
           canSelectFolders: true,
           canSelectMany: false,
           defaultUri,
-          openLabel: '选择全局 Mock 数据存放目录',
+          openLabel: '选择全局 Mock YAML 存放目录',
+          title: '选择全局 Mock YAML 存放目录',
         });
+
         if (uri && uri[0]) {
-          const rootPath = this.getWorkspaceRoot();
-          let savePath = uri[0].fsPath;
-          if (rootPath && savePath.startsWith(rootPath)) {
-            savePath = path.relative(rootPath, savePath);
-            if (savePath === '') savePath = '.';
-          }
-          savePath = savePath.replace(/\\/g, '/');
-          let general = configService.config.general || {};
-          general.mockDir = savePath;
+          const savePath = this.yamlStore.pathForConfig(uri[0]);
+
+          const general = {
+            ...(configService.config.general || {}),
+            mockDir: savePath,
+          };
+
           await configService.updateConfig('general', general);
+
+          (configService.config as any).general = general;
+
+          vscode.window.showInformationMessage(`已设置 Mock YAML 目录：${savePath}`);
+
+          this._view?.webview.postMessage({
+            type: 'config',
+            proxy: proxyList,
+            mock: fullMockList,
+            mockDir: savePath,
+          });
+
           this.refreshSidebar();
         }
+
         break;
       }
+
       case 'selectFileReturnPath': {
         const defaultUri = this.getDefaultUri(data.currentPath);
         const uris = await vscode.window.showOpenDialog({
@@ -156,95 +168,58 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         });
 
         if (uris && uris.length > 0) {
-          const rootPath = this.getWorkspaceRoot();
-          const paths = uris.map((uri) => {
-            let savePath = uri.fsPath;
-            if (rootPath && savePath.startsWith(rootPath)) {
-              savePath = path.relative(rootPath, savePath);
-            }
-            return savePath.replace(/\\/g, '/');
-          });
+          const paths = uris.map((uri) => this.yamlStore.pathForConfig(uri));
           this.rulePanel?.webview.postMessage({ type: 'fileReturnPathSelected', path: paths.join('\n') });
         }
         break;
       }
+
       case 'openProxyPanel':
         this.showProxyPanel(data.id);
         break;
+
       case 'openRulePanel':
         this.showRulePanel(data.proxyId, data.ruleId);
         break;
+
       case 'toggleProxy': {
         const pGroup = proxyList.find((p: IProxyConfig) => p.id === data.id);
         if (pGroup) {
-          pGroup.enabled = data.enabled;
-          await configService.updateConfig('proxy', proxyList);
+          await this.yamlStore.patchService(data.id, { enabled: data.enabled });
+          this.draftProxies = this.draftProxies.map((item) => item.id === data.id ? { ...item, enabled: data.enabled } : item);
+
           await this._mockFeature.syncServers();
           this.refreshSidebar();
         }
         break;
       }
+
       case 'deleteProxy': {
-        const ansProxy = await vscode.window.showWarningMessage(`确定要删除此服务吗？相关的规则也会被移除。`, { modal: true }, '删除');
+        const ansProxy = await vscode.window.showWarningMessage(`确定要删除此服务吗？相关的 YAML 接口规则也会被移除。`, { modal: true }, '删除');
         if (ansProxy === '删除') {
-          const newProxyList = proxyList.filter((p: IProxyConfig) => p.id !== data.id);
+          await this.yamlStore.deleteService(data.id);
+          this.draftProxies = this.draftProxies.filter((item) => item.id !== data.id);
 
-          const deletePromises = fullMockList
-            .filter((m: any) => m.proxyId === data.id)
-            .map(async (r: any) => {
-              if (r.dataPath) {
-                const absPath = this.getMockDataPath(r.dataPath);
-                if (absPath) {
-                  try {
-                    await vscode.workspace.fs.delete(vscode.Uri.file(absPath));
-                  } catch (e) {}
-                }
-              }
-            });
-          await Promise.all(deletePromises);
-
-          const newMockList = fullMockList
-            .filter((m: any) => m.proxyId !== data.id)
-            .map((r: any) => {
-              const { data, template, ...rest } = r;
-              return rest;
-            });
-          await configService.updateConfig('proxy', newProxyList);
-          await configService.updateConfig('mock', newMockList);
           await this._mockFeature.syncServers();
           this.refreshSidebar();
         }
         break;
       }
+
       case 'deleteRule': {
-        const ansRule = await vscode.window.showWarningMessage(`确定要删除此规则吗？`, { modal: true }, '删除');
+        const ansRule = await vscode.window.showWarningMessage(`确定要删除此规则 YAML 文件吗？`, { modal: true }, '删除');
         if (ansRule === '删除') {
-          const ruleToDelete = fullMockList.find((r: any) => r.id === data.ruleId);
-          if (ruleToDelete && ruleToDelete.dataPath) {
-            const absPath = this.getMockDataPath(ruleToDelete.dataPath);
-            if (absPath) {
-              try {
-                await vscode.workspace.fs.delete(vscode.Uri.file(absPath));
-              } catch (e) {}
-            }
-          }
-          let pureMockList = Array.isArray(configService.config.mock) ? configService.config.mock : [];
-          await configService.updateConfig(
-            'mock',
-            pureMockList.filter((r: any) => r.id !== data.ruleId),
-          );
+          await this.yamlStore.deleteEndpoint(data.ruleId);
+          await this._mockFeature.syncServers();
           this.refreshSidebar();
         }
         break;
       }
+
       case 'toggleRule': {
-        let pureMockList = Array.isArray(configService.config.mock) ? configService.config.mock : [];
-        const rule = pureMockList.find((r: any) => r.id === data.ruleId);
-        if (rule) {
-          rule.enabled = data.enabled;
-          await configService.updateConfig('mock', pureMockList);
-          this.refreshSidebar();
-        }
+        await this.yamlStore.patchEndpoint(data.ruleId, { enabled: data.enabled });
+        await this._mockFeature.syncServers();
+        this.refreshSidebar();
         break;
       }
     }
@@ -263,172 +238,237 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
   }
 
   public async showProxyPanel(proxyId?: string) {
-    if (this.proxyPanel) {
-      this.proxyPanel.reveal(vscode.ViewColumn.One);
-    } else {
-      this.proxyPanel = vscode.window.createWebviewPanel('proxyPanel', proxyId ? '编辑 Mock 服务' : '新增 Mock 服务', vscode.ViewColumn.One, { enableScripts: true });
-      this.proxyPanel.onDidDispose(() => {
-        this.proxyPanel = undefined;
-      });
-      
-      this.proxyPanel.webview.html = getReactWebviewHtml(this._extensionUri, this.proxyPanel.webview, '/mock/proxy');
-
-      this.proxyPanel.webview.onDidReceiveMessage(async (data) => {
-        // 🌟 握手机制：收到前端页面就绪信号后，再去查配置并发给面板
-        if (data.type === 'webviewLoaded') {
-          const configService = ConfigurationService.getInstance();
-          const proxies = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
-          this.proxyPanel?.webview.postMessage({ type: 'init', proxy: proxies.find((p: any) => p.id === proxyId) });
-        }
-        else if (data.type === 'error') vscode.window.showErrorMessage(data.message);
-        else if (data.type === 'cancel') this.proxyPanel?.dispose();
-        else if (data.type === 'saveProxy') {
-          const configService = ConfigurationService.getInstance();
-          let proxyList = Array.isArray(configService.config.proxy) ? configService.config.proxy : [];
-          const newProxy = data.payload;
-          if (!newProxy.id) {
-            newProxy.id = nanoid();
-            newProxy.enabled = true;
-            proxyList.push(newProxy);
-          } else {
-            const idx = proxyList.findIndex((p: any) => p.id === newProxy.id);
-            if (idx > -1) {
-              proxyList[idx].port = newProxy.port;
-            }
-          }
-          await configService.updateConfig('proxy', proxyList);
-          await this._mockFeature.syncServers();
-          this.proxyPanel?.dispose();
-          this.refreshSidebar();
-        }
-      });
+    if (this.rulePanel) {
+      this.rulePanel.dispose();
+      this.rulePanel = undefined;
     }
+
+    if (this.proxyPanel) {
+      this.proxyPanel.dispose();
+      this.proxyPanel = undefined;
+    }
+
+    this.proxyPanel = vscode.window.createWebviewPanel(
+      'quickOps.mockProxyPanel',
+      proxyId ? '编辑 Mock 服务' : '新增 Mock 服务',
+      vscode.ViewColumn.One,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: false,
+        localResourceRoots: [this._extensionUri],
+      },
+    );
+
+    this.proxyPanel.onDidDispose(() => {
+      this.proxyPanel = undefined;
+    });
+
+    this.proxyPanel.webview.html = getReactWebviewHtml(
+      this._extensionUri,
+      this.proxyPanel.webview,
+      '/mock/proxy',
+    );
+
+    this.proxyPanel.webview.onDidReceiveMessage(async (data) => {
+      if (data.type === 'webviewLoaded') {
+        const { proxyList } = await this.getFullConfig();
+
+        this.proxyPanel?.webview.postMessage({
+          type: 'init',
+          proxy: proxyList.find((p: any) => p.id === proxyId),
+        });
+      }
+      else if (data.type === 'error') {
+        vscode.window.showErrorMessage(data.message);
+      }
+      else if (data.type === 'cancel') {
+        this.proxyPanel?.dispose();
+      }
+      else if (data.type === 'saveProxy') {
+        const mockDir = this.yamlStore.getMockDir();
+
+        if (!mockDir) {
+          vscode.window.showErrorMessage('请先设置全局 Mock YAML 存放目录！');
+          return;
+        }
+
+        const newProxy = data.payload;
+        const domain = newProxy.domain || '127.0.0.1';
+        const port = Number(newProxy.port);
+        const nextId = this.yamlStore.buildServiceId(domain, port);
+
+        if (!port) {
+          vscode.window.showErrorMessage('端口不能为空！');
+          return;
+        }
+
+        if (newProxy.id) {
+          const existedDraftIndex = this.draftProxies.findIndex((item) => item.id === newProxy.id);
+
+          if (existedDraftIndex > -1) {
+            this.draftProxies[existedDraftIndex] = {
+              id: nextId,
+              port,
+              domain,
+              enabled: true,
+            };
+          } else {
+            await this.yamlStore.patchService(newProxy.id, {
+              port,
+              domain,
+              enabled: true,
+            });
+          }
+        } else {
+          const existedDraftIndex = this.draftProxies.findIndex((item) => item.id === nextId);
+
+          if (existedDraftIndex > -1) {
+            this.draftProxies[existedDraftIndex] = {
+              id: nextId,
+              port,
+              domain,
+              enabled: true,
+            };
+          } else {
+            this.draftProxies.push({
+              id: nextId,
+              port,
+              domain,
+              enabled: true,
+            });
+          }
+        }
+
+        await this._mockFeature.syncServers();
+        this.proxyPanel?.dispose();
+        this.refreshSidebar();
+      }
+    });
   }
 
   public async showRulePanel(proxyId: string, ruleId?: string) {
-    if (this.rulePanel) {
-      this.rulePanel.reveal(vscode.ViewColumn.One);
-    } else {
-      this.rulePanel = vscode.window.createWebviewPanel('rulePanel', ruleId ? '编辑规则' : '新增规则', vscode.ViewColumn.One, { enableScripts: true });
-      this.rulePanel.onDidDispose(() => {
-        this.rulePanel = undefined;
-      });
-      
-      this.rulePanel.webview.html = getReactWebviewHtml(this._extensionUri, this.rulePanel.webview, '/mock/rule');
-
-      this.rulePanel.webview.onDidReceiveMessage(async (data) => {
-        // 🌟 握手机制：收到前端页面就绪信号后，处理文件读取并把全量数据发给规则面板
-        if (data.type === 'webviewLoaded') {
-          const configService = ConfigurationService.getInstance();
-          const mocks = Array.isArray(configService.config.mock) ? configService.config.mock : [];
-          let fullRule = mocks.find((r: any) => r.id === ruleId) ? { ...mocks.find((r: any) => r.id === ruleId) } : null;
-
-          if (fullRule && fullRule.dataPath && fullRule.mode !== 'file') {
-            const absPath = this.getMockDataPath(fullRule.dataPath);
-            if (absPath) {
-              try {
-                const fileData = await vscode.workspace.fs.readFile(vscode.Uri.file(absPath));
-                const parsed = JSON.parse(Buffer.from(fileData).toString('utf8'));
-                if (fullRule.mode === 'custom') fullRule.data = parsed;
-                else fullRule.template = parsed;
-              } catch (e) {}
-            }
-          }
-          this.rulePanel?.webview.postMessage({ type: 'init', proxyId, rule: fullRule, globalMockDir: configService.config.general?.mockDir || '' });
-        }
-        else if (data.type === 'error') vscode.window.showErrorMessage(data.message);
-        else if (data.type === 'cancel') this.rulePanel?.dispose();
-        else if (data.type === 'simulate') {
-          try {
-            const Mock = require('mockjs');
-
-            let parsedTemplate = typeof data.template === 'string' ? JSON.parse(data.template) : data.template;
-            let result = data.mode === 'mock' ? Mock.mock(parsedTemplate) : parsedTemplate;
-            this.rulePanel?.webview.postMessage({ type: 'simulateResult', result });
-          } catch (e: any) {
-            this.rulePanel?.webview.postMessage({ type: 'simulateResult', error: e.message });
-          }
-        } else if (data.type === 'selectRuleMockDir') {
-          const defaultUri = this.getDefaultUri(data.currentPath);
-          const uri = await vscode.window.showOpenDialog({
-            canSelectFiles: false,
-            canSelectFolders: true,
-            canSelectMany: false,
-            defaultUri,
-            openLabel: '选择此规则的数据存放目录',
-          });
-          if (uri && uri[0]) {
-            const rootPath = this.getWorkspaceRoot();
-            let savePath = uri[0].fsPath;
-            if (rootPath && savePath.startsWith(rootPath)) {
-              savePath = path.relative(rootPath, savePath);
-              if (savePath === '') savePath = '.';
-            }
-            this.rulePanel?.webview.postMessage({ type: 'ruleDirSelected', path: savePath.replace(/\\/g, '/') });
-          }
-        } else if (data.type === 'selectFileReturnPath') {
-          await this.handleMessage(data, this.rulePanel!.webview);
-        } else if (data.type === 'saveRule') {
-          const newRuleData = data.payload;
-          if (!newRuleData.id) newRuleData.id = nanoid();
-
-          const rootPath = this.getWorkspaceRoot();
-          let ruleDataPath = newRuleData.dataPath;
-          if (!ruleDataPath || ruleDataPath.trim() === '') return vscode.window.showErrorMessage('保存失败：存放路径不能为空！');
-          if (!ruleDataPath.endsWith('.json')) ruleDataPath = path.posix.join(ruleDataPath.replace(/\\/g, '/'), `${newRuleData.id}.json`);
-
-          let absPath = ruleDataPath;
-          if (!path.isAbsolute(ruleDataPath)) {
-            if (!rootPath) return vscode.window.showErrorMessage('未打开工作区，无法保存相对路径规则！');
-            absPath = path.join(rootPath, ruleDataPath);
-          }
-
-          const dir = path.dirname(absPath);
-          try {
-            await vscode.workspace.fs.createDirectory(vscode.Uri.file(dir));
-          } catch (e) {}
-
-          let contentToWrite = '';
-          if (newRuleData.mode === 'mock') {
-            contentToWrite = JSON.stringify(newRuleData.template || {}, null, 2);
-          } else if (newRuleData.mode === 'custom') {
-            contentToWrite = JSON.stringify(newRuleData.data || {}, null, 2);
-          } else if (newRuleData.mode === 'file') {
-            contentToWrite = JSON.stringify({ type: 'file_mock', file: newRuleData.filePath, disposition: newRuleData.fileDisposition }, null, 2);
-          }
-
-          await vscode.workspace.fs.writeFile(vscode.Uri.file(absPath), Buffer.from(contentToWrite, 'utf8'));
-
-          const ruleToSaveConfig: any = {
-            id: newRuleData.id,
-            proxyId: newRuleData.proxyId,
-            method: newRuleData.method,
-            url: newRuleData.url,
-            contentType: newRuleData.contentType,
-            enabled: newRuleData.enabled,
-            dataPath: ruleDataPath,
-            mode: newRuleData.mode,
-            delay: newRuleData.delay,
-            reqHeaders: newRuleData.reqHeaders,
-            statusCode: newRuleData.statusCode,
-          };
-
-          if (newRuleData.mode === 'file') {
-            ruleToSaveConfig.filePath = newRuleData.filePath;
-            ruleToSaveConfig.fileDisposition = newRuleData.fileDisposition;
-          }
-
-          const configService = ConfigurationService.getInstance();
-          let pureMockList = Array.isArray(configService.config.mock) ? configService.config.mock : [];
-          const rIdx = pureMockList.findIndex((r: any) => r.id === newRuleData.id);
-          if (rIdx > -1) pureMockList[rIdx] = ruleToSaveConfig;
-          else pureMockList.push(ruleToSaveConfig);
-
-          await configService.updateConfig('mock', pureMockList);
-          this.rulePanel?.dispose();
-          this.refreshSidebar();
-        }
-      });
+    if (this.proxyPanel) {
+      this.proxyPanel.dispose();
+      this.proxyPanel = undefined;
     }
+
+    if (this.rulePanel) {
+      this.rulePanel.dispose();
+      this.rulePanel = undefined;
+    }
+
+    this.rulePanel = vscode.window.createWebviewPanel(
+      'quickOps.mockRulePanel',
+      ruleId ? '编辑规则' : '新增规则',
+      vscode.ViewColumn.One,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: false,
+        localResourceRoots: [this._extensionUri],
+      },
+    );
+
+    this.rulePanel.onDidDispose(() => {
+      this.rulePanel = undefined;
+    });
+
+    this.rulePanel.webview.html = getReactWebviewHtml(
+      this._extensionUri,
+      this.rulePanel.webview,
+      '/mock/rule',
+    );
+
+    this.rulePanel.webview.onDidReceiveMessage(async (data) => {
+      if (data.type === 'webviewLoaded') {
+        const { mockList } = await this.getFullConfig();
+        const fullRule = ruleId ? mockList.find((r: any) => r.id === ruleId) || null : null;
+
+        this.rulePanel?.webview.postMessage({
+          type: 'init',
+          proxyId,
+          rule: fullRule,
+          globalMockDir: this.yamlStore.getMockDir(),
+        });
+      }
+      else if (data.type === 'error') {
+        vscode.window.showErrorMessage(data.message);
+      }
+      else if (data.type === 'cancel') {
+        this.rulePanel?.dispose();
+      }
+      else if (data.type === 'simulate') {
+        try {
+          const Mock = require('mockjs');
+
+          let parsedTemplate = typeof data.template === 'string' ? JSON.parse(data.template) : data.template;
+          let result = data.mode === 'mock' ? Mock.mock(parsedTemplate) : parsedTemplate;
+
+          this.rulePanel?.webview.postMessage({ type: 'simulateResult', result });
+        } catch (e: any) {
+          this.rulePanel?.webview.postMessage({ type: 'simulateResult', error: e.message });
+        }
+      }
+      else if (data.type === 'selectFileReturnPath') {
+        await this.handleMessage(data, this.rulePanel!.webview);
+      }
+      else if (data.type === 'saveRule') {
+        const mockDir = this.yamlStore.getMockDir();
+
+        if (!mockDir) {
+          return vscode.window.showErrorMessage('请先设置全局 Mock YAML 存放目录！');
+        }
+
+        const newRuleData = data.payload;
+
+        if (!newRuleData.id) newRuleData.id = nanoid();
+
+        const { proxyList, mockList } = await this.getFullConfig();
+        const proxy = proxyList.find((p) => p.id === newRuleData.proxyId);
+
+        if (!proxy) {
+          return vscode.window.showErrorMessage('保存失败：未找到对应 Mock 服务！');
+        }
+
+        const oldRule = mockList.find((r: any) => r.id === newRuleData.id);
+        const ruleDataPath = this.yamlStore.ensureYamlFilePath(
+          oldRule?.yamlPath || oldRule?.dataPath || mockDir,
+          newRuleData.id,
+        );
+
+        const ruleToSaveConfig: IMockRuleConfig = {
+          id: newRuleData.id,
+          proxyId: proxy.id,
+          method: newRuleData.method,
+          url: newRuleData.url,
+          contentType: newRuleData.contentType,
+          enabled: newRuleData.enabled,
+          dataPath: ruleDataPath,
+          yamlPath: ruleDataPath,
+          mode: newRuleData.mode,
+          delay: newRuleData.delay,
+          reqHeaders: newRuleData.reqHeaders,
+          statusCode: newRuleData.statusCode,
+          port: Number(proxy.port),
+          domain: proxy.domain || '127.0.0.1',
+        };
+
+        if (newRuleData.mode === 'mock') {
+          ruleToSaveConfig.template = newRuleData.template || {};
+        } else if (newRuleData.mode === 'custom') {
+          ruleToSaveConfig.data = newRuleData.data || {};
+        } else if (newRuleData.mode === 'file') {
+          ruleToSaveConfig.filePath = newRuleData.filePath;
+          ruleToSaveConfig.fileDisposition = newRuleData.fileDisposition;
+        }
+
+        await this.yamlStore.saveEndpoint(ruleToSaveConfig, ruleDataPath);
+
+        this.draftProxies = this.draftProxies.filter((item) => item.id !== proxy.id);
+
+        await this._mockFeature.syncServers();
+        this.rulePanel?.dispose();
+        this.refreshSidebar();
+      }
+    });
   }
 }

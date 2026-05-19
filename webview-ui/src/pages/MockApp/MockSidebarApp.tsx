@@ -27,12 +27,19 @@ export default function MockSidebarApp() {
       }
     };
     window.addEventListener('message', handleMessage);
-    vscode.postMessage({ type: 'refresh' });
+    vscode.postMessage({ type: 'webviewLoaded' });
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
   const toggleGlobalServer = () => vscode.postMessage({ type: 'toggleServer', value: !isGlobalRunning });
-  const selectGlobalMockDir = () => vscode.postMessage({ type: 'selectGlobalMockDir', currentPath: globalMockDir });
+
+  const selectGlobalMockDir = () => {
+    vscode.postMessage({
+      type: 'selectGlobalMockDir',
+      currentPath: globalMockDir || '',
+    });
+  };
+
   const openProxyModal = (id?: string) => vscode.postMessage({ type: 'openProxyPanel', id });
   const openRuleModal = (proxyId: string, ruleId?: string) => vscode.postMessage({ type: 'openRulePanel', proxyId, ruleId });
   const toggleProxy = (id: string, enabled: boolean) => vscode.postMessage({ type: 'toggleProxy', id, enabled });
@@ -69,9 +76,9 @@ export default function MockSidebarApp() {
           return (
             <div key={p.id} className={styles['proxy-container']}>
               <div className={styles['proxy-header']}>
-                <div title="当前监听端口">
+                <div title="当前监听地址">
                   <FontAwesomeIcon icon={faCircle} style={{ color: isProxyRunning ? 'var(--success)' : '#555', fontSize: '10px', marginRight: '6px' }} />
-                  <span className={styles['port-badge']}>端口: {p.port}</span>
+                  <span className={styles['port-badge']}>{p.domain || '127.0.0.1'}:{p.port}</span>
                 </div>
                 <div className={styles['proxy-actions']}>
                   <label className={styles['switch']} title="启用/停用此端口">
@@ -89,7 +96,8 @@ export default function MockSidebarApp() {
               <div className={styles['rule-list']}>
                 {proxyMocks.map(item => {
                   const isFile = item.mode === 'file';
-                  const fullUrl = `http://localhost:${p.port}${item.url.startsWith('/') ? '' : '/'}${item.url}`;
+                  const host = p.domain || '127.0.0.1';
+                  const fullUrl = `http://${host}:${p.port}${item.url.startsWith('/') ? '' : '/'}${item.url}`;
                   return (
                     <div key={item.id} className={`${styles['rule-card']} ${item.enabled ? styles['active'] : styles['disabled']}`}>
                       <div className={styles['rule-main']}>
