@@ -31,6 +31,7 @@ import { ComponentIntellisenseFeature } from '../features/ComponentIntellisenseF
 import { TextCompareFeature } from '../features/TextCompareFeature';
 import { GitFeature } from '../features/GitFeature';
 import { InlineConstantHintFeature } from '../features/InlineConstantHintFeature';
+import { FocusHistoryFeature } from '../features/FocusHistoryFeature'
 // import { ZeroConfigConsoleFeature } from '../features/InlineConsoleFeature';
 
 export class QuickOpsApplication {
@@ -82,6 +83,7 @@ export class QuickOpsApplication {
       new TextCompareFeature(),
       new GitFeature(),
       new InlineConstantHintFeature(),
+      new FocusHistoryFeature()
       // new ZeroConfigConsoleFeature()
     ];
 
