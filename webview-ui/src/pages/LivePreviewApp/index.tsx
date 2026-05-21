@@ -120,7 +120,6 @@ export default function LivePreviewApp() {
 
       if (progressTimerRef.current) window.clearInterval(progressTimerRef.current);
 
-      // 模拟加载进度：前段快，后段慢，最多卡在 92%
       progressTimerRef.current = window.setInterval(() => {
         setLoadingProgress((prev) => {
           if (prev >= 92) return 92;
@@ -137,10 +136,8 @@ export default function LivePreviewApp() {
 
       setLoadingProgress(100);
 
-      // 等待进度条跑到 100% 的 CSS 动画执行完，再将进度条隐藏
       const hideTimer = window.setTimeout(() => {
         setShowProgress(false);
-        // 隐藏后再把进度悄悄归 0，为下一次加载做准备
         window.setTimeout(() => setLoadingProgress(0), 300);
       }, 400);
 

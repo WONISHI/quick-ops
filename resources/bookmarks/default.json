@@ -100,5 +100,22 @@
         "url": "https://www.lodashjs.com/",
         "description": "Lodash 中文文档站点，提供数组、对象、集合、函数、防抖节流、深拷贝等常用工具函数的 API 查询和示例。",
         "logo": "https://www.lodashjs.com/img/favicon.ico"
+    },
+    {
+        "name": "DevDocs",
+        "url": "https://devdocs.io/",
+        "description": "聚合了各种编程语言和前端框架 API 的离线文档库，支持极其快速的全局搜索，是开发者的案头神器。",
+        "logo": "https://devdocs.io/favicon.ico"
+    },
+    {
+        "name": "在线代码美化截图工具",
+        "url": "https://tool.h234.cn/rcode/index.html",
+        "description": "支持多种主题和语法高亮的代码片段美化工具，可快速将代码转化为高颜值的图片进行分享。",
+        "logo": "https://tool.h234.cn/assets/favicon.ico"
+    },
+    {
+        "name": "Varbook 变量命名神器",
+        "url": "https://varbook.uius.site/",
+        "description": "专为开发者设计的变量命名查询词典，输入中文即可自动翻译并生成符合规范的驼峰、蛇形、大写等常见编程格式变量名。"
     }
 ]
