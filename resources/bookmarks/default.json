@@ -117,5 +117,17 @@
         "name": "Varbook 变量命名神器",
         "url": "https://varbook.uius.site/",
         "description": "专为开发者设计的变量命名查询词典，输入中文即可自动翻译并生成符合规范的驼峰、蛇形、大写等常见编程格式变量名。"
+    },
+    {
+        "name": "VS Code Codicons",
+        "url": "https://microsoft.github.io/vscode-codicons/dist/codicon.html",
+        "description": "Microsoft 官方的 VS Code 内置图标库在线预览和速查表，方便插件开发者快速查找和使用 Codicon 图标。",
+        "logo": "https://microsoft.github.io/vscode-codicons/favicon.ico"
+    },
+    {
+        "name": "Vue Pure Admin",
+        "url": "https://pure-admin.github.io/vue-pure-admin/?ref=madewithvuejs.com#/welcome",
+        "description": "一款免费开源的全面中后台管理系统模版，基于 Vue3、Vite、Element-Plus、TypeScript 等最新技术栈开发。",
+        "logo": "https://pure-admin.github.io/vue-pure-admin/favicon.ico"
     }
 ]
