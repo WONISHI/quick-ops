@@ -457,7 +457,7 @@
       {
         "command": "quickOps.switchGitProject",
         "title": "切换项目查看 Git 记录",
-        "icon": "$(ellipsis)"
+        "icon": "$(milestone)"
       },
       {
         "command": "quickOps.returnToWorkspace",
