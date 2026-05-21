@@ -306,9 +306,9 @@ export default function LivePreviewApp() {
           requestId,
           url,
           '页面加载超时',
-          '该地址是默认书签，已等待 15 秒仍未完成加载。目标网站可能禁止 iframe 嵌入，建议使用外部浏览器打开。'
+          '该地址是默认书签，已等待 60 秒仍未完成加载。目标网站可能禁止 iframe 嵌入，建议使用外部浏览器打开。'
         );
-      }, 15000);
+      }, 60000);
 
       return;
     }
@@ -322,9 +322,9 @@ export default function LivePreviewApp() {
         requestId,
         url,
         '页面加载失败',
-        '10 秒内没有成功解析到网站图标。可能是地址错误、网络异常，或者目标网站无法访问。'
+        '60 秒内没有成功解析到网站图标。可能是地址错误、网络异常，或者目标网站无法访问。'
       );
-    }, 10000);
+    }, 60000);
 
     updateFavicon(url, {
       onResolved: () => {
@@ -902,6 +902,9 @@ export default function LivePreviewApp() {
             onFocus={() => {
               if (urlInput.trim()) setShowSuggest(true);
             }}
+            onDoubleClick={(e) => {
+              e.currentTarget.select();
+            }}
             placeholder="输入网址、本地绝对路径 或 搜索内容"
             spellCheck="false"
             autoComplete="off"
@@ -1104,9 +1107,8 @@ export default function LivePreviewApp() {
       )}
 
       <div
-        className={`${styles['preview-container']} ${
-          device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''
-        }`}
+        className={`${styles['preview-container']} ${device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''
+          }`}
         style={{ position: 'relative' }}
       >
         <div
