@@ -65,6 +65,9 @@ export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
 
+  // 🌟 记录本地代理端口
+  const [proxyPort, setProxyPort] = useState<number>(0);
+
   const [previewType, setPreviewType] = useState<PreviewType>('web');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<PreviewErrorState | null>(null);
@@ -179,19 +182,6 @@ export default function LivePreviewApp() {
 
       return next;
     });
-  };
-
-  const canReadIframeDocument = (targetUrl: string) => {
-    try {
-      if (!targetUrl) return false;
-
-      const target = new URL(targetUrl);
-      const current = new URL(window.location.href);
-
-      return target.origin === current.origin;
-    } catch {
-      return false;
-    }
   };
 
   const updateFavicon = (urlStr: string, options?: { onResolved?: (logo: string) => void }) => {
@@ -326,6 +316,9 @@ export default function LivePreviewApp() {
       const message = event.data;
 
       if (message.type === 'init') {
+        // 🌟 接收代理服务端口
+        if (message.proxyPort) setProxyPort(message.proxyPort);
+
         if (message.device) setDevice(message.device);
 
         if (typeof message.url === 'string' && message.url.trim()) {
@@ -339,6 +332,21 @@ export default function LivePreviewApp() {
         vscode?.postMessage({ type: 'reqSyncFavorites' });
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
+      }
+      // 🌟 接收来自代理注入脚本内部抛出的导航事件
+      else if (message.type === 'inner-nav') {
+        const { url, isSpa } = message;
+        if (isSpa) {
+          // SPA 路由：只更新地址栏，不重载 iframe
+          setUrlInput(url);
+          vscode?.postMessage({ type: 'saveUrl', url });
+          pushHistory(url, url);
+        } else {
+          // 常规导航：完整执行跳转逻辑
+          handleGo(url);
+        }
+      } else if (message.type === 'openExternalBrowser') {
+        vscode?.postMessage({ type: 'openExternalBrowser', url: message.url });
       }
     };
 
@@ -364,7 +372,7 @@ export default function LivePreviewApp() {
       window.removeEventListener('click', handleClickOutside);
       clearPreviewLoadTimer();
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleIframeLoad = () => {
     if (frameUrl === 'about:blank') return;
@@ -380,12 +388,8 @@ export default function LivePreviewApp() {
 
     const fallbackTitle = urlInput || frameUrl;
 
-    if (!canReadIframeDocument(frameUrl)) {
-      updateCurrentHistoryTitle(fallbackTitle);
-      return;
-    }
-
     try {
+      // 因为使用了代理，这里本质上是允许跨域读取的，但以防万一保留 try-catch
       const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
       updateCurrentHistoryTitle(doc?.title || fallbackTitle);
     } catch {
@@ -402,7 +406,7 @@ export default function LivePreviewApp() {
 
     setPreviewError({
       title: '页面加载失败',
-      message: '当前页面无法在 iframe 中加载。可能是地址错误、网络异常，或者目标网站禁止嵌入。',
+      message: '当前页面无法在 iframe 中加载。可能是地址错误、网络异常。',
       url: frameUrl,
     });
   };
@@ -812,6 +816,20 @@ export default function LivePreviewApp() {
     );
   };
 
+  // 🌟 根据代理端口生成最终渲染到 iframe 上的真实 URL
+  const getRenderIframeSrc = () => {
+    if (!frameUrl || frameUrl === 'about:blank') return frameUrl;
+
+    // 如果是网络预览，并且我们成功获取到了后端开出的代理端口
+    if (previewType === 'web' && proxyPort > 0) {
+      // 走代理协议渲染
+      return `http://127.0.0.1:${proxyPort}/?url=${encodeURIComponent(frameUrl)}`;
+    }
+
+    // Fallback: 默认渲染原地址 (可能是本地 html、pdf 或是代理失败的降级)
+    return frameUrl;
+  };
+
   return (
     <div className={styles['live-preview-container']}>
       <div className={styles['toolbar']}>
@@ -1059,9 +1077,8 @@ export default function LivePreviewApp() {
       )}
 
       <div
-        className={`${styles['preview-container']} ${
-          device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''
-        }`}
+        className={`${styles['preview-container']} ${device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''
+          }`}
       >
         {renderPreviewLoadingMask()}
 
@@ -1105,12 +1122,12 @@ export default function LivePreviewApp() {
           <div id="deviceWrapper" className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}>
             <iframe
               ref={iframeRef}
-              src={frameUrl}
+              src={getRenderIframeSrc()}
               className={styles['fromPage']}
               title="preview"
               onLoad={handleIframeLoad}
               onError={handleIframeError}
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-presentation"
             />
           </div>
         )}

@@ -3,6 +3,7 @@ import * as path from 'path';
 import { IFeature } from '../core/interfaces/IFeature';
 import ColorLog from '../utils/ColorLog';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
+import { LocalProxyServer } from '../utils/LocalProxyServer'; // 引入代理服务
 
 interface BuiltinBookmark {
   name: string;
@@ -33,8 +34,14 @@ export class LivePreviewFeature implements IFeature {
   private pendingLocalFile: { fsPath: string; fileType: LocalPreviewFileType } | null = null;
   private defaultFavoritesCache: FavoriteItem[] | null = null;
 
-  public activate(context: vscode.ExtensionContext): void {
+  private proxyServer: LocalProxyServer = new LocalProxyServer(); // 实例化代理
+
+  public async activate(context: vscode.ExtensionContext): Promise<void> {
     context.globalState.setKeysForSync([this.GLOBAL_FAVORITES_KEY]);
+
+    // 启动代理服务
+    await this.proxyServer.start();
+    ColorLog.black(`[${this.id}]`, `Proxy server started on port ${this.proxyServer.port}`);
 
     const command = vscode.commands.registerCommand('quick-ops.openLivePreview', () => {
       this.togglePreviewPanel(context);
@@ -47,6 +54,11 @@ export class LivePreviewFeature implements IFeature {
     });
 
     context.subscriptions.push(command, windowFocusWatcher);
+
+    // 确保插件卸载时关闭代理
+    context.subscriptions.push({
+      dispose: () => this.proxyServer.stop(),
+    });
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
@@ -509,6 +521,7 @@ export class LivePreviewFeature implements IFeature {
           type: 'init',
           device: lastDevice,
           url: lastUrl,
+          proxyPort: this.proxyServer.port, // 传递代理端口
         });
 
         await this.syncFavorites(context);
