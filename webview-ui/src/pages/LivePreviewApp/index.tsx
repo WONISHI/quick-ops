@@ -65,12 +65,15 @@ export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
 
-  // 🌟 记录本地代理端口
   const [proxyPort, setProxyPort] = useState<number>(0);
 
   const [previewType, setPreviewType] = useState<PreviewType>('web');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<PreviewErrorState | null>(null);
+
+  const [loadingProgress, setLoadingProgress] = useState(0);
+  const [showProgress, setShowProgress] = useState(false);
+  const progressTimerRef = useRef<number | null>(null);
 
   const [device, setDevice] = useState('device-responsive');
   const [isRotated, setIsRotated] = useState(false);
@@ -108,6 +111,42 @@ export default function LivePreviewApp() {
   const previewRequestIdRef = useRef(0);
   const pageLoadedRef = useRef(false);
   const faviconResolvedRef = useRef(false);
+
+  // 🌟 新增：控制虚拟进度条的动画逻辑
+  useEffect(() => {
+    if (previewLoading) {
+      setShowProgress(true);
+      setLoadingProgress(15); // 起步 15%
+
+      if (progressTimerRef.current) window.clearInterval(progressTimerRef.current);
+
+      // 模拟加载进度：前段快，后段慢，最多卡在 92%
+      progressTimerRef.current = window.setInterval(() => {
+        setLoadingProgress((prev) => {
+          if (prev >= 92) return 92;
+          const increment = prev < 50 ? 10 : prev < 80 ? 4 : 1;
+          return prev + increment;
+        });
+      }, 300);
+    } else {
+      // 加载结束（成功或失败）
+      if (progressTimerRef.current) {
+        window.clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
+
+      setLoadingProgress(100);
+
+      // 等待进度条跑到 100% 的 CSS 动画执行完，再将进度条隐藏
+      const hideTimer = window.setTimeout(() => {
+        setShowProgress(false);
+        // 隐藏后再把进度悄悄归 0，为下一次加载做准备
+        window.setTimeout(() => setLoadingProgress(0), 300);
+      }, 400);
+
+      return () => window.clearTimeout(hideTimer);
+    }
+  }, [previewLoading]);
 
   const normalizeFavoriteUrl = (url: string) => {
     return (url || '').trim().replace(/\/+$/, '');
@@ -316,7 +355,6 @@ export default function LivePreviewApp() {
       const message = event.data;
 
       if (message.type === 'init') {
-        // 🌟 接收代理服务端口
         if (message.proxyPort) setProxyPort(message.proxyPort);
 
         if (message.device) setDevice(message.device);
@@ -332,17 +370,14 @@ export default function LivePreviewApp() {
         vscode?.postMessage({ type: 'reqSyncFavorites' });
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
-      }
-      // 🌟 接收来自代理注入脚本内部抛出的导航事件
+      } 
       else if (message.type === 'inner-nav') {
         const { url, isSpa } = message;
         if (isSpa) {
-          // SPA 路由：只更新地址栏，不重载 iframe
           setUrlInput(url);
           vscode?.postMessage({ type: 'saveUrl', url });
           pushHistory(url, url);
         } else {
-          // 常规导航：完整执行跳转逻辑
           handleGo(url);
         }
       } else if (message.type === 'openExternalBrowser') {
@@ -381,7 +416,7 @@ export default function LivePreviewApp() {
     setIsPageLoaded(true);
 
     clearPreviewLoadTimer();
-    setPreviewLoading(false);
+    setPreviewLoading(false); // 这里触发 false，上方的 useEffect 就会自动把进度条拉满然后隐藏
     setPreviewError(null);
 
     if (!iframeRef.current || historyIdx < 0 || previewType !== 'web') return;
@@ -389,7 +424,6 @@ export default function LivePreviewApp() {
     const fallbackTitle = urlInput || frameUrl;
 
     try {
-      // 因为使用了代理，这里本质上是允许跨域读取的，但以防万一保留 try-catch
       const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
       updateCurrentHistoryTitle(doc?.title || fallbackTitle);
     } catch {
@@ -816,17 +850,13 @@ export default function LivePreviewApp() {
     );
   };
 
-  // 🌟 根据代理端口生成最终渲染到 iframe 上的真实 URL
   const getRenderIframeSrc = () => {
     if (!frameUrl || frameUrl === 'about:blank') return frameUrl;
-
-    // 如果是网络预览，并且我们成功获取到了后端开出的代理端口
+    
     if (previewType === 'web' && proxyPort > 0) {
-      // 走代理协议渲染
       return `http://127.0.0.1:${proxyPort}/?url=${encodeURIComponent(frameUrl)}`;
     }
-
-    // Fallback: 默认渲染原地址 (可能是本地 html、pdf 或是代理失败的降级)
+    
     return frameUrl;
   };
 
@@ -1077,9 +1107,37 @@ export default function LivePreviewApp() {
       )}
 
       <div
-        className={`${styles['preview-container']} ${device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''
-          }`}
+        className={`${styles['preview-container']} ${
+          device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''
+        }`}
+        style={{ position: 'relative' }}
       >
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '2px',
+            backgroundColor: 'transparent',
+            zIndex: 9999, // 确保浮在 iframe 和其他元素上方
+            pointerEvents: 'none',
+            opacity: showProgress ? 1 : 0,
+            transition: showProgress ? 'opacity 0.2s ease-in' : 'opacity 0.4s ease-out',
+          }}
+        >
+          <div
+            style={{
+              height: '100%',
+              backgroundColor: 'var(--vscode-progressBar-background, #007acc)', // 使用 VS Code 原生进度条蓝色
+              width: `${loadingProgress}%`,
+              transition: loadingProgress === 0 ? 'none' : 'width 0.3s ease',
+              boxShadow: '0 0 10px var(--vscode-progressBar-background, #007acc), 0 0 5px var(--vscode-progressBar-background, #007acc)',
+            }}
+          />
+        </div>
+
+        {/* 原有转圈 Mask：可以与上方进度条共存，如果不喜欢可以将这行删掉 */}
         {renderPreviewLoadingMask()}
 
         {!frameUrl ? (
