@@ -19,13 +19,10 @@ interface GitGraphProps {
     graphCommits: GraphCommit[];
     displayCount: number;
     setDisplayCount: React.Dispatch<React.SetStateAction<number>>;
-
     expandedCommitHashes: string[];
     commitFilesLoadingMap: Record<string, boolean>;
     commitFilesMap: Record<string, GitFile[]>;
-
     activeCommitHash: string | null;
-
     branch: string;
     remoteUrl?: string;
     isSearchOpen: boolean;
