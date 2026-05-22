@@ -214,8 +214,8 @@ body {
     flex-direction: column;
 }
 
-.changes-section:not(.section-top-gap) .changes-content{
-    flex:1;
+.changes-section:not(.section-top-gap) .changes-content {
+    flex: 1;
 }
 
 .section-top-gap {
