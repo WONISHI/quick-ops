@@ -538,32 +538,32 @@
           "group": "navigation@5"
         },
         {
-          "command": "quickOps.switchGitProject",
+          "command": "quickOps.returnToWorkspace",
           "when": "view == quickOps.gitView",
           "group": "navigation@1"
         },
         {
-          "command": "quickOps.returnToWorkspace",
+          "command": "quickOps.cloneGitProject",
           "when": "view == quickOps.gitView",
           "group": "navigation@2"
         },
         {
-          "command": "quickOps.cloneGitProject",
-          "when": "view == quickOps.gitView",
-          "group": "navigation@3"
-        },
-        {
           "command": "quickOps.openProject",
           "when": "view == quickOps.gitView && quickOps.isPreviewingOther",
-          "group": "navigation@4"
+          "group": "navigation@3"
         },
         {
           "command": "quickOps.editRemoteUrl",
           "when": "view == quickOps.gitView && quickOps.hasGitRemote",
-          "group": "navigation@5"
+          "group": "navigation@4"
         },
         {
           "command": "quickOps.openGitDetail",
+          "when": "view == quickOps.gitView",
+          "group": "navigation@5"
+        },
+        {
+          "command": "quickOps.switchGitProject",
           "when": "view == quickOps.gitView",
           "group": "navigation@6"
         }
