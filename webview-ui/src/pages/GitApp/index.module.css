@@ -193,16 +193,29 @@ body {
     max-height: 35vh;
     overflow-y: auto;
     border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+    display: flex;
+    flex-direction: column;
 }
 
 .changes-scroll-area-expanded {
     max-height: none;
     overflow-y: visible;
     flex-shrink: 0;
+    flex: 1;
 }
 
 .changes-section {
     margin-bottom: 4px;
+}
+
+.changes-section:not(.section-top-gap) {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.changes-section:not(.section-top-gap) .changes-content{
+    flex:1;
 }
 
 .section-top-gap {
@@ -218,14 +231,12 @@ body {
 }
 
 .changes-content {
-    max-height: 40vh;
     overflow-y: auto;
     padding-bottom: 4px;
     position: relative;
 }
 
 .panel-scroll {
-    max-height: 40vh;
     overflow-y: auto;
     padding-bottom: 4px;
 }
@@ -349,7 +360,6 @@ body {
 }
 
 .git-graph-section {
-    flex: 1;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -385,38 +395,43 @@ body {
    贮藏区
    ========================================= */
 .stash-row {
-  display: flex;
-  align-items: center;
-  padding-left: 12px;
-  cursor: pointer;
-  width: 100%;
-  box-sizing: border-box;
-  height: 26px; 
+    display: flex;
+    align-items: center;
+    padding-left: 12px;
+    cursor: pointer;
+    width: 100%;
+    box-sizing: border-box;
+    height: 26px;
 }
 
 .stash-chevron,
 .stash-icon {
-  flex-shrink: 0;
+    flex-shrink: 0;
 }
 
 .file-name {
-  flex: 1;                 /* 占据除图标和按钮外的剩余全部空间 */
-  min-width: 0;            /* 【关键】允许 flex 子项在宽度不足时收缩，触发内部文字截断 */
-  white-space: nowrap;     /* 强制文本不换行 */
-  overflow: hidden;        /* 超出部分隐藏 */
-  text-overflow: ellipsis; /* 超出部分显示省略号 */
+    flex: 1;
+    /* 占据除图标和按钮外的剩余全部空间 */
+    min-width: 0;
+    /* 【关键】允许 flex 子项在宽度不足时收缩，触发内部文字截断 */
+    white-space: nowrap;
+    /* 强制文本不换行 */
+    overflow: hidden;
+    /* 超出部分隐藏 */
+    text-overflow: ellipsis;
+    /* 超出部分显示省略号 */
 }
 
 .flex-spacer {
-  flex-shrink: 0;
+    flex-shrink: 0;
 }
 
 .file-actions {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;        
-  gap: 2px;
-  padding-right: 8px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 2px;
+    padding-right: 8px;
 }
 
 .stash-icon {
@@ -505,28 +520,29 @@ body {
     background-color: var(--vscode-menu-separatorBackground, #454545);
     margin: 4px 8px;
 }
+
 .icon-btn {
-  position: relative;
+    position: relative;
 }
 
 .pull-needed {
-  color: var(--vscode-list-warningForeground) !important;
+    color: var(--vscode-list-warningForeground) !important;
 }
 
 .pull-badge {
-  position: absolute;
-  top: -4px;
-  right: -5px;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 4px;
-  border-radius: 999px;
-  background: var(--vscode-list-warningForeground);
-  color: var(--vscode-editor-background);
-  font-size: 9px;
-  line-height: 14px;
-  font-weight: 700;
-  text-align: center;
-  box-sizing: border-box;
-  pointer-events: none;
+    position: absolute;
+    top: -4px;
+    right: -5px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--vscode-list-warningForeground);
+    color: var(--vscode-editor-background);
+    font-size: 9px;
+    line-height: 14px;
+    font-weight: 700;
+    text-align: center;
+    box-sizing: border-box;
+    pointer-events: none;
 }
