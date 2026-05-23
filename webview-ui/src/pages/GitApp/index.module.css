@@ -548,7 +548,7 @@ body {
 }
 
 .push-needed {
-    color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950) !important;
+    color: var(--vscode-list-warningForeground) !important;
 }
 
 .pull-badge {
