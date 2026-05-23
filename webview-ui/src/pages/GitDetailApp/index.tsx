@@ -9,6 +9,7 @@ import FilterPopup, {
 } from '../../components/FilterPopup';
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
+import FileIcon from '../../components/FileIcon';
 
 interface GitFileItem {
   status: string;
@@ -944,7 +945,7 @@ export default function GitCommitDetailApp() {
             });
           }}
         >
-          <i className={`codicon codicon-file ${styles['commit-file-icon']}`} />
+          <FileIcon fileName={node.name} className={styles['commit-file-icon']} />
 
           <span className={`${styles['commit-file-name']} ${file.status === 'D' ? styles['commit-file-deleted-name'] : ''}`}>
             {node.name}
