@@ -149,6 +149,10 @@ export default function GitApp() {
         setRemoteUrl(msg.remoteUrl || '');
         setFolderName(msg.folderName || '');
 
+        if (msg.defaultCommitTypeEnabled !== undefined) {
+          setCommitTypeEnabled(!!msg.defaultCommitTypeEnabled);
+        }
+
         if (msg.remoteSync) {
           setRemoteSync(msg.remoteSync);
         } else {
@@ -233,9 +237,17 @@ export default function GitApp() {
         if (msg.isInit && msg.defaultSkipVerify !== undefined) {
           setSkipVerify(msg.defaultSkipVerify);
         }
+
+        if (msg.defaultCommitTypeEnabled !== undefined) {
+          setCommitTypeEnabled(!!msg.defaultCommitTypeEnabled);
+        }
       } else if (msg.type === 'gitConfigChanged') {
         if (msg.defaultSkipVerify !== undefined) {
           setSkipVerify(msg.defaultSkipVerify);
+        }
+
+        if (msg.defaultCommitTypeEnabled !== undefined) {
+          setCommitTypeEnabled(!!msg.defaultCommitTypeEnabled);
         }
       }
     };
@@ -487,7 +499,14 @@ export default function GitApp() {
                 <button
                   className={`${styles['icon-btn']} ${commitTypeEnabled ? styles['action-btn-active-solid'] : ''}`}
                   onClick={() => {
-                    setCommitTypeEnabled((prev) => !prev);
+                    const nextValue = !commitTypeEnabled;
+
+                    setCommitTypeEnabled(nextValue);
+
+                    vscode.postMessage({
+                      command: 'toggleCommitTypeEnabled',
+                      value: nextValue,
+                    });
 
                     requestAnimationFrame(() => {
                       commitInputRef.current?.focus();

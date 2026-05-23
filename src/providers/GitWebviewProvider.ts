@@ -3,6 +3,8 @@ import * as path from 'path';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
 import GitService, { type GitFileItem } from '../services/GitService';
 
+const GLOBAL_STATE_COMMIT_TYPE_ENABLED = 'quickOps.git.commitTypeEnabled';
+
 export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
 
@@ -22,7 +24,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private readonly VIEW_ID = 'quickOps.gitView';
   private readonly gitService = new GitService();
 
-  constructor(private readonly _extensionUri: vscode.Uri) {
+  constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
     const gitService = this.gitService;
 
     const gitDiffProvider = new (class implements vscode.TextDocumentContentProvider {
@@ -60,6 +62,10 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   public getWorkspaceRoot(): string | undefined {
     if (this._customCwd) return this._customCwd;
     return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  }
+
+  private getDefaultCommitTypeEnabled(): boolean {
+    return this._context.globalState.get<boolean>(GLOBAL_STATE_COMMIT_TYPE_ENABLED, false);
   }
 
   private async withViewProgress<T>(task: () => Promise<T>): Promise<T> {
@@ -329,6 +335,19 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           return;
         }
 
+        if (msg.command === 'toggleCommitTypeEnabled') {
+          const nextValue = !!msg.value;
+
+          await this._context.globalState.update(GLOBAL_STATE_COMMIT_TYPE_ENABLED, nextValue);
+
+          this._view?.webview.postMessage({
+            type: 'gitConfigChanged',
+            defaultCommitTypeEnabled: nextValue,
+          });
+
+          return;
+        }
+
         if (msg.command === 'webviewLoaded' || msg.command === 'refresh') {
           const isInstalled = await this.gitService.checkGitInstalled();
 
@@ -339,6 +358,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             type: 'gitInstallationStatus',
             isInstalled,
             defaultSkipVerify,
+            defaultCommitTypeEnabled: this.getDefaultCommitTypeEnabled(),
             isInit: msg.command === 'webviewLoaded',
           });
 
@@ -1570,6 +1590,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         folderName: repoStatus.folderName,
         stashes: repoStatus.stashes,
         remoteSync: repoStatus.remoteSync,
+        defaultCommitTypeEnabled: this.getDefaultCommitTypeEnabled(),
       });
 
       if (repoStatus.remoteUrl) {
