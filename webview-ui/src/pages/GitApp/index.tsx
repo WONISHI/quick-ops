@@ -364,6 +364,14 @@ export default function GitApp() {
     });
   };
 
+  const getChangesSectionStateClass = (open: boolean) => {
+    return open ? styles['changes-section-expanded'] : styles['changes-section-collapsed'];
+  };
+
+  const getChangesSectionClassName = (open: boolean, extraClassNames: string[] = []) => {
+    return [styles['changes-section'], getChangesSectionStateClass(open), ...extraClassNames].filter(Boolean).join(' ');
+  };
+
   const getPullTooltip = () => {
     if (remoteSync.needsPull) {
       return `需要 Pull：当前分支落后 ${remoteSync.upstream || '远程分支'} ${remoteSync.behind} 个提交`;
@@ -374,10 +382,6 @@ export default function GitApp() {
     }
 
     return '拉取 (Pull)';
-  };
-
-  const getSectionOpenStateClass = (open: boolean) => {
-    return open ? styles['changes-section-expanded'] : styles['changes-section-collapsed'];
   };
 
   if (isGitInstalled === false) {
@@ -427,8 +431,10 @@ export default function GitApp() {
               </Tooltip>
 
               <Tooltip content={remoteSync.needsPush ? `需要 Push：当前分支领先远程 ${remoteSync.ahead} 个提交` : '推送 (Push)'}>
-                <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'push' })}>
+                <button className={`${styles['icon-btn']} ${remoteSync.needsPush ? styles['push-needed'] : ''}`} onClick={() => vscode.postMessage({ command: 'push' })}>
                   <i className="codicon codicon-repo-push" />
+
+                  {remoteSync.needsPush && <span className={styles['pull-badge']}>{remoteSync.ahead > 99 ? '99+' : remoteSync.ahead}</span>}
                 </button>
               </Tooltip>
 
@@ -501,9 +507,7 @@ export default function GitApp() {
       </div>
 
       <div className={`${styles['changes-scroll-area']} ${styles['changes-scroll-area-expanded']}`}>
-        <div
-          className={`${styles['changes-section']} ${getSectionOpenStateClass(isChangesOpen)}`}
-        >
+        <div className={getChangesSectionClassName(isChangesOpen)}>
           <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsChangesOpen(!isChangesOpen)}>
             <div className={styles['header-title-row']}>
               <i className={`codicon ${isChangesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron']}`} />
@@ -746,7 +750,7 @@ export default function GitApp() {
         </div>
 
         {stashes.length > 0 && (
-          <div className={`${styles['changes-section']} ${styles['section-top-gap']}`}>
+          <div className={getChangesSectionClassName(isStashesOpen, [styles['section-top-gap']])}>
             <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsStashesOpen(!isStashesOpen)}>
               <div className={styles['header-flex-title']}>
                 <i className={`codicon ${isStashesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
@@ -880,7 +884,7 @@ export default function GitApp() {
           </div>
         )}
 
-        <div className={`${styles['changes-section']} ${styles['section-top-gap']}`}>
+        <div className={getChangesSectionClassName(isCompareOpen, [styles['section-top-gap']])}>
           <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsCompareOpen(!isCompareOpen)}>
             <div className={styles['header-flex-title']}>
               <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
@@ -1026,7 +1030,7 @@ export default function GitApp() {
         </div>
       </div>
 
-      <div className={styles['git-graph-section']}>
+      <div className={getChangesSectionClassName(isGraphOpen, [styles['git-graph-section'], styles['section-top-gap']])}>
         <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsGraphOpen(!isGraphOpen)}>
           <div className={styles['header-flex-title']}>
             <i className={`codicon ${isGraphOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
@@ -1088,8 +1092,9 @@ export default function GitApp() {
 
               <Tooltip content={`筛选分支 (${selectedGraphFilter})`}>
                 <button
-                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
-                    } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
+                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${
+                    selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
+                  } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
 

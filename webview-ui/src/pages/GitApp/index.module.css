@@ -208,14 +208,28 @@ body {
     margin-bottom: 4px;
 }
 
-.changes-section-expanded,
-.changes-section-collapsed {
-    display: flex;
-    flex-direction: column;
+.changes-section-expanded {
+    --changes-section-open: 1;
+    min-height: 0;
 }
 
-.changes-section-expanded {
+.changes-section-collapsed {
+    --changes-section-open: 0;
+    flex: 0 0 auto;
+}
+
+.changes-section-expanded > .changes-header {
+    opacity: 1;
+}
+
+.changes-section-collapsed > .changes-header {
+    opacity: 0.85;
+}
+
+.changes-section:not(.section-top-gap) {
     flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .changes-section:not(.section-top-gap) .changes-content {
@@ -531,6 +545,10 @@ body {
 
 .pull-needed {
     color: var(--vscode-list-warningForeground) !important;
+}
+
+.push-needed {
+    color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950) !important;
 }
 
 .pull-badge {
