@@ -72,6 +72,8 @@ export default function GitApp() {
   const [displayCount, setDisplayCount] = useState(100);
 
   const [expandedCommitHashes, setExpandedCommitHashes] = useState<string[]>([]);
+  const [activeCommitHash, setActiveCommitHash] = useState<string | null>(null);
+
   const [commitFilesMap, setCommitFilesMap] = useState<Record<string, GitFile[]>>({});
   const [commitFilesLoadingMap, setCommitFilesLoadingMap] = useState<Record<string, boolean>>({});
   const [commitParentHashMap, setCommitParentHashMap] = useState<Record<string, string | undefined>>({});
@@ -81,12 +83,13 @@ export default function GitApp() {
   const [compareCommits, setCompareCommits] = useState<GraphCommit[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
 
+  const [activeCompareCommitHash, setActiveCompareCommitHash] = useState<string | null>(null);
+
   const [skipVerify, setSkipVerify] = useState(false);
   const [selectedGraphFilter, setSelectedGraphFilter] = useState('全部分支');
   const filterRef = useRef('全部分支');
   const [flashBranchBtn, setFlashBranchBtn] = useState(false);
 
-  const [activeCommitHash, setActiveCommitHash] = useState<string | null>(null);
   const [folderName, setFolderName] = useState('');
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -131,6 +134,7 @@ export default function GitApp() {
         setCommitFilesLoadingMap({});
         setCommitParentHashMap({});
         setActiveCommitHash(null);
+        setActiveCompareCommitHash(null);
         setStashes([]);
         setStashFilesMap({});
         setStashFilesLoading({});
@@ -164,7 +168,6 @@ export default function GitApp() {
       } else if (msg.type === 'stashFilesData') {
         setStashFilesMap((prev) => ({ ...prev, [msg.index]: msg.files || [] }));
         setStashFilesLoading((prev) => ({ ...prev, [msg.index]: false }));
-        setCommitParentHashMap((prev) => ({ ...prev, [msg.hash]: msg.parentHash }));
       } else if (msg.type === 'graphData') {
         const commits = msg.graphCommits || [];
 
@@ -215,6 +218,7 @@ export default function GitApp() {
         }
 
         setCompareCommits(msg.commits || []);
+        setActiveCompareCommitHash(null);
         setIsCompareOpen(true);
       } else if (msg.type === 'error') {
         setLoading(false);
@@ -338,7 +342,7 @@ export default function GitApp() {
     const alreadyExpanded = expandedCommitHashes.includes(hash);
 
     setExpandedCommitHashes((prev) => {
-      return alreadyExpanded ? prev.filter((h) => h !== hash) : [...prev, hash];
+      return alreadyExpanded ? prev.filter((item) => item !== hash) : [...prev, hash];
     });
 
     if (alreadyExpanded) return;
@@ -352,6 +356,29 @@ export default function GitApp() {
     vscode.postMessage({
       command: 'getCommitFiles',
       hash,
+    });
+  };
+
+  /**
+   * 文件历史 / 对比区域专用展开逻辑。
+   * 注意：这里不会修改 activeCommitHash，也不会修改 expandedCommitHashes。
+   */
+  const toggleCompareCommit = (hash: string) => {
+    const nextHash = activeCompareCommitHash === hash ? null : hash;
+
+    setActiveCompareCommitHash(nextHash);
+
+    if (!nextHash) return;
+    if (commitFilesMap[nextHash]) return;
+
+    setCommitFilesLoadingMap((prev) => ({
+      ...prev,
+      [nextHash]: true,
+    }));
+
+    vscode.postMessage({
+      command: 'getCommitFiles',
+      hash: nextHash,
     });
   };
 
@@ -396,7 +423,7 @@ export default function GitApp() {
     vscode.postMessage({
       command: 'diffBranchFile',
       file: file.file,
-      targetBranch: activeCommitHash || compareTarget,
+      targetBranch: activeCompareCommitHash || compareTarget,
       baseBranch: compareBase,
       status: file.status,
     });
@@ -475,23 +502,37 @@ export default function GitApp() {
               </Tooltip>
 
               <Tooltip content={getPullTooltip()}>
-                <button className={`${styles['icon-btn']} ${remoteSync.needsPull ? styles['pull-needed'] : ''}`} onClick={() => vscode.postMessage({ command: 'pull' })}>
+                <button
+                  className={`${styles['icon-btn']} ${remoteSync.needsPull ? styles['pull-needed'] : ''}`}
+                  onClick={() => vscode.postMessage({ command: 'pull' })}
+                >
                   <i className="codicon codicon-repo-pull" />
 
-                  {remoteSync.needsPull && <span className={styles['pull-badge']}>{remoteSync.behind > 99 ? '99+' : remoteSync.behind}</span>}
+                  {remoteSync.needsPull && (
+                    <span className={styles['pull-badge']}>
+                      {remoteSync.behind > 99 ? '99+' : remoteSync.behind}
+                    </span>
+                  )}
                 </button>
               </Tooltip>
 
               <Tooltip content={remoteSync.needsPush ? `需要 Push：当前分支领先远程 ${remoteSync.ahead} 个提交` : '推送 (Push)'}>
-                <button className={`${styles['icon-btn']} ${remoteSync.needsPush ? styles['push-needed'] : ''}`} onClick={() => vscode.postMessage({ command: 'push' })}>
+                <button
+                  className={`${styles['icon-btn']} ${remoteSync.needsPush ? styles['push-needed'] : ''}`}
+                  onClick={() => vscode.postMessage({ command: 'push' })}
+                >
                   <i className="codicon codicon-repo-push" />
 
-                  {remoteSync.needsPush && <span className={styles['pull-badge']}>{remoteSync.ahead > 99 ? '99+' : remoteSync.ahead}</span>}
+                  {remoteSync.needsPush && (
+                    <span className={styles['pull-badge']}>
+                      {remoteSync.ahead > 99 ? '99+' : remoteSync.ahead}
+                    </span>
+                  )}
                 </button>
               </Tooltip>
 
               <Tooltip content={viewMode === 'list' ? '以树状视图查看' : '以列表视图查看'}>
-                <button className={styles['icon-btn']} onClick={() => setViewMode((v) => (v === 'list' ? 'tree' : 'list'))}>
+                <button className={styles['icon-btn']} onClick={() => setViewMode((value) => (value === 'list' ? 'tree' : 'list'))}>
                   <i className={`codicon ${viewMode === 'list' ? 'codicon-list-tree' : 'codicon-list-flat'}`} />
                 </button>
               </Tooltip>
@@ -502,8 +543,9 @@ export default function GitApp() {
 
       <div className={styles['commit-box']}>
         <div
-          className={`${styles['commit-input-wrap']} ${commitTypeEnabled ? styles['commit-input-wrap-with-tag'] : ''} ${!isRepo || loading ? styles['commit-input-wrap-disabled'] : ''
-            }`}
+          className={`${styles['commit-input-wrap']} ${commitTypeEnabled ? styles['commit-input-wrap-with-tag'] : ''} ${
+            !isRepo || loading ? styles['commit-input-wrap-disabled'] : ''
+          }`}
           onClick={() => {
             if (!isRepo || loading) return;
             commitInputRef.current?.focus();
@@ -646,22 +688,20 @@ export default function GitApp() {
                     </div>
 
                     <div className={styles['inline-actions']}>
-                      {stagedFiles.length > 0 && (
-                        <Tooltip content="打开更改">
-                          <button
-                            className={`${styles['action-btn']} ${styles['section-action-btn']}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
+                      <Tooltip content="打开更改">
+                        <button
+                          className={`${styles['action-btn']} ${styles['section-action-btn']}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
 
-                              vscode.postMessage({
-                                command: 'openStagedChanges',
-                              });
-                            }}
-                          >
-                            <i className="codicon codicon-diff-multiple" />
-                          </button>
-                        </Tooltip>
-                      )}
+                            vscode.postMessage({
+                              command: 'openStagedChanges',
+                            });
+                          }}
+                        >
+                          <i className="codicon codicon-diff-multiple" />
+                        </button>
+                      </Tooltip>
 
                       <Tooltip content="取消暂存所有更改">
                         <button
@@ -878,7 +918,7 @@ export default function GitApp() {
                             <i className={`codicon ${isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['stash-chevron']}`} />
                             <i className={`codicon codicon-archive ${styles['stash-icon']}`} />
                             <div className={styles['file-name']}>{stash.message}</div>
-                            <div className={styles['flex-spacer']}></div>
+                            <div className={styles['flex-spacer']} />
 
                             <div className={styles['file-actions']}>
                               <Tooltip content="应用贮藏并保留 (Apply)">
@@ -1057,6 +1097,7 @@ export default function GitApp() {
                         setCompareTarget(null);
                         setCompareBase(null);
                         setCompareCommits([]);
+                        setActiveCompareCommitHash(null);
                       }}
                     >
                       <i className="codicon codicon-close" />
@@ -1074,23 +1115,25 @@ export default function GitApp() {
               ) : (
                 <GitCompareList
                   commits={compareCommits}
-                  activeCommitHash={activeCommitHash}
-                  loadedCommitHash={commitFilesMap[activeCommitHash || ''] ? activeCommitHash : null}
-                  commitFilesLoading={!!commitFilesLoadingMap[activeCommitHash || '']}
-                  commitFiles={commitFilesMap[activeCommitHash || ''] || []}
+                  activeCommitHash={activeCompareCommitHash}
+                  loadedCommitHash={
+                    activeCompareCommitHash && commitFilesMap[activeCompareCommitHash]
+                      ? activeCompareCommitHash
+                      : null
+                  }
+                  commitFilesLoading={!!commitFilesLoadingMap[activeCompareCommitHash || '']}
+                  commitFiles={
+                    activeCompareCommitHash
+                      ? commitFilesMap[activeCompareCommitHash] || []
+                      : []
+                  }
                   remoteUrl={remoteUrl}
-                  onCommitClick={(hash) => {
-                    if (activeCommitHash === hash) {
-                      setActiveCommitHash(null);
-                    } else {
-                      toggleCommit(hash);
-                    }
-                  }}
+                  onCommitClick={toggleCompareCommit}
                   renderCommitFiles={(files) => (
                     <GitFileList
                       files={files}
                       listType={compareBase === '文件历史' ? 'history' : 'compare'}
-                      historyHash={activeCommitHash || undefined}
+                      historyHash={activeCompareCommitHash || undefined}
                       viewMode={viewMode}
                       activeFile={activeFile}
                       setActiveFile={setActiveFile}
@@ -1177,8 +1220,9 @@ export default function GitApp() {
 
               <Tooltip content={`筛选分支 (${selectedGraphFilter})`}>
                 <button
-                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
-                    } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
+                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${
+                    selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
+                  } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
 
@@ -1228,9 +1272,7 @@ export default function GitApp() {
         {isGraphOpen && (
           <div className={styles['graph-content']}>
             {graphCommits.length === 0 ? (
-              <div className={styles['git-graph-fallback']}>
-                {!isRepo ? '未连接至 Git 仓库' : isGraphLoading ? '' : '暂无记录'}
-              </div>
+              <div className={styles['git-graph-fallback']}>{!isRepo ? '未连接至 Git 仓库' : isGraphLoading ? '' : '暂无记录'}</div>
             ) : (
               <GitGraph
                 graphCommits={graphCommits}
