@@ -42,19 +42,33 @@ const GitFileList: React.FC<GitFileListProps> = ({
   openCompareDiff,
   setContextMenu,
 }) => {
-  const getFolderIconClass = (dirPath: string) => {
-    const isOpen = expandedDirs[dirPath] !== false;
+  const getDirScope = () => {
+    if (historyHash) {
+      return `${listType}:${historyHash}`;
+    }
 
-    return isOpen ? 'codicon-folder-opened' : 'codicon-folder';
+    return listType;
   };
 
-  const collectDirectoryPaths = (node: TreeNode): string[] => {
-    const paths: string[] = [];
+  const getDirKey = (dirPath: string) => {
+    return `${getDirScope()}::${dirPath}`;
+  };
+
+  const isDirOpen = (dirPath: string) => {
+    return expandedDirs[getDirKey(dirPath)] !== false;
+  };
+
+  const getFolderIconClass = (dirPath: string) => {
+    return isDirOpen(dirPath) ? 'codicon-folder-opened' : 'codicon-folder';
+  };
+
+  const collectDirectoryKeys = (node: TreeNode): string[] => {
+    const keys: string[] = [];
 
     const walk = (currentNode: TreeNode) => {
       if (!currentNode.isDirectory) return;
 
-      paths.push(currentNode.fullPath);
+      keys.push(getDirKey(currentNode.fullPath));
 
       currentNode.children.forEach((child) => {
         walk(child);
@@ -63,7 +77,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
 
     walk(node);
 
-    return paths;
+    return keys;
   };
 
   const handleFileClick = (item: GitFile) => {
@@ -197,17 +211,18 @@ const GitFileList: React.FC<GitFileListProps> = ({
   const renderTreeNodes = (nodes: TreeNode[], depth = 0): React.ReactNode => {
     return nodes.map((node) => {
       if (node.isDirectory) {
-        const isOpen = expandedDirs[node.fullPath] !== false;
+        const isOpen = isDirOpen(node.fullPath);
+        const dirKey = getDirKey(node.fullPath);
 
         return (
-          <React.Fragment key={node.fullPath}>
+          <React.Fragment key={dirKey}>
             <li
               className={`${styles['file-item']} ${styles['folder-file-item'] || ''}`}
               style={{
                 paddingLeft: `${depth * 12 + 4}px`,
                 cursor: 'pointer',
               }}
-              onClick={(e) => toggleDir(node.fullPath, e)}
+              onClick={(e) => toggleDir(dirKey, e)}
             >
               <i
                 className={`codicon ${isOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'}`}
@@ -238,7 +253,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
                   <button
                     className={styles['action-btn']}
                     onClick={(e) => {
-                      collapseDirs(collectDirectoryPaths(node), e);
+                      collapseDirs(collectDirectoryKeys(node), e);
                     }}
                   >
                     <i className="codicon codicon-fold" />
@@ -259,7 +274,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
 
       return (
         <li
-          key={item.file}
+          key={`${getDirScope()}::${item.file}`}
           className={`${styles['file-item']} ${activeFile === item.file ? styles['active'] : ''}`}
           style={{ paddingLeft: `${depth * 12 + 24}px` }}
           title={item.file}
@@ -297,9 +312,8 @@ const GitFileList: React.FC<GitFileListProps> = ({
         const isDeleted = item.status.includes('D') && ['staged', 'unstaged'].includes(listType);
 
         return (
-          <Tooltip key={item.file} content={item.file} placement="bottom" delay={1000}>
+          <Tooltip key={`${getDirScope()}::${item.file}::${idx}`} content={item.file} placement="bottom" delay={1000}>
             <li
-              key={idx}
               className={`${styles['file-item']} ${activeFile === item.file ? styles['active'] : ''}`}
               title={item.file}
               onClick={() => handleFileClick(item)}
