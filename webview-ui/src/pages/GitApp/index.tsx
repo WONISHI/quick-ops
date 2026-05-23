@@ -1151,61 +1151,64 @@ export default function GitApp() {
           )}
         </div>
 
-        {isGraphOpen &&
-          (isGraphLoading ? (
-            <div className={styles['graph-loading']}>
-              <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-8']}`} /> 正在加载历史记录...
-            </div>
-          ) : graphCommits.length === 0 ? (
-            <div className={styles['git-graph-fallback']}>{!isRepo ? '未连接至 Git 仓库' : '暂无记录'}</div>
-          ) : (
-            <GitGraph
-              graphCommits={graphCommits}
-              displayCount={displayCount}
-              setDisplayCount={setDisplayCount}
-              expandedCommitHashes={expandedCommitHashes}
-              commitFilesLoadingMap={commitFilesLoadingMap}
-              commitFilesMap={commitFilesMap}
-              activeCommitHash={activeCommitHash}
-              branch={branch}
-              onCommitClick={toggleCommit}
-              remoteUrl={remoteUrl}
-              isSearchOpen={isGraphSearchOpen}
-              setIsSearchOpen={setIsGraphSearchOpen}
-              renderCommitFiles={(hash, files) => (
-                <GitFileList
-                  files={files}
-                  listType="history"
-                  historyHash={hash}
-                  viewMode={viewMode}
-                  activeFile={activeFile}
-                  setActiveFile={setActiveFile}
-                  expandedDirs={expandedDirs}
-                  toggleDir={toggleDir}
-                  openHistoryDiff={openHistoryDiff}
-                  openCompareDiff={openCompareDiff}
-                  setContextMenu={setContextMenu}
-                />
-              )}
-              onCommitContextMenu={(e, commit) => {
-                e.preventDefault();
+        {isGraphOpen && (
+          <div className={styles['graph-content']}>
+            {graphCommits.length === 0 ? (
+              <div className={styles['git-graph-fallback']}>
+                {!isRepo ? '未连接至 Git 仓库' : isGraphLoading ? '' : '暂无记录'}
+              </div>
+            ) : (
+              <GitGraph
+                graphCommits={graphCommits}
+                displayCount={displayCount}
+                setDisplayCount={setDisplayCount}
+                expandedCommitHashes={expandedCommitHashes}
+                commitFilesLoadingMap={commitFilesLoadingMap}
+                commitFilesMap={commitFilesMap}
+                activeCommitHash={activeCommitHash}
+                branch={branch}
+                onCommitClick={toggleCommit}
+                remoteUrl={remoteUrl}
+                isSearchOpen={isGraphSearchOpen}
+                setIsSearchOpen={setIsGraphSearchOpen}
+                renderCommitFiles={(hash, files) => (
+                  <GitFileList
+                    files={files}
+                    listType="history"
+                    historyHash={hash}
+                    viewMode={viewMode}
+                    activeFile={activeFile}
+                    setActiveFile={setActiveFile}
+                    expandedDirs={expandedDirs}
+                    toggleDir={toggleDir}
+                    openHistoryDiff={openHistoryDiff}
+                    openCompareDiff={openCompareDiff}
+                    setContextMenu={setContextMenu}
+                  />
+                )}
+                onCommitContextMenu={(e, commit) => {
+                  e.preventDefault();
 
-                setContextMenu({
-                  visible: true,
-                  x: e.clientX,
-                  y: e.clientY,
-                  type: 'commit',
-                  commit,
-                });
-              }}
-              onOpenCommitMultiDiff={(hash) => {
-                vscode.postMessage({
-                  command: 'openCommitMultiDiff',
-                  hash,
-                });
-              }}
-            />
-          ))}
+                  setContextMenu({
+                    visible: true,
+                    x: e.clientX,
+                    y: e.clientY,
+                    type: 'commit',
+                    commit,
+                  });
+                }}
+                onOpenCommitMultiDiff={(hash) => {
+                  vscode.postMessage({
+                    command: 'openCommitMultiDiff',
+                    hash,
+                  });
+                }}
+              />
+            )}
+
+            <LoadingMask visible={isGraphLoading} />
+          </div>
+        )}
       </div>
     </div>
   );

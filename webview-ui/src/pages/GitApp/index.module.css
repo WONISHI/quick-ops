@@ -391,14 +391,6 @@ body {
     color: var(--vscode-editor-foreground);
 }
 
-.graph-loading {
-    text-align: center;
-    padding: 30px 10px;
-    color: var(--vscode-descriptionForeground);
-    font-size: 12px;
-    opacity: 0.8;
-}
-
 .compare-title {
     flex: 1;
     min-width: 0;
@@ -567,4 +559,13 @@ body {
     text-align: center;
     box-sizing: border-box;
     pointer-events: none;
+}
+
+.graph-content {
+    position: relative;
+    flex: 1;
+    min-height: 120px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
