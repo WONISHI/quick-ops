@@ -25,6 +25,7 @@
   background: var(--vscode-input-background);
   border: 1px solid var(--vscode-input-border, var(--vscode-widget-border));
   transform: rotate(45deg);
+  box-sizing: border-box;
 }
 
 .filter-popup-bottom .filter-popup-arrow {
@@ -213,8 +214,8 @@
   box-sizing: border-box;
 
   border-radius: 3px;
-  border: 1px solid var(--vscode-checkbox-border, var(--vscode-input-border, var(--vscode-contrastBorder)));
-  background: var(--vscode-checkbox-background, var(--vscode-input-background));
+  border: 1px solid var(--vscode-input-border, var(--vscode-commandCenter-inactiveBorder));
+  background: var(--vscode-input-background);
   cursor: pointer;
 }
 
@@ -228,20 +229,20 @@
 }
 
 .filter-checkbox-label input[type='checkbox']:checked {
-  border-color: var(--vscode-checkbox-border, var(--vscode-button-background));
-  background: var(--vscode-checkbox-selectBackground, var(--vscode-button-background));
+  border-color: var(--vscode-button-background);
+  background: var(--vscode-button-background);
 }
 
 .filter-checkbox-label input[type='checkbox']:checked::after {
   content: '';
   position: absolute;
   left: 3px;
-  top: 0px;
+  top: 0;
 
   width: 5px;
   height: 9px;
 
-  border: solid var(--vscode-checkbox-foreground, var(--vscode-button-foreground));
+  border: solid var(--vscode-button-foreground);
   border-width: 0 2px 2px 0;
   transform: rotate(45deg);
 }

@@ -12,6 +12,10 @@ interface FilterPopupProps {
 
 type PopupPlacement = 'top' | 'bottom';
 
+const ARROW_SIZE = 10;
+const SAFE_PADDING = 8;
+const POPUP_GAP = 8;
+
 const FilterPopup: React.FC<FilterPopupProps> = ({
   visible,
   anchorRef,
@@ -36,35 +40,60 @@ const FilterPopup: React.FC<FilterPopupProps> = ({
 
     if (!anchorEl || !popupEl) return;
 
-    const padding = 8;
-    const gap = 8;
-
     const anchorRect = anchorEl.getBoundingClientRect();
     const popupRect = popupEl.getBoundingClientRect();
 
-    let left = anchorRect.left + anchorRect.width / 2 - popupRect.width / 2;
-    let top = anchorRect.bottom + gap;
+    /**
+     * 关键：
+     * anchorRef 必须挂在 filter 图标本身。
+     * 这里用图标中心点作为弹窗与箭头定位基准。
+     */
+    const anchorCenterX = anchorRect.left + anchorRect.width / 2;
+
+    /**
+     * 弹窗默认以图标中心点居中。
+     */
+    let left = anchorCenterX - popupRect.width / 2;
+    let top = anchorRect.bottom + POPUP_GAP;
     let placement: PopupPlacement = 'bottom';
 
-    if (top + popupRect.height > window.innerHeight - padding) {
-      top = anchorRect.top - popupRect.height - gap;
+    /**
+     * 底部空间不够时，向上弹出。
+     */
+    if (top + popupRect.height > window.innerHeight - SAFE_PADDING) {
+      top = anchorRect.top - popupRect.height - POPUP_GAP;
       placement = 'top';
     }
 
-    if (left + popupRect.width > window.innerWidth - padding) {
-      left = window.innerWidth - popupRect.width - padding;
+    /**
+     * 左右碰撞修正。
+     */
+    if (left + popupRect.width > window.innerWidth - SAFE_PADDING) {
+      left = window.innerWidth - popupRect.width - SAFE_PADDING;
     }
 
-    if (left < padding) {
-      left = padding;
+    if (left < SAFE_PADDING) {
+      left = SAFE_PADDING;
     }
 
-    const anchorCenter = anchorRect.left + anchorRect.width / 2;
-    const arrowLeft = Math.max(14, Math.min(anchorCenter - left, popupRect.width - 14));
+    /**
+     * 关键：
+     * arrowLeft 是箭头左上角相对 popup 左边的位置。
+     * 所以要减掉箭头一半宽度，保证箭头中心对准图标中心。
+     */
+    const arrowHalf = ARROW_SIZE / 2;
+
+    const arrowLeft = Math.max(
+      12,
+      Math.min(
+        anchorCenterX - left - arrowHalf,
+        popupRect.width - ARROW_SIZE - 12,
+      ),
+    );
 
     setPosition({
       left,
-      top: Math.max(padding, top),
+      top: Math.max(SAFE_PADDING, top),
       arrowLeft,
       placement,
     });
@@ -88,18 +117,18 @@ const FilterPopup: React.FC<FilterPopupProps> = ({
       }
     };
 
-    const handleBlur = () => {
+    const handleWindowBlur = () => {
       onClose();
     };
 
     document.addEventListener('mousedown', handleMouseDown, true);
     document.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('blur', handleBlur);
+    window.addEventListener('blur', handleWindowBlur);
 
     return () => {
       document.removeEventListener('mousedown', handleMouseDown, true);
       document.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('blur', handleBlur);
+      window.removeEventListener('blur', handleWindowBlur);
     };
   }, [visible, anchorRef, onClose]);
 
@@ -116,6 +145,7 @@ const FilterPopup: React.FC<FilterPopupProps> = ({
       }}
       onMouseDown={(event) => event.stopPropagation()}
       onClick={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.stopPropagation()}
     >
       <span
         className={styles['filter-popup-arrow']}
@@ -179,7 +209,10 @@ interface FilterPopupDateRowProps {
   children: React.ReactNode;
 }
 
-export const FilterPopupDateRow: React.FC<FilterPopupDateRowProps> = ({ label, children }) => {
+export const FilterPopupDateRow: React.FC<FilterPopupDateRowProps> = ({
+  label,
+  children,
+}) => {
   return (
     <div className={styles['date-filter-row']}>
       <span className={styles['date-filter-label']}>{label}</span>
@@ -192,7 +225,9 @@ interface FilterPopupCheckboxListProps {
   children: React.ReactNode;
 }
 
-export const FilterPopupCheckboxList: React.FC<FilterPopupCheckboxListProps> = ({ children }) => {
+export const FilterPopupCheckboxList: React.FC<FilterPopupCheckboxListProps> = ({
+  children,
+}) => {
   return <div className={styles['filter-checkbox-list']}>{children}</div>;
 };
 
@@ -200,7 +235,9 @@ interface FilterPopupCheckboxLabelProps {
   children: React.ReactNode;
 }
 
-export const FilterPopupCheckboxLabel: React.FC<FilterPopupCheckboxLabelProps> = ({ children }) => {
+export const FilterPopupCheckboxLabel: React.FC<FilterPopupCheckboxLabelProps> = ({
+  children,
+}) => {
   return <label className={styles['filter-checkbox-label']}>{children}</label>;
 };
 
