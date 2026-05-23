@@ -156,7 +156,7 @@
 }
 
 .commit-row {
-  height: 34px;
+  height: 28px;
   display: flex;
   align-items: center;
   box-sizing: border-box;
@@ -183,8 +183,8 @@
   display: flex;
   align-items: center;
   min-width: 0;
-  height: 24px;
-  line-height: 24px;
+  height: 22px;
+  line-height: 22px;
   overflow: hidden;
 }
 
@@ -231,19 +231,25 @@
 }
 
 .ref-tag {
-  height: 20px;
-  line-height: 20px;
+  height: 18px;
+  min-height: 18px;
+  line-height: 18px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  margin-right: 6px;
-  padding: 0 9px;
+  justify-content: center;
+  gap: 4px;
+  margin-right: 5px;
+  padding: 0 7px;
   border-radius: 4px;
   background: rgba(128, 128, 128, 0.16);
   color: var(--vscode-foreground);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+  max-width: 260px;
+  vertical-align: middle;
+  box-sizing: border-box;
 }
 
 .ref-tag.head {
@@ -254,6 +260,45 @@
 .ref-tag.remote {
   background: #6a2a88;
   color: #ffffff;
+}
+
+.ref-tag-icon,
+.ref-tag-arrow {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  min-height: 12px;
+  line-height: 12px;
+  font-size: 12px !important;
+}
+
+.ref-tag-icon.codicon,
+.ref-tag-arrow.codicon {
+  width: 12px;
+  height: 12px;
+  font-size: 12px;
+  line-height: 12px;
+}
+
+.ref-tag-icon {
+  opacity: 0.95;
+}
+
+.ref-tag-arrow {
+  opacity: 0.85;
+  margin: 0 1px;
+}
+
+.ref-tag-text {
+  min-width: 0;
+  display: inline-block;
+  line-height: 18px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .commit-detail-box {
@@ -380,81 +425,24 @@
 /* 激活或处于过滤状态时图标高亮 */
 .has-filter {
   opacity: 1 !important;
-  color: var(--vscode-button-background); /* 使用主题强调色 */
+  color: var(--vscode-button-background);
+  /* 使用主题强调色 */
 }
 
-/* 筛选弹窗 */
-.filter-popup {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 1000;
-  background: var(--vscode-dropdown-background);
-  border: 1px solid var(--vscode-dropdown-border);
-  box-shadow: 0 4px 12px var(--vscode-widget-shadow);
-  padding: 10px;
-  border-radius: 4px;
-  min-width: 180px;
-  color: var(--vscode-dropdown-foreground);
-  font-weight: normal;
-  font-size: 13px;
-}
-
-/* 筛选输入框 */
-.filter-input {
-  width: 100%;
-  background: var(--vscode-input-background);
-  color: var(--vscode-input-foreground);
-  border: 1px solid var(--vscode-input-border);
-  padding: 4px 6px;
-  box-sizing: border-box;
-  border-radius: 2px;
-  outline: none;
-  font-family: inherit;
-}
-
-.filter-input:focus {
-  border-color: var(--vscode-focusBorder);
-}
-
-/* 筛选按钮 */
-.filter-btn {
-  flex: 1;
-  background: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
-  border: none;
-  padding: 4px 0;
-  border-radius: 2px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.filter-btn:hover {
-  background: var(--vscode-button-hoverBackground);
-}
-
-.filter-btn-secondary {
-  background: var(--vscode-button-secondaryBackground);
-  color: var(--vscode-button-secondaryForeground);
-}
-
-.filter-btn-secondary:hover {
-  background: var(--vscode-button-secondaryHoverBackground);
-}
-
-/* 作者复选框列表 */
-.filter-checkbox-list {
-  max-height: 160px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-right: 4px;
-}
-
-.filter-checkbox-label {
+/* =========================================
+   紧凑提交行
+   ========================================= */
+.commit-row {
+  height: 28px;
+  min-height: 28px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  box-sizing: border-box;
   cursor: pointer;
+  transition: background-color 0.1s;
+}
+
+.commit-message-line {
+  height: 20px;
+  line-height: 20px;
 }

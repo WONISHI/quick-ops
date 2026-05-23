@@ -1,0 +1,170 @@
+.filter-popup {
+  position: fixed;
+  z-index: 1000;
+  min-width: 220px;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--vscode-editorWidget-background, var(--vscode-dropdown-background));
+  color: var(--vscode-editorWidget-foreground, var(--vscode-dropdown-foreground));
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-dropdown-border));
+  box-shadow: 0 6px 18px var(--vscode-widget-shadow);
+  font-family: var(--vscode-font-family);
+  font-size: 12px;
+  font-weight: normal;
+  box-sizing: border-box;
+}
+
+.filter-popup-arrow {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  background: var(--vscode-editorWidget-background, var(--vscode-dropdown-background));
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-dropdown-border));
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.filter-popup-bottom .filter-popup-arrow {
+  top: -6px;
+  border-right: none;
+  border-bottom: none;
+}
+
+.filter-popup-top .filter-popup-arrow {
+  bottom: -6px;
+  border-left: none;
+  border-top: none;
+}
+
+.filter-input {
+  width: 100%;
+  height: 26px;
+  box-sizing: border-box;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--vscode-input-border, transparent);
+  outline: none;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.filter-input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+.filter-input:hover {
+  border-color: var(--vscode-commandCenter-inactiveBorder, var(--vscode-input-border));
+}
+
+.filter-input:focus {
+  border-color: var(--vscode-focusBorder);
+  box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.filter-input[type='date'] {
+  padding-right: 4px;
+}
+
+.filter-input[type='date']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.75;
+  filter: invert(0.75);
+}
+
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.filter-btn {
+  flex: 0 0 auto;
+  min-width: 56px;
+  height: 26px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  cursor: pointer;
+  font-family: var(--vscode-font-family);
+  font-size: 12px;
+  line-height: 24px;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.filter-btn:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.filter-btn:active {
+  transform: translateY(1px);
+}
+
+.filter-btn-secondary {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border-color: var(--vscode-button-border, transparent);
+}
+
+.filter-btn-secondary:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.date-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.date-filter-row:last-of-type {
+  margin-bottom: 0;
+}
+
+.date-filter-label {
+  width: 40px;
+  flex-shrink: 0;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+  line-height: 26px;
+  text-align: right;
+}
+
+.filter-checkbox-list {
+  max-height: 168px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-right: 2px;
+}
+
+.filter-checkbox-label {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  color: var(--vscode-dropdown-foreground);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 20px;
+  box-sizing: border-box;
+}
+
+.filter-checkbox-label:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.filter-checkbox-label input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+}

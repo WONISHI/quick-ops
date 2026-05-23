@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import FilterPopup from '../../components/FilterPopup';
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
 
@@ -14,9 +15,9 @@ export interface GraphCommit {
 
 const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];
 const LANE_WIDTH = 14;
-const ROW_HEIGHT = 34;
+const ROW_HEIGHT = 28;
 const DETAIL_HEIGHT = 206;
-const CY = 17;
+const CY = 14;
 
 const NULL_VERTEX_ID = -1;
 
@@ -166,6 +167,22 @@ function getRefs(refs?: string) {
   return refs.split(',').map((ref) => ref.trim()).filter(Boolean);
 }
 
+function renderRefText(ref: string, styles: Record<string, string>) {
+  const parts = ref.split(' -> ');
+
+  if (parts.length <= 1) {
+    return <span className={styles['ref-tag-text']}>{ref}</span>;
+  }
+
+  return (
+    <>
+      <span className={styles['ref-tag-text']}>{parts[0]}</span>
+      <i className={`codicon codicon-arrow-right ${styles['ref-tag-arrow']}`} />
+      <span className={styles['ref-tag-text']}>{parts.slice(1).join(' -> ')}</span>
+    </>
+  );
+}
+
 export default function GitCommitDetailApp() {
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
   const [displayCount, setDisplayCount] = useState(100);
@@ -186,6 +203,10 @@ export default function GitCommitDetailApp() {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const descFilterRef = useRef<HTMLElement>(null);
+  const dateFilterRef = useRef<HTMLElement>(null);
+  const authorFilterRef = useRef<HTMLElement>(null);
+  const hashFilterRef = useRef<HTMLElement>(null);
 
   // 🌟 提取所有唯一的作者供勾选使用
   const allAuthors = useMemo(() => {
@@ -402,109 +423,174 @@ export default function GitCommitDetailApp() {
 
       <div className={styles['detail-table-header']}>
         <div className={styles['graph-header']}>图形</div>
-        
-        {/* 🌟 1. 描述筛选 */}
+
         <div className={styles['desc-header']}>
           描述
           <i
+            ref={descFilterRef}
             className={`codicon codicon-filter ${styles['filter-icon']} ${descFilter ? styles['has-filter'] : ''}`}
-            onClick={() => setActivePopup(activePopup === 'desc' ? null : 'desc')}
+            onClick={(e) => {
+              e.stopPropagation();
+              setActivePopup(activePopup === 'desc' ? null : 'desc');
+            }}
           />
-          {activePopup === 'desc' && (
-            <div className={styles['filter-popup']}>
-              <input
-                type="text"
-                value={descFilter}
-                onChange={(e) => setDescFilter(e.target.value)}
-                placeholder="输入关键词"
-                className={styles['filter-input']}
-              />
-              <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
-                <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
-                <button className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`} onClick={() => { setDescFilter(''); setActivePopup(null); }}>清除</button>
-              </div>
+          <FilterPopup
+            visible={activePopup === 'desc'}
+            triggerRef={descFilterRef}
+            onClose={() => setActivePopup(null)}
+          >
+            <input
+              type="text"
+              value={descFilter}
+              onChange={(e) => setDescFilter(e.target.value)}
+              placeholder="输入关键词"
+              className={styles['filter-input']}
+            />
+            <div className={styles['filter-actions']}>
+              <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
+              <button
+                className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`}
+                onClick={() => {
+                  setDescFilter('');
+                  setActivePopup(null);
+                }}
+              >
+                清除
+              </button>
             </div>
-          )}
+          </FilterPopup>
         </div>
 
-        {/* 🌟 2. 日期筛选 */}
         <div className={styles['date-header']}>
           日期
           <i
+            ref={dateFilterRef}
             className={`codicon codicon-filter ${styles['filter-icon']} ${(dateFilter.start || dateFilter.end) ? styles['has-filter'] : ''}`}
-            onClick={() => setActivePopup(activePopup === 'date' ? null : 'date')}
+            onClick={(e) => {
+              e.stopPropagation();
+              setActivePopup(activePopup === 'date' ? null : 'date');
+            }}
           />
-          {activePopup === 'date' && (
-            <div className={styles['filter-popup']} style={{ width: '220px' }}>
-              <div style={{ marginBottom: '6px' }}>
-                开始: <input type="date" value={dateFilter.start} onChange={(e) => setDateFilter({ ...dateFilter, start: e.target.value })} className={styles['filter-input']} />
-              </div>
-              <div>
-                结束: <input type="date" value={dateFilter.end} onChange={(e) => setDateFilter({ ...dateFilter, end: e.target.value })} className={styles['filter-input']} />
-              </div>
-              <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
-                <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
-                <button className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`} onClick={() => { setDateFilter({ start: '', end: '' }); setActivePopup(null); }}>清除</button>
-              </div>
+          <FilterPopup
+            visible={activePopup === 'date'}
+            triggerRef={dateFilterRef}
+            onClose={() => setActivePopup(null)}
+            width={220}
+          >
+            <div className={styles['date-filter-row']}>
+              <span className={styles['date-filter-label']}>开始:</span>
+              <input
+                type="date"
+                value={dateFilter.start}
+                onChange={(e) => setDateFilter({ ...dateFilter, start: e.target.value })}
+                className={styles['filter-input']}
+              />
             </div>
-          )}
+            <div className={styles['date-filter-row']}>
+              <span className={styles['date-filter-label']}>结束:</span>
+              <input
+                type="date"
+                value={dateFilter.end}
+                onChange={(e) => setDateFilter({ ...dateFilter, end: e.target.value })}
+                className={styles['filter-input']}
+              />
+            </div>
+            <div className={styles['filter-actions']}>
+              <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
+              <button
+                className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`}
+                onClick={() => {
+                  setDateFilter({ start: '', end: '' });
+                  setActivePopup(null);
+                }}
+              >
+                清除
+              </button>
+            </div>
+          </FilterPopup>
         </div>
 
-
-        {/* 🌟 3. 作者筛选 */}
         <div className={styles['author-header']}>
           作者
           <i
+            ref={authorFilterRef}
             className={`codicon codicon-filter ${styles['filter-icon']} ${authorFilter.length > 0 ? styles['has-filter'] : ''}`}
-            onClick={() => setActivePopup(activePopup === 'author' ? null : 'author')}
+            onClick={(e) => {
+              e.stopPropagation();
+              setActivePopup(activePopup === 'author' ? null : 'author');
+            }}
           />
-          {activePopup === 'author' && (
-            <div className={styles['filter-popup']}>
-              <div className={styles['filter-checkbox-list']}>
-                {allAuthors.map((author) => (
-                  <label key={author} className={styles['filter-checkbox-label']}>
-                    <input
-                      type="checkbox"
-                      checked={authorFilter.includes(author)}
-                      onChange={(e) => {
-                        if (e.target.checked) setAuthorFilter([...authorFilter, author]);
-                        else setAuthorFilter(authorFilter.filter((a) => a !== author));
-                      }}
-                    />
-                    {author}
-                  </label>
-                ))}
-              </div>
-              <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
-                <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
-                <button className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`} onClick={() => { setAuthorFilter([]); setActivePopup(null); }}>清除</button>
-              </div>
+          <FilterPopup
+            visible={activePopup === 'author'}
+            triggerRef={authorFilterRef}
+            onClose={() => setActivePopup(null)}
+            width={220}
+          >
+            <div className={styles['filter-checkbox-list']}>
+              {allAuthors.map((author) => (
+                <label key={author} className={styles['filter-checkbox-label']} title={author}>
+                  <input
+                    type="checkbox"
+                    checked={authorFilter.includes(author)}
+                    onChange={(e) => {
+                      if (e.target.checked) setAuthorFilter([...authorFilter, author]);
+                      else setAuthorFilter(authorFilter.filter((a) => a !== author));
+                    }}
+                  />
+                  <span>{author}</span>
+                </label>
+              ))}
             </div>
-          )}
+            <div className={styles['filter-actions']}>
+              <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
+              <button
+                className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`}
+                onClick={() => {
+                  setAuthorFilter([]);
+                  setActivePopup(null);
+                }}
+              >
+                清除
+              </button>
+            </div>
+          </FilterPopup>
         </div>
 
-        {/* 🌟 4. 提交(Hash)筛选 */}
         <div className={styles['commit-header']}>
           提交
           <i
+            ref={hashFilterRef}
             className={`codicon codicon-filter ${styles['filter-icon']} ${hashFilter ? styles['has-filter'] : ''}`}
-            onClick={() => setActivePopup(activePopup === 'hash' ? null : 'hash')}
+            onClick={(e) => {
+              e.stopPropagation();
+              setActivePopup(activePopup === 'hash' ? null : 'hash');
+            }}
           />
-          {activePopup === 'hash' && (
-            <div className={styles['filter-popup']}>
-              <input
-                type="text"
-                value={hashFilter}
-                onChange={(e) => setHashFilter(e.target.value)}
-                placeholder="输入 Commit 过滤"
-                className={styles['filter-input']}
-              />
-              <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
-                <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
-                <button className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`} onClick={() => { setHashFilter(''); setActivePopup(null); }}>清除</button>
-              </div>
+          <FilterPopup
+            visible={activePopup === 'hash'}
+            triggerRef={hashFilterRef}
+            onClose={() => setActivePopup(null)}
+          >
+            <input
+              type="text"
+              value={hashFilter}
+              onChange={(e) => setHashFilter(e.target.value)}
+              placeholder="输入 Commit 过滤"
+              className={styles['filter-input']}
+            />
+            <div className={styles['filter-actions']}>
+              <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
+              <button
+                className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`}
+                onClick={() => {
+                  setHashFilter('');
+                  setActivePopup(null);
+                }}
+              >
+                清除
+              </button>
             </div>
-          )}
+          </FilterPopup>
         </div>
       </div>
 
@@ -542,8 +628,10 @@ export default function GitCommitDetailApp() {
                             <span
                               key={ref}
                               className={`${styles['ref-tag']} ${ref.includes('origin/') ? styles['remote'] : ''} ${ref.includes('HEAD') ? styles['head'] : ''}`}
+                              title={ref}
                             >
-                              {ref}
+                              <i className={`codicon codicon-git-branch ${styles['ref-tag-icon']}`} />
+                              {renderRefText(ref, styles)}
                             </span>
                           ))}
                           <span className={styles['commit-message']}>{commit.message}</span>
