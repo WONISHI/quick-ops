@@ -259,11 +259,78 @@ export const GitContextMenu: React.FC<GitContextMenuProps> = ({ contextMenu, onC
       {/* 3. 暂存区文件的菜单 (staged) */}
       {contextMenu.type === 'file' && contextMenu.listType === 'staged' && (
         <>
-          <MenuItem icon="codicon-git-compare" text="打开更改" onClick={() => exec(() => vscode.postMessage({ command: 'diff', file: contextMenu.file!.file, status: contextMenu.file!.status }))} />
-          <MenuItem icon="codicon-go-to-file" text="打开文件" onClick={() => exec(() => vscode.postMessage({ command: 'open', file: contextMenu.file!.file }))} />
-          <MenuItem icon="codicon-remove" text="取消暂存更改" onClick={() => exec(() => vscode.postMessage({ command: 'unstage', file: contextMenu.file!.file }))} />
+          <MenuItem
+            icon="codicon-git-compare"
+            text="打开更改"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'diff',
+                  file: contextMenu.file!.file,
+                  status: contextMenu.file!.status,
+                }),
+              )
+            }
+          />
+
+          <MenuItem
+            icon="codicon-go-to-file"
+            text="打开文件"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'open',
+                  file: contextMenu.file!.file,
+                }),
+              )
+            }
+          />
+
+          <MenuItem
+            icon="codicon-copy"
+            text="复制文件名称"
+            onClick={() =>
+              exec(() => {
+                const filePath = contextMenu.file!.file;
+                const fileName = filePath.split('/').pop() || filePath;
+
+                vscode.postMessage({
+                  command: 'copy',
+                  text: fileName,
+                });
+              })
+            }
+          />
+
           <MenuDivider />
-          <MenuItem icon="codicon-folder-opened" text="在访达/资源管理器中显示" onClick={() => exec(() => vscode.postMessage({ command: 'reveal', file: contextMenu.file!.file }))} />
+
+          <MenuItem
+            icon="codicon-remove"
+            text="取消暂存更改"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'unstage',
+                  file: contextMenu.file!.file,
+                }),
+              )
+            }
+          />
+
+          <MenuDivider />
+
+          <MenuItem
+            icon="codicon-folder-opened"
+            text="在访达/资源管理器中显示"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'reveal',
+                  file: contextMenu.file!.file,
+                }),
+              )
+            }
+          />
         </>
       )}
 
