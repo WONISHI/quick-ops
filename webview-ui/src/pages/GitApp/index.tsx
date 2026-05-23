@@ -9,7 +9,7 @@ import GitNotInstalled from '../../components/GitNotInstalled';
 import LoadingMask from '../../components/LoadingMask';
 import type { GitFile } from '../../types/GitApp';
 import CommitTypeTag, { type CommitType } from '../../components/CommitTypeTag';
-
+import GraphMoreMenu from '../../components/GraphMoreMenu';
 import { GitContextMenu, type ContextMenuState } from '../../components/GitContextMenu';
 
 interface RemoteSyncState {
@@ -82,7 +82,6 @@ export default function GitApp() {
   const [compareBase, setCompareBase] = useState<string | null>(null);
   const [compareCommits, setCompareCommits] = useState<GraphCommit[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
-
   const [activeCompareCommitHash, setActiveCompareCommitHash] = useState<string | null>(null);
 
   const [skipVerify, setSkipVerify] = useState(false);
@@ -359,10 +358,25 @@ export default function GitApp() {
     });
   };
 
-  /**
-   * 文件历史 / 对比区域专用展开逻辑。
-   * 注意：这里不会修改 activeCommitHash，也不会修改 expandedCommitHashes。
-   */
+  const collapseGraphCommitFiles = () => {
+    setActiveCommitHash(null);
+    setExpandedCommitHashes([]);
+
+    setExpandedDirs((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      Object.keys(next).forEach((key) => {
+        if (key.startsWith('history:') && next[key] !== false) {
+          next[key] = false;
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  };
+
   const toggleCompareCommit = (hash: string) => {
     const nextHash = activeCompareCommitHash === hash ? null : hash;
 
@@ -483,6 +497,7 @@ export default function GitApp() {
                   <i className="codicon codicon-tag" />
                 </button>
               </Tooltip>
+
               <Tooltip content={!skipVerify ? '校验开启' : '校验关闭'}>
                 <button
                   className={`${styles['icon-btn']} ${!skipVerify ? styles['shield-enabled'] : ''}`}
@@ -502,32 +517,18 @@ export default function GitApp() {
               </Tooltip>
 
               <Tooltip content={getPullTooltip()}>
-                <button
-                  className={`${styles['icon-btn']} ${remoteSync.needsPull ? styles['pull-needed'] : ''}`}
-                  onClick={() => vscode.postMessage({ command: 'pull' })}
-                >
+                <button className={`${styles['icon-btn']} ${remoteSync.needsPull ? styles['pull-needed'] : ''}`} onClick={() => vscode.postMessage({ command: 'pull' })}>
                   <i className="codicon codicon-repo-pull" />
 
-                  {remoteSync.needsPull && (
-                    <span className={styles['pull-badge']}>
-                      {remoteSync.behind > 99 ? '99+' : remoteSync.behind}
-                    </span>
-                  )}
+                  {remoteSync.needsPull && <span className={styles['pull-badge']}>{remoteSync.behind > 99 ? '99+' : remoteSync.behind}</span>}
                 </button>
               </Tooltip>
 
               <Tooltip content={remoteSync.needsPush ? `需要 Push：当前分支领先远程 ${remoteSync.ahead} 个提交` : '推送 (Push)'}>
-                <button
-                  className={`${styles['icon-btn']} ${remoteSync.needsPush ? styles['push-needed'] : ''}`}
-                  onClick={() => vscode.postMessage({ command: 'push' })}
-                >
+                <button className={`${styles['icon-btn']} ${remoteSync.needsPush ? styles['push-needed'] : ''}`} onClick={() => vscode.postMessage({ command: 'push' })}>
                   <i className="codicon codicon-repo-push" />
 
-                  {remoteSync.needsPush && (
-                    <span className={styles['pull-badge']}>
-                      {remoteSync.ahead > 99 ? '99+' : remoteSync.ahead}
-                    </span>
-                  )}
+                  {remoteSync.needsPush && <span className={styles['pull-badge']}>{remoteSync.ahead > 99 ? '99+' : remoteSync.ahead}</span>}
                 </button>
               </Tooltip>
 
@@ -543,9 +544,7 @@ export default function GitApp() {
 
       <div className={styles['commit-box']}>
         <div
-          className={`${styles['commit-input-wrap']} ${commitTypeEnabled ? styles['commit-input-wrap-with-tag'] : ''} ${
-            !isRepo || loading ? styles['commit-input-wrap-disabled'] : ''
-          }`}
+          className={`${styles['commit-input-wrap']} ${commitTypeEnabled ? styles['commit-input-wrap-with-tag'] : ''} ${!isRepo || loading ? styles['commit-input-wrap-disabled'] : ''}`}
           onClick={() => {
             if (!isRepo || loading) return;
             commitInputRef.current?.focus();
@@ -626,7 +625,6 @@ export default function GitApp() {
           提交 (Commit)
         </button>
       </div>
-
 
       <div className={`${styles['changes-scroll-area']} ${styles['changes-scroll-area-expanded']}`}>
         <div className={getChangesSectionClassName(isChangesOpen)}>
@@ -1116,17 +1114,9 @@ export default function GitApp() {
                 <GitCompareList
                   commits={compareCommits}
                   activeCommitHash={activeCompareCommitHash}
-                  loadedCommitHash={
-                    activeCompareCommitHash && commitFilesMap[activeCompareCommitHash]
-                      ? activeCompareCommitHash
-                      : null
-                  }
+                  loadedCommitHash={activeCompareCommitHash && commitFilesMap[activeCompareCommitHash] ? activeCompareCommitHash : null}
                   commitFilesLoading={!!commitFilesLoadingMap[activeCompareCommitHash || '']}
-                  commitFiles={
-                    activeCompareCommitHash
-                      ? commitFilesMap[activeCompareCommitHash] || []
-                      : []
-                  }
+                  commitFiles={activeCompareCommitHash ? commitFilesMap[activeCompareCommitHash] || [] : []}
                   remoteUrl={remoteUrl}
                   onCommitClick={toggleCompareCommit}
                   renderCommitFiles={(files) => (
@@ -1220,9 +1210,9 @@ export default function GitApp() {
 
               <Tooltip content={`筛选分支 (${selectedGraphFilter})`}>
                 <button
-                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${
-                    selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
-                  } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
+                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''} ${
+                    flashBranchBtn ? styles['action-btn-flash'] : ''
+                  }`}
                   onClick={(e) => {
                     e.stopPropagation();
 
@@ -1236,16 +1226,16 @@ export default function GitApp() {
                 </button>
               </Tooltip>
 
-              <Tooltip content={isGraphSearchOpen ? '关闭搜索' : '搜索提交'}>
-                <button
-                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${isGraphSearchOpen ? styles['action-btn-active-solid'] : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
+              <Tooltip content="更多">
+                <GraphMoreMenu
+                  isSearchOpen={isGraphSearchOpen}
+                  onToggleSearch={() => {
                     setIsGraphSearchOpen((prev) => !prev);
                   }}
-                >
-                  <i className="codicon codicon-search" />
-                </button>
+                  onCollapseCommitFiles={collapseGraphCommitFiles}
+                  triggerClassName={`${styles['action-btn']} ${styles['section-action-btn']} ${isGraphSearchOpen ? styles['action-btn-active-solid'] : ''}`}
+                  activeTriggerClassName={styles['action-btn-active-solid']}
+                />
               </Tooltip>
 
               <Tooltip content="刷新">
