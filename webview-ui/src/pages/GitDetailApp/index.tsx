@@ -1,5 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import FilterPopup from '../../components/FilterPopup';
+import FilterPopup, {
+  FilterPopupActions,
+  FilterPopupButton,
+  FilterPopupCheckboxLabel,
+  FilterPopupCheckboxList,
+  FilterPopupDateRow,
+  FilterPopupInput,
+} from '../../components/FilterPopup';
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
 
@@ -429,35 +436,40 @@ export default function GitCommitDetailApp() {
           <i
             ref={descFilterRef}
             className={`codicon codicon-filter ${styles['filter-icon']} ${descFilter ? styles['has-filter'] : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
+            onClick={(event) => {
+              event.stopPropagation();
               setActivePopup(activePopup === 'desc' ? null : 'desc');
             }}
           />
+
           <FilterPopup
             visible={activePopup === 'desc'}
-            triggerRef={descFilterRef}
+            anchorRef={descFilterRef}
+            width={260}
             onClose={() => setActivePopup(null)}
           >
-            <input
+            <FilterPopupInput
               type="text"
               value={descFilter}
-              onChange={(e) => setDescFilter(e.target.value)}
+              onChange={(event) => setDescFilter(event.target.value)}
               placeholder="输入关键词"
-              className={styles['filter-input']}
             />
-            <div className={styles['filter-actions']}>
-              <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
-              <button
-                className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`}
+
+            <FilterPopupActions>
+              <FilterPopupButton onClick={() => setActivePopup(null)}>
+                确定
+              </FilterPopupButton>
+
+              <FilterPopupButton
+                secondary
                 onClick={() => {
                   setDescFilter('');
                   setActivePopup(null);
                 }}
               >
                 清除
-              </button>
-            </div>
+              </FilterPopupButton>
+            </FilterPopupActions>
           </FilterPopup>
         </div>
 
@@ -465,48 +477,63 @@ export default function GitCommitDetailApp() {
           日期
           <i
             ref={dateFilterRef}
-            className={`codicon codicon-filter ${styles['filter-icon']} ${(dateFilter.start || dateFilter.end) ? styles['has-filter'] : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
+            className={`codicon codicon-filter ${styles['filter-icon']} ${dateFilter.start || dateFilter.end ? styles['has-filter'] : ''}`}
+            onClick={(event) => {
+              event.stopPropagation();
               setActivePopup(activePopup === 'date' ? null : 'date');
             }}
           />
+
           <FilterPopup
             visible={activePopup === 'date'}
-            triggerRef={dateFilterRef}
+            anchorRef={dateFilterRef}
+            width={310}
             onClose={() => setActivePopup(null)}
-            width={220}
           >
-            <div className={styles['date-filter-row']}>
-              <span className={styles['date-filter-label']}>开始:</span>
-              <input
+            <FilterPopupDateRow label="开始:">
+              <FilterPopupInput
                 type="date"
                 value={dateFilter.start}
-                onChange={(e) => setDateFilter({ ...dateFilter, start: e.target.value })}
-                className={styles['filter-input']}
+                onChange={(event) =>
+                  setDateFilter({
+                    ...dateFilter,
+                    start: event.target.value,
+                  })
+                }
               />
-            </div>
-            <div className={styles['date-filter-row']}>
-              <span className={styles['date-filter-label']}>结束:</span>
-              <input
+            </FilterPopupDateRow>
+
+            <FilterPopupDateRow label="结束:">
+              <FilterPopupInput
                 type="date"
                 value={dateFilter.end}
-                onChange={(e) => setDateFilter({ ...dateFilter, end: e.target.value })}
-                className={styles['filter-input']}
+                onChange={(event) =>
+                  setDateFilter({
+                    ...dateFilter,
+                    end: event.target.value,
+                  })
+                }
               />
-            </div>
-            <div className={styles['filter-actions']}>
-              <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
-              <button
-                className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`}
+            </FilterPopupDateRow>
+
+            <FilterPopupActions>
+              <FilterPopupButton onClick={() => setActivePopup(null)}>
+                确定
+              </FilterPopupButton>
+
+              <FilterPopupButton
+                secondary
                 onClick={() => {
-                  setDateFilter({ start: '', end: '' });
+                  setDateFilter({
+                    start: '',
+                    end: '',
+                  });
                   setActivePopup(null);
                 }}
               >
                 清除
-              </button>
-            </div>
+              </FilterPopupButton>
+            </FilterPopupActions>
           </FilterPopup>
         </div>
 
@@ -515,44 +542,52 @@ export default function GitCommitDetailApp() {
           <i
             ref={authorFilterRef}
             className={`codicon codicon-filter ${styles['filter-icon']} ${authorFilter.length > 0 ? styles['has-filter'] : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
+            onClick={(event) => {
+              event.stopPropagation();
               setActivePopup(activePopup === 'author' ? null : 'author');
             }}
           />
+
           <FilterPopup
             visible={activePopup === 'author'}
-            triggerRef={authorFilterRef}
+            anchorRef={authorFilterRef}
+            width={260}
             onClose={() => setActivePopup(null)}
-            width={220}
           >
-            <div className={styles['filter-checkbox-list']}>
+            <FilterPopupCheckboxList>
               {allAuthors.map((author) => (
-                <label key={author} className={styles['filter-checkbox-label']} title={author}>
+                <FilterPopupCheckboxLabel key={author}>
                   <input
                     type="checkbox"
                     checked={authorFilter.includes(author)}
-                    onChange={(e) => {
-                      if (e.target.checked) setAuthorFilter([...authorFilter, author]);
-                      else setAuthorFilter(authorFilter.filter((a) => a !== author));
+                    onChange={(event) => {
+                      if (event.target.checked) {
+                        setAuthorFilter([...authorFilter, author]);
+                      } else {
+                        setAuthorFilter(authorFilter.filter((item) => item !== author));
+                      }
                     }}
                   />
-                  <span>{author}</span>
-                </label>
+                  {author}
+                </FilterPopupCheckboxLabel>
               ))}
-            </div>
-            <div className={styles['filter-actions']}>
-              <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
-              <button
-                className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`}
+            </FilterPopupCheckboxList>
+
+            <FilterPopupActions>
+              <FilterPopupButton onClick={() => setActivePopup(null)}>
+                确定
+              </FilterPopupButton>
+
+              <FilterPopupButton
+                secondary
                 onClick={() => {
                   setAuthorFilter([]);
                   setActivePopup(null);
                 }}
               >
                 清除
-              </button>
-            </div>
+              </FilterPopupButton>
+            </FilterPopupActions>
           </FilterPopup>
         </div>
 
@@ -561,35 +596,40 @@ export default function GitCommitDetailApp() {
           <i
             ref={hashFilterRef}
             className={`codicon codicon-filter ${styles['filter-icon']} ${hashFilter ? styles['has-filter'] : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
+            onClick={(event) => {
+              event.stopPropagation();
               setActivePopup(activePopup === 'hash' ? null : 'hash');
             }}
           />
+
           <FilterPopup
             visible={activePopup === 'hash'}
-            triggerRef={hashFilterRef}
+            anchorRef={hashFilterRef}
+            width={260}
             onClose={() => setActivePopup(null)}
           >
-            <input
+            <FilterPopupInput
               type="text"
               value={hashFilter}
-              onChange={(e) => setHashFilter(e.target.value)}
+              onChange={(event) => setHashFilter(event.target.value)}
               placeholder="输入 Commit 过滤"
-              className={styles['filter-input']}
             />
-            <div className={styles['filter-actions']}>
-              <button className={styles['filter-btn']} onClick={() => setActivePopup(null)}>确定</button>
-              <button
-                className={`${styles['filter-btn']} ${styles['filter-btn-secondary']}`}
+
+            <FilterPopupActions>
+              <FilterPopupButton onClick={() => setActivePopup(null)}>
+                确定
+              </FilterPopupButton>
+
+              <FilterPopupButton
+                secondary
                 onClick={() => {
                   setHashFilter('');
                   setActivePopup(null);
                 }}
               >
                 清除
-              </button>
-            </div>
+              </FilterPopupButton>
+            </FilterPopupActions>
           </FilterPopup>
         </div>
       </div>
