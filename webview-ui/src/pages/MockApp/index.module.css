@@ -2,7 +2,7 @@
     --primary: var(--vscode-textLink-activeForeground);
     --border: var(--vscode-panel-border);
     --bg: var(--vscode-editor-background);
-    --bg-hover: var(--vscode-list-hoverBackground);
+    --bg-hover: var(--vscode-list-inactiveSelectionBackground);
     --text: var(--vscode-editor-foreground);
     --text-sub: var(--vscode-descriptionForeground);
     --error: var(--vscode-errorForeground);

@@ -86,7 +86,7 @@ ul {
 }
 
 .project-item:hover {
-  background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--vscode-list-inactiveSelectionBackground);
 }
 
 .project-item.just-opened {
@@ -281,7 +281,7 @@ ul {
 }
 
 .sub-item:hover {
-  background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--vscode-list-inactiveSelectionBackground);
 }
 
 .sub-name {
@@ -615,7 +615,7 @@ ul {
 }
 
 .search-match-item:hover {
-  background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--vscode-list-inactiveSelectionBackground);
 }
 
 .search-match-item.active {

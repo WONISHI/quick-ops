@@ -137,5 +137,5 @@
   cursor: pointer; font-size: 11px; display: flex; align-items: center; gap: 6px; transition: all 0.2s;
 }
 
-.appWrapper :global .tooltip-btn:hover { background: var(--vscode-list-hoverBackground); }
+.appWrapper :global .tooltip-btn:hover { background: var(--vscode-list-inactiveSelectionBackground); }
 .appWrapper :global .tooltip-btn.danger:hover { color: var(--vscode-errorForeground); border-color: var(--vscode-errorForeground); }
