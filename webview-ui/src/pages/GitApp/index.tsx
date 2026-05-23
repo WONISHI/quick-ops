@@ -342,6 +342,20 @@ export default function GitApp() {
     }));
   };
 
+  const collapseDirs = (paths: string[], e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    setExpandedDirs((prev) => {
+      const next = { ...prev };
+
+      paths.forEach((path) => {
+        next[path] = false;
+      });
+
+      return next;
+    });
+  };
+
   const openHistoryDiff = (file: GitFile, historyHash?: string) => {
     if (!historyHash) return;
 
@@ -619,6 +633,7 @@ export default function GitApp() {
                     setActiveFile={setActiveFile}
                     expandedDirs={expandedDirs}
                     toggleDir={toggleDir}
+                    collapseDirs={collapseDirs}
                     openHistoryDiff={openHistoryDiff}
                     openCompareDiff={openCompareDiff}
                     setContextMenu={setContextMenu}
@@ -724,6 +739,7 @@ export default function GitApp() {
                     setActiveFile={setActiveFile}
                     expandedDirs={expandedDirs}
                     toggleDir={toggleDir}
+                    collapseDirs={collapseDirs}
                     openHistoryDiff={openHistoryDiff}
                     openCompareDiff={openCompareDiff}
                     setContextMenu={setContextMenu}
@@ -748,6 +764,7 @@ export default function GitApp() {
                     setActiveFile={setActiveFile}
                     expandedDirs={expandedDirs}
                     toggleDir={toggleDir}
+                    collapseDirs={collapseDirs}
                     openHistoryDiff={openHistoryDiff}
                     openCompareDiff={openCompareDiff}
                     setContextMenu={setContextMenu}
@@ -878,6 +895,7 @@ export default function GitApp() {
                                   setActiveFile={setActiveFile}
                                   expandedDirs={expandedDirs}
                                   toggleDir={toggleDir}
+                                  collapseDirs={collapseDirs}
                                   openHistoryDiff={openHistoryDiff}
                                   openCompareDiff={openCompareDiff}
                                   setContextMenu={setContextMenu}
@@ -1023,6 +1041,7 @@ export default function GitApp() {
                       setActiveFile={setActiveFile}
                       expandedDirs={expandedDirs}
                       toggleDir={toggleDir}
+                      collapseDirs={collapseDirs}
                       openHistoryDiff={openHistoryDiff}
                       openCompareDiff={openCompareDiff}
                       setContextMenu={setContextMenu}
@@ -1181,6 +1200,7 @@ export default function GitApp() {
                     setActiveFile={setActiveFile}
                     expandedDirs={expandedDirs}
                     toggleDir={toggleDir}
+                    collapseDirs={collapseDirs}
                     openHistoryDiff={openHistoryDiff}
                     openCompareDiff={openCompareDiff}
                     setContextMenu={setContextMenu}

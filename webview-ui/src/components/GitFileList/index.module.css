@@ -91,3 +91,11 @@
 .status-D {
     color: var(--vscode-gitDecoration-deletedResourceForeground);
 }
+
+.folder-file-item .file-actions {
+    opacity: 0;
+}
+
+.folder-file-item:hover .file-actions {
+    opacity: 1;
+}

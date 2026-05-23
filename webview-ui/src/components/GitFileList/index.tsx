@@ -22,6 +22,7 @@ interface GitFileListProps {
   setActiveFile: (file: string | null) => void;
   expandedDirs: Record<string, boolean>;
   toggleDir: (path: string, e: React.MouseEvent) => void;
+  collapseDirs: (paths: string[], e: React.MouseEvent) => void;
   openHistoryDiff: (item: GitFile, historyHash?: string) => void;
   openCompareDiff: (item: GitFile) => void;
   setContextMenu: (state: ContextMenuState) => void;
@@ -36,6 +37,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
   setActiveFile,
   expandedDirs,
   toggleDir,
+  collapseDirs,
   openHistoryDiff,
   openCompareDiff,
   setContextMenu,
@@ -44,6 +46,24 @@ const GitFileList: React.FC<GitFileListProps> = ({
     const isOpen = expandedDirs[dirPath] !== false;
 
     return isOpen ? 'codicon-folder-opened' : 'codicon-folder';
+  };
+
+  const collectDirectoryPaths = (node: TreeNode): string[] => {
+    const paths: string[] = [];
+
+    const walk = (currentNode: TreeNode) => {
+      if (!currentNode.isDirectory) return;
+
+      paths.push(currentNode.fullPath);
+
+      currentNode.children.forEach((child) => {
+        walk(child);
+      });
+    };
+
+    walk(node);
+
+    return paths;
   };
 
   const handleFileClick = (item: GitFile) => {
@@ -182,7 +202,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
         return (
           <React.Fragment key={node.fullPath}>
             <li
-              className={styles['file-item']}
+              className={`${styles['file-item']} ${styles['folder-file-item'] || ''}`}
               style={{
                 paddingLeft: `${depth * 12 + 4}px`,
                 cursor: 'pointer',
@@ -209,6 +229,21 @@ const GitFileList: React.FC<GitFileListProps> = ({
 
               <div className={styles['file-name']} style={{ opacity: 0.9 }}>
                 {node.name}
+              </div>
+
+              <div style={{ flex: 1 }} />
+
+              <div className={styles['file-actions']} onClick={(e) => e.stopPropagation()}>
+                <Tooltip content="折叠当前文件夹">
+                  <button
+                    className={styles['action-btn']}
+                    onClick={(e) => {
+                      collapseDirs(collectDirectoryPaths(node), e);
+                    }}
+                  >
+                    <i className="codicon codicon-fold" />
+                  </button>
+                </Tooltip>
               </div>
             </li>
 
