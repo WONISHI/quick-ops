@@ -96,6 +96,8 @@ export default function GitApp() {
   const lastRefreshRef = useRef<number>(0);
   const commitInputRef = useRef<HTMLDivElement>(null);
 
+  const canCommit = isRepo && !loading && !!commitMsg.trim() && stagedFiles.length > 0;
+
   useEffect(() => {
     lastRefreshRef.current = Date.now();
     vscode.postMessage({ command: 'webviewLoaded' });
@@ -500,11 +502,20 @@ export default function GitApp() {
           suppressContentEditableWarning={true}
         />
 
-        <button className={styles['commit-btn']} disabled={!isRepo || loading || !commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0)} onClick={handleCommit}>
-          {loading ? <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} /> : <i className={`codicon codicon-check ${styles['icon-right-6']}`} />}
+        <button
+          className={styles['commit-btn']}
+          disabled={!canCommit}
+          onClick={handleCommit}
+        >
+          {loading ? (
+            <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} />
+          ) : (
+            <i className={`codicon codicon-check ${styles['icon-right-6']}`} />
+          )}
           提交 (Commit)
         </button>
       </div>
+
 
       <div className={`${styles['changes-scroll-area']} ${styles['changes-scroll-area-expanded']}`}>
         <div className={getChangesSectionClassName(isChangesOpen)}>
@@ -1092,9 +1103,8 @@ export default function GitApp() {
 
               <Tooltip content={`筛选分支 (${selectedGraphFilter})`}>
                 <button
-                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${
-                    selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
-                  } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
+                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
+                    } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
 
