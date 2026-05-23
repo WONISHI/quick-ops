@@ -208,10 +208,14 @@ body {
     margin-bottom: 4px;
 }
 
-.changes-section:not(.section-top-gap) {
-    flex: 1;
+.changes-section-expanded,
+.changes-section-collapsed {
     display: flex;
     flex-direction: column;
+}
+
+.changes-section-expanded {
+    flex: 1;
 }
 
 .changes-section:not(.section-top-gap) .changes-content {

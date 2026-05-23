@@ -376,6 +376,10 @@ export default function GitApp() {
     return '拉取 (Pull)';
   };
 
+  const getSectionOpenStateClass = (open: boolean) => {
+    return open ? styles['changes-section-expanded'] : styles['changes-section-collapsed'];
+  };
+
   if (isGitInstalled === false) {
     return <GitNotInstalled />;
   }
@@ -497,7 +501,9 @@ export default function GitApp() {
       </div>
 
       <div className={`${styles['changes-scroll-area']} ${styles['changes-scroll-area-expanded']}`}>
-        <div className={styles['changes-section']}>
+        <div
+          className={`${styles['changes-section']} ${getSectionOpenStateClass(isChangesOpen)}`}
+        >
           <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsChangesOpen(!isChangesOpen)}>
             <div className={styles['header-title-row']}>
               <i className={`codicon ${isChangesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron']}`} />
@@ -1082,9 +1088,8 @@ export default function GitApp() {
 
               <Tooltip content={`筛选分支 (${selectedGraphFilter})`}>
                 <button
-                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${
-                    selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
-                  } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
+                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
+                    } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
                   onClick={(e) => {
                     e.stopPropagation();
 
