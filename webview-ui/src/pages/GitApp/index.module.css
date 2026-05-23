@@ -104,8 +104,6 @@ body {
 
 .action-btn-active-solid {
     opacity: 1;
-    background-color: var(--vscode-button-background, #3168d1);
-    color: var(--vscode-button-foreground, #ffffff);
     border-radius: 3px;
 }
 
