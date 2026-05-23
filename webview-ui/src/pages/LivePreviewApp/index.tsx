@@ -367,7 +367,7 @@ export default function LivePreviewApp() {
         vscode?.postMessage({ type: 'reqSyncFavorites' });
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
-      } 
+      }
       else if (message.type === 'inner-nav') {
         const { url, isSpa } = message;
         if (isSpa) {
@@ -847,13 +847,54 @@ export default function LivePreviewApp() {
     );
   };
 
+  const getProxyPreviewUrl = (rawUrl: string, port: number) => {
+    try {
+      const targetUrl = new URL(rawUrl);
+      const proxyOrigin = `http://127.0.0.1:${port}`;
+
+      /**
+       * 关键：
+       * iframe 入口必须保留目标页面 pathname。
+       *
+       * 例如：
+       *
+       * https://www.antdv.com/components/overview-cn/
+       *
+       * 应该变成：
+       *
+       * http://127.0.0.1:port/components/overview-cn/?url=https%3A%2F%2Fwww.antdv.com%2Fcomponents%2Foverview-cn%2F
+       *
+       * 而不是：
+       *
+       * http://127.0.0.1:port/?url=https%3A%2F%2Fwww.antdv.com%2Fcomponents%2Foverview-cn%2F
+       *
+       * 否则 Vue / VitePress 客户端路由看到的是 /，
+       * SSR DOM 与客户端路由不一致，容易出现 nextSibling 为 null。
+       */
+      const proxyUrl = new URL(targetUrl.pathname || '/', proxyOrigin);
+
+      proxyUrl.searchParams.set('url', targetUrl.href);
+
+      /**
+       * 保留 hash。
+       */
+      if (targetUrl.hash) {
+        proxyUrl.hash = targetUrl.hash;
+      }
+
+      return proxyUrl.toString();
+    } catch {
+      return `http://127.0.0.1:${port}/?url=${encodeURIComponent(rawUrl)}`;
+    }
+  };
+
   const getRenderIframeSrc = () => {
     if (!frameUrl || frameUrl === 'about:blank') return frameUrl;
     
     if (previewType === 'web' && proxyPort > 0) {
-      return `http://127.0.0.1:${proxyPort}/?url=${encodeURIComponent(frameUrl)}`;
+      return getProxyPreviewUrl(frameUrl, proxyPort);
     }
-    
+
     return frameUrl;
   };
 
