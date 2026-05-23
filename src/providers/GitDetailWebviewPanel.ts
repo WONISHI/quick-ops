@@ -73,6 +73,16 @@ export class GitDetailWebviewPanel {
             break;
           }
 
+          case 'getGitDetailCommitFiles': {
+            await this.postCommitFiles(cwd, msg.hash);
+            break;
+          }
+
+          case 'openGitDetailCommitFileDiff': {
+            await this.openCommitFileDiff(cwd, msg.hash, msg.parentHash, msg.file, msg.status);
+            break;
+          }
+
           case 'copy': {
             vscode.env.clipboard.writeText(msg.text || '');
             vscode.window.showInformationMessage(`已复制: ${msg.text}`);
@@ -193,6 +203,46 @@ export class GitDetailWebviewPanel {
   private createGitContentUri(cwd: string, ref: string, file: string): vscode.Uri {
     const query = encodeURIComponent(JSON.stringify({ cwd, ref }));
     return vscode.Uri.parse(`quickops-git:///${file}?${query}`);
+  }
+
+  private async postCommitFiles(cwd: string, hash: string) {
+    if (!hash) return;
+
+    const result = await this.gitService.getCommitFiles(cwd, hash);
+
+    this._panel?.webview.postMessage({
+      type: 'gitDetailCommitFilesData',
+      hash: result.hash || hash,
+      parentHash: result.parentHash,
+      files: result.files || [],
+    });
+  }
+
+  private async openCommitFileDiff(
+    cwd: string,
+    hash: string,
+    parentHash: string | undefined,
+    file: string,
+    status: string,
+  ) {
+    if (!hash || !file) return;
+
+    let leftRef = parentHash || 'empty';
+    let rightRef = hash;
+
+    if (status === 'A') {
+      leftRef = 'empty';
+    }
+
+    if (status === 'D') {
+      rightRef = 'empty';
+    }
+
+    const leftUri = this.createGitContentUri(cwd, leftRef, file);
+    const rightUri = this.createGitContentUri(cwd, rightRef, file);
+    const title = `${path.basename(file)} (${hash.substring(0, 7)})`;
+
+    await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
   }
 
   private async openCommitMultiDiff(cwd: string, hash: string) {

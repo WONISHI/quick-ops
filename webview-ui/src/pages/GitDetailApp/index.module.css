@@ -446,3 +446,133 @@
   height: 20px;
   line-height: 20px;
 }
+
+/* Git Commit Detail: 右侧提交文件树样式 */
+.detail-actions {
+  width: 360px;
+  flex-shrink: 0;
+  padding: 10px 12px;
+  border-left: 1px solid var(--vscode-panel-border);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 已移除“打开更改”按钮后，这个类可以删除；保留也不影响 */
+.detail-actions-header {
+  display: none;
+}
+
+/* 不要外边框：这里不再设置 border */
+.commit-files-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border: none;
+  background: transparent;
+}
+
+.commit-files-tree {
+  height: 100%;
+  overflow: auto;
+  padding: 4px 0;
+  box-sizing: border-box;
+}
+
+.commit-file-row {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  color: var(--vscode-foreground);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.commit-file-row:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.commit-file-dir-row {
+  color: var(--vscode-descriptionForeground);
+}
+
+.commit-file-leaf-row {
+  color: var(--vscode-foreground);
+}
+
+.commit-file-chevron {
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  flex-shrink: 0;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.commit-file-icon {
+  width: 16px;
+  height: 16px;
+  line-height: 16px;
+  flex-shrink: 0;
+  margin-right: 6px;
+  font-size: 14px;
+  color: var(--vscode-icon-foreground);
+}
+
+.commit-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.commit-file-deleted-name {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+.commit-file-spacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+.commit-file-status {
+  width: 24px;
+  flex-shrink: 0;
+  margin-right: 8px;
+  text-align: center;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.commit-file-status-added {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950);
+}
+
+.commit-file-status-modified {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, #cca700);
+}
+
+.commit-file-status-deleted {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #f14c4c);
+}
+
+.commit-file-status-normal {
+  color: var(--vscode-descriptionForeground);
+}
+
+.commit-files-loading,
+.commit-files-empty {
+  height: 100%;
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}

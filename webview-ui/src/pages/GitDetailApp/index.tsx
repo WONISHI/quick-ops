@@ -10,6 +10,25 @@ import FilterPopup, {
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
 
+interface GitFileItem {
+  status: string;
+  file: string;
+  baseRef?: string;
+}
+
+interface CommitFilesState {
+  parentHash?: string;
+  files: GitFileItem[];
+}
+
+interface CommitFileTreeNode {
+  name: string;
+  fullPath: string;
+  isDirectory: boolean;
+  children: CommitFileTreeNode[];
+  file?: GitFileItem;
+}
+
 export interface GraphCommit {
   hash: string;
   parents?: string[];
@@ -54,7 +73,11 @@ class Branch {
   }
 
   addLine(p1: Point, p2: Point, lockedFirst: boolean) {
-    this.lines.push({ p1, p2, lockedFirst });
+    this.lines.push({
+      p1,
+      p2,
+      lockedFirst,
+    });
   }
 }
 
@@ -130,7 +153,11 @@ class Vertex {
 
   getPointConnectingTo(v: Vertex | null, b: Branch) {
     for (let i = 0; i < this.connections.length; i++) {
-      if (this.connections[i] && this.connections[i].connectsTo === v && this.connections[i].onBranch === b) {
+      if (
+        this.connections[i] &&
+        this.connections[i].connectsTo === v &&
+        this.connections[i].onBranch === b
+      ) {
         return {
           x: i,
           y: this.id,
@@ -156,19 +183,19 @@ function buildGraphEngine(commits: GraphCommit[]) {
   const vertices = commits.map((_, i) => new Vertex(i));
   const commitLookup: Record<string, number> = {};
 
-  commits.forEach((c, i) => {
-    commitLookup[c.hash] = i;
+  commits.forEach((commit, index) => {
+    commitLookup[commit.hash] = index;
   });
 
   const nullVertex = new Vertex(NULL_VERTEX_ID);
 
-  commits.forEach((c, i) => {
-    (c.parents || []).forEach((pHash) => {
-      if (commitLookup[pHash] !== undefined) {
-        vertices[i].addParent(vertices[commitLookup[pHash]]);
-        vertices[commitLookup[pHash]].addChild(vertices[i]);
+  commits.forEach((commit, index) => {
+    (commit.parents || []).forEach((parentHash) => {
+      if (commitLookup[parentHash] !== undefined) {
+        vertices[index].addParent(vertices[commitLookup[parentHash]]);
+        vertices[commitLookup[parentHash]].addChild(vertices[index]);
       } else {
-        vertices[i].addParent(nullVertex);
+        vertices[index].addParent(nullVertex);
       }
     });
   });
@@ -194,7 +221,13 @@ function buildGraphEngine(commits: GraphCommit[]) {
     let lastPoint = vertex.isNotOnBranch() ? vertex.getNextPoint() : vertex.getPoint();
     let curPoint;
 
-    if (parentVertex !== null && parentVertex.id !== NULL_VERTEX_ID && vertex.isMerge() && !vertex.isNotOnBranch() && !parentVertex.isNotOnBranch()) {
+    if (
+      parentVertex !== null &&
+      parentVertex.id !== NULL_VERTEX_ID &&
+      vertex.isMerge() &&
+      !vertex.isNotOnBranch() &&
+      !parentVertex.isNotOnBranch()
+    ) {
       let foundPointToParent = false;
       const parentBranch = parentVertex.getBranch()!;
 
@@ -230,11 +263,13 @@ function buildGraphEngine(commits: GraphCommit[]) {
 
       for (i = startAt + 1; i < vertices.length; i++) {
         curVertex = vertices[i];
-        curPoint = parentVertex === curVertex && !parentVertex.isNotOnBranch() ? curVertex.getPoint() : curVertex.getNextPoint();
+        curPoint =
+          parentVertex === curVertex && !parentVertex.isNotOnBranch()
+            ? curVertex.getPoint()
+            : curVertex.getNextPoint();
 
         branch.addLine(lastPoint, curPoint, lastPoint.x < curPoint.x);
         curVertex.registerUnavailablePoint(curPoint.x, parentVertex, branch);
-
         lastPoint = curPoint;
 
         if (parentVertex === curVertex) {
@@ -259,13 +294,13 @@ function buildGraphEngine(commits: GraphCommit[]) {
     }
   };
 
-  let idx = 0;
+  let index = 0;
 
-  while (idx < vertices.length) {
-    if (vertices[idx].getNextParent() !== null || vertices[idx].isNotOnBranch()) {
-      determinePath(idx);
+  while (index < vertices.length) {
+    if (vertices[index].getNextParent() !== null || vertices[index].isNotOnBranch()) {
+      determinePath(index);
     } else {
-      idx++;
+      index++;
     }
   }
 
@@ -297,6 +332,107 @@ function getRefs(refs?: string) {
     .filter(Boolean);
 }
 
+function buildCommitFileTree(files: GitFileItem[]) {
+  const roots: CommitFileTreeNode[] = [];
+  const dirMap = new Map<string, CommitFileTreeNode>();
+
+  const ensureDir = (name: string, fullPath: string) => {
+    const existing = dirMap.get(fullPath);
+
+    if (existing) return existing;
+
+    const node: CommitFileTreeNode = {
+      name,
+      fullPath,
+      isDirectory: true,
+      children: [],
+    };
+
+    dirMap.set(fullPath, node);
+
+    const parentPath = fullPath.includes('/') ? fullPath.substring(0, fullPath.lastIndexOf('/')) : '';
+
+    if (parentPath) {
+      const parentName = parentPath.split('/').pop() || parentPath;
+      const parent = ensureDir(parentName, parentPath);
+      parent.children.push(node);
+    } else {
+      roots.push(node);
+    }
+
+    return node;
+  };
+
+  files.forEach((fileItem) => {
+    const parts = fileItem.file.split('/');
+    const fileName = parts.pop() || fileItem.file;
+
+    let parentChildren = roots;
+
+    if (parts.length > 0) {
+      let currentPath = '';
+
+      parts.forEach((part) => {
+        currentPath = currentPath ? `${currentPath}/${part}` : part;
+        ensureDir(part, currentPath);
+      });
+
+      const parentPath = parts.join('/');
+      const parent = dirMap.get(parentPath);
+
+      if (parent) {
+        parentChildren = parent.children;
+      }
+    }
+
+    parentChildren.push({
+      name: fileName,
+      fullPath: fileItem.file,
+      isDirectory: false,
+      children: [],
+      file: fileItem,
+    });
+  });
+
+  const sortNodes = (nodes: CommitFileTreeNode[]) => {
+    nodes.sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) {
+        return a.isDirectory ? -1 : 1;
+      }
+
+      return a.name.localeCompare(b.name);
+    });
+
+    nodes.forEach((node) => {
+      if (node.isDirectory) {
+        sortNodes(node.children);
+      }
+    });
+  };
+
+  sortNodes(roots);
+
+  return roots;
+}
+
+function getCommitFileStatusText(status: string) {
+  if (status === 'A') return 'A';
+  if (status === 'D') return 'D';
+  if (status === 'M') return 'M';
+  if (status === 'R') return 'R';
+  if (status === 'C') return 'C';
+
+  return status || '?';
+}
+
+function getCommitFileStatusClass(status: string) {
+  if (status === 'A') return styles['commit-file-status-added'];
+  if (status === 'D') return styles['commit-file-status-deleted'];
+  if (status === 'M') return styles['commit-file-status-modified'];
+
+  return styles['commit-file-status-normal'];
+}
+
 function renderRefText(ref: string) {
   const parts = ref.split(' -> ');
 
@@ -325,10 +461,17 @@ export default function GitCommitDetailApp() {
   const [loading, setLoading] = useState(true);
 
   const [descFilter, setDescFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
+  const [dateFilter, setDateFilter] = useState({
+    start: '',
+    end: '',
+  });
   const [authorFilter, setAuthorFilter] = useState<string[]>([]);
   const [hashFilter, setHashFilter] = useState('');
   const [activePopup, setActivePopup] = useState<'desc' | 'date' | 'author' | 'hash' | null>(null);
+
+  const [commitFilesMap, setCommitFilesMap] = useState<Record<string, CommitFilesState>>({});
+  const [commitFilesLoadingMap, setCommitFilesLoadingMap] = useState<Record<string, boolean>>({});
+  const [expandedCommitDirs, setExpandedCommitDirs] = useState<Record<string, boolean>>({});
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
@@ -337,6 +480,9 @@ export default function GitCommitDetailApp() {
   const dateFilterRef = useRef<HTMLElement | null>(null);
   const authorFilterRef = useRef<HTMLElement | null>(null);
   const hashFilterRef = useRef<HTMLElement | null>(null);
+
+  const resizeObserverRef = useRef<ResizeObserver | null>(null);
+  const [resizeVersion, setResizeVersion] = useState(0);
 
   const allAuthors = useMemo(() => {
     const authors = new Set<string>();
@@ -416,6 +562,101 @@ export default function GitCommitDetailApp() {
   const renderedHeight = yPositions[Math.min(displayCount, filteredCommits.length)] || 0;
 
   useEffect(() => {
+    if (!activeCommitHash) return;
+
+    if (commitFilesMap[activeCommitHash] || commitFilesLoadingMap[activeCommitHash]) {
+      return;
+    }
+
+    setCommitFilesLoadingMap((prev) => ({
+      ...prev,
+      [activeCommitHash]: true,
+    }));
+
+    vscode.postMessage({
+      command: 'getGitDetailCommitFiles',
+      hash: activeCommitHash,
+    });
+  }, [activeCommitHash, commitFilesMap, commitFilesLoadingMap]);
+
+  useEffect(() => {
+    if (!activeCommitHash || !commitFilesLoadingMap[activeCommitHash]) return;
+
+    const timer = window.setTimeout(() => {
+      setCommitFilesLoadingMap((prev) => {
+        if (!prev[activeCommitHash]) return prev;
+
+        return {
+          ...prev,
+          [activeCommitHash]: false,
+        };
+      });
+
+      setCommitFilesMap((prev) => {
+        if (prev[activeCommitHash]) return prev;
+
+        return {
+          ...prev,
+          [activeCommitHash]: {
+            files: [],
+          },
+        };
+      });
+    }, 8000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [activeCommitHash, commitFilesLoadingMap]);
+
+  useEffect(() => {
+    resizeObserverRef.current?.disconnect();
+
+    const container = listRef.current;
+
+    if (!container) return;
+
+    let frameId = 0;
+
+    const observer = new ResizeObserver(() => {
+      if (frameId) {
+        cancelAnimationFrame(frameId);
+      }
+
+      frameId = requestAnimationFrame(() => {
+        setResizeVersion((prev) => prev + 1);
+      });
+    });
+
+    observer.observe(container);
+    resizeObserverRef.current = observer;
+
+    return () => {
+      if (frameId) {
+        cancelAnimationFrame(frameId);
+      }
+
+      observer.disconnect();
+
+      if (resizeObserverRef.current === observer) {
+        resizeObserverRef.current = null;
+      }
+    };
+  }, [loading]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setResizeVersion((prev) => prev + 1);
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
     vscode.postMessage({
       command: 'gitDetailLoaded',
     });
@@ -435,8 +676,29 @@ export default function GitCommitDetailApp() {
         return;
       }
 
+      if (msg.type === 'gitDetailCommitFilesData') {
+        setCommitFilesMap((prev) => ({
+          ...prev,
+          [msg.hash]: {
+            files: msg.files || [],
+            parentHash: msg.parentHash,
+          },
+        }));
+
+        setCommitFilesLoadingMap((prev) => ({
+          ...prev,
+          [msg.hash]: false,
+        }));
+
+        return;
+      }
+
       if (msg.type === 'gitDetailGraphData' || msg.type === 'graphData') {
         const commits = msg.graphCommits || [];
+
+        setCommitFilesMap({});
+        setCommitFilesLoadingMap({});
+        setExpandedCommitDirs({});
 
         setGraphCommits(commits);
         setTotalCommits(msg.totalCommits ?? commits.length);
@@ -456,14 +718,25 @@ export default function GitCommitDetailApp() {
           setRemoteUrl(msg.remoteUrl || '');
         }
 
+        setResizeVersion((prev) => prev + 1);
         setLoading(false);
         return;
       }
 
-      if (['gitDetailNoWorkspace', 'gitDetailNotRepo', 'gitDetailError', 'noWorkspace', 'notRepo', 'error'].includes(msg.type)) {
+      if (
+        [
+          'gitDetailNoWorkspace',
+          'gitDetailNotRepo',
+          'gitDetailError',
+          'noWorkspace',
+          'notRepo',
+          'error',
+        ].includes(msg.type)
+      ) {
         setGraphCommits([]);
         setTotalCommits(0);
         setActiveCommitHash(null);
+        setResizeVersion((prev) => prev + 1);
         setLoading(false);
       }
     };
@@ -491,7 +764,10 @@ export default function GitCommitDetailApp() {
     canvas.width = containerWidth * dpr;
     canvas.height = renderedHeight * dpr;
 
-    ctx.scale(dpr, dpr);
+    canvas.style.width = `${containerWidth}px`;
+    canvas.style.height = `${renderedHeight}px`;
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, containerWidth, renderedHeight);
 
     graphData.branches.forEach((branchItem) => {
@@ -545,7 +821,9 @@ export default function GitCommitDetailApp() {
       ctx.stroke();
     });
 
-    const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--vscode-sideBar-background').trim() || '#252526';
+    const bgColor =
+      getComputedStyle(document.documentElement).getPropertyValue('--vscode-sideBar-background').trim() ||
+      '#252526';
 
     graphData.vertices.slice(0, displayCount).forEach((vertex, index) => {
       const cx = vertex.getPoint().x * LANE_WIDTH + 40;
@@ -570,7 +848,14 @@ export default function GitCommitDetailApp() {
         ctx.fill();
       }
     });
-  }, [graphData, filteredCommits, displayCount, yPositions, renderedHeight]);
+  }, [
+    graphData,
+    filteredCommits,
+    displayCount,
+    yPositions,
+    renderedHeight,
+    resizeVersion,
+  ]);
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
@@ -580,13 +865,6 @@ export default function GitCommitDetailApp() {
         setDisplayCount((prev) => prev + 50);
       }
     }
-  };
-
-  const handleOpenChanges = (hash: string) => {
-    vscode.postMessage({
-      command: 'openCommitMultiDiff',
-      hash,
-    });
   };
 
   const handleRefresh = () => {
@@ -607,6 +885,98 @@ export default function GitCommitDetailApp() {
 
   const togglePopup = (popup: 'desc' | 'date' | 'author' | 'hash') => {
     setActivePopup((current) => (current === popup ? null : popup));
+  };
+
+  const renderCommitFileTree = (
+    hash: string,
+    parentHash: string | undefined,
+    nodes: CommitFileTreeNode[],
+    depth = 0,
+  ): React.ReactNode => {
+    return nodes.map((node) => {
+      if (node.isDirectory) {
+        const isOpen = isCommitDirOpen(hash, node.fullPath);
+
+        return (
+          <React.Fragment key={node.fullPath}>
+            <div
+              className={`${styles['commit-file-row']} ${styles['commit-file-dir-row']}`}
+              style={{
+                paddingLeft: `${depth * 14 + 8}px`,
+              }}
+              onClick={(event) => toggleCommitDir(hash, node.fullPath, event)}
+            >
+              <i
+                className={`codicon ${isOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'
+                  } ${styles['commit-file-chevron']}`}
+              />
+              <i
+                className={`codicon ${isOpen ? 'codicon-folder-opened' : 'codicon-folder'
+                  } ${styles['commit-file-icon']}`}
+              />
+              <span className={styles['commit-file-name']}>{node.name}</span>
+            </div>
+
+            {isOpen && renderCommitFileTree(hash, parentHash, node.children, depth + 1)}
+          </React.Fragment>
+        );
+      }
+
+      const file = node.file!;
+
+      return (
+        <div
+          key={node.fullPath}
+          className={`${styles['commit-file-row']} ${styles['commit-file-leaf-row']}`}
+          style={{
+            paddingLeft: `${depth * 14 + 24}px`,
+          }}
+          title={file.file}
+          onClick={(event) => {
+            event.stopPropagation();
+
+            vscode.postMessage({
+              command: 'openGitDetailCommitFileDiff',
+              hash,
+              parentHash,
+              file: file.file,
+              status: file.status,
+            });
+          }}
+        >
+          <i className={`codicon codicon-file ${styles['commit-file-icon']}`} />
+
+          <span className={`${styles['commit-file-name']} ${file.status === 'D' ? styles['commit-file-deleted-name'] : ''}`}>
+            {node.name}
+          </span>
+
+          <span className={styles['commit-file-spacer']} />
+
+          <span className={`${styles['commit-file-status']} ${getCommitFileStatusClass(file.status)}`}>
+            {getCommitFileStatusText(file.status)}
+          </span>
+        </div>
+      );
+    });
+  };
+
+  const getCommitDirKey = (hash: string, dirPath: string) => {
+    return `${hash}::${dirPath}`;
+  };
+
+  const isCommitDirOpen = (hash: string, dirPath: string) => {
+    return expandedCommitDirs[getCommitDirKey(hash, dirPath)] !== false;
+  };
+
+  const toggleCommitDir = (hash: string, dirPath: string, event: React.MouseEvent) => {
+    event.stopPropagation();
+
+    const key = getCommitDirKey(hash, dirPath);
+
+    setExpandedCommitDirs((prev) => ({
+      ...prev,
+      [key]: prev[key] === false ? true : false,
+    }));
   };
 
   return (
@@ -683,7 +1053,8 @@ export default function GitCommitDetailApp() {
           日期
           <i
             ref={dateFilterRef}
-            className={`codicon codicon-filter ${styles['filter-icon']} ${dateFilter.start || dateFilter.end ? styles['has-filter'] : ''}`}
+            className={`codicon codicon-filter ${styles['filter-icon']} ${dateFilter.start || dateFilter.end ? styles['has-filter'] : ''
+              }`}
             onClick={(event) => {
               event.stopPropagation();
               togglePopup('date');
@@ -745,7 +1116,8 @@ export default function GitCommitDetailApp() {
           作者
           <i
             ref={authorFilterRef}
-            className={`codicon codicon-filter ${styles['filter-icon']} ${authorFilter.length > 0 ? styles['has-filter'] : ''}`}
+            className={`codicon codicon-filter ${styles['filter-icon']} ${authorFilter.length > 0 ? styles['has-filter'] : ''
+              }`}
             onClick={(event) => {
               event.stopPropagation();
               togglePopup('author');
@@ -844,7 +1216,7 @@ export default function GitCommitDetailApp() {
           <div className={styles['empty-view']}>{graphCommits.length === 0 ? '暂无提交记录' : '没有匹配的筛选结果'}</div>
         ) : (
           <div className={styles['commit-list-scroll']} ref={listRef} onScroll={handleScroll}>
-            <canvas ref={canvasRef} className={styles['graph-canvas']} style={{ height: `${renderedHeight}px` }} />
+            <canvas ref={canvasRef} className={styles['graph-canvas']} />
 
             <ul className={styles['commit-list']} style={{ height: `${renderedHeight}px` }}>
               {visibleCommits.map((commit, index) => {
@@ -869,7 +1241,8 @@ export default function GitCommitDetailApp() {
                           {refs.map((ref) => (
                             <span
                               key={ref}
-                              className={`${styles['ref-tag']} ${ref.includes('origin/') ? styles['remote'] : ''} ${ref.includes('HEAD') ? styles['head'] : ''}`}
+                              className={`${styles['ref-tag']} ${ref.includes('origin/') ? styles['remote'] : ''} ${ref.includes('HEAD') ? styles['head'] : ''
+                                }`}
                               title={ref}
                             >
                               <i className={`codicon codicon-git-branch ${styles['ref-tag-icon']}`} />
@@ -925,10 +1298,24 @@ export default function GitCommitDetailApp() {
                         </div>
 
                         <div className={styles['detail-actions']}>
-                          <button className={styles['open-changes-btn']} onClick={() => handleOpenChanges(commit.hash)}>
-                            <i className="codicon codicon-diff-multiple" />
-                            打开更改
-                          </button>
+                          <div className={styles['commit-files-panel']}>
+                            {commitFilesLoadingMap[commit.hash] ? (
+                              <div className={styles['commit-files-loading']}>
+                                <i className="codicon codicon-loading codicon-modifier-spin" />
+                                正在加载文件...
+                              </div>
+                            ) : !commitFilesMap[commit.hash] || commitFilesMap[commit.hash].files.length === 0 ? (
+                              <div className={styles['commit-files-empty']}>暂无文件变更</div>
+                            ) : (
+                              <div className={styles['commit-files-tree']}>
+                                {renderCommitFileTree(
+                                  commit.hash,
+                                  commitFilesMap[commit.hash].parentHash,
+                                  buildCommitFileTree(commitFilesMap[commit.hash].files),
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
