@@ -1,0 +1,165 @@
+.commit-type-tag {
+    height: 20px;
+    min-width: 42px;
+    max-width: 78px;
+    flex-shrink: 0;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0 7px;
+    border: none;
+    border-radius: 4px;
+
+    color: #ffffff;
+    cursor: pointer;
+
+    font-family: var(--vscode-font-family);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 20px;
+
+    box-sizing: border-box;
+    user-select: none;
+}
+
+.commit-type-tag:hover {
+    filter: brightness(1.08);
+}
+
+.commit-type-tag:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.commit-type-popup {
+    position: fixed;
+    z-index: 9999;
+
+    width: 260px;
+    padding: 6px;
+    border-radius: 6px;
+
+    background: var(--vscode-menu-background, var(--vscode-dropdown-background));
+    border: 1px solid var(--vscode-menu-border, var(--vscode-dropdown-border));
+    box-shadow: 0 8px 24px var(--vscode-widget-shadow);
+
+    box-sizing: border-box;
+}
+
+.commit-type-popup-arrow {
+    position: absolute;
+    top: -5px;
+
+    width: 9px;
+    height: 9px;
+
+    background: var(--vscode-menu-background, var(--vscode-dropdown-background));
+    border-left: 1px solid var(--vscode-menu-border, var(--vscode-dropdown-border));
+    border-top: 1px solid var(--vscode-menu-border, var(--vscode-dropdown-border));
+
+    transform: rotate(45deg);
+    pointer-events: none;
+}
+
+.commit-type-option {
+    width: 100%;
+    min-height: 30px;
+
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    border: none;
+    border-radius: 4px;
+    padding: 4px 6px;
+
+    color: var(--vscode-menu-foreground, var(--vscode-foreground));
+    background: transparent;
+
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    font-size: 12px;
+    text-align: left;
+
+    box-sizing: border-box;
+}
+
+.commit-type-option:hover,
+.commit-type-option-active {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.commit-type-option-badge {
+    width: 64px;
+    height: 20px;
+    flex-shrink: 0;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 4px;
+
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 20px;
+}
+
+.commit-type-option-desc {
+    flex: 1;
+    min-width: 0;
+
+    color: var(--vscode-descriptionForeground);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.commit-type-option-check {
+    flex-shrink: 0;
+    color: var(--vscode-textLink-foreground);
+    font-size: 13px;
+}
+
+.commit-type-feat {
+    background: #2f7d32;
+}
+
+.commit-type-fix {
+    background: #b3261e;
+}
+
+.commit-type-docs {
+    background: #3168d1;
+}
+
+.commit-type-style {
+    background: #7a5af8;
+}
+
+.commit-type-refactor {
+    background: #8a5a16;
+}
+
+.commit-type-perf {
+    background: #0e7490;
+}
+
+.commit-type-test {
+    background: #6a2a88;
+}
+
+.commit-type-chore {
+    background: #59636e;
+}
+
+.commit-type-revert {
+    background: #c2410c;
+}
+
+.commit-type-build {
+    background: #876400;
+}

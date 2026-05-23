@@ -8,6 +8,7 @@ import GitFileList from '../../components/GitFileList';
 import GitNotInstalled from '../../components/GitNotInstalled';
 import LoadingMask from '../../components/LoadingMask';
 import type { GitFile } from '../../types/GitApp';
+import CommitTypeTag, { type CommitType } from '../../components/CommitTypeTag';
 
 import { GitContextMenu, type ContextMenuState } from '../../components/GitContextMenu';
 
@@ -46,6 +47,8 @@ export default function GitApp() {
 
   const [branch, setBranch] = useState('');
   const [commitMsg, setCommitMsg] = useState('');
+  const [commitTypeEnabled, setCommitTypeEnabled] = useState(false);
+  const [commitType, setCommitType] = useState<CommitType>('feat');
   const [loading, setLoading] = useState(false);
   const [changesRefreshing, setChangesRefreshing] = useState(false);
   const [activeFile, setActiveFile] = useState<string | null>(null);
@@ -96,7 +99,11 @@ export default function GitApp() {
   const lastRefreshRef = useRef<number>(0);
   const commitInputRef = useRef<HTMLDivElement>(null);
 
-  const canCommit = isRepo && !loading && !!commitMsg.trim() && stagedFiles.length > 0;
+  const getNormalizedCommitMessage = () => {
+    return commitMsg.replace(/\n/g, '').trim();
+  };
+
+  const canCommit = isRepo && !loading && !!getNormalizedCommitMessage() && stagedFiles.length > 0;
 
   useEffect(() => {
     lastRefreshRef.current = Date.now();
@@ -292,18 +299,33 @@ export default function GitApp() {
     }
   };
 
+  const getFinalCommitMessage = () => {
+    const message = getNormalizedCommitMessage();
+
+    if (!message) return '';
+
+    if (!commitTypeEnabled) {
+      return message;
+    }
+
+    return `${commitType}: ${message}`;
+  };
+
   const handleCommit = () => {
-    if (!commitMsg.trim()) return;
+    const finalMessage = getFinalCommitMessage();
+
+    if (!finalMessage) return;
 
     setLoading(true);
 
     vscode.postMessage({
       command: 'commit',
-      message: commitMsg,
+      message: finalMessage,
       skipVerify,
     });
 
     setCommitMsg('');
+    setJustCommitted(false);
 
     if (commitInputRef.current) {
       commitInputRef.current.innerText = '';
@@ -420,6 +442,20 @@ export default function GitApp() {
         <div className={styles['git-actions']}>
           {isRepo ? (
             <>
+              <Tooltip content={commitTypeEnabled ? '关闭提交类型 Tag' : '添加提交类型 Tag'}>
+                <button
+                  className={`${styles['icon-btn']} ${commitTypeEnabled ? styles['action-btn-active-solid'] : ''}`}
+                  onClick={() => {
+                    setCommitTypeEnabled((prev) => !prev);
+
+                    requestAnimationFrame(() => {
+                      commitInputRef.current?.focus();
+                    });
+                  }}
+                >
+                  <i className="codicon codicon-tag" />
+                </button>
+              </Tooltip>
               <Tooltip content={!skipVerify ? '校验开启' : '校验关闭'}>
                 <button
                   className={`${styles['icon-btn']} ${!skipVerify ? styles['shield-enabled'] : ''}`}
@@ -466,61 +502,80 @@ export default function GitApp() {
 
       <div className={styles['commit-box']}>
         <div
-          ref={commitInputRef}
-          className={styles['commit-input']}
-          contentEditable={isRepo && !loading}
-          data-placeholder="消息 (按 Ctrl+Enter 提交)"
-          onInput={(e) => {
-            const el = e.currentTarget;
-            const text = el.innerText.replace(/\n/g, '').trim();
-
-            if (!text) {
-              el.innerHTML = '';
-              setCommitMsg('');
-            } else {
-              setCommitMsg(el.innerText);
-            }
-
-            setJustCommitted(false);
+          className={`${styles['commit-input-wrap']} ${commitTypeEnabled ? styles['commit-input-wrap-with-tag'] : ''} ${!isRepo || loading ? styles['commit-input-wrap-disabled'] : ''
+            }`}
+          onClick={() => {
+            if (!isRepo || loading) return;
+            commitInputRef.current?.focus();
           }}
-          onKeyDown={(e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-              e.preventDefault();
-              handleCommit();
-            }
-          }}
-          onPaste={(e) => {
-            e.preventDefault();
-
-            const text = e.clipboardData.getData('text/plain');
-
-            if (!text) return;
-
-            insertPlainTextAtCursor(text);
-
-            const el = e.currentTarget;
-            const currentText = el.innerText.replace(/\n/g, '').trim();
-
-            if (!currentText) {
-              el.innerHTML = '';
-              setCommitMsg('');
-            } else {
-              setCommitMsg(el.innerText);
-            }
-
-            setJustCommitted(false);
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-          }}
-          suppressContentEditableWarning={true}
-        />
-
-        <button
-          className={styles['commit-btn']}
-          disabled={!canCommit}
-          onClick={handleCommit}
         >
+          {commitTypeEnabled && (
+            <CommitTypeTag
+              value={commitType}
+              disabled={!isRepo || loading}
+              onChange={(nextType) => {
+                setCommitType(nextType);
+
+                requestAnimationFrame(() => {
+                  commitInputRef.current?.focus();
+                });
+              }}
+            />
+          )}
+
+          <div
+            ref={commitInputRef}
+            className={styles['commit-input']}
+            contentEditable={isRepo && !loading}
+            data-placeholder={commitTypeEnabled ? '输入提交内容' : '消息 (按 Ctrl+Enter 提交)'}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              const text = el.innerText.replace(/\n/g, '').trim();
+
+              if (!text) {
+                el.innerHTML = '';
+                setCommitMsg('');
+              } else {
+                setCommitMsg(el.innerText);
+              }
+
+              setJustCommitted(false);
+            }}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                handleCommit();
+              }
+            }}
+            onPaste={(e) => {
+              e.preventDefault();
+
+              const text = e.clipboardData.getData('text/plain');
+
+              if (!text) return;
+
+              insertPlainTextAtCursor(text);
+
+              const el = e.currentTarget;
+              const currentText = el.innerText.replace(/\n/g, '').trim();
+
+              if (!currentText) {
+                el.innerHTML = '';
+                setCommitMsg('');
+              } else {
+                setCommitMsg(el.innerText);
+              }
+
+              setJustCommitted(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+            }}
+            suppressContentEditableWarning={true}
+          />
+        </div>
+
+        <button className={styles['commit-btn']} disabled={!canCommit} onClick={handleCommit}>
           {loading ? (
             <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} />
           ) : (
