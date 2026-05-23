@@ -1262,6 +1262,36 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'deleteWorkingFile': {
+            const fileName = msg.file.split('/').pop() || msg.file;
+            const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
+
+            const confirm = await vscode.window.showWarningMessage(
+              `确定要删除文件 “${fileName}” 吗？\n\n文件会被移动到系统回收站/废纸篓。`,
+              { modal: true },
+              '删除文件',
+            );
+
+            if (confirm !== '删除文件') return;
+
+            await this.executeGitOperation(async () => {
+              try {
+                await vscode.workspace.fs.delete(fileUri, {
+                  recursive: true,
+                  useTrash: true,
+                });
+
+                vscode.window.showInformationMessage(`🗑️ 已删除文件: ${fileName}`);
+
+                await this.refreshStatus(cwd, false);
+              } catch (e: any) {
+                vscode.window.showErrorMessage(`删除文件失败: ${e?.message ?? String(e)}`);
+              }
+            });
+
+            break;
+          }
+
           case 'getCommitFiles': {
             await this.withViewProgress(async () => {
               const result = await this.gitService.getCommitFiles(cwd, msg.hash);
