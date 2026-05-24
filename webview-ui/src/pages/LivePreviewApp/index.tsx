@@ -851,26 +851,6 @@ export default function LivePreviewApp() {
     try {
       const targetUrl = new URL(rawUrl);
       const proxyOrigin = `http://127.0.0.1:${port}`;
-
-      /**
-       * 关键：
-       * iframe 入口必须保留目标页面 pathname。
-       *
-       * 例如：
-       *
-       * https://www.antdv.com/components/overview-cn/
-       *
-       * 应该变成：
-       *
-       * http://127.0.0.1:port/components/overview-cn/?url=https%3A%2F%2Fwww.antdv.com%2Fcomponents%2Foverview-cn%2F
-       *
-       * 而不是：
-       *
-       * http://127.0.0.1:port/?url=https%3A%2F%2Fwww.antdv.com%2Fcomponents%2Foverview-cn%2F
-       *
-       * 否则 Vue / VitePress 客户端路由看到的是 /，
-       * SSR DOM 与客户端路由不一致，容易出现 nextSibling 为 null。
-       */
       const proxyUrl = new URL(targetUrl.pathname || '/', proxyOrigin);
 
       proxyUrl.searchParams.set('url', targetUrl.href);
@@ -1225,7 +1205,7 @@ export default function LivePreviewApp() {
               title="preview"
               onLoad={handleIframeLoad}
               onError={handleIframeError}
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-presentation"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-presentation allow-top-navigation-by-user-activation"
             />
           </div>
         )}

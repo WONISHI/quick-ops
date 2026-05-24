@@ -60,6 +60,42 @@ export class LocalProxyServer {
     return `http://127.0.0.1:${this.port}`;
   }
 
+  private isBlockedTelemetryUrl(rawUrl: string): boolean {
+    try {
+      const url = new URL(rawUrl, this.getProxyOrigin());
+      const host = url.hostname.toLowerCase();
+      const pathname = url.pathname.toLowerCase();
+
+      return (
+        pathname === '/cdn-cgi/rum' ||
+        pathname.startsWith('/cdn-cgi/rum?') ||
+        (host === 'cloudflareinsights.com' && pathname === '/cdn-cgi/rum') ||
+        (host.endsWith('.cloudflareinsights.com') && pathname === '/cdn-cgi/rum')
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private writeNoContentResponse(res: http.ServerResponse): void {
+    if (!this.canWriteResponse(res)) return;
+
+    try {
+      if (!res.headersSent) {
+        res.writeHead(204, {
+          'access-control-allow-origin': '*',
+          'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+          'access-control-allow-headers': '*',
+          'access-control-max-age': '86400',
+        });
+      }
+
+      res.end();
+    } catch {
+      // ignore
+    }
+  }
+
   private getRewriteMode(targetUrlStr: string): ProxyRewriteMode {
     try {
       const url = new URL(targetUrlStr);
@@ -294,6 +330,13 @@ export class LocalProxyServer {
     const reqUrl = new URL(req.url || '/', `http://${req.headers.host}`);
 
     /**
+     * 本地无效上报接口，直接交给 handleRequest 返回 204。
+     */
+    if (reqUrl.pathname === '/__quick_ops_blocked__' || this.isBlockedTelemetryUrl(reqUrl.href)) {
+      return `${this.getProxyOrigin()}${reqUrl.pathname}${reqUrl.search}`;
+    }
+
+    /**
      * 标准入口：
      *
      * /components/overview-cn/?url=https://www.antdv.com/components/overview-cn/
@@ -306,11 +349,33 @@ export class LocalProxyServer {
     }
 
     /**
-     * 无 ?url= 的资源请求：
+     * 优先使用 referer 中的真实页面地址。
      *
-     * /assets/index.js
-     * /umi.xxx.js
-     * /xxx-async.js
+     * 这是修复 antdv / element-plus / ant.design 串站的关键：
+     * /assets/index.js 这类路径很多站点都有，如果先走全局 routeBaseMap，
+     * 很容易把 https://www.antdv.com/assets/index.js 错解析成 https://ant.design/assets/index.js。
+     */
+    const referer = req.headers.referer || req.headers.referrer;
+
+    if (referer && !Array.isArray(referer)) {
+      try {
+        const refUrl = new URL(referer);
+        const parentTarget = refUrl.searchParams.get('url');
+
+        if (parentTarget) {
+          const resolved = new URL(req.url || '/', parentTarget).href;
+
+          this.rememberTargetRoute(resolved);
+
+          return resolved;
+        }
+      } catch {
+        // ignore and fallback to known routes
+      }
+    }
+
+    /**
+     * 无 referer 或 referer 不完整时，再走已知路由兜底。
      */
     const knownRouteTarget = this.resolveTargetByKnownRoute(reqUrl);
 
@@ -319,35 +384,19 @@ export class LocalProxyServer {
       return knownRouteTarget;
     }
 
-    /**
-     * referer 兜底。
-     */
-    const referer = req.headers.referer || req.headers.referrer;
+    if (referer && !Array.isArray(referer)) {
+      try {
+        const refUrl = new URL(referer);
 
-    if (!referer || Array.isArray(referer)) {
-      return null;
+        if (this.currentTargetOrigin) {
+          return new URL(refUrl.pathname + refUrl.search, `${this.currentTargetOrigin}/`).href;
+        }
+      } catch {
+        return null;
+      }
     }
 
-    try {
-      const refUrl = new URL(referer);
-      const parentTarget = refUrl.searchParams.get('url');
-
-      if (parentTarget) {
-        const resolved = new URL(req.url || '/', parentTarget).href;
-
-        this.rememberTargetRoute(resolved);
-
-        return resolved;
-      }
-
-      if (this.currentTargetOrigin) {
-        return new URL(req.url || '/', `${this.currentTargetOrigin}/`).href;
-      }
-
-      return null;
-    } catch {
-      return null;
-    }
+    return null;
   }
 
   private rewriteCookieHeader(cookie: string): string {
@@ -371,6 +420,10 @@ export class LocalProxyServer {
      */
     delete nextHeaders['content-length'];
     delete nextHeaders['content-encoding'];
+
+    nextHeaders['access-control-allow-origin'] = '*';
+    nextHeaders['access-control-allow-methods'] = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
+    nextHeaders['access-control-allow-headers'] = '*';
 
     const setCookie = nextHeaders['set-cookie'];
 
@@ -510,6 +563,57 @@ export class LocalProxyServer {
   var targetBase = ${safeTarget};
   var proxyOrigin = ${safeProxyOrigin};
 
+  function isCrossFrameAccessError(value) {
+    var text = '';
+
+    try {
+      if (value && value.message) {
+        text = String(value.message);
+      } else {
+        text = String(value || '');
+      }
+    } catch (e) {
+      text = '';
+    }
+
+    return (
+      /Blocked a frame with origin/i.test(text) ||
+      /cross-origin frame/i.test(text) ||
+      /Failed to read a named property/i.test(text) ||
+      /Permission denied to access property/i.test(text)
+    );
+  }
+
+  window.addEventListener('error', function(event) {
+    if (isCrossFrameAccessError(event && (event.error || event.message))) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return false;
+    }
+  }, true);
+
+  window.addEventListener('unhandledrejection', function(event) {
+    if (isCrossFrameAccessError(event && event.reason)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return false;
+    }
+  }, true);
+
+  var rawOnError = window.onerror;
+
+  window.onerror = function(message, source, lineno, colno, error) {
+    if (isCrossFrameAccessError(error || message)) {
+      return true;
+    }
+
+    if (typeof rawOnError === 'function') {
+      return rawOnError.apply(this, arguments);
+    }
+
+    return false;
+  };
+
   function shouldSkip(rawUrl) {
     var url = String(rawUrl || '').trim();
 
@@ -527,8 +631,35 @@ export class LocalProxyServer {
     );
   }
 
+  function isBlockedTelemetryUrl(rawUrl) {
+    try {
+      var url = new URL(String(rawUrl || ''), targetBase);
+      var host = url.hostname.toLowerCase();
+      var pathname = url.pathname.toLowerCase();
+
+      return (
+        pathname === '/cdn-cgi/rum' ||
+        host === 'cloudflareinsights.com' && pathname === '/cdn-cgi/rum' ||
+        /\.cloudflareinsights\.com$/i.test(host) && pathname === '/cdn-cgi/rum'
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function toBlockedProxyUrl(rawUrl) {
+    try {
+      var absoluteUrl = new URL(String(rawUrl || ''), targetBase).href;
+      return proxyOrigin + '/__quick_ops_blocked__?url=' + encodeURIComponent(absoluteUrl);
+    } catch (e) {
+      return proxyOrigin + '/__quick_ops_blocked__';
+    }
+  }
+
   function toProxyUrl(rawUrl) {
     if (shouldSkip(rawUrl)) return rawUrl;
+
+    if (isBlockedTelemetryUrl(rawUrl)) return toBlockedProxyUrl(rawUrl);
 
     try {
       var raw = String(rawUrl || '');
@@ -613,6 +744,12 @@ export class LocalProxyServer {
   if (rawFetch) {
     window.fetch = function(input, init) {
       try {
+        var rawUrl = typeof input === 'string' ? input : input && input.url;
+
+        if (isBlockedTelemetryUrl(rawUrl)) {
+          return Promise.resolve(new Response('', { status: 204, statusText: 'No Content' }));
+        }
+
         if (typeof input === 'string') {
           input = toProxyUrl(input);
         } else if (input && input.url) {
@@ -630,12 +767,24 @@ export class LocalProxyServer {
 
   XMLHttpRequest.prototype.open = function(method, url) {
     if (typeof url === 'string') {
-      url = toProxyUrl(url);
+      url = isBlockedTelemetryUrl(url) ? toBlockedProxyUrl(url) : toProxyUrl(url);
       arguments[1] = url;
     }
 
     return rawOpen.apply(this, arguments);
   };
+
+  var rawSendBeacon = navigator.sendBeacon;
+
+  if (rawSendBeacon) {
+    navigator.sendBeacon = function(url, data) {
+      if (isBlockedTelemetryUrl(url)) {
+        return true;
+      }
+
+      return rawSendBeacon.call(navigator, toProxyUrl(url), data);
+    };
+  }
 
   window.__QUICK_OPS_PROXY_URL__ = toProxyUrl;
 })();
@@ -764,22 +913,31 @@ export class LocalProxyServer {
     let html = htmlBuffer.toString('utf8');
 
     /**
-     * static / runtime 都做静态资源重写。
+     * Cloudflare Web Analytics/RUM 在代理环境下只会产生 CORS/404 噪音，直接移除。
      */
-    html = this.rewriteHtmlResourceAttrs(html, targetUrlStr);
-    html = this.rewriteSrcset(html, targetUrlStr);
-    html = this.rewriteStyleUrls(html, targetUrlStr);
+    html = html.replace(/<script\b[^>]*src=["'][^"']*(?:cloudflareinsights\.com|\/cdn-cgi\/rum)[^"']*["'][^>]*>\s*<\/script>/gi, '');
 
     /**
-     * antdv.com：只做静态资源改写，不注入脚本。
+     * antdv.com / VitePress SSR：不能改写 HTML 结构。
+     *
+     * Vue hydration 会严格按服务端 HTML 节点顺序补水。
+     * 对 script/link/href/src 做静态替换虽然通常可用，但在 antdv 这类页面里
+     * 会触发 nextSibling 为 null 的补水异常。
+     *
+     * 所以 static 模式只移除遥测脚本，不改写资源标签。
+     * /assets/... 这类请求会通过 referer 里的 ?url= 自动还原到真实站点。
      */
     if (mode === 'static') {
       return Buffer.from(html, 'utf8');
     }
 
     /**
-     * ant.design / 其他默认站点：保留 runtime patch。
+     * runtime 模式才做静态资源改写 + 注入运行时代理补丁。
      */
+    html = this.rewriteHtmlResourceAttrs(html, targetUrlStr);
+    html = this.rewriteSrcset(html, targetUrlStr);
+    html = this.rewriteStyleUrls(html, targetUrlStr);
+
     html = this.injectScripts(html, targetUrlStr);
 
     return Buffer.from(html, 'utf8');
@@ -799,6 +957,16 @@ export class LocalProxyServer {
 
     try {
       targetUrlStr = this.resolveTargetUrl(req);
+
+      if (req.method === 'OPTIONS') {
+        this.writeNoContentResponse(res);
+        return;
+      }
+
+      if (targetUrlStr && (targetUrlStr.startsWith(this.getProxyOrigin()) || this.isBlockedTelemetryUrl(targetUrlStr))) {
+        this.writeNoContentResponse(res);
+        return;
+      }
 
       if (!targetUrlStr) {
         console.warn('[QuickOps Proxy Missing Target]', {
