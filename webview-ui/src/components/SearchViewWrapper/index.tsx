@@ -191,7 +191,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                             }}
                             title="返回项目列表"
                         >
-                            <span className={`codicon codicon-arrow-small-left ${styles['search-back-icon']}`}></span>
+                            <span className={`codicon codicon-arrow-left ${styles['search-back-icon']}`}></span>
                         </button>
 
                         <span
@@ -229,7 +229,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                                 disabled={totalMatches === 0}
                                 title="上一个匹配项"
                             >
-                                <span className={`codicon codicon-arrow-small-up ${styles['search-nav-icon']}`}></span>
+                                <span className={`codicon codicon-arrow-up ${styles['search-nav-icon']}`}></span>
                             </button>
 
                             <button
@@ -238,7 +238,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                                 disabled={totalMatches === 0}
                                 title="下一个匹配项"
                             >
-                                <span className={`codicon codicon-arrow-small-down ${styles['search-nav-icon']}`}></span>
+                                <span className={`codicon codicon-arrow-down ${styles['search-nav-icon']}`}></span>
                             </button>
                         </div>
                     )}
@@ -268,7 +268,11 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                         onChange={(e) => setFolderSearchQuery(e.target.value)}
                         onKeyDown={(e) => {
                             if (e.key === 'Backspace' && folderSearchQuery === '') {
-                                setIsSearchMode(false);
+                                if (onBack) {
+                                    onBack();
+                                } else {
+                                    setIsSearchMode(false);
+                                }
                             }
                         }}
                     />

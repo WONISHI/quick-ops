@@ -84,6 +84,9 @@ export default function RecentProjectsApp() {
   const [isSearchingFolder, setIsSearchingFolder] = useState(false);
   const [folderSearchError, setFolderSearchError] = useState('');
   const [currentActiveMatch, setCurrentActiveMatch] = useState(0);
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const [focusRootPath, setFocusRootPath] = useState('');
+  const [focusRootName, setFocusRootName] = useState('');
 
   const { lineStartIndexMap, totalMatches, flatMatchesList } = useMemo(() => {
     const map = new Map<string, number>();
@@ -309,6 +312,7 @@ export default function RecentProjectsApp() {
           fsPath: searchTargetProject.path,
           query: folderSearchQuery,
           isRemote: searchTargetProject.isRemote,
+          focusOnly: isFocusMode,
         });
       } else {
         vscode.postMessage({
@@ -316,12 +320,13 @@ export default function RecentProjectsApp() {
           fsPath: searchTargetProject.path,
           query: folderSearchQuery,
           isRemote: searchTargetProject.isRemote,
+          focusOnly: isFocusMode,
         });
       }
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [folderSearchQuery, isSearchMode, searchTargetProject, folderSearchType]);
+  }, [folderSearchQuery, isSearchMode, searchTargetProject, folderSearchType, isFocusMode]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -437,6 +442,14 @@ export default function RecentProjectsApp() {
     );
   };
 
+  const requestReadDir = (pathValue: string, projectName: string) => {
+    vscode.postMessage({
+      type: isFocusMode ? 'readFocusDir' : 'readDir',
+      fsPath: pathValue,
+      projectName,
+    });
+  };
+
   const handleOpenProject = (pathValue: string) => {
     if (clickTimeout.current) clearTimeout(clickTimeout.current);
 
@@ -530,11 +543,7 @@ export default function RecentProjectsApp() {
           if (!dirChildrenRef.current[pathValue]) {
             setLoadingPaths((l) => new Set(l).add(pathValue));
 
-            vscode.postMessage({
-              type: 'readDir',
-              fsPath: pathValue,
-              projectName,
-            });
+            requestReadDir(pathValue, projectName);
           }
         } else {
           next.delete(pathValue);
@@ -757,11 +766,53 @@ export default function RecentProjectsApp() {
       case 'searchInFolder':
         setSearchTargetProject(payload);
         setIsSearchMode(true);
+        setIsFocusMode(false);
+        setFocusRootPath('');
+        setFocusRootName('');
         setFolderSearchQuery('');
         setFolderSearchResults([]);
         setFileNameSearchResults([]);
         setFolderSearchError('');
         break;
+
+      case 'focusMode': {
+        const title =
+          payload.customName ||
+          payload.originalName ||
+          payload.name ||
+          '当前项目';
+
+        setSearchTargetProject({
+          ...payload,
+          name: title,
+          projectName: title,
+          isActiveProject: true,
+        });
+        setIsSearchMode(true);
+        setIsFocusMode(true);
+        setFocusRootPath(payload.path);
+        setFocusRootName(title);
+        setFolderSearchQuery('');
+        setFolderSearchResults([]);
+        setFileNameSearchResults([]);
+        setFolderSearchError('');
+        setCurrentActiveMatch(0);
+
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+          next.add(payload.path);
+          return next;
+        });
+
+        setLoadingPaths((prev) => new Set(prev).add(payload.path));
+
+        vscode.postMessage({
+          type: 'readFocusDir',
+          fsPath: payload.path,
+          projectName: title,
+        });
+        break;
+      }
 
       default:
         break;
@@ -985,6 +1036,25 @@ export default function RecentProjectsApp() {
       {isSearchMode && searchTargetProject ? (
         <SearchViewWrapper
           searchTargetProject={searchTargetProject}
+          focusMode={isFocusMode}
+          focusTree={
+            isFocusMode && focusRootPath ? (
+              <div className={styles['focus-tree-wrapper']}>
+                {renderTreeChildren(focusRootPath, focusRootName || '当前项目', true)}
+              </div>
+            ) : null
+          }
+          onBack={() => {
+            setIsSearchMode(false);
+            setIsFocusMode(false);
+            setSearchTargetProject(null);
+            setFocusRootPath('');
+            setFocusRootName('');
+            setFolderSearchQuery('');
+            setFolderSearchResults([]);
+            setFileNameSearchResults([]);
+            setFolderSearchError('');
+          }}
           folderSearchQuery={folderSearchQuery}
           setFolderSearchQuery={setFolderSearchQuery}
           folderSearchType={folderSearchType}

@@ -578,6 +578,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'readDir':
           this.readDirectory(data.fsPath, data.projectName);
           break;
+        case 'readFocusDir':
+          this.readDirectory(data.fsPath, data.projectName, true);
+          break;
         case 'openFile':
           this.openFileReadOnly(data.fsPath, data.projectName || '未知项目');
           break;
@@ -623,7 +626,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           this.compareWithSelected(data.fsPath, data.projectName);
           break;
         case 'searchInFolder':
-          this.handleSearchInFolder(data.fsPath, data.query, data.isRemote);
+          this.handleSearchInFolder(data.fsPath, data.query, data.isRemote, !!data.focusOnly);
           break;
 
         case 'previewWithVditor':
@@ -676,7 +679,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
 
         case 'searchFileName':
-          this.handleSearchFileName(data.fsPath, data.query, data.isRemote);
+          this.handleSearchFileName(data.fsPath, data.query, data.isRemote, !!data.focusOnly);
           break;
 
         case 'openFileAtLine': {
@@ -1021,7 +1024,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async handleSearchFileName(fsPath: string, query: string, isRemote: boolean) {
+  private async handleSearchFileName(fsPath: string, query: string, isRemote: boolean, focusOnly: boolean = false) {
     if (isRemote) {
       this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [], error: '远程仓库暂不支持名称检索。' });
       return;
@@ -1063,11 +1066,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const fullPath = path.join(currentNativePath, name);
           const fullUri = vscode.Uri.joinPath(dirUri, name);
           const relativePath = path.relative(nativePath, fullPath).replace(/\\/g, '/');
+          const gitRelativePath = gitRoot ? path.relative(gitRoot, fullPath) : '';
+          const status = gitRoot ? this.getChildGitStatus(gitRelativePath, isDir, statusMap) : undefined;
+
+          if (focusOnly && !status) {
+            continue;
+          }
 
           if (name.toLowerCase().includes(query.toLowerCase())) {
-            const gitRelativePath = gitRoot ? path.relative(gitRoot, fullPath) : '';
-            const status = gitRoot ? this.getChildGitStatus(gitRelativePath, isDir, statusMap) : undefined;
-
             results.push({
               path: fullUri.toString(),
               name: relativePath,
@@ -1094,7 +1100,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ type: 'searchFileNameResult', results });
   }
 
-  private async handleSearchInFolder(fsPath: string, query: string, isRemote: boolean) {
+  private async handleSearchInFolder(fsPath: string, query: string, isRemote: boolean, focusOnly: boolean = false) {
     if (isRemote) {
       this._view?.webview.postMessage({ type: 'searchFolderResult', results: [], error: '由于网络限制，远程仓库暂不支持全文代码检索，请在本地打开该项目后再尝试。' });
       return;
@@ -1118,6 +1124,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const results: any[] = [];
     const maxResults = 200;
     let currentResults = 0;
+
+    const gitRoot = await this.getGitRoot(nativePath);
+    const statusMap = gitRoot ? await this.getGitStatusMap(nativePath) : new Map<string, string>();
 
     const IGNORE_DIRS = new Set([
       'node_modules', 'bower_components', 'vendor',
@@ -1163,6 +1172,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               if (stat.size > 2 * 1024 * 1024) continue;
             } catch (e) { continue; }
 
+            const gitRelativePath = gitRoot ? path.relative(gitRoot, fullPath) : '';
+            const status = gitRoot ? this.getChildGitStatus(gitRelativePath, false, statusMap) : undefined;
+
+            if (focusOnly && !status) continue;
+
             const fileMatches = [];
             let lineNum = 1;
 
@@ -1191,7 +1205,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               results.push({
                 file: relativePath,
                 fullPath: fullPath,
-                matches: fileMatches
+                matches: fileMatches,
+                status
               });
             }
           }
@@ -1701,14 +1716,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async readDirectory(fsPath: string, projectName: string) {
+  private async readDirectory(fsPath: string, projectName: string, focusOnly: boolean = false) {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const uriStr = uri.toString();
       const isRemote = uriStr.startsWith('vscode-vfs://') || uriStr.startsWith('http');
 
-      if (this.dirCache.has(uriStr)) {
-        this._view?.webview.postMessage({ type: 'readDirResult', fsPath: uriStr, children: this.dirCache.get(uriStr), projectName });
+      const cacheKey = `${focusOnly ? 'focus:' : 'normal:'}${uriStr}`;
+
+      if (this.dirCache.has(cacheKey)) {
+        this._view?.webview.postMessage({ type: 'readDirResult', fsPath: uriStr, children: this.dirCache.get(cacheKey), projectName });
         return;
       }
 
@@ -1739,12 +1756,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           return { name, isFolder, path: childUriStr, status };
         })
         .filter((c) => c.name !== 'node_modules' && c.name !== '.git')
+        .filter((c) => {
+          if (!focusOnly) return true;
+          return !!c.status;
+        })
         .sort((a, b) => {
           if (a.isFolder === b.isFolder) return a.name.localeCompare(b.name);
           return a.isFolder ? -1 : 1;
         });
 
-      this.dirCache.set(uriStr, children);
+      this.dirCache.set(cacheKey, children);
 
       this._view?.webview.postMessage({ type: 'readDirResult', fsPath: uriStr, children, projectName });
     } catch (e) {
