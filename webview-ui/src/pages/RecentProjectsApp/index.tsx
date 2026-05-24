@@ -343,9 +343,9 @@ export default function RecentProjectsApp() {
     projectInHistory ||
     (currentWorkspace
       ? ({
-          ...currentWorkspace,
-          timestamp: Date.now(),
-        } as Project)
+        ...currentWorkspace,
+        timestamp: Date.now(),
+      } as Project)
       : null);
 
   const otherProjects = projects.filter((p) => p.fsPath.split('?')[0] !== currentBaseUri);
@@ -855,9 +855,8 @@ export default function RecentProjectsApp() {
               <div key={childPath}>
                 <div
                   id={elementId}
-                  className={`${styles['sub-item']} ${styles['clickable-sub']} ${
-                    selectedPath === childPath ? styles['selected'] : ''
-                  } ${styles['search-name-sub-item']}`}
+                  className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''
+                    } ${styles['search-name-sub-item']}`}
                   onClick={(e) => handleToggleExpand(childPath, projectName, isRemote, e)}
                   onContextMenu={(e) =>
                     handleContextMenu(e, 'sub', {
@@ -894,7 +893,7 @@ export default function RecentProjectsApp() {
                   />
 
                   <span
-                    className={styles['sub-name']}
+                    className={`${styles['sub-name']} ${statusClassName}`}
                     title={getStatusTitle(child.name, child.status)}
                   >
                     {child.name}
@@ -918,9 +917,8 @@ export default function RecentProjectsApp() {
             <div key={childPath}>
               <div
                 id={elementId}
-                className={`${styles['sub-item']} ${
-                  selectedPath === childPath ? styles['selected'] : ''
-                } ${styles['search-name-sub-item-clickable']}`}
+                className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''
+                  } ${styles['search-name-sub-item-clickable']}`}
                 onClick={(e) => handleOpenFile(childPath, projectName, isActiveProject, e)}
                 onContextMenu={(e) =>
                   handleContextMenu(e, 'sub', {
@@ -948,7 +946,7 @@ export default function RecentProjectsApp() {
                   {child.name}
                 </span>
 
-                {renderFileStatusBadge(child.status)}
+                {renderFolderStatusDot(child.status)}
               </div>
             </div>
           );
@@ -1101,9 +1099,8 @@ export default function RecentProjectsApp() {
                       <div key={rootPath}>
                         <div
                           id={elementId}
-                          className={`${styles['active-top-project']} ${
-                            selectedPath === rootPath ? styles['selected'] : ''
-                          } ${inHistory ? styles['in-history'] : styles['not-in-history']}`}
+                          className={`${styles['active-top-project']} ${selectedPath === rootPath ? styles['selected'] : ''
+                            } ${inHistory ? styles['in-history'] : styles['not-in-history']}`}
                           title={
                             inHistory
                               ? '当前窗口正在运行的项目'
@@ -1150,9 +1147,8 @@ export default function RecentProjectsApp() {
                               <div className={styles['title']}>
                                 <FontAwesomeIcon
                                   icon={icon}
-                                  className={`${styles['project-icon']} ${
-                                    inHistory ? styles['icon-opened'] : ''
-                                  }`}
+                                  className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''
+                                    }`}
                                 />
 
                                 <span className={styles['project-name']} title={title}>
@@ -1205,9 +1201,8 @@ export default function RecentProjectsApp() {
                       <li key={rootPath}>
                         <div
                           id={elementId}
-                          className={`${styles['project-item']} ${
-                            isJustOpened ? styles['just-opened'] : ''
-                          } ${selectedPath === rootPath ? styles['selected'] : ''}`}
+                          className={`${styles['project-item']} ${isJustOpened ? styles['just-opened'] : ''
+                            } ${selectedPath === rootPath ? styles['selected'] : ''}`}
                           onDoubleClick={() => handleOpenProject(p.fsPath)}
                           title={isJustOpened ? '刚刚在此窗口中唤起过' : ''}
                           onContextMenu={(e) =>

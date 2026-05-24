@@ -390,6 +390,7 @@ ul {
   padding: 2px 0;
   font-size: 13px;
   cursor: default;
+  min-width: 0;
 }
 
 .sub-item.clickable-sub {
@@ -406,6 +407,8 @@ ul {
 }
 
 .sub-name {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -554,21 +557,10 @@ ul {
 }
 
 /* ================================
-   工具类
+   文件 / 文件夹 Git 状态
+   文件夹：文字变色 + 右侧圆点
+   文件：文字变色 + 右侧状态字母
    ================================ */
-
-.clickable-cursor {
-  cursor: pointer;
-}
-
-.sub-item {
-  min-width: 0;
-}
-
-.sub-name {
-  flex: 1;
-  min-width: 0;
-}
 
 .file-status-badge {
   margin-left: auto;
@@ -616,4 +608,54 @@ ul {
 
 .file-status-c {
   color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
+}
+
+/* 选中状态下也保持 Git 状态颜色 */
+.sub-item.selected .file-status-u,
+.project-item.selected .file-status-u,
+.active-top-project.selected .file-status-u {
+  color: var(--vscode-gitDecoration-untrackedResourceForeground, #73c991) !important;
+}
+
+.sub-item.selected .file-status-a,
+.project-item.selected .file-status-a,
+.active-top-project.selected .file-status-a {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
+}
+
+.sub-item.selected .file-status-m,
+.project-item.selected .file-status-m,
+.active-top-project.selected .file-status-m {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d) !important;
+}
+
+.sub-item.selected .file-status-d,
+.project-item.selected .file-status-d,
+.active-top-project.selected .file-status-d {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39) !important;
+}
+
+.sub-item.selected .file-status-r,
+.project-item.selected .file-status-r,
+.active-top-project.selected .file-status-r {
+  color: var(--vscode-gitDecoration-renamedResourceForeground, #73c991) !important;
+}
+
+.sub-item.selected .file-status-c,
+.project-item.selected .file-status-c,
+.active-top-project.selected .file-status-c {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
+}
+
+/* 圆点使用当前状态色 */
+.sub-item.selected .folder-status-dot {
+  background-color: currentColor;
+}
+
+/* ================================
+   工具类
+   ================================ */
+
+.clickable-cursor {
+  cursor: pointer;
 }
