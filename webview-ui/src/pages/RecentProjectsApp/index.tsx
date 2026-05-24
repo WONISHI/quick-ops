@@ -424,21 +424,6 @@ export default function RecentProjectsApp() {
     return text ? `${name} [${text}]` : name;
   };
 
-  const renderFileStatusBadge = (status?: string) => {
-    const text = getFileStatusText(status);
-
-    if (!text) return null;
-
-    return (
-      <span
-        className={`${styles['file-status-badge']} ${getFileStatusClassName(status)}`}
-        title={`状态: ${text}`}
-      >
-        {text}
-      </span>
-    );
-  };
-
   const renderFolderStatusDot = (status?: string) => {
     const text = getFileStatusText(status);
 
