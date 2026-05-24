@@ -33,6 +33,10 @@ type FlatMatchItem = {
 interface SearchViewWrapperProps {
     searchTargetProject: ContextMenuPayload;
 
+    focusMode?: boolean;
+    focusTree?: React.ReactNode;
+    onBack?: () => void;
+
     folderSearchQuery: string;
     setFolderSearchQuery: React.Dispatch<React.SetStateAction<string>>;
 
@@ -89,6 +93,9 @@ interface SearchViewWrapperProps {
 export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     const {
         searchTargetProject,
+        focusMode,
+        focusTree,
+        onBack,
 
         folderSearchQuery,
         setFolderSearchQuery,
@@ -175,7 +182,13 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                     <div className={styles['search-header-title-box']}>
                         <button
                             className={`${styles['action-btn-icon']} ${styles['search-back-btn']}`}
-                            onClick={() => setIsSearchMode(false)}
+                            onClick={() => {
+                                if (onBack) {
+                                    onBack();
+                                } else {
+                                    setIsSearchMode(false);
+                                }
+                            }}
                             title="返回项目列表"
                         >
                             <span className={`codicon codicon-arrow-small-left ${styles['search-back-icon']}`}></span>
@@ -191,11 +204,19 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                                     <span className={styles['search-target-subtitle']}>
                                         / {searchTargetProject.name}
                                     </span>
+                                    {focusMode && (
+                                        <span className={styles['search-target-subtitle']}> · 专注模式</span>
+                                    )}
                                 </>
                             ) : (
-                                searchTargetProject.customName ||
-                                searchTargetProject.originalName ||
-                                searchTargetProject.name
+                                <>
+                                    {searchTargetProject.customName ||
+                                        searchTargetProject.originalName ||
+                                        searchTargetProject.name}
+                                    {focusMode && (
+                                        <span className={styles['search-target-subtitle']}> · 专注模式</span>
+                                    )}
+                                </>
                             )}
                         </span>
                     </div>
@@ -261,7 +282,13 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
             </div>
 
             <div className={styles['search-results-container']}>
-                {isSearchingFolder ? (
+                {focusMode && !folderSearchQuery.trim() ? (
+                    focusTree || (
+                        <div className={styles['search-empty-msg']}>
+                            当前项目没有修改或新增的文件
+                        </div>
+                    )
+                ) : isSearchingFolder ? (
                     <div className={styles['search-status-msg']}>
                         <FontAwesomeIcon icon={faSpinner} spin /> 正在高速检索中...
                     </div>
