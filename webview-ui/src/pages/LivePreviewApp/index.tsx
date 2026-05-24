@@ -848,12 +848,14 @@ export default function LivePreviewApp() {
   };
 
   const getProxyPreviewUrl = (rawUrl: string, port: number) => {
+    const proxyOrigin = `http://127.0.0.1:${port}`;
+
     try {
       const targetUrl = new URL(rawUrl);
-      const proxyOrigin = `http://127.0.0.1:${port}`;
       const proxyUrl = new URL(targetUrl.pathname || '/', proxyOrigin);
 
       proxyUrl.searchParams.set('url', targetUrl.href);
+      proxyUrl.searchParams.set('__quick_ops_t', String(previewRequestIdRef.current));
 
       /**
        * 保留 hash。
@@ -862,9 +864,19 @@ export default function LivePreviewApp() {
         proxyUrl.hash = targetUrl.hash;
       }
 
-      return proxyUrl.toString();
+      const resetUrl = new URL('/__quick_ops_reset__', proxyOrigin);
+      resetUrl.searchParams.set('url', proxyUrl.toString());
+
+      return resetUrl.toString();
     } catch {
-      return `http://127.0.0.1:${port}/?url=${encodeURIComponent(rawUrl)}`;
+      const proxyUrl = new URL('/', proxyOrigin);
+      proxyUrl.searchParams.set('url', rawUrl);
+      proxyUrl.searchParams.set('__quick_ops_t', String(previewRequestIdRef.current));
+
+      const resetUrl = new URL('/__quick_ops_reset__', proxyOrigin);
+      resetUrl.searchParams.set('url', proxyUrl.toString());
+
+      return resetUrl.toString();
     }
   };
 

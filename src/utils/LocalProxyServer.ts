@@ -96,6 +96,120 @@ export class LocalProxyServer {
     }
   }
 
+
+  private writeHtmlResponse(res: http.ServerResponse, statusCode: number, html: string): void {
+    if (!this.canWriteResponse(res)) return;
+
+    try {
+      if (!res.headersSent) {
+        res.writeHead(statusCode, {
+          'content-type': 'text/html; charset=utf-8',
+          'cache-control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'pragma': 'no-cache',
+          'expires': '0',
+          'clear-site-data': '"cache", "storage", "executionContexts"',
+        });
+      }
+
+      res.end(html);
+    } catch {
+      // ignore
+    }
+  }
+
+  private writeServiceWorkerBlockedResponse(res: http.ServerResponse): void {
+    if (!this.canWriteResponse(res)) return;
+
+    try {
+      if (!res.headersSent) {
+        res.writeHead(404, {
+          'content-type': 'application/javascript; charset=utf-8',
+          'cache-control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+          'pragma': 'no-cache',
+          'expires': '0',
+          'clear-site-data': '"cache", "storage", "executionContexts"',
+        });
+      }
+
+      res.end('/* QuickOps: service worker disabled in proxy preview. */');
+    } catch {
+      // ignore
+    }
+  }
+
+  private createResetPageHtml(nextUrl: string): string {
+    const safeNextUrl = JSON.stringify(nextUrl || '/');
+
+    return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="cache-control" content="no-store, no-cache, must-revalidate, proxy-revalidate">
+<meta http-equiv="pragma" content="no-cache">
+<meta http-equiv="expires" content="0">
+<title>QuickOps Proxy Reset</title>
+</head>
+<body>
+<script>
+(function() {
+  var nextUrl = ${safeNextUrl};
+
+  function done() {
+    location.replace(nextUrl);
+  }
+
+  var tasks = [];
+
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) {
+      tasks.push(
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          return Promise.all(registrations.map(function(registration) {
+            return registration.unregister();
+          }));
+        })
+      );
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  try {
+    if (window.caches && window.caches.keys) {
+      tasks.push(
+        window.caches.keys().then(function(keys) {
+          return Promise.all(keys.map(function(key) {
+            return window.caches.delete(key);
+          }));
+        })
+      );
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  Promise.all(tasks).then(done, done);
+
+  setTimeout(done, 800);
+})();
+</script>
+</body>
+</html>`;
+  }
+
+  private isServiceWorkerRequest(reqUrl: URL): boolean {
+    const pathname = reqUrl.pathname.toLowerCase();
+
+    return (
+      pathname.endsWith('/sw.js') ||
+      pathname.endsWith('/service-worker.js') ||
+      pathname.endsWith('/serviceworker.js') ||
+      pathname.endsWith('/worker.js') && /service/i.test(pathname) ||
+      pathname.includes('/service-worker') ||
+      pathname.includes('/serviceworker')
+    );
+  }
+
   private getRewriteMode(targetUrlStr: string): ProxyRewriteMode {
     try {
       const url = new URL(targetUrlStr);
@@ -326,6 +440,79 @@ export class LocalProxyServer {
     }
   }
 
+
+  private getRefererParentTarget(req: http.IncomingMessage): string | null {
+    const referer = req.headers.referer || req.headers.referrer;
+
+    if (!referer || Array.isArray(referer)) {
+      return null;
+    }
+
+    try {
+      const refUrl = new URL(referer);
+      return refUrl.searchParams.get('url');
+    } catch {
+      return null;
+    }
+  }
+
+  private getRequestSearchWithoutProxyUrl(reqUrl: URL): string {
+    const params = new URLSearchParams(reqUrl.searchParams);
+
+    params.delete('url');
+
+    const value = params.toString();
+
+    return value ? `?${value}` : '';
+  }
+
+  private isSameHostLike(a: string, b: string): boolean {
+    const left = a.toLowerCase().replace(/^www\./, '');
+    const right = b.toLowerCase().replace(/^www\./, '');
+
+    return left === right;
+  }
+
+  private isLikelyPageOwnedAsset(pathname: string): boolean {
+    const value = pathname.toLowerCase();
+
+    return (
+      value.startsWith('/assets/') ||
+      value.startsWith('/static/') ||
+      value.startsWith('/js/') ||
+      value.startsWith('/css/') ||
+      /^\/umi\.[\w.-]+\.js$/i.test(value) ||
+      /^\/app\.[\w.-]+\.js$/i.test(value) ||
+      /^\/index\.[\w.-]+\.js$/i.test(value)
+    );
+  }
+
+  private shouldPreferRefererTarget(reqUrl: URL, directTarget: string, parentTarget: string): boolean {
+    try {
+      const directUrl = new URL(directTarget);
+      const parentUrl = new URL(parentTarget);
+
+      if (this.isSameHostLike(directUrl.hostname, parentUrl.hostname)) {
+        return false;
+      }
+
+      if (!this.isLikelyPageOwnedAsset(reqUrl.pathname || '/')) {
+        return false;
+      }
+
+      /**
+       * 如果一个页面的子资源 URL 自带 ?url=，但 referer 显示当前页面属于另一个站点，
+       * 优先相信 referer。
+       *
+       * 典型场景：先访问 ant.design 后再访问 antdv.com，旧的 /umi.xxx.js?url=https://ant.design/...
+       * 可能被缓存或由全局路由带入 antdv 页面，最终触发 React hydration #418。
+       */
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private resolveTargetUrl(req: http.IncomingMessage): string | null {
     const reqUrl = new URL(req.url || '/', `http://${req.headers.host}`);
 
@@ -342,8 +529,17 @@ export class LocalProxyServer {
      * /components/overview-cn/?url=https://www.antdv.com/components/overview-cn/
      */
     const directTarget = reqUrl.searchParams.get('url');
+    const parentTarget = this.getRefererParentTarget(req);
 
     if (directTarget) {
+      if (parentTarget && this.shouldPreferRefererTarget(reqUrl, directTarget, parentTarget)) {
+        const resolved = new URL(`${reqUrl.pathname}${this.getRequestSearchWithoutProxyUrl(reqUrl)}`, parentTarget).href;
+
+        this.rememberTargetRoute(resolved);
+
+        return resolved;
+      }
+
       this.rememberTargetRoute(directTarget);
       return directTarget;
     }
@@ -357,18 +553,13 @@ export class LocalProxyServer {
      */
     const referer = req.headers.referer || req.headers.referrer;
 
-    if (referer && !Array.isArray(referer)) {
+    if (parentTarget) {
       try {
-        const refUrl = new URL(referer);
-        const parentTarget = refUrl.searchParams.get('url');
+        const resolved = new URL(`${reqUrl.pathname}${reqUrl.search}`, parentTarget).href;
 
-        if (parentTarget) {
-          const resolved = new URL(req.url || '/', parentTarget).href;
+        this.rememberTargetRoute(resolved);
 
-          this.rememberTargetRoute(resolved);
-
-          return resolved;
-        }
+        return resolved;
       } catch {
         // ignore and fallback to known routes
       }
@@ -424,6 +615,10 @@ export class LocalProxyServer {
     nextHeaders['access-control-allow-origin'] = '*';
     nextHeaders['access-control-allow-methods'] = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
     nextHeaders['access-control-allow-headers'] = '*';
+    nextHeaders['cache-control'] = 'no-store, no-cache, must-revalidate, proxy-revalidate';
+    nextHeaders['pragma'] = 'no-cache';
+    nextHeaders['expires'] = '0';
+    nextHeaders['service-worker-allowed'] = '/__quick_ops_disabled_service_worker_scope__';
 
     const setCookie = nextHeaders['set-cookie'];
 
@@ -613,6 +808,39 @@ export class LocalProxyServer {
 
     return false;
   };
+
+
+  try {
+    if (navigator.serviceWorker) {
+      if (navigator.serviceWorker.getRegistrations) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          registrations.forEach(function(registration) {
+            registration.unregister();
+          });
+        }).catch(function() {});
+      }
+
+      if (navigator.serviceWorker.register) {
+        navigator.serviceWorker.register = function() {
+          return Promise.reject(new Error('QuickOps proxy preview disabled service worker registration.'));
+        };
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  try {
+    if (window.caches && window.caches.keys) {
+      window.caches.keys().then(function(keys) {
+        keys.forEach(function(key) {
+          window.caches.delete(key);
+        });
+      }).catch(function() {});
+    }
+  } catch (e) {
+    // ignore
+  }
 
   function shouldSkip(rawUrl) {
     var url = String(rawUrl || '').trim();
@@ -956,6 +1184,19 @@ export class LocalProxyServer {
     let targetUrlStr: string | null = null;
 
     try {
+      const localReqUrl = new URL(req.url || '/', `http://${req.headers.host}`);
+
+      if (localReqUrl.pathname === '/__quick_ops_reset__') {
+        const nextUrl = localReqUrl.searchParams.get('url') || '/';
+        this.writeHtmlResponse(res, 200, this.createResetPageHtml(nextUrl));
+        return;
+      }
+
+      if (this.isServiceWorkerRequest(localReqUrl)) {
+        this.writeServiceWorkerBlockedResponse(res);
+        return;
+      }
+
       targetUrlStr = this.resolveTargetUrl(req);
 
       if (req.method === 'OPTIONS') {
