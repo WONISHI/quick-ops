@@ -104,8 +104,6 @@ body {
 
 .action-btn-active-solid {
     opacity: 1;
-    background-color: var(--vscode-button-background, #3168d1);
-    color: var(--vscode-button-foreground, #ffffff);
     border-radius: 3px;
 }
 
@@ -127,29 +125,65 @@ body {
     border-bottom: 1px solid rgba(128, 128, 128, 0.2);
 }
 
-.commit-input {
+.commit-input-wrap {
     width: 100%;
+    height: 32px;
+    min-height: 32px;
+    max-height: 32px;
+
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    padding: 4px 6px;
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 3px;
+
     background: var(--vscode-input-background);
     color: var(--vscode-input-foreground);
-    border: 1px solid var(--vscode-input-border);
-    padding: 4px 6px;
-    border-radius: 2px;
-    min-height: 28px;
-    max-height: 120px;
-    overflow-y: auto;
-    font-family: inherit;
-    font-size: 13px;
-    line-height: 18px;
+
     box-sizing: border-box;
-    word-wrap: break-word;
-    white-space: pre-wrap;
-    outline: none;
+    cursor: text;
+    overflow: visible;
 }
 
-.commit-input:focus {
+.commit-input-wrap:focus-within {
     border-color: var(--vscode-focusBorder);
     outline: 1px solid var(--vscode-focusBorder);
     outline-offset: -1px;
+}
+
+.commit-input-wrap-with-tag {
+    padding-left: 6px;
+}
+
+.commit-input-wrap-disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.commit-input {
+    flex: 1;
+    min-width: 0;
+    height: 22px;
+    min-height: 22px;
+    max-height: 22px;
+
+    overflow: hidden;
+
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 22px;
+
+    word-break: break-all;
+    white-space: nowrap;
+
+    outline: none;
+    border: none;
+    background: transparent;
+    color: var(--vscode-input-foreground);
+
+    box-sizing: border-box;
 }
 
 .commit-input:empty::before {
@@ -160,9 +194,84 @@ body {
 }
 
 .commit-input[contenteditable="false"] {
+    cursor: not-allowed;
+}
+
+.commit-btn {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    border: none;
+    padding: 4px;
+    border-radius: 2px;
+    cursor: pointer;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.commit-btn:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.commit-btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    background: var(--vscode-input-background);
+}
+
+.commit-input {
+    flex: 1;
+    min-width: 0;
+    min-height: 22px;
+    max-height: 112px;
+    overflow-y: visible;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 22px;
+    word-wrap: break-word;
+    white-space: pre-wrap;
+    outline: none;
+    border: none;
+    background: transparent;
+    color: var(--vscode-input-foreground);
+    box-sizing: border-box;
+}
+
+.commit-input:empty::before {
+    content: attr(data-placeholder);
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+.commit-input[contenteditable="false"] {
+    cursor: not-allowed;
+}
+
+.commit-preview {
+    min-height: 18px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 11px;
+    line-height: 18px;
+}
+
+.commit-preview-label {
+    flex-shrink: 0;
+    opacity: 0.85;
+}
+
+.commit-preview-value {
+    min-width: 0;
+    flex: 1;
+    color: var(--vscode-foreground);
+    opacity: 0.85;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-family: var(--vscode-editor-font-family);
 }
 
 .commit-btn {
@@ -199,7 +308,7 @@ body {
 
 .changes-scroll-area-expanded {
     max-height: none;
-    overflow-y: visible;
+    overflow-y: auto;
     flex-shrink: 0;
     flex: 1;
 }
@@ -208,8 +317,25 @@ body {
     margin-bottom: 4px;
 }
 
+.changes-section-expanded {
+    --changes-section-open: 1;
+    min-height: 0;
+}
+
+.changes-section-collapsed {
+    --changes-section-open: 0;
+    flex: 0 0 auto;
+}
+
+.changes-section-expanded>.changes-header {
+    opacity: 1;
+}
+
+.changes-section-collapsed>.changes-header {
+    opacity: 0.85;
+}
+
 .changes-section:not(.section-top-gap) {
-    flex: 1;
     display: flex;
     flex-direction: column;
 }
@@ -365,20 +491,16 @@ body {
     overflow: hidden;
 }
 
+.git-graph-section.changes-section-expanded {
+    height: 30%;
+}
+
 .git-graph-fallback {
     display: flex;
     justify-content: center;
     align-items: center;
     flex: 1;
     color: var(--vscode-editor-foreground);
-}
-
-.graph-loading {
-    text-align: center;
-    padding: 30px 10px;
-    color: var(--vscode-descriptionForeground);
-    font-size: 12px;
-    opacity: 0.8;
 }
 
 .compare-title {
@@ -529,6 +651,10 @@ body {
     color: var(--vscode-list-warningForeground) !important;
 }
 
+.push-needed {
+    color: var(--vscode-list-warningForeground) !important;
+}
+
 .pull-badge {
     position: absolute;
     top: -4px;
@@ -545,4 +671,13 @@ body {
     text-align: center;
     box-sizing: border-box;
     pointer-events: none;
+}
+
+.graph-content {
+    position: relative;
+    flex: 1;
+    min-height: 120px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }

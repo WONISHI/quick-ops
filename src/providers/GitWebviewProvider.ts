@@ -3,6 +3,8 @@ import * as path from 'path';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
 import GitService, { type GitFileItem } from '../services/GitService';
 
+const GLOBAL_STATE_COMMIT_TYPE_ENABLED = 'quickOps.git.commitTypeEnabled';
+
 export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
 
@@ -22,7 +24,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private readonly VIEW_ID = 'quickOps.gitView';
   private readonly gitService = new GitService();
 
-  constructor(private readonly _extensionUri: vscode.Uri) {
+  constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
     const gitService = this.gitService;
 
     const gitDiffProvider = new (class implements vscode.TextDocumentContentProvider {
@@ -60,6 +62,10 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   public getWorkspaceRoot(): string | undefined {
     if (this._customCwd) return this._customCwd;
     return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  }
+
+  private getDefaultCommitTypeEnabled(): boolean {
+    return this._context.globalState.get<boolean>(GLOBAL_STATE_COMMIT_TYPE_ENABLED, false);
   }
 
   private async withViewProgress<T>(task: () => Promise<T>): Promise<T> {
@@ -329,6 +335,19 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           return;
         }
 
+        if (msg.command === 'toggleCommitTypeEnabled') {
+          const nextValue = !!msg.value;
+
+          await this._context.globalState.update(GLOBAL_STATE_COMMIT_TYPE_ENABLED, nextValue);
+
+          this._view?.webview.postMessage({
+            type: 'gitConfigChanged',
+            defaultCommitTypeEnabled: nextValue,
+          });
+
+          return;
+        }
+
         if (msg.command === 'webviewLoaded' || msg.command === 'refresh') {
           const isInstalled = await this.gitService.checkGitInstalled();
 
@@ -339,6 +358,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             type: 'gitInstallationStatus',
             isInstalled,
             defaultSkipVerify,
+            defaultCommitTypeEnabled: this.getDefaultCommitTypeEnabled(),
             isInit: msg.command === 'webviewLoaded',
           });
 
@@ -555,134 +575,271 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           case 'checkoutBranch': {
-            try {
-              const { branches: localBranches, current: currentBranch } = await this.gitService.getLocalBranches(cwd);
+            type BranchSourceType = 'local' | 'remote';
 
-              const quickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { branchName: string }>();
+            type LocalBranchQuickPickItem = vscode.QuickPickItem & {
+              branchName: string;
+            };
 
-              quickPick.placeholder = '请选择要切换到的本地分支';
-              quickPick.matchOnDescription = true;
+            type RemoteBranchQuickPickItem = vscode.QuickPickItem & {
+              remoteBranchName: string;
+              localBranchName: string;
+            };
 
-              const copyBtn: vscode.QuickInputButton = {
-                iconPath: new vscode.ThemeIcon('copy'),
-                tooltip: '复制分支名',
-              };
+            const copyBtn: vscode.QuickInputButton = {
+              iconPath: new vscode.ThemeIcon('copy'),
+              tooltip: '复制分支名',
+            };
 
-              const remoteOpBtn: vscode.QuickInputButton = {
-                iconPath: new vscode.ThemeIcon('cloud'),
-                tooltip: '远程分支操作 (创建/删除)',
-              };
+            const remoteOpBtn: vscode.QuickInputButton = {
+              iconPath: new vscode.ThemeIcon('cloud'),
+              tooltip: '远程分支操作 (创建/删除)',
+            };
 
-              const items = localBranches.map((b) => ({
-                label: b,
-                description: b === currentBranch ? '当前分支' : undefined,
-                branchName: b,
-                buttons: [copyBtn, remoteOpBtn],
-              }));
+            const showRemoteBranchQuickPick = async () => {
+              try {
+                const { branches: localBranches, current: currentBranch } = await this.gitService.getLocalBranches(cwd);
 
-              quickPick.items = items;
-
-              const activeItem = items.find((i) => i.branchName === currentBranch);
-
-              if (activeItem) {
-                quickPick.activeItems = [activeItem];
-              }
-
-              quickPick.onDidTriggerItemButton((e) => {
-                if (e.button === copyBtn) {
-                  vscode.env.clipboard.writeText(e.item.branchName);
-                  vscode.window.showInformationMessage(`已复制分支名: ${e.item.branchName}`);
-                  return;
-                }
-
-                if (e.button === remoteOpBtn) {
-                  quickPick.hide();
-
-                  const branchName = e.item.branchName;
-
-                  const remoteQuickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { action: string }>();
-
-                  remoteQuickPick.title = `远程分支操作 - ${branchName}`;
-                  remoteQuickPick.placeholder = '请选择要执行的操作';
-                  remoteQuickPick.items = [
-                    {
-                      label: '$(cloud-upload) 创建远程分支',
-                      description: `推送本地 ${branchName} 到 origin/${branchName}`,
-                      action: 'create',
-                    },
-                    {
-                      label: '$(trash) 删除远程分支',
-                      description: `从 origin 永久删除 ${branchName}`,
-                      action: 'delete',
-                    },
-                  ];
-
-                  remoteQuickPick.onDidAccept(async () => {
-                    const selectedOp = remoteQuickPick.selectedItems[0];
-
-                    if (!selectedOp) return;
-
-                    remoteQuickPick.hide();
-
-                    await this.executeGitOperation(async () => {
-                      try {
-                        if (selectedOp.action === 'create') {
-                          vscode.window.showInformationMessage(`正在创建并推送远程分支 origin/${branchName}...`);
-                          await this.gitService.pushBranchToOrigin(cwd, branchName);
-                          vscode.window.showInformationMessage(`✅ 已成功创建并推送远程分支: origin/${branchName}`);
-                        }
-
-                        if (selectedOp.action === 'delete') {
-                          const confirm = await vscode.window.showWarningMessage(
-                            `确定要删除远程分支 origin/${branchName} 吗？\n此操作不可逆，团队其他成员将无法再访问该分支！`,
-                            { modal: true },
-                            '确定删除',
-                          );
-
-                          if (confirm === '确定删除') {
-                            vscode.window.showInformationMessage(`正在删除远程分支 origin/${branchName}...`);
-                            await this.gitService.deleteRemoteBranch(cwd, branchName);
-                            vscode.window.showInformationMessage(`🗑️ 已成功删除远程分支: origin/${branchName}`);
-                          }
-                        }
-
-                        await this.refreshStatus(cwd, true);
-                      } catch (err: any) {
-                        vscode.window.showErrorMessage(`远程分支操作失败: ${err.message}`);
-                      }
-                    });
+                const remoteBranches = await this.withViewProgress(async () => {
+                  return await this.gitService.getRemoteBranches(cwd, {
+                    fetch: true,
                   });
+                });
 
-                  remoteQuickPick.onDidHide(() => remoteQuickPick.dispose());
-                  remoteQuickPick.show();
-                }
-              });
-
-              quickPick.onDidAccept(async () => {
-                const selected = quickPick.selectedItems[0];
-
-                if (!selected || selected.branchName === currentBranch) {
-                  quickPick.hide();
+                if (remoteBranches.length === 0) {
+                  vscode.window.showInformationMessage('没有获取到远程分支。');
                   return;
                 }
 
-                quickPick.hide();
+                const quickPick = vscode.window.createQuickPick<RemoteBranchQuickPickItem>();
 
-                await this.executeGitOperation(async () => {
-                  try {
-                    await this.gitService.checkoutBranch(cwd, selected.branchName);
-                    vscode.window.showInformationMessage(`✅ 已切换到分支: ${selected.branchName}`);
-                    await this.refreshStatus(cwd, true);
-                  } catch (err: any) {
-                    await this.handleGitErrorWithConflictCheck(cwd, '切换分支', err.message);
+                quickPick.title = '切换远程分支';
+                quickPick.placeholder = '请选择要切换的远程分支';
+                quickPick.matchOnDescription = true;
+                quickPick.ignoreFocusOut = true;
+
+                quickPick.items = remoteBranches.map((remoteBranchName) => {
+                  const localBranchName = this.gitService.getLocalNameFromRemoteBranch(remoteBranchName);
+                  const hasLocalBranch = localBranches.includes(localBranchName);
+
+                  return {
+                    label: remoteBranchName,
+                    description: hasLocalBranch ? `本地已存在：${localBranchName}` : `将创建本地分支：${localBranchName}`,
+                    detail: hasLocalBranch ? '选择后切换到已有本地分支' : `选择后基于 ${remoteBranchName} 创建并跟踪本地分支`,
+                    remoteBranchName,
+                    localBranchName,
+                    buttons: [copyBtn],
+                  };
+                });
+
+                const activeItem = quickPick.items.find((item) => {
+                  return item.localBranchName === currentBranch;
+                });
+
+                if (activeItem) {
+                  quickPick.activeItems = [activeItem];
+                }
+
+                quickPick.onDidTriggerItemButton((e) => {
+                  if (e.button === copyBtn) {
+                    vscode.env.clipboard.writeText(e.item.remoteBranchName);
+                    vscode.window.showInformationMessage(`已复制远程分支名: ${e.item.remoteBranchName}`);
                   }
                 });
-              });
 
-              quickPick.onDidHide(() => quickPick.dispose());
-              quickPick.show();
+                quickPick.onDidAccept(async () => {
+                  const selected = quickPick.selectedItems[0];
+
+                  if (!selected) {
+                    quickPick.hide();
+                    return;
+                  }
+
+                  quickPick.hide();
+
+                  await this.executeGitOperation(async () => {
+                    try {
+                      const localBranchName = await this.gitService.checkoutRemoteBranch(cwd, selected.remoteBranchName);
+
+                      vscode.window.showInformationMessage(`✅ 已切换到分支: ${localBranchName}`);
+
+                      await this.refreshStatus(cwd, true);
+                    } catch (err: any) {
+                      await this.handleGitErrorWithConflictCheck(cwd, '切换远程分支', err.message);
+                    }
+                  });
+                });
+
+                quickPick.onDidHide(() => quickPick.dispose());
+                quickPick.show();
+              } catch (e: any) {
+                vscode.window.showErrorMessage(`获取远程分支失败: ${e.message}`);
+              }
+            };
+
+            const showLocalBranchQuickPick = async () => {
+              try {
+                const { branches: localBranches, current: currentBranch } = await this.gitService.getLocalBranches(cwd);
+
+                const quickPick = vscode.window.createQuickPick<LocalBranchQuickPickItem>();
+
+                quickPick.title = '切换本地分支';
+                quickPick.placeholder = '请选择要切换到的本地分支';
+                quickPick.matchOnDescription = true;
+                quickPick.ignoreFocusOut = true;
+
+                const items = localBranches.map((branchName) => ({
+                  label: branchName,
+                  description: branchName === currentBranch ? '当前分支' : undefined,
+                  branchName,
+                  buttons: [copyBtn, remoteOpBtn],
+                }));
+
+                quickPick.items = items;
+
+                const activeItem = items.find((item) => item.branchName === currentBranch);
+
+                if (activeItem) {
+                  quickPick.activeItems = [activeItem];
+                }
+
+                quickPick.onDidTriggerItemButton((e) => {
+                  if (e.button === copyBtn) {
+                    vscode.env.clipboard.writeText(e.item.branchName);
+                    vscode.window.showInformationMessage(`已复制分支名: ${e.item.branchName}`);
+                    return;
+                  }
+
+                  if (e.button === remoteOpBtn) {
+                    quickPick.hide();
+
+                    const branchName = e.item.branchName;
+
+                    const remoteQuickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { action: string }>();
+
+                    remoteQuickPick.title = `远程分支操作 - ${branchName}`;
+                    remoteQuickPick.placeholder = '请选择要执行的操作';
+                    remoteQuickPick.items = [
+                      {
+                        label: '$(cloud-upload) 创建远程分支',
+                        description: `推送本地 ${branchName} 到 origin/${branchName}`,
+                        action: 'create',
+                      },
+                      {
+                        label: '$(trash) 删除远程分支',
+                        description: `从 origin 永久删除 ${branchName}`,
+                        action: 'delete',
+                      },
+                    ];
+
+                    remoteQuickPick.onDidAccept(async () => {
+                      const selectedOp = remoteQuickPick.selectedItems[0];
+
+                      if (!selectedOp) return;
+
+                      remoteQuickPick.hide();
+
+                      await this.executeGitOperation(async () => {
+                        try {
+                          if (selectedOp.action === 'create') {
+                            vscode.window.showInformationMessage(`正在创建并推送远程分支 origin/${branchName}...`);
+
+                            await this.gitService.pushBranchToOrigin(cwd, branchName);
+
+                            vscode.window.showInformationMessage(`✅ 已成功创建并推送远程分支: origin/${branchName}`);
+                          }
+
+                          if (selectedOp.action === 'delete') {
+                            const confirm = await vscode.window.showWarningMessage(
+                              `确定要删除远程分支 origin/${branchName} 吗？\n此操作不可逆，团队其他成员将无法再访问该分支！`,
+                              { modal: true },
+                              '确定删除',
+                            );
+
+                            if (confirm === '确定删除') {
+                              vscode.window.showInformationMessage(`正在删除远程分支 origin/${branchName}...`);
+
+                              await this.gitService.deleteRemoteBranch(cwd, branchName);
+
+                              vscode.window.showInformationMessage(`🗑️ 已成功删除远程分支: origin/${branchName}`);
+                            }
+                          }
+
+                          await this.refreshStatus(cwd, true);
+                        } catch (err: any) {
+                          vscode.window.showErrorMessage(`远程分支操作失败: ${err.message}`);
+                        }
+                      });
+                    });
+
+                    remoteQuickPick.onDidHide(() => remoteQuickPick.dispose());
+                    remoteQuickPick.show();
+                  }
+                });
+
+                quickPick.onDidAccept(async () => {
+                  const selected = quickPick.selectedItems[0];
+
+                  if (!selected || selected.branchName === currentBranch) {
+                    quickPick.hide();
+                    return;
+                  }
+
+                  quickPick.hide();
+
+                  await this.executeGitOperation(async () => {
+                    try {
+                      await this.gitService.checkoutBranch(cwd, selected.branchName);
+
+                      vscode.window.showInformationMessage(`✅ 已切换到分支: ${selected.branchName}`);
+
+                      await this.refreshStatus(cwd, true);
+                    } catch (err: any) {
+                      await this.handleGitErrorWithConflictCheck(cwd, '切换分支', err.message);
+                    }
+                  });
+                });
+
+                quickPick.onDidHide(() => quickPick.dispose());
+                quickPick.show();
+              } catch (e: any) {
+                vscode.window.showErrorMessage(`获取本地分支列表失败: ${e.message}`);
+              }
+            };
+
+            try {
+              const source = await vscode.window.showQuickPick<vscode.QuickPickItem & { type: BranchSourceType }>(
+                [
+                  {
+                    label: '$(git-branch) 本地分支',
+                    description: '切换已有本地分支',
+                    type: 'local',
+                  },
+                  {
+                    label: '$(cloud-download) 远程分支',
+                    description: '获取远程分支并切换',
+                    type: 'remote',
+                  },
+                ],
+                {
+                  title: '切换分支',
+                  placeHolder: '请选择分支来源',
+                  matchOnDescription: true,
+                },
+              );
+
+              if (!source) return;
+
+              if (source.type === 'local') {
+                await showLocalBranchQuickPick();
+                return;
+              }
+
+              if (source.type === 'remote') {
+                await showRemoteBranchQuickPick();
+              }
             } catch (e: any) {
-              vscode.window.showErrorMessage(`获取分支列表失败: ${e.message}`);
+              vscode.window.showErrorMessage(`切换分支失败: ${e.message}`);
             }
 
             break;
@@ -1262,6 +1419,36 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'deleteWorkingFile': {
+            const fileName = msg.file.split('/').pop() || msg.file;
+            const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
+
+            const confirm = await vscode.window.showWarningMessage(
+              `确定要删除文件 “${fileName}” 吗？\n\n文件会被移动到系统回收站/废纸篓。`,
+              { modal: true },
+              '删除文件',
+            );
+
+            if (confirm !== '删除文件') return;
+
+            await this.executeGitOperation(async () => {
+              try {
+                await vscode.workspace.fs.delete(fileUri, {
+                  recursive: true,
+                  useTrash: true,
+                });
+
+                vscode.window.showInformationMessage(`🗑️ 已删除文件: ${fileName}`);
+
+                await this.refreshStatus(cwd, false);
+              } catch (e: any) {
+                vscode.window.showErrorMessage(`删除文件失败: ${e?.message ?? String(e)}`);
+              }
+            });
+
+            break;
+          }
+
           case 'getCommitFiles': {
             await this.withViewProgress(async () => {
               const result = await this.gitService.getCommitFiles(cwd, msg.hash);
@@ -1403,6 +1590,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         folderName: repoStatus.folderName,
         stashes: repoStatus.stashes,
         remoteSync: repoStatus.remoteSync,
+        defaultCommitTypeEnabled: this.getDefaultCommitTypeEnabled(),
       });
 
       if (repoStatus.remoteUrl) {

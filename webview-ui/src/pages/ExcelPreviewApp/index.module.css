@@ -87,7 +87,7 @@
 
 /* 悬停行高亮，排除表头 */
 .excelTable tbody tr:hover td:not(.rowHeader) {
-  background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--vscode-list-inactiveSelectionBackground);
 }
 
 .sheetTabs {

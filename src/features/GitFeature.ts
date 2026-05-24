@@ -771,32 +771,34 @@ export class GitFeature implements IFeature {
     );
   }
 
-  public activate(context: vscode.ExtensionContext): void {
-    this.gitProvider = new GitWebviewProvider(context.extensionUri);
+ public activate(context: vscode.ExtensionContext): void {
+  this.gitProvider = new GitWebviewProvider(context.extensionUri, context);
 
-    this.gitDetailPanel = new GitDetailWebviewPanel(context.extensionUri, () => this.gitProvider.getWorkspaceRoot());
+  this.gitDetailPanel = new GitDetailWebviewPanel(
+    context.extensionUri,
+    () => this.gitProvider.getWorkspaceRoot(),
+  );
 
-    context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider('quickOps.gitView', this.gitProvider, {
-        webviewOptions: { retainContextWhenHidden: true },
-      }),
-    );
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('quickOps.gitView', this.gitProvider, {
+      webviewOptions: { retainContextWhenHidden: true },
+    }),
+  );
 
-    // 初始化时加载默认工作区，并触发探测
-    const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-    void this.updateCurrentPreviewPath(defaultWorkspace);
+  const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  void this.updateCurrentPreviewPath(defaultWorkspace);
 
-    void this.initializeConfigSync(context).catch((error) => {
-      console.error(`[${this.id}] initializeConfigSync failed:`, error);
-    });
+  void this.initializeConfigSync(context).catch((error) => {
+    console.error(`[${this.id}] initializeConfigSync failed:`, error);
+  });
 
-    this.registerGitSwitchCommand(context);
-    this.registerReturnToWorkspaceCommand(context);
-    this.registerCloneGitProjectCommand(context);
-    this.registerEditRemoteUrlCommand(context);
-    this.registerOpenProjectCommand(context);
-    this.registerOpenGitDetailCommand(context);
+  this.registerGitSwitchCommand(context);
+  this.registerReturnToWorkspaceCommand(context);
+  this.registerCloneGitProjectCommand(context);
+  this.registerEditRemoteUrlCommand(context);
+  this.registerOpenProjectCommand(context);
+  this.registerOpenGitDetailCommand(context);
 
-    ColorLog.black(`[${this.id}]`, 'Activated.');
-  }
+  ColorLog.black(`[${this.id}]`, 'Activated.');
+}
 }

@@ -1,3 +1,13 @@
+export type FileGitStatus =
+  | 'u'     // untracked
+  | 'a'     // added
+  | 'm'     // modified
+  | 'd'     // deleted
+  | 'r'     // renamed
+  | 'c'     // copied
+  | 'xxx'   // 自定义状态
+  | string;
+
 export interface Project {
   fsPath: string;
   name: string;
@@ -12,6 +22,7 @@ export interface DirChild {
   path: string;
   name: string;
   isFolder: boolean;
+  status?: FileGitStatus;
 }
 
 export interface SearchMatch {
@@ -23,6 +34,7 @@ export interface SearchResult {
   file: string;
   fullPath: string;
   matches: SearchMatch[];
+  status?: FileGitStatus;
 }
 
 export interface ContextMenuPayload {

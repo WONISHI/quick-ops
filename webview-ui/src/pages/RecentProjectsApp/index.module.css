@@ -9,6 +9,18 @@ body {
   user-select: none;
 }
 
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--vscode-sideBar-background);
+  color: var(--vscode-foreground);
+}
+
+/* ================================
+   顶部搜索框
+   ================================ */
+
 .search-container {
   padding: 10px 12px;
   position: sticky;
@@ -42,6 +54,15 @@ body {
   font-size: 12px;
 }
 
+.search-magnify-icon {
+  color: var(--vscode-input-placeholderForeground);
+  font-size: 12px;
+}
+
+/* ================================
+   列表容器
+   ================================ */
+
 .list-container {
   flex: 1;
   overflow-y: auto;
@@ -52,6 +73,10 @@ ul {
   padding: 0;
   margin: 0;
 }
+
+/* ================================
+   当前活动项目
+   ================================ */
 
 .active-top-project {
   display: flex;
@@ -68,12 +93,47 @@ ul {
   opacity: 0.8;
 }
 
+.active-top-project.in-history {
+  border-left-color: var(--vscode-textLink-foreground);
+  border-right-color: var(--vscode-textLink-foreground);
+}
+
+.active-top-project.not-in-history {
+  border-left-color: var(--vscode-descriptionForeground);
+  border-right-color: var(--vscode-descriptionForeground);
+}
+
+.active-top-project.in-history .title,
+.active-top-project.in-history .project-icon,
+.active-top-project.in-history .project-name {
+  color: var(--vscode-textLink-foreground);
+}
+
+.active-top-project.not-in-history .title,
+.active-top-project.not-in-history .project-icon,
+.active-top-project.not-in-history .project-name {
+  color: var(--vscode-descriptionForeground);
+}
+
+.active-top-project.in-history .branch-tag {
+  border-color: var(--vscode-textLink-foreground);
+}
+
+.active-top-project.not-in-history .branch-tag {
+  border-color: var(--vscode-descriptionForeground);
+  color: var(--vscode-descriptionForeground);
+}
+
 .top-divider {
   height: 4px;
   background: rgba(0, 0, 0, 0.1);
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
   margin-bottom: 4px;
 }
+
+/* ================================
+   项目项
+   ================================ */
 
 .project-item {
   display: flex;
@@ -86,7 +146,7 @@ ul {
 }
 
 .project-item:hover {
-  background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--vscode-list-inactiveSelectionBackground);
 }
 
 .project-item.just-opened {
@@ -128,22 +188,6 @@ ul {
   opacity: 1;
 }
 
-.tree-chevron,
-.chevron-placeholder {
-  width: 14px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border-radius: 4px;
-}
-
-.tree-chevron {
-  color: var(--vscode-icon-foreground);
-  opacity: 0.8;
-}
-
 .project-icon,
 .sub-icon {
   width: 16px;
@@ -171,7 +215,7 @@ ul {
   display: flex;
   align-items: center;
   pointer-events: auto;
-  min-width: 0; 
+  min-width: 0;
   width: 100%;
 }
 
@@ -179,7 +223,7 @@ ul {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex-shrink: 1; 
+  flex-shrink: 1;
   line-height: 20px;
 }
 
@@ -192,6 +236,10 @@ ul {
   text-overflow: ellipsis;
   text-align: left;
 }
+
+/* ================================
+   分支标签
+   ================================ */
 
 .branch-tag {
   line-height: 1;
@@ -206,7 +254,7 @@ ul {
   margin-left: 8px;
   border: 1px solid var(--vscode-panel-border);
   flex-shrink: 1;
-  min-width: 0; 
+  min-width: 0;
 }
 
 .branch-text {
@@ -214,6 +262,15 @@ ul {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.branch-icon {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* ================================
+   图标
+   ================================ */
 
 .icon-opened {
   color: #5dade2 !important;
@@ -223,6 +280,46 @@ ul {
   color: var(--vscode-icon-foreground);
   opacity: 0.8;
 }
+
+.file-icon-js {
+  color: #f1e05a;
+}
+
+.file-icon-ts {
+  color: #3178c6;
+}
+
+.file-icon-vue {
+  color: #41b883;
+}
+
+.file-icon-html {
+  color: #e34c26;
+}
+
+.file-icon-css {
+  color: #563d7c;
+}
+
+.file-icon-json {
+  color: #cbcb41;
+}
+
+.file-icon-md {
+  color: #5dade2;
+}
+
+.file-icon-img {
+  color: #a074c4;
+}
+
+.file-icon-default {
+  color: var(--vscode-symbolIcon-fileForeground, #999);
+}
+
+/* ================================
+   操作按钮
+   ================================ */
 
 .item-actions {
   display: flex;
@@ -257,10 +354,34 @@ ul {
   opacity: 0.8;
 }
 
+/* ================================
+   树结构
+   ================================ */
+
 .tree-children {
   margin-left: 10px;
   padding-left: 6px;
   border-left: 1px solid var(--vscode-tree-indentGuidesStroke);
+}
+
+.tree-chevron,
+.chevron-placeholder {
+  width: 14px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+
+.tree-chevron {
+  color: var(--vscode-icon-foreground);
+  opacity: 0.8;
+}
+
+.chevron-icon {
+  font-size: 10px;
 }
 
 .sub-item {
@@ -269,6 +390,7 @@ ul {
   padding: 2px 0;
   font-size: 13px;
   cursor: default;
+  min-width: 0;
 }
 
 .sub-item.clickable-sub {
@@ -281,10 +403,12 @@ ul {
 }
 
 .sub-item:hover {
-  background-color: var(--vscode-list-hoverBackground);
+  background-color: var(--vscode-list-inactiveSelectionBackground);
 }
 
 .sub-name {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -292,22 +416,16 @@ ul {
   pointer-events: none;
 }
 
-.file-icon-js { color: #f1e05a; }
-.file-icon-ts { color: #3178c6; }
-.file-icon-vue { color: #41b883; }
-.file-icon-html { color: #e34c26; }
-.file-icon-css { color: #563d7c; }
-.file-icon-json { color: #cbcb41; }
-.file-icon-md { color: #5dade2; }
-.file-icon-img { color: #a074c4; }
-.file-icon-default { color: var(--vscode-symbolIcon-fileForeground, #999); }
-
 .empty-node {
   font-size: 12px;
   opacity: 0.5;
   padding: 4px 12px;
   font-style: italic;
 }
+
+/* ================================
+   空状态
+   ================================ */
 
 .empty-state {
   height: 100%;
@@ -325,6 +443,17 @@ ul {
   font-size: 13px;
   margin-bottom: 20px;
 }
+
+.no-match-msg {
+  text-align: center;
+  padding: 20px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* ================================
+   底部操作栏
+   ================================ */
 
 .bottom-bar {
   padding: 10px;
@@ -363,6 +492,10 @@ ul {
 .action-btn.secondary:hover {
   background: var(--vscode-button-secondaryHoverBackground);
 }
+
+/* ================================
+   搜索标签
+   ================================ */
 
 .search-tag {
   position: relative;
@@ -423,291 +556,106 @@ ul {
   opacity: 0.6;
 }
 
-/* =========================================
-   🌟 新抽离的布局与搜索相关类名
-   ========================================= */
-.app-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  background: var(--vscode-sideBar-background);
-  color: var(--vscode-foreground);
-}
+/* ================================
+   文件 / 文件夹 Git 状态
+   文件夹：文字变色 + 右侧圆点
+   文件：文字变色 + 右侧状态字母
+   ================================ */
 
-.search-view-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
-.search-header {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--vscode-panel-border);
-}
-
-.search-header-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.search-header-title-box {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex: 1;
-}
-
-.search-back-btn {
-  padding: 2px;
+.file-status-badge {
+  margin-left: auto;
+  padding: 0 6px;
+  min-width: 22px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  opacity: 0.95;
 }
 
-.search-back-icon {
-  font-size: 26px;
-  line-height: 26px;
-  position: relative;
-  top: 1px;
-}
-
-.search-target-title {
-  font-size: 14px;
-  line-height: 1;
-  font-weight: bold;
-  color: var(--vscode-foreground);
-  flex-shrink: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.search-target-subtitle {
-  opacity: 0.6;
-  font-weight: normal;
-  font-size: 13px;
-}
-
-.search-nav-btns {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.folder-status-dot {
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  margin-right: 10px;
+  border-radius: 50%;
   flex-shrink: 0;
+  opacity: 0.9;
+  background-color: currentColor;
 }
 
-.search-nav-btn {
-  padding: 2px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.file-status-u {
+  color: var(--vscode-gitDecoration-untrackedResourceForeground, #73c991) !important;
 }
 
-.search-nav-icon {
-  font-size: 26px;
+.file-status-a {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
 }
 
-.search-box-compact {
-  padding: 2px 4px;
-  display: flex;
-  align-items: center;
+.file-status-m {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d) !important;
 }
 
-.search-type-icon {
-  cursor: pointer;
-  color: var(--vscode-textLink-foreground);
-  font-size: 14px;
-  margin-left: 6px;
-  margin-right: 6px;
+.file-status-d {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39) !important;
 }
 
-.search-input-compact {
-  flex: 1;
-  min-width: 0;
-  background: transparent;
-  border: none;
-  color: var(--vscode-input-foreground);
-  outline: none;
-  padding: 4px 6px;
-  font-size: 12px;
+.file-status-r {
+  color: var(--vscode-gitDecoration-renamedResourceForeground, #73c991) !important;
 }
 
-.search-match-count {
-  font-size: 11px;
-  color: var(--vscode-descriptionForeground);
-  min-width: 40px;
-  text-align: center;
-  padding-right: 4px;
-  flex-shrink: 0;
+.file-status-c {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
 }
 
-.search-results-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 10px;
+/* 选中状态下也保持 Git 状态颜色 */
+.sub-item.selected .file-status-u,
+.project-item.selected .file-status-u,
+.active-top-project.selected .file-status-u {
+  color: var(--vscode-gitDecoration-untrackedResourceForeground, #73c991) !important;
 }
 
-.search-status-msg {
-  text-align: center;
-  padding: 20px;
-  opacity: 0.7;
+.sub-item.selected .file-status-a,
+.project-item.selected .file-status-a,
+.active-top-project.selected .file-status-a {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
 }
 
-.search-error-msg {
-  color: var(--vscode-errorForeground);
-  font-size: 12px;
-  padding: 10px;
-  text-align: center;
+.sub-item.selected .file-status-m,
+.project-item.selected .file-status-m,
+.active-top-project.selected .file-status-m {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d) !important;
 }
 
-.search-empty-msg {
-  text-align: center;
-  opacity: 0.6;
-  font-size: 12px;
-  padding: 20px;
+.sub-item.selected .file-status-d,
+.project-item.selected .file-status-d,
+.active-top-project.selected .file-status-d {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39) !important;
 }
 
-.search-file-list-item {
-  margin-bottom: 8px;
+.sub-item.selected .file-status-r,
+.project-item.selected .file-status-r,
+.active-top-project.selected .file-status-r {
+  color: var(--vscode-gitDecoration-renamedResourceForeground, #73c991) !important;
 }
 
-.search-file-title {
-  font-size: 12px;
-  font-weight: bold;
-  color: var(--vscode-textLink-foreground);
-  margin-bottom: 2px;
-  word-break: break-all;
-  overflow: hidden;
-  display: inline-flex;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  align-items: center;
-  width: 100%;
+.sub-item.selected .file-status-c,
+.project-item.selected .file-status-c,
+.active-top-project.selected .file-status-c {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
 }
 
-.search-file-icon {
-  margin-right: 6px;
+/* 圆点使用当前状态色 */
+.sub-item.selected .folder-status-dot {
+  background-color: currentColor;
 }
 
-.search-matches-list {
-  border-left: 1px solid var(--vscode-panel-border);
-  margin-left: 6px;
-}
-
-/* 🌟 通过 CSS 覆盖取代 JS 鼠标事件绑定 */
-.search-match-item {
-  font-size: 12px;
-  padding: 2px 8px;
-  cursor: pointer;
-  white-space: pre-wrap;
-  word-break: break-all;
-  transition: background 0.1s;
-  line-height: 1.4;
-  background-color: transparent;
-  color: inherit;
-}
-
-.search-match-item:hover {
-  background-color: var(--vscode-list-hoverBackground);
-}
-
-.search-match-item.active {
-  background-color: var(--vscode-list-activeSelectionBackground) !important;
-  color: var(--vscode-list-activeSelectionForeground) !important;
-}
-
-.search-match-line-num {
-  color: var(--vscode-descriptionForeground);
-  opacity: 0.8;
-  margin-right: 8px;
-  display: inline-block;
-  min-width: 24px;
-  text-align: right;
-}
-
-.search-match-item.active .search-match-line-num {
-  color: inherit;
-}
-
-.search-name-list-item {
-  margin-bottom: 2px;
-}
-
-.search-name-sub-item {
-  padding-left: 4px;
-}
-
-.search-name-sub-item-clickable {
-  padding-left: 4px;
-  cursor: pointer;
-}
-
-.search-name-tree-children {
-  padding-left: 8px;
-}
-
-.search-magnify-icon {
-  color: var(--vscode-input-placeholderForeground);
-  font-size: 12px;
-}
-
-.no-match-msg {
-  text-align: center;
-  padding: 20px;
-  font-size: 12px;
-  color: var(--vscode-descriptionForeground);
-}
-
-.chevron-icon {
-  font-size: 10px;
-}
-
-.branch-icon {
-  font-size: 10px;
-  flex-shrink: 0;
-}
+/* ================================
+   工具类
+   ================================ */
 
 .clickable-cursor {
   cursor: pointer;
-}
-
-/* =========================================
-   🌟 活动项目状态渲染覆盖 (消灭内联 style)
-   ========================================= */
-.active-top-project.in-history {
-  border-left-color: var(--vscode-textLink-foreground);
-  border-right-color: var(--vscode-textLink-foreground);
-}
-
-.active-top-project.not-in-history {
-  border-left-color: var(--vscode-descriptionForeground);
-  border-right-color: var(--vscode-descriptionForeground);
-}
-
-.active-top-project.in-history .title,
-.active-top-project.in-history .project-icon,
-.active-top-project.in-history .project-name {
-  color: var(--vscode-textLink-foreground);
-}
-
-.active-top-project.not-in-history .title,
-.active-top-project.not-in-history .project-icon,
-.active-top-project.not-in-history .project-name {
-  color: var(--vscode-descriptionForeground);
-}
-
-.active-top-project.in-history .branch-tag {
-  border-color: var(--vscode-textLink-foreground);
-}
-
-.active-top-project.not-in-history .branch-tag {
-  border-color: var(--vscode-descriptionForeground);
-  color: var(--vscode-descriptionForeground);
 }

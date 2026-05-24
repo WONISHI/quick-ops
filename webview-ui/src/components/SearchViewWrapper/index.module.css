@@ -1,0 +1,456 @@
+.search-view-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ================================
+   公共按钮 / 输入框
+   ================================ */
+
+.search-box {
+  display: flex;
+  align-items: center;
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border);
+  padding: 4px 8px;
+  border-radius: 2px;
+}
+
+.search-box:focus-within {
+  border-color: var(--vscode-focusBorder);
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.action-btn-icon {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  min-height: 20px;
+  background: none;
+  border: none;
+  color: var(--vscode-icon-foreground);
+  cursor: pointer;
+  padding: 0;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  box-sizing: border-box;
+}
+
+.action-btn-icon:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.action-btn-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ================================
+   搜索头部
+   ================================ */
+
+.search-header {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.search-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  min-height: 20px;
+}
+
+.search-header-title-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  height: 20px;
+}
+
+.search-back-btn {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.search-back-icon {
+  font-size: 18px;
+  line-height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-target-title {
+  font-size: 14px;
+  line-height: 20px;
+  height: 20px;
+  font-weight: bold;
+  color: var(--vscode-foreground);
+  flex-shrink: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.search-target-subtitle {
+  opacity: 0.6;
+  font-weight: normal;
+  font-size: 13px;
+}
+
+.search-nav-btns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.search-nav-btn {
+  width: 20px;
+  height: 20px;
+}
+
+.search-nav-icon {
+  font-size: 18px;
+  line-height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ================================
+   搜索输入框
+   ================================ */
+
+.search-box-compact {
+  padding: 2px 4px;
+  display: flex;
+  align-items: center;
+}
+
+.search-type-icon {
+  cursor: pointer;
+  color: var(--vscode-textLink-foreground);
+  font-size: 14px;
+  margin-left: 6px;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.search-type-icon:hover {
+  opacity: 0.85;
+}
+
+.search-input-compact {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  color: var(--vscode-input-foreground);
+  outline: none;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+.search-input-compact::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+.search-match-count {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  min-width: 40px;
+  text-align: center;
+  padding-right: 4px;
+  flex-shrink: 0;
+}
+
+/* ================================
+   搜索结果容器
+   ================================ */
+
+.search-results-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.search-status-msg {
+  text-align: center;
+  padding: 20px;
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+.search-error-msg {
+  color: var(--vscode-errorForeground);
+  font-size: 12px;
+  padding: 10px;
+  text-align: center;
+}
+
+.search-empty-msg {
+  text-align: center;
+  opacity: 0.6;
+  font-size: 12px;
+  padding: 20px;
+}
+
+/* ================================
+   内容搜索结果
+   ================================ */
+
+.search-file-list-item {
+  margin-bottom: 8px;
+}
+
+.search-file-title {
+  font-size: 12px;
+  font-weight: bold;
+  color: var(--vscode-textLink-foreground);
+  margin-bottom: 2px;
+  word-break: break-all;
+  overflow: hidden;
+  display: inline-flex;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  align-items: center;
+  width: 100%;
+}
+
+.search-file-icon {
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.search-matches-list {
+  border-left: 1px solid var(--vscode-panel-border);
+  margin-left: 6px;
+}
+
+.search-match-item {
+  font-size: 12px;
+  padding: 2px 8px;
+  cursor: pointer;
+  white-space: pre-wrap;
+  word-break: break-all;
+  transition: background 0.1s;
+  line-height: 1.4;
+  background-color: transparent;
+  color: inherit;
+}
+
+.search-match-item:hover {
+  background-color: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.search-match-item.active {
+  background-color: var(--vscode-list-activeSelectionBackground) !important;
+  color: var(--vscode-list-activeSelectionForeground) !important;
+}
+
+.search-match-line-num {
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.8;
+  margin-right: 8px;
+  display: inline-block;
+  min-width: 24px;
+  text-align: right;
+}
+
+.search-match-item.active .search-match-line-num {
+  color: inherit;
+}
+
+/* ================================
+   文件名搜索结果
+   ================================ */
+
+.search-name-list-item {
+  margin-bottom: 2px;
+}
+
+.search-name-sub-item {
+  padding-left: 4px;
+}
+
+.search-name-sub-item-clickable {
+  padding-left: 4px;
+  cursor: pointer;
+}
+
+.search-name-tree-children {
+  padding-left: 8px;
+}
+
+/* ================================
+   文件树公共样式
+   SearchViewWrapper 内部也会用到
+   ================================ */
+
+.tree-children {
+  margin-left: 10px;
+  padding-left: 6px;
+  border-left: 1px solid var(--vscode-tree-indentGuidesStroke);
+}
+
+.sub-item {
+  display: flex;
+  align-items: center;
+  padding: 2px 0;
+  font-size: 13px;
+  cursor: default;
+}
+
+.sub-item.clickable-sub {
+  cursor: pointer;
+}
+
+.sub-item.clickable-sub:hover .tree-chevron {
+  background: var(--vscode-toolbar-hoverBackground);
+  opacity: 1;
+}
+
+.sub-item:hover {
+  background-color: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.sub-item.selected {
+  background-color: var(--vscode-list-activeSelectionBackground) !important;
+  color: var(--vscode-list-activeSelectionForeground) !important;
+}
+
+.sub-item.selected .tree-chevron {
+  color: var(--vscode-list-activeSelectionForeground) !important;
+  opacity: 0.9 !important;
+}
+
+.tree-chevron,
+.chevron-placeholder {
+  width: 14px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+
+.tree-chevron {
+  color: var(--vscode-icon-foreground);
+  opacity: 0.8;
+}
+
+.chevron-icon {
+  font-size: 10px;
+}
+
+.sub-icon {
+  width: 16px;
+  text-align: center;
+  margin-right: 6px;
+  flex-shrink: 0;
+  display: inline-block;
+  font-size: 14px;
+}
+
+.sub-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.icon-closed {
+  color: var(--vscode-icon-foreground);
+  opacity: 0.8;
+}
+
+.empty-node {
+  font-size: 12px;
+  opacity: 0.5;
+  padding: 4px 12px;
+  font-style: italic;
+}
+
+/* ================================
+   文件图标颜色
+   如果 FileIcon 内部依赖这些 className，
+   抽离组件里也复制一份，避免样式丢失
+   ================================ */
+
+.file-icon-js {
+  color: #f1e05a;
+}
+
+.file-icon-ts {
+  color: #3178c6;
+}
+
+.file-icon-vue {
+  color: #41b883;
+}
+
+.file-icon-html {
+  color: #e34c26;
+}
+
+.file-icon-css {
+  color: #563d7c;
+}
+
+.file-icon-json {
+  color: #cbcb41;
+}
+
+.file-icon-md {
+  color: #5dade2;
+}
+
+.file-icon-img {
+  color: #a074c4;
+}
+
+.file-icon-default {
+  color: var(--vscode-symbolIcon-fileForeground, #999);
+}
+.file-status-u {
+  color: var(--vscode-gitDecoration-untrackedResourceForeground, #73c991) !important;
+}
+
+.file-status-a {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
+}
+
+.file-status-m {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d) !important;
+}
+
+.file-status-d {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39) !important;
+  text-decoration: line-through;
+}
+
+.file-status-r {
+  color: var(--vscode-gitDecoration-renamedResourceForeground, #73c991) !important;
+}
+
+.file-status-c {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
+}

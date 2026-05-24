@@ -19,7 +19,7 @@
 
 .file-item:hover,
 .file-item.active {
-    background: var(--vscode-list-hoverBackground);
+    background: var(--vscode-list-inactiveSelectionBackground);
 }
 
 .file-icon {
@@ -90,4 +90,12 @@
 
 .status-D {
     color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.folder-file-item .file-actions {
+    opacity: 0;
+}
+
+.folder-file-item:hover .file-actions {
+    opacity: 1;
 }

@@ -45,7 +45,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ visible, x, y, onClose
     if (!visible) return;
 
     const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    
+
     const handleOutsideClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose();
@@ -85,8 +85,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ visible, x, y, onClose
 };
 
 export const MenuItem = ({ icon, text, onClick }: { icon: string, text: string, onClick: () => void }) => (
-  <div 
-    className={styles.item} 
+  <div
+    className={styles.item}
     onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onClick(); }}
   >
     <i className={`codicon ${icon} ${styles.icon}`} />
@@ -126,7 +126,7 @@ export const GitContextMenu: React.FC<GitContextMenuProps> = ({ contextMenu, onC
 
   return (
     <ContextMenu visible={contextMenu.visible} x={contextMenu.x} y={contextMenu.y} onClose={onClose}>
-      
+
       {/* 1. Commit 记录的菜单 */}
       {contextMenu.type === 'commit' && contextMenu.commit && (
         <>
@@ -136,26 +136,201 @@ export const GitContextMenu: React.FC<GitContextMenuProps> = ({ contextMenu, onC
       )}
 
       {/* 2. 工作区文件的菜单 (unstaged) */}
+      {/* 2. 工作区文件的菜单 (unstaged) */}
       {contextMenu.type === 'file' && contextMenu.listType === 'unstaged' && (
         <>
-          <MenuItem icon="codicon-git-compare" text="打开更改" onClick={() => exec(() => vscode.postMessage({ command: 'diff', file: contextMenu.file!.file, status: contextMenu.file!.status }))} />
-          <MenuItem icon="codicon-go-to-file" text="打开文件" onClick={() => exec(() => vscode.postMessage({ command: 'open', file: contextMenu.file!.file }))} />
-          <MenuItem icon="codicon-discard" text="放弃更改" onClick={() => exec(() => vscode.postMessage({ command: 'discard', file: contextMenu.file!.file, status: contextMenu.file!.status }))} />
-          <MenuItem icon="codicon-plus" text="暂存更改" onClick={() => exec(() => vscode.postMessage({ command: 'stage', file: contextMenu.file!.file, status: contextMenu.file!.status }))} />
+          <MenuItem
+            icon="codicon-git-compare"
+            text="打开更改"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'diff',
+                  file: contextMenu.file!.file,
+                  status: contextMenu.file!.status,
+                }),
+              )
+            }
+          />
+
+          <MenuItem
+            icon="codicon-go-to-file"
+            text="打开文件"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'open',
+                  file: contextMenu.file!.file,
+                }),
+              )
+            }
+          />
+
+          <MenuItem
+            icon="codicon-copy"
+            text="复制文件名称"
+            onClick={() =>
+              exec(() => {
+                const filePath = contextMenu.file!.file;
+                const fileName = filePath.split('/').pop() || filePath;
+
+                vscode.postMessage({
+                  command: 'copy',
+                  text: fileName,
+                });
+              })
+            }
+          />
+
           <MenuDivider />
-          <MenuItem icon="codicon-eye-closed" text="添加到 .gitignore" onClick={() => exec(() => vscode.postMessage({ command: 'ignore', file: contextMenu.file!.file }))} />
-          <MenuItem icon="codicon-folder-opened" text="在访达/资源管理器中显示" onClick={() => exec(() => vscode.postMessage({ command: 'reveal', file: contextMenu.file!.file }))} />
+
+          <MenuItem
+            icon="codicon-trash"
+            text="删除文件"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'deleteWorkingFile',
+                  file: contextMenu.file!.file,
+                  status: contextMenu.file!.status,
+                }),
+              )
+            }
+          />
+
+          <MenuItem
+            icon="codicon-discard"
+            text="放弃更改"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'discard',
+                  file: contextMenu.file!.file,
+                  status: contextMenu.file!.status,
+                }),
+              )
+            }
+          />
+
+          <MenuItem
+            icon="codicon-plus"
+            text="暂存更改"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'stage',
+                  file: contextMenu.file!.file,
+                  status: contextMenu.file!.status,
+                }),
+              )
+            }
+          />
+
+          <MenuDivider />
+
+          <MenuItem
+            icon="codicon-eye-closed"
+            text="添加到 .gitignore"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'ignore',
+                  file: contextMenu.file!.file,
+                }),
+              )
+            }
+          />
+
+          <MenuItem
+            icon="codicon-folder-opened"
+            text="在访达/资源管理器中显示"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'reveal',
+                  file: contextMenu.file!.file,
+                }),
+              )
+            }
+          />
         </>
       )}
 
       {/* 3. 暂存区文件的菜单 (staged) */}
       {contextMenu.type === 'file' && contextMenu.listType === 'staged' && (
         <>
-          <MenuItem icon="codicon-git-compare" text="打开更改" onClick={() => exec(() => vscode.postMessage({ command: 'diff', file: contextMenu.file!.file, status: contextMenu.file!.status }))} />
-          <MenuItem icon="codicon-go-to-file" text="打开文件" onClick={() => exec(() => vscode.postMessage({ command: 'open', file: contextMenu.file!.file }))} />
-          <MenuItem icon="codicon-remove" text="取消暂存更改" onClick={() => exec(() => vscode.postMessage({ command: 'unstage', file: contextMenu.file!.file }))} />
+          <MenuItem
+            icon="codicon-git-compare"
+            text="打开更改"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'diff',
+                  file: contextMenu.file!.file,
+                  status: contextMenu.file!.status,
+                }),
+              )
+            }
+          />
+
+          <MenuItem
+            icon="codicon-go-to-file"
+            text="打开文件"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'open',
+                  file: contextMenu.file!.file,
+                }),
+              )
+            }
+          />
+
+          <MenuItem
+            icon="codicon-copy"
+            text="复制文件名称"
+            onClick={() =>
+              exec(() => {
+                const filePath = contextMenu.file!.file;
+                const fileName = filePath.split('/').pop() || filePath;
+
+                vscode.postMessage({
+                  command: 'copy',
+                  text: fileName,
+                });
+              })
+            }
+          />
+
           <MenuDivider />
-          <MenuItem icon="codicon-folder-opened" text="在访达/资源管理器中显示" onClick={() => exec(() => vscode.postMessage({ command: 'reveal', file: contextMenu.file!.file }))} />
+
+          <MenuItem
+            icon="codicon-remove"
+            text="取消暂存更改"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'unstage',
+                  file: contextMenu.file!.file,
+                }),
+              )
+            }
+          />
+
+          <MenuDivider />
+
+          <MenuItem
+            icon="codicon-folder-opened"
+            text="在访达/资源管理器中显示"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'reveal',
+                  file: contextMenu.file!.file,
+                }),
+              )
+            }
+          />
         </>
       )}
 

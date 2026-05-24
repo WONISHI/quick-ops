@@ -8,7 +8,8 @@ import GitFileList from '../../components/GitFileList';
 import GitNotInstalled from '../../components/GitNotInstalled';
 import LoadingMask from '../../components/LoadingMask';
 import type { GitFile } from '../../types/GitApp';
-
+import CommitTypeTag, { type CommitType } from '../../components/CommitTypeTag';
+import GraphMoreMenu from '../../components/GraphMoreMenu';
 import { GitContextMenu, type ContextMenuState } from '../../components/GitContextMenu';
 
 interface RemoteSyncState {
@@ -46,6 +47,8 @@ export default function GitApp() {
 
   const [branch, setBranch] = useState('');
   const [commitMsg, setCommitMsg] = useState('');
+  const [commitTypeEnabled, setCommitTypeEnabled] = useState(false);
+  const [commitType, setCommitType] = useState<CommitType>('feat');
   const [loading, setLoading] = useState(false);
   const [changesRefreshing, setChangesRefreshing] = useState(false);
   const [activeFile, setActiveFile] = useState<string | null>(null);
@@ -69,6 +72,8 @@ export default function GitApp() {
   const [displayCount, setDisplayCount] = useState(100);
 
   const [expandedCommitHashes, setExpandedCommitHashes] = useState<string[]>([]);
+  const [activeCommitHash, setActiveCommitHash] = useState<string | null>(null);
+
   const [commitFilesMap, setCommitFilesMap] = useState<Record<string, GitFile[]>>({});
   const [commitFilesLoadingMap, setCommitFilesLoadingMap] = useState<Record<string, boolean>>({});
   const [commitParentHashMap, setCommitParentHashMap] = useState<Record<string, string | undefined>>({});
@@ -77,13 +82,13 @@ export default function GitApp() {
   const [compareBase, setCompareBase] = useState<string | null>(null);
   const [compareCommits, setCompareCommits] = useState<GraphCommit[]>([]);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
+  const [activeCompareCommitHash, setActiveCompareCommitHash] = useState<string | null>(null);
 
   const [skipVerify, setSkipVerify] = useState(false);
   const [selectedGraphFilter, setSelectedGraphFilter] = useState('全部分支');
   const filterRef = useRef('全部分支');
   const [flashBranchBtn, setFlashBranchBtn] = useState(false);
 
-  const [activeCommitHash, setActiveCommitHash] = useState<string | null>(null);
   const [folderName, setFolderName] = useState('');
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -95,6 +100,12 @@ export default function GitApp() {
 
   const lastRefreshRef = useRef<number>(0);
   const commitInputRef = useRef<HTMLDivElement>(null);
+
+  const getNormalizedCommitMessage = () => {
+    return commitMsg.replace(/\n/g, '').trim();
+  };
+
+  const canCommit = isRepo && !loading && !!getNormalizedCommitMessage() && stagedFiles.length > 0;
 
   useEffect(() => {
     lastRefreshRef.current = Date.now();
@@ -122,6 +133,7 @@ export default function GitApp() {
         setCommitFilesLoadingMap({});
         setCommitParentHashMap({});
         setActiveCommitHash(null);
+        setActiveCompareCommitHash(null);
         setStashes([]);
         setStashFilesMap({});
         setStashFilesLoading({});
@@ -136,6 +148,10 @@ export default function GitApp() {
         setBranch(msg.branch || '');
         setRemoteUrl(msg.remoteUrl || '');
         setFolderName(msg.folderName || '');
+
+        if (msg.defaultCommitTypeEnabled !== undefined) {
+          setCommitTypeEnabled(!!msg.defaultCommitTypeEnabled);
+        }
 
         if (msg.remoteSync) {
           setRemoteSync(msg.remoteSync);
@@ -155,7 +171,6 @@ export default function GitApp() {
       } else if (msg.type === 'stashFilesData') {
         setStashFilesMap((prev) => ({ ...prev, [msg.index]: msg.files || [] }));
         setStashFilesLoading((prev) => ({ ...prev, [msg.index]: false }));
-        setCommitParentHashMap((prev) => ({ ...prev, [msg.hash]: msg.parentHash }));
       } else if (msg.type === 'graphData') {
         const commits = msg.graphCommits || [];
 
@@ -206,6 +221,7 @@ export default function GitApp() {
         }
 
         setCompareCommits(msg.commits || []);
+        setActiveCompareCommitHash(null);
         setIsCompareOpen(true);
       } else if (msg.type === 'error') {
         setLoading(false);
@@ -221,9 +237,17 @@ export default function GitApp() {
         if (msg.isInit && msg.defaultSkipVerify !== undefined) {
           setSkipVerify(msg.defaultSkipVerify);
         }
+
+        if (msg.defaultCommitTypeEnabled !== undefined) {
+          setCommitTypeEnabled(!!msg.defaultCommitTypeEnabled);
+        }
       } else if (msg.type === 'gitConfigChanged') {
         if (msg.defaultSkipVerify !== undefined) {
           setSkipVerify(msg.defaultSkipVerify);
+        }
+
+        if (msg.defaultCommitTypeEnabled !== undefined) {
+          setCommitTypeEnabled(!!msg.defaultCommitTypeEnabled);
         }
       }
     };
@@ -290,18 +314,33 @@ export default function GitApp() {
     }
   };
 
+  const getFinalCommitMessage = () => {
+    const message = getNormalizedCommitMessage();
+
+    if (!message) return '';
+
+    if (!commitTypeEnabled) {
+      return message;
+    }
+
+    return `${commitType}: ${message}`;
+  };
+
   const handleCommit = () => {
-    if (!commitMsg.trim()) return;
+    const finalMessage = getFinalCommitMessage();
+
+    if (!finalMessage) return;
 
     setLoading(true);
 
     vscode.postMessage({
       command: 'commit',
-      message: commitMsg,
+      message: finalMessage,
       skipVerify,
     });
 
     setCommitMsg('');
+    setJustCommitted(false);
 
     if (commitInputRef.current) {
       commitInputRef.current.innerText = '';
@@ -314,7 +353,7 @@ export default function GitApp() {
     const alreadyExpanded = expandedCommitHashes.includes(hash);
 
     setExpandedCommitHashes((prev) => {
-      return alreadyExpanded ? prev.filter((h) => h !== hash) : [...prev, hash];
+      return alreadyExpanded ? prev.filter((item) => item !== hash) : [...prev, hash];
     });
 
     if (alreadyExpanded) return;
@@ -331,6 +370,44 @@ export default function GitApp() {
     });
   };
 
+  const collapseGraphCommitFiles = () => {
+    setActiveCommitHash(null);
+    setExpandedCommitHashes([]);
+
+    setExpandedDirs((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      Object.keys(next).forEach((key) => {
+        if (key.startsWith('history:') && next[key] !== false) {
+          next[key] = false;
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  };
+
+  const toggleCompareCommit = (hash: string) => {
+    const nextHash = activeCompareCommitHash === hash ? null : hash;
+
+    setActiveCompareCommitHash(nextHash);
+
+    if (!nextHash) return;
+    if (commitFilesMap[nextHash]) return;
+
+    setCommitFilesLoadingMap((prev) => ({
+      ...prev,
+      [nextHash]: true,
+    }));
+
+    vscode.postMessage({
+      command: 'getCommitFiles',
+      hash: nextHash,
+    });
+  };
+
   const toggleDir = (path: string, e: React.MouseEvent) => {
     e.stopPropagation();
 
@@ -338,6 +415,20 @@ export default function GitApp() {
       ...prev,
       [path]: prev[path] === false ? true : false,
     }));
+  };
+
+  const collapseDirs = (paths: string[], e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    setExpandedDirs((prev) => {
+      const next = { ...prev };
+
+      paths.forEach((path) => {
+        next[path] = false;
+      });
+
+      return next;
+    });
   };
 
   const openHistoryDiff = (file: GitFile, historyHash?: string) => {
@@ -358,10 +449,18 @@ export default function GitApp() {
     vscode.postMessage({
       command: 'diffBranchFile',
       file: file.file,
-      targetBranch: activeCommitHash || compareTarget,
+      targetBranch: activeCompareCommitHash || compareTarget,
       baseBranch: compareBase,
       status: file.status,
     });
+  };
+
+  const getChangesSectionStateClass = (open: boolean) => {
+    return open ? styles['changes-section-expanded'] : styles['changes-section-collapsed'];
+  };
+
+  const getChangesSectionClassName = (open: boolean, extraClassNames: string[] = []) => {
+    return [styles['changes-section'], getChangesSectionStateClass(open), ...extraClassNames].filter(Boolean).join(' ');
   };
 
   const getPullTooltip = () => {
@@ -396,6 +495,28 @@ export default function GitApp() {
         <div className={styles['git-actions']}>
           {isRepo ? (
             <>
+              <Tooltip content={commitTypeEnabled ? '关闭提交类型 Tag' : '添加提交类型 Tag'}>
+                <button
+                  className={`${styles['icon-btn']} ${commitTypeEnabled ? styles['action-btn-active-solid'] : ''}`}
+                  onClick={() => {
+                    const nextValue = !commitTypeEnabled;
+
+                    setCommitTypeEnabled(nextValue);
+
+                    vscode.postMessage({
+                      command: 'toggleCommitTypeEnabled',
+                      value: nextValue,
+                    });
+
+                    requestAnimationFrame(() => {
+                      commitInputRef.current?.focus();
+                    });
+                  }}
+                >
+                  <i className="codicon codicon-tag" />
+                </button>
+              </Tooltip>
+
               <Tooltip content={!skipVerify ? '校验开启' : '校验关闭'}>
                 <button
                   className={`${styles['icon-btn']} ${!skipVerify ? styles['shield-enabled'] : ''}`}
@@ -423,13 +544,15 @@ export default function GitApp() {
               </Tooltip>
 
               <Tooltip content={remoteSync.needsPush ? `需要 Push：当前分支领先远程 ${remoteSync.ahead} 个提交` : '推送 (Push)'}>
-                <button className={styles['icon-btn']} onClick={() => vscode.postMessage({ command: 'push' })}>
+                <button className={`${styles['icon-btn']} ${remoteSync.needsPush ? styles['push-needed'] : ''}`} onClick={() => vscode.postMessage({ command: 'push' })}>
                   <i className="codicon codicon-repo-push" />
+
+                  {remoteSync.needsPush && <span className={styles['pull-badge']}>{remoteSync.ahead > 99 ? '99+' : remoteSync.ahead}</span>}
                 </button>
               </Tooltip>
 
               <Tooltip content={viewMode === 'list' ? '以树状视图查看' : '以列表视图查看'}>
-                <button className={styles['icon-btn']} onClick={() => setViewMode((v) => (v === 'list' ? 'tree' : 'list'))}>
+                <button className={styles['icon-btn']} onClick={() => setViewMode((value) => (value === 'list' ? 'tree' : 'list'))}>
                   <i className={`codicon ${viewMode === 'list' ? 'codicon-list-tree' : 'codicon-list-flat'}`} />
                 </button>
               </Tooltip>
@@ -440,64 +563,90 @@ export default function GitApp() {
 
       <div className={styles['commit-box']}>
         <div
-          ref={commitInputRef}
-          className={styles['commit-input']}
-          contentEditable={isRepo && !loading}
-          data-placeholder="消息 (按 Ctrl+Enter 提交)"
-          onInput={(e) => {
-            const el = e.currentTarget;
-            const text = el.innerText.replace(/\n/g, '').trim();
-
-            if (!text) {
-              el.innerHTML = '';
-              setCommitMsg('');
-            } else {
-              setCommitMsg(el.innerText);
-            }
-
-            setJustCommitted(false);
+          className={`${styles['commit-input-wrap']} ${commitTypeEnabled ? styles['commit-input-wrap-with-tag'] : ''} ${!isRepo || loading ? styles['commit-input-wrap-disabled'] : ''}`}
+          onClick={() => {
+            if (!isRepo || loading) return;
+            commitInputRef.current?.focus();
           }}
-          onKeyDown={(e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        >
+          {commitTypeEnabled && (
+            <CommitTypeTag
+              value={commitType}
+              disabled={!isRepo || loading}
+              onChange={(nextType) => {
+                setCommitType(nextType);
+
+                requestAnimationFrame(() => {
+                  commitInputRef.current?.focus();
+                });
+              }}
+            />
+          )}
+
+          <div
+            ref={commitInputRef}
+            className={styles['commit-input']}
+            contentEditable={isRepo && !loading}
+            data-placeholder={commitTypeEnabled ? '输入提交内容' : '消息 (按 Ctrl+Enter 提交)'}
+            onInput={(e) => {
+              const el = e.currentTarget;
+              const text = el.innerText.replace(/\n/g, '').trim();
+
+              if (!text) {
+                el.innerHTML = '';
+                setCommitMsg('');
+              } else {
+                setCommitMsg(el.innerText);
+              }
+
+              setJustCommitted(false);
+            }}
+            onKeyDown={(e) => {
+              if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                handleCommit();
+              }
+            }}
+            onPaste={(e) => {
               e.preventDefault();
-              handleCommit();
-            }
-          }}
-          onPaste={(e) => {
-            e.preventDefault();
 
-            const text = e.clipboardData.getData('text/plain');
+              const text = e.clipboardData.getData('text/plain');
 
-            if (!text) return;
+              if (!text) return;
 
-            insertPlainTextAtCursor(text);
+              insertPlainTextAtCursor(text);
 
-            const el = e.currentTarget;
-            const currentText = el.innerText.replace(/\n/g, '').trim();
+              const el = e.currentTarget;
+              const currentText = el.innerText.replace(/\n/g, '').trim();
 
-            if (!currentText) {
-              el.innerHTML = '';
-              setCommitMsg('');
-            } else {
-              setCommitMsg(el.innerText);
-            }
+              if (!currentText) {
+                el.innerHTML = '';
+                setCommitMsg('');
+              } else {
+                setCommitMsg(el.innerText);
+              }
 
-            setJustCommitted(false);
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-          }}
-          suppressContentEditableWarning={true}
-        />
+              setJustCommitted(false);
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+            }}
+            suppressContentEditableWarning={true}
+          />
+        </div>
 
-        <button className={styles['commit-btn']} disabled={!isRepo || loading || !commitMsg.trim() || (stagedFiles.length === 0 && unstagedFiles.length === 0)} onClick={handleCommit}>
-          {loading ? <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} /> : <i className={`codicon codicon-check ${styles['icon-right-6']}`} />}
+        <button className={styles['commit-btn']} disabled={!canCommit} onClick={handleCommit}>
+          {loading ? (
+            <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} />
+          ) : (
+            <i className={`codicon codicon-check ${styles['icon-right-6']}`} />
+          )}
           提交 (Commit)
         </button>
       </div>
 
       <div className={`${styles['changes-scroll-area']} ${styles['changes-scroll-area-expanded']}`}>
-        <div className={styles['changes-section']}>
+        <div className={getChangesSectionClassName(isChangesOpen)}>
           <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsChangesOpen(!isChangesOpen)}>
             <div className={styles['header-title-row']}>
               <i className={`codicon ${isChangesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron']}`} />
@@ -556,22 +705,20 @@ export default function GitApp() {
                     </div>
 
                     <div className={styles['inline-actions']}>
-                      {stagedFiles.length > 0 && (
-                        <Tooltip content="打开更改">
-                          <button
-                            className={`${styles['action-btn']} ${styles['section-action-btn']}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
+                      <Tooltip content="打开更改">
+                        <button
+                          className={`${styles['action-btn']} ${styles['section-action-btn']}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
 
-                              vscode.postMessage({
-                                command: 'openStagedChanges',
-                              });
-                            }}
-                          >
-                            <i className="codicon codicon-diff-multiple" />
-                          </button>
-                        </Tooltip>
-                      )}
+                            vscode.postMessage({
+                              command: 'openStagedChanges',
+                            });
+                          }}
+                        >
+                          <i className="codicon codicon-diff-multiple" />
+                        </button>
+                      </Tooltip>
 
                       <Tooltip content="取消暂存所有更改">
                         <button
@@ -598,6 +745,7 @@ export default function GitApp() {
                     setActiveFile={setActiveFile}
                     expandedDirs={expandedDirs}
                     toggleDir={toggleDir}
+                    collapseDirs={collapseDirs}
                     openHistoryDiff={openHistoryDiff}
                     openCompareDiff={openCompareDiff}
                     setContextMenu={setContextMenu}
@@ -703,6 +851,7 @@ export default function GitApp() {
                     setActiveFile={setActiveFile}
                     expandedDirs={expandedDirs}
                     toggleDir={toggleDir}
+                    collapseDirs={collapseDirs}
                     openHistoryDiff={openHistoryDiff}
                     openCompareDiff={openCompareDiff}
                     setContextMenu={setContextMenu}
@@ -727,6 +876,7 @@ export default function GitApp() {
                     setActiveFile={setActiveFile}
                     expandedDirs={expandedDirs}
                     toggleDir={toggleDir}
+                    collapseDirs={collapseDirs}
                     openHistoryDiff={openHistoryDiff}
                     openCompareDiff={openCompareDiff}
                     setContextMenu={setContextMenu}
@@ -740,7 +890,7 @@ export default function GitApp() {
         </div>
 
         {stashes.length > 0 && (
-          <div className={`${styles['changes-section']} ${styles['section-top-gap']}`}>
+          <div className={getChangesSectionClassName(isStashesOpen, [styles['section-top-gap']])}>
             <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsStashesOpen(!isStashesOpen)}>
               <div className={styles['header-flex-title']}>
                 <i className={`codicon ${isStashesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
@@ -785,7 +935,7 @@ export default function GitApp() {
                             <i className={`codicon ${isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['stash-chevron']}`} />
                             <i className={`codicon codicon-archive ${styles['stash-icon']}`} />
                             <div className={styles['file-name']}>{stash.message}</div>
-                            <div className={styles['flex-spacer']}></div>
+                            <div className={styles['flex-spacer']} />
 
                             <div className={styles['file-actions']}>
                               <Tooltip content="应用贮藏并保留 (Apply)">
@@ -857,6 +1007,7 @@ export default function GitApp() {
                                   setActiveFile={setActiveFile}
                                   expandedDirs={expandedDirs}
                                   toggleDir={toggleDir}
+                                  collapseDirs={collapseDirs}
                                   openHistoryDiff={openHistoryDiff}
                                   openCompareDiff={openCompareDiff}
                                   setContextMenu={setContextMenu}
@@ -874,7 +1025,7 @@ export default function GitApp() {
           </div>
         )}
 
-        <div className={`${styles['changes-section']} ${styles['section-top-gap']}`}>
+        <div className={getChangesSectionClassName(isCompareOpen, [styles['section-top-gap']])}>
           <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsCompareOpen(!isCompareOpen)}>
             <div className={styles['header-flex-title']}>
               <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
@@ -963,6 +1114,7 @@ export default function GitApp() {
                         setCompareTarget(null);
                         setCompareBase(null);
                         setCompareCommits([]);
+                        setActiveCompareCommitHash(null);
                       }}
                     >
                       <i className="codicon codicon-close" />
@@ -980,28 +1132,23 @@ export default function GitApp() {
               ) : (
                 <GitCompareList
                   commits={compareCommits}
-                  activeCommitHash={activeCommitHash}
-                  loadedCommitHash={commitFilesMap[activeCommitHash || ''] ? activeCommitHash : null}
-                  commitFilesLoading={!!commitFilesLoadingMap[activeCommitHash || '']}
-                  commitFiles={commitFilesMap[activeCommitHash || ''] || []}
+                  activeCommitHash={activeCompareCommitHash}
+                  loadedCommitHash={activeCompareCommitHash && commitFilesMap[activeCompareCommitHash] ? activeCompareCommitHash : null}
+                  commitFilesLoading={!!commitFilesLoadingMap[activeCompareCommitHash || '']}
+                  commitFiles={activeCompareCommitHash ? commitFilesMap[activeCompareCommitHash] || [] : []}
                   remoteUrl={remoteUrl}
-                  onCommitClick={(hash) => {
-                    if (activeCommitHash === hash) {
-                      setActiveCommitHash(null);
-                    } else {
-                      toggleCommit(hash);
-                    }
-                  }}
+                  onCommitClick={toggleCompareCommit}
                   renderCommitFiles={(files) => (
                     <GitFileList
                       files={files}
                       listType={compareBase === '文件历史' ? 'history' : 'compare'}
-                      historyHash={activeCommitHash || undefined}
+                      historyHash={activeCompareCommitHash || undefined}
                       viewMode={viewMode}
                       activeFile={activeFile}
                       setActiveFile={setActiveFile}
                       expandedDirs={expandedDirs}
                       toggleDir={toggleDir}
+                      collapseDirs={collapseDirs}
                       openHistoryDiff={openHistoryDiff}
                       openCompareDiff={openCompareDiff}
                       setContextMenu={setContextMenu}
@@ -1020,7 +1167,7 @@ export default function GitApp() {
         </div>
       </div>
 
-      <div className={styles['git-graph-section']}>
+      <div className={getChangesSectionClassName(isGraphOpen, [styles['git-graph-section'], styles['section-top-gap']])}>
         <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsGraphOpen(!isGraphOpen)}>
           <div className={styles['header-flex-title']}>
             <i className={`codicon ${isGraphOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
@@ -1082,9 +1229,9 @@ export default function GitApp() {
 
               <Tooltip content={`筛选分支 (${selectedGraphFilter})`}>
                 <button
-                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${
-                    selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''
-                  } ${flashBranchBtn ? styles['action-btn-flash'] : ''}`}
+                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${selectedGraphFilter !== '全部分支' ? styles['action-btn-active'] : ''} ${
+                    flashBranchBtn ? styles['action-btn-flash'] : ''
+                  }`}
                   onClick={(e) => {
                     e.stopPropagation();
 
@@ -1098,16 +1245,16 @@ export default function GitApp() {
                 </button>
               </Tooltip>
 
-              <Tooltip content={isGraphSearchOpen ? '关闭搜索' : '搜索提交'}>
-                <button
-                  className={`${styles['action-btn']} ${styles['section-action-btn']} ${isGraphSearchOpen ? styles['action-btn-active-solid'] : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
+              <Tooltip content="更多">
+                <GraphMoreMenu
+                  isSearchOpen={isGraphSearchOpen}
+                  onToggleSearch={() => {
                     setIsGraphSearchOpen((prev) => !prev);
                   }}
-                >
-                  <i className="codicon codicon-search" />
-                </button>
+                  onCollapseCommitFiles={collapseGraphCommitFiles}
+                  triggerClassName={`${styles['action-btn']} ${styles['section-action-btn']} ${isGraphSearchOpen ? styles['action-btn-active-solid'] : ''}`}
+                  activeTriggerClassName={styles['action-btn-active-solid']}
+                />
               </Tooltip>
 
               <Tooltip content="刷新">
@@ -1131,61 +1278,63 @@ export default function GitApp() {
           )}
         </div>
 
-        {isGraphOpen &&
-          (isGraphLoading ? (
-            <div className={styles['graph-loading']}>
-              <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-8']}`} /> 正在加载历史记录...
-            </div>
-          ) : graphCommits.length === 0 ? (
-            <div className={styles['git-graph-fallback']}>{!isRepo ? '未连接至 Git 仓库' : '暂无记录'}</div>
-          ) : (
-            <GitGraph
-              graphCommits={graphCommits}
-              displayCount={displayCount}
-              setDisplayCount={setDisplayCount}
-              expandedCommitHashes={expandedCommitHashes}
-              commitFilesLoadingMap={commitFilesLoadingMap}
-              commitFilesMap={commitFilesMap}
-              activeCommitHash={activeCommitHash}
-              branch={branch}
-              onCommitClick={toggleCommit}
-              remoteUrl={remoteUrl}
-              isSearchOpen={isGraphSearchOpen}
-              setIsSearchOpen={setIsGraphSearchOpen}
-              renderCommitFiles={(hash, files) => (
-                <GitFileList
-                  files={files}
-                  listType="history"
-                  historyHash={hash}
-                  viewMode={viewMode}
-                  activeFile={activeFile}
-                  setActiveFile={setActiveFile}
-                  expandedDirs={expandedDirs}
-                  toggleDir={toggleDir}
-                  openHistoryDiff={openHistoryDiff}
-                  openCompareDiff={openCompareDiff}
-                  setContextMenu={setContextMenu}
-                />
-              )}
-              onCommitContextMenu={(e, commit) => {
-                e.preventDefault();
+        {isGraphOpen && (
+          <div className={styles['graph-content']}>
+            {graphCommits.length === 0 ? (
+              <div className={styles['git-graph-fallback']}>{!isRepo ? '未连接至 Git 仓库' : isGraphLoading ? '' : '暂无记录'}</div>
+            ) : (
+              <GitGraph
+                graphCommits={graphCommits}
+                displayCount={displayCount}
+                setDisplayCount={setDisplayCount}
+                expandedCommitHashes={expandedCommitHashes}
+                commitFilesLoadingMap={commitFilesLoadingMap}
+                commitFilesMap={commitFilesMap}
+                activeCommitHash={activeCommitHash}
+                branch={branch}
+                onCommitClick={toggleCommit}
+                remoteUrl={remoteUrl}
+                isSearchOpen={isGraphSearchOpen}
+                setIsSearchOpen={setIsGraphSearchOpen}
+                renderCommitFiles={(hash, files) => (
+                  <GitFileList
+                    files={files}
+                    listType="history"
+                    historyHash={hash}
+                    viewMode={viewMode}
+                    activeFile={activeFile}
+                    setActiveFile={setActiveFile}
+                    expandedDirs={expandedDirs}
+                    toggleDir={toggleDir}
+                    collapseDirs={collapseDirs}
+                    openHistoryDiff={openHistoryDiff}
+                    openCompareDiff={openCompareDiff}
+                    setContextMenu={setContextMenu}
+                  />
+                )}
+                onCommitContextMenu={(e, commit) => {
+                  e.preventDefault();
 
-                setContextMenu({
-                  visible: true,
-                  x: e.clientX,
-                  y: e.clientY,
-                  type: 'commit',
-                  commit,
-                });
-              }}
-              onOpenCommitMultiDiff={(hash) => {
-                vscode.postMessage({
-                  command: 'openCommitMultiDiff',
-                  hash,
-                });
-              }}
-            />
-          ))}
+                  setContextMenu({
+                    visible: true,
+                    x: e.clientX,
+                    y: e.clientY,
+                    type: 'commit',
+                    commit,
+                  });
+                }}
+                onOpenCommitMultiDiff={(hash) => {
+                  vscode.postMessage({
+                    command: 'openCommitMultiDiff',
+                    hash,
+                  });
+                }}
+              />
+            )}
+
+            <LoadingMask visible={isGraphLoading} />
+          </div>
+        )}
       </div>
     </div>
   );

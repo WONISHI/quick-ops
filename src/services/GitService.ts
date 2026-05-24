@@ -354,6 +354,54 @@ export class GitService {
     };
   }
 
+  public normalizeRemoteBranchName(branchName: string): string {
+    return branchName.trim().replace(/^remotes\//, '');
+  }
+
+  public getLocalNameFromRemoteBranch(remoteBranchName: string): string {
+    const normalized = this.normalizeRemoteBranchName(remoteBranchName);
+
+    /**
+     * origin/feature/a => feature/a
+     * upstream/main => main
+     */
+    return normalized.replace(/^[^/]+\//, '');
+  }
+
+  public async getRemoteBranches(cwd: string, options?: { fetch?: boolean }): Promise<string[]> {
+    const git = this.createGit(cwd);
+
+    if (options?.fetch) {
+      await this.fetchAllPrune(cwd);
+    }
+
+    const summary = await git.branch(['-r']);
+
+    return summary.all
+      .map((branchName) => this.normalizeRemoteBranchName(branchName))
+      .filter((branchName) => {
+        return !!branchName && !/\/HEAD\s*->/i.test(branchName) && !branchName.includes('HEAD ->');
+      })
+      .sort((a, b) => a.localeCompare(b));
+  }
+
+  public async checkoutRemoteBranch(cwd: string, remoteBranchName: string): Promise<string> {
+    const git = this.createGit(cwd);
+    const normalizedRemoteBranch = this.normalizeRemoteBranchName(remoteBranchName);
+    const localBranchName = this.getLocalNameFromRemoteBranch(normalizedRemoteBranch);
+
+    const localBranches = await this.getLocalBranches(cwd);
+
+    if (localBranches.branches.includes(localBranchName)) {
+      await this.checkoutBranch(cwd, localBranchName);
+      return localBranchName;
+    }
+
+    await git.checkout(['--track', normalizedRemoteBranch]);
+
+    return localBranchName;
+  }
+
   public async getAllBranches(cwd: string): Promise<string[]> {
     const branches = await this.createGit(cwd).branch(['-a']);
 

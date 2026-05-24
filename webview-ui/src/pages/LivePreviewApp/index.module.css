@@ -7,7 +7,7 @@
   --input-border: var(--vscode-input-border);
   --focus-border: var(--vscode-focusBorder);
   --btn-hover: var(--vscode-toolbar-hoverBackground);
-  --action-hover-bg: var(--vscode-list-hoverBackground);
+  --action-hover-bg: var(--vscode-list-inactiveSelectionBackground);
   --menu-bg: var(--vscode-menu-background);
   --menu-fg: var(--vscode-menu-foreground);
   --menu-border: var(--vscode-menu-border);

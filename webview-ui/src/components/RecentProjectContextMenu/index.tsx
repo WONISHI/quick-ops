@@ -14,7 +14,8 @@ import {
   faColumns,
   faCodeCompare,
   faListUl,
-  faFolderPlus
+  faFolderPlus,
+  faBullseye,
 } from '@fortawesome/free-solid-svg-icons';
 import {
   faCopy,
@@ -86,6 +87,13 @@ export default function RecentProjectContextMenu({
             <li onClick={() => onAction('searchInFolder')}>
               <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
             </li>
+
+            {payload.isActiveProject && (
+              <li onClick={() => onAction('focusMode')}>
+                <FontAwesomeIcon icon={faBullseye} className={styles['menu-icon']} /> 专注模式
+              </li>
+            )}
+
             <div className={styles['menu-separator']}></div>
 
             <li onClick={() => onAction('addToGitList')}>
