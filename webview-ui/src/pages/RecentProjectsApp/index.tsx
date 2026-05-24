@@ -33,11 +33,14 @@ export default function RecentProjectsApp() {
   const [isInitLoading, setIsInitLoading] = useState(true);
 
   const [lastOpenedPath, setLastOpenedPath] = useState('');
+
   const getInitialSearchQuery = () => {
     const state = vscode.getState() as { searchQuery?: string } | undefined;
+
     if (!state) {
       return '';
     }
+
     return state.searchQuery || '';
   };
 
@@ -73,12 +76,9 @@ export default function RecentProjectsApp() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const [isSearchMode, setIsSearchMode] = useState(false);
-  const [searchTargetProject, setSearchTargetProject] =
-    useState<ContextMenuPayload | null>(null);
+  const [searchTargetProject, setSearchTargetProject] = useState<ContextMenuPayload | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
-  const [folderSearchType, setFolderSearchType] = useState<'content' | 'name'>(
-    'content'
-  );
+  const [folderSearchType, setFolderSearchType] = useState<'content' | 'name'>('content');
   const [fileNameSearchResults, setFileNameSearchResults] = useState<DirChild[]>([]);
   const [folderSearchResults, setFolderSearchResults] = useState<SearchResult[]>([]);
   const [isSearchingFolder, setIsSearchingFolder] = useState(false);
@@ -326,7 +326,9 @@ export default function RecentProjectsApp() {
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setSearchQuery(val);
+
     const prevState = vscode.getState() as Record<string, unknown> | undefined;
+
     vscode.setState({
       ...(prevState || {}),
       searchQuery: val,
@@ -341,9 +343,9 @@ export default function RecentProjectsApp() {
     projectInHistory ||
     (currentWorkspace
       ? ({
-        ...currentWorkspace,
-        timestamp: Date.now(),
-      } as Project)
+          ...currentWorkspace,
+          timestamp: Date.now(),
+        } as Project)
       : null);
 
   const otherProjects = projects.filter((p) => p.fsPath.split('?')[0] !== currentBaseUri);
@@ -352,8 +354,8 @@ export default function RecentProjectsApp() {
     if (!searchQuery) return true;
 
     const title = p.customName || p.name;
-    const path = getDisplayPath(p);
-    const full = `${title} ${p.name} ${path} ${p.fsPath}`.toLowerCase();
+    const displayPath = getDisplayPath(p);
+    const full = `${title} ${p.name} ${displayPath} ${p.fsPath}`.toLowerCase();
 
     return full.includes(String(searchQuery).toLowerCase().trim());
   };
@@ -398,7 +400,7 @@ export default function RecentProjectsApp() {
     if (!status) return '';
 
     const safeStatus = status.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
-    return styles[`file-status-${safeStatus}`] || styles['file-status-xxx'] || '';
+    return styles[`file-status-${safeStatus}`] || '';
   };
 
   const getFileStatusText = (status?: string) => {
@@ -417,10 +419,12 @@ export default function RecentProjectsApp() {
   };
 
   const getStatusTitle = (name: string, status?: string) => {
-    return status ? `${name} [${getFileStatusText(status)}]` : name;
+    const text = getFileStatusText(status);
+
+    return text ? `${name} [${text}]` : name;
   };
 
-  const renderStatusBadge = (status?: string) => {
+  const renderFileStatusBadge = (status?: string) => {
     const text = getFileStatusText(status);
 
     if (!text) return null;
@@ -435,74 +439,88 @@ export default function RecentProjectsApp() {
     );
   };
 
-  const handleOpenProject = (path: string) => {
+  const renderFolderStatusDot = (status?: string) => {
+    const text = getFileStatusText(status);
+
+    if (!text) return null;
+
+    return (
+      <span
+        className={`${styles['folder-status-dot']} ${getFileStatusClassName(status)}`}
+        title={`状态: ${text}`}
+      />
+    );
+  };
+
+  const handleOpenProject = (pathValue: string) => {
     if (clickTimeout.current) clearTimeout(clickTimeout.current);
 
     vscode.postMessage({
       type: 'openProject',
-      fsPath: path,
+      fsPath: pathValue,
     });
   };
 
-  const handleOpenCurrent = (path: string, e: React.MouseEvent) => {
+  const handleOpenCurrent = (pathValue: string, e: React.MouseEvent) => {
     e.stopPropagation();
 
     vscode.postMessage({
       type: 'openProjectCurrent',
-      fsPath: path,
+      fsPath: pathValue,
     });
   };
 
   const handleOpenFile = (
-    path: string,
+    pathValue: string,
     projectName: string,
     isActiveProject: boolean,
     e: React.MouseEvent
   ) => {
     e.stopPropagation();
-    setSelectedPath(path);
+
+    setSelectedPath(pathValue);
     setContextMenu((prev) => ({
       ...prev,
       visible: false,
     }));
 
-    if (path.toLowerCase().endsWith('.md')) {
+    if (pathValue.toLowerCase().endsWith('.md')) {
       vscode.postMessage({
         type: 'previewWithVditor',
-        fsPath: path,
+        fsPath: pathValue,
         projectName,
         isActiveProject,
       });
-    } else if (isImageFile(path)) {
+    } else if (isImageFile(pathValue)) {
       vscode.postMessage({
         type: 'openImageNative',
-        fsPath: path,
+        fsPath: pathValue,
       });
-    } else if (isExcelFile(path)) {
+    } else if (isExcelFile(pathValue)) {
       vscode.postMessage({
         type: 'previewWithExcel',
-        fsPath: path,
+        fsPath: pathValue,
         projectName,
         isActiveProject,
       });
-    } else if (isPdfFile(path)) {
+    } else if (isPdfFile(pathValue)) {
       vscode.postMessage({
         type: 'previewWithPdf',
-        fsPath: path,
+        fsPath: pathValue,
         projectName,
         isActiveProject,
       });
     } else {
       vscode.postMessage({
         type: isActiveProject ? 'openFileNormal' : 'openFile',
-        fsPath: path,
+        fsPath: pathValue,
         projectName,
       });
     }
   };
 
   const handleToggleExpand = (
-    path: string,
+    pathValue: string,
     projectName: string,
     _: boolean,
     e: React.MouseEvent
@@ -519,22 +537,22 @@ export default function RecentProjectsApp() {
     clickTimeout.current = setTimeout(() => {
       setExpandedPaths((prev) => {
         const next = new Set(prev);
-        const isExpanding = !next.has(path);
+        const isExpanding = !next.has(pathValue);
 
         if (isExpanding) {
-          next.add(path);
+          next.add(pathValue);
 
-          if (!dirChildrenRef.current[path]) {
-            setLoadingPaths((l) => new Set(l).add(path));
+          if (!dirChildrenRef.current[pathValue]) {
+            setLoadingPaths((l) => new Set(l).add(pathValue));
 
             vscode.postMessage({
               type: 'readDir',
-              fsPath: path,
+              fsPath: pathValue,
               projectName,
             });
           }
         } else {
-          next.delete(path);
+          next.delete(pathValue);
         }
 
         return next;
@@ -837,8 +855,9 @@ export default function RecentProjectsApp() {
               <div key={childPath}>
                 <div
                   id={elementId}
-                  className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''
-                    } ${styles['search-name-sub-item']}`}
+                  className={`${styles['sub-item']} ${styles['clickable-sub']} ${
+                    selectedPath === childPath ? styles['selected'] : ''
+                  } ${styles['search-name-sub-item']}`}
                   onClick={(e) => handleToggleExpand(childPath, projectName, isRemote, e)}
                   onContextMenu={(e) =>
                     handleContextMenu(e, 'sub', {
@@ -875,13 +894,13 @@ export default function RecentProjectsApp() {
                   />
 
                   <span
-                    className={`${styles['sub-name']} ${statusClassName}`}
+                    className={styles['sub-name']}
                     title={getStatusTitle(child.name, child.status)}
                   >
                     {child.name}
                   </span>
 
-                  {renderStatusBadge(child.status)}
+                  {renderFolderStatusDot(child.status)}
                 </div>
 
                 {isExpanded && (
@@ -899,8 +918,9 @@ export default function RecentProjectsApp() {
             <div key={childPath}>
               <div
                 id={elementId}
-                className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''
-                  } ${styles['search-name-sub-item-clickable']}`}
+                className={`${styles['sub-item']} ${
+                  selectedPath === childPath ? styles['selected'] : ''
+                } ${styles['search-name-sub-item-clickable']}`}
                 onClick={(e) => handleOpenFile(childPath, projectName, isActiveProject, e)}
                 onContextMenu={(e) =>
                   handleContextMenu(e, 'sub', {
@@ -928,7 +948,7 @@ export default function RecentProjectsApp() {
                   {child.name}
                 </span>
 
-                {renderStatusBadge(child.status)}
+                {renderFileStatusBadge(child.status)}
               </div>
             </div>
           );
@@ -1066,11 +1086,8 @@ export default function RecentProjectsApp() {
                   (() => {
                     const p = activeProjectToRender;
                     const rootPath = p.fsPath;
-                    const isRemote =
-                      p.fsPath.startsWith('vscode-vfs') || p.fsPath.startsWith('http');
-                    const isGitlab =
-                      p.platform === 'gitlab' ||
-                      p.fsPath.startsWith('vscode-vfs://gitlab');
+                    const isRemote = p.fsPath.startsWith('vscode-vfs') || p.fsPath.startsWith('http');
+                    const isGitlab = p.platform === 'gitlab' || p.fsPath.startsWith('vscode-vfs://gitlab');
                     const icon = isRemote ? (isGitlab ? faGitlab : faGithub) : faFolderOpen;
                     const title = p.customName || p.name;
                     const displayPath = getDisplayPath(p);
@@ -1084,8 +1101,9 @@ export default function RecentProjectsApp() {
                       <div key={rootPath}>
                         <div
                           id={elementId}
-                          className={`${styles['active-top-project']} ${selectedPath === rootPath ? styles['selected'] : ''
-                            } ${inHistory ? styles['in-history'] : styles['not-in-history']}`}
+                          className={`${styles['active-top-project']} ${
+                            selectedPath === rootPath ? styles['selected'] : ''
+                          } ${inHistory ? styles['in-history'] : styles['not-in-history']}`}
                           title={
                             inHistory
                               ? '当前窗口正在运行的项目'
@@ -1132,8 +1150,9 @@ export default function RecentProjectsApp() {
                               <div className={styles['title']}>
                                 <FontAwesomeIcon
                                   icon={icon}
-                                  className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''
-                                    }`}
+                                  className={`${styles['project-icon']} ${
+                                    inHistory ? styles['icon-opened'] : ''
+                                  }`}
                                 />
 
                                 <span className={styles['project-name']} title={title}>
@@ -1171,11 +1190,8 @@ export default function RecentProjectsApp() {
                   {filteredOtherProjects.map((p) => {
                     const rootPath = p.fsPath;
                     const isJustOpened = p.fsPath === lastOpenedPath;
-                    const isRemote =
-                      p.fsPath.startsWith('vscode-vfs') || p.fsPath.startsWith('http');
-                    const isGitlab =
-                      p.platform === 'gitlab' ||
-                      p.fsPath.startsWith('vscode-vfs://gitlab');
+                    const isRemote = p.fsPath.startsWith('vscode-vfs') || p.fsPath.startsWith('http');
+                    const isGitlab = p.platform === 'gitlab' || p.fsPath.startsWith('vscode-vfs://gitlab');
                     const icon = isRemote ? (isGitlab ? faGitlab : faGithub) : faFolder;
                     const title = p.customName || p.name;
                     const displayPath = getDisplayPath(p);
@@ -1189,8 +1205,9 @@ export default function RecentProjectsApp() {
                       <li key={rootPath}>
                         <div
                           id={elementId}
-                          className={`${styles['project-item']} ${isJustOpened ? styles['just-opened'] : ''
-                            } ${selectedPath === rootPath ? styles['selected'] : ''}`}
+                          className={`${styles['project-item']} ${
+                            isJustOpened ? styles['just-opened'] : ''
+                          } ${selectedPath === rootPath ? styles['selected'] : ''}`}
                           onDoubleClick={() => handleOpenProject(p.fsPath)}
                           title={isJustOpened ? '刚刚在此窗口中唤起过' : ''}
                           onContextMenu={(e) =>

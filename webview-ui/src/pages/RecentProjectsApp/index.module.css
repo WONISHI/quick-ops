@@ -583,6 +583,17 @@ ul {
   opacity: 0.95;
 }
 
+.folder-status-dot {
+  width: 7px;
+  height: 7px;
+  margin-left: auto;
+  margin-right: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  opacity: 0.9;
+  background-color: currentColor;
+}
+
 .file-status-u {
   color: var(--vscode-gitDecoration-untrackedResourceForeground, #73c991) !important;
 }
@@ -597,7 +608,6 @@ ul {
 
 .file-status-d {
   color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39) !important;
-  text-decoration: line-through;
 }
 
 .file-status-r {
