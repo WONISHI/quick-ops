@@ -48,23 +48,17 @@ import nodeJsIcon from 'material-icon-theme/icons/nodejs.svg';
 import ejsIcon from 'material-icon-theme/icons/ejs.svg';
 import changelogIcon from 'material-icon-theme/icons/changelog.svg';
 import fontIcon from 'material-icon-theme/icons/font.svg';
-// import gruntIcon from "material-icon-theme/icons/grunt.svg"
 import gulpIcon from 'material-icon-theme/icons/gulp.svg';
-// import husky from "material-icon-theme/icons/husky.svg"
 import jestIcon from 'material-icon-theme/icons/jest.svg';
 import jsconfigIcon from 'material-icon-theme/icons/jsconfig.svg';
 import mapIcon from 'material-icon-theme/icons/javascript-map.svg';
 import hbsIcon from 'material-icon-theme/icons/handlebars.svg';
 import umiIcon from 'material-icon-theme/icons/umi.svg';
 import licenseIcon from 'material-icon-theme/icons/license.svg';
-// import lockIcon from "material-icon-theme/icons/lock.svg"
 import lottieIcon from 'material-icon-theme/icons/lottie.svg';
 import nestIcon from 'material-icon-theme/icons/nest.svg';
-// import nginxIcon from "material-icon-theme/icons/nginx.svg"
-// import nuxtIcon from "material-icon-theme/icons/nuxt.svg"
 import pnpmIcon from 'material-icon-theme/icons/pnpm_light.svg';
 import postcssIcon from 'material-icon-theme/icons/postcss.svg';
-// import reduxIcon from "material-icon-theme/icons/redux-store.svg"
 import wranglerIcon from 'material-icon-theme/icons/wrangler.svg';
 import turboIcon from 'material-icon-theme/icons/turborepo_light.svg';
 import rollupIcon from 'material-icon-theme/icons/rollup.svg';
@@ -94,6 +88,16 @@ import dsStoreIcon from '../../assets/icon/ds_store.svg';
 import obsidianIcon from '../../assets/icon/obsidian.svg';
 import sheetIcon from '../../assets/icon/sheet.svg';
 
+export type FileGitStatus =
+  | 'u'
+  | 'a'
+  | 'm'
+  | 'd'
+  | 'r'
+  | 'c'
+  | 'xxx'
+  | string;
+
 const EXACT_NAMES: Record<string, string> = {
   'package.json': nodeJsIcon,
   'package-lock.json': nodeJsIcon,
@@ -105,7 +109,7 @@ const EXACT_NAMES: Record<string, string> = {
   'CHANGELOG.md': changelogIcon,
   dockerfile: dockerIcon,
   'LICENSE.md': licenseIcon,
-  'LICENSE': licenseIcon,
+  LICENSE: licenseIcon,
   'docker-compose.yml': dockerIcon,
   '.dockerignore': dockerIcon,
   '.gitignore': gitIcon,
@@ -249,9 +253,15 @@ interface FileIconProps {
   fileName: string;
   className?: string;
   style?: React.CSSProperties;
+  status?: FileGitStatus;
 }
 
-export const FileIcon: React.FC<FileIconProps> = ({ fileName, className, style }) => {
+export const FileIcon: React.FC<FileIconProps> = ({
+  fileName,
+  className,
+  style,
+  status,
+}) => {
   const finalUrl = useMemo(() => {
     const lowerName = fileName.toLowerCase();
 
@@ -264,7 +274,7 @@ export const FileIcon: React.FC<FileIconProps> = ({ fileName, className, style }
       return EXTENSIONS[ext];
     }
 
-    return fileIcon; // 默认兜底
+    return fileIcon;
   }, [fileName]);
 
   return (
@@ -272,6 +282,8 @@ export const FileIcon: React.FC<FileIconProps> = ({ fileName, className, style }
       src={finalUrl}
       alt="file icon"
       className={className}
+      data-status={status || undefined}
+      title={status ? `状态: ${status}` : undefined}
       style={{
         width: '16px',
         height: '16px',

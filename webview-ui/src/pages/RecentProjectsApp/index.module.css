@@ -560,3 +560,50 @@ ul {
 .clickable-cursor {
   cursor: pointer;
 }
+
+.sub-item {
+  min-width: 0;
+}
+
+.sub-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.file-status-badge {
+  margin-left: auto;
+  padding: 0 6px;
+  min-width: 22px;
+  height: 18px;
+  line-height: 18px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+  opacity: 0.95;
+}
+
+.file-status-u {
+  color: var(--vscode-gitDecoration-untrackedResourceForeground, #73c991) !important;
+}
+
+.file-status-a {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
+}
+
+.file-status-m {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d) !important;
+}
+
+.file-status-d {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39) !important;
+  text-decoration: line-through;
+}
+
+.file-status-r {
+  color: var(--vscode-gitDecoration-renamedResourceForeground, #73c991) !important;
+}
+
+.file-status-c {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
+}

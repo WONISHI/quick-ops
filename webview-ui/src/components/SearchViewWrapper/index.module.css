@@ -430,3 +430,27 @@
 .file-icon-default {
   color: var(--vscode-symbolIcon-fileForeground, #999);
 }
+.file-status-u {
+  color: var(--vscode-gitDecoration-untrackedResourceForeground, #73c991) !important;
+}
+
+.file-status-a {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
+}
+
+.file-status-m {
+  color: var(--vscode-gitDecoration-modifiedResourceForeground, #e2c08d) !important;
+}
+
+.file-status-d {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39) !important;
+  text-decoration: line-through;
+}
+
+.file-status-r {
+  color: var(--vscode-gitDecoration-renamedResourceForeground, #73c991) !important;
+}
+
+.file-status-c {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
+}

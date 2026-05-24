@@ -8,9 +8,9 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 
 import { vscode } from '../../utils/vscode';
-import FileIcon from '../../components/FileIcon';
-import HighlightText from '../../components/HighlightText';
-import Tooltip from '../../components/Tooltip';
+import FileIcon from '../FileIcon';
+import HighlightText from '../HighlightText';
+import Tooltip from '../Tooltip';
 import type {
     ContextMenuPayload,
     DirChild,
@@ -147,7 +147,8 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
         return (
             searchTargetProject.customName ||
             searchTargetProject.originalName ||
-            searchTargetProject.name
+            searchTargetProject.name ||
+            ''
         );
     };
 
@@ -160,6 +161,13 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
         );
     };
 
+    const getFileStatusClassName = (status?: string) => {
+        if (!status) return '';
+
+        const safeStatus = status.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+        return styles[`file-status-${safeStatus}`] || styles['file-status-xxx'] || '';
+    };
+
     return (
         <div className={styles['search-view-wrapper']}>
             <div className={styles['search-header']}>
@@ -170,7 +178,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                             onClick={() => setIsSearchMode(false)}
                             title="返回项目列表"
                         >
-                            <span className={`codicon codicon-arrow-left ${styles['search-back-icon']}`}></span>
+                            <span className={`codicon codicon-arrow-small-left ${styles['search-back-icon']}`}></span>
                         </button>
 
                         <span
@@ -200,7 +208,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                                 disabled={totalMatches === 0}
                                 title="上一个匹配项"
                             >
-                                <span className={`codicon codicon-arrow-up ${styles['search-nav-icon']}`}></span>
+                                <span className={`codicon codicon-arrow-small-up ${styles['search-nav-icon']}`}></span>
                             </button>
 
                             <button
@@ -209,7 +217,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                                 disabled={totalMatches === 0}
                                 title="下一个匹配项"
                             >
-                                <span className={`codicon codicon-arrow-down ${styles['search-nav-icon']}`}></span>
+                                <span className={`codicon codicon-arrow-small-down ${styles['search-nav-icon']}`}></span>
                             </button>
                         </div>
                     )}
@@ -268,8 +276,8 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                                 <li key={i} className={styles['search-file-list-item']}>
                                     <Tooltip content={res.file} placement="bottom" textAlign="center">
                                         <div className={styles['search-file-title']} title={res.file}>
-                                            <FileIcon fileName={res.file} className={styles['search-file-icon']} />
-                                            {res.file}
+                                            <FileIcon fileName={res.file} status={res.status} className={styles['search-file-icon']} />
+                                            <span className={getFileStatusClassName(res.status)}>{res.file}</span>
                                         </div>
                                     </Tooltip>
 
@@ -342,6 +350,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                             const isRemote =
                                 childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
                             const targetProjName = getTargetProjectName();
+                            const statusClassName = getFileStatusClassName(child.status);
 
                             if (child.isFolder) {
                                 return (
@@ -365,7 +374,10 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                                                 className={`${styles['icon-closed']} ${styles['sub-icon']}`}
                                             />
 
-                                            <span className={styles['sub-name']}>
+                                            <span
+                                                className={`${styles['sub-name']} ${statusClassName}`}
+                                                title={child.status ? `${child.name} [${child.status}]` : child.name}
+                                            >
                                                 <HighlightText
                                                     text={child.name}
                                                     query={folderSearchQuery}
@@ -407,9 +419,12 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                                     >
                                         <div className={styles['chevron-placeholder']}></div>
 
-                                        <FileIcon fileName={child.name} className={styles['sub-icon']} />
+                                        <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
 
-                                        <span className={styles['sub-name']}>
+                                        <span
+                                            className={`${styles['sub-name']} ${statusClassName}`}
+                                            title={child.status ? `${child.name} [${child.status}]` : child.name}
+                                        >
                                             <HighlightText
                                                 text={child.name}
                                                 query={folderSearchQuery}
