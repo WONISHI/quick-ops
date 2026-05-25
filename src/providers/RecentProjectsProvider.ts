@@ -1760,7 +1760,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           type: 'readDirResult',
           fsPath: uriStr,
           children: cached.children,
-          projectName
+          projectName,
+          focusOnly
         });
         return;
       }
@@ -1806,10 +1807,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         timestamp: now
       });
 
-      this._view?.webview.postMessage({ type: 'readDirResult', fsPath: uriStr, children, projectName });
+      this._view?.webview.postMessage({ type: 'readDirResult', fsPath: uriStr, children, projectName, focusOnly });
     } catch (e) {
       vscode.window.showWarningMessage(`读取失败：可能是网络超时或触发了 GitHub API 限制，请稍后再试。`);
-      this._view?.webview.postMessage({ type: 'readDirResult', fsPath, children: [], projectName });
+      this._view?.webview.postMessage({ type: 'readDirResult', fsPath, children: [], projectName, focusOnly });
     }
   }
 

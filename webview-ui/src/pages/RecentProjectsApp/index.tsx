@@ -53,6 +53,7 @@ export default function RecentProjectsApp() {
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const [dirChildren, setDirChildren] = useState<Record<string, DirChild[]>>({});
   const dirChildrenRef = useRef<Record<string, DirChild[]>>({});
+  const normalDirChildrenBeforeFocusRef = useRef<Record<string, DirChild[]>>({});
 
   useEffect(() => {
     dirChildrenRef.current = dirChildren;
@@ -137,6 +138,16 @@ export default function RecentProjectsApp() {
 
     return child === parent || child.startsWith(parentWithSlash);
   };
+
+  const cacheNormalDirChildrenBeforeFocus = (rootPath: string) => {
+    const snapshot: Record<string, DirChild[]> = {}
+    Object.keys(dirChildrenRef.current).forEach((key) => {
+      if (isPathInside(key, rootPath)) {
+        snapshot[key] = dirChildrenRef.current[key];
+      }
+    })
+    normalDirChildrenBeforeFocusRef.current = snapshot;
+  }
 
   const getProjectNameByPath = (pathValue: string) => {
     if (isFocusModeRef.current && focusRootPathRef.current && isPathInside(pathValue, focusRootPathRef.current)) {
@@ -262,6 +273,8 @@ export default function RecentProjectsApp() {
         }));
       } else if (msg.type === 'readDirResult') {
         const pathKey = msg.fsPath as string;
+        const children = (msg.children as DirChild[]) || [];
+        const focusOnly = !!msg.focusOnly;
 
         setLoadingPaths((prev) => {
           const n = new Set(prev);
@@ -269,9 +282,22 @@ export default function RecentProjectsApp() {
           return n;
         });
 
+        if (focusOnly) {
+          if (!isFocusModeRef.current || !focusRootPathRef.current || !isPathInside(pathKey, focusRootPathRef.current)) {
+            return;
+          }
+
+          setDirChildren((prev) => ({
+            ...prev,
+            [pathKey]: children,
+          }));
+
+          return;
+        }
+
         setDirChildren((prev) => ({
           ...prev,
-          [pathKey]: (msg.children as DirChild[]) || [],
+          [pathKey]: children,
         }));
       } else if (msg.type === 'refreshExpandedDirs') {
         const expandedList = Array.from(expandedPathsRef.current);
@@ -880,6 +906,19 @@ export default function RecentProjectsApp() {
           payload.name ||
           '当前项目';
 
+        cacheNormalDirChildrenBeforeFocus(payload.path);
+
+        setDirChildren((prev) => {
+          const next = { ...prev };
+
+          Object.keys(next).forEach((key) => {
+            if (isPathInside(key, payload.path)) {
+              delete next[key];
+            }
+          });
+
+          return next;
+        });
         setSearchTargetProject({
           ...payload,
           name: title,
@@ -945,6 +984,76 @@ export default function RecentProjectsApp() {
       }
     }
   }, [currentActiveMatch, totalMatches, isSearchMode, flatMatchesList]);
+
+  const exitSearchOrFocusMode = () => {
+    const exitingFocusMode = isFocusModeRef.current;
+    const exitingFocusRootPath = focusRootPathRef.current;
+    const exitingFocusRootName = focusRootNameRef.current || getProjectNameByPath(exitingFocusRootPath);
+    const normalSnapshot = normalDirChildrenBeforeFocusRef.current;
+
+    setIsSearchMode(false);
+    setIsFocusMode(false);
+    setSearchTargetProject(null);
+    setFocusRootPath('');
+    setFocusRootName('');
+    setFolderSearchQuery('');
+    setFolderSearchResults([]);
+    setFileNameSearchResults([]);
+    setFolderSearchError('');
+    setIsSearchingFolder(false);
+    setCurrentActiveMatch(0);
+
+    if (!exitingFocusMode || !exitingFocusRootPath) {
+      normalDirChildrenBeforeFocusRef.current = {};
+      return;
+    }
+
+    setDirChildren((prev) => {
+      const next = { ...prev };
+
+      Object.keys(next).forEach((key) => {
+        if (isPathInside(key, exitingFocusRootPath)) {
+          delete next[key];
+        }
+      });
+
+      Object.keys(normalSnapshot).forEach((key) => {
+        next[key] = normalSnapshot[key];
+      });
+
+      return next;
+    });
+
+    const expandedList = Array.from(expandedPathsRef.current).filter((itemPath) =>
+      isPathInside(itemPath, exitingFocusRootPath)
+    );
+
+    const refreshList = expandedList.length > 0 ? expandedList : [exitingFocusRootPath];
+
+    setLoadingPaths((prev) => {
+      const next = new Set(prev);
+
+      refreshList.forEach((itemPath) => {
+        if (!normalSnapshot[itemPath]) {
+          next.add(itemPath);
+        }
+      });
+
+      return next;
+    });
+
+    refreshList.forEach((itemPath) => {
+      vscode.postMessage({
+        type: 'readDir',
+        fsPath: itemPath,
+        projectName: getProjectNameByPath(itemPath) || exitingFocusRootName || '当前项目',
+        forceRefresh: true,
+      });
+    });
+
+    normalDirChildrenBeforeFocusRef.current = {};
+  };
+
 
   const renderTreeChildren = (
     parentPath: string,
@@ -1143,17 +1252,7 @@ export default function RecentProjectsApp() {
               </div>
             ) : null
           }
-          onBack={() => {
-            setIsSearchMode(false);
-            setIsFocusMode(false);
-            setSearchTargetProject(null);
-            setFocusRootPath('');
-            setFocusRootName('');
-            setFolderSearchQuery('');
-            setFolderSearchResults([]);
-            setFileNameSearchResults([]);
-            setFolderSearchError('');
-          }}
+          onBack={exitSearchOrFocusMode}
           folderSearchQuery={folderSearchQuery}
           setFolderSearchQuery={setFolderSearchQuery}
           folderSearchType={folderSearchType}
