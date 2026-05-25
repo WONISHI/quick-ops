@@ -119,7 +119,7 @@ export class RecentProjectsFeature implements IFeature {
     });
 
     const refreshCmd = vscode.commands.registerCommand('quickOps.refreshRecentProjects', async () => {
-      provider.refresh();
+      provider.refresh(true);
       await provider.syncAllBranches();
     });
 
@@ -137,7 +137,7 @@ export class RecentProjectsFeature implements IFeature {
 
     // 窗口焦点变化自动刷新
     const windowFocusWatcher = vscode.window.onDidChangeWindowState((e) => {
-      if (e.focused) provider.refresh();
+      if (e.focused) provider.refresh(true);
     });
 
     // 将所有注册推入订阅池

@@ -1,56 +1,152 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 
 export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
-  public onDidChangeFileEmitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
-  public onDidChangeFile = this.onDidChangeFileEmitter.event;
+  private readonly changeEmitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
+  public readonly onDidChangeFile = this.changeEmitter.event;
 
-  private fileCache = new Map<string, Uint8Array>();
+  private readonly watchedDocuments = new Map<string, vscode.Disposable>();
+  private readonly debounceTimers = new Map<string, NodeJS.Timeout>();
 
-  watch(): vscode.Disposable {
-    return new vscode.Disposable(() => { });
+  public watch(uri: vscode.Uri): vscode.Disposable {
+    return this.watchReadonlyDocument(uri);
   }
 
-  async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
-    return {
-      type: vscode.FileType.File,
-      ctime: Date.now(),
-      mtime: Date.now(),
-      size: 0,
-      permissions: vscode.FilePermission.Readonly,
-    };
-  }
+  public watchReadonlyDocument(uri: vscode.Uri): vscode.Disposable {
+    const readonlyUri = this.normalizeReadonlyUri(uri);
+    const readonlyUriKey = readonlyUri.toString();
 
-  async readFile(uri: vscode.Uri): Promise<Uint8Array> {
-    try {
-      const targetQuery = uri.query.replace('target=', '');
-      const targetUriStr = decodeURIComponent(targetQuery);
+    const existing = this.watchedDocuments.get(readonlyUriKey);
+    if (existing) {
+      return new vscode.Disposable(() => undefined);
+    }
 
-      if (this.fileCache.has(targetUriStr)) {
-        return this.fileCache.get(targetUriStr)!;
+    const targetUri = this.getTargetUri(readonlyUri);
+
+    if (!targetUri || targetUri.scheme !== 'file') {
+      return new vscode.Disposable(() => undefined);
+    }
+
+    const nativePath = targetUri.fsPath;
+    const watcher = vscode.workspace.createFileSystemWatcher(
+      new vscode.RelativePattern(path.dirname(nativePath), path.basename(nativePath)),
+      false,
+      false,
+      false
+    );
+
+    const trigger = () => this.refresh(readonlyUri);
+
+    const subscriptions: vscode.Disposable[] = [
+      watcher,
+      watcher.onDidChange(trigger),
+      watcher.onDidCreate(trigger),
+      watcher.onDidDelete(trigger),
+    ];
+
+    const disposable = new vscode.Disposable(() => {
+      subscriptions.forEach((item) => item.dispose());
+      this.watchedDocuments.delete(readonlyUriKey);
+
+      const timer = this.debounceTimers.get(readonlyUriKey);
+      if (timer) {
+        clearTimeout(timer);
+        this.debounceTimers.delete(readonlyUriKey);
       }
+    });
 
-      const targetUri = vscode.Uri.parse(targetUriStr);
+    this.watchedDocuments.set(readonlyUriKey, disposable);
 
-      return await vscode.window.withProgress(
+    return new vscode.Disposable(() => undefined);
+  }
+
+  public refresh(uri: vscode.Uri) {
+    const readonlyUri = this.normalizeReadonlyUri(uri);
+    const readonlyUriKey = readonlyUri.toString();
+    const oldTimer = this.debounceTimers.get(readonlyUriKey);
+
+    if (oldTimer) {
+      clearTimeout(oldTimer);
+    }
+
+    const timer = setTimeout(() => {
+      this.debounceTimers.delete(readonlyUriKey);
+      this.changeEmitter.fire([
         {
-          location: vscode.ProgressLocation.Window,
-          title: '正在拉取远程文件内容...',
+          type: vscode.FileChangeType.Changed,
+          uri: readonlyUri,
         },
-        async () => {
-          const contentBytes = await vscode.workspace.fs.readFile(targetUri);
-          this.fileCache.set(targetUriStr, contentBytes);
-          return contentBytes;
-        }
-      );
-    } catch (e) {
-      return Buffer.from(`/* 无法读取该文件内容。可能是由于网络不佳或触发了 API 请求频率限制。\n   详情：${e} */`, 'utf8');
+      ]);
+    }, 80);
+
+    this.debounceTimers.set(readonlyUriKey, timer);
+  }
+
+  public refreshAllWatched() {
+    Array.from(this.watchedDocuments.keys()).forEach((uriStr) => {
+      this.refresh(vscode.Uri.parse(uriStr));
+    });
+  }
+
+  public async stat(uri: vscode.Uri): Promise<vscode.FileStat> {
+    const targetUri = this.getTargetUri(uri);
+
+    if (!targetUri) {
+      throw vscode.FileSystemError.FileNotFound(uri);
+    }
+
+    return vscode.workspace.fs.stat(targetUri);
+  }
+
+  public async readFile(uri: vscode.Uri): Promise<Uint8Array> {
+    const targetUri = this.getTargetUri(uri);
+
+    if (!targetUri) {
+      throw vscode.FileSystemError.FileNotFound(uri);
+    }
+
+    return vscode.workspace.fs.readFile(targetUri);
+  }
+
+  public readDirectory(): [string, vscode.FileType][] | Thenable<[string, vscode.FileType][]> {
+    return [];
+  }
+
+  public createDirectory(): void | Thenable<void> {
+    throw vscode.FileSystemError.NoPermissions('quickops-ro 是只读文件系统');
+  }
+
+  public writeFile(): void | Thenable<void> {
+    throw vscode.FileSystemError.NoPermissions('quickops-ro 是只读文件系统');
+  }
+
+  public delete(): void | Thenable<void> {
+    throw vscode.FileSystemError.NoPermissions('quickops-ro 是只读文件系统');
+  }
+
+  public rename(): void | Thenable<void> {
+    throw vscode.FileSystemError.NoPermissions('quickops-ro 是只读文件系统');
+  }
+
+  private normalizeReadonlyUri(uri: vscode.Uri): vscode.Uri {
+    if (uri.scheme === 'quickops-ro') {
+      return uri;
+    }
+
+    return vscode.Uri.parse(uri.toString());
+  }
+
+  private getTargetUri(uri: vscode.Uri): vscode.Uri | undefined {
+    const target = new URLSearchParams(uri.query).get('target');
+
+    if (!target) {
+      return undefined;
+    }
+
+    try {
+      return vscode.Uri.parse(target);
+    } catch {
+      return undefined;
     }
   }
-
-  // 以下为只读文件系统必须实现的占位方法，直接抛出无权限异常即可
-  readDirectory(): [string, vscode.FileType][] { return []; }
-  createDirectory() { throw vscode.FileSystemError.NoPermissions(); }
-  writeFile() { throw vscode.FileSystemError.NoPermissions(); }
-  delete() { throw vscode.FileSystemError.NoPermissions(); }
-  rename() { throw vscode.FileSystemError.NoPermissions(); }
 }

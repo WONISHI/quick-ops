@@ -20,7 +20,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private stateKey = 'quickOps.recentProjectsHistory';
   private lastOpenedPath: string = '';
-  private dirCache = new Map<string, any[]>();
+  private dirCache = new Map<string, { children: any[]; timestamp: number }>();
+  private readonly dirCacheTtl = 3000;
 
   private selectedForCompareUri?: vscode.Uri;
   private selectedForCompareName?: string;
@@ -400,8 +401,31 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     await vscode.commands.executeCommand('vscode.diff', this.selectedForCompareUri, currentUri, title);
   }
 
-  public refresh() {
+  public refresh(refreshExpandedTree: boolean = false) {
+    this.invalidateDirCache();
     this.updateWebview();
+
+    if (refreshExpandedTree) {
+      this._view?.webview.postMessage({
+        type: 'refreshExpandedDirs',
+      });
+    }
+  }
+
+  public invalidateDirCache(fsPath?: string) {
+    if (!fsPath) {
+      this.dirCache.clear();
+      return;
+    }
+
+    const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+    const uriStr = uri.toString();
+
+    for (const key of Array.from(this.dirCache.keys())) {
+      if (key.endsWith(uriStr) || key.includes(uriStr + '/')) {
+        this.dirCache.delete(key);
+      }
+    }
   }
 
   public async syncAllBranches() {
@@ -525,7 +549,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
 
         case 'refresh':
-          this.refresh();
+          this.refresh(true);
           if (this.currentActivePath) {
             this.setActivePath(this.currentActivePath);
           }
@@ -576,10 +600,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           this.switchRemoteBranch(data.fsPath);
           break;
         case 'readDir':
-          this.readDirectory(data.fsPath, data.projectName);
+          this.readDirectory(data.fsPath, data.projectName, false, !!data.forceRefresh);
           break;
         case 'readFocusDir':
-          this.readDirectory(data.fsPath, data.projectName, true);
+          this.readDirectory(data.fsPath, data.projectName, true, !!data.forceRefresh);
           break;
         case 'openFile':
           this.openFileReadOnly(data.fsPath, data.projectName || '未知项目');
@@ -1716,16 +1740,28 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async readDirectory(fsPath: string, projectName: string, focusOnly: boolean = false) {
+  private async readDirectory(
+    fsPath: string,
+    projectName: string,
+    focusOnly: boolean = false,
+    forceRefresh: boolean = false
+  ) {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const uriStr = uri.toString();
       const isRemote = uriStr.startsWith('vscode-vfs://') || uriStr.startsWith('http');
 
       const cacheKey = `${focusOnly ? 'focus:' : 'normal:'}${uriStr}`;
+      const cached = this.dirCache.get(cacheKey);
+      const now = Date.now();
 
-      if (this.dirCache.has(cacheKey)) {
-        this._view?.webview.postMessage({ type: 'readDirResult', fsPath: uriStr, children: this.dirCache.get(cacheKey), projectName });
+      if (!forceRefresh && cached && now - cached.timestamp <= this.dirCacheTtl) {
+        this._view?.webview.postMessage({
+          type: 'readDirResult',
+          fsPath: uriStr,
+          children: cached.children,
+          projectName
+        });
         return;
       }
 
@@ -1765,7 +1801,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           return a.isFolder ? -1 : 1;
         });
 
-      this.dirCache.set(cacheKey, children);
+      this.dirCache.set(cacheKey, {
+        children,
+        timestamp: now
+      });
 
       this._view?.webview.postMessage({ type: 'readDirResult', fsPath: uriStr, children, projectName });
     } catch (e) {

@@ -58,6 +58,24 @@ export default function RecentProjectsApp() {
     dirChildrenRef.current = dirChildren;
   }, [dirChildren]);
 
+  const expandedPathsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    expandedPathsRef.current = expandedPaths;
+  }, [expandedPaths]);
+
+  const projectsRef = useRef<Project[]>([]);
+
+  useEffect(() => {
+    projectsRef.current = projects;
+  }, [projects]);
+
+  const currentWorkspaceRef = useRef<Project | null>(null);
+
+  useEffect(() => {
+    currentWorkspaceRef.current = currentWorkspace;
+  }, [currentWorkspace]);
+
   const [branchMap, setBranchMap] = useState<Record<string, string>>({});
   const [contextMenu, setContextMenu] = useState<{
     visible: boolean;
@@ -87,6 +105,54 @@ export default function RecentProjectsApp() {
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [focusRootPath, setFocusRootPath] = useState('');
   const [focusRootName, setFocusRootName] = useState('');
+  const isFocusModeRef = useRef(false);
+  const focusRootPathRef = useRef('');
+  const focusRootNameRef = useRef('');
+
+  useEffect(() => {
+    isFocusModeRef.current = isFocusMode;
+  }, [isFocusMode]);
+
+  useEffect(() => {
+    focusRootPathRef.current = focusRootPath;
+  }, [focusRootPath]);
+
+  useEffect(() => {
+    focusRootNameRef.current = focusRootName;
+  }, [focusRootName]);
+
+  const getFallbackProjectName = (pathValue: string) => {
+    const clean = decodeURIComponent(pathValue.split('?')[0]).replace(/\\/g, '/');
+    const parts = clean.split('/').filter(Boolean);
+
+    return parts[parts.length - 1] || '未知项目';
+  };
+
+  const isPathInside = (childPath: string, parentPath: string) => {
+    if (!childPath || !parentPath) return false;
+
+    const child = childPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
+    const parent = parentPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
+    const parentWithSlash = parent.endsWith('/') ? parent : `${parent}/`;
+
+    return child === parent || child.startsWith(parentWithSlash);
+  };
+
+  const getProjectNameByPath = (pathValue: string) => {
+    if (isFocusModeRef.current && focusRootPathRef.current && isPathInside(pathValue, focusRootPathRef.current)) {
+      return focusRootNameRef.current || getFallbackProjectName(focusRootPathRef.current);
+    }
+
+    const currentWorkspaceValue = currentWorkspaceRef.current;
+
+    if (currentWorkspaceValue && isPathInside(pathValue, currentWorkspaceValue.fsPath)) {
+      return currentWorkspaceValue.customName || currentWorkspaceValue.name || getFallbackProjectName(currentWorkspaceValue.fsPath);
+    }
+
+    const project = projectsRef.current.find((item) => isPathInside(pathValue, item.fsPath));
+
+    return project?.customName || project?.name || getFallbackProjectName(pathValue);
+  };
 
   const { lineStartIndexMap, totalMatches, flatMatchesList } = useMemo(() => {
     const map = new Map<string, number>();
@@ -207,6 +273,41 @@ export default function RecentProjectsApp() {
           ...prev,
           [pathKey]: (msg.children as DirChild[]) || [],
         }));
+      } else if (msg.type === 'refreshExpandedDirs') {
+        const expandedList = Array.from(expandedPathsRef.current);
+
+        if (expandedList.length === 0) {
+          return;
+        }
+
+        setDirChildren((prev) => {
+          const next = { ...prev };
+
+          expandedList.forEach((itemPath) => {
+            delete next[itemPath];
+          });
+
+          return next;
+        });
+
+        setLoadingPaths((prev) => {
+          const next = new Set(prev);
+
+          expandedList.forEach((itemPath) => {
+            next.add(itemPath);
+          });
+
+          return next;
+        });
+
+        expandedList.forEach((itemPath) => {
+          vscode.postMessage({
+            type: isFocusModeRef.current ? 'readFocusDir' : 'readDir',
+            fsPath: itemPath,
+            projectName: getProjectNameByPath(itemPath),
+            forceRefresh: true,
+          });
+        });
       } else if (msg.type === 'searchFolderResult') {
         setIsSearchingFolder(false);
 
@@ -442,11 +543,12 @@ export default function RecentProjectsApp() {
     );
   };
 
-  const requestReadDir = (pathValue: string, projectName: string) => {
+  const requestReadDir = (pathValue: string, projectName: string, forceRefresh: boolean = false) => {
     vscode.postMessage({
       type: isFocusMode ? 'readFocusDir' : 'readDir',
       fsPath: pathValue,
       projectName,
+      forceRefresh,
     });
   };
 
@@ -539,12 +641,8 @@ export default function RecentProjectsApp() {
 
         if (isExpanding) {
           next.add(pathValue);
-
-          if (!dirChildrenRef.current[pathValue]) {
-            setLoadingPaths((l) => new Set(l).add(pathValue));
-
-            requestReadDir(pathValue, projectName);
-          }
+          setLoadingPaths((l) => new Set(l).add(pathValue));
+          requestReadDir(pathValue, projectName, true);
         } else {
           next.delete(pathValue);
         }
@@ -810,6 +908,7 @@ export default function RecentProjectsApp() {
           type: 'readFocusDir',
           fsPath: payload.path,
           projectName: title,
+          forceRefresh: true,
         });
         break;
       }
