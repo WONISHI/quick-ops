@@ -12,14 +12,16 @@ export class LocalProxyServer {
    *
    * 例如：
    *   https://www.antdv.com
-   *
-   * 当浏览器请求：
-   *   http://127.0.0.1:port/assets/index.js
-   *
-   * 没有 ?url= 时，就用 currentTargetOrigin 还原成：
-   *   https://www.antdv.com/assets/index.js
    */
   private currentTargetOrigin: string = '';
+
+  /**
+   * 当前页面地址。
+   *
+   * 例如：
+   *   https://www.antdv.com/components/overview-cn/
+   */
+  private currentPageUrl: string = '';
 
   /**
    * 精确路径映射：
@@ -53,7 +55,7 @@ export class LocalProxyServer {
       });
 
       this.server.listen(0, '127.0.0.1', () => {
-        const address = this.server?.address();
+        const address = this.server ? this.server.address() : null;
 
         if (!address || typeof address === 'string') {
           reject(new Error('Local proxy server address is invalid.'));
@@ -74,6 +76,7 @@ export class LocalProxyServer {
     this.port = 0;
 
     this.currentTargetOrigin = '';
+    this.currentPageUrl = '';
     this.routeTargetMap.clear();
     this.routeBaseMap.clear();
   }
@@ -114,6 +117,16 @@ export class LocalProxyServer {
       });
   }
 
+  private isLikelyPageUrl(targetUrl: URL): boolean {
+    const pathname = targetUrl.pathname.toLowerCase();
+
+    if (!pathname || pathname === '/') return true;
+
+    if (pathname.endsWith('/')) return true;
+
+    return !/\.[a-z0-9]+$/i.test(pathname);
+  }
+
   private rememberTargetRoute(targetUrlStr: string): void {
     try {
       const targetUrl = new URL(targetUrlStr);
@@ -124,6 +137,10 @@ export class LocalProxyServer {
 
       this.currentTargetOrigin = `${targetUrl.protocol}//${targetUrl.host}`;
 
+      if (this.isLikelyPageUrl(targetUrl)) {
+        this.currentPageUrl = targetUrl.href;
+      }
+
       const routePath = this.normalizeRoutePath(targetUrl.pathname || '/');
       const routeDir = this.getDirPath(routePath);
 
@@ -133,11 +150,12 @@ export class LocalProxyServer {
       /**
        * 根路径兜底。
        *
-       * 这对 VitePress / Umi / Webpack chunk 很重要。
+       * 注意：
+       * 这里仍然保留，因为很多站点资源就是从根路径加载。
+       * 但是动态 chunk 的 publicPath 会在 JS 内容里被修正，
+       * 避免浏览器直接访问：
        *
-       * 例如：
-       *   /assets/index.js
-       *   /6efcc5cd-async.js
+       *   http://127.0.0.1:port/vendors_xxx.js
        */
       this.routeBaseMap.set('/', `${targetUrl.protocol}//${targetUrl.host}/`);
 
@@ -187,15 +205,6 @@ export class LocalProxyServer {
       }
     }
 
-    /**
-     * 最后兜底：使用当前页面 origin 解析。
-     *
-     * 这一步解决 HTML 原样返回后，浏览器直接请求：
-     *
-     *   http://127.0.0.1:port/assets/index.js
-     *
-     * 的情况。
-     */
     if (this.currentTargetOrigin) {
       try {
         return new URL(routePath + reqUrl.search, `${this.currentTargetOrigin}/`).href;
@@ -287,9 +296,7 @@ export class LocalProxyServer {
     delete nextHeaders['strict-transport-security'];
 
     /**
-     * 注意：
-     * 这版 HTML 不改写，所以理论上 content-length 可以保留。
-     * 但为了避免某些站点返回压缩/转换后的长度不一致，这里仍删除。
+     * 内容可能会被代理修正，所以必须删除 content-length。
      */
     delete nextHeaders['content-length'];
 
@@ -315,6 +322,17 @@ export class LocalProxyServer {
     const contentType = String(headers['content-type'] || '').toLowerCase();
 
     return contentType.includes('text/html');
+  }
+
+  private isJavascriptResponse(headers: http.IncomingHttpHeaders): boolean {
+    const contentType = String(headers['content-type'] || '').toLowerCase();
+
+    return (
+      contentType.includes('javascript') ||
+      contentType.includes('ecmascript') ||
+      contentType.includes('application/x-javascript') ||
+      contentType.includes('text/js')
+    );
   }
 
   private isScriptLikeUrl(targetUrl: URL): boolean {
@@ -352,6 +370,143 @@ export class LocalProxyServer {
     proxyRes.on('error', onError);
   }
 
+  private createProxyPublicPath(publicPath: string, targetUrl: URL): string {
+    if (this.port <= 0) return publicPath;
+
+    try {
+      if (/^https?:\/\//i.test(publicPath)) {
+        return `http://127.0.0.1:${this.port}/?url=${encodeURIComponent(publicPath)}`;
+      }
+
+      if (publicPath.startsWith('//')) {
+        const protocolUrl = `${targetUrl.protocol}${publicPath}`;
+        return `http://127.0.0.1:${this.port}/?url=${encodeURIComponent(protocolUrl)}`;
+      }
+
+      if (publicPath.startsWith('/')) {
+        const absoluteUrl = new URL(publicPath, `${targetUrl.protocol}//${targetUrl.host}/`).href;
+        return `http://127.0.0.1:${this.port}/?url=${encodeURIComponent(absoluteUrl)}`;
+      }
+
+      const absoluteUrl = new URL(publicPath, targetUrl.href).href;
+
+      return `http://127.0.0.1:${this.port}/?url=${encodeURIComponent(absoluteUrl)}`;
+    } catch {
+      return publicPath;
+    }
+  }
+
+  private patchWebpackPublicPath(scriptText: string, targetUrl: URL): string {
+    let nextText = scriptText;
+
+    /**
+     * 修复 webpack / umi 动态 chunk publicPath。
+     *
+     * 原始代码常见形式：
+     *   o.p="/"
+     *   r.p="/"
+     *   __webpack_require__.p="/"
+     *
+     * 如果不修正，浏览器会请求：
+     *   http://127.0.0.1:port/vendors_2-async.xxx.js
+     *
+     * 代理可能会拿到 HTML fallback，导致：
+     *   Uncaught SyntaxError: Unexpected token '<'
+     */
+    nextText = nextText.replace(
+      /(\b[a-zA-Z_$][\w$]*\.p\s*=\s*)(["'])(\/[^"']*)\2/g,
+      (_match, prefix: string, quote: string, publicPath: string) => {
+        const proxyPublicPath = this.createProxyPublicPath(publicPath, targetUrl);
+
+        return `${prefix}${quote}${proxyPublicPath}${quote}`;
+      }
+    );
+
+    nextText = nextText.replace(
+      /(\b__webpack_require__\.p\s*=\s*)(["'])(\/[^"']*)\2/g,
+      (_match, prefix: string, quote: string, publicPath: string) => {
+        const proxyPublicPath = this.createProxyPublicPath(publicPath, targetUrl);
+
+        return `${prefix}${quote}${proxyPublicPath}${quote}`;
+      }
+    );
+
+    return nextText;
+  }
+
+  private shouldPatchJavascript(proxyRes: http.IncomingMessage, targetUrl: URL): boolean {
+    if (this.isScriptLikeUrl(targetUrl)) return true;
+
+    return this.isJavascriptResponse(proxyRes.headers);
+  }
+
+  private sendBufferedResponse(
+    req: http.IncomingMessage,
+    res: http.ServerResponse,
+    proxyRes: http.IncomingMessage,
+    targetUrl: URL,
+    patchedHeaders: http.OutgoingHttpHeaders
+  ): void {
+    const isHtml = this.isHtmlResponse(proxyRes.headers);
+    const isScript = this.shouldPatchJavascript(proxyRes, targetUrl);
+
+    /**
+     * JS 请求却拿到 HTML，说明资源路径被还原错了，
+     * 或目标站 fallback 到 index.html。
+     *
+     * 这里不能继续把 HTML 当 JS 返回，否则浏览器会报：
+     *   Unexpected token '<'
+     */
+    if (this.isScriptLikeUrl(targetUrl) && isHtml) {
+      console.warn('[QuickOps Proxy MIME Warning]', {
+        requestUrl: req.url,
+        targetUrl: targetUrl.href,
+        statusCode: proxyRes.statusCode,
+        contentType: proxyRes.headers['content-type'],
+        referer: req.headers.referer,
+        currentTargetOrigin: this.currentTargetOrigin,
+        currentPageUrl: this.currentPageUrl,
+      });
+    }
+
+    if (isHtml || this.isCssLikeUrl(targetUrl) || isScript) {
+      this.collectResponseBody(
+        proxyRes,
+        (body) => {
+          if (isScript && !isHtml) {
+            const charset = String(proxyRes.headers['content-type'] || '').toLowerCase().includes('charset=')
+              ? undefined
+              : '; charset=utf-8';
+
+            const text = body.toString('utf8');
+            const patchedText = this.patchWebpackPublicPath(text, targetUrl);
+
+            patchedHeaders['content-type'] = proxyRes.headers['content-type'] || `application/javascript${charset || ''}`;
+
+            res.writeHead(proxyRes.statusCode || 200, patchedHeaders);
+            res.end(patchedText);
+            return;
+          }
+
+          res.writeHead(proxyRes.statusCode || 200, patchedHeaders);
+          res.end(body);
+        },
+        (error) => {
+          res.writeHead(502, {
+            'content-type': 'text/plain; charset=utf-8',
+          });
+
+          res.end(`Proxy Read Failed: ${error.message}`);
+        }
+      );
+
+      return;
+    }
+
+    res.writeHead(proxyRes.statusCode || 200, patchedHeaders);
+    proxyRes.pipe(res);
+  }
+
   private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
     let targetUrlStr: string | null = null;
 
@@ -363,6 +518,7 @@ export class LocalProxyServer {
           requestUrl: req.url,
           referer: req.headers.referer,
           currentTargetOrigin: this.currentTargetOrigin,
+          currentPageUrl: this.currentPageUrl,
           knownRouteCount: this.routeTargetMap.size,
           knownBaseCount: this.routeBaseMap.size,
         });
@@ -388,8 +544,7 @@ export class LocalProxyServer {
       headers.host = targetUrl.host;
 
       /**
-       * HTML 原样返回，不再做文本改写。
-       * 但为了稳定，仍然禁用压缩，避免后续 header 不匹配。
+       * 禁用压缩，方便后续对 JS runtime 做 publicPath 修正。
        */
       headers['accept-encoding'] = 'identity';
 
@@ -440,49 +595,14 @@ export class LocalProxyServer {
           return;
         }
 
-        const isHtml = this.isHtmlResponse(proxyRes.headers);
-
         /**
-         * JS 请求却拿到 HTML，说明资源路径还是被还原错了，
-         * 或目标站 fallback 到 index.html。
+         * 如果当前响应是页面，记录当前页面地址。
          */
-        if (this.isScriptLikeUrl(targetUrl) && isHtml) {
-          console.warn('[QuickOps Proxy MIME Warning]', {
-            requestUrl: req.url,
-            targetUrl: targetUrl.href,
-            statusCode: proxyRes.statusCode,
-            contentType: proxyRes.headers['content-type'],
-            referer: req.headers.referer,
-            currentTargetOrigin: this.currentTargetOrigin,
-          });
+        if (this.isHtmlResponse(proxyRes.headers) && this.isLikelyPageUrl(targetUrl)) {
+          this.currentPageUrl = targetUrl.href;
         }
 
-        /**
-         * 这版不改写 HTML / CSS / JS 内容。
-         *
-         * 这样可以最大程度避免 Vue / VitePress SSR hydration DOM 不一致。
-         */
-        if (isHtml || this.isCssLikeUrl(targetUrl) || this.isScriptLikeUrl(targetUrl)) {
-          this.collectResponseBody(
-            proxyRes,
-            (body) => {
-              res.writeHead(proxyRes.statusCode || 200, patchedHeaders);
-              res.end(body);
-            },
-            (error) => {
-              res.writeHead(502, {
-                'content-type': 'text/plain; charset=utf-8',
-              });
-
-              res.end(`Proxy Read Failed: ${error.message}`);
-            }
-          );
-
-          return;
-        }
-
-        res.writeHead(proxyRes.statusCode || 200, patchedHeaders);
-        proxyRes.pipe(res);
+        this.sendBufferedResponse(req, res, proxyRes, targetUrl, patchedHeaders);
       });
 
       proxyReq.on('error', (error) => {
@@ -505,6 +625,7 @@ export class LocalProxyServer {
         requestUrl: req.url,
         targetUrl: targetUrlStr,
         currentTargetOrigin: this.currentTargetOrigin,
+        currentPageUrl: this.currentPageUrl,
         message,
       });
 
