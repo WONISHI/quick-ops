@@ -140,23 +140,36 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
         setFolderSearchError('');
     };
 
+    const handleBack = () => {
+        if (onBack) {
+            onBack();
+        } else {
+            setIsSearchMode(false);
+        }
+    };
+
     const handleToggleSearchType = () => {
         const newType = folderSearchType === 'content' ? 'name' : 'content';
         setFolderSearchType(newType);
         resetSearchData();
+        setCurrentActiveMatch(0);
     };
 
     const getSearchTargetTitle = () => {
-        if (searchTargetProject.projectName) {
-            return `${searchTargetProject.projectName} / ${searchTargetProject.name}`;
-        }
-
-        return (
+        const projectName = searchTargetProject.projectName || '';
+        const currentName = searchTargetProject.name || '';
+        const title =
             searchTargetProject.customName ||
             searchTargetProject.originalName ||
-            searchTargetProject.name ||
-            ''
-        );
+            currentName ||
+            projectName ||
+            '';
+
+        if (projectName && currentName && projectName !== currentName) {
+            return `${projectName} / ${currentName}`;
+        }
+
+        return title;
     };
 
     const getTargetProjectName = () => {
@@ -182,13 +195,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                     <div className={styles['search-header-title-box']}>
                         <button
                             className={`${styles['action-btn-icon']} ${styles['search-back-btn']}`}
-                            onClick={() => {
-                                if (onBack) {
-                                    onBack();
-                                } else {
-                                    setIsSearchMode(false);
-                                }
-                            }}
+                            onClick={handleBack}
                             title="返回项目列表"
                         >
                             <span className={`codicon codicon-arrow-left ${styles['search-back-icon']}`}></span>
@@ -198,26 +205,30 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                             className={styles['search-target-title']}
                             title={getSearchTargetTitle()}
                         >
-                            {searchTargetProject.projectName ? (
-                                <>
-                                    {searchTargetProject.projectName}
-                                    <span className={styles['search-target-subtitle']}>
-                                        / {searchTargetProject.name}
-                                    </span>
-                                    {focusMode && (
-                                        <span className={styles['search-target-subtitle']}> · 专注模式</span>
-                                    )}
-                                </>
-                            ) : (
-                                <>
-                                    {searchTargetProject.customName ||
-                                        searchTargetProject.originalName ||
-                                        searchTargetProject.name}
-                                    {focusMode && (
-                                        <span className={styles['search-target-subtitle']}> · 专注模式</span>
-                                    )}
-                                </>
-                            )}
+                            {(() => {
+                                const projectName = searchTargetProject.projectName || '';
+                                const currentName = searchTargetProject.name || '';
+                                const title =
+                                    searchTargetProject.customName ||
+                                    searchTargetProject.originalName ||
+                                    currentName ||
+                                    projectName;
+                                const shouldShowSubTitle = projectName && currentName && projectName !== currentName;
+
+                                return (
+                                    <>
+                                        {shouldShowSubTitle ? projectName : title}
+                                        {shouldShowSubTitle && (
+                                            <span className={styles['search-target-subtitle']}>
+                                                / {currentName}
+                                            </span>
+                                        )}
+                                        {focusMode && (
+                                            <span className={styles['search-target-subtitle']}> · 专注模式</span>
+                                        )}
+                                    </>
+                                );
+                            })()}
                         </span>
                     </div>
 
@@ -267,15 +278,32 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                         value={folderSearchQuery}
                         onChange={(e) => setFolderSearchQuery(e.target.value)}
                         onKeyDown={(e) => {
-                            if (e.key === 'Backspace' && folderSearchQuery === '') {
-                                if (onBack) {
-                                    onBack();
-                                } else {
-                                    setIsSearchMode(false);
-                                }
+                            const value = e.currentTarget.value;
+
+                            if ((e.key === 'Backspace' || e.key === 'Delete') && value === '') {
+                                e.preventDefault();
+                                handleBack();
                             }
                         }}
                     />
+
+                    {folderSearchQuery && (
+                        <button
+                            className={`${styles['action-btn-icon']} ${styles['search-clear-btn'] || ''}`}
+                            style={{
+                                marginLeft: 4,
+                                flex: '0 0 auto',
+                            }}
+                            onClick={() => {
+                                resetSearchData();
+                                setCurrentActiveMatch(0);
+                            }}
+                            title="清除搜索内容"
+                            type="button"
+                        >
+                            <span className="codicon codicon-close"></span>
+                        </button>
+                    )}
 
                     {folderSearchType === 'content' && (
                         <span className={styles['search-match-count']}>
