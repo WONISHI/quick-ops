@@ -1,68 +1,42 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
 
 export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
   private readonly changeEmitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
   public readonly onDidChangeFile = this.changeEmitter.event;
 
-  private readonly watchedDocuments = new Map<string, vscode.Disposable>();
+  private readonly refreshTargetEmitter = new vscode.EventEmitter<{
+    readonlyUri: vscode.Uri;
+    targetUri: vscode.Uri;
+    targetFsPath: string;
+  }>();
+
+  public readonly onDidRefreshReadonlyTarget = this.refreshTargetEmitter.event;
+
+  private readonly watchedDocuments = new Set<string>();
   private readonly debounceTimers = new Map<string, NodeJS.Timeout>();
 
   public watch(uri: vscode.Uri): vscode.Disposable {
-    return this.watchReadonlyDocument(uri);
-  }
-
-  public watchReadonlyDocument(uri: vscode.Uri): vscode.Disposable {
     const readonlyUri = this.normalizeReadonlyUri(uri);
     const readonlyUriKey = readonlyUri.toString();
 
-    const existing = this.watchedDocuments.get(readonlyUriKey);
-    if (existing) {
-      return new vscode.Disposable(() => undefined);
-    }
+    this.watchedDocuments.add(readonlyUriKey);
 
-    const targetUri = this.getTargetUri(readonlyUri);
-
-    if (!targetUri || targetUri.scheme !== 'file') {
-      return new vscode.Disposable(() => undefined);
-    }
-
-    const nativePath = targetUri.fsPath;
-    const watcher = vscode.workspace.createFileSystemWatcher(
-      new vscode.RelativePattern(path.dirname(nativePath), path.basename(nativePath)),
-      false,
-      false,
-      false
-    );
-
-    const trigger = () => this.refresh(readonlyUri);
-
-    const subscriptions: vscode.Disposable[] = [
-      watcher,
-      watcher.onDidChange(trigger),
-      watcher.onDidCreate(trigger),
-      watcher.onDidDelete(trigger),
-    ];
-
-    const disposable = new vscode.Disposable(() => {
-      subscriptions.forEach((item) => item.dispose());
+    return new vscode.Disposable(() => {
       this.watchedDocuments.delete(readonlyUriKey);
 
       const timer = this.debounceTimers.get(readonlyUriKey);
+
       if (timer) {
         clearTimeout(timer);
         this.debounceTimers.delete(readonlyUriKey);
       }
     });
-
-    this.watchedDocuments.set(readonlyUriKey, disposable);
-
-    return new vscode.Disposable(() => undefined);
   }
 
   public refresh(uri: vscode.Uri) {
     const readonlyUri = this.normalizeReadonlyUri(uri);
     const readonlyUriKey = readonlyUri.toString();
+    const targetUri = this.getTargetUri(readonlyUri);
     const oldTimer = this.debounceTimers.get(readonlyUriKey);
 
     if (oldTimer) {
@@ -71,19 +45,28 @@ export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
 
     const timer = setTimeout(() => {
       this.debounceTimers.delete(readonlyUriKey);
+
       this.changeEmitter.fire([
         {
           type: vscode.FileChangeType.Changed,
           uri: readonlyUri,
         },
       ]);
+
+      if (targetUri && targetUri.scheme === 'file') {
+        this.refreshTargetEmitter.fire({
+          readonlyUri,
+          targetUri,
+          targetFsPath: targetUri.fsPath,
+        });
+      }
     }, 80);
 
     this.debounceTimers.set(readonlyUriKey, timer);
   }
 
   public refreshAllWatched() {
-    Array.from(this.watchedDocuments.keys()).forEach((uriStr) => {
+    Array.from(this.watchedDocuments).forEach((uriStr) => {
       this.refresh(vscode.Uri.parse(uriStr));
     });
   }
@@ -126,6 +109,16 @@ export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
 
   public rename(): void | Thenable<void> {
     throw vscode.FileSystemError.NoPermissions('quickops-ro 是只读文件系统');
+  }
+
+  public dispose(): void {
+    this.watchedDocuments.clear();
+
+    Array.from(this.debounceTimers.values()).forEach((timer) => clearTimeout(timer));
+    this.debounceTimers.clear();
+
+    this.changeEmitter.dispose();
+    this.refreshTargetEmitter.dispose();
   }
 
   private normalizeReadonlyUri(uri: vscode.Uri): vscode.Uri {

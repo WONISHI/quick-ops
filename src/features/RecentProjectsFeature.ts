@@ -8,11 +8,44 @@ import { ReadOnlyFileSystemProvider } from '../providers/ReadOnlyFileSystemProvi
 export class RecentProjectsFeature implements IFeature {
   public readonly id = 'RecentProjectsFeature';
 
+  private refreshTimer: NodeJS.Timeout | undefined;
+
   public activate(context: vscode.ExtensionContext): void {
     const provider = new RecentProjectsProvider(context);
 
     const roProvider = new ReadOnlyFileSystemProvider();
     const roDocRegistration = vscode.workspace.registerFileSystemProvider('quickops-ro', roProvider, { isReadonly: true });
+
+    const requestRefresh = (refreshExpandedTree: boolean = true) => {
+      if (this.refreshTimer) {
+        clearTimeout(this.refreshTimer);
+      }
+
+      this.refreshTimer = setTimeout(() => {
+        this.refreshTimer = undefined;
+
+        provider.refresh(refreshExpandedTree);
+        roProvider.refreshAllWatched();
+
+        const currentActivePath = (provider as any).currentActivePath;
+
+        if (currentActivePath) {
+          (provider as any).setActivePath(currentActivePath);
+        }
+      }, 200);
+    };
+
+    const roTargetRefreshWatcher = roProvider.onDidRefreshReadonlyTarget(() => {
+      provider.refresh(true);
+    });
+
+    const saveDocumentWatcher = vscode.workspace.onDidSaveTextDocument((document) => {
+      if (document.uri.scheme !== 'file') {
+        return;
+      }
+
+      requestRefresh(true);
+    });
 
     // 注册 Webview 视图
     const webviewView = vscode.window.registerWebviewViewProvider('quickOps.recentProjectsView', provider, {
@@ -120,6 +153,7 @@ export class RecentProjectsFeature implements IFeature {
 
     const refreshCmd = vscode.commands.registerCommand('quickOps.refreshRecentProjects', async () => {
       provider.refresh(true);
+      roProvider.refreshAllWatched();
       await provider.syncAllBranches();
     });
 
@@ -135,13 +169,38 @@ export class RecentProjectsFeature implements IFeature {
       if (uri) provider.compareWithSelected(uri.toString());
     });
 
-    // 窗口焦点变化自动刷新
+    // 窗口焦点变化自动刷新，不使用 FileSystemWatcher
     const windowFocusWatcher = vscode.window.onDidChangeWindowState((e) => {
-      if (e.focused) provider.refresh(true);
+      if (e.focused) {
+        requestRefresh(true);
+      }
     });
 
     // 将所有注册推入订阅池
-    context.subscriptions.push(webviewView, roDocRegistration, revealCmd, addCmd, refreshCmd, syncCmd, windowFocusWatcher, clearCmd, selectForCompareCmd, compareWithSelectedCmd);
+    context.subscriptions.push(
+      webviewView,
+      roDocRegistration,
+      roTargetRefreshWatcher,
+      roProvider,
+      saveDocumentWatcher,
+      windowFocusWatcher,
+      revealCmd,
+      addCmd,
+      refreshCmd,
+      syncCmd,
+      clearCmd,
+      selectForCompareCmd,
+      compareWithSelectedCmd
+    );
+
+    context.subscriptions.push({
+      dispose: () => {
+        if (this.refreshTimer) {
+          clearTimeout(this.refreshTimer);
+          this.refreshTimer = undefined;
+        }
+      },
+    });
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
