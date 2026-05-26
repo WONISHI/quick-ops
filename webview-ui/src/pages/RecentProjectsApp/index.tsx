@@ -306,21 +306,13 @@ export default function RecentProjectsApp() {
           return;
         }
 
-        setDirChildren((prev) => {
-          const next = { ...prev };
-
-          expandedList.forEach((itemPath) => {
-            delete next[itemPath];
-          });
-
-          return next;
-        });
-
         setLoadingPaths((prev) => {
           const next = new Set(prev);
 
           expandedList.forEach((itemPath) => {
-            next.add(itemPath);
+            if (!dirChildrenRef.current[itemPath]) {
+              next.add(itemPath);
+            }
           });
 
           return next;
@@ -667,7 +659,11 @@ export default function RecentProjectsApp() {
 
         if (isExpanding) {
           next.add(pathValue);
-          setLoadingPaths((l) => new Set(l).add(pathValue));
+
+          if (!dirChildrenRef.current[pathValue]) {
+            setLoadingPaths((l) => new Set(l).add(pathValue));
+          }
+
           requestReadDir(pathValue, projectName, true);
         } else {
           next.delete(pathValue);
@@ -941,7 +937,15 @@ export default function RecentProjectsApp() {
           return next;
         });
 
-        setLoadingPaths((prev) => new Set(prev).add(payload.path));
+        setLoadingPaths((prev) => {
+          const next = new Set(prev);
+
+          if (!dirChildrenRef.current[payload.path]) {
+            next.add(payload.path);
+          }
+
+          return next;
+        });
 
         vscode.postMessage({
           type: 'readFocusDir',
@@ -1034,7 +1038,7 @@ export default function RecentProjectsApp() {
       const next = new Set(prev);
 
       refreshList.forEach((itemPath) => {
-        if (!normalSnapshot[itemPath]) {
+        if (!normalSnapshot[itemPath] && !dirChildrenRef.current[itemPath]) {
           next.add(itemPath);
         }
       });
@@ -1089,7 +1093,7 @@ export default function RecentProjectsApp() {
         {children.map((child) => {
           const childPath = child.path;
           const isExpanded = expandedPaths.has(childPath);
-          const childLoading = loadingPaths.has(childPath);
+          const childLoading = loadingPaths.has(childPath) && !dirChildren[childPath];
           const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
           const elementId = `tree-node-${encodeURIComponent(childPath)}`;
           const statusClassName = getFileStatusClassName(child.status);
@@ -1345,7 +1349,7 @@ export default function RecentProjectsApp() {
                     const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
                     const branch = branchMap[p.fsPath] || p.branch;
                     const isExpanded = expandedPaths.has(rootPath);
-                    const rootLoading = loadingPaths.has(rootPath);
+                    const rootLoading = loadingPaths.has(rootPath) && !dirChildren[rootPath];
                     const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
 
                     return (
@@ -1446,7 +1450,7 @@ export default function RecentProjectsApp() {
                     const displayPath = getDisplayPath(p);
                     const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
                     const isExpanded = expandedPaths.has(rootPath);
-                    const itemLoading = loadingPaths.has(rootPath);
+                    const itemLoading = loadingPaths.has(rootPath) && !dirChildren[rootPath];
                     const branch = branchMap[p.fsPath] || p.branch;
                     const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
 
