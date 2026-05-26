@@ -101,6 +101,15 @@ export class LocalProxyServer {
     return normalized.slice(0, index + 1);
   }
 
+  private getOrigin(targetUrl: URL): string {
+    return `${targetUrl.protocol}//${targetUrl.host}`;
+  }
+
+  private clearRouteCache(): void {
+    this.routeTargetMap.clear();
+    this.routeBaseMap.clear();
+  }
+
   private trimRouteCacheIfNeeded(): void {
     if (this.routeTargetMap.size <= this.MAX_ROUTE_CACHE_SIZE) return;
 
@@ -129,15 +138,6 @@ export class LocalProxyServer {
     return !/\.[a-z0-9]+$/i.test(pathname);
   }
 
-  private clearRouteCache(): void {
-    this.routeTargetMap.clear();
-    this.routeBaseMap.clear();
-  }
-
-  private getOrigin(targetUrl: URL): string {
-    return `${targetUrl.protocol}//${targetUrl.host}`;
-  }
-
   private rememberTargetRoute(targetUrlStr: string, options?: { isPage?: boolean }): void {
     try {
       const targetUrl = new URL(targetUrlStr);
@@ -147,14 +147,11 @@ export class LocalProxyServer {
       }
 
       const targetOrigin = this.getOrigin(targetUrl);
-      const isPage = options?.isPage === true || this.isLikelyPageUrl(targetUrl);
+      const isPage = options && options.isPage === true ? true : this.isLikelyPageUrl(targetUrl);
 
       /**
-       * 关键修复：
-       *
        * 只有页面主请求才能切换 currentTargetOrigin。
-       * 如果页面从 ant.design 切到 cn.bing.com，必须清空旧缓存，
-       * 否则 /rp/xxx.js 会继续命中旧的 ant.design 路径映射。
+       * 页面从 ant.design 切到 cn.bing.com 时，必须清空旧缓存。
        */
       if (isPage) {
         if (this.currentTargetOrigin && this.currentTargetOrigin !== targetOrigin) {
@@ -173,10 +170,7 @@ export class LocalProxyServer {
 
       /**
        * 根路径兜底只能由页面主请求设置。
-       *
-       * 不能让 JS/CSS/图片资源设置 /，
-       * 否则访问 r.bing.com、ant.design 这类资源后，
-       * 后续 /rp/xxx.css 就可能被错误解析到别的域名。
+       * 避免资源域名污染 / 映射。
        */
       if (isPage) {
         this.routeBaseMap.set('/', `${targetOrigin}/`);
@@ -185,6 +179,27 @@ export class LocalProxyServer {
       this.trimRouteCacheIfNeeded();
     } catch {
       // ignore
+    }
+  }
+
+  private resolveTargetByReferer(req: http.IncomingMessage): string | null {
+    const referer = req.headers.referer || req.headers.referrer;
+
+    if (!referer || Array.isArray(referer)) {
+      return null;
+    }
+
+    try {
+      const refUrl = new URL(referer);
+      const parentTarget = refUrl.searchParams.get('url');
+
+      if (!parentTarget) {
+        return null;
+      }
+
+      return new URL(req.url || '/', parentTarget).href;
+    } catch {
+      return null;
     }
   }
 
@@ -197,13 +212,6 @@ export class LocalProxyServer {
       try {
         const url = new URL(exactTarget);
 
-        /**
-         * 如果精确缓存属于旧页面 origin，直接丢弃。
-         *
-         * 例如：
-         *   当前页面是 cn.bing.com
-         *   旧缓存里还有 /rp/xxx.js => https://ant.design/rp/xxx.js
-         */
         if (this.currentTargetOrigin && this.getOrigin(url) !== this.currentTargetOrigin) {
           this.routeTargetMap.delete(routePath);
         } else {
@@ -232,11 +240,6 @@ export class LocalProxyServer {
       try {
         const baseUrl = new URL(baseTarget);
 
-        /**
-         * 根路径映射必须跟当前页面 origin 一致。
-         * 其他更具体的资源目录可以保留，例如：
-         *   /rs/ => https://r.bing.com/rs/
-         */
         if (prefix === '/' && this.currentTargetOrigin && this.getOrigin(baseUrl) !== this.currentTargetOrigin) {
           this.routeBaseMap.delete(prefix);
           continue;
@@ -268,7 +271,7 @@ export class LocalProxyServer {
     /**
      * 标准入口：
      *
-     * /?url=https://cn.bing.com/search?q=baidu
+     * /?url=https://cn.bing.com/
      */
     const directTarget = reqUrl.searchParams.get('url');
 
@@ -282,12 +285,29 @@ export class LocalProxyServer {
     }
 
     /**
-     * 无 ?url= 的资源请求：
+     * 优先使用 referer 里的真实页面地址。
      *
-     * /assets/index.js
-     * /assets/style.css
-     * /rp/xxx.css
+     * 这样：
+     *   http://127.0.0.1:port/hp/api/v1/carousel
+     *
+     * 会根据 referer:
+     *   http://127.0.0.1:port/?url=https://cn.bing.com/
+     *
+     * 还原成：
+     *   https://cn.bing.com/hp/api/v1/carousel
      */
+    const refererTarget = this.resolveTargetByReferer(req);
+
+    if (refererTarget) {
+      const targetUrl = new URL(refererTarget);
+
+      this.rememberTargetRoute(refererTarget, {
+        isPage: this.isLikelyPageUrl(targetUrl),
+      });
+
+      return refererTarget;
+    }
+
     const knownRouteTarget = this.resolveTargetByKnownRoute(reqUrl);
 
     if (knownRouteTarget) {
@@ -300,38 +320,22 @@ export class LocalProxyServer {
       return knownRouteTarget;
     }
 
-    /**
-     * referer 兜底。
-     */
-    const referer = req.headers.referer || req.headers.referrer;
+    if (this.currentTargetOrigin) {
+      try {
+        const resolved = new URL(req.url || '/', `${this.currentTargetOrigin}/`).href;
+        const resolvedUrl = new URL(resolved);
 
-    if (!referer || Array.isArray(referer)) {
-      return null;
-    }
+        this.rememberTargetRoute(resolved, {
+          isPage: this.isLikelyPageUrl(resolvedUrl),
+        });
 
-    try {
-      const refUrl = new URL(referer);
-      const parentTarget = refUrl.searchParams.get('url');
-
-      if (!parentTarget) {
-        if (this.currentTargetOrigin) {
-          return new URL(req.url || '/', `${this.currentTargetOrigin}/`).href;
-        }
-
+        return resolved;
+      } catch {
         return null;
       }
-
-      const resolved = new URL(req.url || '/', parentTarget).href;
-      const resolvedUrl = new URL(resolved);
-
-      this.rememberTargetRoute(resolved, {
-        isPage: this.isLikelyPageUrl(resolvedUrl),
-      });
-
-      return resolved;
-    } catch {
-      return null;
     }
+
+    return null;
   }
 
   private rewriteCookieHeader(cookie: string): string {
@@ -345,23 +349,20 @@ export class LocalProxyServer {
   private patchResponseHeaders(headers: http.IncomingHttpHeaders): http.OutgoingHttpHeaders {
     const nextHeaders: http.OutgoingHttpHeaders = { ...headers };
 
-    /**
-     * 允许 iframe 加载。
-     */
     delete nextHeaders['x-frame-options'];
     delete nextHeaders['content-security-policy'];
     delete nextHeaders['content-security-policy-report-only'];
     delete nextHeaders['strict-transport-security'];
 
-    /**
-     * 内容可能会被代理修正，所以必须删除 content-length。
-     */
     delete nextHeaders['content-length'];
+    delete nextHeaders['content-encoding'];
 
     /**
-     * 上游请求会设置 accept-encoding: identity。
+     * 统一让代理资源允许被当前页面访问。
      */
-    delete nextHeaders['content-encoding'];
+    nextHeaders['access-control-allow-origin'] = '*';
+    nextHeaders['access-control-allow-methods'] = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
+    nextHeaders['access-control-allow-headers'] = '*';
 
     const setCookie = nextHeaders['set-cookie'];
 
@@ -436,6 +437,54 @@ export class LocalProxyServer {
       .replace(/<\/script>/gi, '<\\/script>');
   }
 
+  private createProxyUrl(rawUrl: string, baseUrl: string): string {
+    if (this.port <= 0) return rawUrl;
+
+    try {
+      if (!rawUrl) return rawUrl;
+
+      if (/^(javascript|mailto|tel|data|blob):/i.test(rawUrl)) {
+        return rawUrl;
+      }
+
+      if (rawUrl.startsWith('#')) {
+        return rawUrl;
+      }
+
+      const proxyOrigin = `http://127.0.0.1:${this.port}`;
+
+      if (rawUrl.startsWith(`${proxyOrigin}/`)) {
+        return rawUrl;
+      }
+
+      const absoluteUrl = new URL(rawUrl, baseUrl).href;
+
+      return `${proxyOrigin}/?url=${encodeURIComponent(absoluteUrl)}`;
+    } catch {
+      return rawUrl;
+    }
+  }
+
+  private rewriteHtmlResourceUrls(html: string, targetUrl: URL): string {
+    const baseUrl = targetUrl.href;
+
+    return html.replace(
+      /\s(src|href|action)=("([^"]*)"|'([^']*)')/gi,
+      (_match: string, attrName: string, wrappedValue: string, doubleValue: string, singleValue: string) => {
+        const rawValue = typeof doubleValue === 'string' ? doubleValue : singleValue;
+
+        if (!rawValue) {
+          return ` ${attrName}=${wrappedValue}`;
+        }
+
+        const nextValue = this.createProxyUrl(rawValue, baseUrl);
+        const quote = wrappedValue.startsWith("'") ? "'" : '"';
+
+        return ` ${attrName}=${quote}${nextValue}${quote}`;
+      }
+    );
+  }
+
   private injectNavigationPatch(html: string): string {
     if (!html) return html;
 
@@ -450,6 +499,17 @@ export class LocalProxyServer {
 <script data-quick-ops-navigation-patch="true">
 (function () {
   var proxyOrigin = \`${escapedProxyOrigin}\`;
+
+  function getRealPageUrl() {
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var realUrl = params.get('url');
+
+      if (realUrl) return realUrl;
+    } catch (e) {}
+
+    return window.location.href;
+  }
 
   function isSpecialUrl(url) {
     return !url ||
@@ -467,7 +527,7 @@ export class LocalProxyServer {
 
   function normalizeUrl(url) {
     try {
-      return new URL(url, window.location.href).href;
+      return new URL(url, getRealPageUrl()).href;
     } catch (e) {
       return url;
     }
@@ -485,59 +545,51 @@ export class LocalProxyServer {
     return proxyOrigin + '/?url=' + encodeURIComponent(absoluteUrl);
   }
 
-  function patchAnchor(anchor) {
-    if (!anchor || !anchor.getAttribute) return;
+  function shouldPatchAttr(attrName) {
+    return attrName === 'src' || attrName === 'href' || attrName === 'action';
+  }
 
-    var href = anchor.getAttribute('href');
+  function patchElementAttr(element, attrName) {
+    if (!element || !element.getAttribute || !shouldPatchAttr(attrName)) return;
 
-    if (!href || isSpecialUrl(href)) return;
+    var value = element.getAttribute(attrName);
 
-    var absoluteUrl = normalizeUrl(href);
+    if (!value || isSpecialUrl(value)) return;
 
-    if (!absoluteUrl || isProxyUrl(absoluteUrl)) return;
+    var nextValue = toProxyUrl(value);
 
-    anchor.setAttribute('data-quick-ops-raw-href', absoluteUrl);
-    anchor.setAttribute('href', toProxyUrl(absoluteUrl));
-
-    var target = anchor.getAttribute('target');
-
-    if (target && target.toLowerCase() === '_blank') {
-      anchor.setAttribute('target', '_self');
+    if (nextValue && value !== nextValue) {
+      element.setAttribute('data-quick-ops-raw-' + attrName, normalizeUrl(value));
+      element.setAttribute(attrName, nextValue);
     }
   }
 
-  function patchForm(form) {
-    if (!form || !form.getAttribute) return;
+  function patchElement(element) {
+    if (!element || !element.getAttribute) return;
 
-    var action = form.getAttribute('action') || window.location.href;
+    patchElementAttr(element, 'src');
+    patchElementAttr(element, 'href');
+    patchElementAttr(element, 'action');
 
-    if (!action || isSpecialUrl(action)) return;
-
-    var absoluteUrl = normalizeUrl(action);
-
-    if (!absoluteUrl || isProxyUrl(absoluteUrl)) return;
-
-    form.setAttribute('data-quick-ops-raw-action', absoluteUrl);
-    form.setAttribute('action', toProxyUrl(absoluteUrl));
-
-    var target = form.getAttribute('target');
+    var target = element.getAttribute('target');
 
     if (target && target.toLowerCase() === '_blank') {
-      form.setAttribute('target', '_self');
+      element.setAttribute('target', '_self');
     }
   }
 
-  function patchStaticLinks() {
-    var anchors = document.querySelectorAll('a[href]');
-
-    for (var i = 0; i < anchors.length; i++) {
-      patchAnchor(anchors[i]);
+  function patchTree(root) {
+    if (!root || !root.querySelectorAll) {
+      patchElement(root);
+      return;
     }
 
-    var forms = document.querySelectorAll('form');
+    patchElement(root);
 
-    for (var j = 0; j < forms.length; j++) {
-      patchForm(forms[j]);
+    var nodes = root.querySelectorAll('[src],[href],[action]');
+
+    for (var i = 0; i < nodes.length; i++) {
+      patchElement(nodes[i]);
     }
   }
 
@@ -551,6 +603,82 @@ export class LocalProxyServer {
     window.location.href = toProxyUrl(String(url));
 
     return null;
+  };
+
+  if (window.fetch) {
+    var rawFetch = window.fetch;
+
+    window.fetch = function (input, init) {
+      try {
+        if (typeof input === 'string') {
+          input = toProxyUrl(input);
+        } else if (input && input.url) {
+          input = new Request(toProxyUrl(input.url), input);
+        }
+      } catch (e) {}
+
+      return rawFetch.call(this, input, init);
+    };
+  }
+
+  if (window.XMLHttpRequest) {
+    var rawOpenXHR = window.XMLHttpRequest.prototype.open;
+
+    window.XMLHttpRequest.prototype.open = function (method, url) {
+      if (url && typeof url === 'string' && !isSpecialUrl(url)) {
+        arguments[1] = toProxyUrl(url);
+      }
+
+      return rawOpenXHR.apply(this, arguments);
+    };
+  }
+
+  var rawSetAttribute = Element.prototype.setAttribute;
+
+  Element.prototype.setAttribute = function (name, value) {
+    if (name && value && shouldPatchAttr(String(name).toLowerCase()) && !isSpecialUrl(String(value))) {
+      value = toProxyUrl(String(value));
+    }
+
+    return rawSetAttribute.call(this, name, value);
+  };
+
+  var scriptSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src');
+
+  if (scriptSrcDescriptor && scriptSrcDescriptor.set) {
+    Object.defineProperty(HTMLScriptElement.prototype, 'src', {
+      get: scriptSrcDescriptor.get,
+      set: function (value) {
+        return scriptSrcDescriptor.set.call(this, toProxyUrl(String(value || '')));
+      }
+    });
+  }
+
+  var linkHrefDescriptor = Object.getOwnPropertyDescriptor(HTMLLinkElement.prototype, 'href');
+
+  if (linkHrefDescriptor && linkHrefDescriptor.set) {
+    Object.defineProperty(HTMLLinkElement.prototype, 'href', {
+      get: linkHrefDescriptor.get,
+      set: function (value) {
+        return linkHrefDescriptor.set.call(this, toProxyUrl(String(value || '')));
+      }
+    });
+  }
+
+  var rawAppendChild = Node.prototype.appendChild;
+
+  Node.prototype.appendChild = function (node) {
+    patchTree(node);
+
+    return rawAppendChild.call(this, node);
+  };
+
+  var rawInsertBefore = Node.prototype.insertBefore;
+
+  Node.prototype.insertBefore = function (node, referenceNode) {
+    patchTree(node);
+
+    return rawInsertBefore.call(this, node, referenceNode);
   };
 
   document.addEventListener('click', function (event) {
@@ -569,9 +697,7 @@ export class LocalProxyServer {
 
     var nextUrl = toProxyUrl(href);
 
-    if (target.getAttribute('href') !== nextUrl) {
-      target.setAttribute('href', nextUrl);
-    }
+    target.setAttribute('href', nextUrl);
 
     var targetAttr = target.getAttribute('target');
 
@@ -592,12 +718,12 @@ export class LocalProxyServer {
 
     var method = (form.getAttribute('method') || 'get').toLowerCase();
     var rawAction = form.getAttribute('data-quick-ops-raw-action');
-    var action = rawAction || form.getAttribute('action') || window.location.href;
+    var action = rawAction || form.getAttribute('action') || getRealPageUrl();
 
     if (!action || isSpecialUrl(action)) return;
 
     if (method !== 'get') {
-      patchForm(form);
+      form.setAttribute('action', toProxyUrl(action));
       return;
     }
 
@@ -623,7 +749,7 @@ export class LocalProxyServer {
   }, true);
 
   document.addEventListener('DOMContentLoaded', function () {
-    patchStaticLinks();
+    patchTree(document.documentElement);
 
     var observer = new MutationObserver(function (mutations) {
       for (var i = 0; i < mutations.length; i++) {
@@ -634,23 +760,7 @@ export class LocalProxyServer {
 
           if (!node || node.nodeType !== 1) continue;
 
-          if (node.tagName === 'A') {
-            patchAnchor(node);
-          } else if (node.tagName === 'FORM') {
-            patchForm(node);
-          } else if (node.querySelectorAll) {
-            var anchors = node.querySelectorAll('a[href]');
-
-            for (var a = 0; a < anchors.length; a++) {
-              patchAnchor(anchors[a]);
-            }
-
-            var forms = node.querySelectorAll('form');
-
-            for (var f = 0; f < forms.length; f++) {
-              patchForm(forms[f]);
-            }
-          }
+          patchTree(node);
         }
       }
     });
@@ -661,7 +771,7 @@ export class LocalProxyServer {
     });
   });
 
-  patchStaticLinks();
+  patchTree(document.documentElement);
 })();
 </script>
 `;
@@ -733,6 +843,37 @@ export class LocalProxyServer {
     return this.isJavascriptResponse(proxyRes.headers);
   }
 
+  private safeWriteHead(res: http.ServerResponse, statusCode: number, headers?: http.OutgoingHttpHeaders): boolean {
+    if (res.headersSent || res.writableEnded || res.destroyed) {
+      return false;
+    }
+
+    res.writeHead(statusCode, headers);
+
+    return true;
+  }
+
+  private safeEnd(res: http.ServerResponse, body?: string | Buffer): void {
+    if (res.writableEnded || res.destroyed) {
+      return;
+    }
+
+    res.end(body);
+  }
+
+  private safeSend(
+    res: http.ServerResponse,
+    statusCode: number,
+    headers: http.OutgoingHttpHeaders,
+    body?: string | Buffer
+  ): void {
+    if (!this.safeWriteHead(res, statusCode, headers)) {
+      return;
+    }
+
+    this.safeEnd(res, body);
+  }
+
   private sendBufferedResponse(
     req: http.IncomingMessage,
     res: http.ServerResponse,
@@ -742,6 +883,7 @@ export class LocalProxyServer {
   ): void {
     const isHtml = this.isHtmlResponse(proxyRes.headers);
     const isScript = this.shouldPatchJavascript(proxyRes, targetUrl);
+    const isCss = this.isCssLikeUrl(targetUrl);
 
     if (this.isScriptLikeUrl(targetUrl) && isHtml) {
       console.warn('[QuickOps Proxy MIME Warning]', {
@@ -755,18 +897,20 @@ export class LocalProxyServer {
       });
     }
 
-    if (isHtml || this.isCssLikeUrl(targetUrl) || isScript) {
+    if (isHtml || isCss || isScript) {
       this.collectResponseBody(
         proxyRes,
         (body) => {
+          if (res.writableEnded || res.destroyed) return;
+
           if (isHtml) {
             const html = body.toString('utf8');
-            const patchedHtml = this.injectNavigationPatch(html);
+            const rewrittenHtml = this.rewriteHtmlResourceUrls(html, targetUrl);
+            const patchedHtml = this.injectNavigationPatch(rewrittenHtml);
 
             patchedHeaders['content-type'] = proxyRes.headers['content-type'] || 'text/html; charset=utf-8';
 
-            res.writeHead(proxyRes.statusCode || 200, patchedHeaders);
-            res.end(patchedHtml);
+            this.safeSend(res, proxyRes.statusCode || 200, patchedHeaders, patchedHtml);
             return;
           }
 
@@ -780,27 +924,32 @@ export class LocalProxyServer {
 
             patchedHeaders['content-type'] = proxyRes.headers['content-type'] || `application/javascript${charset || ''}`;
 
-            res.writeHead(proxyRes.statusCode || 200, patchedHeaders);
-            res.end(patchedText);
+            this.safeSend(res, proxyRes.statusCode || 200, patchedHeaders, patchedText);
             return;
           }
 
-          res.writeHead(proxyRes.statusCode || 200, patchedHeaders);
-          res.end(body);
+          this.safeSend(res, proxyRes.statusCode || 200, patchedHeaders, body);
         },
         (error) => {
-          res.writeHead(502, {
-            'content-type': 'text/plain; charset=utf-8',
-          });
-
-          res.end(`Proxy Read Failed: ${error.message}`);
+          this.safeSend(
+            res,
+            502,
+            {
+              'content-type': 'text/plain; charset=utf-8',
+            },
+            `Proxy Read Failed: ${error.message}`
+          );
         }
       );
 
       return;
     }
 
-    res.writeHead(proxyRes.statusCode || 200, patchedHeaders);
+    if (!this.safeWriteHead(res, proxyRes.statusCode || 200, patchedHeaders)) {
+      proxyRes.resume();
+      return;
+    }
+
     proxyRes.pipe(res);
   }
 
@@ -842,10 +991,28 @@ export class LocalProxyServer {
     return headers;
   }
 
+  private handleOptionsRequest(res: http.ServerResponse): void {
+    this.safeSend(
+      res,
+      204,
+      {
+        'access-control-allow-origin': '*',
+        'access-control-allow-methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+        'access-control-allow-headers': '*',
+      },
+      ''
+    );
+  }
+
   private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
     let targetUrlStr: string | null = null;
 
     try {
+      if (req.method === 'OPTIONS') {
+        this.handleOptionsRequest(res);
+        return;
+      }
+
       targetUrlStr = this.resolveTargetUrl(req);
 
       if (!targetUrlStr) {
@@ -858,11 +1025,14 @@ export class LocalProxyServer {
           knownBaseCount: this.routeBaseMap.size,
         });
 
-        res.writeHead(400, {
-          'content-type': 'text/plain; charset=utf-8',
-        });
-
-        res.end('Missing target URL');
+        this.safeSend(
+          res,
+          400,
+          {
+            'content-type': 'text/plain; charset=utf-8',
+          },
+          'Missing target URL'
+        );
         return;
       }
 
@@ -880,8 +1050,12 @@ export class LocalProxyServer {
       };
 
       const proxyReq = requestModule.request(options, (proxyRes) => {
-        const patchedHeaders = this.patchResponseHeaders(proxyRes.headers);
+        if (res.writableEnded || res.destroyed) {
+          proxyRes.resume();
+          return;
+        }
 
+        const patchedHeaders = this.patchResponseHeaders(proxyRes.headers);
         const location = proxyRes.headers.location;
 
         if (location) {
@@ -893,8 +1067,8 @@ export class LocalProxyServer {
 
           patchedHeaders.location = `/?url=${encodeURIComponent(redirectUrl)}`;
 
-          res.writeHead(proxyRes.statusCode || 302, patchedHeaders);
-          res.end();
+          this.safeSend(res, proxyRes.statusCode || 302, patchedHeaders, '');
+          proxyRes.resume();
           return;
         }
 
@@ -906,11 +1080,28 @@ export class LocalProxyServer {
       });
 
       proxyReq.on('error', (error) => {
-        res.writeHead(502, {
-          'content-type': 'text/plain; charset=utf-8',
-        });
+        if (res.headersSent || res.writableEnded || res.destroyed) {
+          return;
+        }
 
-        res.end(`Proxy Request Failed: ${error.message}`);
+        this.safeSend(
+          res,
+          502,
+          {
+            'content-type': 'text/plain; charset=utf-8',
+          },
+          `Proxy Request Failed: ${error.message}`
+        );
+      });
+
+      req.on('aborted', () => {
+        proxyReq.destroy();
+      });
+
+      res.on('close', () => {
+        if (!res.writableEnded) {
+          proxyReq.destroy();
+        }
       });
 
       if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
@@ -929,11 +1120,14 @@ export class LocalProxyServer {
         message,
       });
 
-      res.writeHead(500, {
-        'content-type': 'text/plain; charset=utf-8',
-      });
-
-      res.end(`Proxy Internal Error: ${message}`);
+      this.safeSend(
+        res,
+        500,
+        {
+          'content-type': 'text/plain; charset=utf-8',
+        },
+        `Proxy Internal Error: ${message}`
+      );
     }
   }
 }
