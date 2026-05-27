@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { vscode } from '../../utils/vscode';
-import { escapeRegExp } from '../../utils';
 import UrlParser from '../../utils/UrlParser';
 import styles from './index.module.css';
 
@@ -35,6 +34,7 @@ import PreviewError from '../../components/PreviewError';
 import WelcomePage from '../../components/WelcomePage';
 import FavoriteModal from '../../components/FavoriteModal';
 import HistoryModal from '../../components/HistoryModal';
+import SuggestBox from '../../components/SuggestBox';
 
 interface FavoriteItem {
   url: string;
@@ -116,7 +116,7 @@ export default function LivePreviewApp() {
   useEffect(() => {
     if (previewLoading) {
       setShowProgress(true);
-      setLoadingProgress(15); // 起步 15%
+      setLoadingProgress(15); 
 
       if (progressTimerRef.current) window.clearInterval(progressTimerRef.current);
 
@@ -413,7 +413,7 @@ export default function LivePreviewApp() {
     setIsPageLoaded(true);
 
     clearPreviewLoadTimer();
-    setPreviewLoading(false); // 这里触发 false，上方的 useEffect 就会自动把进度条拉满然后隐藏
+    setPreviewLoading(false); 
     setPreviewError(null);
 
     if (!iframeRef.current || historyIdx < 0 || previewType !== 'web') return;
@@ -675,24 +675,6 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'toggleFavorite', url: frameUrl, title, logo });
   };
 
-  const renderHighlighted = (text: string) => {
-    const query = urlInput.trim();
-
-    if (!query) return text;
-
-    const parts = text.split(new RegExp(`(${escapeRegExp(query)})`, 'gi'));
-
-    return parts.map((part, i) =>
-      part.toLowerCase() === query.toLowerCase() ? (
-        <span key={i} className={styles['highlight-match']}>
-          {part}
-        </span>
-      ) : (
-        part
-      )
-    );
-  };
-
   const openContextMenu = () => {
     if (!moreBtnRef.current) return;
 
@@ -933,45 +915,15 @@ export default function LivePreviewApp() {
             <FontAwesomeIcon icon={isFav ? faStarSolid : faStarRegular} />
           </button>
 
-          {showSuggest && suggestions.length > 0 && (
-            <div className={styles['suggest-box']} ref={suggestBoxRef}>
-              {suggestions.map((item, index) => (
-                <div
-                  key={`${item.url}-${index}`}
-                  className={`${styles['suggest-item']} ${index === suggestIndex ? styles['selected'] : ''}`}
-                  onMouseEnter={() => setSuggestIndex(index)}
-                  onClick={() => {
-                    handleGo(item.url);
-                  }}
-                >
-                  <div className={styles['suggest-logo-wrap']}>
-                    {item.logo ? (
-                      <img
-                        className={styles['suggest-logo']}
-                        src={item.logo}
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                        }}
-                      />
-                    ) : (
-                      <FontAwesomeIcon icon={faGlobe} className={styles['suggest-logo-placeholder']} />
-                    )}
-                  </div>
-
-                  <div className={styles['suggest-content']}>
-                    <div className={styles['suggest-title-row']}>
-                      <div className={styles['suggest-title']}>{renderHighlighted(item.title)}</div>
-                      {item.isDefault && <span className={styles['suggest-default-tag']}>默认</span>}
-                    </div>
-
-                    {item.description && <div className={styles['suggest-description']}>{renderHighlighted(item.description)}</div>}
-
-                    <div className={styles['suggest-url']}>{renderHighlighted(item.url)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <SuggestBox
+            ref={suggestBoxRef}
+            visible={showSuggest}
+            suggestions={suggestions}
+            selectedIndex={suggestIndex}
+            query={urlInput}
+            onHover={(index:any) => setSuggestIndex(index)}
+            onSelect={(url:any) => handleGo(url)}
+          />
         </div>
 
         <button className={styles['icon-btn']} onClick={() => handleGo()} title="访问 / 搜索">
