@@ -1,0 +1,68 @@
+/* ==================== 右键 / 更多菜单 ==================== */
+
+.context-menu {
+  position: absolute;
+  z-index: 9999;
+  background: var(--menu-bg);
+  border: 1px solid var(--menu-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  padding: 4px 0;
+  min-width: 180px;
+}
+
+.menu-item {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--menu-fg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-item:hover {
+  background: var(--menu-hover-bg);
+  color: var(--menu-hover-fg);
+}
+
+.menu-divider {
+  height: 1px;
+  background: var(--menu-border);
+  margin: 4px 0;
+}
+
+.has-submenu {
+  position: relative;
+}
+
+.submenu {
+  position: absolute;
+  right: 100%;
+  top: -5px;
+  background: var(--menu-bg);
+  border: 1px solid var(--menu-border);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  padding: 4px 0;
+  min-width: 170px;
+  margin-right: 4px;
+}
+
+.menu-icon {
+  width: 16px !important;
+}
+
+.fav-star {
+  color: var(--warning-color);
+}
+
+.menu-chevron {
+  margin-left: auto;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.menu-item-vconsole {
+  color: var(--success-color);
+}

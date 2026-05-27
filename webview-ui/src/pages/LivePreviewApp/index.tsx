@@ -14,13 +14,6 @@ import {
   faRotate,
   faArrowUpRightFromSquare,
   faEllipsis,
-  faClockRotateLeft,
-  faBroom,
-  faChevronRight,
-  faDatabase,
-  faBoxArchive,
-  faCookieBite,
-  faTerminal,
   faSpinner,
 } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
@@ -35,6 +28,7 @@ import WelcomePage from '../../components/WelcomePage';
 import FavoriteModal from '../../components/FavoriteModal';
 import HistoryModal from '../../components/HistoryModal';
 import SuggestBox from '../../components/SuggestBox';
+import LivePreviewContextMenu from '../../components/LivePreviewContextMenu';
 
 interface FavoriteItem {
   url: string;
@@ -89,7 +83,7 @@ export default function LivePreviewApp() {
   const [activeModal, setActiveModal] = useState<'none' | 'fav' | 'history'>('none');
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
-  const [cacheSubmenuOpen, setCacheSubmenuOpen] = useState(false);
+  
   const [favSort, setFavSort] = useState<'time' | 'title'>('time');
   const [favForm, setFavForm] = useState({
     visible: false,
@@ -105,7 +99,6 @@ export default function LivePreviewApp() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
-  const cacheMenuTimer = useRef<any>(null);
   const previewLoadTimerRef = useRef<number | null>(null);
 
   const previewRequestIdRef = useRef(0);
@@ -387,7 +380,6 @@ export default function LivePreviewApp() {
     const handleClickOutside = (e: MouseEvent) => {
       if (!moreBtnRef.current?.contains(e.target as Node)) {
         setMenuOpen(false);
-        setCacheSubmenuOpen(false);
       }
 
       if (!suggestBoxRef.current?.contains(e.target as Node) && !(e.target as Element).closest(`.${styles['address-bar-wrapper']}`)) {
@@ -980,83 +972,16 @@ export default function LivePreviewApp() {
         </button>
       </div>
 
-      {menuOpen && (
-        <div className={styles['context-menu']} style={{ left: menuPos.x, top: menuPos.y }}>
-          <div
-            className={styles['menu-item']}
-            onClick={() => {
-              handleRefresh();
-              setMenuOpen(false);
-            }}
-          >
-            <FontAwesomeIcon icon={faRotateRight} className={styles['menu-icon']} /> 刷新页面
-          </div>
-
-          <div
-            className={styles['menu-item']}
-            onClick={() => {
-              setActiveModal('fav');
-              setMenuOpen(false);
-            }}
-          >
-            <FontAwesomeIcon icon={faStarSolid} className={`${styles['menu-icon']} ${styles['fav-star']}`} /> 打开收藏夹
-          </div>
-
-          <div
-            className={styles['menu-item']}
-            onClick={() => {
-              setActiveModal('history');
-              setMenuOpen(false);
-            }}
-          >
-            <FontAwesomeIcon icon={faClockRotateLeft} className={styles['menu-icon']} /> 历史记录
-          </div>
-
-          <div className={styles['menu-divider']} />
-
-          <div
-            className={`${styles['menu-item']} ${styles['has-submenu']}`}
-            onMouseEnter={() => {
-              clearTimeout(cacheMenuTimer.current);
-              setCacheSubmenuOpen(true);
-            }}
-            onMouseLeave={() => {
-              cacheMenuTimer.current = window.setTimeout(() => setCacheSubmenuOpen(false), 300);
-            }}
-          >
-            <FontAwesomeIcon icon={faBroom} className={styles['menu-icon']} /> 清理页面缓存
-            <FontAwesomeIcon icon={faChevronRight} className={styles['menu-chevron']} />
-
-            {cacheSubmenuOpen && (
-              <div className={styles['submenu']}>
-                <div className={styles['menu-item']} onClick={() => handleCacheClear('local')}>
-                  <FontAwesomeIcon icon={faDatabase} className={styles['menu-icon']} /> 清理 LocalStorage
-                </div>
-
-                <div className={styles['menu-item']} onClick={() => handleCacheClear('session')}>
-                  <FontAwesomeIcon icon={faBoxArchive} className={styles['menu-icon']} /> 清理 SessionStorage
-                </div>
-
-                <div className={styles['menu-item']} onClick={() => handleCacheClear('cookie')}>
-                  <FontAwesomeIcon icon={faCookieBite} className={styles['menu-icon']} /> 清理 Cookie 数据
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className={styles['menu-divider']} />
-
-          <div
-            className={styles['menu-item']}
-            onClick={() => {
-              vscode?.postMessage({ type: 'openDevTools' });
-              setMenuOpen(false);
-            }}
-          >
-            <FontAwesomeIcon icon={faTerminal} className={styles['menu-icon']} /> 开发者工具
-          </div>
-        </div>
-      )}
+      <LivePreviewContextMenu 
+        visible={menuOpen}
+        position={menuPos}
+        onRefresh={handleRefresh}
+        onOpenFav={() => setActiveModal('fav')}
+        onOpenHistory={() => setActiveModal('history')}
+        onClearCache={handleCacheClear}
+        onOpenDevTools={() => vscode?.postMessage({ type: 'openDevTools' })}
+        onClose={() => setMenuOpen(false)}
+      />
 
       <div
         className={`${styles['preview-container']} ${device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''
