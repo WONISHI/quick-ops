@@ -322,7 +322,8 @@ export class LocalProxyServer {
 
     if (this.currentTargetOrigin) {
       try {
-        const resolved = new URL(req.url || '/', `${this.currentTargetOrigin}/`).href;
+        const cleanPath = req.url?.startsWith('/') ? req.url : `/${req.url}`;
+        const resolved = new URL(cleanPath, `${this.currentTargetOrigin}/`).href;
         const resolvedUrl = new URL(resolved);
 
         this.rememberTargetRoute(resolved, {
@@ -502,7 +503,11 @@ export class LocalProxyServer {
 
   function getRealPageUrl() {
     try {
-      var params = new URLSearchParams(window.location.search);
+      var rawSearch = window.location.search || window.location.href.split('?')[1] || '';
+      if (rawSearch.indexOf('#') > -1) {
+        rawSearch = rawSearch.split('#')[0];
+      }
+      var params = new URLSearchParams(rawSearch);
       var realUrl = params.get('url');
 
       if (realUrl) return realUrl;
@@ -534,15 +539,27 @@ export class LocalProxyServer {
   }
 
   function toProxyUrl(url) {
-    var absoluteUrl = normalizeUrl(String(url || ''));
+    var rawStr = String(url || '');
+    if (isSpecialUrl(rawStr)) return rawStr;
+    
+    if (isProxyUrl(rawStr)) return rawStr;
 
-    if (!proxyOrigin) return absoluteUrl;
+    try {
+      var realPageUrl = getRealPageUrl();
+      var realOrigin = new URL(realPageUrl).origin;
+      
+      var absoluteUrl;
+      if (rawStr.indexOf('/') === 0 && rawStr.indexOf('//') !== 0) {
+        absoluteUrl = realOrigin + rawStr;
+      } else {
+        absoluteUrl = new URL(rawStr, realPageUrl).href;
+      }
 
-    if (isProxyUrl(absoluteUrl)) {
-      return absoluteUrl;
+      if (!proxyOrigin) return absoluteUrl;
+      return proxyOrigin + '/?url=' + encodeURIComponent(absoluteUrl);
+    } catch (e) {
+      return rawStr;
     }
-
-    return proxyOrigin + '/?url=' + encodeURIComponent(absoluteUrl);
   }
 
   function shouldPatchAttr(attrName) {
@@ -931,14 +948,9 @@ export class LocalProxyServer {
           this.safeSend(res, proxyRes.statusCode || 200, patchedHeaders, body);
         },
         (error) => {
-          this.safeSend(
-            res,
-            502,
-            {
-              'content-type': 'text/plain; charset=utf-8',
-            },
-            `Proxy Read Failed: ${error.message}`
-          );
+          // 渲染中途发生读取错误，同样降级抛给浏览器原地址
+          console.warn(`[QuickOps Proxy Fallback] Body read failed, redirecting to: ${targetUrl.href}`);
+          this.safeSend(res, 302, { location: targetUrl.href }, '');
         }
       );
 
@@ -961,30 +973,23 @@ export class LocalProxyServer {
     headers.host = targetUrl.host;
     headers['accept-encoding'] = 'identity';
 
-    if (headers.origin && typeof headers.origin === 'string') {
-      try {
-        const originUrl = new URL(headers.origin);
-
-        if (originUrl.hostname === '127.0.0.1' || originUrl.hostname === 'localhost') {
-          headers.origin = this.getOrigin(targetUrl);
-        }
-      } catch {
-        delete headers.origin;
-      }
+    if (headers.origin) {
+      headers.origin = this.getOrigin(targetUrl);
     }
 
     if (headers.referer && typeof headers.referer === 'string') {
       try {
-        const refUrl = new URL(headers.referer);
-        const realReferer = refUrl.searchParams.get('url');
-
-        if (realReferer) {
-          headers.referer = realReferer;
+        if (headers.referer.includes('?url=')) {
+          const refUrl = new URL(headers.referer);
+          const realReferer = refUrl.searchParams.get('url');
+          if (realReferer) {
+            headers.referer = realReferer;
+          }
         } else if (this.currentTargetOrigin) {
-          headers.referer = new URL(refUrl.pathname + refUrl.search, `${this.currentTargetOrigin}/`).href;
+          headers.referer = this.currentPageUrl || `${this.currentTargetOrigin}/`;
         }
       } catch {
-        delete headers.referer;
+        headers.referer = `${this.getOrigin(targetUrl)}/`;
       }
     }
 
@@ -1015,30 +1020,26 @@ export class LocalProxyServer {
 
       targetUrlStr = this.resolveTargetUrl(req);
 
+      // 💡 降级策略 1：如果是根本无法通过内部路由推断出的请求，但它携带了绝对路径，直接抛 302 让浏览器请求
       if (!targetUrlStr) {
-        console.warn('[QuickOps Proxy Missing Target]', {
-          requestUrl: req.url,
-          referer: req.headers.referer,
-          currentTargetOrigin: this.currentTargetOrigin,
-          currentPageUrl: this.currentPageUrl,
-          knownRouteCount: this.routeTargetMap.size,
-          knownBaseCount: this.routeBaseMap.size,
-        });
+        if (req.url && (req.url.startsWith('http://') || req.url.startsWith('https://'))) {
+           this.safeSend(res, 302, { location: req.url }, '');
+           return;
+        }
 
-        this.safeSend(
-          res,
-          400,
-          {
-            'content-type': 'text/plain; charset=utf-8',
-          },
-          'Missing target URL'
-        );
+        console.warn('[QuickOps Proxy Missing Target]', { requestUrl: req.url });
+        this.safeSend(res, 400, { 'content-type': 'text/plain; charset=utf-8' }, 'Missing target URL');
         return;
       }
 
       const targetUrl = new URL(targetUrlStr);
       const requestModule = targetUrl.protocol === 'https:' ? https : http;
       const headers = this.patchRequestHeaders(req, targetUrl);
+
+      // UA 兜底
+      if (!headers['user-agent']) {
+        headers['user-agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      }
 
       const options: http.RequestOptions | https.RequestOptions = {
         protocol: targetUrl.protocol,
@@ -1047,10 +1048,20 @@ export class LocalProxyServer {
         path: `${targetUrl.pathname}${targetUrl.search}`,
         method: req.method,
         headers,
+        family: 4, // 强制 IPv4 防黑洞
+        timeout: 15000, // 15秒防死等
       };
 
       const proxyReq = requestModule.request(options, (proxyRes) => {
         if (res.writableEnded || res.destroyed) {
+          proxyRes.resume();
+          return;
+        }
+
+        // 💡 降级策略 2：如果目标服务器抛出 502/503/504 等服务器错误，直接返回 302 丢给浏览器自行处理
+        if (proxyRes.statusCode && proxyRes.statusCode >= 502 && proxyRes.statusCode <= 504) {
+          console.warn(`[QuickOps Proxy Fallback] Upstream returned ${proxyRes.statusCode}, redirecting to: ${targetUrlStr}`);
+          this.safeSend(res, 302, { location: targetUrlStr as string }, '');
           proxyRes.resume();
           return;
         }
@@ -1079,19 +1090,20 @@ export class LocalProxyServer {
         this.sendBufferedResponse(req, res, proxyRes, targetUrl, patchedHeaders);
       });
 
+      proxyReq.on('timeout', () => {
+        console.warn(`[QuickOps Proxy Timeout Fallback] Target took too long, redirecting to: ${targetUrlStr}`);
+        // 触发 timeout 后主动销毁并创建 error 抛下去，最后被下面 catch 捕获并重定向
+        proxyReq.destroy(new Error('ProxyTimeout'));
+      });
+
       proxyReq.on('error', (error) => {
         if (res.headersSent || res.writableEnded || res.destroyed) {
           return;
         }
 
-        this.safeSend(
-          res,
-          502,
-          {
-            'content-type': 'text/plain; charset=utf-8',
-          },
-          `Proxy Request Failed: ${error.message}`
-        );
+        // 💡 降级策略 3：拦截到任何底层网络连接报错（502 本质），强制抛出 302 丢给外部真实网络
+        console.warn(`[QuickOps Proxy Fallback] Request failed: ${error.message}. Redirecting to: ${targetUrlStr}`);
+        this.safeSend(res, 302, { location: targetUrlStr as string }, '');
       });
 
       req.on('aborted', () => {
@@ -1111,23 +1123,14 @@ export class LocalProxyServer {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      console.error('[QuickOps Proxy Internal Error]', { message, targetUrlStr });
 
-      console.error('[QuickOps Proxy Internal Error]', {
-        requestUrl: req.url,
-        targetUrl: targetUrlStr,
-        currentTargetOrigin: this.currentTargetOrigin,
-        currentPageUrl: this.currentPageUrl,
-        message,
-      });
-
-      this.safeSend(
-        res,
-        500,
-        {
-          'content-type': 'text/plain; charset=utf-8',
-        },
-        `Proxy Internal Error: ${message}`
-      );
+      // 💡 降级策略 4：哪怕是代理自身代码崩溃了，只要有真实地址，依然让浏览器 302 逃逸
+      if (targetUrlStr && !res.headersSent && !res.writableEnded && !res.destroyed) {
+        this.safeSend(res, 302, { location: targetUrlStr }, '');
+      } else if (!res.headersSent) {
+        this.safeSend(res, 500, { 'content-type': 'text/plain; charset=utf-8' }, `Proxy Internal Error: ${message}`);
+      }
     }
   }
 }
