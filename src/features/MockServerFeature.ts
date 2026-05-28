@@ -5,7 +5,7 @@ import { IFeature } from '../core/interfaces/IFeature';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { MockWebviewProvider } from '../providers/MockWebviewProvider';
 import ColorLog from '../utils/ColorLog';
-import { IProxyConfig, MockYamlStore } from '../utils/MockYamlStore';
+import { IProxyConfig, MockYamlStore } from '../services/MockYamlStore';
 
 export class MockServerFeature implements IFeature {
   public readonly id = 'MockServerFeature';
@@ -14,15 +14,17 @@ export class MockServerFeature implements IFeature {
   private webviewProvider!: MockWebviewProvider;
   private yamlStore = new MockYamlStore();
 
-  constructor(private configService: ConfigurationService = ConfigurationService.getInstance()) { }
+  constructor(private configService: ConfigurationService = ConfigurationService.getInstance()) {}
 
   public activate(context: vscode.ExtensionContext): void {
     this.webviewProvider = new MockWebviewProvider(context.extensionUri, this);
-    context.subscriptions.push(vscode.window.registerWebviewViewProvider('quick-ops.mockView', this.webviewProvider, {
-      webviewOptions: {
-        retainContextWhenHidden: true
-      }
-    }));
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider('quick-ops.mockView', this.webviewProvider, {
+        webviewOptions: {
+          retainContextWhenHidden: true,
+        },
+      }),
+    );
 
     context.subscriptions.push(
       vscode.commands.registerCommand('quick-ops.mock.start', () => this.startAll()),
@@ -115,12 +117,14 @@ export class MockServerFeature implements IFeature {
 
     const app = express();
 
-    app.use(cors({
-      origin: true,
-      credentials: true,
-      allowedHeaders: '*',
-      exposedHeaders: '*',
-    }));
+    app.use(
+      cors({
+        origin: true,
+        credentials: true,
+        allowedHeaders: '*',
+        exposedHeaders: '*',
+      }),
+    );
 
     app.use(bodyParser.json({ limit: '50mb' }));
     app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
@@ -144,14 +148,17 @@ export class MockServerFeature implements IFeature {
         }
 
         if (matchedRule.delay && matchedRule.delay > 0) {
-          await new Promise(resolve => setTimeout(resolve, matchedRule.delay));
+          await new Promise((resolve) => setTimeout(resolve, matchedRule.delay));
         }
 
         const statusCode = Number(matchedRule.statusCode || 200);
 
         if (matchedRule.mode === 'file') {
           if (matchedRule.filePath) {
-            const filePaths = matchedRule.filePath.split('\n').map((p: string) => p.trim()).filter(Boolean);
+            const filePaths = matchedRule.filePath
+              .split('\n')
+              .map((p: string) => p.trim())
+              .filter(Boolean);
 
             if (filePaths.length === 0) {
               return res.status(400).json({ error: '文件路径未配置或为空' });
@@ -248,7 +255,7 @@ export class MockServerFeature implements IFeature {
       res.status(404).json({
         error: 'Not Found in Mock Rules',
         path: req.path,
-        message: '请求的接口没有匹配到任何已启用的 YAML 拦截规则'
+        message: '请求的接口没有匹配到任何已启用的 YAML 拦截规则',
       });
     });
 
@@ -288,7 +295,10 @@ export class MockServerFeature implements IFeature {
 
   private getListenHost(domain?: string): string {
     const value = (domain || '127.0.0.1').trim();
-    const host = value.replace(/^https?:\/\//, '').split('/')[0].split(':')[0];
+    const host = value
+      .replace(/^https?:\/\//, '')
+      .split('/')[0]
+      .split(':')[0];
 
     if (!host || host === 'localhost') return '127.0.0.1';
     return host;

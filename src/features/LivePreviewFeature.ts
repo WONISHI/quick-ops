@@ -3,7 +3,7 @@ import * as path from 'path';
 import { IFeature } from '../core/interfaces/IFeature';
 import ColorLog from '../utils/ColorLog';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
-import { LocalProxyServer } from '../utils/LocalProxyServer'; // 引入代理服务
+import { LocalProxyServer } from '../services/LocalProxyServer'; // 引入代理服务
 
 interface BuiltinBookmark {
   name: string;
