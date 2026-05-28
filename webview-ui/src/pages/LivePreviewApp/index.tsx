@@ -157,14 +157,14 @@ export default function LivePreviewApp() {
     return '';
   };
 
-  const activeDefaultFavorite = useMemo(() => {
-    const targetUrl = normalizeFavoriteUrl(frameUrl || urlInput);
-    if (!targetUrl) return undefined;
+  // const activeDefaultFavorite = useMemo(() => {
+  //   const targetUrl = normalizeFavoriteUrl(frameUrl || urlInput);
+  //   if (!targetUrl) return undefined;
 
-    return favorites.find((item) => {
-      return item.isDefault && item.logo && normalizeFavoriteUrl(item.url) === targetUrl;
-    });
-  }, [favorites, frameUrl, urlInput]);
+  //   return favorites.find((item) => {
+  //     return item.isDefault && item.logo && normalizeFavoriteUrl(item.url) === targetUrl;
+  //   });
+  // }, [favorites, frameUrl, urlInput]);
 
   const isDefaultFavoriteUrl = (url: string) => {
     const targetUrl = normalizeFavoriteUrl(url);
@@ -633,8 +633,6 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'saveDevice', device: newDevice });
   };
 
-  const isFav = favorites.some((f) => normalizeFavoriteUrl(f.url) === normalizeFavoriteUrl(frameUrl));
-
   const parsedUrlInput = useMemo(() => {
     const value = urlInput.trim();
 
@@ -660,16 +658,31 @@ export default function LivePreviewApp() {
     return !!inputUrl && !!currentFrameUrl && inputUrl === currentFrameUrl && !!faviconUrl && !faviconError;
   }, [parsedUrlInput, urlInput, frameUrl, faviconUrl, faviconError]);
 
-  const canToggleFavorite = !!frameUrl && previewType === 'web' && isPageLoaded && !previewLoading && !previewError;
+  const isAddressSameAsFrame = useMemo(() => {
+    const inputUrl = normalizeFavoriteUrl(parsedUrlInput || urlInput);
+    const currentFrameUrl = normalizeFavoriteUrl(frameUrl);
+
+    return !!inputUrl && !!currentFrameUrl && inputUrl === currentFrameUrl;
+  }, [parsedUrlInput, urlInput, frameUrl]);
+
+  const favoriteTargetUrl = isAddressSameAsFrame ? frameUrl : '';
+
+  const isFav =
+    !!favoriteTargetUrl &&
+    favorites.some((f) => {
+      return normalizeFavoriteUrl(f.url) === normalizeFavoriteUrl(favoriteTargetUrl);
+    });
+
+  const canToggleFavorite = !!favoriteTargetUrl && previewType === 'web' && isPageLoaded && !previewLoading && !previewError;
 
   const toggleFavorite = () => {
-    if (!canToggleFavorite) return;
+    if (!canToggleFavorite || !favoriteTargetUrl) return;
 
     const currentHistory = historyIdx >= 0 ? historyStack[historyIdx] : undefined;
-    const title = currentHistory?.title || urlInput || frameUrl;
-    const logo = activeDefaultFavorite?.logo || faviconUrl || '';
+    const title = currentHistory?.title || urlInput || favoriteTargetUrl;
+    const logo = activeAddressFavorite?.logo || faviconUrl || '';
 
-    vscode?.postMessage({ type: 'toggleFavorite', url: frameUrl, title, logo });
+    vscode?.postMessage({ type: 'toggleFavorite', url: favoriteTargetUrl, title, logo });
   };
 
   const openContextMenu = () => {
