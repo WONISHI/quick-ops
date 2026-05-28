@@ -284,11 +284,7 @@ export class LivePreviewFeature implements IFeature {
 
     if (!url) return true;
 
-    return (
-      url.startsWith('#') ||
-      url.startsWith('//') ||
-      /^(https?:|data:|blob:|mailto:|tel:|javascript:|vscode-webview-resource:|vscode-resource:|vscode-webview:)/i.test(url)
-    );
+    return url.startsWith('#') || url.startsWith('//') || /^(https?:|data:|blob:|mailto:|tel:|javascript:|vscode-webview-resource:|vscode-resource:|vscode-webview:)/i.test(url);
   }
 
   private splitUrlSuffix(rawUrl: string): { pathname: string; suffix: string } {
@@ -360,11 +356,7 @@ export class LivePreviewFeature implements IFeature {
   }
 
   private escapeHtmlAttribute(value: string): string {
-    return value
-      .replace(/&/g, '&amp;')
-      .replace(/"/g, '&quot;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+    return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   private async toWebviewAssetUrl(rawUrl: string, htmlFileUri: vscode.Uri, webview: vscode.Webview): Promise<string> {

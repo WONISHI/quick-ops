@@ -4,18 +4,7 @@ import UrlParser from '../../utils/UrlParser';
 import styles from './index.module.css';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {
-  faArrowLeft,
-  faRotateRight,
-  faGlobe,
-  faXmark,
-  faStar as faStarSolid,
-  faArrowRight,
-  faRotate,
-  faArrowUpRightFromSquare,
-  faEllipsis,
-  faSpinner,
-} from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faRotateRight, faGlobe, faXmark, faStar as faStarSolid, faArrowRight, faRotate, faArrowUpRightFromSquare, faEllipsis, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 
 import VditorApp from '../VditorApp';
@@ -83,7 +72,7 @@ export default function LivePreviewApp() {
   const [activeModal, setActiveModal] = useState<'none' | 'fav' | 'history'>('none');
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
-  
+
   const [favSort, setFavSort] = useState<'time' | 'title'>('time');
   const [favForm, setFavForm] = useState({
     visible: false,
@@ -104,12 +93,13 @@ export default function LivePreviewApp() {
   const previewRequestIdRef = useRef(0);
   const pageLoadedRef = useRef(false);
   const faviconResolvedRef = useRef(false);
+  const faviconRequestIdRef = useRef(0);
 
   // 🌟 新增：控制虚拟进度条的动画逻辑
   useEffect(() => {
     if (previewLoading) {
       setShowProgress(true);
-      setLoadingProgress(15); 
+      setLoadingProgress(15);
 
       if (progressTimerRef.current) window.clearInterval(progressTimerRef.current);
 
@@ -214,6 +204,10 @@ export default function LivePreviewApp() {
   };
 
   const updateFavicon = (urlStr: string, options?: { onResolved?: (logo: string) => void }) => {
+    const faviconRequestId = faviconRequestIdRef.current + 1;
+
+    faviconRequestIdRef.current = faviconRequestId;
+
     if (!urlStr) {
       setFaviconUrl('');
       setFaviconError(false);
@@ -236,6 +230,7 @@ export default function LivePreviewApp() {
       const urlObj = new URL(urlStr);
       const targetIconUrl = `${urlObj.origin}/favicon.ico`;
 
+      setFaviconUrl('');
       setIsFaviconLoading(true);
       setFaviconError(false);
 
@@ -243,6 +238,8 @@ export default function LivePreviewApp() {
       imgLoader.src = targetIconUrl;
 
       imgLoader.onload = () => {
+        if (faviconRequestIdRef.current !== faviconRequestId) return;
+
         setFaviconUrl(targetIconUrl);
         setFaviconError(false);
         setIsFaviconLoading(false);
@@ -251,10 +248,13 @@ export default function LivePreviewApp() {
       };
 
       imgLoader.onerror = () => {
+        if (faviconRequestIdRef.current !== faviconRequestId) return;
+
         setFaviconError(true);
         setIsFaviconLoading(false);
       };
     } catch {
+      setFaviconUrl('');
       setFaviconError(true);
       setIsFaviconLoading(false);
     }
@@ -295,12 +295,7 @@ export default function LivePreviewApp() {
       updateFavicon(url);
 
       previewLoadTimerRef.current = window.setTimeout(() => {
-        showPreviewErrorByRequest(
-          requestId,
-          url,
-          '页面加载超时',
-          '该地址是默认书签，已等待 60 秒仍未完成加载。目标网站可能禁止 iframe 嵌入，建议使用外部浏览器打开。'
-        );
+        showPreviewErrorByRequest(requestId, url, '页面加载超时', '该地址是默认书签，已等待 60 秒仍未完成加载。目标网站可能禁止 iframe 嵌入，建议使用外部浏览器打开。');
       }, 60000);
 
       return;
@@ -311,12 +306,7 @@ export default function LivePreviewApp() {
       if (pageLoadedRef.current) return;
       if (faviconResolvedRef.current) return;
 
-      showPreviewErrorByRequest(
-        requestId,
-        url,
-        '页面加载失败',
-        '60 秒内没有成功解析到网站图标。可能是地址错误、网络异常，或者目标网站无法访问。'
-      );
+      showPreviewErrorByRequest(requestId, url, '页面加载失败', '60 秒内没有成功解析到网站图标。可能是地址错误、网络异常，或者目标网站无法访问。');
     }, 60000);
 
     updateFavicon(url, {
@@ -329,12 +319,7 @@ export default function LivePreviewApp() {
         clearPreviewLoadTimer();
 
         previewLoadTimerRef.current = window.setTimeout(() => {
-          showPreviewErrorByRequest(
-            requestId,
-            url,
-            '页面加载超时',
-            '已成功解析到网站图标，但页面仍未完成加载。目标网站可能禁止 iframe 嵌入，建议使用外部浏览器打开。'
-          );
+          showPreviewErrorByRequest(requestId, url, '页面加载超时', '已成功解析到网站图标，但页面仍未完成加载。目标网站可能禁止 iframe 嵌入，建议使用外部浏览器打开。');
         }, 10000);
       },
     });
@@ -360,8 +345,7 @@ export default function LivePreviewApp() {
         vscode?.postMessage({ type: 'reqSyncFavorites' });
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
-      } 
-      else if (message.type === 'inner-nav') {
+      } else if (message.type === 'inner-nav') {
         const { url, isSpa } = message;
         if (isSpa) {
           setUrlInput(url);
@@ -405,7 +389,7 @@ export default function LivePreviewApp() {
     setIsPageLoaded(true);
 
     clearPreviewLoadTimer();
-    setPreviewLoading(false); 
+    setPreviewLoading(false);
     setPreviewError(null);
 
     if (!iframeRef.current || historyIdx < 0 || previewType !== 'web') return;
@@ -557,11 +541,7 @@ export default function LivePreviewApp() {
     if (!query || favorites.length === 0) return [];
 
     return favorites.filter((f) => {
-      return (
-        f.title.toLowerCase().includes(query) ||
-        f.url.toLowerCase().includes(query) ||
-        (f.description || '').toLowerCase().includes(query)
-      );
+      return f.title.toLowerCase().includes(query) || f.url.toLowerCase().includes(query) || (f.description || '').toLowerCase().includes(query);
     });
   }, [urlInput, favorites]);
 
@@ -654,6 +634,31 @@ export default function LivePreviewApp() {
   };
 
   const isFav = favorites.some((f) => normalizeFavoriteUrl(f.url) === normalizeFavoriteUrl(frameUrl));
+
+  const parsedUrlInput = useMemo(() => {
+    const value = urlInput.trim();
+
+    if (!value) return '';
+
+    return UrlParser.parse(value) || '';
+  }, [urlInput]);
+
+  const activeAddressFavorite = useMemo(() => {
+    const targetUrl = normalizeFavoriteUrl(parsedUrlInput || urlInput);
+
+    if (!targetUrl) return undefined;
+
+    return favorites.find((item) => {
+      return item.isDefault && item.logo && normalizeFavoriteUrl(item.url) === targetUrl;
+    });
+  }, [favorites, parsedUrlInput, urlInput]);
+
+  const shouldShowCurrentFavicon = useMemo(() => {
+    const inputUrl = normalizeFavoriteUrl(parsedUrlInput || urlInput);
+    const currentFrameUrl = normalizeFavoriteUrl(frameUrl);
+
+    return !!inputUrl && !!currentFrameUrl && inputUrl === currentFrameUrl && !!faviconUrl && !faviconError;
+  }, [parsedUrlInput, urlInput, frameUrl, faviconUrl, faviconError]);
 
   const canToggleFavorite = !!frameUrl && previewType === 'web' && isPageLoaded && !previewLoading && !previewError;
 
@@ -823,11 +828,11 @@ export default function LivePreviewApp() {
 
   const getRenderIframeSrc = () => {
     if (!frameUrl || frameUrl === 'about:blank') return frameUrl;
-    
+
     if (previewType === 'web' && proxyPort > 0) {
       return `http://127.0.0.1:${proxyPort}/?url=${encodeURIComponent(frameUrl)}`;
     }
-    
+
     return frameUrl;
   };
 
@@ -844,9 +849,9 @@ export default function LivePreviewApp() {
 
         <div className={styles['address-bar-wrapper']}>
           {urlInput.trim() ? (
-            activeDefaultFavorite?.logo ? (
+            activeAddressFavorite?.logo ? (
               <img
-                src={activeDefaultFavorite.logo}
+                src={activeAddressFavorite.logo}
                 className={styles['favicon-img']}
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
@@ -854,7 +859,7 @@ export default function LivePreviewApp() {
               />
             ) : isFaviconLoading ? (
               <FontAwesomeIcon icon={faSpinner} spin className={styles['spiner-icon']} />
-            ) : faviconUrl && !faviconError ? (
+            ) : shouldShowCurrentFavicon ? (
               <img src={faviconUrl} className={styles['favicon-img']} />
             ) : (
               <FontAwesomeIcon icon={faGlobe} className={styles['globe-icon']} />
@@ -868,9 +873,15 @@ export default function LivePreviewApp() {
             className={styles['address-bar']}
             value={urlInput}
             onChange={(e) => {
-              setUrlInput(e.target.value);
+              const nextValue = e.target.value;
+
+              setUrlInput(nextValue);
               setShowSuggest(true);
               setSuggestIndex(-1);
+
+              if (!nextValue.trim()) {
+                updateFavicon('');
+              }
             }}
             onKeyDown={handleKeyDown}
             onFocus={() => {
@@ -891,6 +902,8 @@ export default function LivePreviewApp() {
               onClick={() => {
                 setUrlInput('');
                 setShowSuggest(false);
+                setSuggestIndex(-1);
+                updateFavicon('');
               }}
               title="清除"
             />
@@ -913,8 +926,8 @@ export default function LivePreviewApp() {
             suggestions={suggestions}
             selectedIndex={suggestIndex}
             query={urlInput}
-            onHover={(index:any) => setSuggestIndex(index)}
-            onSelect={(url:any) => handleGo(url)}
+            onHover={(index: any) => setSuggestIndex(index)}
+            onSelect={(url: any) => handleGo(url)}
           />
         </div>
 
@@ -972,7 +985,7 @@ export default function LivePreviewApp() {
         </button>
       </div>
 
-      <LivePreviewContextMenu 
+      <LivePreviewContextMenu
         visible={menuOpen}
         position={menuPos}
         onRefresh={handleRefresh}
@@ -984,8 +997,7 @@ export default function LivePreviewApp() {
       />
 
       <div
-        className={`${styles['preview-container']} ${device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''
-          }`}
+        className={`${styles['preview-container']} ${device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''}`}
         style={{ position: 'relative' }}
       >
         <div
