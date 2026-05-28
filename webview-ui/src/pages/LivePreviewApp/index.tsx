@@ -362,12 +362,30 @@ export default function LivePreviewApp() {
     window.addEventListener('message', handleMessage);
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (!moreBtnRef.current?.contains(e.target as Node)) {
+      const targetNode = e.target as Node;
+      const targetElement = targetNode instanceof Element ? targetNode : targetNode.parentElement;
+
+      if (!moreBtnRef.current?.contains(targetNode)) {
         setMenuOpen(false);
       }
 
-      if (!suggestBoxRef.current?.contains(e.target as Node) && !(e.target as Element).closest(`.${styles['address-bar-wrapper']}`)) {
+      const isInSuggestBox = !!suggestBoxRef.current?.contains(targetNode);
+      const isInAddressBar = !!targetElement?.closest(`.${styles['address-bar-wrapper']}`);
+
+      if (isInSuggestBox) {
+        const isClickSuggestItem = !!targetElement?.closest('button, a, [role="option"], [data-suggest-item="true"]');
+
+        if (!isClickSuggestItem) {
+          setShowSuggest(false);
+          setSuggestIndex(-1);
+        }
+
+        return;
+      }
+
+      if (!isInAddressBar) {
         setShowSuggest(false);
+        setSuggestIndex(-1);
       }
     };
 
