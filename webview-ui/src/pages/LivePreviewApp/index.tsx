@@ -86,6 +86,7 @@ export default function LivePreviewApp() {
   const [isPageLoaded, setIsPageLoaded] = useState(false);
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const addressInputRef = useRef<HTMLInputElement | null>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
   const previewLoadTimerRef = useRef<number | null>(null);
@@ -94,6 +95,7 @@ export default function LivePreviewApp() {
   const pageLoadedRef = useRef(false);
   const faviconResolvedRef = useRef(false);
   const faviconRequestIdRef = useRef(0);
+  const suggestLockedRef = useRef(false);
 
   // 🌟 新增：控制虚拟进度条的动画逻辑
   useEffect(() => {
@@ -139,6 +141,11 @@ export default function LivePreviewApp() {
     }
   };
 
+  const closeSuggest = () => {
+    setShowSuggest(false);
+    setSuggestIndex(-1);
+  };
+
   const getFavoriteByUrl = (url: string) => {
     const targetUrl = normalizeFavoriteUrl(url);
     if (!targetUrl) return undefined;
@@ -156,15 +163,6 @@ export default function LivePreviewApp() {
 
     return '';
   };
-
-  // const activeDefaultFavorite = useMemo(() => {
-  //   const targetUrl = normalizeFavoriteUrl(frameUrl || urlInput);
-  //   if (!targetUrl) return undefined;
-
-  //   return favorites.find((item) => {
-  //     return item.isDefault && item.logo && normalizeFavoriteUrl(item.url) === targetUrl;
-  //   });
-  // }, [favorites, frameUrl, urlInput]);
 
   const isDefaultFavoriteUrl = (url: string) => {
     const targetUrl = normalizeFavoriteUrl(url);
@@ -366,8 +364,11 @@ export default function LivePreviewApp() {
         setMenuOpen(false);
       }
 
-      if (!suggestBoxRef.current?.contains(e.target as Node) && !(e.target as Element).closest(`.${styles['address-bar-wrapper']}`)) {
-        setShowSuggest(false);
+      const target = e.target as Node;
+      const targetElement = e.target instanceof Element ? e.target : null;
+
+      if (!suggestBoxRef.current?.contains(target) && !targetElement?.closest(`.${styles['address-bar-wrapper']}`)) {
+        closeSuggest();
       }
     };
 
@@ -510,7 +511,8 @@ export default function LivePreviewApp() {
     const rawUrl = forceUrl !== undefined ? forceUrl : urlInput;
     const finalUrl = UrlParser.parse(rawUrl);
 
-    setShowSuggest(false);
+    closeSuggest();
+    suggestLockedRef.current = true;
 
     if (!finalUrl) {
       clearPreviewLoadTimer();
@@ -545,10 +547,12 @@ export default function LivePreviewApp() {
     });
   }, [urlInput, favorites]);
 
+  const canShowSuggest = showSuggest && !suggestLockedRef.current && suggestions.length > 0;
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing || e.keyCode === 229) return;
 
-    if (showSuggest && suggestions.length > 0) {
+    if (canShowSuggest) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSuggestIndex((prev) => (prev + 1) % suggestions.length);
@@ -571,7 +575,7 @@ export default function LivePreviewApp() {
     if (e.key === 'Enter') {
       e.preventDefault();
 
-      if (showSuggest && suggestIndex > -1) {
+      if (canShowSuggest && suggestIndex > -1) {
         handleGo(suggestions[suggestIndex].url);
       } else {
         handleGo();
@@ -925,6 +929,7 @@ export default function LivePreviewApp() {
           )}
 
           <input
+            ref={addressInputRef}
             type="text"
             className={styles['address-bar']}
             value={urlInput}
@@ -932,7 +937,8 @@ export default function LivePreviewApp() {
               const nextValue = e.target.value;
 
               setUrlInput(nextValue);
-              setShowSuggest(true);
+              suggestLockedRef.current = false;
+              setShowSuggest(!!nextValue.trim());
               setSuggestIndex(-1);
 
               if (!nextValue.trim()) {
@@ -941,7 +947,19 @@ export default function LivePreviewApp() {
             }}
             onKeyDown={handleKeyDown}
             onFocus={() => {
-              if (urlInput.trim()) setShowSuggest(true);
+              if (urlInput.trim() && !suggestLockedRef.current) {
+                setShowSuggest(true);
+              }
+            }}
+            onBlur={() => {
+              window.setTimeout(() => {
+                const activeElement = document.activeElement;
+
+                if (activeElement === addressInputRef.current) return;
+                if (activeElement && suggestBoxRef.current?.contains(activeElement)) return;
+
+                closeSuggest();
+              }, 120);
             }}
             onDoubleClick={(e) => {
               e.currentTarget.select();
@@ -957,8 +975,8 @@ export default function LivePreviewApp() {
               className={styles['action-icon']}
               onClick={() => {
                 setUrlInput('');
-                setShowSuggest(false);
-                setSuggestIndex(-1);
+                closeSuggest();
+                suggestLockedRef.current = false;
                 updateFavicon('');
               }}
               title="清除"
@@ -978,7 +996,7 @@ export default function LivePreviewApp() {
 
           <SuggestBox
             ref={suggestBoxRef}
-            visible={showSuggest}
+            visible={canShowSuggest}
             suggestions={suggestions}
             selectedIndex={suggestIndex}
             query={urlInput}
@@ -1053,6 +1071,9 @@ export default function LivePreviewApp() {
       />
 
       <div
+        onMouseDownCapture={() => {
+          closeSuggest();
+        }}
         className={`${styles['preview-container']} ${device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''}`}
         style={{ position: 'relative' }}
       >
