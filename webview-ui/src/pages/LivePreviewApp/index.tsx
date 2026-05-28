@@ -579,10 +579,48 @@ export default function LivePreviewApp() {
     }
   };
 
-  const handleRefresh = () => {
-    if (!frameUrl) return;
+  const resetPreviewState = () => {
+    clearPreviewLoadTimer();
 
-    const temp = frameUrl;
+    previewRequestIdRef.current += 1;
+    pageLoadedRef.current = false;
+    faviconResolvedRef.current = false;
+
+    setFrameUrl('');
+    setPreviewType('web');
+    setPreviewLoading(false);
+    setPreviewError(null);
+    setIsPageLoaded(false);
+
+    updateFavicon('');
+    vscode?.postMessage({ type: 'saveUrl', url: '' });
+  };
+
+  const handleRefresh = () => {
+    const inputValue = urlInput.trim();
+
+    if (!inputValue) {
+      resetPreviewState();
+      setMenuOpen(false);
+      return;
+    }
+
+    const inputTarget = UrlParser.parse(inputValue);
+
+    if (!inputTarget) {
+      resetPreviewState();
+      setMenuOpen(false);
+      return;
+    }
+
+    const currentFrameUrl = normalizeFavoriteUrl(frameUrl);
+    const currentInputUrl = normalizeFavoriteUrl(inputTarget);
+    const temp = currentInputUrl === currentFrameUrl ? frameUrl : inputTarget;
+    const nextPreviewType = getPreviewTypeByUrl(temp);
+
+    if (urlInput !== temp) {
+      setUrlInput(temp);
+    }
 
     setPreviewError(null);
     clearPreviewLoadTimer();
@@ -591,12 +629,14 @@ export default function LivePreviewApp() {
     faviconResolvedRef.current = false;
     setIsPageLoaded(false);
 
-    if (previewType !== 'web') {
-      if (previewType !== 'html') {
+    if (nextPreviewType !== 'web') {
+      setPreviewType(nextPreviewType);
+
+      if (nextPreviewType !== 'html') {
         vscode?.postMessage({
           type: 'setPendingLocalFile',
           fsPath: temp,
-          fileType: previewType,
+          fileType: nextPreviewType,
         });
       }
 
@@ -605,16 +645,19 @@ export default function LivePreviewApp() {
       window.setTimeout(() => {
         setFrameUrl(temp);
         setIsPageLoaded(true);
+        vscode?.postMessage({ type: 'saveUrl', url: temp });
       }, 50);
 
       setMenuOpen(false);
       return;
     }
 
+    setPreviewType('web');
     setFrameUrl('about:blank');
 
     window.setTimeout(() => {
       setFrameUrl(temp);
+      vscode?.postMessage({ type: 'saveUrl', url: temp });
       startWebPreviewGuard(temp);
     }, 50);
 
