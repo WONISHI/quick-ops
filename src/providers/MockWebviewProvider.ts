@@ -4,7 +4,7 @@ import { nanoid } from 'nanoid';
 import { ConfigurationService } from '../services/ConfigurationService';
 import { MockServerFeature } from '../features/MockServerFeature';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
-import { IMockRuleConfig, IProxyConfig, MockYamlStore } from '../utils/MockYamlStore';
+import { IMockRuleConfig, IProxyConfig, MockYamlStore } from '../services/MockYamlStore';
 
 export class MockWebviewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
@@ -186,7 +186,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         const pGroup = proxyList.find((p: IProxyConfig) => p.id === data.id);
         if (pGroup) {
           await this.yamlStore.patchService(data.id, { enabled: data.enabled });
-          this.draftProxies = this.draftProxies.map((item) => item.id === data.id ? { ...item, enabled: data.enabled } : item);
+          this.draftProxies = this.draftProxies.map((item) => (item.id === data.id ? { ...item, enabled: data.enabled } : item));
 
           await this._mockFeature.syncServers();
           this.refreshSidebar();
@@ -248,26 +248,17 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
       this.proxyPanel = undefined;
     }
 
-    this.proxyPanel = vscode.window.createWebviewPanel(
-      'quickOps.mockProxyPanel',
-      proxyId ? '编辑 Mock 服务' : '新增 Mock 服务',
-      vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: false,
-        localResourceRoots: [this._extensionUri],
-      },
-    );
+    this.proxyPanel = vscode.window.createWebviewPanel('quickOps.mockProxyPanel', proxyId ? '编辑 Mock 服务' : '新增 Mock 服务', vscode.ViewColumn.One, {
+      enableScripts: true,
+      retainContextWhenHidden: false,
+      localResourceRoots: [this._extensionUri],
+    });
 
     this.proxyPanel.onDidDispose(() => {
       this.proxyPanel = undefined;
     });
 
-    this.proxyPanel.webview.html = getReactWebviewHtml(
-      this._extensionUri,
-      this.proxyPanel.webview,
-      '/mock/proxy',
-    );
+    this.proxyPanel.webview.html = getReactWebviewHtml(this._extensionUri, this.proxyPanel.webview, '/mock/proxy');
 
     this.proxyPanel.webview.onDidReceiveMessage(async (data) => {
       if (data.type === 'webviewLoaded') {
@@ -277,14 +268,11 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
           type: 'init',
           proxy: proxyList.find((p: any) => p.id === proxyId),
         });
-      }
-      else if (data.type === 'error') {
+      } else if (data.type === 'error') {
         vscode.window.showErrorMessage(data.message);
-      }
-      else if (data.type === 'cancel') {
+      } else if (data.type === 'cancel') {
         this.proxyPanel?.dispose();
-      }
-      else if (data.type === 'saveProxy') {
+      } else if (data.type === 'saveProxy') {
         const mockDir = this.yamlStore.getMockDir();
 
         if (!mockDir) {
@@ -357,26 +345,17 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
       this.rulePanel = undefined;
     }
 
-    this.rulePanel = vscode.window.createWebviewPanel(
-      'quickOps.mockRulePanel',
-      ruleId ? '编辑规则' : '新增规则',
-      vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: false,
-        localResourceRoots: [this._extensionUri],
-      },
-    );
+    this.rulePanel = vscode.window.createWebviewPanel('quickOps.mockRulePanel', ruleId ? '编辑规则' : '新增规则', vscode.ViewColumn.One, {
+      enableScripts: true,
+      retainContextWhenHidden: false,
+      localResourceRoots: [this._extensionUri],
+    });
 
     this.rulePanel.onDidDispose(() => {
       this.rulePanel = undefined;
     });
 
-    this.rulePanel.webview.html = getReactWebviewHtml(
-      this._extensionUri,
-      this.rulePanel.webview,
-      '/mock/rule',
-    );
+    this.rulePanel.webview.html = getReactWebviewHtml(this._extensionUri, this.rulePanel.webview, '/mock/rule');
 
     this.rulePanel.webview.onDidReceiveMessage(async (data) => {
       if (data.type === 'webviewLoaded') {
@@ -389,14 +368,11 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
           rule: fullRule,
           globalMockDir: this.yamlStore.getMockDir(),
         });
-      }
-      else if (data.type === 'error') {
+      } else if (data.type === 'error') {
         vscode.window.showErrorMessage(data.message);
-      }
-      else if (data.type === 'cancel') {
+      } else if (data.type === 'cancel') {
         this.rulePanel?.dispose();
-      }
-      else if (data.type === 'simulate') {
+      } else if (data.type === 'simulate') {
         try {
           const Mock = require('mockjs');
 
@@ -407,11 +383,9 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         } catch (e: any) {
           this.rulePanel?.webview.postMessage({ type: 'simulateResult', error: e.message });
         }
-      }
-      else if (data.type === 'selectFileReturnPath') {
+      } else if (data.type === 'selectFileReturnPath') {
         await this.handleMessage(data, this.rulePanel!.webview);
-      }
-      else if (data.type === 'saveRule') {
+      } else if (data.type === 'saveRule') {
         const mockDir = this.yamlStore.getMockDir();
 
         if (!mockDir) {
@@ -430,10 +404,7 @@ export class MockWebviewProvider implements vscode.WebviewViewProvider {
         }
 
         const oldRule = mockList.find((r: any) => r.id === newRuleData.id);
-        const ruleDataPath = this.yamlStore.ensureYamlFilePath(
-          oldRule?.yamlPath || oldRule?.dataPath || mockDir,
-          newRuleData.id,
-        );
+        const ruleDataPath = this.yamlStore.ensureYamlFilePath(oldRule?.yamlPath || oldRule?.dataPath || mockDir, newRuleData.id);
 
         const ruleToSaveConfig: IMockRuleConfig = {
           id: newRuleData.id,
