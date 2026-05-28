@@ -598,17 +598,29 @@ export default function LivePreviewApp() {
 
   const handleRefresh = () => {
     const inputValue = urlInput.trim();
+    const fallbackUrl = frameUrl && frameUrl !== 'about:blank' ? frameUrl : historyIdx > -1 ? historyStack[historyIdx]?.url || '' : '';
 
-    if (!inputValue) {
+    if (!inputValue && fallbackUrl) {
+      setUrlInput(fallbackUrl);
+    }
+
+    const refreshValue = inputValue || fallbackUrl;
+
+    if (!refreshValue) {
       resetPreviewState();
       setMenuOpen(false);
       return;
     }
 
-    const inputTarget = UrlParser.parse(inputValue);
+    const inputTarget = UrlParser.parse(refreshValue);
 
     if (!inputTarget) {
-      resetPreviewState();
+      if (!inputValue && fallbackUrl) {
+        setUrlInput(fallbackUrl);
+      } else {
+        resetPreviewState();
+      }
+
       setMenuOpen(false);
       return;
     }
