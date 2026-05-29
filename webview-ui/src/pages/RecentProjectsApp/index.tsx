@@ -781,6 +781,20 @@ export default function RecentProjectsApp() {
         });
         break;
 
+      case 'createFile':
+        vscode.postMessage({
+          type: 'createFile',
+          fsPath: payload.path,
+        });
+        break;
+
+      case 'createFolder':
+        vscode.postMessage({
+          type: 'createFolder',
+          fsPath: payload.path,
+        });
+        break;
+
       case 'openLink':
         vscode.postMessage({
           type: 'openExternalLink',

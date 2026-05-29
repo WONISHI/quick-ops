@@ -618,6 +618,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'copyFile':
           this.copyFileEntity(data.fsPath);
           break;
+        case 'createFile':
+          this.createFileEntity(data.fsPath);
+          break;
+        case 'createFolder':
+          this.createFolderEntity(data.fsPath);
+          break;
         case 'openExternalLink':
           this.openExternalLink(data.fsPath, data.platform, data.customDomain);
           break;
@@ -1246,6 +1252,103 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
 
     this._view?.webview.postMessage({ type: 'searchFolderResult', results });
+  }
+
+  private getWritableLocalUri(fsPath: string) {
+    const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+
+    if (uri.scheme !== 'file') {
+      vscode.window.showWarningMessage('当前只支持在本地文件夹中新建文件或文件夹。');
+      return null;
+    }
+
+    return uri;
+  }
+
+  private validateNewEntityName(name: string) {
+    const value = name.trim();
+
+    if (!value) {
+      return '';
+    }
+
+    if (/[\\/]/.test(value)) {
+      vscode.window.showWarningMessage('名称不能包含 / 或 \\。');
+      return '';
+    }
+
+    return value;
+  }
+
+  private async createFileEntity(parentFsPath: string) {
+    try {
+      const parentUri = this.getWritableLocalUri(parentFsPath);
+      if (!parentUri) return;
+
+      const input = await vscode.window.showInputBox({
+        title: '新建文件',
+        prompt: '请输入新文件名',
+        placeHolder: '例如：index.ts',
+        ignoreFocusOut: true,
+      });
+
+      const fileName = this.validateNewEntityName(input || '');
+      if (!fileName) return;
+
+      const fileUri = vscode.Uri.joinPath(parentUri, fileName);
+
+      try {
+        await vscode.workspace.fs.stat(fileUri);
+        vscode.window.showWarningMessage(`文件已存在: ${fileName}`);
+        return;
+      } catch {
+        // 文件不存在时继续创建
+      }
+
+      await vscode.workspace.fs.writeFile(fileUri, new Uint8Array());
+      this.invalidateDirCache(parentUri.toString());
+      this.refresh(true);
+
+      const doc = await vscode.workspace.openTextDocument(fileUri);
+      await vscode.window.showTextDocument(doc, { preview: false });
+      vscode.window.showInformationMessage(`已新建文件: ${fileName}`);
+    } catch (e) {
+      vscode.window.showErrorMessage(`新建文件失败，详情: ${e}`);
+    }
+  }
+
+  private async createFolderEntity(parentFsPath: string) {
+    try {
+      const parentUri = this.getWritableLocalUri(parentFsPath);
+      if (!parentUri) return;
+
+      const input = await vscode.window.showInputBox({
+        title: '新建文件夹',
+        prompt: '请输入新文件夹名',
+        placeHolder: '例如：components',
+        ignoreFocusOut: true,
+      });
+
+      const folderName = this.validateNewEntityName(input || '');
+      if (!folderName) return;
+
+      const folderUri = vscode.Uri.joinPath(parentUri, folderName);
+
+      try {
+        await vscode.workspace.fs.stat(folderUri);
+        vscode.window.showWarningMessage(`文件夹已存在: ${folderName}`);
+        return;
+      } catch {
+        // 文件夹不存在时继续创建
+      }
+
+      await vscode.workspace.fs.createDirectory(folderUri);
+      this.invalidateDirCache(parentUri.toString());
+      this.refresh(true);
+      vscode.window.showInformationMessage(`已新建文件夹: ${folderName}`);
+    } catch (e) {
+      vscode.window.showErrorMessage(`新建文件夹失败，详情: ${e}`);
+    }
   }
 
   private async copyFileEntity(fsPath: string) {
