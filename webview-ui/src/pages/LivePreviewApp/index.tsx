@@ -78,6 +78,8 @@ export default function LivePreviewApp() {
     visible: false,
     title: '',
     url: '',
+    description: '',
+    logo: '',
     editingOriginalUrl: '',
   });
   const [showSuggest, setShowSuggest] = useState(false);
@@ -832,6 +834,8 @@ export default function LivePreviewApp() {
   const saveFavorite = () => {
     const t = favForm.title.trim();
     const u = UrlParser.parse(favForm.url);
+    const description = favForm.description.trim();
+    const logo = favForm.logo.trim();
 
     if (!t || !u) {
       return vscode?.postMessage({ type: 'showError', message: '标题和链接不能为空' });
@@ -857,7 +861,8 @@ export default function LivePreviewApp() {
           ...newFavs[index],
           title: t,
           url: u,
-          logo: newFavs[index].logo || '',
+          description,
+          logo,
           isDefault: false,
           source: 'user',
         };
@@ -870,8 +875,9 @@ export default function LivePreviewApp() {
       newFavs.push({
         url: u,
         title: t,
+        description,
+        logo,
         timestamp: Date.now(),
-        logo: getKnownLogoByUrl(u),
         isDefault: false,
         source: 'user',
       });
@@ -882,7 +888,14 @@ export default function LivePreviewApp() {
       favorites: newFavs.filter((item) => !item.isDefault),
     });
 
-    setFavForm({ visible: false, title: '', url: '', editingOriginalUrl: '' });
+    setFavForm({
+      visible: false,
+      title: '',
+      url: '',
+      description: '',
+      logo: '',
+      editingOriginalUrl: '',
+    });
   };
 
   const deleteFavorite = (favorite: FavoriteItem) => {

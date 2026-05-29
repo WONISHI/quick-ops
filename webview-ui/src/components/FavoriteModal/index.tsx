@@ -18,6 +18,8 @@ interface FavFormState {
   visible: boolean;
   title: string;
   url: string;
+  description: string;
+  logo: string;
   editingOriginalUrl: string;
 }
 
@@ -73,7 +75,16 @@ export default function FavoriteModal(props: FavoriteModalProps) {
               icon={faPlus}
               className={`${styles['action-icon']} ${styles['fav-header-plus']}`}
               title="新增收藏"
-              onClick={() => setFavForm({ visible: true, title: '', url: '', editingOriginalUrl: '' })}
+              onClick={() =>
+                setFavForm({
+                  visible: true,
+                  title: '',
+                  url: '',
+                  description: '',
+                  logo: '',
+                  editingOriginalUrl: '',
+                })
+              }
             />
 
             <div className={styles['fav-header-divider']} />
@@ -101,8 +112,32 @@ export default function FavoriteModal(props: FavoriteModalProps) {
               onChange={(e) => setFavForm({ ...favForm, url: e.target.value })}
             />
 
+            <input
+              type="text"
+              className={styles['fav-input']}
+              placeholder="输入备注信息"
+              value={favForm.description}
+              onChange={(e) => setFavForm({ ...favForm, description: e.target.value })}
+            />
+
+            <input
+              type="text"
+              className={styles['fav-input']}
+              placeholder="输入图片地址 / Logo 地址"
+              value={favForm.logo}
+              onChange={(e) => setFavForm({ ...favForm, logo: e.target.value })}
+            />
+
             <div className={styles['fav-form-btns']}>
-              <button className={styles['fav-btn']} onClick={() => setFavForm({ ...favForm, visible: false })}>
+              <button
+                className={styles['fav-btn']}
+                onClick={() =>
+                  setFavForm({
+                    ...favForm,
+                    visible: false,
+                  })
+                }
+              >
                 取消
               </button>
 
@@ -176,6 +211,8 @@ export default function FavoriteModal(props: FavoriteModalProps) {
                             visible: true,
                             title: f.title,
                             url: f.url,
+                            description: f.description || '',
+                            logo: f.logo || '',
                             editingOriginalUrl: f.url,
                           });
                         }}
