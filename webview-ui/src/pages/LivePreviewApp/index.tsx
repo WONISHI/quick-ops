@@ -391,11 +391,20 @@ export default function LivePreviewApp() {
 
     window.addEventListener('click', handleClickOutside);
 
+    const handleWindowBlur = () => {
+      setShowSuggest(false);
+      setSuggestIndex(-1);
+      setMenuOpen(false);
+    };
+
+    window.addEventListener('blur', handleWindowBlur);
+
     vscode?.postMessage({ type: 'ready' });
 
     return () => {
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('blur', handleWindowBlur);
       clearPreviewLoadTimer();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
