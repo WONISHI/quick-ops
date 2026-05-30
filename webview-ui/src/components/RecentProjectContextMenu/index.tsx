@@ -231,6 +231,15 @@ export default function RecentProjectContextMenu({
                 </li>
               </>
             )}
+
+            {payload.isActiveProject && !payload.isRemote && (
+              <>
+                <div className={styles['menu-separator']}></div>
+                <li onClick={() => onAction('deleteFileEntity')} style={{ color: 'var(--vscode-errorForeground)' }}>
+                  <FontAwesomeIcon icon={faTrash} className={styles['menu-icon']} /> 删除
+                </li>
+              </>
+            )}
           </>
         )}
       </ul>

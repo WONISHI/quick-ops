@@ -624,6 +624,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'createFolder':
           this.createFolderEntity(data.fsPath);
           break;
+        case 'deleteFileEntity':
+          this.deleteFileEntity(data.fsPath, !!data.isFolder);
+          break;
         case 'openExternalLink':
           this.openExternalLink(data.fsPath, data.platform, data.customDomain);
           break;
@@ -1380,6 +1383,48 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       vscode.window.showInformationMessage(`📄 文件已复制为: ${newFileName}`);
     } catch (e) {
       vscode.window.showErrorMessage(`复制文件失败，详情: ${e}`);
+    }
+  }
+  private async deleteFileEntity(fsPath: string, isFolder: boolean) {
+    try {
+      const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+
+      if (uri.scheme !== 'file') {
+        vscode.window.showWarningMessage('当前只支持删除本地文件或文件夹。');
+        return;
+      }
+
+      const currentWorkspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri;
+
+      if (!currentWorkspaceUri || !this.isInsidePath(uri.toString(), currentWorkspaceUri.toString())) {
+        vscode.window.showWarningMessage('只能删除当前运行项目中的文件或文件夹。');
+        return;
+      }
+
+      const entityName = path.basename(uri.fsPath || uri.path);
+      const entityType = isFolder ? '文件夹' : '文件';
+      const confirm = await vscode.window.showWarningMessage(
+        `确定要删除${entityType} “${entityName}” 吗？${isFolder ? ' 文件夹内的所有内容也会被删除。' : ''}`,
+        { modal: true },
+        '确认删除'
+      );
+
+      if (confirm !== '确认删除') {
+        return;
+      }
+
+      await vscode.workspace.fs.delete(uri, {
+        recursive: isFolder,
+        useTrash: true,
+      });
+
+      const parentUri = vscode.Uri.joinPath(uri, '..');
+      this.invalidateDirCache(parentUri.toString());
+      this.invalidateDirCache(uri.toString());
+      this.refresh(true);
+      vscode.window.showInformationMessage(`已删除${entityType}: ${entityName}`);
+    } catch (e) {
+      vscode.window.showErrorMessage(`删除失败，详情: ${e}`);
     }
   }
 

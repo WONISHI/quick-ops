@@ -794,6 +794,13 @@ export default function RecentProjectsApp() {
           fsPath: payload.path,
         });
         break;
+      case 'deleteFileEntity':
+        vscode.postMessage({
+          type: 'deleteFileEntity',
+          fsPath: payload.path,
+          isFolder: !!payload.isFolder,
+        });
+        break;
 
       case 'openLink':
         vscode.postMessage({
