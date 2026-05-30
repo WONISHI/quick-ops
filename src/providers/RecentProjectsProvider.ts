@@ -1403,6 +1403,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       const entityName = path.basename(uri.fsPath || uri.path);
       const entityType = isFolder ? '文件夹' : '文件';
+
       const confirm = await vscode.window.showWarningMessage(
         `确定要删除${entityType} “${entityName}” 吗？${isFolder ? ' 文件夹内的所有内容也会被删除。' : ''}`,
         { modal: true },
@@ -1419,9 +1420,18 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       const parentUri = vscode.Uri.joinPath(uri, '..');
+
+      this._view?.webview.postMessage({
+        type: 'deleteFileEntityResult',
+        fsPath: uri.toString(),
+        parentPath: parentUri.toString(),
+      });
+
       this.invalidateDirCache(parentUri.toString());
       this.invalidateDirCache(uri.toString());
-      this.refresh(true);
+
+      this.refresh(false);
+
       vscode.window.showInformationMessage(`已删除${entityType}: ${entityName}`);
     } catch (e) {
       vscode.window.showErrorMessage(`删除失败，详情: ${e}`);
@@ -1957,8 +1967,23 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       this._view?.webview.postMessage({ type: 'readDirResult', fsPath: uriStr, children, projectName, focusOnly });
     } catch (e) {
-      vscode.window.showWarningMessage(`读取失败：可能是网络超时或触发了 GitHub API 限制，请稍后再试。`);
-      this._view?.webview.postMessage({ type: 'readDirResult', fsPath, children: [], projectName, focusOnly });
+      const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+      const uriStr = uri.toString();
+      const isRemote = uriStr.startsWith('vscode-vfs://') || uriStr.startsWith('http');
+
+      this._view?.webview.postMessage({
+        type: 'readDirResult',
+        fsPath: uriStr,
+        children: [],
+        projectName,
+        focusOnly,
+      });
+
+      if (isRemote) {
+        vscode.window.showErrorMessage('读取失败：可能是网络超时或触发了 GitHub API 限制，请稍后再试。');
+      }
+
+      return;
     }
   }
 

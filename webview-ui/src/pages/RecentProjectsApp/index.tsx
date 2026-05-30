@@ -299,8 +299,72 @@ export default function RecentProjectsApp() {
           ...prev,
           [pathKey]: children,
         }));
+      } else if (msg.type === 'deleteFileEntityResult') {
+        const deletedPath = msg.fsPath as string;
+        const parentPath = msg.parentPath as string;
+
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+
+          Array.from(next).forEach((itemPath) => {
+            if (isPathInside(itemPath, deletedPath)) {
+              next.delete(itemPath);
+            }
+          });
+
+          return next;
+        });
+
+        setLoadingPaths((prev) => {
+          const next = new Set(prev);
+
+          Array.from(next).forEach((itemPath) => {
+            if (isPathInside(itemPath, deletedPath)) {
+              next.delete(itemPath);
+            }
+          });
+
+          return next;
+        });
+
+        setDirChildren((prev) => {
+          const next = { ...prev };
+
+          Object.keys(next).forEach((key) => {
+            if (isPathInside(key, deletedPath)) {
+              delete next[key];
+            }
+          });
+
+          if (next[parentPath]) {
+            next[parentPath] = next[parentPath].filter((item) => !isPathInside(item.path, deletedPath));
+          }
+
+          return next;
+        });
+
+        setSelectedPath((prev) => {
+          if (isPathInside(prev, deletedPath)) {
+            return parentPath;
+          }
+
+          return prev;
+        });
       } else if (msg.type === 'refreshExpandedDirs') {
-        const expandedList = Array.from(expandedPathsRef.current);
+        const expandedList = Array.from(expandedPathsRef.current).filter((itemPath) => {
+          if (!itemPath) return false;
+
+          const hasParentLoaded = Object.keys(dirChildrenRef.current).some((parentPath) => {
+            const children = dirChildrenRef.current[parentPath] || [];
+
+            return children.some((child) => child.path === itemPath);
+          });
+
+          const isRootProject = projectsRef.current.some((project) => project.fsPath === itemPath);
+          const isCurrentWorkspaceRoot = currentWorkspaceRef.current?.fsPath === itemPath;
+
+          return hasParentLoaded || isRootProject || isCurrentWorkspaceRoot;
+        });
 
         if (expandedList.length === 0) {
           return;
