@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
 import Tooltip from '../../components/Tooltip';
@@ -102,10 +102,52 @@ export default function GitApp() {
 
   const lastRefreshRef = useRef<number>(0);
   const commitInputRef = useRef<HTMLDivElement>(null);
+  const graphSectionRef = useRef<HTMLDivElement>(null);
+  const graphResizeStartRef = useRef({ y: 0, height: 50 });
+  const [graphSectionHeight, setGraphSectionHeight] = useState(50);
 
   const getNormalizedCommitMessage = () => {
     return commitMsg.replace(/\n/g, '').trim();
   };
+
+  const clampGraphSectionHeight = (height: number) => {
+    return Math.min(70, Math.max(30, height));
+  };
+
+  const handleGraphResizeMouseDown = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!isGraphOpen) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      graphResizeStartRef.current = {
+        y: e.clientY,
+        height: graphSectionHeight,
+      };
+
+      document.body.classList.add(styles['graph-resizing']);
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 1;
+        const deltaY = moveEvent.clientY - graphResizeStartRef.current.y;
+        const deltaPercent = (deltaY / viewportHeight) * 100;
+        const nextHeight = clampGraphSectionHeight(graphResizeStartRef.current.height - deltaPercent);
+
+        setGraphSectionHeight(nextHeight);
+      };
+
+      const handleMouseUp = () => {
+        document.body.classList.remove(styles['graph-resizing']);
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    },
+    [graphSectionHeight, isGraphOpen],
+  );
 
   const canCommit = isRepo && !loading && !!getNormalizedCommitMessage() && stagedFiles.length > 0;
 
@@ -655,11 +697,7 @@ export default function GitApp() {
         </div>
 
         <button className={styles['commit-btn']} disabled={!canCommit} onClick={handleCommit}>
-          {loading ? (
-            <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} />
-          ) : (
-            <i className={`codicon codicon-check ${styles['icon-right-6']}`} />
-          )}
+          {loading ? <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} /> : <i className={`codicon codicon-check ${styles['icon-right-6']}`} />}
           提交 (Commit)
         </button>
       </div>
@@ -1187,7 +1225,13 @@ export default function GitApp() {
         </div>
       </div>
 
-      <div className={getChangesSectionClassName(isGraphOpen, [styles['git-graph-section'], styles['section-top-gap']])}>
+      <div
+        ref={graphSectionRef}
+        className={getChangesSectionClassName(isGraphOpen, [styles['git-graph-section'], styles['section-top-gap']])}
+        style={isGraphOpen ? { height: `${graphSectionHeight}vh` } : undefined}
+      >
+        {isGraphOpen && <div className={styles['graph-resize-handle']} onMouseDown={handleGraphResizeMouseDown} />}
+
         <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsGraphOpen(!isGraphOpen)}>
           <div className={styles['header-flex-title']}>
             <i className={`codicon ${isGraphOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
