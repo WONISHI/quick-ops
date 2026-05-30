@@ -59,6 +59,8 @@ export default function GitApp() {
   const [isGraphSearchOpen, setIsGraphSearchOpen] = useState(false);
 
   const [justCommitted, setJustCommitted] = useState(false);
+  const currentBranchRef = useRef('');
+  const justCommittedBranchRef = useRef('');
 
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
   const [isGraphLoading, setIsGraphLoading] = useState(true);
@@ -139,13 +141,25 @@ export default function GitApp() {
         setStashFilesLoading({});
         setExpandedStashIndex(null);
         setRemoteSync(EMPTY_REMOTE_SYNC);
+        currentBranchRef.current = '';
+        justCommittedBranchRef.current = '';
+        setJustCommitted(false);
       } else if (msg.type === 'statusData') {
         setIsRepo(true);
         setChangesRefreshing(false);
         setStagedFiles(msg.stagedFiles || []);
         setUnstagedFiles(msg.unstagedFiles || []);
         setConflictedFiles(msg.conflictedFiles || []);
-        setBranch(msg.branch || '');
+
+        const nextBranch = msg.branch || '';
+
+        if (justCommittedBranchRef.current && nextBranch && nextBranch !== justCommittedBranchRef.current) {
+          justCommittedBranchRef.current = '';
+          setJustCommitted(false);
+        }
+
+        currentBranchRef.current = nextBranch;
+        setBranch(nextBranch);
         setRemoteUrl(msg.remoteUrl || '');
         setFolderName(msg.folderName || '');
 
@@ -228,8 +242,10 @@ export default function GitApp() {
         setChangesRefreshing(false);
         setIsGraphLoading(false);
       } else if (msg.type === 'commitSuccess') {
+        justCommittedBranchRef.current = currentBranchRef.current;
         setJustCommitted(true);
       } else if (msg.type === 'clearJustCommitted') {
+        justCommittedBranchRef.current = '';
         setJustCommitted(false);
       } else if (msg.type === 'gitInstallationStatus') {
         setIsGitInstalled(msg.isInstalled);
@@ -475,6 +491,9 @@ export default function GitApp() {
     return '拉取 (Pull)';
   };
 
+  const hasUnpushedCommit = remoteSync.needsPush && remoteSync.ahead > 0;
+  const canUndoLastCommit = justCommitted || hasUnpushedCommit;
+
   if (isGitInstalled === false) {
     return <GitNotInstalled />;
   }
@@ -672,7 +691,7 @@ export default function GitApp() {
                   </button>
                 </Tooltip>
 
-                {justCommitted && (
+                {canUndoLastCommit && (
                   <Tooltip content="撤销刚刚的提交 (退回工作区)">
                     <button
                       className={`${styles['action-btn']} ${styles['section-action-btn']}`}
@@ -683,6 +702,7 @@ export default function GitApp() {
                           command: 'undoLastCommit',
                         });
 
+                        justCommittedBranchRef.current = '';
                         setJustCommitted(false);
                       }}
                     >
