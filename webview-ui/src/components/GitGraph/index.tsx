@@ -251,6 +251,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const suppressHoverUntilRef = useRef(0);
+    const graphScrollTopRef = useRef(0);
 
     const [resizeTrigger, setResizeTrigger] = useState(0);
 
@@ -503,7 +504,24 @@ const GitGraph: React.FC<GitGraphProps> = ({
     };
 
     const handleGraphScroll = (e: React.UIEvent<HTMLDivElement>) => {
-        const target = e.target as HTMLDivElement;
+        const target = e.currentTarget;
+        const hasVerticalScroll = target.scrollHeight > target.clientHeight;
+        const isScrollMoved = target.scrollTop !== graphScrollTopRef.current;
+
+        graphScrollTopRef.current = target.scrollTop;
+
+        if (hasVerticalScroll && isScrollMoved) {
+            suppressHoverUntilRef.current = Date.now() + 300;
+
+            if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+                hoverTimeoutRef.current = undefined;
+            }
+
+            setHoveredRowHash(null);
+            setHoverInfo(null);
+        }
+
         if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
             if (displayCount < graphCommits.length) {
                 setDisplayCount((prev) => prev + 50);
