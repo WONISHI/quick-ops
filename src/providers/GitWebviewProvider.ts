@@ -130,6 +130,118 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     await vscode.commands.executeCommand('vscode.changes', title, changesArgs);
   }
 
+
+  private normalizeGitRelativePath(value: string): string {
+    return value.replace(/\\/g, '/').replace(/^\/+/, '');
+  }
+
+  private getRelativePathFromUri(cwd: string, uri: vscode.Uri | undefined): string | null {
+    if (!uri) return null;
+
+    if (uri.scheme === 'quickops-git') {
+      return this.normalizeGitRelativePath(uri.path);
+    }
+
+    if (uri.scheme === 'file') {
+      const relativePath = path.relative(cwd, uri.fsPath);
+
+      if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+        return null;
+      }
+
+      return this.normalizeGitRelativePath(relativePath);
+    }
+
+    return null;
+  }
+
+  private collectTabInputUris(input: any): vscode.Uri[] {
+    const uris: vscode.Uri[] = [];
+    const visited = new Set<any>();
+
+    const collect = (value: any) => {
+      if (!value) return;
+
+      if (value instanceof vscode.Uri) {
+        uris.push(value);
+        return;
+      }
+
+      if (typeof value === 'object') {
+        if (visited.has(value)) return;
+        visited.add(value);
+      }
+
+      if (Array.isArray(value)) {
+        value.forEach((item) => collect(item));
+        return;
+      }
+
+      if (typeof value === 'object') {
+        collect(value.uri);
+        collect(value.original);
+        collect(value.modified);
+        collect(value.primary);
+        collect(value.secondary);
+        collect(value.resource);
+        collect(value.left);
+        collect(value.right);
+        collect(value.base);
+        collect(value.input);
+        collect(value.resources);
+      }
+    };
+
+    collect(input);
+
+    return uris;
+  }
+
+  private async closeWorkingTreeDiffTabs(cwd: string, files?: string[]): Promise<void> {
+    const normalizedFiles = files?.map((file) => this.normalizeGitRelativePath(file));
+    const closeAllWorkingTreeDiffTabs = !normalizedFiles || normalizedFiles.length === 0;
+    const tabsToClose: vscode.Tab[] = [];
+
+    vscode.window.tabGroups.all.forEach((group) => {
+      group.tabs.forEach((tab) => {
+        const inputUris = this.collectTabInputUris(tab.input);
+
+        if (inputUris.length === 0) return;
+
+        const isWorkingTreeDiff = inputUris.some((uri) => {
+          if (uri.scheme !== 'quickops-git') return false;
+
+          try {
+            const params = JSON.parse(decodeURIComponent(uri.query || ''));
+            return params.cwd === cwd && (params.ref === 'HEAD' || params.ref === 'empty');
+          } catch {
+            return false;
+          }
+        });
+
+        if (!isWorkingTreeDiff) return;
+
+        if (closeAllWorkingTreeDiffTabs) {
+          tabsToClose.push(tab);
+          return;
+        }
+
+        const hasDiscardedFile = inputUris.some((uri) => {
+          const relativePath = this.getRelativePathFromUri(cwd, uri);
+          return !!relativePath && normalizedFiles!.includes(relativePath);
+        });
+
+        if (hasDiscardedFile) {
+          tabsToClose.push(tab);
+        }
+      });
+    });
+
+    if (tabsToClose.length > 0) {
+      await vscode.window.tabGroups.close(tabsToClose, true);
+    }
+  }
+
   private async executeGitOperation(operation: () => Promise<void> | void) {
     this._isInternalOp = true;
 
@@ -1379,6 +1491,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
             await this.executeGitOperation(async () => {
               await this.gitService.discardAll(cwd);
+              await this.closeWorkingTreeDiffTabs(cwd);
               await this.refreshStatus(cwd, false);
             });
 
@@ -1404,6 +1517,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 await this.gitService.discardFile(cwd, msg.file, msg.status);
               }
 
+              await this.closeWorkingTreeDiffTabs(cwd, [msg.file]);
               await this.refreshStatus(cwd, false);
             });
 
