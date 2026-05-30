@@ -193,7 +193,7 @@ export default function RecentProjectContextMenu({
                 <li onClick={() => onAction('searchInFolder')}>
                   <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
                 </li>
-                {payload.isActiveProject && !payload.isRemote && (
+                {!payload.isRemote && (
                   <>
                     <div className={styles['menu-separator']}></div>
                     <li onClick={() => onAction('createFile')}>
