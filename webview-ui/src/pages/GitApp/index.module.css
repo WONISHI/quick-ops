@@ -345,7 +345,7 @@ body {
 }
 
 .section-top-gap {
-  margin-top: 8px;
+  padding-top: 8px;
 }
 
 .nested-section {
@@ -693,10 +693,10 @@ body {
 
 .graph-resize-handle {
   position: absolute;
-  top: -4px;
+  top: 0;
   left: 0;
   right: 0;
-  height: 8px;
+  height: 4px;
   z-index: 20;
   cursor: row-resize;
 }
@@ -704,15 +704,16 @@ body {
 .graph-resize-handle::before {
   content: '';
   position: absolute;
-  top: 3px;
-  left: 10px;
-  right: 10px;
-  height: 1px;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
   background: transparent;
   transition: background 0.12s ease;
 }
 
-.graph-resize-handle:hover::before {
+.graph-resize-handle:hover::before,
+.graph-resize-handle:active::before {
   background: var(--vscode-focusBorder);
 }
 
