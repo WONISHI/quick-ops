@@ -1,6 +1,6 @@
 [
   {
-    "prefix": "rsz",
+    "prefix": "renderSize",
     "body": [
       "function renderSize(value){",
       "   if (null == value || value == '') {",
@@ -19,17 +19,13 @@
     "description": "格式化文件大小 (quick-ops提供)"
   },
   {
-    "prefix": "sct",
-    "body": [
-      "document.querySelector(${0}).scrollIntoView({",
-      "   behavior: 'smooth'",
-      "});"
-    ],
+    "prefix": "scrollIntoView",
+    "body": ["document.querySelector(${0}).scrollIntoView({", "   behavior: 'smooth'", "});"],
     "style": "javascript",
     "description": "元素滚动 (quick-ops提供)"
   },
   {
-    "prefix": "deb",
+    "prefix": "debounce",
     "body": [
       "function debounce(() => {",
       "   let timer = null",
@@ -43,7 +39,7 @@
     "description": "防抖 (quick-ops提供)"
   },
   {
-    "prefix": "thr",
+    "prefix": "throttle",
     "body": [
       "function throttle(() => {",
       "   let last = 0",
@@ -60,28 +56,14 @@
     "description": "节流 (quick-ops提供)"
   },
   {
-    "prefix": "tcf",
-    "body": [
-      "try {",
-      "   ${1:$TM_SELECTED_TEXT}",
-      "} catch (err) {",
-      "   console.log('err',err)",
-      "} finally {",
-      "   ${0}",
-      "}"
-    ],
+    "prefix": "trycatchfinally",
+    "body": ["try {", "   ${1:$TM_SELECTED_TEXT}", "} catch (err) {", "   console.log('err',err)", "} finally {", "   ${0}", "}"],
     "style": "javascript",
     "description": "try-catch-finally (quick-ops提供)"
   },
   {
-    "prefix": "trc",
-    "body": [
-      "try {",
-      "   ${0:$TM_SELECTED_TEXT}",
-      "} catch (err) {",
-      "   console.log('err',err)",
-      "}"
-    ],
+    "prefix": "trycatch",
+    "body": ["try {", "   ${0:$TM_SELECTED_TEXT}", "} catch (err) {", "   console.log('err',err)", "}"],
     "style": "javascript",
     "description": "try-catch (quick-ops提供)"
   },
