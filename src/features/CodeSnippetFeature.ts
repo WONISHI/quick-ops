@@ -39,11 +39,23 @@ export class CodeSnippetFeature implements IFeature {
   private provideSnippets(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
     if (this.cachedSnippets.length === 0) return [];
 
+    const currentInputInfo = this.getCurrentInputInfo(document, position);
+
+    // 光标前面没有输入内容，不主动返回片段
+    if (!currentInputInfo.wordBefore) return [];
+
+    // 光标后面还有单词内容，说明是在 a 和 b 中间输入，这种情况不提示
+    if (currentInputInfo.wordAfter) return [];
+
     const currentLangId = document.languageId;
     const ctx = this.contextService.context;
 
     // 1. 过滤逻辑
     const validSnippets = this.cachedSnippets.filter((item) => {
+      if (!this.isPrefixMatched(item.prefix, currentInputInfo.wordBefore)) {
+        return false;
+      }
+
       if (!item.scope || item.scope.length === 0) return true;
 
       const languageScope = item.scope[0];
@@ -58,6 +70,7 @@ export class CodeSnippetFeature implements IFeature {
 
       if (item.scope.length > 1 && item.scope[1]) {
         const dep = item.scope[1];
+
         if (dep === 'vue3' && !ctx.isVue3) return false;
         if (dep === 'vue2' && ctx.isVue3) return false;
         if (dep === 'react' && !ctx.isReact) return false;
@@ -84,8 +97,41 @@ export class CodeSnippetFeature implements IFeature {
       completion.insertText = new vscode.SnippetString(result);
       completion.documentation = new vscode.MarkdownString().appendCodeblock(result, item.style || currentLangId);
 
+      // 只替换当前输入的关键字，比如输入 v，选择 vue2 片段时只替换 v
+      completion.range = new vscode.Range(currentInputInfo.startPosition, position);
+
       return completion;
     });
+  }
+
+  private getCurrentInputInfo(document: vscode.TextDocument, position: vscode.Position) {
+    const lineText = document.lineAt(position.line).text;
+    const beforeText = lineText.slice(0, position.character);
+    const afterText = lineText.slice(position.character);
+
+    const beforeMatch = beforeText.match(/[A-Za-z0-9_$-]+$/);
+    const afterMatch = afterText.match(/^[A-Za-z0-9_$-]+/);
+
+    const wordBefore = beforeMatch ? beforeMatch[0] : '';
+    const wordAfter = afterMatch ? afterMatch[0] : '';
+
+    const startPosition = new vscode.Position(position.line, position.character - wordBefore.length);
+
+    return {
+      wordBefore,
+      wordAfter,
+      startPosition,
+    };
+  }
+
+  private isPrefixMatched(prefix: string | string[], input: string): boolean {
+    if (!input) return false;
+
+    if (Array.isArray(prefix)) {
+      return prefix.some((item) => item.startsWith(input));
+    }
+
+    return prefix.startsWith(input);
   }
 
   private async loadAllSnippets(context: vscode.ExtensionContext) {

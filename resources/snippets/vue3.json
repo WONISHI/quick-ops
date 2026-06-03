@@ -33,5 +33,12 @@
     "body": ["const props = withDefaults(defineProps<${1}>(), {", "   ${0}", "})"],
     "style": "javascript",
     "description": "vue3-props (quick-ops提供)"
+  },
+  {
+    "prefix": "onMounted",
+    "scope": ["vue", "vue3"],
+    "body": ["onMounted(()=>{", "   ${0}", "})"],
+    "style": "javascript",
+    "description": "vue3-onMounted (quick-ops提供)"
   }
 ]
