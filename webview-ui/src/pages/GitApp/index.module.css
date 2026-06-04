@@ -346,6 +346,9 @@ body {
 
 .change-diff {
   background-color: #fff;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .change-stash {
