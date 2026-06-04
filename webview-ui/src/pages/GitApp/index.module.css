@@ -327,11 +327,11 @@ body {
   flex: 0 0 auto;
 }
 
-.changes-section-expanded > .changes-header {
+.changes-section-expanded>.changes-header {
   opacity: 1;
 }
 
-.changes-section-collapsed > .changes-header {
+.changes-section-collapsed>.changes-header {
   opacity: 0.85;
 }
 
@@ -342,6 +342,16 @@ body {
 
 .changes-section:not(.section-top-gap) .changes-content {
   flex: 1;
+}
+
+.change-diff {
+  background-color: #fff;
+}
+
+.change-stash {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .section-top-gap {

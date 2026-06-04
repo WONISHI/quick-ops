@@ -948,7 +948,7 @@ export default function GitApp() {
         </div>
 
         {stashes.length > 0 && (
-          <div className={getChangesSectionClassName(isStashesOpen, [styles['section-top-gap']])}>
+          <div className={getChangesSectionClassName(isStashesOpen, [styles['section-top-gap'],styles['change-stash']])}>
             <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsStashesOpen(!isStashesOpen)}>
               <div className={styles['header-flex-title']}>
                 <i className={`codicon ${isStashesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
@@ -1083,7 +1083,7 @@ export default function GitApp() {
           </div>
         )}
 
-        <div className={getChangesSectionClassName(isCompareOpen, [styles['section-top-gap']])}>
+        <div className={getChangesSectionClassName(isCompareOpen, [styles['section-top-gap'],styles['change-diff']])}>
           <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsCompareOpen(!isCompareOpen)}>
             <div className={styles['header-flex-title']}>
               <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
