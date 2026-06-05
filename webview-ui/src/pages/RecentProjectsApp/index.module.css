@@ -358,15 +358,19 @@ ul {
    树结构
    ================================ */
 
+/* ================================
+   树结构
+   ================================ */
+
 .tree-children {
-  margin-left: 10px;
-  padding-left: 6px;
+  margin-left: 6px;
+  padding-left: 4px;
   border-left: 1px solid var(--vscode-tree-indentGuidesStroke);
 }
 
 .tree-chevron,
 .chevron-placeholder {
-  width: 14px;
+  width: 12px;
   height: 20px;
   display: flex;
   align-items: center;
@@ -381,13 +385,13 @@ ul {
 }
 
 .chevron-icon {
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .sub-item {
   display: flex;
   align-items: center;
-  padding: 2px 0;
+  padding: 2px 2px 2px 0;
   font-size: 13px;
   cursor: default;
   min-width: 0;
@@ -414,13 +418,6 @@ ul {
   text-overflow: ellipsis;
   opacity: 0.9;
   pointer-events: none;
-}
-
-.empty-node {
-  font-size: 12px;
-  opacity: 0.5;
-  padding: 4px 12px;
-  font-style: italic;
 }
 
 /* ================================
@@ -563,23 +560,24 @@ ul {
    ================================ */
 
 .file-status-badge {
-  margin-left: auto;
-  padding: 0 6px;
-  min-width: 22px;
+  margin-left: 6px;
+  padding: 0 4px;
+  min-width: 14px;
   height: 18px;
   line-height: 18px;
   text-align: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   flex-shrink: 0;
   opacity: 0.95;
+  font-family: var(--vscode-editor-font-family, var(--vscode-font-family));
 }
 
 .folder-status-dot {
   width: 7px;
   height: 7px;
-  margin-left: auto;
-  margin-right: 10px;
+  margin-left: 6px;
+  margin-right: 6px;
   border-radius: 50%;
   flex-shrink: 0;
   opacity: 0.9;
@@ -610,7 +608,6 @@ ul {
   color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
 }
 
-/* 选中状态下也保持 Git 状态颜色 */
 .sub-item.selected .file-status-u,
 .project-item.selected .file-status-u,
 .active-top-project.selected .file-status-u {
@@ -647,7 +644,6 @@ ul {
   color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b) !important;
 }
 
-/* 圆点使用当前状态色 */
 .sub-item.selected .folder-status-dot {
   background-color: currentColor;
 }

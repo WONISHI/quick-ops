@@ -625,6 +625,21 @@ export default function RecentProjectsApp() {
     );
   };
 
+  const renderFileStatusBadge = (status?: string) => {
+    const text = getFileStatusText(status);
+
+    if (!text) return null;
+
+    return (
+      <span
+        className={`${styles['file-status-badge']} ${getFileStatusClassName(status)}`}
+        title={`状态: ${text}`}
+      >
+        {text}
+      </span>
+    );
+  };
+
   const requestReadDir = (pathValue: string, projectName: string, forceRefresh: boolean = false) => {
     vscode.postMessage({
       type: isFocusMode ? 'readFocusDir' : 'readDir',
@@ -1279,7 +1294,7 @@ export default function RecentProjectsApp() {
                   {child.name}
                 </span>
 
-                {renderFolderStatusDot(child.status)}
+                {renderFileStatusBadge(child.status)}
               </div>
             </div>
           );
