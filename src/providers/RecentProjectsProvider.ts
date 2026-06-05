@@ -276,7 +276,18 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const gitRoot = await this.getGitRoot(nativePath);
       if (!gitRoot) return map;
 
-      const output = await this.execGit(['status', '--porcelain=v1', '-z'], gitRoot);
+      /**
+       * -uall 很关键：
+       * 默认 git status 对未跟踪文件夹可能只返回：
+       * ?? src/foo/
+       *
+       * 加上 -uall 后会返回：
+       * ?? src/foo/a.ts
+       * ?? src/foo/b.ts
+       *
+       * 这样才能做到和 VSCode 原生一样，新增文件夹下的文件也显示 U。
+       */
+      const output = await this.execGit(['status', '--porcelain=v1', '-z', '-uall'], gitRoot);
       if (!output) return map;
 
       const parts = output.split('\0').filter(Boolean);
@@ -330,20 +341,45 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     statusMap: Map<string, string>
   ) {
     const normalizedChildPath = this.normalizeRelativePath(childRelativePath);
-
-    if (!isFolder) {
-      return statusMap.get(normalizedChildPath);
-    }
-
-    const folderPrefix = normalizedChildPath.endsWith('/')
+    const normalizedChildPathWithSlash = normalizedChildPath.endsWith('/')
       ? normalizedChildPath
       : `${normalizedChildPath}/`;
 
-    let finalStatus: string | undefined;
-    let finalPriority = 0;
+    if (!isFolder) {
+      const exactStatus = statusMap.get(normalizedChildPath);
+
+      if (exactStatus) {
+        return exactStatus;
+      }
+
+      /**
+       * 兼容 Git 只返回未跟踪目录的情况：
+       * ?? src/foo/
+       *
+       * 当当前文件是 src/foo/a.ts 时，需要继承 src/foo/ 的 U 状态。
+       */
+      let finalStatus: string | undefined;
+      let finalMatchedLength = 0;
+
+      for (const [changedPath, status] of statusMap.entries()) {
+        if (!changedPath.endsWith('/')) continue;
+
+        if (normalizedChildPath.startsWith(changedPath) && changedPath.length > finalMatchedLength) {
+          finalStatus = status;
+          finalMatchedLength = changedPath.length;
+        }
+      }
+
+      return finalStatus;
+    }
+
+    const exactFolderStatus = statusMap.get(normalizedChildPath) || statusMap.get(normalizedChildPathWithSlash);
+
+    let finalStatus = exactFolderStatus;
+    let finalPriority = this.getGitStatusPriority(exactFolderStatus);
 
     for (const [changedPath, status] of statusMap.entries()) {
-      if (!changedPath.startsWith(folderPrefix)) continue;
+      if (!changedPath.startsWith(normalizedChildPathWithSlash)) continue;
 
       const priority = this.getGitStatusPriority(status);
 
