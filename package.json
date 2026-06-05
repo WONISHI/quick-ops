@@ -283,12 +283,12 @@
       {
         "command": "quickOps.addRecentProject",
         "title": "添加项目",
-        "icon": "$(add)"
+        "icon": "$(new-folder)"
       },
       {
         "command": "quickOps.syncBranches",
         "title": "同步所有分支状态",
-        "icon": "$(repo-sync)"
+        "icon": "$(git-compare)"
       },
       {
         "command": "quickOps.refreshRecentProjects",
