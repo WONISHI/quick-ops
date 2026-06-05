@@ -1936,7 +1936,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
       }
 
+      const ignoredNames = new Set([
+        'node_modules',
+        '.git',
+        '.DS_Store'
+      ]);
+
       const children = entries
+        .filter(([name]) => !ignoredNames.has(name))
         .map(([name, type]) => {
           const isFolder = (type & vscode.FileType.Directory) !== 0;
           const childUri = vscode.Uri.joinPath(uri, name);
@@ -1948,9 +1955,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             status = this.getChildGitStatus(relativePath, isFolder, statusMap);
           }
 
-          return { name, isFolder, path: childUriStr, status };
+          return {
+            name,
+            isFolder,
+            path: childUriStr,
+            status
+          };
         })
-        .filter((c) => c.name !== 'node_modules' && c.name !== '.git')
         .filter((c) => {
           if (!focusOnly) return true;
           return !!c.status;
@@ -1965,7 +1976,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         timestamp: now
       });
 
-      this._view?.webview.postMessage({ type: 'readDirResult', fsPath: uriStr, children, projectName, focusOnly });
+      this._view?.webview.postMessage({
+        type: 'readDirResult',
+        fsPath: uriStr,
+        children,
+        projectName,
+        focusOnly
+      });
     } catch (e) {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const uriStr = uri.toString();
