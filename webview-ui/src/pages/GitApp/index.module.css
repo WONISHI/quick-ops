@@ -77,7 +77,27 @@ body {
 }
 
 .shield-enabled {
-  color: #3168d1;
+  opacity: 1;
+  color: #2f8f46 !important;
+  background: rgba(47, 143, 70, 0.12);
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(47, 143, 70, 0.32);
+}
+
+.shield-enabled:hover {
+  color: #2f8f46 !important;
+  background: rgba(47, 143, 70, 0.18);
+}
+
+.shield-enabled::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #2f8f46;
 }
 
 .section-action-btn {
@@ -105,6 +125,25 @@ body {
 .action-btn-active-solid {
   opacity: 1;
   border-radius: 3px;
+  color: #3168d1 !important;
+  background: rgba(49, 104, 209, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(49, 104, 209, 0.32);
+}
+
+.action-btn-active-solid:hover {
+  color: #3168d1 !important;
+  background: rgba(49, 104, 209, 0.18);
+}
+
+.action-btn-active-solid::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #3168d1;
 }
 
 .action-btn-flash {
