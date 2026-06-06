@@ -38,6 +38,7 @@ export interface GraphCommit {
   message: string;
   timestamp?: number;
   refs?: string;
+  type?: 'commit' | 'uncommitted' | 'stash';
 }
 
 const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];
@@ -183,19 +184,22 @@ class Vertex {
 function buildGraphEngine(commits: GraphCommit[]) {
   const vertices = commits.map((_, i) => new Vertex(i));
   const commitLookup: Record<string, number> = {};
+  const nullVertex = new Vertex(NULL_VERTEX_ID);
 
   commits.forEach((commit, index) => {
     commitLookup[commit.hash] = index;
   });
 
-  const nullVertex = new Vertex(NULL_VERTEX_ID);
-
   commits.forEach((commit, index) => {
-    (commit.parents || []).forEach((parentHash) => {
+    const parents = commit.type === 'stash'
+      ? (commit.parents || []).slice(0, 1)
+      : commit.parents || [];
+
+    parents.forEach((parentHash) => {
       if (commitLookup[parentHash] !== undefined) {
         vertices[index].addParent(vertices[commitLookup[parentHash]]);
         vertices[commitLookup[parentHash]].addChild(vertices[index]);
-      } else {
+      } else if (commit.type !== 'stash') {
         vertices[index].addParent(nullVertex);
       }
     });
@@ -206,7 +210,9 @@ function buildGraphEngine(commits: GraphCommit[]) {
 
   const getAvailableColour = (startAt: number) => {
     for (let i = 0; i < availableColours.length; i++) {
-      if (startAt > availableColours[i]) return i;
+      if (startAt > availableColours[i]) {
+        return i;
+      }
     }
 
     availableColours.push(0);
@@ -218,9 +224,9 @@ function buildGraphEngine(commits: GraphCommit[]) {
     let i = startAt;
     let vertex = vertices[i];
     let parentVertex = vertex.getNextParent();
-    let curVertex;
+    let curVertex: Vertex;
     let lastPoint = vertex.isNotOnBranch() ? vertex.getNextPoint() : vertex.getPoint();
-    let curPoint;
+    let curPoint: Point;
 
     if (
       parentVertex !== null &&
@@ -234,10 +240,12 @@ function buildGraphEngine(commits: GraphCommit[]) {
 
       for (i = startAt + 1; i < vertices.length; i++) {
         curVertex = vertices[i];
-        curPoint = curVertex.getPointConnectingTo(parentVertex, parentBranch);
 
-        if (curPoint !== null) {
+        const pointToParent = curVertex.getPointConnectingTo(parentVertex, parentBranch);
+
+        if (pointToParent !== null) {
           foundPointToParent = true;
+          curPoint = pointToParent;
         } else {
           curPoint = curVertex.getNextPoint();
         }
@@ -282,7 +290,9 @@ function buildGraphEngine(commits: GraphCommit[]) {
           vertex = parentVertex;
           parentVertex = vertex.getNextParent();
 
-          if (parentVertex === null || parentVertexOnBranch) break;
+          if (parentVertex === null || parentVertexOnBranch) {
+            break;
+          }
         }
       }
 
@@ -432,6 +442,46 @@ function getCommitFileStatusClass(status: string) {
   if (status === 'M') return styles['commit-file-status-modified'];
 
   return styles['commit-file-status-normal'];
+}
+
+
+function getRefTagClassName(ref: string) {
+  const refName = ref.trim();
+
+  return [
+    styles['ref-tag'],
+    refName.includes('HEAD ->') || refName === 'HEAD' ? styles['head'] : '',
+    refName.startsWith('origin/') ? styles['remote'] : '',
+    refName.startsWith('stash@') ? styles['stash'] : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+function getRefTagIcon(ref: string) {
+  const refName = ref.trim();
+
+  if (refName.startsWith('stash@')) {
+    return 'codicon-archive';
+  }
+
+  if (refName.includes('HEAD ->') || refName === 'HEAD') {
+    return 'codicon-git-branch';
+  }
+
+  if (refName.startsWith('origin/')) {
+    return 'codicon-git-branch';
+  }
+
+  return 'codicon-git-branch';
+}
+
+function getCommitDisplayMessage(commit: GraphCommit) {
+  if (commit.type === 'uncommitted') {
+    return commit.message || 'Uncommitted Changes';
+  }
+
+  return commit.message;
 }
 
 function renderRefText(ref: string) {
@@ -1242,16 +1292,15 @@ export default function GitCommitDetailApp() {
                           {refs.map((ref) => (
                             <span
                               key={ref}
-                              className={`${styles['ref-tag']} ${ref.includes('origin/') ? styles['remote'] : ''} ${ref.includes('HEAD') ? styles['head'] : ''
-                                }`}
+                              className={getRefTagClassName(ref)}
                               title={ref}
                             >
-                              <i className={`codicon codicon-git-branch ${styles['ref-tag-icon']}`} />
+                              <i className={`codicon ${getRefTagIcon(ref)} ${styles['ref-tag-icon']}`} />
                               {renderRefText(ref)}
                             </span>
                           ))}
 
-                          <span className={styles['commit-message']}>{commit.message}</span>
+                          <span className={styles['commit-message']}>{getCommitDisplayMessage(commit)}</span>
                         </div>
                       </div>
 
@@ -1295,7 +1344,7 @@ export default function GitCommitDetailApp() {
                             <span className={styles['detail-value']}>{remoteUrl}</span>
                           </div>
 
-                          <div className={styles['detail-message']}>{commit.message}</div>
+                          <div className={styles['detail-message']}>{getCommitDisplayMessage(commit)}</div>
                         </div>
 
                         <div className={styles['detail-actions']}>

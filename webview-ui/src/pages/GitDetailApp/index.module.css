@@ -231,35 +231,44 @@
 }
 
 .ref-tag {
-  height: 18px;
-  min-height: 18px;
-  line-height: 18px;
+  height: 20px;
+  min-height: 20px;
+  line-height: 20px;
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
   margin-right: 5px;
-  padding: 0 7px;
+  padding: 0 8px;
   border-radius: 4px;
   background: rgba(128, 128, 128, 0.16);
   color: var(--vscode-foreground);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
   max-width: 260px;
   vertical-align: middle;
   box-sizing: border-box;
+  border: 1px solid rgba(128, 128, 128, 0.28);
 }
 
 .ref-tag.head {
-  background: #3168d1;
+  background: #007acc;
+  border-color: #007acc;
   color: #ffffff;
 }
 
 .ref-tag.remote {
-  background: #6a2a88;
-  color: #ffffff;
+  background: transparent;
+  border-color: #6a2a88;
+  color: var(--vscode-foreground);
+}
+
+.ref-tag.stash {
+  background: transparent;
+  border-color: #e91e9d;
+  color: var(--vscode-foreground);
 }
 
 .ref-tag-icon,
