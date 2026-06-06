@@ -257,7 +257,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
                 <div className={`${styles['search-box']} ${styles['search-box-compact']}`}>
                     <span
-                        className={`codicon ${folderSearchType === 'content' ? 'codicon-file-text' : 'codicon-file'
+                        className={`codicon ${folderSearchType === 'content' ? 'codicon-output' : 'codicon-library'
                             } ${styles['search-type-icon']}`}
                         onClick={handleToggleSearchType}
                         title={

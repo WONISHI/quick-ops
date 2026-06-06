@@ -141,7 +141,6 @@
 
 .search-type-icon {
   cursor: pointer;
-  color: var(--vscode-textLink-foreground);
   font-size: 14px;
   margin-left: 6px;
   margin-right: 6px;
