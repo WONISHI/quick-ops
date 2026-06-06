@@ -504,7 +504,8 @@ body {
 }
 
 .git-graph-section.changes-section-expanded {
-  height: 30%;
+  min-height: 30vh;
+  max-height: 70vh;
 }
 
 .git-graph-fallback {
@@ -698,8 +699,6 @@ body {
 .git-graph-section {
   position: relative;
   flex: 0 0 auto;
-  min-height: 30vh;
-  max-height: 70vh;
   overflow: hidden;
 }
 
