@@ -1226,8 +1226,8 @@ export default function RecentProjectsApp() {
                   </div>
 
                   <FontAwesomeIcon
-                    icon={faFolder}
-                    className={`${styles['icon-closed']} ${styles['sub-icon']}`}
+                    icon={isExpanded ? faFolderOpen : faFolder}
+                    className={`${styles['icon-closed']} ${styles['sub-icon']} ${styles['folder-icon']}`}
                   />
 
                   <span
