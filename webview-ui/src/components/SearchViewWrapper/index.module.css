@@ -42,10 +42,6 @@
   box-sizing: border-box;
 }
 
-.action-btn-icon:hover:not(:disabled) {
-  background: var(--vscode-toolbar-hoverBackground);
-}
-
 .action-btn-icon:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -319,11 +315,6 @@
 
 .sub-item.clickable-sub {
   cursor: pointer;
-}
-
-.sub-item.clickable-sub:hover .tree-chevron {
-  background: var(--vscode-toolbar-hoverBackground);
-  opacity: 1;
 }
 
 .sub-item:hover {
