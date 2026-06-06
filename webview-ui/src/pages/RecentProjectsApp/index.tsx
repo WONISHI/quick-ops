@@ -640,16 +640,39 @@ export default function RecentProjectsApp() {
     );
   };
 
-  const isSelectedInsidePath = (parentPath: string) => {
+  const normalizeTreePath = (pathValue: string) => {
+    if (!pathValue) return '';
+
+    return decodeURIComponent(pathValue.split('?')[0])
+      .replace(/\\/g, '/')
+      .replace(/\/+$/, '');
+  };
+
+  const getParentTreePath = (pathValue: string) => {
+    const normalizedPath = normalizeTreePath(pathValue);
+
+    if (!normalizedPath) return '';
+
+    const index = normalizedPath.lastIndexOf('/');
+
+    if (index <= 0) return '';
+
+    return normalizedPath.slice(0, index);
+  };
+
+  const isSelectedDirectParentPath = (parentPath: string) => {
     if (!selectedPath || !parentPath) return false;
 
-    return isPathInside(selectedPath, parentPath) && selectedPath !== parentPath;
+    const normalizedParentPath = normalizeTreePath(parentPath);
+    const selectedParentPath = getParentTreePath(selectedPath);
+
+    return normalizedParentPath === selectedParentPath;
   };
 
   const getTreeChildrenClassName = (parentPath: string, extraClassName: string = '') => {
     return [
       styles['tree-children'],
-      isSelectedInsidePath(parentPath) ? styles['active-tree-guide'] : '',
+      isSelectedDirectParentPath(parentPath) ? styles['active-tree-guide'] : '',
       extraClassName,
     ]
       .filter(Boolean)
