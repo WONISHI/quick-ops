@@ -107,7 +107,7 @@ export interface ContextMenuState {
   y: number;
   type: 'file' | 'commit';
   file?: { file: string; status: string };
-  listType?: 'staged' | 'unstaged' | 'history' | 'compare';
+  listType?: 'staged' | 'unstaged' | 'history' | 'compare' | 'stash-file';
   commit?: { hash: string; message: string };
 }
 
@@ -135,7 +135,6 @@ export const GitContextMenu: React.FC<GitContextMenuProps> = ({ contextMenu, onC
         </>
       )}
 
-      {/* 2. 工作区文件的菜单 (unstaged) */}
       {/* 2. 工作区文件的菜单 (unstaged) */}
       {contextMenu.type === 'file' && contextMenu.listType === 'unstaged' && (
         <>
@@ -334,7 +333,55 @@ export const GitContextMenu: React.FC<GitContextMenuProps> = ({ contextMenu, onC
         </>
       )}
 
-      {/* 4. 历史/对比文件的菜单 (history / compare) */}
+      {/* 4. 贮藏文件的菜单 (stash-file) */}
+      {contextMenu.type === 'file' && contextMenu.listType === 'stash-file' && (
+        <>
+          <MenuItem
+            icon="codicon-git-compare"
+            text="打开更改"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'diff',
+                  file: contextMenu.file!.file,
+                  status: contextMenu.file!.status,
+                }),
+              )
+            }
+          />
+
+          <MenuItem
+            icon="codicon-go-to-file"
+            text="打开文件"
+            onClick={() =>
+              exec(() =>
+                vscode.postMessage({
+                  command: 'open',
+                  file: contextMenu.file!.file,
+                }),
+              )
+            }
+          />
+
+          <MenuItem
+            icon="codicon-copy"
+            text="复制文件名称"
+            onClick={() =>
+              exec(() => {
+                const filePath = contextMenu.file!.file;
+                const fileName = filePath.split('/').pop() || filePath;
+
+                vscode.postMessage({
+                  command: 'copy',
+                  text: fileName,
+                });
+              })
+            }
+          />
+        </>
+      )}
+
+      {/* 5. 历史/对比文件的菜单 (history / compare) */}
       {contextMenu.type === 'file' && (contextMenu.listType === 'history' || contextMenu.listType === 'compare') && (
         <MenuItem icon="codicon-go-to-file" text="打开文件" onClick={() => exec(() => vscode.postMessage({ command: 'open', file: contextMenu.file!.file }))} />
       )}
