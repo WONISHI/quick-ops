@@ -54,6 +54,19 @@ interface UnavailablePoint {
     onBranch: Branch;
 }
 
+interface CommitRefInfo {
+    localRef: string | null;
+    remoteRef: string | null;
+    isRemotePush: boolean;
+}
+
+interface HoverInfo {
+    commit: GraphCommit;
+    x: number;
+    y: number;
+    position: 'top' | 'bottom';
+}
+
 class Branch {
     public colour: number;
     public lines: Line[] = [];
@@ -75,52 +88,67 @@ class Vertex {
     private nextX: number = 0;
     private connections: UnavailablePoint[] = [];
 
-    constructor(id: number) { this.id = id; }
+    constructor(id: number) {
+        this.id = id;
+    }
 
     addChild(v: Vertex) {
         this.children.push(v);
     }
+
     addParent(v: Vertex) {
         this.parents.push(v);
     }
+
     getParents() {
         return this.parents;
     }
+
     getNextParent(): Vertex | null {
         return this.nextParent < this.parents.length ? this.parents[this.nextParent] : null;
     }
+
     registerParentProcessed() {
         this.nextParent++;
     }
+
     isMerge() {
         return this.parents.length > 1;
     }
+
     addToBranch(b: Branch, x: number) {
         if (!this.onBranch) {
             this.onBranch = b;
             this.x = x;
         }
     }
+
     isNotOnBranch() {
         return this.onBranch === null;
     }
+
     getBranch() {
         return this.onBranch;
     }
+
     getPoint(): Point {
         return { x: this.x, y: this.id };
     }
+
     getNextPoint(): Point {
         return { x: this.nextX, y: this.id };
     }
+
     getPointConnectingTo(v: Vertex | null, b: Branch) {
         for (let i = 0; i < this.connections.length; i++) {
             if (this.connections[i] && this.connections[i].connectsTo === v && this.connections[i].onBranch === b) {
                 return { x: i, y: this.id };
             }
         }
+
         return null;
     }
+
     registerUnavailablePoint(x: number, v: Vertex | null, b: Branch) {
         if (x === this.nextX) {
             this.nextX = x + 1;
@@ -132,8 +160,11 @@ class Vertex {
 function buildGraphEngine(commits: GraphCommit[]) {
     const vertices = commits.map((_, i) => new Vertex(i));
     const commitLookup: Record<string, number> = {};
-    commits.forEach((c, i) => (commitLookup[c.hash] = i));
     const nullVertex = new Vertex(NULL_VERTEX_ID);
+
+    commits.forEach((c, i) => {
+        commitLookup[c.hash] = i;
+    });
 
     commits.forEach((c, i) => {
         (c.parents || []).forEach((pHash) => {
@@ -151,19 +182,22 @@ function buildGraphEngine(commits: GraphCommit[]) {
 
     const getAvailableColour = (startAt: number) => {
         for (let i = 0; i < availableColours.length; i++) {
-            if (startAt > availableColours[i]) return i;
+            if (startAt > availableColours[i]) {
+                return i;
+            }
         }
+
         availableColours.push(0);
         return availableColours.length - 1;
     };
 
     const determinePath = (startAt: number) => {
         let i = startAt;
-        let vertex = vertices[i],
-            parentVertex = vertex.getNextParent(),
-            curVertex;
-        let lastPoint = vertex.isNotOnBranch() ? vertex.getNextPoint() : vertex.getPoint(),
-            curPoint;
+        let vertex = vertices[i];
+        let parentVertex = vertex.getNextParent();
+        let curVertex: Vertex;
+        let lastPoint = vertex.isNotOnBranch() ? vertex.getNextPoint() : vertex.getPoint();
+        let curPoint: Point;
 
         if (
             parentVertex !== null &&
@@ -172,15 +206,27 @@ function buildGraphEngine(commits: GraphCommit[]) {
             !vertex.isNotOnBranch() &&
             !parentVertex.isNotOnBranch()
         ) {
-            let foundPointToParent = false,
-                parentBranch = parentVertex.getBranch()!;
+            let foundPointToParent = false;
+            const parentBranch = parentVertex.getBranch()!;
+
             for (i = startAt + 1; i < vertices.length; i++) {
                 curVertex = vertices[i];
-                curPoint = curVertex.getPointConnectingTo(parentVertex, parentBranch);
-                if (curPoint !== null) foundPointToParent = true;
-                else curPoint = curVertex.getNextPoint();
 
-                parentBranch.addLine(lastPoint, curPoint, !foundPointToParent && curVertex !== parentVertex ? lastPoint.x < curPoint.x : true);
+                const pointToParent = curVertex.getPointConnectingTo(parentVertex, parentBranch);
+
+                if (pointToParent !== null) {
+                    foundPointToParent = true;
+                    curPoint = pointToParent;
+                } else {
+                    curPoint = curVertex.getNextPoint();
+                }
+
+                parentBranch.addLine(
+                    lastPoint,
+                    curPoint,
+                    !foundPointToParent && curVertex !== parentVertex ? lastPoint.x < curPoint.x : true,
+                );
+
                 curVertex.registerUnavailablePoint(curPoint.x, parentVertex, parentBranch);
                 lastPoint = curPoint;
 
@@ -190,30 +236,42 @@ function buildGraphEngine(commits: GraphCommit[]) {
                 }
             }
         } else {
-            let branch = new Branch(getAvailableColour(startAt));
-            vertex.addToBranch(branch, lastPoint.x);
-            vertex.registerUnavailablePoint(lastPoint.x, vertex, branch);
+            const branchItem = new Branch(getAvailableColour(startAt));
+
+            vertex.addToBranch(branchItem, lastPoint.x);
+            vertex.registerUnavailablePoint(lastPoint.x, vertex, branchItem);
+
             for (i = startAt + 1; i < vertices.length; i++) {
                 curVertex = vertices[i];
-                curPoint = parentVertex === curVertex && !parentVertex.isNotOnBranch() ? curVertex.getPoint() : curVertex.getNextPoint();
-                branch.addLine(lastPoint, curPoint, lastPoint.x < curPoint.x);
-                curVertex.registerUnavailablePoint(curPoint.x, parentVertex, branch);
+                curPoint = parentVertex === curVertex && !parentVertex.isNotOnBranch()
+                    ? curVertex.getPoint()
+                    : curVertex.getNextPoint();
+
+                branchItem.addLine(lastPoint, curPoint, lastPoint.x < curPoint.x);
+                curVertex.registerUnavailablePoint(curPoint.x, parentVertex, branchItem);
                 lastPoint = curPoint;
 
                 if (parentVertex === curVertex) {
                     vertex.registerParentProcessed();
-                    let parentVertexOnBranch = !parentVertex.isNotOnBranch();
-                    parentVertex.addToBranch(branch, curPoint.x);
+
+                    const parentVertexOnBranch = !parentVertex.isNotOnBranch();
+
+                    parentVertex.addToBranch(branchItem, curPoint.x);
                     vertex = parentVertex;
                     parentVertex = vertex.getNextParent();
-                    if (parentVertex === null || parentVertexOnBranch) break;
+
+                    if (parentVertex === null || parentVertexOnBranch) {
+                        break;
+                    }
                 }
             }
+
             if (i === vertices.length && parentVertex !== null && parentVertex.id === NULL_VERTEX_ID) {
                 vertex.registerParentProcessed();
             }
-            branches.push(branch);
-            availableColours[branch.colour] = i;
+
+            branches.push(branchItem);
+            availableColours[branchItem.colour] = i;
         }
     };
 
@@ -244,9 +302,9 @@ const GitGraph: React.FC<GitGraphProps> = ({
     onCommitClick,
     renderCommitFiles,
     onCommitContextMenu,
-    onOpenCommitMultiDiff
+    onOpenCommitMultiDiff,
 }) => {
-    const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit; x: number; y: number; position: 'top' | 'bottom' } | null>(null);
+    const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
     const [hoveredRowHash, setHoveredRowHash] = useState<string | null>(null);
 
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -271,6 +329,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
     if (isSearchOpen !== prevIsSearchOpen) {
         setPrevIsSearchOpen(isSearchOpen);
+
         if (!isSearchOpen) {
             setSearchQuery('');
             setSearchOffset({ x: 0, y: 0 });
@@ -278,11 +337,80 @@ const GitGraph: React.FC<GitGraphProps> = ({
         }
     }
 
+    const getCommitRefInfo = (commit: GraphCommit): CommitRefInfo => {
+        let localRef: string | null = null;
+        let remoteRef: string | null = null;
+        let isRemotePush = false;
+
+        if (commit.refs) {
+            const refsArray = commit.refs
+                .split(',')
+                .map((r) => r.trim())
+                .filter(Boolean);
+
+            for (const r of refsArray) {
+                if (r.startsWith('HEAD ->')) {
+                    localRef = r.replace('HEAD ->', '').trim();
+                    continue;
+                }
+
+                if (r === branch && !localRef) {
+                    localRef = r;
+                    continue;
+                }
+
+                if (localRef && r === `origin/${localRef}`) {
+                    remoteRef = r;
+                    isRemotePush = true;
+                    continue;
+                }
+
+                if (!localRef && r.startsWith('origin/') && r !== 'origin/HEAD') {
+                    remoteRef = r;
+                    isRemotePush = true;
+                }
+            }
+        }
+
+        return {
+            localRef,
+            remoteRef,
+            isRemotePush,
+        };
+    };
+
+    const createHoverCommit = (commit: GraphCommit): GraphCommit => {
+        const { localRef, remoteRef, isRemotePush } = getCommitRefInfo(commit);
+        const refs: string[] = [];
+
+        if (localRef) {
+            refs.push(localRef);
+        }
+
+        if (isRemotePush && remoteRef) {
+            refs.push(remoteRef);
+        }
+
+        return {
+            ...commit,
+            refs: refs.join(', '),
+        };
+    };
+
     const matchedIndices = useMemo(() => {
         if (!searchQuery) return [];
+
         const lowerQuery = searchQuery.toLowerCase();
+
         return graphCommits
-            .map((c, i) => (c.message.toLowerCase().includes(lowerQuery) || c.author.toLowerCase().includes(lowerQuery) || c.hash.toLowerCase().includes(lowerQuery) ? i : -1))
+            .map((c, i) => {
+                const matched =
+                    c.message.toLowerCase().includes(lowerQuery) ||
+                    c.author.toLowerCase().includes(lowerQuery) ||
+                    c.hash.toLowerCase().includes(lowerQuery);
+
+                return matched ? i : -1;
+            })
             .filter((i) => i !== -1);
     }, [graphCommits, searchQuery]);
 
@@ -302,7 +430,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
             if (isExpanded) {
                 const measuredHeight = expandedBlockHeights[hash];
-                currentY += typeof measuredHeight === 'number' ? measuredHeight : (isLoading ? 38 : 32);
+                currentY += typeof measuredHeight === 'number' ? measuredHeight : isLoading ? 38 : 32;
             }
         }
 
@@ -322,9 +450,11 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
                 expandedCommitHashes.forEach((hash) => {
                     const el = expandedBlockRefs.current[hash];
+
                     if (!el) return;
 
                     const height = Math.ceil(el.getBoundingClientRect().height);
+
                     if (next[hash] !== height) {
                         next[hash] = height;
                         changed = true;
@@ -339,14 +469,16 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
         expandedCommitHashes.forEach((hash) => {
             const el = expandedBlockRefs.current[hash];
+
             if (!el) return;
 
             observer.observe(el);
 
             const initialHeight = Math.ceil(el.getBoundingClientRect().height);
-            setExpandedBlockHeights((prev) =>
-                prev[hash] === initialHeight ? prev : { ...prev, [hash]: initialHeight }
-            );
+
+            setExpandedBlockHeights((prev) => {
+                return prev[hash] === initialHeight ? prev : { ...prev, [hash]: initialHeight };
+            });
         });
 
         return () => {
@@ -357,10 +489,13 @@ const GitGraph: React.FC<GitGraphProps> = ({
     useEffect(() => {
         if (matchedIndices.length > 0 && isSearchOpen) {
             const matchCommitIndex = matchedIndices[currentMatchIndex];
+
             if (matchCommitIndex >= displayCount) {
                 setDisplayCount(matchCommitIndex + 50);
             }
+
             const y = yPositions[matchCommitIndex];
+
             if (graphContainerRef.current) {
                 graphContainerRef.current.scrollTop = Math.max(0, y - 60);
             }
@@ -375,14 +510,17 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
     useEffect(() => {
         let timeoutId: number;
+
         const handleResize = () => {
             clearTimeout(timeoutId);
+
             timeoutId = window.setTimeout(() => {
                 setResizeTrigger((prev) => prev + 1);
             }, 150);
         };
 
         window.addEventListener('resize', handleResize);
+
         return () => {
             window.removeEventListener('resize', handleResize);
             clearTimeout(timeoutId);
@@ -392,9 +530,11 @@ const GitGraph: React.FC<GitGraphProps> = ({
     useEffect(() => {
         const canvas = canvasRef.current;
         const container = graphContainerRef.current;
+
         if (!canvas || !container || graphCommits.length === 0) return;
 
         const ctx = canvas.getContext('2d');
+
         if (!ctx) return;
 
         const dpr = window.devicePixelRatio || 1;
@@ -402,11 +542,13 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
         canvas.width = containerWidth * dpr;
         canvas.height = renderedHeight * dpr;
+
         ctx.scale(dpr, dpr);
         ctx.clearRect(0, 0, containerWidth, renderedHeight);
 
-        graphData.branches.forEach((branch) => {
-            const color = COLORS[branch.colour % COLORS.length];
+        graphData.branches.forEach((branchItem) => {
+            const color = COLORS[branchItem.colour % COLORS.length];
+
             ctx.beginPath();
             ctx.strokeStyle = color;
             ctx.lineWidth = 2;
@@ -414,7 +556,8 @@ const GitGraph: React.FC<GitGraphProps> = ({
             ctx.lineJoin = 'round';
 
             let lastPt: { x: number; y: number } | null = null;
-            branch.lines.forEach((line, i) => {
+
+            branchItem.lines.forEach((line, i) => {
                 const x1 = line.p1.x * LANE_WIDTH + 14;
                 const y1Base = yPositions[line.p1.y];
                 const y1 = y1Base + CY;
@@ -423,24 +566,31 @@ const GitGraph: React.FC<GitGraphProps> = ({
                 const y2Base = yPositions[line.p2.y];
                 const y2 = y2Base + CY;
 
-                if (i === 0 || lastPt?.x !== x1 || lastPt?.y !== y1) ctx.moveTo(x1, y1);
+                if (i === 0 || lastPt?.x !== x1 || lastPt?.y !== y1) {
+                    ctx.moveTo(x1, y1);
+                }
 
                 if (x1 === x2) {
                     ctx.lineTo(x2, y2);
                 } else {
                     const d = 12;
+
                     if (line.lockedFirst) {
                         const curveEndY = y1Base + ROW_HEIGHT;
+
                         ctx.bezierCurveTo(x1, y1 + d, x2, curveEndY - d, x2, curveEndY);
                         ctx.lineTo(x2, y2);
                     } else {
                         const curveStartY = y2Base;
+
                         ctx.lineTo(x1, curveStartY);
                         ctx.bezierCurveTo(x1, curveStartY + d, x2, y2 - d, x2, y2);
                     }
                 }
+
                 lastPt = { x: x2, y: y2 };
             });
+
             ctx.stroke();
         });
 
@@ -475,21 +625,28 @@ const GitGraph: React.FC<GitGraphProps> = ({
         setHoveredRowHash(commit.hash);
 
         const now = new Date().getTime();
+
         if (now < suppressHoverUntilRef.current) return;
 
         const rect = e.currentTarget.getBoundingClientRect();
-        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
 
         hoverTimeoutRef.current = setTimeout(() => {
             const timeInside = new Date().getTime();
+
             if (timeInside < suppressHoverUntilRef.current) return;
 
             const showAbove = rect.top > window.innerHeight / 2;
+            const hoverCommit = createHoverCommit(commit);
+
             setHoverInfo({
-                commit,
+                commit: hoverCommit,
                 x: 0,
                 y: showAbove ? rect.top - 8 : rect.bottom + 4,
-                position: showAbove ? 'top' : 'bottom'
+                position: showAbove ? 'top' : 'bottom',
             });
         }, 1000);
     };
@@ -497,7 +654,10 @@ const GitGraph: React.FC<GitGraphProps> = ({
     const handleMouseLeave = () => {
         setHoveredRowHash(null);
 
-        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+
         hoverTimeoutRef.current = setTimeout(() => {
             setHoverInfo(null);
         }, 250);
@@ -530,27 +690,34 @@ const GitGraph: React.FC<GitGraphProps> = ({
     };
 
     const handleItemClick = (hash: string) => {
-        if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+        if (hoverTimeoutRef.current) {
+            clearTimeout(hoverTimeoutRef.current);
+        }
+
         setHoverInfo(null);
         onCommitClick(hash);
     };
 
     const handleNextMatch = () => {
         if (matchedIndices.length === 0) return;
+
         setCurrentMatchIndex((prev) => (prev + 1) % matchedIndices.length);
     };
 
     const handlePrevMatch = () => {
         if (matchedIndices.length === 0) return;
+
         setCurrentMatchIndex((prev) => (prev - 1 + matchedIndices.length) % matchedIndices.length);
     };
 
     const highlightText = (text: string, query: string, isActiveMatch: boolean) => {
         if (!query) return text;
+
         const safeQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const parts = text.split(new RegExp(`(${safeQuery})`, 'gi'));
-        return parts.map((part, i) =>
-            part.toLowerCase() === query.toLowerCase() ? (
+
+        return parts.map((part, i) => {
+            return part.toLowerCase() === query.toLowerCase() ? (
                 <span
                     key={i}
                     className={`${styles['graph-search-highlight']} ${isActiveMatch ? styles['graph-search-highlight-active'] : ''}`}
@@ -559,8 +726,8 @@ const GitGraph: React.FC<GitGraphProps> = ({
                 </span>
             ) : (
                 part
-            )
-        );
+            );
+        });
     };
 
     return (
@@ -571,9 +738,13 @@ const GitGraph: React.FC<GitGraphProps> = ({
                     x={0}
                     y={hoverInfo.y}
                     position={hoverInfo.position}
-                    branch={branch}
+                    branch={hoverInfo.commit.refs ? branch : ''}
                     remoteUrl={remoteUrl}
-                    onMouseEnter={() => { if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current); }}
+                    onMouseEnter={() => {
+                        if (hoverTimeoutRef.current) {
+                            clearTimeout(hoverTimeoutRef.current);
+                        }
+                    }}
                     onMouseLeave={handleMouseLeave}
                 />
             )}
@@ -601,6 +772,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
                     className={styles['graph-canvas']}
                     style={{ '--graph-canvas-height': `${renderedHeight}px` } as React.CSSProperties}
                 />
+
                 <ul className={styles['commit-timeline']}>
                     {graphData.vertices.slice(0, displayCount).map((v, idx) => {
                         const c = graphCommits[idx];
@@ -612,21 +784,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
                         const isLoading = !!commitFilesLoadingMap[c.hash];
                         const files = commitFilesMap[c.hash] || [];
 
-                        let localRef: string | null = null;
-                        let isRemotePush = false;
-
-                        if (c.refs) {
-                            const refsArray = c.refs.split(',').map((r) => r.trim());
-                            for (const r of refsArray) {
-                                if (r.startsWith('HEAD ->')) {
-                                    localRef = r.replace('HEAD ->', '').trim();
-                                } else if (r === branch && !localRef) {
-                                    localRef = r;
-                                } else if (r.startsWith('origin/')) {
-                                    isRemotePush = true;
-                                }
-                            }
-                        }
+                        const { localRef, isRemotePush } = getCommitRefInfo(c);
 
                         return (
                             <li key={c.hash} className={styles['commit-log-item']}>
@@ -637,7 +795,10 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                     onMouseLeave={handleMouseLeave}
                                     onContextMenu={(e) => onCommitContextMenu(e, c)}
                                 >
-                                    <div className={styles['graph-lane-spacer']} style={{ '--graph-lane-spacer-width': `${paddingWidth}px` } as React.CSSProperties} />
+                                    <div
+                                        className={styles['graph-lane-spacer']}
+                                        style={{ '--graph-lane-spacer-width': `${paddingWidth}px` } as React.CSSProperties}
+                                    />
 
                                     <div className={styles['commit-content']}>
                                         <div className={styles['commit-message-wrap']}>
@@ -667,7 +828,16 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                                     className={styles['remote-sync-badge']}
                                                     title="已同步至远程仓库"
                                                 >
-                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <svg
+                                                        width="12"
+                                                        height="12"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        strokeWidth="2"
+                                                        strokeLinecap="round"
+                                                        strokeLinejoin="round"
+                                                    >
                                                         <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
                                                     </svg>
                                                 </div>
@@ -682,7 +852,10 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                                             onOpenCommitMultiDiff(c.hash);
                                                         }}
                                                         onMouseEnter={() => {
-                                                            if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+                                                            if (hoverTimeoutRef.current) {
+                                                                clearTimeout(hoverTimeoutRef.current);
+                                                            }
+
                                                             setHoverInfo(null);
                                                         }}
                                                     >
@@ -702,10 +875,12 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                         data-hash={c.hash}
                                         className={styles['commit-expanded-block']}
                                     >
-                                        <div className={styles['graph-lane-spacer']} style={{ '--graph-lane-spacer-width': `${paddingWidth}px` } as React.CSSProperties} />
                                         <div
-                                            className={styles['commit-files-wrapper']}
-                                        >
+                                            className={styles['graph-lane-spacer']}
+                                            style={{ '--graph-lane-spacer-width': `${paddingWidth}px` } as React.CSSProperties}
+                                        />
+
+                                        <div className={styles['commit-files-wrapper']}>
                                             {isLoading ? (
                                                 <div className={styles['commit-files-loading']}>
                                                     <i className={`codicon codicon-loading codicon-modifier-spin ${styles['commit-files-loading-icon']}`} />

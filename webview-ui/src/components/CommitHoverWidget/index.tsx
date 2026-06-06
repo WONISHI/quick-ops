@@ -26,10 +26,24 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
 }) => {
   const remoteInfo = remoteUrl ? parseRemoteInfo(remoteUrl, commit.hash) : null;
 
+  const getRefTagClassName = (name: string, isHead: boolean) => {
+    const isRemote = name.startsWith('origin/');
+
+    return [
+      styles['ref-tag'],
+      isRemote ? styles['ref-remote'] : '',
+      !isRemote ? styles['ref-local'] : '',
+      isHead ? styles['ref-head'] : '',
+    ]
+      .filter(Boolean)
+      .join(' ');
+  };
+
   return (
     <div
-      className={`${styles['commit-hover-widget']} ${position === 'top' ? styles['hover-top'] : styles['hover-bottom']
-        }`}
+      className={`${styles['commit-hover-widget']} ${
+        position === 'top' ? styles['hover-top'] : styles['hover-bottom']
+      }`}
       style={{
         left: '50%',
         transform: 'translateX(-50%)',
@@ -72,6 +86,7 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
           {commit.refs ? (
             commit.refs.split(',').map((r: string, i: number) => {
               const trimmed = r.trim();
+
               if (!trimmed) return null;
 
               const isHead = trimmed.startsWith('HEAD -> ');
@@ -80,7 +95,7 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
               return (
                 <span
                   key={i}
-                  className={`${styles['ref-tag']} ${isHead ? styles['ref-head'] : ''}`}
+                  className={getRefTagClassName(name, isHead)}
                   title={name}
                 >
                   {name}
@@ -88,7 +103,10 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
               );
             })
           ) : branch ? (
-            <span className={`${styles['ref-tag']} ${styles['ref-head']}`} title={branch}>
+            <span
+              className={`${styles['ref-tag']} ${styles['ref-local']} ${styles['ref-head']}`}
+              title={branch}
+            >
               {branch}
             </span>
           ) : null}

@@ -13,6 +13,11 @@
     pointer-events: auto;
     box-sizing: border-box;
     overflow: visible;
+
+    --commit-local-ref-bg: #3168d1;
+    --commit-local-ref-color: #ffffff;
+    --commit-remote-sync-bg: #6a2a88;
+    --commit-remote-sync-color: #ffffff;
 }
 
 /* 内容滚动区域 */
@@ -104,6 +109,7 @@
 .hover-time {
     display: flex;
     align-items: center;
+    gap: 4px;
     color: var(--vscode-descriptionForeground);
     font-size: 11px;
     min-width: 0;
@@ -126,10 +132,9 @@
 
 .ref-tag {
     display: inline-block;
-    padding: 2px 5px;
+    padding: 2px 7px;
     line-height: 1.2;
     border-radius: 4px;
-    background: rgba(128, 128, 128, 0.15);
     border: none;
     font-size: 10px;
     max-width: 100%;
@@ -140,10 +145,23 @@
     box-sizing: border-box;
 }
 
+/* 本地分支 */
+.ref-local,
 .ref-head {
-    background-color: #3168d1;
-    color: #ffffff;
+    background-color: var(--commit-local-ref-bg);
+    color: var(--commit-local-ref-color);
     font-weight: bold;
+}
+
+/* 远程分支 */
+.ref-remote {
+    background-color: var(--commit-remote-sync-bg);
+    color: var(--commit-remote-sync-color);
+}
+
+.ref-normal {
+    background: rgba(128, 128, 128, 0.15);
+    color: var(--vscode-editorHoverWidget-foreground);
 }
 
 .hover-message {
@@ -171,6 +189,7 @@
     cursor: pointer;
     display: flex;
     align-items: center;
+    gap: 5px;
     opacity: 0.8;
     flex-shrink: 0;
     white-space: nowrap;
@@ -193,5 +212,5 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    display: block;
+    display: flex;
 }
