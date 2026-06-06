@@ -176,6 +176,10 @@ export class GitFeature implements IFeature {
   private async updateCurrentPreviewPath(newPath: string | undefined) {
     this._currentPreviewPath = newPath;
     this.gitProvider.setCustomWorkspace(newPath || null);
+    this.gitDetailPanel.refresh(undefined, {
+      silent: true,
+      fetchRemote: true,
+    });
 
     let hasRemote = false;
 
@@ -771,34 +775,34 @@ export class GitFeature implements IFeature {
     );
   }
 
- public activate(context: vscode.ExtensionContext): void {
-  this.gitProvider = new GitWebviewProvider(context.extensionUri, context);
+  public activate(context: vscode.ExtensionContext): void {
+    this.gitProvider = new GitWebviewProvider(context.extensionUri, context);
 
-  this.gitDetailPanel = new GitDetailWebviewPanel(
-    context.extensionUri,
-    () => this.gitProvider.getWorkspaceRoot(),
-  );
+    this.gitDetailPanel = new GitDetailWebviewPanel(
+      context.extensionUri,
+      () => this.gitProvider.getWorkspaceRoot(),
+    );
 
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider('quickOps.gitView', this.gitProvider, {
-      webviewOptions: { retainContextWhenHidden: true },
-    }),
-  );
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider('quickOps.gitView', this.gitProvider, {
+        webviewOptions: { retainContextWhenHidden: true },
+      }),
+    );
 
-  const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-  void this.updateCurrentPreviewPath(defaultWorkspace);
+    const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    void this.updateCurrentPreviewPath(defaultWorkspace);
 
-  void this.initializeConfigSync(context).catch((error) => {
-    console.error(`[${this.id}] initializeConfigSync failed:`, error);
-  });
+    void this.initializeConfigSync(context).catch((error) => {
+      console.error(`[${this.id}] initializeConfigSync failed:`, error);
+    });
 
-  this.registerGitSwitchCommand(context);
-  this.registerReturnToWorkspaceCommand(context);
-  this.registerCloneGitProjectCommand(context);
-  this.registerEditRemoteUrlCommand(context);
-  this.registerOpenProjectCommand(context);
-  this.registerOpenGitDetailCommand(context);
+    this.registerGitSwitchCommand(context);
+    this.registerReturnToWorkspaceCommand(context);
+    this.registerCloneGitProjectCommand(context);
+    this.registerEditRemoteUrlCommand(context);
+    this.registerOpenProjectCommand(context);
+    this.registerOpenGitDetailCommand(context);
 
-  ColorLog.black(`[${this.id}]`, 'Activated.');
-}
+    ColorLog.black(`[${this.id}]`, 'Activated.');
+  }
 }

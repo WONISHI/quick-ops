@@ -7,6 +7,22 @@ export class GitDetailWebviewPanel {
   private _panel?: vscode.WebviewPanel;
   private readonly gitService = new GitService();
 
+  private _currentGraphFilter = '全部分支';
+  private _lastGraphState = '';
+
+  private _isRefreshing = false;
+  private _pendingRefresh: {
+    cwd: string;
+    graphFilter: string;
+    silent: boolean;
+    fetchRemote: boolean;
+  } | null = null;
+
+  private _isRemoteChecking = false;
+  private _refreshTimer: NodeJS.Timeout | null = null;
+  private _remoteCheckTimer: NodeJS.Timeout | null = null;
+  private _disposables: vscode.Disposable[] = [];
+
   constructor(
     private readonly _extensionUri: vscode.Uri,
     private readonly getWorkspaceRoot: () => string | undefined,
@@ -19,7 +35,7 @@ export class GitDetailWebviewPanel {
       const cwd = this.getWorkspaceRoot();
 
       if (cwd) {
-        void this.postGraphData(cwd, '全部分支');
+        void this.postGraphData(cwd, this._currentGraphFilter, false, true);
       }
 
       return;
@@ -37,7 +53,10 @@ export class GitDetailWebviewPanel {
     );
 
     this._panel.onDidDispose(() => {
+      this.disposeListeners();
       this._panel = undefined;
+      this._lastGraphState = '';
+      this._currentGraphFilter = '全部分支';
     });
 
     this._panel.webview.onDidReceiveMessage(async (msg) => {
@@ -59,12 +78,12 @@ export class GitDetailWebviewPanel {
         switch (msg.command) {
           case 'gitDetailLoaded':
           case 'refreshGitDetail': {
-            await this.postGraphData(cwd, msg.graphFilter || '全部分支');
+            await this.postGraphData(cwd, msg.graphFilter || this._currentGraphFilter, false, true);
             break;
           }
 
           case 'changeGitDetailFilter': {
-            await this.changeGraphFilter(cwd, msg.current || '全部分支');
+            await this.changeGraphFilter(cwd, msg.current || this._currentGraphFilter);
             break;
           }
 
@@ -103,11 +122,15 @@ export class GitDetailWebviewPanel {
 
     this._panel.iconPath = vscode.Uri.joinPath(this._extensionUri, 'resources', 'icons', 'git.png');
 
+    void this.setupGitWatcher();
+
     const cwd = this.getWorkspaceRoot();
 
     if (cwd) {
+      this.startRemoteCheckTimer();
+
       setTimeout(() => {
-        void this.postGraphData(cwd, '全部分支');
+        void this.postGraphData(cwd, this._currentGraphFilter, false, true);
       }, 300);
     } else {
       setTimeout(() => {
@@ -118,29 +141,228 @@ export class GitDetailWebviewPanel {
     }
   }
 
-  private async postGraphData(cwd: string, graphFilter: string) {
-    const isRepo = await this.gitService.checkIsRepo(cwd);
+  public refresh(graphFilter = this._currentGraphFilter, options?: { silent?: boolean; fetchRemote?: boolean }) {
+    const cwd = this.getWorkspaceRoot();
 
-    if (!isRepo) {
-      this._panel?.webview.postMessage({
-        type: 'gitDetailNotRepo',
-      });
+    if (!cwd) return;
+
+    void this.postGraphData(
+      cwd,
+      graphFilter || this._currentGraphFilter,
+      options?.silent ?? true,
+      options?.fetchRemote ?? true,
+    );
+  }
+
+  private disposeListeners() {
+    this._disposables.forEach((item) => item.dispose());
+    this._disposables = [];
+
+    if (this._refreshTimer) {
+      clearTimeout(this._refreshTimer);
+      this._refreshTimer = null;
+    }
+
+    if (this._remoteCheckTimer) {
+      clearInterval(this._remoteCheckTimer);
+      this._remoteCheckTimer = null;
+    }
+  }
+
+  private scheduleRefresh(cwd: string, silent = true, fetchRemote = false) {
+    if (!this._panel) return;
+
+    if (this._refreshTimer) {
+      clearTimeout(this._refreshTimer);
+    }
+
+    this._refreshTimer = setTimeout(() => {
+      this._refreshTimer = null;
+      void this.postGraphData(cwd, this._currentGraphFilter, silent, fetchRemote);
+    }, 500);
+  }
+
+  private async setupGitWatcher() {
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+
+    if (!gitExtension) return;
+
+    try {
+      if (!gitExtension.isActive) {
+        await gitExtension.activate();
+      }
+    } catch {
       return;
     }
 
-    this._panel?.webview.postMessage({
-      type: 'gitDetailLoading',
+    const gitApi = gitExtension.exports?.getAPI?.(1);
+
+    if (!gitApi) return;
+
+    const handleGitStateChange = () => {
+      const cwd = this.getWorkspaceRoot();
+
+      if (!cwd) return;
+
+      this.scheduleRefresh(cwd, true, false);
+    };
+
+    const openRepoDisposable = gitApi.onDidOpenRepository((repo: any) => {
+      const stateDisposable = repo.state.onDidChange(handleGitStateChange);
+      this._disposables.push(stateDisposable);
     });
 
-    const graphData = await this.gitService.getGraph(cwd, graphFilter);
+    this._disposables.push(openRepoDisposable);
 
-    this._panel?.webview.postMessage({
-      type: 'gitDetailGraphData',
-      graphCommits: graphData.graphCommits,
-      graphFilter: graphData.graphFilter,
-      totalCommits: graphData.totalCommits,
-      folderName: path.basename(cwd),
+    if (gitApi.repositories && gitApi.repositories.length > 0) {
+      gitApi.repositories.forEach((repo: any) => {
+        const stateDisposable = repo.state.onDidChange(handleGitStateChange);
+        this._disposables.push(stateDisposable);
+      });
+    }
+
+    const focusDisposable = vscode.window.onDidChangeWindowState((state) => {
+      if (!state.focused) return;
+
+      const cwd = this.getWorkspaceRoot();
+
+      if (!cwd) return;
+
+      void this.checkRemoteAndRefresh(cwd);
     });
+
+    this._disposables.push(focusDisposable);
+  }
+
+  private startRemoteCheckTimer() {
+    if (this._remoteCheckTimer) return;
+
+    this._remoteCheckTimer = setInterval(() => {
+      const cwd = this.getWorkspaceRoot();
+
+      if (!cwd) return;
+
+      void this.checkRemoteAndRefresh(cwd);
+    }, 60 * 1000);
+  }
+
+  private async checkRemoteAndRefresh(cwd: string) {
+    if (!this._panel) return;
+    if (this._isRemoteChecking) return;
+
+    this._isRemoteChecking = true;
+
+    try {
+      const beforeGraphState = this._lastGraphState || await this.getGraphState(cwd);
+
+      try {
+        await this.gitService.fetchAllPrune(cwd);
+      } catch {
+        return;
+      }
+
+      const afterGraphState = await this.getGraphState(cwd);
+
+      if (!afterGraphState) return;
+
+      if (!beforeGraphState) {
+        this._lastGraphState = afterGraphState;
+        return;
+      }
+
+      if (beforeGraphState !== afterGraphState) {
+        this._lastGraphState = afterGraphState;
+        await this.postGraphData(cwd, this._currentGraphFilter, true, false);
+      }
+    } finally {
+      this._isRemoteChecking = false;
+    }
+  }
+
+  private async getGraphState(cwd: string) {
+    try {
+      return await this.gitService.getGraphState(cwd);
+    } catch {
+      return '';
+    }
+  }
+
+  private async postGraphData(cwd: string, graphFilter: string, silent = false, fetchRemote = false) {
+    if (!this._panel) return;
+
+    if (this._isRefreshing) {
+      const oldPending = this._pendingRefresh;
+
+      this._pendingRefresh = {
+        cwd,
+        graphFilter,
+        silent: silent && !!oldPending?.silent,
+        fetchRemote: fetchRemote || !!oldPending?.fetchRemote,
+      };
+
+      return;
+    }
+
+    this._isRefreshing = true;
+    this._currentGraphFilter = graphFilter || this._currentGraphFilter;
+
+    if (!silent) {
+      this._panel.webview.postMessage({
+        type: 'gitDetailLoading',
+      });
+    }
+
+    try {
+      const repoStatus = await this.gitService.getRepoStatus(cwd);
+
+      if (!repoStatus.isRepo) {
+        this._panel?.webview.postMessage({
+          type: 'gitDetailNotRepo',
+        });
+        return;
+      }
+
+      if (fetchRemote && repoStatus.remoteUrl) {
+        try {
+          await this.gitService.fetchAllPrune(cwd);
+        } catch {
+          // 远程拉取失败不阻塞本地记录显示
+        }
+      }
+
+      const graphData = await this.gitService.getGraph(cwd, this._currentGraphFilter);
+      const graphState = await this.getGraphState(cwd);
+
+      if (graphState) {
+        this._lastGraphState = graphState;
+      }
+
+      this._panel?.webview.postMessage({
+        type: 'gitDetailGraphData',
+        graphCommits: graphData.graphCommits,
+        graphFilter: graphData.graphFilter,
+        totalCommits: graphData.totalCommits,
+        folderName: path.basename(cwd),
+        branch: repoStatus.branch,
+        remoteUrl: repoStatus.remoteUrl,
+      });
+    } finally {
+      this._isRefreshing = false;
+
+      const pending = this._pendingRefresh;
+      this._pendingRefresh = null;
+
+      if (pending) {
+        setTimeout(() => {
+          void this.postGraphData(
+            pending.cwd,
+            pending.graphFilter,
+            pending.silent,
+            pending.fetchRemote,
+          );
+        }, 0);
+      }
+    }
   }
 
   private async changeGraphFilter(cwd: string, current: string) {
@@ -197,7 +419,7 @@ export class GitDetailWebviewPanel {
 
     if (!selectedBranch) return;
 
-    await this.postGraphData(cwd, selectedBranch);
+    await this.postGraphData(cwd, selectedBranch, false, false);
   }
 
   private createGitContentUri(cwd: string, ref: string, file: string): vscode.Uri {
