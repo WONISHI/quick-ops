@@ -125,10 +125,9 @@ ul {
 }
 
 .top-divider {
-  height: 4px;
-  background: rgba(0, 0, 0, 0.1);
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
-  margin-bottom: 4px;
+  height: 1px;
+  background: var(--vscode-panel-border);
+  margin-bottom: 2px;
 }
 
 /* ================================
@@ -371,7 +370,7 @@ ul {
 .tree-chevron,
 .chevron-placeholder {
   width: 12px;
-  height: 20px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -391,7 +390,10 @@ ul {
 .sub-item {
   display: flex;
   align-items: center;
-  padding: 2px 2px 2px 0;
+  height: 22px;
+  min-height: 22px;
+  line-height: 22px;
+  padding: 0 4px 0 0;
   font-size: 13px;
   cursor: default;
   min-width: 0;
@@ -401,10 +403,10 @@ ul {
   cursor: pointer;
 }
 
-.sub-item.clickable-sub:hover .tree-chevron {
+/* .sub-item.clickable-sub:hover .tree-chevron {
   background: var(--vscode-toolbar-hoverBackground);
   opacity: 1;
-}
+} */
 
 .sub-item:hover {
   background-color: var(--vscode-list-inactiveSelectionBackground);
@@ -563,8 +565,8 @@ ul {
   margin-left: 6px;
   padding: 0 4px;
   min-width: 14px;
-  height: 18px;
-  line-height: 18px;
+  height: 22px;
+  line-height: 22px;
   text-align: center;
   font-size: 11px;
   font-weight: 600;
