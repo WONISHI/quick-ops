@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import * as https from 'https';
 import * as path from 'path';
-import { execFile } from 'child_process';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
 import { setupMarkdown } from '../plugins/markdown/setupMarkdown';
 import markdownImagePlugin, { restoreMarkdownImagePaths } from '../plugins/markdown/markdownImagePlugin';
+import { RecentProjectsGitStatusService } from '../services/gitStatusService';
+import { RecentProjectsDirectoryService } from '../services/directoryService';
 
 export interface RecentProject {
   name: string;
@@ -20,9 +21,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private stateKey = 'quickOps.recentProjectsHistory';
   private lastOpenedPath: string = '';
-  private dirCache = new Map<string, { children: any[]; timestamp: number }>();
-  private readonly dirCacheTtl = 3000;
-
   private selectedForCompareUri?: vscode.Uri;
   private selectedForCompareName?: string;
   private activePanels: Map<string, vscode.WebviewPanel> = new Map();
@@ -31,6 +29,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private revealVisibleInWebview: boolean = true;
   private revealVisibleProjectPaths: string[] | undefined = undefined;
   private markdownImageAssets = new Map<string, Record<string, string>>();
+
+  private readonly gitStatusService = new RecentProjectsGitStatusService();
+  private readonly directoryService = new RecentProjectsDirectoryService(this.gitStatusService);
 
   constructor(private context: vscode.ExtensionContext) {
     this.initializeCurrentWorkspace();
@@ -230,109 +231,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
 
-  private execGit(args: string[], cwd: string): Promise<string> {
-    return new Promise((resolve) => {
-      execFile('git', args, { cwd }, (error, stdout) => {
-        if (error) {
-          resolve('');
-          return;
-        }
-
-        resolve(stdout || '');
-      });
-    });
+  private getGitRoot(nativePath: string): Promise<string> {
+    return this.gitStatusService.getGitRoot(nativePath);
   }
 
-  private async getGitRoot(nativePath: string): Promise<string> {
-    if (!nativePath) return '';
-
-    const result = await this.execGit(['rev-parse', '--show-toplevel'], nativePath);
-    return result.trim();
-  }
-
-  private normalizeGitStatus(rawStatus: string) {
-    const s = rawStatus.trim().toUpperCase();
-
-    if (!s) return undefined;
-
-    if (s === '??') return 'u';
-    if (s.includes('D')) return 'd';
-    if (s.includes('M')) return 'm';
-    if (s.includes('A')) return 'a';
-    if (s.includes('R')) return 'r';
-    if (s.includes('C')) return 'c';
-
-    return undefined;
-  }
-
-  private normalizeRelativePath(value: string) {
-    return value.replace(/\\/g, '/').replace(/^\/+/, '');
-  }
-
-  private async getGitStatusMap(nativePath: string): Promise<Map<string, string>> {
-    const map = new Map<string, string>();
-
-    try {
-      const gitRoot = await this.getGitRoot(nativePath);
-      if (!gitRoot) return map;
-
-      /**
-       * -uall 很关键：
-       * 默认 git status 对未跟踪文件夹可能只返回：
-       * ?? src/foo/
-       *
-       * 加上 -uall 后会返回：
-       * ?? src/foo/a.ts
-       * ?? src/foo/b.ts
-       *
-       * 这样才能做到和 VSCode 原生一样，新增文件夹下的文件也显示 U。
-       */
-      const output = await this.execGit(['status', '--porcelain=v1', '-z', '-uall'], gitRoot);
-      if (!output) return map;
-
-      const parts = output.split('\0').filter(Boolean);
-
-      for (let i = 0; i < parts.length; i++) {
-        const item = parts[i];
-        const rawStatus = item.slice(0, 2);
-        const rawPath = item.slice(3);
-
-        if (!rawPath) continue;
-
-        const status = this.normalizeGitStatus(rawStatus);
-        if (!status) continue;
-
-        const normalizedPath = this.normalizeRelativePath(rawPath);
-        map.set(normalizedPath, status);
-
-        if (rawStatus.toUpperCase().includes('R') && parts[i + 1]) {
-          i++;
-        }
-      }
-    } catch {
-      return map;
-    }
-
-    return map;
-  }
-
-  private getGitStatusPriority(status?: string) {
-    switch ((status || '').toLowerCase()) {
-      case 'd':
-        return 60;
-      case 'm':
-        return 50;
-      case 'a':
-        return 40;
-      case 'u':
-        return 30;
-      case 'r':
-        return 20;
-      case 'c':
-        return 10;
-      default:
-        return 0;
-    }
+  private getGitStatusMap(nativePath: string): Promise<Map<string, string>> {
+    return this.gitStatusService.getGitStatusMap(nativePath);
   }
 
   private getChildGitStatus(
@@ -340,56 +244,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     isFolder: boolean,
     statusMap: Map<string, string>
   ) {
-    const normalizedChildPath = this.normalizeRelativePath(childRelativePath);
-    const normalizedChildPathWithSlash = normalizedChildPath.endsWith('/')
-      ? normalizedChildPath
-      : `${normalizedChildPath}/`;
-
-    if (!isFolder) {
-      const exactStatus = statusMap.get(normalizedChildPath);
-
-      if (exactStatus) {
-        return exactStatus;
-      }
-
-      /**
-       * 兼容 Git 只返回未跟踪目录的情况：
-       * ?? src/foo/
-       *
-       * 当当前文件是 src/foo/a.ts 时，需要继承 src/foo/ 的 U 状态。
-       */
-      let finalStatus: string | undefined;
-      let finalMatchedLength = 0;
-
-      for (const [changedPath, status] of statusMap.entries()) {
-        if (!changedPath.endsWith('/')) continue;
-
-        if (normalizedChildPath.startsWith(changedPath) && changedPath.length > finalMatchedLength) {
-          finalStatus = status;
-          finalMatchedLength = changedPath.length;
-        }
-      }
-
-      return finalStatus;
-    }
-
-    const exactFolderStatus = statusMap.get(normalizedChildPath) || statusMap.get(normalizedChildPathWithSlash);
-
-    let finalStatus = exactFolderStatus;
-    let finalPriority = this.getGitStatusPriority(exactFolderStatus);
-
-    for (const [changedPath, status] of statusMap.entries()) {
-      if (!changedPath.startsWith(normalizedChildPathWithSlash)) continue;
-
-      const priority = this.getGitStatusPriority(status);
-
-      if (priority > finalPriority) {
-        finalStatus = status;
-        finalPriority = priority;
-      }
-    }
-
-    return finalStatus;
+    return this.gitStatusService.getChildGitStatus(childRelativePath, isFolder, statusMap);
   }
 
   private getReadOnlyUri(fsPath: string, projectName: string): vscode.Uri {
@@ -449,19 +304,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   public invalidateDirCache(fsPath?: string) {
-    if (!fsPath) {
-      this.dirCache.clear();
-      return;
-    }
-
-    const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
-    const uriStr = uri.toString();
-
-    for (const key of Array.from(this.dirCache.keys())) {
-      if (key.endsWith(uriStr) || key.includes(uriStr + '/')) {
-        this.dirCache.delete(key);
-      }
-    }
+    this.directoryService.invalidateDirCache(fsPath);
   }
 
   public async syncAllBranches() {
@@ -1940,104 +1783,15 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     focusOnly: boolean = false,
     forceRefresh: boolean = false
   ) {
-    try {
-      const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
-      const uriStr = uri.toString();
-      const isRemote = uriStr.startsWith('vscode-vfs://') || uriStr.startsWith('http');
-
-      const cacheKey = `${focusOnly ? 'focus:' : 'normal:'}${uriStr}`;
-      const cached = this.dirCache.get(cacheKey);
-      const now = Date.now();
-
-      if (!forceRefresh && cached && now - cached.timestamp <= this.dirCacheTtl) {
-        this._view?.webview.postMessage({
-          type: 'readDirResult',
-          fsPath: uriStr,
-          children: cached.children,
-          projectName,
-          focusOnly
-        });
-        return;
-      }
-
-      const entries = await vscode.workspace.fs.readDirectory(uri);
-
-      let gitRoot = '';
-      let statusMap = new Map<string, string>();
-
-      if (!isRemote && uri.scheme === 'file') {
-        gitRoot = await this.getGitRoot(uri.fsPath);
-        if (gitRoot) {
-          statusMap = await this.getGitStatusMap(uri.fsPath);
-        }
-      }
-
-      const ignoredNames = new Set([
-        'node_modules',
-        '.git',
-        '.DS_Store'
-      ]);
-
-      const children = entries
-        .filter(([name]) => !ignoredNames.has(name))
-        .map(([name, type]) => {
-          const isFolder = (type & vscode.FileType.Directory) !== 0;
-          const childUri = vscode.Uri.joinPath(uri, name);
-          const childUriStr = childUri.toString();
-          let status: string | undefined;
-
-          if (!isRemote && gitRoot && childUri.scheme === 'file') {
-            const relativePath = path.relative(gitRoot, childUri.fsPath);
-            status = this.getChildGitStatus(relativePath, isFolder, statusMap);
-          }
-
-          return {
-            name,
-            isFolder,
-            path: childUriStr,
-            status
-          };
-        })
-        .filter((c) => {
-          if (!focusOnly) return true;
-          return !!c.status;
-        })
-        .sort((a, b) => {
-          if (a.isFolder === b.isFolder) return a.name.localeCompare(b.name);
-          return a.isFolder ? -1 : 1;
-        });
-
-      this.dirCache.set(cacheKey, {
-        children,
-        timestamp: now
-      });
-
-      this._view?.webview.postMessage({
-        type: 'readDirResult',
-        fsPath: uriStr,
-        children,
-        projectName,
-        focusOnly
-      });
-    } catch (e) {
-      const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
-      const uriStr = uri.toString();
-      const isRemote = uriStr.startsWith('vscode-vfs://') || uriStr.startsWith('http');
-
-      this._view?.webview.postMessage({
-        type: 'readDirResult',
-        fsPath: uriStr,
-        children: [],
-        projectName,
-        focusOnly,
-      });
-
-      if (isRemote) {
-        vscode.window.showErrorMessage('读取失败：可能是网络超时或触发了 GitHub API 限制，请稍后再试。');
-      }
-
-      return;
-    }
+    await this.directoryService.readDirectory({
+      fsPath,
+      projectName,
+      focusOnly,
+      forceRefresh,
+      postMessage: (message) => {
+        this._view?.webview.postMessage(message);
+      },
+    });
   }
 
   private updateWebview() {
