@@ -26,6 +26,15 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
 }) => {
   const remoteInfo = remoteUrl ? parseRemoteInfo(remoteUrl, commit.hash) : null;
 
+  const hasChangeStats =
+    typeof commit.filesChanged === 'number' ||
+    typeof commit.insertions === 'number' ||
+    typeof commit.deletions === 'number';
+
+  const filesChanged = commit.filesChanged || 0;
+  const insertions = commit.insertions || 0;
+  const deletions = commit.deletions || 0;
+
   const getRefTagClassName = (name: string, isHead: boolean) => {
     const isRemote = name.startsWith('origin/');
 
@@ -41,9 +50,8 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
 
   return (
     <div
-      className={`${styles['commit-hover-widget']} ${
-        position === 'top' ? styles['hover-top'] : styles['hover-bottom']
-      }`}
+      className={`${styles['commit-hover-widget']} ${position === 'top' ? styles['hover-top'] : styles['hover-bottom']
+        }`}
       style={{
         left: '50%',
         transform: 'translateX(-50%)',
@@ -114,6 +122,15 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
 
         <div className={styles['hover-message']}>{commit.message}</div>
 
+        {hasChangeStats && (
+          <div className={styles['hover-change-stats']}>
+            <span>已更改 {filesChanged} 个文件, </span>
+            <span className={styles['hover-change-insertions']}>{insertions} 行插入 (+)</span>
+            <span>, </span>
+            <span className={styles['hover-change-deletions']}>{deletions} 行删除 (-)</span>
+          </div>
+        )}
+
         <div className={styles['hover-divider']}></div>
 
         <div className={styles['hover-footer']}>
@@ -147,7 +164,9 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
                     verticalAlign: 'middle',
                   }}
                 />
-                在 {remoteInfo.platform} 上打开
+                <span className={styles['hover-open-remote-text']}>
+                  在 {remoteInfo.platform} 上打开
+                </span>
               </span>
             </>
           )}

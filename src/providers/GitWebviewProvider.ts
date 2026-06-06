@@ -1078,10 +1078,11 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
               await this.withViewProgress(async () => {
                 const graphData = await this.gitService.getGraph(cwd, selectedBranch);
+                const graphCommits = await this.attachCommitChangeStats(cwd, graphData.graphCommits);
 
                 this._view?.webview.postMessage({
                   type: 'graphData',
-                  graphCommits: graphData.graphCommits,
+                  graphCommits,
                   graphFilter: graphData.graphFilter,
                   totalCommits: graphData.totalCommits,
                 });
@@ -1658,6 +1659,75 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  private async getCommitChangeStats(
+    cwd: string,
+    hash: string,
+  ): Promise<{ filesChanged: number; insertions: number; deletions: number }> {
+    return new Promise((resolve) => {
+      execFile(
+        'git',
+        ['-C', cwd, 'show', '--numstat', '--format=', '--find-renames', hash],
+        {
+          encoding: 'utf8',
+          maxBuffer: 1024 * 1024 * 10,
+        },
+        (_error, stdout) => {
+          const lines = String(stdout || '')
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean);
+
+          let filesChanged = 0;
+          let insertions = 0;
+          let deletions = 0;
+
+          lines.forEach((line) => {
+            const parts = line.split(/\s+/);
+
+            if (parts.length < 3) return;
+
+            filesChanged += 1;
+
+            const added = Number(parts[0]);
+            const removed = Number(parts[1]);
+
+            if (Number.isFinite(added)) {
+              insertions += added;
+            }
+
+            if (Number.isFinite(removed)) {
+              deletions += removed;
+            }
+          });
+
+          resolve({
+            filesChanged,
+            insertions,
+            deletions,
+          });
+        },
+      );
+    });
+  }
+
+  private async attachCommitChangeStats<T extends { hash: string }>(
+    cwd: string,
+    commits: T[],
+  ): Promise<Array<T & { filesChanged: number; insertions: number; deletions: number }>> {
+    const result: Array<T & { filesChanged: number; insertions: number; deletions: number }> = [];
+
+    for (const commit of commits) {
+      const stats = await this.getCommitChangeStats(cwd, commit.hash);
+
+      result.push({
+        ...commit,
+        ...stats,
+      });
+    }
+
+    return result;
+  }
+
   private async refreshStatus(cwd: string, fullRefresh: boolean = true) {
     if (!this._view) return;
 
@@ -1726,10 +1796,11 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           this._lastGraphState = await this.gitService.getGraphState(cwd);
 
           const graphData = await this.gitService.getGraph(cwd, this.gitService.CURRENT_BRANCH_FILTER);
+          const graphCommits = await this.attachCommitChangeStats(cwd, graphData.graphCommits);
 
           this._view.webview.postMessage({
             type: 'graphData',
-            graphCommits: graphData.graphCommits,
+            graphCommits,
             graphFilter: graphData.graphFilter,
             totalCommits: graphData.totalCommits,
           });

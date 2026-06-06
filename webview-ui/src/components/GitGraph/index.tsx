@@ -13,6 +13,9 @@ export interface GraphCommit {
     message: string;
     timestamp?: number;
     refs?: string;
+    filesChanged?: number;
+    insertions?: number;
+    deletions?: number;
 }
 
 interface GitGraphProps {
