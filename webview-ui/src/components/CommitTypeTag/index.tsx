@@ -158,7 +158,7 @@ const CommitTypeTag: React.FC<CommitTypeTagProps> = ({
           setPopupOpen(!open);
         }}
       >
-        {activeOption.label}
+        {activeOption.label}:
       </button>
 
       {open &&

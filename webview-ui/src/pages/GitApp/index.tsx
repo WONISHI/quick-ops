@@ -37,6 +37,49 @@ const EMPTY_REMOTE_SYNC: RemoteSyncState = {
   checkedAt: 0,
 };
 
+const COMMIT_TYPE_ALIAS_MAP: Record<string, CommitType> = {
+  feat: 'feat' as CommitType,
+  feature: 'feat' as CommitType,
+  fix: 'fix' as CommitType,
+  bugfix: 'fix' as CommitType,
+  docs: 'docs' as CommitType,
+  doc: 'docs' as CommitType,
+  style: 'style' as CommitType,
+  refactor: 'refactor' as CommitType,
+  perf: 'perf' as CommitType,
+  performance: 'perf' as CommitType,
+  test: 'test' as CommitType,
+  tests: 'test' as CommitType,
+  chore: 'chore' as CommitType,
+  build: 'build' as CommitType,
+  ci: 'ci' as CommitType,
+  revert: 'revert' as CommitType,
+};
+
+const normalizeCommitTypeText = (value: string) => {
+  return value.trim().toLowerCase();
+};
+
+const parseCommitTypeFromText = (value: string) => {
+  const text = value.replace(/\r\n/g, '\n').trimStart();
+  const match = text.match(/^([a-zA-Z][a-zA-Z0-9_-]*?)\s*[:：]\s*([\s\S]*)$/);
+
+  if (!match) {
+    return null;
+  }
+
+  const type = COMMIT_TYPE_ALIAS_MAP[normalizeCommitTypeText(match[1])];
+
+  if (!type) {
+    return null;
+  }
+
+  return {
+    type,
+    message: match[2].replace(/^\s+/, ''),
+  };
+};
+
 export default function GitApp() {
   const [isRepo, setIsRepo] = useState<boolean>(true);
   const [isGitInstalled, setIsGitInstalled] = useState<boolean | null>(null);
@@ -341,6 +384,39 @@ export default function GitApp() {
     };
   }, [isRepo]);
 
+  const syncCommitInputValue = (value: string) => {
+    const text = value.replace(/\n/g, '').trim();
+
+    if (!text) {
+      if (commitInputRef.current) {
+        commitInputRef.current.innerHTML = '';
+      }
+
+      setCommitMsg('');
+      return;
+    }
+
+    setCommitMsg(value);
+  };
+
+  const setCommitInputText = (text: string) => {
+    const el = commitInputRef.current;
+
+    if (!el) return;
+
+    el.innerText = text;
+
+    const selection = window.getSelection();
+    const range = document.createRange();
+
+    range.selectNodeContents(el);
+    range.collapse(false);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    syncCommitInputValue(text);
+  };
+
   const insertPlainTextAtCursor = (text: string) => {
     const selection = window.getSelection();
 
@@ -370,6 +446,30 @@ export default function GitApp() {
       selection.removeAllRanges();
       selection.addRange(newRange);
     }
+  };
+
+  const applyCommitTypeFromPastedText = (text: string) => {
+    const parsed = parseCommitTypeFromText(text);
+
+    if (!parsed) {
+      return false;
+    }
+
+    setCommitType(parsed.type);
+
+    if (!commitTypeEnabled) {
+      setCommitTypeEnabled(true);
+
+      vscode.postMessage({
+        command: 'toggleCommitTypeEnabled',
+        value: true,
+      });
+    }
+
+    setCommitInputText(parsed.message);
+    setJustCommitted(false);
+
+    return true;
   };
 
   const getFinalCommitMessage = () => {
@@ -651,15 +751,8 @@ export default function GitApp() {
             data-placeholder={commitTypeEnabled ? '输入提交内容' : '消息 (按 Ctrl+Enter 提交)'}
             onInput={(e) => {
               const el = e.currentTarget;
-              const text = el.innerText.replace(/\n/g, '').trim();
 
-              if (!text) {
-                el.innerHTML = '';
-                setCommitMsg('');
-              } else {
-                setCommitMsg(el.innerText);
-              }
-
+              syncCommitInputValue(el.innerText);
               setJustCommitted(false);
             }}
             onKeyDown={(e) => {
@@ -675,18 +768,12 @@ export default function GitApp() {
 
               if (!text) return;
 
-              insertPlainTextAtCursor(text);
-
-              const el = e.currentTarget;
-              const currentText = el.innerText.replace(/\n/g, '').trim();
-
-              if (!currentText) {
-                el.innerHTML = '';
-                setCommitMsg('');
-              } else {
-                setCommitMsg(el.innerText);
+              if (applyCommitTypeFromPastedText(text)) {
+                return;
               }
 
+              insertPlainTextAtCursor(text);
+              syncCommitInputValue(e.currentTarget.innerText);
               setJustCommitted(false);
             }}
             onDrop={(e) => {
