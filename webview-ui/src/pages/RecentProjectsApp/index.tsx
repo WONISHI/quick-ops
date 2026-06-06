@@ -1529,7 +1529,7 @@ export default function RecentProjectsApp() {
                         </div>
 
                         {isExpanded && (
-                          <div className={styles['tree-children']}>
+                          <div className={`${styles['tree-children']} ${styles['root-tree-children']}`}>
                             {renderTreeChildren(rootPath, title, true)}
                           </div>
                         )}
@@ -1636,7 +1636,7 @@ export default function RecentProjectsApp() {
                         </div>
 
                         {isExpanded && (
-                          <div className={styles['tree-children']}>
+                          <div className={`${styles['tree-children']} ${styles['root-tree-children']}`}>
                             {renderTreeChildren(rootPath, title)}
                           </div>
                         )}

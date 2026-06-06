@@ -367,6 +367,20 @@ ul {
   border-left: 1px solid var(--vscode-tree-indentGuidesStroke);
 }
 
+.tree-children {
+  margin-left: 6px;
+  padding-left: 4px;
+  border-left: 1px solid var(--vscode-tree-indentGuidesStroke);
+}
+
+.root-tree-children {
+  border-left-color: transparent;
+}
+
+.root-tree-children .tree-children {
+  border-left-color: var(--vscode-tree-indentGuidesStroke);
+}
+
 .tree-chevron,
 .chevron-placeholder {
   width: 12px;
