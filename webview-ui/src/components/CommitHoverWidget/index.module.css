@@ -169,6 +169,7 @@
     white-space: pre-wrap;
     word-wrap: break-word;
     word-break: break-all;
+    margin: 6px 0;
 }
 
 .hover-divider {
