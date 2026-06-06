@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import styles from './index.module.css';
 
 interface GraphSearchWidgetProps {
@@ -32,6 +32,30 @@ const GraphSearchWidget: React.FC<GraphSearchWidgetProps> = ({
     const searchInputRef = useRef<HTMLInputElement>(null);
     const isDragging = useRef(false);
     const dragStart = useRef({ mouseX: 0, mouseY: 0, currentX: 0, currentY: 0 });
+    const focusTimerRef = useRef<number | null>(null);
+    const focusFrameRef = useRef<number | null>(null);
+
+    const focusSearchInput = () => {
+        if (focusFrameRef.current !== null) {
+            cancelAnimationFrame(focusFrameRef.current);
+            focusFrameRef.current = null;
+        }
+
+        if (focusTimerRef.current !== null) {
+            window.clearTimeout(focusTimerRef.current);
+            focusTimerRef.current = null;
+        }
+
+        focusFrameRef.current = requestAnimationFrame(() => {
+            searchInputRef.current?.focus();
+            searchInputRef.current?.select();
+
+            focusTimerRef.current = window.setTimeout(() => {
+                searchInputRef.current?.focus();
+                searchInputRef.current?.select();
+            }, 0);
+        });
+    };
 
     useEffect(() => {
         if (!isSearchOpen || !anchorRef.current) return;
@@ -39,24 +63,38 @@ const GraphSearchWidget: React.FC<GraphSearchWidgetProps> = ({
         const updatePosition = () => {
             if (anchorRef.current) {
                 const rect = anchorRef.current.getBoundingClientRect();
-                setInitialTop(rect.top + 8); 
+                setInitialTop(rect.top + 8);
             }
         };
 
-        updatePosition(); 
-        setSearchOffset({ x: 0, y: 0 }); 
+        updatePosition();
+        setSearchOffset({ x: 0, y: 0 });
 
         window.addEventListener('resize', updatePosition);
-        return () => window.removeEventListener('resize', updatePosition);
+
+        return () => {
+            window.removeEventListener('resize', updatePosition);
+        };
     }, [isSearchOpen, anchorRef]);
 
-    useEffect(() => {
-        if (isSearchOpen && searchInputRef.current) {
-            searchInputRef.current.focus();
-        }
+    useLayoutEffect(() => {
+        if (!isSearchOpen) return;
+
+        focusSearchInput();
+
+        return () => {
+            if (focusFrameRef.current !== null) {
+                cancelAnimationFrame(focusFrameRef.current);
+                focusFrameRef.current = null;
+            }
+
+            if (focusTimerRef.current !== null) {
+                window.clearTimeout(focusTimerRef.current);
+                focusTimerRef.current = null;
+            }
+        };
     }, [isSearchOpen]);
 
-    // 🌟 核心修复：改用原生的 Mouse 事件挂载到 Document 上，彻底防止鼠标脱轨
     const handleMouseMove = (e: MouseEvent) => {
         if (!isDragging.current) return;
         const dx = e.clientX - dragStart.current.mouseX;
@@ -99,6 +137,16 @@ const GraphSearchWidget: React.FC<GraphSearchWidgetProps> = ({
         return () => {
             document.removeEventListener('mousemove', handleMouseMove);
             document.removeEventListener('mouseup', handleMouseUp);
+
+            if (focusFrameRef.current !== null) {
+                cancelAnimationFrame(focusFrameRef.current);
+                focusFrameRef.current = null;
+            }
+
+            if (focusTimerRef.current !== null) {
+                window.clearTimeout(focusTimerRef.current);
+                focusTimerRef.current = null;
+            }
         };
     }, []);
 
@@ -132,23 +180,48 @@ const GraphSearchWidget: React.FC<GraphSearchWidgetProps> = ({
                 onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                         e.preventDefault();
-                        if (e.shiftKey) handlePrevMatch();
-                        else handleNextMatch();
+
+                        if (e.shiftKey) {
+                            handlePrevMatch();
+                        } else {
+                            handleNextMatch();
+                        }
                     } else if (e.key === 'Escape') {
                         setIsSearchOpen(false);
                     }
                 }}
             />
+
             <div className={styles['search-count']} style={{ cursor: 'default' }}>
                 {matchedIndices.length > 0 ? currentMatchIndex + 1 : 0}/{matchedIndices.length}
             </div>
-            <button className={styles['search-btn']} onClick={handlePrevMatch} disabled={matchedIndices.length === 0} title="上一个 (Shift+Enter)" style={{ cursor: 'pointer' }}>
+
+            <button
+                className={styles['search-btn']}
+                onClick={handlePrevMatch}
+                disabled={matchedIndices.length === 0}
+                title="上一个 (Shift+Enter)"
+                style={{ cursor: 'pointer' }}
+            >
                 <i className="codicon codicon-arrow-up" />
             </button>
-            <button className={styles['search-btn']} onClick={handleNextMatch} disabled={matchedIndices.length === 0} title="下一个 (Enter)" style={{ cursor: 'pointer' }}>
+
+            <button
+                className={styles['search-btn']}
+                onClick={handleNextMatch}
+                disabled={matchedIndices.length === 0}
+                title="下一个 (Enter)"
+                style={{ cursor: 'pointer' }}
+            >
                 <i className="codicon codicon-arrow-down" />
             </button>
-            <button className={styles['search-btn']} onClick={() => setIsSearchOpen(false)} title="关闭 (Esc)" style={{ cursor: 'pointer' }}>
+
+            <button
+                className={styles['search-btn']}
+                onClick={() => setIsSearchOpen(false)}
+                title="关闭 (Esc)"
+                style={{ cursor: 'pointer' }}
+            >
                 <i className="codicon codicon-close" />
             </button>
         </div>

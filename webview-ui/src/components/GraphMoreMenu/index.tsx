@@ -137,6 +137,9 @@ const GraphMoreMenu: React.FC<GraphMoreMenuProps> = ({
 
             <button
               className={styles['graph-more-item']}
+              onMouseDown={(event) => {
+                event.preventDefault();
+              }}
               onClick={() => {
                 onCollapseCommitFiles();
                 setOpen(false);
@@ -148,6 +151,9 @@ const GraphMoreMenu: React.FC<GraphMoreMenuProps> = ({
 
             <button
               className={`${styles['graph-more-item']} ${isSearchOpen ? styles['graph-more-item-active'] : ''}`}
+              onMouseDown={(event) => {
+                event.preventDefault();
+              }}
               onClick={() => {
                 onToggleSearch();
                 setOpen(false);
