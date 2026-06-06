@@ -15,10 +15,16 @@ import {
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 import styles from './index.module.css';
 import FileIcon from '../../components/FileIcon';
-import LoadingMask from '../../components/LoadingMask';
+import ProjectInitLoading from '../../components/ProjectInitLoading';
 import RecentProjectContextMenu from '../../components/RecentProjectContextMenu';
 import SearchViewWrapper from '../../components/SearchViewWrapper';
 import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '../../utils';
+import {
+  FileGitStatusBadge,
+  FolderGitStatusDot,
+  getGitStatusClassName,
+  getGitStatusTitle,
+} from '../../components/GitStatusMark';
 import type {
   Project,
   DirChild,
@@ -584,62 +590,6 @@ export default function RecentProjectsApp() {
   }, [revealVisibleProjectPathKey]);
 
   const clickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const getFileStatusClassName = (status?: string) => {
-    if (!status) return '';
-
-    const safeStatus = status.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
-    return styles[`file-status-${safeStatus}`] || '';
-  };
-
-  const getFileStatusText = (status?: string) => {
-    if (!status) return '';
-
-    const normalizedStatus = status.toLowerCase();
-
-    if (normalizedStatus === 'u') return 'U';
-    if (normalizedStatus === 'a') return 'A';
-    if (normalizedStatus === 'm') return 'M';
-    if (normalizedStatus === 'd') return 'D';
-    if (normalizedStatus === 'r') return 'R';
-    if (normalizedStatus === 'c') return 'C';
-
-    return '';
-  };
-
-  const getStatusTitle = (name: string, status?: string) => {
-    const text = getFileStatusText(status);
-
-    return text ? `${name} [${text}]` : name;
-  };
-
-  const renderFolderStatusDot = (status?: string) => {
-    const text = getFileStatusText(status);
-
-    if (!text) return null;
-
-    return (
-      <span
-        className={`${styles['folder-status-dot']} ${getFileStatusClassName(status)}`}
-        title={`状态: ${text}`}
-      />
-    );
-  };
-
-  const renderFileStatusBadge = (status?: string) => {
-    const text = getFileStatusText(status);
-
-    if (!text) return null;
-
-    return (
-      <span
-        className={`${styles['file-status-badge']} ${getFileStatusClassName(status)}`}
-        title={`状态: ${text}`}
-      >
-        {text}
-      </span>
-    );
-  };
 
   const normalizeTreePath = (pathValue: string) => {
     if (!pathValue) return '';
@@ -1236,7 +1186,7 @@ export default function RecentProjectsApp() {
           const childLoading = loadingPaths.has(childPath) && !dirChildren[childPath];
           const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
           const elementId = `tree-node-${encodeURIComponent(childPath)}`;
-          const statusClassName = getFileStatusClassName(child.status);
+          const statusClassName = getGitStatusClassName(child.status);
 
           if (child.isFolder) {
             return (
@@ -1282,12 +1232,12 @@ export default function RecentProjectsApp() {
 
                   <span
                     className={`${styles['sub-name']} ${statusClassName}`}
-                    title={getStatusTitle(child.name, child.status)}
+                    title={getGitStatusTitle(child.name, child.status)}
                   >
                     {child.name}
                   </span>
 
-                  {renderFolderStatusDot(child.status)}
+                  <FolderGitStatusDot status={child.status} />
                 </div>
 
                 {isExpanded && (
@@ -1332,12 +1282,12 @@ export default function RecentProjectsApp() {
 
                 <span
                   className={`${styles['sub-name']} ${statusClassName}`}
-                  title={getStatusTitle(child.name, child.status)}
+                  title={getGitStatusTitle(child.name, child.status)}
                 >
                   {child.name}
                 </span>
 
-                {renderFileStatusBadge(child.status)}
+                <FileGitStatusBadge status={child.status} />
               </div>
             </div>
           );
@@ -1346,24 +1296,9 @@ export default function RecentProjectsApp() {
     );
   };
 
-if (isInitLoading) {
-  return (
-    <div className={styles['app-wrapper']}>
-      <LoadingMask visible>
-        <div className={styles['init-loading-content']}>
-          <FontAwesomeIcon
-            icon={faSpinner}
-            spin
-            className={styles['init-loading-icon']}
-          />
-          <span className={styles['init-loading-text']}>
-            正在加载项目视图...
-          </span>
-        </div>
-      </LoadingMask>
-    </div>
-  );
-}
+  if (isInitLoading) {
+    return <ProjectInitLoading text="正在加载项目视图..." />;
+  }
 
   return (
     <div className={styles['app-wrapper']}>
