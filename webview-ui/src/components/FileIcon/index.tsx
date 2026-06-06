@@ -95,7 +95,6 @@ export type FileGitStatus =
   | 'd'
   | 'r'
   | 'c'
-  | 'xxx'
   | string;
 
 const EXACT_NAMES: Record<string, string> = {
@@ -217,6 +216,7 @@ const EXTENSIONS: Record<string, string> = {
   yaml: yamlIcon,
   yml: yamlIcon,
   toml: tomlIcon,
+  plist: xmlIcon,
   xml: xmlIcon,
   svg: svgIcon,
   sql: databaseIcon,
@@ -224,6 +224,7 @@ const EXTENSIONS: Record<string, string> = {
   sqlite: databaseIcon,
   md: markdownIcon,
   markdown: markdownIcon,
+  icns: imageIcon,
   png: imageIcon,
   jpg: imageIcon,
   jpeg: imageIcon,
