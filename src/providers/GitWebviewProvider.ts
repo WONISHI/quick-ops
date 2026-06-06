@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import { execFile } from 'child_process';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
 import GitService, { type GitFileItem } from '../services/GitService';
 
@@ -649,8 +650,17 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           case 'undoLastCommit': {
             await this.executeGitOperation(async () => {
               try {
+                const lastCommitMessage = await this.getHeadCommitMessage(cwd);
+
                 await this.gitService.undoLastCommit(cwd);
+
                 vscode.window.showInformationMessage('✅ 已撤销最近一次提交，更改已退回工作区。');
+
+                this._view?.webview.postMessage({
+                  type: 'undoLastCommitSuccess',
+                  message: lastCommitMessage,
+                });
+
                 await this.refreshStatus(cwd, true);
               } catch (e: any) {
                 vscode.window.showErrorMessage(`无法撤销提交 (可能没有足够的提交记录): ${e.message}`);
@@ -1747,6 +1757,27 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         }, 0);
       }
     }
+  }
+
+  private getHeadCommitMessage(cwd: string): Promise<string> {
+    return new Promise((resolve) => {
+      execFile(
+        'git',
+        ['-C', cwd, 'log', '-1', '--pretty=%B'],
+        {
+          encoding: 'utf8',
+          maxBuffer: 1024 * 1024,
+        },
+        (error, stdout) => {
+          if (error) {
+            resolve('');
+            return;
+          }
+
+          resolve(String(stdout || '').trim());
+        },
+      );
+    });
   }
 
   private async handleCommit(cwd: string, message: string, skipVerify: boolean) {

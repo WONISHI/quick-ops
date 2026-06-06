@@ -37,6 +37,13 @@ const EMPTY_REMOTE_SYNC: RemoteSyncState = {
   checkedAt: 0,
 };
 
+interface CommitDraftSnapshot {
+  message: string;
+  commitType: CommitType;
+  commitTypeEnabled: boolean;
+  finalMessage: string;
+}
+
 const COMMIT_TYPE_ALIAS_MAP: Record<string, CommitType> = {
   feat: 'feat' as CommitType,
   feature: 'feat' as CommitType,
@@ -104,6 +111,8 @@ export default function GitApp() {
   const [justCommitted, setJustCommitted] = useState(false);
   const currentBranchRef = useRef('');
   const justCommittedBranchRef = useRef('');
+  const pendingCommitSnapshotRef = useRef<CommitDraftSnapshot | null>(null);
+  const lastCommittedSnapshotRef = useRef<CommitDraftSnapshot | null>(null);
 
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
   const [isGraphLoading, setIsGraphLoading] = useState(true);
@@ -326,9 +335,34 @@ export default function GitApp() {
         setLoading(false);
         setChangesRefreshing(false);
         setIsGraphLoading(false);
+
+        if (pendingCommitSnapshotRef.current) {
+          restoreCommitDraft(pendingCommitSnapshotRef.current);
+          pendingCommitSnapshotRef.current = null;
+        }
       } else if (msg.type === 'commitSuccess') {
+        if (pendingCommitSnapshotRef.current) {
+          lastCommittedSnapshotRef.current = pendingCommitSnapshotRef.current;
+          pendingCommitSnapshotRef.current = null;
+        }
+
+        clearCommitDraft();
         justCommittedBranchRef.current = currentBranchRef.current;
         setJustCommitted(true);
+      } else if (msg.type === 'undoLastCommitSuccess') {
+        const lastCommittedSnapshot = lastCommittedSnapshotRef.current;
+        const undoMessage = typeof msg.message === 'string' ? msg.message : '';
+
+        lastCommittedSnapshotRef.current = null;
+        pendingCommitSnapshotRef.current = null;
+        justCommittedBranchRef.current = '';
+        setJustCommitted(false);
+
+        if (undoMessage) {
+          restoreCommitMessageText(undoMessage);
+        } else if (lastCommittedSnapshot) {
+          restoreCommitDraft(lastCommittedSnapshot);
+        }
       } else if (msg.type === 'clearJustCommitted') {
         justCommittedBranchRef.current = '';
         setJustCommitted(false);
@@ -472,6 +506,68 @@ export default function GitApp() {
     return true;
   };
 
+  const setCommitInputValue = (value: string) => {
+    setCommitMsg(value);
+
+    requestAnimationFrame(() => {
+      if (commitInputRef.current) {
+        commitInputRef.current.innerText = value;
+      }
+    });
+  };
+
+  const clearCommitDraft = () => {
+    setCommitMsg('');
+
+    requestAnimationFrame(() => {
+      if (commitInputRef.current) {
+        commitInputRef.current.innerText = '';
+      }
+    });
+  };
+
+  const restoreCommitDraft = (snapshot: CommitDraftSnapshot) => {
+    setCommitType(snapshot.commitType);
+    setCommitTypeEnabled(snapshot.commitTypeEnabled);
+    setCommitInputValue(snapshot.message);
+    setJustCommitted(false);
+
+    requestAnimationFrame(() => {
+      commitInputRef.current?.focus();
+    });
+  };
+
+  const restoreCommitMessageText = (value: string) => {
+    const message = value.trim();
+
+    if (!message) return;
+
+    const parsed = parseCommitTypeFromText(message);
+
+    if (parsed) {
+      setCommitType(parsed.type);
+      setCommitTypeEnabled(true);
+      setCommitInputValue(parsed.message);
+    } else {
+      setCommitInputValue(message);
+    }
+
+    setJustCommitted(false);
+
+    requestAnimationFrame(() => {
+      commitInputRef.current?.focus();
+    });
+  };
+
+  const createCommitDraftSnapshot = (finalMessage: string): CommitDraftSnapshot => {
+    return {
+      message: getNormalizedCommitMessage(),
+      commitType,
+      commitTypeEnabled,
+      finalMessage,
+    };
+  };
+
   const getFinalCommitMessage = () => {
     const message = getNormalizedCommitMessage();
 
@@ -489,20 +585,16 @@ export default function GitApp() {
 
     if (!finalMessage) return;
 
+    pendingCommitSnapshotRef.current = createCommitDraftSnapshot(finalMessage);
+
     setLoading(true);
+    setJustCommitted(false);
 
     vscode.postMessage({
       command: 'commit',
       message: finalMessage,
       skipVerify,
     });
-
-    setCommitMsg('');
-    setJustCommitted(false);
-
-    if (commitInputRef.current) {
-      commitInputRef.current.innerText = '';
-    }
   };
 
   const toggleCommit = (hash: string) => {
