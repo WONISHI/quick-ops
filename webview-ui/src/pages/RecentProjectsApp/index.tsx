@@ -640,6 +640,22 @@ export default function RecentProjectsApp() {
     );
   };
 
+  const isSelectedInsidePath = (parentPath: string) => {
+    if (!selectedPath || !parentPath) return false;
+
+    return isPathInside(selectedPath, parentPath) && selectedPath !== parentPath;
+  };
+
+  const getTreeChildrenClassName = (parentPath: string, extraClassName: string = '') => {
+    return [
+      styles['tree-children'],
+      isSelectedInsidePath(parentPath) ? styles['active-tree-guide'] : '',
+      extraClassName,
+    ]
+      .filter(Boolean)
+      .join(' ');
+  };
+
   const requestReadDir = (pathValue: string, projectName: string, forceRefresh: boolean = false) => {
     vscode.postMessage({
       type: isFocusMode ? 'readFocusDir' : 'readDir',
@@ -1252,7 +1268,10 @@ export default function RecentProjectsApp() {
 
                 {isExpanded && (
                   <div
-                    className={`${styles['tree-children']} ${styles['search-name-tree-children']}`}
+                    className={getTreeChildrenClassName(
+                      childPath,
+                      styles['search-name-tree-children']
+                    )}
                   >
                     {renderTreeChildren(childPath, projectName, isActiveProject)}
                   </div>
@@ -1529,7 +1548,12 @@ export default function RecentProjectsApp() {
                         </div>
 
                         {isExpanded && (
-                          <div className={`${styles['tree-children']} ${styles['root-tree-children']}`}>
+                          <div
+                            className={getTreeChildrenClassName(
+                              rootPath,
+                              styles['root-tree-children']
+                            )}
+                          >
                             {renderTreeChildren(rootPath, title, true)}
                           </div>
                         )}
@@ -1636,7 +1660,12 @@ export default function RecentProjectsApp() {
                         </div>
 
                         {isExpanded && (
-                          <div className={`${styles['tree-children']} ${styles['root-tree-children']}`}>
+                          <div
+                            className={getTreeChildrenClassName(
+                              rootPath,
+                              styles['root-tree-children']
+                            )}
+                          >
                             {renderTreeChildren(rootPath, title)}
                           </div>
                         )}

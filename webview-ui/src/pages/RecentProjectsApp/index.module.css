@@ -357,28 +357,46 @@ ul {
    树结构
    ================================ */
 
-/* ================================
-   树结构
-   ================================ */
-
 .tree-children {
   margin-left: 6px;
   padding-left: 4px;
-  border-left: 1px solid var(--vscode-tree-indentGuidesStroke);
+  border-left: 1px solid color-mix(
+    in srgb,
+    var(--vscode-tree-indentGuidesStroke) 38%,
+    transparent
+  );
 }
 
-.tree-children {
-  margin-left: 6px;
-  padding-left: 4px;
-  border-left: 1px solid var(--vscode-tree-indentGuidesStroke);
+.active-tree-guide {
+  border-left-color: color-mix(
+    in srgb,
+    var(--vscode-tree-indentGuidesStroke) 90%,
+    var(--vscode-foreground) 10%
+  );
 }
 
 .root-tree-children {
   border-left-color: transparent;
 }
 
+.root-tree-children.active-tree-guide {
+  border-left-color: transparent;
+}
+
 .root-tree-children .tree-children {
-  border-left-color: var(--vscode-tree-indentGuidesStroke);
+  border-left-color: color-mix(
+    in srgb,
+    var(--vscode-tree-indentGuidesStroke) 38%,
+    transparent
+  );
+}
+
+.root-tree-children .active-tree-guide {
+  border-left-color: color-mix(
+    in srgb,
+    var(--vscode-tree-indentGuidesStroke) 90%,
+    var(--vscode-foreground) 10%
+  );
 }
 
 .tree-chevron,
