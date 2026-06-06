@@ -15,6 +15,7 @@ import {
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 import styles from './index.module.css';
 import FileIcon from '../../components/FileIcon';
+import LoadingMask from '../../components/LoadingMask';
 import RecentProjectContextMenu from '../../components/RecentProjectContextMenu';
 import SearchViewWrapper from '../../components/SearchViewWrapper';
 import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '../../utils';
@@ -1345,35 +1346,24 @@ export default function RecentProjectsApp() {
     );
   };
 
-  if (isInitLoading) {
-    return (
-      <div
-        className={styles['app-wrapper']}
-        style={{
-          justifyContent: 'center',
-          alignItems: 'center',
-        }}
-      >
-        <FontAwesomeIcon
-          icon={faSpinner}
-          spin
-          style={{
-            fontSize: '24px',
-            opacity: 0.5,
-            marginBottom: '10px',
-          }}
-        />
-        <span
-          style={{
-            fontSize: '13px',
-            opacity: 0.7,
-          }}
-        >
-          正在加载项目视图...
-        </span>
-      </div>
-    );
-  }
+if (isInitLoading) {
+  return (
+    <div className={styles['app-wrapper']}>
+      <LoadingMask visible>
+        <div className={styles['init-loading-content']}>
+          <FontAwesomeIcon
+            icon={faSpinner}
+            spin
+            className={styles['init-loading-icon']}
+          />
+          <span className={styles['init-loading-text']}>
+            正在加载项目视图...
+          </span>
+        </div>
+      </LoadingMask>
+    </div>
+  );
+}
 
   return (
     <div className={styles['app-wrapper']}>
