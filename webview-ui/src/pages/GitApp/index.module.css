@@ -358,7 +358,7 @@ body {
 
 .changes-section-expanded {
   --changes-section-open: 1;
-  min-height: 0;
+  min-height: 22px;
 }
 
 .changes-section-collapsed {
