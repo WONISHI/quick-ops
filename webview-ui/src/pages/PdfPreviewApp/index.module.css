@@ -2,7 +2,17 @@
     display: flex;
     flex-direction: column;
     height: 100vh;
+    color: var(--vscode-foreground);
     background-color: var(--vscode-editor-background);
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+:global(html),
+:global(body),
+:global(#root) {
+    user-select: text !important;
+    -webkit-user-select: text !important;
 }
 
 /* 状态视图：加载与错误 */
@@ -42,6 +52,8 @@
     border-bottom: 1px solid var(--vscode-panel-border);
     color: var(--vscode-foreground);
     flex-shrink: 0;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .toolbar-group {
@@ -94,13 +106,100 @@
 /* PDF 渲染区域 */
 .render-area {
     flex: 1;
+    min-height: 0;
     overflow: auto;
     display: flex;
     justify-content: center;
+    align-items: flex-start;
     padding: 20px;
+    background: var(--vscode-editor-background);
+    user-select: text !important;
+    -webkit-user-select: text !important;
 }
 
 .page-wrapper {
+    position: relative;
+    margin: 16px;
     background-color: #ffffff;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+.page-wrapper :global(.react-pdf__Document) {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+.page-wrapper :global(.react-pdf__Page) {
+    position: relative;
+    background: #ffffff;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+/* canvas 只负责显示，不要抢鼠标事件 */
+.page-wrapper :global(.react-pdf__Page canvas) {
+    display: block;
+    position: relative;
+    z-index: 1;
+    pointer-events: none !important;
+    user-select: none !important;
+    -webkit-user-select: none !important;
+}
+
+/* react-pdf v7/v8 常见文字层类名 */
+.page-wrapper :global(.react-pdf__Page__textContent),
+.page-wrapper :global(.textLayer) {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 5 !important;
+    overflow: hidden;
+    opacity: 1;
+    line-height: 1;
+    pointer-events: auto !important;
+    cursor: text !important;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+/* 文字层 span 必须允许选中 */
+.page-wrapper :global(.react-pdf__Page__textContent span),
+.page-wrapper :global(.textLayer span) {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: text !important;
+    transform-origin: 0% 0%;
+    pointer-events: auto !important;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+}
+
+/* 伪元素也要保留，否则部分 PDF 选择范围不连续 */
+.page-wrapper :global(.react-pdf__Page__textContent span::selection),
+.page-wrapper :global(.textLayer span::selection) {
+    background: rgba(0, 120, 215, 0.35);
+}
+
+/* annotationLayer 会盖住 textLayer，先禁用鼠标事件，否则拖拽选中文字会被挡住 */
+.page-wrapper :global(.react-pdf__Page__annotations),
+.page-wrapper :global(.annotationLayer) {
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 3 !important;
+    pointer-events: none !important;
+}
+
+/* 兼容新版 pdf.js 文本层 */
+.page-wrapper :global(.textLayer br) {
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.page-wrapper :global(.textLayer .highlight) {
+    margin: -1px;
+    padding: 1px;
+    background-color: rgba(180, 0, 170, 0.2);
+    border-radius: 4px;
 }
