@@ -1468,8 +1468,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 });
 
                 await this.refreshStatus(cwd, false);
-                await this.refreshGraphOnly(cwd);
 
+                this._view?.webview.postMessage({
+                  type: 'stopGraphLoading',
+                });
+
+                void this.refreshGraphOnly(cwd);
                 void this.checkRemoteSyncInBackground(cwd, { fetch: false });
               } catch (e: any) {
                 await this.handleGitErrorWithConflictCheck(cwd, '推送 (Push)', e.message);
