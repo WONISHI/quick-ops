@@ -136,6 +136,17 @@ export class GitService {
     };
   }
 
+  private async fetchPruneSafe(cwd: string, timeout = 8000): Promise<void> {
+    const git = this.createGit(cwd);
+
+    await Promise.race([
+      git.fetch(['--prune']),
+      new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), timeout);
+      }),
+    ]);
+  }
+
   public async getRemoteSync(cwd: string, options?: { fetch?: boolean }): Promise<RemoteSyncState> {
     const git = this.createGit(cwd);
 
@@ -153,7 +164,7 @@ export class GitService {
       }
 
       if (options?.fetch) {
-        await git.fetch(['--prune']);
+        await this.fetchPruneSafe(cwd);
       }
 
       const branch = await git
@@ -275,10 +286,19 @@ export class GitService {
   public async getGraphState(cwd: string): Promise<string> {
     const git = this.createGit(cwd);
 
-    const refs = await git.raw(['show-ref']).catch(() => '');
-    const head = await git.raw(['rev-parse', 'HEAD']).catch(() => '');
+    /**
+     * 不要把 refs/remotes/* 放进图谱状态。
+     * push / fetch 会更新远程引用，但不会改变本地提交图谱。
+     * 如果这里使用 show-ref 全量输出，push 后会误触发完整 graph 刷新。
+     */
+    const refs = await git
+      .raw(['for-each-ref', '--format=%(refname) %(objectname)', 'HEAD', 'refs/heads', 'refs/tags', 'refs/stash'])
+      .catch(() => '');
 
-    return refs + head;
+    const status = await git.raw(['status', '--porcelain=v1', '-uall']).catch(() => '');
+    const stash = await git.raw(['stash', 'list', '--format=%gd %H']).catch(() => '');
+
+    return `${refs}\n---STATUS---\n${status}\n---STASH---\n${stash}`;
   }
 
   public async getGraph(cwd: string, graphFilter = this.CURRENT_BRANCH_FILTER): Promise<GitGraphResult> {

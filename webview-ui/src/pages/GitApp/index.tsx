@@ -274,6 +274,8 @@ export default function GitApp() {
         setLoading(false);
       } else if (msg.type === 'remoteSyncData') {
         setRemoteSync(msg.remoteSync || EMPTY_REMOTE_SYNC);
+      } else if (msg.type === 'stopGraphLoading') {
+        setIsGraphLoading(false);
       } else if (msg.type === 'stashData') {
         setStashes(msg.stashes || []);
       } else if (msg.type === 'stashFilesData') {

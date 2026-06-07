@@ -297,7 +297,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     await this.refreshStatus(cwd, false);
   }
 
-  private async checkRemoteSyncInBackground(cwd: string): Promise<void> {
+  private async checkRemoteSyncInBackground(cwd: string, options: { fetch?: boolean } = {}): Promise<void> {
     if (!this._view) return;
     if (this._isRemoteSyncChecking) return;
 
@@ -310,7 +310,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
     try {
       const remoteSync = await this.gitService.getRemoteSync(cwd, {
-        fetch: true,
+        fetch: !!options.fetch,
       });
 
       this._view.webview.postMessage({
@@ -531,7 +531,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           case 'checkRemoteSync': {
-            await this.checkRemoteSyncInBackground(cwd);
+            await this.checkRemoteSyncInBackground(cwd, { fetch: true });
             break;
           }
 
@@ -1460,7 +1460,13 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   type: 'clearJustCommitted',
                 });
 
-                await this.refreshStatus(cwd, true);
+                this._view?.webview.postMessage({
+                  type: 'stopGraphLoading',
+                });
+
+                await this.refreshStatus(cwd, false);
+
+                void this.checkRemoteSyncInBackground(cwd, { fetch: false });
               } catch (e: any) {
                 await this.handleGitErrorWithConflictCheck(cwd, '推送 (Push)', e.message);
               }
@@ -2012,10 +2018,19 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
   private async getGraphState(cwd: string) {
     try {
+      /**
+       * 注意：这里不要使用 show-ref 全量输出。
+       * push / fetch 只会改变 refs/remotes/*，不会改变本地提交图谱。
+       * 如果把远程 refs 也放进 graphState，push 成功后会被误判为图谱变化，
+       * 进而触发 refreshStatus(cwd, true)，导致提交图区域长时间 loading。
+       */
       const stateOutput = await this.runGitSafe(cwd, [
-        'show-ref',
-        '--head',
-        '--dereference',
+        'for-each-ref',
+        '--format=%(refname) %(objectname)',
+        'HEAD',
+        'refs/heads',
+        'refs/tags',
+        'refs/stash',
       ]);
 
       const statusOutput = await this.runGitSafe(cwd, [
