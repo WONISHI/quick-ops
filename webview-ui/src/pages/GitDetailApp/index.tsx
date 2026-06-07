@@ -44,7 +44,9 @@ export interface GraphCommit {
 const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];
 const LANE_WIDTH = 14;
 const ROW_HEIGHT = 28;
-const DETAIL_HEIGHT = 206;
+const DEFAULT_DETAIL_HEIGHT = 206;
+const MIN_DETAIL_HEIGHT = 140;
+const MAX_DETAIL_HEIGHT = 520;
 const CY = 14;
 
 const NULL_VERTEX_ID = -1;
@@ -638,6 +640,13 @@ export default function GitCommitDetailApp() {
   const [remoteUrl, setRemoteUrl] = useState('');
   const [loading, setLoading] = useState(true);
 
+  const [detailHeight, setDetailHeight] = useState(DEFAULT_DETAIL_HEIGHT);
+
+  const detailResizeRef = useRef<{
+    startY: number;
+    startHeight: number;
+  } | null>(null);
+
   const [descFilter, setDescFilter] = useState('');
   const [dateFilter, setDateFilter] = useState({
     start: '',
@@ -727,14 +736,14 @@ export default function GitCommitDetailApp() {
       currentY += ROW_HEIGHT;
 
       if (activeCommitHash === hash) {
-        currentY += DETAIL_HEIGHT;
+        currentY += detailHeight;
       }
     }
 
     positions.push(currentY);
 
     return positions;
-  }, [filteredCommits, activeCommitHash]);
+  }, [filteredCommits, activeCommitHash, detailHeight]);
 
   const visibleCommits = filteredCommits.slice(0, displayCount);
   const renderedHeight = yPositions[Math.min(displayCount, filteredCommits.length)] || 0;
@@ -831,6 +840,42 @@ export default function GitCommitDetailApp() {
 
     return () => {
       window.removeEventListener('resize', handleResize);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      const resizeState = detailResizeRef.current;
+
+      if (!resizeState) return;
+
+      const nextHeight = Math.max(
+        MIN_DETAIL_HEIGHT,
+        Math.min(MAX_DETAIL_HEIGHT, resizeState.startHeight + event.clientY - resizeState.startY),
+      );
+
+      setDetailHeight(nextHeight);
+      setResizeVersion((prev) => prev + 1);
+    };
+
+    const handleMouseUp = () => {
+      if (!detailResizeRef.current) return;
+
+      detailResizeRef.current = null;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      detailResizeRef.current = null;
     };
   }, []);
 
@@ -1029,6 +1074,19 @@ export default function GitCommitDetailApp() {
     renderedHeight,
     resizeVersion,
   ]);
+
+  const handleDetailResizeStart = (event: React.MouseEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    detailResizeRef.current = {
+      startY: event.clientY,
+      startHeight: detailHeight,
+    };
+
+    document.body.style.cursor = 'ns-resize';
+    document.body.style.userSelect = 'none';
+  };
 
   const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
@@ -1440,7 +1498,13 @@ export default function GitCommitDetailApp() {
                     </div>
 
                     {isActive && (
-                      <div className={styles['commit-detail-box']} style={{ top: `${ROW_HEIGHT}px` }}>
+                      <div
+                        className={styles['commit-detail-box']}
+                        style={{
+                          top: `${ROW_HEIGHT}px`,
+                          height: `${detailHeight}px`,
+                        }}
+                      >
                         <div className={styles['detail-left-space']} />
 
                         <div className={styles['detail-info']}>
@@ -1497,6 +1561,11 @@ export default function GitCommitDetailApp() {
                             )}
                           </div>
                         </div>
+
+                        <div
+                          className={styles['commit-detail-resize-handle']}
+                          onMouseDown={handleDetailResizeStart}
+                        />
                       </div>
                     )}
                   </li>

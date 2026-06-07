@@ -345,12 +345,42 @@
   position: absolute;
   left: 120px;
   right: 0;
-  height: 206px;
   display: flex;
   border-top: 1px solid var(--vscode-panel-border);
   border-bottom: 1px solid var(--vscode-panel-border);
   background: var(--vscode-editor-background);
   box-sizing: border-box;
+  min-height: 140px;
+  overflow: hidden;
+}
+
+.commit-detail-resize-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  height: 7px;
+  cursor: ns-resize;
+  z-index: 5;
+}
+
+.commit-detail-resize-handle::after {
+  content: '';
+  position: absolute;
+  left: 0px;
+  right: 0px;
+  bottom: 3px;
+  height: 1px;
+  background: transparent;
+  transition: background-color 0.12s ease;
+}
+
+.commit-detail-resize-handle:hover::after {
+  background: var(--vscode-focusBorder);
+}
+
+.commit-detail-resize-handle:active::after {
+  background: var(--vscode-focusBorder);
 }
 
 .detail-left-space {
