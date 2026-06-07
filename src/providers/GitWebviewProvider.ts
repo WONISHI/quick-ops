@@ -6,6 +6,24 @@ import GitService, { type GitFileItem } from '../services/GitService';
 
 const GLOBAL_STATE_COMMIT_TYPE_ENABLED = 'quickOps.git.commitTypeEnabled';
 
+interface GitGraphLikeCommit {
+  hash: string;
+  parents?: string[];
+  author: string;
+  email?: string;
+  message: string;
+  timestamp?: number;
+  refs?: string;
+  type?: 'commit' | 'uncommitted' | 'stash';
+}
+
+interface GitGraphLikeData {
+  graphCommits: GitGraphLikeCommit[];
+  graphFilter: string;
+  totalCommits: number;
+}
+
+
 export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
 
@@ -344,7 +362,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         let currentState = '';
 
         try {
-          currentState = await this.gitService.getGraphState(cwd);
+          currentState = await this.getGraphState(cwd);
         } catch {
           currentState = '';
         }
@@ -1077,7 +1095,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               if (!selectedBranch) return;
 
               await this.withViewProgress(async () => {
-                const graphData = await this.gitService.getGraph(cwd, selectedBranch);
+                const graphData = await this.getGitGraphLikeData(cwd, selectedBranch);
                 const graphCommits = await this.attachCommitChangeStats(cwd, graphData.graphCommits);
 
                 this._view?.webview.postMessage({
@@ -1659,10 +1677,377 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  private runGit(cwd: string, args: string[]): Promise<string> {
+    return new Promise((resolve, reject) => {
+      execFile(
+        'git',
+        ['-C', cwd, ...args],
+        {
+          encoding: 'utf8',
+          maxBuffer: 1024 * 1024 * 30,
+        },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(new Error(String(stderr || error.message || error)));
+            return;
+          }
+
+          resolve(String(stdout || ''));
+        },
+      );
+    });
+  }
+
+  private async runGitSafe(cwd: string, args: string[]) {
+    try {
+      return await this.runGit(cwd, args);
+    } catch {
+      return '';
+    }
+  }
+
+  private normalizeRefName(ref: string) {
+    return ref
+      .replace(/^refs\/heads\//, '')
+      .replace(/^refs\/remotes\//, '')
+      .replace(/^remotes\//, '')
+      .replace(/^refs\/tags\//, '')
+      .trim();
+  }
+
+  private normalizeGraphFilterName(graphFilter: string) {
+    const value = (graphFilter || this.gitService.CURRENT_BRANCH_FILTER).trim();
+
+    if (!value || value === this.gitService.CURRENT_BRANCH_FILTER) {
+      return this.gitService.CURRENT_BRANCH_FILTER;
+    }
+
+    if (value === this.gitService.ALL_BRANCH_FILTER || value === '全部分支') {
+      return this.gitService.ALL_BRANCH_FILTER;
+    }
+
+    return this.normalizeRefName(value);
+  }
+
+  private normalizeBranchOptionName(branchName: string) {
+    return this.normalizeRefName(branchName);
+  }
+
+  private cleanDecorateRef(ref: string) {
+    return ref
+      .replace(/^tag:\s*/i, '')
+      .replace(/^HEAD\s*->\s*/i, 'HEAD -> ')
+      .trim();
+  }
+
+  private normalizeDecorateRefs(refsText: string) {
+    if (!refsText) return '';
+
+    return refsText
+      .split(',')
+      .map((item) => this.cleanDecorateRef(item.trim()))
+      .filter(Boolean)
+      .filter((item) => item !== 'refs/stash')
+      .filter((item) => item !== 'stash')
+      .map((item) => {
+        if (item.startsWith('HEAD -> ')) {
+          const branch = item.replace(/^HEAD\s*->\s*/, '').trim();
+
+          return `HEAD -> ${this.normalizeRefName(branch)}`;
+        }
+
+        return this.normalizeRefName(item);
+      })
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  private parseLogLine(line: string): GitGraphLikeCommit | null {
+    const parts = line.split('\x1f');
+
+    if (parts.length < 7) return null;
+
+    const hash = parts[0];
+    const parentsText = parts[1] || '';
+    const timestampText = parts[2] || '';
+    const author = parts[3] || '';
+    const email = parts[4] || '';
+    const refsText = parts[5] || '';
+    const message = parts.slice(6).join('\x1f') || '';
+
+    if (!hash) return null;
+
+    return {
+      type: 'commit',
+      hash,
+      parents: parentsText
+        .split(' ')
+        .map((item) => item.trim())
+        .filter(Boolean),
+      author,
+      email,
+      timestamp: Number(timestampText) * 1000,
+      refs: this.normalizeDecorateRefs(refsText),
+      message,
+    };
+  }
+
+  private async getHeadHash(cwd: string) {
+    return (await this.runGitSafe(cwd, ['rev-parse', 'HEAD'])).trim();
+  }
+
+  private async getWorkingTreeChangeCount(cwd: string) {
+    const output = await this.runGitSafe(cwd, ['status', '--porcelain=v1', '-uall']);
+
+    return output
+      .split(/\r?\n/)
+      .filter((line) => line.trim()).length;
+  }
+
+  private async getStashRows(cwd: string): Promise<GitGraphLikeCommit[]> {
+    const stashListOutput = await this.runGitSafe(cwd, [
+      'stash',
+      'list',
+      '--format=%gd%x1f%H%x1f%ct%x1f%gs',
+    ]);
+
+    const stashLines = stashListOutput
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const rows: GitGraphLikeCommit[] = [];
+
+    for (const line of stashLines) {
+      const [stashName, stashHash, timestampText, ...messageParts] = line.split('\x1f');
+
+      if (!stashName || !stashHash) continue;
+
+      const parentsOutput = await this.runGitSafe(cwd, ['show', '-s', '--format=%P', stashHash]);
+
+      const baseParent = parentsOutput
+        .split(/\s+/)
+        .map((item) => item.trim())
+        .filter(Boolean)[0];
+
+      const message = messageParts.join('\x1f') || stashName;
+
+      rows.push({
+        type: 'stash',
+        hash: stashHash,
+        parents: baseParent ? [baseParent] : [],
+        author: '',
+        email: '',
+        timestamp: Number(timestampText) * 1000,
+        refs: stashName,
+        message,
+      });
+    }
+
+    return rows;
+  }
+
+  private getStashBaseParentHashes(stashRows: GitGraphLikeCommit[]) {
+    return Array.from(
+      new Set(
+        stashRows
+          .map((stashRow) => stashRow.parents?.[0])
+          .filter(Boolean) as string[],
+      ),
+    );
+  }
+
+  private async getUncommittedRow(cwd: string): Promise<GitGraphLikeCommit | null> {
+    const changeCount = await this.getWorkingTreeChangeCount(cwd);
+
+    if (changeCount <= 0) return null;
+
+    const headHash = await this.getHeadHash(cwd);
+
+    if (!headHash) return null;
+
+    return {
+      type: 'uncommitted',
+      hash: '__WORKING_TREE__',
+      parents: [headHash],
+      author: '*',
+      email: '',
+      timestamp: Date.now(),
+      refs: '',
+      message: `Uncommitted Changes (${changeCount})`,
+    };
+  }
+
+  private getGraphArgs(graphFilter: string, extraRefs: string[] = []) {
+    const pretty = '%H%x1f%P%x1f%ct%x1f%an%x1f%ae%x1f%D%x1f%s';
+
+    const commonArgs = [
+      'log',
+      '--date-order',
+      '--decorate=full',
+      '--parents',
+      `--pretty=${pretty}`,
+    ];
+
+    const normalizedGraphFilter = this.normalizeGraphFilterName(graphFilter);
+
+    if (normalizedGraphFilter === this.gitService.ALL_BRANCH_FILTER || normalizedGraphFilter === '全部分支') {
+      return [
+        ...commonArgs,
+        '--branches',
+        '--remotes',
+        '--tags',
+        ...extraRefs,
+      ];
+    }
+
+    if (!normalizedGraphFilter || normalizedGraphFilter === this.gitService.CURRENT_BRANCH_FILTER || normalizedGraphFilter === '当前分支') {
+      return [
+        ...commonArgs,
+        'HEAD',
+        ...extraRefs,
+      ];
+    }
+
+    return [
+      ...commonArgs,
+      normalizedGraphFilter,
+      ...extraRefs,
+    ];
+  }
+
+  private insertSpecialRows(
+    commits: GitGraphLikeCommit[],
+    stashRows: GitGraphLikeCommit[],
+    uncommittedRow: GitGraphLikeCommit | null,
+  ) {
+    const result: GitGraphLikeCommit[] = [];
+    const insertedStashIndexes = new Set<number>();
+
+    if (uncommittedRow) {
+      result.push(uncommittedRow);
+    }
+
+    commits.forEach((commit) => {
+      stashRows.forEach((stashRow, stashIndex) => {
+        if (insertedStashIndexes.has(stashIndex)) return;
+
+        const stashBaseParent = stashRow.parents?.[0];
+
+        if (stashBaseParent && stashBaseParent === commit.hash) {
+          result.push(stashRow);
+          insertedStashIndexes.add(stashIndex);
+        }
+      });
+
+      result.push(commit);
+    });
+
+    stashRows.forEach((stashRow, stashIndex) => {
+      if (insertedStashIndexes.has(stashIndex)) return;
+
+      result.splice(uncommittedRow ? 1 : 0, 0, stashRow);
+      insertedStashIndexes.add(stashIndex);
+    });
+
+    return result;
+  }
+
+  private async getGitGraphLikeData(cwd: string, graphFilter: string): Promise<GitGraphLikeData> {
+    const normalizedGraphFilter = this.normalizeGraphFilterName(graphFilter);
+    const allStashRows = await this.getStashRows(cwd);
+
+    const extraRefs =
+      normalizedGraphFilter === this.gitService.ALL_BRANCH_FILTER || normalizedGraphFilter === '全部分支'
+        ? this.getStashBaseParentHashes(allStashRows)
+        : [];
+
+    const output = await this.runGit(
+      cwd,
+      this.getGraphArgs(normalizedGraphFilter, extraRefs),
+    );
+
+    const commits = output
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => this.parseLogLine(line))
+      .filter(Boolean) as GitGraphLikeCommit[];
+
+    const commitHashSet = new Set(commits.map((commit) => commit.hash));
+
+    const visibleStashRows =
+      normalizedGraphFilter === this.gitService.ALL_BRANCH_FILTER || normalizedGraphFilter === '全部分支'
+        ? allStashRows
+        : allStashRows.filter((stashRow) => {
+            const stashBaseParent = stashRow.parents?.[0];
+
+            return !!stashBaseParent && commitHashSet.has(stashBaseParent);
+          });
+
+    const uncommittedRow = await this.getUncommittedRow(cwd);
+    const rows = this.insertSpecialRows(commits, visibleStashRows, uncommittedRow);
+
+    const uniqueRows: GitGraphLikeCommit[] = [];
+    const seenKey = new Set<string>();
+
+    rows.forEach((row) => {
+      const uniqueKey =
+        row.type === 'uncommitted'
+          ? row.hash
+          : `${row.type || 'commit'}:${row.hash}`;
+
+      if (seenKey.has(uniqueKey)) return;
+
+      seenKey.add(uniqueKey);
+      uniqueRows.push(row);
+    });
+
+    return {
+      graphCommits: uniqueRows,
+      graphFilter: normalizedGraphFilter,
+      totalCommits: uniqueRows.length,
+    };
+  }
+
+  private async getGraphState(cwd: string) {
+    try {
+      const stateOutput = await this.runGitSafe(cwd, [
+        'show-ref',
+        '--head',
+        '--dereference',
+      ]);
+
+      const statusOutput = await this.runGitSafe(cwd, [
+        'status',
+        '--porcelain=v1',
+        '-uall',
+      ]);
+
+      const stashOutput = await this.runGitSafe(cwd, [
+        'stash',
+        'list',
+        '--format=%gd %H',
+      ]);
+
+      return `${stateOutput}\n---STATUS---\n${statusOutput}\n---STASH---\n${stashOutput}`;
+    } catch {
+      return '';
+    }
+  }
+
   private async getCommitChangeStats(
     cwd: string,
     hash: string,
   ): Promise<{ filesChanged: number; insertions: number; deletions: number }> {
+    if (hash === '__WORKING_TREE__') {
+      return {
+        filesChanged: await this.getWorkingTreeChangeCount(cwd),
+        insertions: 0,
+        deletions: 0,
+      };
+    }
+
     return new Promise((resolve) => {
       execFile(
         'git',
@@ -1793,9 +2178,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
       if (fullRefresh) {
         try {
-          this._lastGraphState = await this.gitService.getGraphState(cwd);
+          this._lastGraphState = await this.getGraphState(cwd);
 
-          const graphData = await this.gitService.getGraph(cwd, this.gitService.CURRENT_BRANCH_FILTER);
+          const graphData = await this.getGitGraphLikeData(cwd, this.gitService.CURRENT_BRANCH_FILTER);
           const graphCommits = await this.attachCommitChangeStats(cwd, graphData.graphCommits);
 
           this._view.webview.postMessage({

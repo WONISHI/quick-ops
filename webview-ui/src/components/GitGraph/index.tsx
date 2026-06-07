@@ -16,6 +16,7 @@ export interface GraphCommit {
     filesChanged?: number;
     insertions?: number;
     deletions?: number;
+    type?: 'commit' | 'uncommitted' | 'stash';
 }
 
 interface GitGraphProps {
@@ -50,6 +51,7 @@ interface Point {
 interface Line {
     p1: Point;
     p2: Point;
+    isCommitted: boolean;
     lockedFirst: boolean;
 }
 interface UnavailablePoint {
@@ -76,8 +78,13 @@ class Branch {
     constructor(colour: number) {
         this.colour = colour;
     }
-    addLine(p1: Point, p2: Point, lockedFirst: boolean) {
-        this.lines.push({ p1, p2, lockedFirst });
+    addLine(p1: Point, p2: Point, isCommitted: boolean, lockedFirst: boolean) {
+        this.lines.push({
+            p1,
+            p2,
+            isCommitted,
+            lockedFirst,
+        });
     }
 }
 
@@ -90,6 +97,7 @@ class Vertex {
     private onBranch: Branch | null = null;
     private nextX: number = 0;
     private connections: UnavailablePoint[] = [];
+    private isCommitted = true;
 
     constructor(id: number) {
         this.id = id;
@@ -158,6 +166,14 @@ class Vertex {
             this.connections[x] = { connectsTo: v, onBranch: b };
         }
     }
+
+    getIsCommitted() {
+        return this.isCommitted;
+    }
+
+    setNotCommitted() {
+        this.isCommitted = false;
+    }
 }
 
 function buildGraphEngine(commits: GraphCommit[]) {
@@ -170,11 +186,19 @@ function buildGraphEngine(commits: GraphCommit[]) {
     });
 
     commits.forEach((c, i) => {
-        (c.parents || []).forEach((pHash) => {
+        if (c.type === 'uncommitted') {
+            vertices[i].setNotCommitted();
+        }
+
+        const parents = c.type === 'stash'
+            ? (c.parents || []).slice(0, 1)
+            : c.parents || [];
+
+        parents.forEach((pHash) => {
             if (commitLookup[pHash] !== undefined) {
                 vertices[i].addParent(vertices[commitLookup[pHash]]);
                 vertices[commitLookup[pHash]].addChild(vertices[i]);
-            } else {
+            } else if (c.type !== 'stash') {
                 vertices[i].addParent(nullVertex);
             }
         });
@@ -227,6 +251,7 @@ function buildGraphEngine(commits: GraphCommit[]) {
                 parentBranch.addLine(
                     lastPoint,
                     curPoint,
+                    vertex.getIsCommitted(),
                     !foundPointToParent && curVertex !== parentVertex ? lastPoint.x < curPoint.x : true,
                 );
 
@@ -250,7 +275,7 @@ function buildGraphEngine(commits: GraphCommit[]) {
                     ? curVertex.getPoint()
                     : curVertex.getNextPoint();
 
-                branchItem.addLine(lastPoint, curPoint, lastPoint.x < curPoint.x);
+                branchItem.addLine(lastPoint, curPoint, vertex.getIsCommitted(), lastPoint.x < curPoint.x);
                 curVertex.registerUnavailablePoint(curPoint.x, parentVertex, branchItem);
                 lastPoint = curPoint;
 
@@ -289,6 +314,25 @@ function buildGraphEngine(commits: GraphCommit[]) {
 
     return { vertices, branches };
 }
+
+function getUncommittedMessageText(message?: string) {
+    const matched = (message || '').match(/Uncommitted Changes\s*\((\d+)\)/i);
+
+    if (matched) {
+        return `未提交更改 (${matched[1]})`;
+    }
+
+    return '未提交更改';
+}
+
+function getCommitDisplayMessage(commit: GraphCommit) {
+    if (commit.type === 'uncommitted') {
+        return getUncommittedMessageText(commit.message);
+    }
+
+    return commit.message;
+}
+
 
 const GitGraph: React.FC<GitGraphProps> = ({
     graphCommits,
@@ -408,7 +452,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
         return graphCommits
             .map((c, i) => {
                 const matched =
-                    c.message.toLowerCase().includes(lowerQuery) ||
+                    getCommitDisplayMessage(c).toLowerCase().includes(lowerQuery) ||
                     c.author.toLowerCase().includes(lowerQuery) ||
                     c.hash.toLowerCase().includes(lowerQuery);
 
@@ -550,17 +594,9 @@ const GitGraph: React.FC<GitGraphProps> = ({
         ctx.clearRect(0, 0, containerWidth, renderedHeight);
 
         graphData.branches.forEach((branchItem) => {
-            const color = COLORS[branchItem.colour % COLORS.length];
+            const branchColor = COLORS[branchItem.colour % COLORS.length];
 
-            ctx.beginPath();
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-
-            let lastPt: { x: number; y: number } | null = null;
-
-            branchItem.lines.forEach((line, i) => {
+            branchItem.lines.forEach((line) => {
                 const x1 = line.p1.x * LANE_WIDTH + 14;
                 const y1Base = yPositions[line.p1.y];
                 const y1 = y1Base + CY;
@@ -569,9 +605,12 @@ const GitGraph: React.FC<GitGraphProps> = ({
                 const y2Base = yPositions[line.p2.y];
                 const y2 = y2Base + CY;
 
-                if (i === 0 || lastPt?.x !== x1 || lastPt?.y !== y1) {
-                    ctx.moveTo(x1, y1);
-                }
+                ctx.beginPath();
+                ctx.strokeStyle = line.isCommitted ? branchColor : '#808080';
+                ctx.lineWidth = 2;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.moveTo(x1, y1);
 
                 if (x1 === x2) {
                     ctx.lineTo(x2, y2);
@@ -591,10 +630,8 @@ const GitGraph: React.FC<GitGraphProps> = ({
                     }
                 }
 
-                lastPt = { x: x2, y: y2 };
+                ctx.stroke();
             });
-
-            ctx.stroke();
         });
 
         const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--vscode-sideBar-background').trim() || '#252526';
@@ -609,9 +646,14 @@ const GitGraph: React.FC<GitGraphProps> = ({
             ctx.arc(cx, cy, 3.5, 0, 2 * Math.PI);
 
             const vBranch = v.getBranch();
-            const dotColor = vBranch ? COLORS[vBranch.colour % COLORS.length] : '#808080';
+            const isUncommittedVertex = c.type === 'uncommitted';
+            const dotColor = isUncommittedVertex
+                ? '#808080'
+                : vBranch
+                    ? COLORS[vBranch.colour % COLORS.length]
+                    : '#808080';
 
-            if (isHead) {
+            if (isHead || isUncommittedVertex) {
                 ctx.fillStyle = bgColor;
                 ctx.lineWidth = 2;
                 ctx.strokeStyle = dotColor;
@@ -806,7 +848,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                     <div className={styles['commit-content']}>
                                         <div className={styles['commit-message-wrap']}>
                                             <div className={styles['commit-message']}>
-                                                {isSearchOpen ? highlightText(c.message, searchQuery, isActiveMatch) : c.message}
+                                                {isSearchOpen ? highlightText(getCommitDisplayMessage(c), searchQuery, isActiveMatch) : getCommitDisplayMessage(c)}
                                                 <span className={styles['commit-author']}> {c.author}</span>
                                             </div>
                                         </div>

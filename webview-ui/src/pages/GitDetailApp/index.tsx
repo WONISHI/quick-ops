@@ -373,9 +373,9 @@ function normalizeVisibleRefName(ref: string) {
     .trim();
 }
 
-function isRemoteRef(refName: string) {
-  return refName.startsWith('origin/');
-}
+// function isRemoteRef(refName: string) {
+//   return refName.startsWith('origin/');
+// }
 
 function isStashRef(refName: string) {
   return refName.startsWith('stash@');
