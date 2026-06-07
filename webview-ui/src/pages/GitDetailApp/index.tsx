@@ -587,12 +587,28 @@ function getRefTagIcon(ref: string) {
   return 'codicon-git-branch';
 }
 
+function getUncommittedMessageText(message?: string) {
+  const matched = (message || '').match(/Uncommitted Changes\s*\((\d+)\)/i);
+
+  if (matched) {
+    return `未提交更改 (${matched[1]})`;
+  }
+
+  return '未提交更改';
+}
+
+
+
 function getCommitDisplayMessage(commit: GraphCommit) {
   if (commit.type === 'uncommitted') {
-    return commit.message || 'Uncommitted Changes';
+    return getUncommittedMessageText(commit.message);
   }
 
   return commit.message;
+}
+
+function isRemoteMergeCommitMessage(message: string) {
+  return /^Merge\s+(remote-tracking\s+)?branch\s+['\"].+['\"]\s+of\s+/i.test(message.trim());
 }
 
 function renderRefText(ref: string) {
@@ -1406,7 +1422,15 @@ export default function GitCommitDetailApp() {
                             </span>
                           ))}
 
-                          <span className={styles['commit-message']}>{getCommitDisplayMessage(commit)}</span>
+                          <span
+                            className={`${styles['commit-message']} ${
+                              isRemoteMergeCommitMessage(getCommitDisplayMessage(commit))
+                                ? styles['remote-merge-message']
+                                : ''
+                            }`}
+                          >
+                            {getCommitDisplayMessage(commit)}
+                          </span>
                         </div>
                       </div>
 
