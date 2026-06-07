@@ -450,11 +450,6 @@
         "category": "QuickOps"
       },
       {
-        "command": "quick-ops.openAndSplitRight",
-        "title": "向右拆分",
-        "category": "QuickOps"
-      },
-      {
         "command": "quickOps.switchGitProject",
         "title": "切换项目查看 Git 记录",
         "icon": "$(milestone)"
@@ -599,11 +594,6 @@
         }
       ],
       "explorer/context": [
-        {
-          "command": "quick-ops.openAndSplitRight",
-          "group": "navigation",
-          "when": "resourceScheme == 'file'"
-        },
         {
           "command": "quick-ops.openInNewTab",
           "group": "navigation",

@@ -9,6 +9,7 @@ export class FileNavigationFeature implements IFeature {
     // 定位文件
     const disposable = vscode.commands.registerCommand('quick-ops.revealInExplorer', async () => {
       const activeEditor = vscode.window.activeTextEditor;
+
       if (!activeEditor) {
         vscode.window.showInformationMessage('当前没有打开的文件');
         return;
@@ -29,26 +30,17 @@ export class FileNavigationFeature implements IFeature {
       }
     });
 
-
     const openInNewTab = vscode.commands.registerCommand('quick-ops.openInNewTab', async (uri: vscode.Uri) => {
       if (!uri) return;
+
       await vscode.window.showTextDocument(uri, {
-        preview: false, // 设为 false 即可实现在“新标签页”打开（不覆盖现有的预览标签）
-        viewColumn: vscode.ViewColumn.Active
+        preview: false,
+        viewColumn: vscode.ViewColumn.Active,
       });
     });
 
-    const splitRight = vscode.commands.registerCommand('quick-ops.openAndSplitRight', async (uri: vscode.Uri) => {
-      if (!uri) return;
-      // ViewColumn.Beside 会在当前组的右侧打开，如果右侧没组则创建
-      await vscode.window.showTextDocument(uri, {
-        viewColumn: vscode.ViewColumn.Beside,
-        preview: false // 确保不是预览模式
-      });
-    });
+    context.subscriptions.push(disposable, openInNewTab);
 
-
-    context.subscriptions.push(disposable, splitRight, openInNewTab);
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 }
