@@ -360,6 +360,100 @@ function getRefs(refs?: string) {
     .filter(Boolean);
 }
 
+
+function normalizeVisibleRefName(ref: string) {
+  return ref
+    .replace(/^HEAD\s*->\s*/, '')
+    .replace(/^refs\/heads\//, '')
+    .replace(/^refs\/remotes\//, '')
+    .replace(/^remotes\//, '')
+    .replace(/^refs\/tags\//, '')
+    .trim();
+}
+
+function isRemoteRef(refName: string) {
+  return refName.startsWith('origin/');
+}
+
+function isStashRef(refName: string) {
+  return refName.startsWith('stash@');
+}
+
+function isHeadRef(ref: string, refName: string) {
+  return ref === 'HEAD' || refName === 'HEAD' || ref.startsWith('HEAD ->');
+}
+
+function getCurrentRemoteRef(currentBranch: string) {
+  return currentBranch ? `origin/${currentBranch}` : '';
+}
+
+function getSelectedRefNames(selectedGraphFilter: string, currentBranch: string) {
+  const filter = normalizeVisibleRefName(selectedGraphFilter || '');
+  const current = normalizeVisibleRefName(currentBranch || '');
+
+  if (!filter || filter === '全部分支' || filter === '当前分支') {
+    return {
+      filter,
+      current,
+      selectedLocal: current,
+      selectedRemote: getCurrentRemoteRef(current),
+      isAll: true,
+    };
+  }
+
+  const selectedLocal = filter.startsWith('origin/') ? filter.replace(/^origin\//, '') : filter;
+  const selectedRemote = filter.startsWith('origin/') ? filter : `origin/${filter}`;
+
+  return {
+    filter,
+    current,
+    selectedLocal,
+    selectedRemote,
+    isAll: false,
+  };
+}
+
+/**
+ * Git Graph 的分支筛选是按 selected branch 限制显示内容。
+ * 这里额外把 ref tag 也按当前筛选分支收敛：
+ * - 全部分支/当前分支：只显示 HEAD、当前本地分支、当前远程跟踪分支、origin/HEAD、stash。
+ * - 指定分支：只显示该分支、本地/远程对应分支、origin/HEAD、stash。
+ * 这样 master 视图里不会把 feature/test... 这种无关本地分支 tag 挤出来。
+ */
+function getVisibleRefs(refs: string | undefined, selectedGraphFilter: string, currentBranch: string) {
+  const refList = getRefs(refs);
+  const { current, selectedLocal, selectedRemote, isAll } = getSelectedRefNames(
+    selectedGraphFilter,
+    currentBranch,
+  );
+
+  return refList.filter((ref) => {
+    const refName = normalizeVisibleRefName(ref);
+
+    if (!refName) return false;
+
+    if (isStashRef(refName)) return true;
+
+    if (isHeadRef(ref, refName)) {
+      return !selectedLocal || refName === selectedLocal || refName === current;
+    }
+
+    if (refName === 'origin/HEAD') {
+      return true;
+    }
+
+    if (refName === selectedLocal || refName === selectedRemote) {
+      return true;
+    }
+
+    if (isAll) {
+      return false;
+    }
+
+    return false;
+  });
+}
+
 function buildCommitFileTree(files: GitFileItem[]) {
   const roots: CommitFileTreeNode[] = [];
   const dirMap = new Map<string, CommitFileTreeNode>();
@@ -1285,7 +1379,7 @@ export default function GitCommitDetailApp() {
               {visibleCommits.map((commit, index) => {
                 const vertex = graphData.vertices[index];
                 const paddingWidth = (vertex.getNextPoint().x + 1) * LANE_WIDTH + 96;
-                const refs = getRefs(commit.refs);
+                const refs = getVisibleRefs(commit.refs, selectedGraphFilter, branch);
                 const isActive = activeCommitHash === commit.hash;
 
                 return (

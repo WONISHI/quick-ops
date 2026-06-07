@@ -278,8 +278,27 @@ export class GitDetailWebviewPanel {
     return ref
       .replace(/^refs\/heads\//, '')
       .replace(/^refs\/remotes\//, '')
+      .replace(/^remotes\//, '')
       .replace(/^refs\/tags\//, '')
       .trim();
+  }
+
+  private normalizeGraphFilterName(graphFilter: string) {
+    const value = (graphFilter || '全部分支').trim();
+
+    if (!value || value === '全部分支') {
+      return '全部分支';
+    }
+
+    if (value === '当前分支') {
+      return '当前分支';
+    }
+
+    return this.normalizeRefName(value);
+  }
+
+  private normalizeBranchOptionName(branchName: string) {
+    return this.normalizeRefName(branchName);
   }
 
   private cleanDecorateRef(ref: string) {
@@ -346,7 +365,7 @@ export class GitDetailWebviewPanel {
   }
 
   private async getWorkingTreeChangeCount(cwd: string) {
-    const output = await this.runGitSafe(cwd, ['status', '--porcelain=v1']);
+    const output = await this.runGitSafe(cwd, ['status', '--porcelain=v1', '-uall']);
 
     return output
       .split(/\r?\n/)
@@ -448,7 +467,9 @@ export class GitDetailWebviewPanel {
       `--pretty=${pretty}`,
     ];
 
-    if (graphFilter === '全部分支') {
+    const normalizedGraphFilter = this.normalizeGraphFilterName(graphFilter);
+
+    if (normalizedGraphFilter === '全部分支') {
       return [
         ...commonArgs,
         '--branches',
@@ -458,7 +479,7 @@ export class GitDetailWebviewPanel {
       ];
     }
 
-    if (!graphFilter || graphFilter === '当前分支') {
+    if (!normalizedGraphFilter || normalizedGraphFilter === '当前分支') {
       return [
         ...commonArgs,
         'HEAD',
@@ -468,7 +489,7 @@ export class GitDetailWebviewPanel {
 
     return [
       ...commonArgs,
-      graphFilter,
+      normalizedGraphFilter,
       ...extraRefs,
     ];
   }
@@ -511,14 +532,17 @@ export class GitDetailWebviewPanel {
   }
 
   private async getGitGraphLikeData(cwd: string, graphFilter: string): Promise<GitGraphLikeData> {
-    const normalizedGraphFilter = graphFilter || '全部分支';
+    const normalizedGraphFilter = this.normalizeGraphFilterName(graphFilter);
+    const allStashRows = await this.getStashRows(cwd);
 
-    const stashRows = await this.getStashRows(cwd);
-    const stashBaseParentHashes = this.getStashBaseParentHashes(stashRows);
+    const extraRefs =
+      normalizedGraphFilter === '全部分支'
+        ? this.getStashBaseParentHashes(allStashRows)
+        : [];
 
     const output = await this.runGit(
       cwd,
-      this.getGraphArgs(normalizedGraphFilter, stashBaseParentHashes),
+      this.getGraphArgs(normalizedGraphFilter, extraRefs),
     );
 
     const commits = output
@@ -528,9 +552,19 @@ export class GitDetailWebviewPanel {
       .map((line) => this.parseLogLine(line))
       .filter(Boolean) as GitGraphLikeCommit[];
 
-    const uncommittedRow = await this.getUncommittedRow(cwd);
+    const commitHashSet = new Set(commits.map((commit) => commit.hash));
 
-    const rows = this.insertSpecialRows(commits, stashRows, uncommittedRow);
+    const visibleStashRows =
+      normalizedGraphFilter === '全部分支'
+        ? allStashRows
+        : allStashRows.filter((stashRow) => {
+            const stashBaseParent = stashRow.parents?.[0];
+
+            return !!stashBaseParent && commitHashSet.has(stashBaseParent);
+          });
+
+    const uncommittedRow = await this.getUncommittedRow(cwd);
+    const rows = this.insertSpecialRows(commits, visibleStashRows, uncommittedRow);
 
     const uniqueRows: GitGraphLikeCommit[] = [];
     const seenKey = new Set<string>();
@@ -618,7 +652,7 @@ export class GitDetailWebviewPanel {
     }
 
     this._isRefreshing = true;
-    this._currentGraphFilter = graphFilter || this._currentGraphFilter;
+    this._currentGraphFilter = this.normalizeGraphFilterName(graphFilter || this._currentGraphFilter);
 
     if (!silent) {
       this._panel.webview.postMessage({
@@ -690,16 +724,21 @@ export class GitDetailWebviewPanel {
 
     const updateQuickPickItems = async () => {
       const branchNames = await this.gitService.getAllBranches(cwd);
+      const normalizedCurrent = this.normalizeGraphFilterName(current);
 
-      const items = [allOption, ...branchNames].map((b) => ({
-        label: b === current ? `$(check) ${b}` : b,
-        description: b === current ? '当前选择' : undefined,
-        branchName: b,
+      const normalizedBranchNames = Array.from(
+        new Set(branchNames.map((branchName) => this.normalizeBranchOptionName(branchName))),
+      );
+
+      const items = [allOption, ...normalizedBranchNames].map((branchName) => ({
+        label: branchName === normalizedCurrent ? `$(check) ${branchName}` : branchName,
+        description: branchName === normalizedCurrent ? '当前选择' : undefined,
+        branchName,
       }));
 
       quickPick.items = items;
 
-      const currentItem = items.find((i) => i.branchName === current);
+      const currentItem = items.find((item) => item.branchName === normalizedCurrent);
 
       if (currentItem) {
         quickPick.activeItems = [currentItem];
