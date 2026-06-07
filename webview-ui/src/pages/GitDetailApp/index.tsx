@@ -422,6 +422,63 @@ function getSelectedRefNames(selectedGraphFilter: string, currentBranch: string)
  * - 指定分支：只显示该分支、本地/远程对应分支、origin/HEAD、stash。
  * 这样 master 视图里不会把 feature/test... 这种无关本地分支 tag 挤出来。
  */
+function stripOriginPrefix(refName: string) {
+  return refName.replace(/^origin\//, '');
+}
+
+function isOriginRemoteRef(refName: string) {
+  return refName.startsWith('origin/') && refName !== 'origin/HEAD';
+}
+
+function combineLocalAndRemoteRefs(refs: string[]) {
+  const normalizedRefs = refs
+    .map((ref) => ref.trim())
+    .filter(Boolean);
+
+  const refNameSet = new Set(normalizedRefs.map((ref) => normalizeVisibleRefName(ref)));
+  const usedRemoteRefs = new Set<string>();
+  const result: string[] = [];
+
+  normalizedRefs.forEach((ref) => {
+    const refName = normalizeVisibleRefName(ref);
+
+    if (!refName) return;
+
+    if (isOriginRemoteRef(refName)) {
+      const localName = stripOriginPrefix(refName);
+
+      if (refNameSet.has(localName)) {
+        return;
+      }
+    }
+
+    if (
+      !isHeadRef(ref, refName) &&
+      !isStashRef(refName) &&
+      !refName.startsWith('origin/') &&
+      refNameSet.has(`origin/${refName}`)
+    ) {
+      usedRemoteRefs.add(`origin/${refName}`);
+      result.push(`${refName} origin`);
+      return;
+    }
+
+    if (usedRemoteRefs.has(refName)) {
+      return;
+    }
+
+    result.push(ref);
+  });
+
+  return result;
+}
+
+/**
+ * 参考 Git Graph 的展示规则：
+ * - 全部分支视图展示当前 commit 上所有可见 ref。
+ * - 本地分支和同名 origin 远程分支在同一个 commit 上时合并成一个 tag，例如：master origin。
+ * - 指定分支筛选时只收敛当前筛选分支相关 ref，避免其它分支 tag 抢占空间。
+ */
 function getVisibleRefs(refs: string | undefined, selectedGraphFilter: string, currentBranch: string) {
   const refList = getRefs(refs);
   const { current, selectedLocal, selectedRemote, isAll } = getSelectedRefNames(
@@ -429,31 +486,33 @@ function getVisibleRefs(refs: string | undefined, selectedGraphFilter: string, c
     currentBranch,
   );
 
-  return refList.filter((ref) => {
-    const refName = normalizeVisibleRefName(ref);
+  if (isAll) {
+    return combineLocalAndRemoteRefs(refList);
+  }
 
-    if (!refName) return false;
+  return combineLocalAndRemoteRefs(
+    refList.filter((ref) => {
+      const refName = normalizeVisibleRefName(ref);
 
-    if (isStashRef(refName)) return true;
+      if (!refName) return false;
 
-    if (isHeadRef(ref, refName)) {
-      return !selectedLocal || refName === selectedLocal || refName === current;
-    }
+      if (isStashRef(refName)) return true;
 
-    if (refName === 'origin/HEAD') {
-      return true;
-    }
+      if (isHeadRef(ref, refName)) {
+        return !selectedLocal || refName === selectedLocal || refName === current;
+      }
 
-    if (refName === selectedLocal || refName === selectedRemote) {
-      return true;
-    }
+      if (refName === 'origin/HEAD') {
+        return true;
+      }
 
-    if (isAll) {
+      if (refName === selectedLocal || refName === selectedRemote) {
+        return true;
+      }
+
       return false;
-    }
-
-    return false;
-  });
+    }),
+  );
 }
 
 function buildCommitFileTree(files: GitFileItem[]) {
@@ -566,6 +625,7 @@ function getRefTagClassName(ref: string) {
     refName.includes('HEAD ->') || refName === 'HEAD' ? styles['head'] : '',
     refName.startsWith('origin/') ? styles['remote'] : '',
     refName.startsWith('stash@') ? styles['stash'] : '',
+    refName.endsWith(' origin') ? styles['combined-ref'] : '',
   ]
     .filter(Boolean)
     .join(' ');
@@ -583,6 +643,10 @@ function getRefTagIcon(ref: string) {
   }
 
   if (refName.startsWith('origin/')) {
+    return 'codicon-git-branch';
+  }
+
+  if (refName.endsWith(' origin')) {
     return 'codicon-git-branch';
   }
 
@@ -614,6 +678,17 @@ function isRemoteMergeCommitMessage(message: string) {
 }
 
 function renderRefText(ref: string) {
+  if (ref.endsWith(' origin')) {
+    const localName = ref.replace(/\s+origin$/, '');
+
+    return (
+      <>
+        <span className={styles['ref-tag-text']}>{localName}</span>
+        <span className={styles['ref-tag-origin-text']}>origin</span>
+      </>
+    );
+  }
+
   const parts = ref.split(' -> ');
 
   if (parts.length <= 1) {

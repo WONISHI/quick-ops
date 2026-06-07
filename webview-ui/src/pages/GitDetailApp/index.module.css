@@ -241,11 +241,10 @@
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   gap: 4px;
   margin-right: 5px;
-  padding: 0 8px;
-  border-radius: 4px;
+  padding: 0 7px;
+  border-radius: 5px;
   color: var(--vscode-foreground);
   font-size: 12px;
   font-weight: 600;
@@ -253,48 +252,61 @@
   max-width: 260px;
   vertical-align: middle;
   box-sizing: border-box;
-  border: 1px solid var(--vscode-contrastBorder, rgba(128, 128, 128, 0.24));
-  background: var(--vscode-badge-background, rgba(128, 128, 128, 0.12));
+  border: 1px solid color-mix(in srgb, var(--vscode-foreground) 18%, transparent);
+  background: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
   overflow: hidden;
+  box-shadow: none;
 }
 
 .ref-tag:hover {
-  border-color: var(--vscode-focusBorder);
-  background: var(--vscode-list-hoverBackground);
+  border-color: color-mix(in srgb, var(--vscode-focusBorder) 72%, transparent);
+  background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
 }
 
 .ref-tag.head {
-  background: var(--vscode-button-background);
-  border-color: var(--vscode-button-background);
-  color: var(--vscode-button-foreground);
+  border-color: color-mix(in srgb, #2f8f46 72%, transparent);
+  background: #238636;
+  color: #ffffff;
 }
 
 .ref-tag.head:hover {
-  background: var(--vscode-button-hoverBackground);
-  border-color: var(--vscode-button-hoverBackground);
-  color: var(--vscode-button-foreground);
+  border-color: color-mix(in srgb, #2f8f46 90%, transparent);
+  background: #2ea043;
+  color: #ffffff;
 }
 
 .ref-tag.remote {
-  background: color-mix(in srgb, #6a2a88 10%, transparent);
-  border-color: color-mix(in srgb, #6a2a88 45%, var(--vscode-panel-border));
-  color: var(--vscode-foreground);
+  border-color: color-mix(in srgb, #6a2a88 50%, transparent);
+  background: color-mix(in srgb, #6a2a88 8%, transparent);
+  color: color-mix(in srgb, var(--vscode-foreground) 92%, #6a2a88);
 }
 
 .ref-tag.remote:hover {
-  background: color-mix(in srgb, #6a2a88 16%, transparent);
-  border-color: color-mix(in srgb, #6a2a88 65%, var(--vscode-focusBorder));
+  border-color: color-mix(in srgb, #6a2a88 70%, transparent);
+  background: color-mix(in srgb, #6a2a88 12%, transparent);
 }
 
 .ref-tag.stash {
-  background: color-mix(in srgb, #e91e9d 9%, transparent);
-  border-color: color-mix(in srgb, #e91e9d 45%, var(--vscode-panel-border));
-  color: var(--vscode-foreground);
+  border-color: color-mix(in srgb, #d33682 58%, transparent);
+  background: color-mix(in srgb, #d33682 8%, transparent);
+  color: color-mix(in srgb, var(--vscode-foreground) 92%, #d33682);
 }
 
 .ref-tag.stash:hover {
-  background: color-mix(in srgb, #e91e9d 15%, transparent);
-  border-color: color-mix(in srgb, #e91e9d 65%, var(--vscode-focusBorder));
+  border-color: color-mix(in srgb, #d33682 74%, transparent);
+  background: color-mix(in srgb, #d33682 12%, transparent);
+}
+
+.ref-tag.combined-ref {
+  padding-right: 4px;
+  border-color: color-mix(in srgb, #007acc 52%, transparent);
+  background: color-mix(in srgb, #007acc 8%, transparent);
+  color: color-mix(in srgb, var(--vscode-foreground) 94%, #007acc);
+}
+
+.ref-tag.combined-ref:hover {
+  border-color: color-mix(in srgb, #007acc 72%, transparent);
+  background: color-mix(in srgb, #007acc 12%, transparent);
 }
 
 .ref-tag-icon,
@@ -320,7 +332,7 @@
 }
 
 .ref-tag-icon {
-  opacity: 0.82;
+  opacity: 0.72;
 }
 
 .ref-tag.head .ref-tag-icon,
@@ -328,8 +340,14 @@
   opacity: 0.95;
 }
 
+.ref-tag.remote .ref-tag-icon,
+.ref-tag.stash .ref-tag-icon,
+.ref-tag.combined-ref .ref-tag-icon {
+  opacity: 0.78;
+}
+
 .ref-tag-arrow {
-  opacity: 0.7;
+  opacity: 0.66;
   margin: 0 1px;
 }
 
@@ -340,6 +358,28 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.ref-tag-origin-text {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  line-height: 16px;
+  margin-left: 2px;
+  padding: 0 5px;
+  border-radius: 4px;
+  color: var(--vscode-descriptionForeground);
+  background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+  font-size: 11px;
+  font-style: italic;
+  font-weight: 600;
+}
+
+.ref-tag.head .ref-tag-origin-text {
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.16);
+}
+
 
 .commit-detail-box {
   position: absolute;

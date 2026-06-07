@@ -54,7 +54,7 @@ export class GitDetailWebviewPanel {
       const cwd = this.getWorkspaceRoot();
 
       if (cwd) {
-        void this.postGraphData(cwd, this._currentGraphFilter, false, true);
+        void this.postGraphData(cwd, this._currentGraphFilter, false, false);
       }
 
       return;
@@ -97,7 +97,7 @@ export class GitDetailWebviewPanel {
         switch (msg.command) {
           case 'gitDetailLoaded':
           case 'refreshGitDetail': {
-            await this.postGraphData(cwd, msg.graphFilter || this._currentGraphFilter, false, true);
+            await this.postGraphData(cwd, msg.graphFilter || this._currentGraphFilter, false, false);
             break;
           }
 
@@ -146,7 +146,7 @@ export class GitDetailWebviewPanel {
 
     if (cwd) {
       setTimeout(() => {
-        void this.postGraphData(cwd, this._currentGraphFilter, false, true);
+        void this.postGraphData(cwd, this._currentGraphFilter, false, false);
       }, 300);
     } else {
       setTimeout(() => {
@@ -644,7 +644,7 @@ export class GitDetailWebviewPanel {
       this._pendingRefresh = {
         cwd,
         graphFilter,
-        silent,
+        silent: silent || this._isRefreshing,
         fetchRemote,
       };
 
@@ -694,6 +694,11 @@ export class GitDetailWebviewPanel {
         folderName: path.basename(cwd),
         branch: repoStatus.branch,
         remoteUrl: repoStatus.remoteUrl,
+      });
+    } catch (error: any) {
+      this._panel?.webview.postMessage({
+        type: 'gitDetailError',
+        message: error?.message ?? String(error),
       });
     } finally {
       this._isRefreshing = false;
