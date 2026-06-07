@@ -197,7 +197,8 @@
 }
 
 .remote-merge-message {
-  color: var(--vscode-descriptionForeground);
+  color: var(--vscode-descriptionForeground) !important;
+  opacity: 0.82;
 }
 
 .commit-date {

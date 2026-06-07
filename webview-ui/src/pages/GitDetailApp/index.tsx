@@ -475,44 +475,12 @@ function combineLocalAndRemoteRefs(refs: string[]) {
 
 /**
  * 参考 Git Graph 的展示规则：
- * - 全部分支视图展示当前 commit 上所有可见 ref。
- * - 本地分支和同名 origin 远程分支在同一个 commit 上时合并成一个 tag，例如：master origin。
- * - 指定分支筛选时只收敛当前筛选分支相关 ref，避免其它分支 tag 抢占空间。
+ * 当前提交出现在列表里时，提交本身携带的 ref tag 都应该显示。
+ * 分支筛选只影响提交列表，不应该二次过滤该提交上的 tag。
+ * 本地分支和同名 origin 远程分支在同一个 commit 上时合并成一个 tag，例如：dev-lin origin。
  */
-function getVisibleRefs(refs: string | undefined, selectedGraphFilter: string, currentBranch: string) {
-  const refList = getRefs(refs);
-  const { current, selectedLocal, selectedRemote, isAll } = getSelectedRefNames(
-    selectedGraphFilter,
-    currentBranch,
-  );
-
-  if (isAll) {
-    return combineLocalAndRemoteRefs(refList);
-  }
-
-  return combineLocalAndRemoteRefs(
-    refList.filter((ref) => {
-      const refName = normalizeVisibleRefName(ref);
-
-      if (!refName) return false;
-
-      if (isStashRef(refName)) return true;
-
-      if (isHeadRef(ref, refName)) {
-        return !selectedLocal || refName === selectedLocal || refName === current;
-      }
-
-      if (refName === 'origin/HEAD') {
-        return true;
-      }
-
-      if (refName === selectedLocal || refName === selectedRemote) {
-        return true;
-      }
-
-      return false;
-    }),
-  );
+function getVisibleRefs(refs: string | undefined) {
+  return combineLocalAndRemoteRefs(getRefs(refs));
 }
 
 function buildCommitFileTree(files: GitFileItem[]) {
@@ -673,8 +641,18 @@ function getCommitDisplayMessage(commit: GraphCommit) {
   return commit.message;
 }
 
-function isRemoteMergeCommitMessage(message: string) {
-  return /^Merge\s+(remote-tracking\s+)?branch\s+['\"].+['\"]\s+of\s+/i.test(message.trim());
+function isMergeCommitMessage(message: string) {
+  const text = message.trim();
+
+  return (
+    /^Merge\s+(remote-tracking\s+)?branch\s+['\"].+['\"]/i.test(text) ||
+    /^Merge\s+pull\s+request\s+/i.test(text) ||
+    /^Merge\s+tag\s+['\"].+['\"]/i.test(text)
+  );
+}
+
+function isMergeCommit(commit: GraphCommit) {
+  return (commit.parents?.length || 0) > 1 || isMergeCommitMessage(getCommitDisplayMessage(commit));
 }
 
 function renderRefText(ref: string) {
@@ -1528,7 +1506,7 @@ export default function GitCommitDetailApp() {
               {visibleCommits.map((commit, index) => {
                 const vertex = graphData.vertices[index];
                 const paddingWidth = (vertex.getNextPoint().x + 1) * LANE_WIDTH + 96;
-                const refs = getVisibleRefs(commit.refs, selectedGraphFilter, branch);
+                const refs = getVisibleRefs(commit.refs);
                 const isActive = activeCommitHash === commit.hash;
 
                 return (
@@ -1557,7 +1535,7 @@ export default function GitCommitDetailApp() {
 
                           <span
                             className={`${styles['commit-message']} ${
-                              isRemoteMergeCommitMessage(getCommitDisplayMessage(commit))
+                              isMergeCommit(commit)
                                 ? styles['remote-merge-message']
                                 : ''
                             }`}
