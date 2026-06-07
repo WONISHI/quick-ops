@@ -57,6 +57,7 @@ interface Point {
 interface Line {
   p1: Point;
   p2: Point;
+  isCommitted: boolean;
   lockedFirst: boolean;
 }
 
@@ -74,10 +75,11 @@ class Branch {
     this.colour = colour;
   }
 
-  addLine(p1: Point, p2: Point, lockedFirst: boolean) {
+  addLine(p1: Point, p2: Point, isCommitted: boolean, lockedFirst: boolean) {
     this.lines.push({
       p1,
       p2,
+      isCommitted,
       lockedFirst,
     });
   }
@@ -99,6 +101,8 @@ class Vertex {
   private nextX = 0;
 
   private connections: UnavailablePoint[] = [];
+
+  private isCommitted = true;
 
   constructor(id: number) {
     this.id = id;
@@ -179,6 +183,14 @@ class Vertex {
       };
     }
   }
+
+  getIsCommitted() {
+    return this.isCommitted;
+  }
+
+  setNotCommitted() {
+    this.isCommitted = false;
+  }
 }
 
 function buildGraphEngine(commits: GraphCommit[]) {
@@ -191,6 +203,10 @@ function buildGraphEngine(commits: GraphCommit[]) {
   });
 
   commits.forEach((commit, index) => {
+    if (commit.type === 'uncommitted') {
+      vertices[index].setNotCommitted();
+    }
+
     const parents = commit.type === 'stash'
       ? (commit.parents || []).slice(0, 1)
       : commit.parents || [];
@@ -253,6 +269,7 @@ function buildGraphEngine(commits: GraphCommit[]) {
         parentBranch.addLine(
           lastPoint,
           curPoint,
+          vertex.getIsCommitted(),
           !foundPointToParent && curVertex !== parentVertex ? lastPoint.x < curPoint.x : true,
         );
 
@@ -277,7 +294,7 @@ function buildGraphEngine(commits: GraphCommit[]) {
             ? curVertex.getPoint()
             : curVertex.getNextPoint();
 
-        branch.addLine(lastPoint, curPoint, lastPoint.x < curPoint.x);
+        branch.addLine(lastPoint, curPoint, vertex.getIsCommitted(), lastPoint.x < curPoint.x);
         curVertex.registerUnavailablePoint(curPoint.x, parentVertex, branch);
         lastPoint = curPoint;
 
@@ -822,17 +839,9 @@ export default function GitCommitDetailApp() {
     ctx.clearRect(0, 0, containerWidth, renderedHeight);
 
     graphData.branches.forEach((branchItem) => {
-      const color = COLORS[branchItem.colour % COLORS.length];
+      const branchColor = COLORS[branchItem.colour % COLORS.length];
 
-      ctx.beginPath();
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-
-      let lastPt: { x: number; y: number } | null = null;
-
-      branchItem.lines.forEach((line, index) => {
+      branchItem.lines.forEach((line) => {
         const x1 = line.p1.x * LANE_WIDTH + 40;
         const y1Base = yPositions[line.p1.y];
         const y1 = y1Base + CY;
@@ -841,9 +850,12 @@ export default function GitCommitDetailApp() {
         const y2Base = yPositions[line.p2.y];
         const y2 = y2Base + CY;
 
-        if (index === 0 || lastPt?.x !== x1 || lastPt?.y !== y1) {
-          ctx.moveTo(x1, y1);
-        }
+        ctx.beginPath();
+        ctx.strokeStyle = line.isCommitted ? branchColor : '#808080';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.moveTo(x1, y1);
 
         if (x1 === x2) {
           ctx.lineTo(x2, y2);
@@ -863,13 +875,8 @@ export default function GitCommitDetailApp() {
           }
         }
 
-        lastPt = {
-          x: x2,
-          y: y2,
-        };
+        ctx.stroke();
       });
-
-      ctx.stroke();
     });
 
     const bgColor =
@@ -886,9 +893,14 @@ export default function GitCommitDetailApp() {
       ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
 
       const vertexBranch = vertex.getBranch();
-      const dotColor = vertexBranch ? COLORS[vertexBranch.colour % COLORS.length] : '#808080';
+      const isUncommittedVertex = commit.type === 'uncommitted';
+      const dotColor = isUncommittedVertex
+        ? '#808080'
+        : vertexBranch
+          ? COLORS[vertexBranch.colour % COLORS.length]
+          : '#808080';
 
-      if (isHead) {
+      if (isHead || isUncommittedVertex) {
         ctx.fillStyle = bgColor;
         ctx.lineWidth = 2;
         ctx.strokeStyle = dotColor;
