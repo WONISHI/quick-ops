@@ -2189,3 +2189,4 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     await this.refreshStatus(cwd, true);
   }
 }
+
