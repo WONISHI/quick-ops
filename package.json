@@ -483,6 +483,12 @@
         "command": "quickOps.openGitDetail",
         "title": "Git 详情",
         "icon": "$(terminal-git-bash)"
+      },
+      {
+        "command": "quick-ops.openExternalPreview",
+        "title": "从外部条件打开...",
+        "category": "QuickOps",
+        "icon": "$(preview)"
       }
     ],
     "keybindings": [
@@ -594,6 +600,11 @@
         }
       ],
       "explorer/context": [
+        {
+          "command": "quick-ops.openExternalPreview",
+          "group": "navigation@2",
+          "when": "resourceScheme == file && !explorerResourceIsFolder && (resourceExtname == .md || resourceExtname == .markdown || resourceExtname == .pdf || resourceExtname == .xlsx || resourceExtname == .xls || resourceExtname == .docx || resourceExtname == .doc)"
+        },
         {
           "command": "quick-ops.openInNewTab",
           "group": "navigation",
