@@ -916,7 +916,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const saveContent = restoreMarkdownImagePaths(msg.content || '', assets);
 
           await vscode.workspace.fs.writeFile(uri, Buffer.from(saveContent, 'utf8'));
-          vscode.window.showInformationMessage('✅ Markdown 已保存');
         } else if (msg.command === 'openExternal') {
           try {
             await vscode.env.openExternal(vscode.Uri.parse(msg.url));

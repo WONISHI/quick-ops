@@ -253,6 +253,11 @@ export default function VditorApp(props: VditorAppProps) {
 
   const vditorRef = useRef<HTMLDivElement>(null);
   const vditorInstanceRef = useRef<Vditor | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  const currentFsPathRef = useRef('');
+  const isEditModeRef = useRef(false);
+  const lastSavedContentRef = useRef('');
+  const pendingSaveContentRef = useRef('');
   const [isReadMode, setIsReadMode] = useState(false);
 
   const metaAction = useMemo<VditorMetaActionConfig>(() => {
@@ -324,7 +329,67 @@ export default function VditorApp(props: VditorAppProps) {
     };
   }, []);
 
+  const postSaveMarkdown = (content: string) => {
+    if (!isEditModeRef.current || !currentFsPathRef.current) {
+      return;
+    }
+
+    if (content === lastSavedContentRef.current) {
+      return;
+    }
+
+    lastSavedContentRef.current = content;
+    pendingSaveContentRef.current = '';
+
+    vscode.postMessage({
+      command: 'saveMarkdown',
+      content,
+      fsPath: currentFsPathRef.current,
+    });
+  };
+
+  const clearSaveTimer = () => {
+    if (!saveTimerRef.current) {
+      return;
+    }
+
+    window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = null;
+  };
+
+  const flushPendingSave = () => {
+    clearSaveTimer();
+
+    if (!pendingSaveContentRef.current) {
+      return;
+    }
+
+    postSaveMarkdown(pendingSaveContentRef.current);
+  };
+
+  const scheduleSaveMarkdown = (content: string) => {
+    if (!isEditModeRef.current || !currentFsPathRef.current) {
+      return;
+    }
+
+    if (content === lastSavedContentRef.current) {
+      pendingSaveContentRef.current = '';
+      clearSaveTimer();
+      return;
+    }
+
+    pendingSaveContentRef.current = content;
+    clearSaveTimer();
+
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      postSaveMarkdown(content);
+    }, 600);
+  };
+
   const destroyVditor = () => {
+    flushPendingSave();
+
     try {
       vditorInstanceRef.current?.destroy();
     } catch {
@@ -346,6 +411,9 @@ export default function VditorApp(props: VditorAppProps) {
     const { fileName } = parseFileUriInfo(fsPath);
     const isEdit = mode === 'edit';
 
+    currentFsPathRef.current = fsPath;
+    isEditModeRef.current = isEdit;
+    pendingSaveContentRef.current = '';
     setIsReadMode(!isEdit);
 
     const appPlugins = setupPlugins();
@@ -358,6 +426,8 @@ export default function VditorApp(props: VditorAppProps) {
         title: fileName || '文档预览',
       })
       .process(content || '');
+
+    lastSavedContentRef.current = processedContent;
 
     if (!isEdit) {
       await Vditor.preview(vditorRef.current, processedContent, {
@@ -420,7 +490,9 @@ export default function VditorApp(props: VditorAppProps) {
           vditorElement.style.height = '100%';
         }
       },
-      input: () => { },
+      input: (value: string) => {
+        scheduleSaveMarkdown(value);
+      },
     });
 
     vditorInstanceRef.current = vd;
