@@ -190,7 +190,7 @@ export class FileNavigationFeature implements IFeature {
           panel.webview.postMessage({
             type: 'initVditorData',
             content: markdownResult.content,
-            mode: 'read',
+            mode: 'edit',
             fsPath: uri.toString(),
           });
           return;
@@ -220,7 +220,7 @@ export class FileNavigationFeature implements IFeature {
       });
 
       panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'markdown.svg');
-      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/Vditor?type=read');
+      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/Vditor?type=edit');
     } catch (error: any) {
       vscode.window.showErrorMessage(`Markdown 预览打开失败: ${error?.message || String(error)}`);
     }
@@ -383,7 +383,7 @@ export class FileNavigationFeature implements IFeature {
         }
       });
 
-      panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'markdown.svg');
+      panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'word.svg');
       panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/doc?type=read');
     } catch (error: any) {
       vscode.window.showErrorMessage(`Word 预览打开失败: ${error?.message || String(error)}`);
