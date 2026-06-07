@@ -67,7 +67,6 @@ export class ComponentIntellisenseFeature implements IFeature {
 
     // 🌟 修改点 2：回调函数变成 async，处理重载
     const contextChangeDisposable = this.contextService.onDidChangeContext(async () => {
-      console.log('[Quick Ops] 监听到项目依赖发生变化，正在重新挂载 UI 提示库...');
       await this.reload(context);
     });
 
@@ -453,13 +452,11 @@ export class ComponentIntellisenseFeature implements IFeature {
 
       const isEnabled = vscode.workspace.getConfiguration('quick-ops.general.use').get<boolean>(configKey, true);
       if (!isEnabled) {
-        console.log(`[Quick Ops] 已拦截加载: ${baseName} (全局配置项 ${configKey} 未开启)`);
         continue;
       }
 
       const depVersionString = dependencies[baseName];
       if (!depVersionString) {
-        console.log(`[Quick Ops] 已拦截加载: ${baseName} (当前项目 package.json 中未安装该依赖)`);
         continue;
       }
 
@@ -479,7 +476,6 @@ export class ComponentIntellisenseFeature implements IFeature {
       }
 
       if (!targetFileToLoad) {
-        console.log(`[Quick Ops] 未加载 ${baseName}，因为既没有匹配的版本文件，也没有兜底的默认文件。`);
         continue;
       }
 
@@ -492,9 +488,7 @@ export class ComponentIntellisenseFeature implements IFeature {
         
         this.components.push(...parsed);
         parsed.forEach((c) => c.tags.forEach((t) => this.tagToComponentMap.set(t, c)));
-        console.log(`[Quick Ops] 成功加载 ${baseName} 的片段库: ${targetFileToLoad}`);
-      } catch (e) {
-        console.error(`[Quick Ops] 解析文件失败: ${targetFileToLoad}`, e);
+      } catch {
       }
     }
   }
