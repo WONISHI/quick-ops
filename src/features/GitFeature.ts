@@ -178,7 +178,7 @@ export class GitFeature implements IFeature {
     this.gitProvider.setCustomWorkspace(newPath || null);
     this.gitDetailPanel.refresh(undefined, {
       silent: true,
-      fetchRemote: true,
+      fetchRemote: false,
     });
 
     let hasRemote = false;
