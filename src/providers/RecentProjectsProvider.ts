@@ -590,6 +590,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           break;
         }
 
+        case 'previewWithDoc':
+        case 'previewWithDocToSide': {
+          this.openDocPanel(
+            data.fsPath,
+            data.projectName || '未知项目',
+            data.type === 'previewWithDocToSide' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active
+          );
+          break;
+        }
+
         case 'searchFileName':
           this.handleSearchFileName(data.fsPath, data.query, data.isRemote, !!data.focusOnly);
           break;
@@ -628,6 +638,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const ext = path.extname(uri.fsPath || fsPath).toLowerCase();
       const isSvg = ext === '.svg' || ext === '.svga';
+      const isDoc = ext === '.docx' || ext === '.doc';
 
       const textOption: vscode.QuickPickItem = {
         label: '$(code) 文本编辑器',
@@ -635,10 +646,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       };
       const previewOption: vscode.QuickPickItem = {
         label: '$(preview) 解析编辑器',
-        description: '渲染并预览页面 / 图像'
+        description: isDoc ? '预览 Word 文档' : '渲染并预览页面 / 图像'
       };
 
-      const items = isSvg ? [previewOption, textOption] : [textOption, previewOption];
+      const items = isSvg || isDoc ? [previewOption, textOption] : [textOption, previewOption];
 
       const selected = await vscode.window.showQuickPick(items, {
         placeHolder: `选择 ${path.basename(uri.path)} 的打开方式...`
@@ -656,6 +667,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           vscode.window.showErrorMessage(`无法以文本模式打开该文件：${(err as Error).message}`);
         }
       } else {
+        if (isDoc) {
+          await this.openDocPanel(fsPath, projectName, vscode.ViewColumn.Active);
+          return;
+        }
+
         this.openHtmlPreviewPanel(fsPath, projectName, vscode.ViewColumn.Active);
       }
     } catch (e) {
@@ -845,6 +861,76 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     } catch (e) {
       vscode.window.showErrorMessage('无法读取文件进行 PDF 预览。');
+    }
+  }
+
+  private async openDocPanel(fsPath: string, projectName: string, viewColumn: vscode.ViewColumn) {
+    try {
+      const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+      const fileName = path.basename(uri.path);
+      const ext = path.extname(uri.fsPath || uri.path || fsPath).toLowerCase();
+
+      await this.closeExistingPreviews(uri.fsPath);
+
+      const panel = vscode.window.createWebviewPanel(
+        'docPreviewReact',
+        `${projectName}: ${fileName}`,
+        viewColumn,
+        {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: [this.context.extensionUri]
+        }
+      );
+
+      this.activePanels.set(uri.fsPath, panel);
+
+      panel.onDidChangeViewState(({ webviewPanel }) => {
+        if (webviewPanel.active) {
+          this.setActivePath(fsPath);
+        }
+      });
+
+      panel.onDidDispose(() => {
+        if (this.activePanels.get(uri.fsPath) === panel) {
+          this.activePanels.delete(uri.fsPath);
+        }
+      });
+
+      panel.webview.onDidReceiveMessage(async (msg) => {
+        if (msg.command === 'webviewLoaded') {
+          try {
+            if (ext === '.doc') {
+              panel.webview.postMessage({
+                type: 'initDocError',
+                message: '当前预览器暂不支持旧版 .doc 格式，请转换为 .docx 后再预览。'
+              });
+              return;
+            }
+
+            const contentBytes = await vscode.workspace.fs.readFile(uri);
+            const fileBase64 = Buffer.from(contentBytes).toString('base64');
+
+            panel.webview.postMessage({
+              type: 'initDocData',
+              fsPath,
+              fileName,
+              extension: ext,
+              contentBase64: fileBase64,
+            });
+          } catch (e: any) {
+            panel.webview.postMessage({
+              type: 'initDocError',
+              message: e?.message || 'Word 文件读取失败',
+            });
+          }
+        }
+      });
+
+      panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'word.svg');
+      panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, `/doc?type=read`);
+    } catch (e) {
+      vscode.window.showErrorMessage('无法读取文件进行 Word 预览。');
     }
   }
 
@@ -1670,7 +1756,27 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private getFileExt(fsPath: string) {
+    try {
+      const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+      return path.extname(uri.fsPath || uri.path || fsPath).toLowerCase();
+    } catch {
+      return path.extname(fsPath).toLowerCase();
+    }
+  }
+
+  private isDocFile(fsPath: string) {
+    const ext = this.getFileExt(fsPath);
+
+    return ext === '.docx' || ext === '.doc';
+  }
+
   private async openFileReadOnly(fsPath: string, projectName: string, viewColumn: vscode.ViewColumn = vscode.ViewColumn.Active, preview: boolean = true) {
+    if (this.isDocFile(fsPath)) {
+      await this.openDocPanel(fsPath, projectName, viewColumn);
+      return;
+    }
+
     try {
       const roUri = this.getReadOnlyUri(fsPath, projectName);
       const doc = await vscode.workspace.openTextDocument(roUri);

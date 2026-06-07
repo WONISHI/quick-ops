@@ -16,6 +16,7 @@ import ExcelPreviewApp from './pages/ExcelPreviewApp';
 import PdfPreviewApp from './pages/PdfPreviewApp';
 import GitDetailApp from './pages/GitDetailApp';
 import HtmlPreviewApp from './pages/HtmlPreviewApp';
+import DocPreviewApp from './pages/DocPreviewApp'
 import './index.css';
 import '@vscode/codicons/dist/codicon.css';
 
@@ -39,6 +40,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         <Route path='/vditor' element={<VditorApp pageMode />} />
         <Route path='/pdf' element={<PdfPreviewApp />} />
         <Route path='/xls' element={<ExcelPreviewApp />} />
+        <Route path='/doc' element={<DocPreviewApp />} />
         <Route path="/" element={<div>Welcome to Quick Ops Dashboard!</div>} />
       </Routes>
     </MemoryRouter>

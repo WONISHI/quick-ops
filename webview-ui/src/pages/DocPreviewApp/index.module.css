@@ -1,0 +1,101 @@
+.app-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+  overflow: hidden;
+}
+
+.toolbar {
+  height: 36px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+  box-sizing: border-box;
+}
+
+.toolbar-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--vscode-foreground);
+}
+
+.toolbar-icon {
+  flex-shrink: 0;
+  width: 20px;
+  color: var(--vscode-icon-foreground);
+}
+
+.toolbar-file-name {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.render-area {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--vscode-editor-background);
+}
+
+.status-view {
+  height: 100%;
+  min-height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.error-view {
+  color: var(--vscode-errorForeground);
+}
+
+.status-icon {
+  font-size: 16px;
+}
+
+.doc-container {
+  min-height: 100%;
+  padding: 24px 0;
+  box-sizing: border-box;
+}
+
+.doc-container-hidden {
+  display: none;
+}
+
+.doc-container :global(.docx-wrapper) {
+  background: var(--vscode-editor-background);
+  padding: 24px 0;
+}
+
+.doc-container :global(.docx) {
+  color: #000000;
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+  margin: 0 auto 24px auto;
+}
+
+.doc-container :global(.docx p),
+.doc-container :global(.docx span),
+.doc-container :global(.docx table),
+.doc-container :global(.docx td),
+.doc-container :global(.docx th) {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.doc-container :global(.docx ::selection) {
+  background: rgba(0, 120, 215, 0.35);
+}
