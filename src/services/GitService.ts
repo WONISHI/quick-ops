@@ -291,9 +291,7 @@ export class GitService {
      * push / fetch 会更新远程引用，但不会改变本地提交图谱。
      * 如果这里使用 show-ref 全量输出，push 后会误触发完整 graph 刷新。
      */
-    const refs = await git
-      .raw(['for-each-ref', '--format=%(refname) %(objectname)', 'HEAD', 'refs/heads', 'refs/tags', 'refs/stash'])
-      .catch(() => '');
+    const refs = await git.raw(['for-each-ref', '--format=%(refname) %(objectname)', 'HEAD', 'refs/heads', 'refs/tags', 'refs/stash']).catch(() => '');
 
     const status = await git.raw(['status', '--porcelain=v1', '-uall']).catch(() => '');
     const stash = await git.raw(['stash', 'list', '--format=%gd %H']).catch(() => '');
@@ -584,6 +582,33 @@ export class GitService {
   public async getCommitFiles(cwd: string, hash: string): Promise<CommitFilesResult> {
     const git = this.createGit(cwd);
 
+    if (hash === '__WORKING_TREE__') {
+      const status = await git.status();
+
+      const files: GitFileItem[] = status.files
+        .filter((file) => !status.conflicted.includes(file.path))
+        .map((file) => {
+          let fileStatus = file.working_dir !== ' ' ? file.working_dir : file.index;
+
+          if (fileStatus === '?') {
+            fileStatus = 'U';
+          }
+
+          return {
+            status: fileStatus,
+            file: file.path,
+            baseRef: file.index !== ' ' && file.index !== '?' ? 'index' : 'HEAD',
+          };
+        })
+        .filter((file) => file.status && file.status !== ' ');
+
+      return {
+        hash,
+        parentHash: 'HEAD',
+        files,
+      };
+    }
+
     let parentHash: string | undefined;
 
     try {
@@ -592,16 +617,6 @@ export class GitService {
       parentHash = undefined;
     }
 
-    /**
-     * 合并提交是多父提交，不能直接用 `git diff-tree hash`。
-     * `diff-tree` 对 merge commit 默认不会按普通提交那样给出稳定的文件差异，
-     * 所以前端点击合并提交时可能出现文件列表为空、打开 diff 内容为空或报错。
-     *
-     * 这里按 VS Code / Git 常见查看方式：
-     * - 普通提交：对比 parentHash -> hash
-     * - 合并提交：默认对比第一个父提交 hash^1 -> hash，也就是查看本次 merge 相对主线带来的变更
-     * - 根提交：没有 parentHash，继续使用 diff-tree --root
-     */
     const diffArgs = parentHash
       ? ['-c', 'core.quotepath=false', 'diff', '--name-status', '--find-renames', parentHash, hash]
       : ['-c', 'core.quotepath=false', 'diff-tree', '--no-commit-id', '--name-status', '-r', '--root', hash];

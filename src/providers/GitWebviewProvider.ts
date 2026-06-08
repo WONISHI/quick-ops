@@ -23,7 +23,6 @@ interface GitGraphLikeData {
   totalCommits: number;
 }
 
-
 export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
 
@@ -44,7 +43,10 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private readonly gitService = new GitService();
   private _currentGraphFilter = '当前分支';
 
-  constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
+  constructor(
+    private readonly _extensionUri: vscode.Uri,
+    private readonly _context: vscode.ExtensionContext,
+  ) {
     const gitService = this.gitService;
 
     const gitDiffProvider = new (class implements vscode.TextDocumentContentProvider {
@@ -150,7 +152,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
     await vscode.commands.executeCommand('vscode.changes', title, changesArgs);
   }
-
 
   private normalizeGitRelativePath(value: string): string {
     return value.replace(/\\/g, '/').replace(/^\/+/, '');
@@ -1580,11 +1581,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             const fileName = msg.file.split('/').pop() || msg.file;
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
 
-            const confirm = await vscode.window.showWarningMessage(
-              `确定要删除文件 “${fileName}” 吗？\n\n文件会被移动到系统回收站/废纸篓。`,
-              { modal: true },
-              '删除文件',
-            );
+            const confirm = await vscode.window.showWarningMessage(`确定要删除文件 “${fileName}” 吗？\n\n文件会被移动到系统回收站/废纸篓。`, { modal: true }, '删除文件');
 
             if (confirm !== '删除文件') return;
 
@@ -1647,12 +1644,15 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           case 'diffCommitFile': {
-            const leftUri = this.createGitContentUri(cwd, msg.parentHash || 'empty', msg.file);
+            const isWorkingTree = msg.hash === '__WORKING_TREE__';
 
-            const rightRef = msg.status === 'D' ? 'empty' : msg.hash;
+            const leftRef = msg.parentHash || 'empty';
+            const rightRef = msg.status === 'D' ? 'empty' : isWorkingTree ? 'working' : msg.hash;
+
+            const leftUri = this.createGitContentUri(cwd, leftRef, msg.file);
             const rightUri = this.createGitContentUri(cwd, rightRef, msg.file);
 
-            const title = `${path.basename(msg.file)} (${msg.hash.substring(0, 7)})`;
+            const title = isWorkingTree ? `${path.basename(msg.file)} (未提交更改)` : `${path.basename(msg.file)} (${msg.hash.substring(0, 7)})`;
 
             vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
 
@@ -1825,17 +1825,11 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private async getWorkingTreeChangeCount(cwd: string) {
     const output = await this.runGitSafe(cwd, ['status', '--porcelain=v1', '-uall']);
 
-    return output
-      .split(/\r?\n/)
-      .filter((line) => line.trim()).length;
+    return output.split(/\r?\n/).filter((line) => line.trim()).length;
   }
 
   private async getStashRows(cwd: string): Promise<GitGraphLikeCommit[]> {
-    const stashListOutput = await this.runGitSafe(cwd, [
-      'stash',
-      'list',
-      '--format=%gd%x1f%H%x1f%ct%x1f%gs',
-    ]);
+    const stashListOutput = await this.runGitSafe(cwd, ['stash', 'list', '--format=%gd%x1f%H%x1f%ct%x1f%gs']);
 
     const stashLines = stashListOutput
       .split(/\r?\n/)
@@ -1874,13 +1868,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   }
 
   private getStashBaseParentHashes(stashRows: GitGraphLikeCommit[]) {
-    return Array.from(
-      new Set(
-        stashRows
-          .map((stashRow) => stashRow.parents?.[0])
-          .filter(Boolean) as string[],
-      ),
-    );
+    return Array.from(new Set(stashRows.map((stashRow) => stashRow.parents?.[0]).filter(Boolean) as string[]));
   }
 
   private async getUncommittedRow(cwd: string): Promise<GitGraphLikeCommit | null> {
@@ -1907,46 +1895,22 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private getGraphArgs(graphFilter: string, extraRefs: string[] = []) {
     const pretty = '%H%x1f%P%x1f%ct%x1f%an%x1f%ae%x1f%D%x1f%s';
 
-    const commonArgs = [
-      'log',
-      '--date-order',
-      '--decorate=full',
-      '--parents',
-      `--pretty=${pretty}`,
-    ];
+    const commonArgs = ['log', '--date-order', '--decorate=full', '--parents', `--pretty=${pretty}`];
 
     const normalizedGraphFilter = this.normalizeGraphFilterName(graphFilter);
 
     if (normalizedGraphFilter === this.gitService.ALL_BRANCH_FILTER || normalizedGraphFilter === '全部分支') {
-      return [
-        ...commonArgs,
-        '--branches',
-        '--remotes',
-        '--tags',
-        ...extraRefs,
-      ];
+      return [...commonArgs, '--branches', '--remotes', '--tags', ...extraRefs];
     }
 
     if (!normalizedGraphFilter || normalizedGraphFilter === this.gitService.CURRENT_BRANCH_FILTER || normalizedGraphFilter === '当前分支') {
-      return [
-        ...commonArgs,
-        'HEAD',
-        ...extraRefs,
-      ];
+      return [...commonArgs, 'HEAD', ...extraRefs];
     }
 
-    return [
-      ...commonArgs,
-      normalizedGraphFilter,
-      ...extraRefs,
-    ];
+    return [...commonArgs, normalizedGraphFilter, ...extraRefs];
   }
 
-  private insertSpecialRows(
-    commits: GitGraphLikeCommit[],
-    stashRows: GitGraphLikeCommit[],
-    uncommittedRow: GitGraphLikeCommit | null,
-  ) {
+  private insertSpecialRows(commits: GitGraphLikeCommit[], stashRows: GitGraphLikeCommit[], uncommittedRow: GitGraphLikeCommit | null) {
     const result: GitGraphLikeCommit[] = [];
     const insertedStashIndexes = new Set<number>();
 
@@ -1983,15 +1947,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     const normalizedGraphFilter = this.normalizeGraphFilterName(graphFilter);
     const allStashRows = await this.getStashRows(cwd);
 
-    const extraRefs =
-      normalizedGraphFilter === this.gitService.ALL_BRANCH_FILTER || normalizedGraphFilter === '全部分支'
-        ? this.getStashBaseParentHashes(allStashRows)
-        : [];
+    const extraRefs = normalizedGraphFilter === this.gitService.ALL_BRANCH_FILTER || normalizedGraphFilter === '全部分支' ? this.getStashBaseParentHashes(allStashRows) : [];
 
-    const output = await this.runGit(
-      cwd,
-      this.getGraphArgs(normalizedGraphFilter, extraRefs),
-    );
+    const output = await this.runGit(cwd, this.getGraphArgs(normalizedGraphFilter, extraRefs));
 
     const commits = output
       .split(/\r?\n/)
@@ -2018,10 +1976,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     const seenKey = new Set<string>();
 
     rows.forEach((row) => {
-      const uniqueKey =
-        row.type === 'uncommitted'
-          ? row.hash
-          : `${row.type || 'commit'}:${row.hash}`;
+      const uniqueKey = row.type === 'uncommitted' ? row.hash : `${row.type || 'commit'}:${row.hash}`;
 
       if (seenKey.has(uniqueKey)) return;
 
@@ -2044,26 +1999,11 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
        * 如果把远程 refs 也放进 graphState，push 成功后会被误判为图谱变化，
        * 进而触发 refreshStatus(cwd, true)，导致提交图区域长时间 loading。
        */
-      const stateOutput = await this.runGitSafe(cwd, [
-        'for-each-ref',
-        '--format=%(refname) %(objectname)',
-        'HEAD',
-        'refs/heads',
-        'refs/tags',
-        'refs/stash',
-      ]);
+      const stateOutput = await this.runGitSafe(cwd, ['for-each-ref', '--format=%(refname) %(objectname)', 'HEAD', 'refs/heads', 'refs/tags', 'refs/stash']);
 
-      const statusOutput = await this.runGitSafe(cwd, [
-        'status',
-        '--porcelain=v1',
-        '-uall',
-      ]);
+      const statusOutput = await this.runGitSafe(cwd, ['status', '--porcelain=v1', '-uall']);
 
-      const stashOutput = await this.runGitSafe(cwd, [
-        'stash',
-        'list',
-        '--format=%gd %H',
-      ]);
+      const stashOutput = await this.runGitSafe(cwd, ['stash', 'list', '--format=%gd %H']);
 
       return `${stateOutput}\n---STATUS---\n${statusOutput}\n---STASH---\n${stashOutput}`;
     } catch {
@@ -2071,10 +2011,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async getCommitChangeStats(
-    cwd: string,
-    hash: string,
-  ): Promise<{ filesChanged: number; insertions: number; deletions: number }> {
+  private async getCommitChangeStats(cwd: string, hash: string): Promise<{ filesChanged: number; insertions: number; deletions: number }> {
     if (hash === '__WORKING_TREE__') {
       return {
         filesChanged: await this.getWorkingTreeChangeCount(cwd),
@@ -2130,17 +2067,13 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     });
   }
 
-
   private async refreshGraphOnly(cwd: string, graphFilter = this._currentGraphFilter) {
     if (!this._view) return;
 
     try {
       this._lastGraphState = await this.getGraphState(cwd);
 
-      const graphData = await this.getGitGraphLikeData(
-        cwd,
-        graphFilter || this.gitService.CURRENT_BRANCH_FILTER,
-      );
+      const graphData = await this.getGitGraphLikeData(cwd, graphFilter || this.gitService.CURRENT_BRANCH_FILTER);
 
       this._currentGraphFilter = graphData.graphFilter;
 
