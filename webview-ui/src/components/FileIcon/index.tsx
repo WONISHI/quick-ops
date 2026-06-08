@@ -88,14 +88,7 @@ import dsStoreIcon from '../../assets/icon/ds_store.svg';
 import obsidianIcon from '../../assets/icon/obsidian.svg';
 import sheetIcon from '../../assets/icon/sheet.svg';
 
-export type FileGitStatus =
-  | 'u'
-  | 'a'
-  | 'm'
-  | 'd'
-  | 'r'
-  | 'c'
-  | string;
+export type FileGitStatus = 'u' | 'a' | 'm' | 'd' | 'r' | 'c' | string;
 
 const EXACT_NAMES: Record<string, string> = {
   'package.json': nodeJsIcon,
@@ -144,6 +137,7 @@ const EXACT_NAMES: Record<string, string> = {
   '.stylelintignore': stylelintIcon,
   '.stylelintrc': stylelintIcon,
   '.vscodeignore': vscodeIcon,
+  '.env.office': tuneIcon,
   '.env.development': tuneIcon,
   '.env.localhost': tuneIcon,
   '.env.production': tuneIcon,
@@ -257,12 +251,7 @@ interface FileIconProps {
   status?: FileGitStatus;
 }
 
-export const FileIcon: React.FC<FileIconProps> = ({
-  fileName,
-  className,
-  style,
-  status,
-}) => {
+export const FileIcon: React.FC<FileIconProps> = ({ fileName, className, style, status }) => {
   const finalUrl = useMemo(() => {
     const lowerName = fileName.toLowerCase();
 
