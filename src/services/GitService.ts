@@ -584,9 +584,6 @@ export class GitService {
   public async getCommitFiles(cwd: string, hash: string): Promise<CommitFilesResult> {
     const git = this.createGit(cwd);
 
-    const diffRaw = await git.raw(['-c', 'core.quotepath=false', 'diff-tree', '--no-commit-id', '--name-status', '-r', '--root', hash]);
-    const files = this.parseNameStatus(diffRaw);
-
     let parentHash: string | undefined;
 
     try {
@@ -594,6 +591,23 @@ export class GitService {
     } catch {
       parentHash = undefined;
     }
+
+    /**
+     * 合并提交是多父提交，不能直接用 `git diff-tree hash`。
+     * `diff-tree` 对 merge commit 默认不会按普通提交那样给出稳定的文件差异，
+     * 所以前端点击合并提交时可能出现文件列表为空、打开 diff 内容为空或报错。
+     *
+     * 这里按 VS Code / Git 常见查看方式：
+     * - 普通提交：对比 parentHash -> hash
+     * - 合并提交：默认对比第一个父提交 hash^1 -> hash，也就是查看本次 merge 相对主线带来的变更
+     * - 根提交：没有 parentHash，继续使用 diff-tree --root
+     */
+    const diffArgs = parentHash
+      ? ['-c', 'core.quotepath=false', 'diff', '--name-status', '--find-renames', parentHash, hash]
+      : ['-c', 'core.quotepath=false', 'diff-tree', '--no-commit-id', '--name-status', '-r', '--root', hash];
+
+    const diffRaw = await git.raw(diffArgs);
+    const files = this.parseNameStatus(diffRaw);
 
     return {
       hash,
