@@ -31,9 +31,9 @@ const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({
     typeof commit.insertions === 'number' ||
     typeof commit.deletions === 'number';
 
-  const filesChanged = commit.filesChanged || 0;
-  const insertions = commit.insertions || 0;
-  const deletions = commit.deletions || 0;
+  const filesChanged = commit.filesChanged ?? 0;
+  const insertions = commit.insertions ?? 0;
+  const deletions = commit.deletions ?? 0;
 
   const getRefTagClassName = (name: string, isHead: boolean) => {
     const isRemote = name.startsWith('origin/');

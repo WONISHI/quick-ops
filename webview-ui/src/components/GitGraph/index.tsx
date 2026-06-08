@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
+import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
 import CommitHoverWidget from '../CommitHoverWidget';
 import GraphSearchWidget from '../GraphSearchWidget';
@@ -353,6 +354,9 @@ const GitGraph: React.FC<GitGraphProps> = ({
 }) => {
     const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(null);
     const [hoveredRowHash, setHoveredRowHash] = useState<string | null>(null);
+    const [commitChangeStatsMap, setCommitChangeStatsMap] = useState<
+        Record<string, { filesChanged: number; insertions: number; deletions: number }>
+    >({});
 
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const suppressHoverUntilRef = useRef(0);
@@ -428,6 +432,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
     const createHoverCommit = (commit: GraphCommit): GraphCommit => {
         const { localRef, remoteRef, isRemotePush } = getCommitRefInfo(commit);
+        const stats = commitChangeStatsMap[commit.hash];
         const refs: string[] = [];
 
         if (localRef) {
@@ -440,6 +445,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
         return {
             ...commit,
+            ...(stats || {}),
             refs: refs.join(', '),
         };
     };
@@ -548,6 +554,45 @@ const GitGraph: React.FC<GitGraphProps> = ({
             }
         }
     }, [currentMatchIndex, matchedIndices, yPositions, isSearchOpen, displayCount, setDisplayCount]);
+
+    useEffect(() => {
+        const handleMessage = (e: MessageEvent) => {
+            const msg = e.data;
+
+            if (msg.type !== 'commitChangeStatsData' || !msg.hash) return;
+
+            const stats = {
+                filesChanged: Number(msg.filesChanged || 0),
+                insertions: Number(msg.insertions || 0),
+                deletions: Number(msg.deletions || 0),
+            };
+
+            setCommitChangeStatsMap((prev) => ({
+                ...prev,
+                [msg.hash]: stats,
+            }));
+
+            setHoverInfo((prev) => {
+                if (!prev || prev.commit.hash !== msg.hash) {
+                    return prev;
+                }
+
+                return {
+                    ...prev,
+                    commit: {
+                        ...prev.commit,
+                        ...stats,
+                    },
+                };
+            });
+        };
+
+        window.addEventListener('message', handleMessage);
+
+        return () => {
+            window.removeEventListener('message', handleMessage);
+        };
+    }, []);
 
     useEffect(() => {
         if (isSearchOpen && searchInputRef.current) {
@@ -685,6 +730,18 @@ const GitGraph: React.FC<GitGraphProps> = ({
             if (timeInside < suppressHoverUntilRef.current) return;
 
             const showAbove = rect.top > window.innerHeight / 2;
+
+            if (
+                commit.type !== 'stash' &&
+                typeof commit.filesChanged !== 'number' &&
+                !commitChangeStatsMap[commit.hash]
+            ) {
+                vscode.postMessage({
+                    command: 'getCommitChangeStats',
+                    hash: commit.hash,
+                });
+            }
+
             const hoverCommit = createHoverCommit(commit);
 
             setHoverInfo({
