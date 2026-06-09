@@ -391,7 +391,7 @@ export default function RecentProjectsApp() {
 
         expandedList.forEach((itemPath) => {
           vscode.postMessage({
-            type: isFocusModeRef.current ? 'readFocusDir' : 'readDir',
+            type: 'readDir',
             fsPath: itemPath,
             projectName: getProjectNameByPath(itemPath),
             forceRefresh: true,
@@ -502,7 +502,7 @@ export default function RecentProjectsApp() {
           fsPath: searchTargetProject.path,
           query: folderSearchQuery,
           isRemote: searchTargetProject.isRemote,
-          focusOnly: isFocusMode,
+          focusOnly: false,
         });
       } else {
         vscode.postMessage({
@@ -510,7 +510,7 @@ export default function RecentProjectsApp() {
           fsPath: searchTargetProject.path,
           query: folderSearchQuery,
           isRemote: searchTargetProject.isRemote,
-          focusOnly: isFocusMode,
+          focusOnly: false,
         });
       }
     }, 500);
@@ -632,7 +632,7 @@ export default function RecentProjectsApp() {
 
   const requestReadDir = (pathValue: string, projectName: string, forceRefresh: boolean = false) => {
     vscode.postMessage({
-      type: isFocusMode ? 'readFocusDir' : 'readDir',
+      type: 'readDir',
       fsPath: pathValue,
       projectName,
       forceRefresh,
@@ -986,34 +986,44 @@ export default function RecentProjectsApp() {
         break;
 
       case 'focusMode': {
+        const currentWorkspaceValue = currentWorkspaceRef.current;
+        const targetPath = currentWorkspaceValue?.fsPath || payload.path;
         const title =
+          currentWorkspaceValue?.customName ||
+          currentWorkspaceValue?.name ||
           payload.customName ||
           payload.originalName ||
           payload.name ||
           '当前项目';
 
-        cacheNormalDirChildrenBeforeFocus(payload.path);
+        if (!targetPath) {
+          break;
+        }
+
+        cacheNormalDirChildrenBeforeFocus(targetPath);
 
         setDirChildren((prev) => {
           const next = { ...prev };
 
           Object.keys(next).forEach((key) => {
-            if (isPathInside(key, payload.path)) {
+            if (isPathInside(key, targetPath)) {
               delete next[key];
             }
           });
 
           return next;
         });
+
         setSearchTargetProject({
           ...payload,
+          path: targetPath,
           name: title,
           projectName: title,
           isActiveProject: true,
         });
         setIsSearchMode(true);
         setIsFocusMode(true);
-        setFocusRootPath(payload.path);
+        setFocusRootPath(targetPath);
         setFocusRootName(title);
         setFolderSearchQuery('');
         setFolderSearchResults([]);
@@ -1023,23 +1033,23 @@ export default function RecentProjectsApp() {
 
         setExpandedPaths((prev) => {
           const next = new Set(prev);
-          next.add(payload.path);
+          next.add(targetPath);
           return next;
         });
 
         setLoadingPaths((prev) => {
           const next = new Set(prev);
 
-          if (!dirChildrenRef.current[payload.path]) {
-            next.add(payload.path);
+          if (!dirChildrenRef.current[targetPath]) {
+            next.add(targetPath);
           }
 
           return next;
         });
 
         vscode.postMessage({
-          type: 'readFocusDir',
-          fsPath: payload.path,
+          type: 'readDir',
+          fsPath: targetPath,
           projectName: title,
           forceRefresh: true,
         });

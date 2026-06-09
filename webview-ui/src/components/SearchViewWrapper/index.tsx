@@ -317,7 +317,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                 {focusMode && !folderSearchQuery.trim() ? (
                     focusTree || (
                         <div className={styles['search-empty-msg']}>
-                            当前项目没有修改或新增的文件
+                            当前项目没有文件或文件夹
                         </div>
                     )
                 ) : isSearchingFolder ? (
