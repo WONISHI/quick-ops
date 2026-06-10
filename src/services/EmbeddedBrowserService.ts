@@ -539,10 +539,10 @@ export class EmbeddedBrowserService extends EventEmitter {
     });
 
     page.on('pageerror', (error: unknown) => {
-      this.emit('pageError', {
-        url: page.url(),
-        message: error instanceof Error ? error.message : String(error),
-      });
+      // 页面运行时 JS 错误不能当成页面加载失败。
+      // Browse Lite 的处理方式是把浏览器 CDP 事件转给前端 DevTools，而不是因为网页内部脚本异常就中断预览。
+      // 例如新浪页面会抛出 `weiboPhoto is not defined`，真实 Chrome 里只是控制台错误，页面仍然可以继续显示。
+      console.warn('[EmbeddedBrowserService] page runtime error:', error);
     });
 
     page.on('dialog', async (dialog) => {
