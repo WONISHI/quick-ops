@@ -59,6 +59,12 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
   const lastViewportRef = useRef({ width: 0, height: 0 });
   const resizeRafRef = useRef<number | null>(null);
   const resizeTimerRef = useRef<number | null>(null);
+  const middleDragRef = useRef({
+    active: false,
+    lastX: 0,
+    lastY: 0,
+  });
+  const [isMiddleDragging, setIsMiddleDragging] = useState(false);
 
   const notifyViewportSize = useCallback(() => {
     const target = surfaceRef.current;
@@ -168,6 +174,92 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
     };
   };
 
+  const getBrowserPointByClient = useCallback(
+    (clientX: number, clientY: number) => {
+      const target = surfaceRef.current;
+
+      if (!target) {
+        return {
+          x: 0,
+          y: 0,
+        };
+      }
+
+      const rect = target.getBoundingClientRect();
+      const rawX = clientX - rect.left;
+      const rawY = clientY - rect.top;
+      const viewportWidth = frame?.width || lastViewportRef.current.width || rect.width;
+      const viewportHeight = frame?.height || lastViewportRef.current.height || rect.height;
+      const scaleX = rect.width > 0 ? viewportWidth / rect.width : 1;
+      const scaleY = rect.height > 0 ? viewportHeight / rect.height : 1;
+
+      return {
+        x: Math.max(0, Math.min(viewportWidth, Math.round(rawX * scaleX))),
+        y: Math.max(0, Math.min(viewportHeight, Math.round(rawY * scaleY))),
+      };
+    },
+    [frame?.height, frame?.width],
+  );
+
+  const sendPanWheel = useCallback(
+    (clientX: number, clientY: number, deltaX: number, deltaY: number) => {
+      const point = getBrowserPointByClient(clientX, clientY);
+
+      vscode?.postMessage({
+        type: 'browserInput',
+        inputType: 'wheel',
+        x: point.x,
+        y: point.y,
+        deltaX,
+        deltaY,
+      });
+    },
+    [getBrowserPointByClient],
+  );
+
+  const stopMiddleDrag = useCallback(() => {
+    if (!middleDragRef.current.active) return;
+
+    middleDragRef.current.active = false;
+    setIsMiddleDragging(false);
+  }, []);
+
+  useEffect(() => {
+    const handleWindowMouseMove = (event: MouseEvent) => {
+      if (!middleDragRef.current.active) return;
+
+      event.preventDefault();
+
+      const dx = event.clientX - middleDragRef.current.lastX;
+      const dy = event.clientY - middleDragRef.current.lastY;
+
+      middleDragRef.current.lastX = event.clientX;
+      middleDragRef.current.lastY = event.clientY;
+
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return;
+
+      sendPanWheel(event.clientX, event.clientY, -dx, -dy);
+    };
+
+    const handleWindowMouseUp = () => {
+      stopMiddleDrag();
+    };
+
+    const handleWindowBlur = () => {
+      stopMiddleDrag();
+    };
+
+    window.addEventListener('mousemove', handleWindowMouseMove, { passive: false });
+    window.addEventListener('mouseup', handleWindowMouseUp);
+    window.addEventListener('blur', handleWindowBlur);
+
+    return () => {
+      window.removeEventListener('mousemove', handleWindowMouseMove);
+      window.removeEventListener('mouseup', handleWindowMouseUp);
+      window.removeEventListener('blur', handleWindowBlur);
+    };
+  }, [sendPanWheel, stopMiddleDrag]);
+
   const sendMouse = (event: React.MouseEvent<HTMLDivElement>, type: 'mouseMoved' | 'mousePressed' | 'mouseReleased') => {
     event.preventDefault();
 
@@ -225,16 +317,55 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
   return (
     <div
       ref={surfaceRef}
-      className={styles['browser-lite-surface']}
+      className={[styles['browser-lite-surface'], isMiddleDragging ? styles['browser-lite-surface-dragging'] : ''].filter(Boolean).join(' ')}
       style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}
       tabIndex={0}
       onContextMenu={(event) => event.preventDefault()}
-      onMouseMove={(event) => sendMouse(event, 'mouseMoved')}
+      onAuxClick={(event) => {
+        if (event.button === 1) {
+          event.preventDefault();
+        }
+      }}
+      onMouseMove={(event) => {
+        if (middleDragRef.current.active) {
+          event.preventDefault();
+          return;
+        }
+
+        sendMouse(event, 'mouseMoved');
+      }}
       onMouseDown={(event) => {
         event.currentTarget.focus();
+
+        if (event.button === 1) {
+          event.preventDefault();
+
+          middleDragRef.current = {
+            active: true,
+            lastX: event.clientX,
+            lastY: event.clientY,
+          };
+
+          setIsMiddleDragging(true);
+          return;
+        }
+
         sendMouse(event, 'mousePressed');
       }}
-      onMouseUp={(event) => sendMouse(event, 'mouseReleased')}
+      onMouseUp={(event) => {
+        if (event.button === 1 || middleDragRef.current.active) {
+          event.preventDefault();
+          stopMiddleDrag();
+          return;
+        }
+
+        sendMouse(event, 'mouseReleased');
+      }}
+      onMouseLeave={() => {
+        if (middleDragRef.current.active) {
+          stopMiddleDrag();
+        }
+      }}
       onWheel={sendWheel}
       onKeyDown={(event) => sendKey(event, 'keyDown')}
       onKeyUp={(event) => sendKey(event, 'keyUp')}
@@ -248,9 +379,7 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
           alt="网页预览"
         />
       ) : (
-        <div className={styles['browser-lite-empty']}>
-          {loading ? '正在加载网页...' : '暂无网页内容'}
-        </div>
+        <div className={styles['browser-lite-empty']}>{loading ? '正在加载网页...' : '暂无网页内容'}</div>
       )}
     </div>
   );
@@ -660,7 +789,6 @@ export default function LivePreviewApp() {
       clearPreviewLoadTimer();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
 
   const pushHistory = (url: string, defaultTitle: string) => {
     if (isInternalNav.current) {
@@ -1399,17 +1527,9 @@ export default function LivePreviewApp() {
           <div
             id="deviceWrapper"
             className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}
-            style={
-              device === 'device-responsive'
-                ? { width: '100%', height: '100%', minWidth: 0, minHeight: 0, maxWidth: '100%', maxHeight: '100%' }
-                : undefined
-            }
+            style={device === 'device-responsive' ? { width: '100%', height: '100%', minWidth: 0, minHeight: 0, maxWidth: '100%', maxHeight: '100%' } : undefined}
           >
-            <BrowserSurface
-              frame={browserFrame}
-              loading={previewLoading}
-              onViewportChange={handleBrowserViewportChange}
-            />
+            <BrowserSurface frame={browserFrame} loading={previewLoading} onViewportChange={handleBrowserViewportChange} />
           </div>
         )}
       </div>

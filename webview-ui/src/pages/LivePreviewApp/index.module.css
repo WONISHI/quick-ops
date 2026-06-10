@@ -296,6 +296,14 @@
   outline-offset: -1px;
 }
 
+.browser-lite-surface-dragging {
+  cursor: grabbing;
+}
+
+.browser-lite-surface-dragging .browser-lite-frame {
+  cursor: grabbing;
+}
+
 .browser-lite-frame {
   width: 100% !important;
   height: 100% !important;
