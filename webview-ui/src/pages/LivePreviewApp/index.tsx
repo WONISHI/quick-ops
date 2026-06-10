@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { vscode } from '../../utils/vscode';
 import UrlParser from '../../utils/UrlParser';
 import styles from './index.module.css';
@@ -42,13 +42,226 @@ interface PreviewErrorState {
   url: string;
 }
 
+interface BrowserFrameState {
+  data: string;
+  width: number;
+  height: number;
+}
+
+interface BrowserSurfaceProps {
+  frame: BrowserFrameState | null;
+  loading: boolean;
+  onViewportChange: (width: number, height: number) => void;
+}
+
+function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProps) {
+  const surfaceRef = useRef<HTMLDivElement | null>(null);
+  const lastViewportRef = useRef({ width: 0, height: 0 });
+  const resizeRafRef = useRef<number | null>(null);
+  const resizeTimerRef = useRef<number | null>(null);
+
+  const notifyViewportSize = useCallback(() => {
+    const target = surfaceRef.current;
+
+    if (!target) return;
+
+    const rect = target.getBoundingClientRect();
+    const width = Math.max(320, Math.floor(rect.width));
+    const height = Math.max(240, Math.floor(rect.height));
+
+    if (lastViewportRef.current.width === width && lastViewportRef.current.height === height) {
+      return;
+    }
+
+    lastViewportRef.current = { width, height };
+    onViewportChange(width, height);
+  }, [onViewportChange]);
+
+  useEffect(() => {
+    const target = surfaceRef.current;
+
+    if (!target) return;
+
+    const scheduleNotify = () => {
+      if (resizeRafRef.current) {
+        window.cancelAnimationFrame(resizeRafRef.current);
+      }
+
+      resizeRafRef.current = window.requestAnimationFrame(() => {
+        resizeRafRef.current = null;
+        notifyViewportSize();
+      });
+    };
+
+    const observer = new ResizeObserver(() => {
+      scheduleNotify();
+
+      if (resizeTimerRef.current) {
+        window.clearTimeout(resizeTimerRef.current);
+      }
+
+      resizeTimerRef.current = window.setTimeout(() => {
+        resizeTimerRef.current = null;
+        notifyViewportSize();
+      }, 360);
+    });
+
+    observer.observe(target);
+
+    if (target.parentElement) {
+      observer.observe(target.parentElement);
+    }
+
+    const handleWindowResize = () => scheduleNotify();
+
+    window.addEventListener('resize', handleWindowResize);
+    window.visualViewport?.addEventListener('resize', handleWindowResize);
+
+    scheduleNotify();
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', handleWindowResize);
+      window.visualViewport?.removeEventListener('resize', handleWindowResize);
+
+      if (resizeRafRef.current) {
+        window.cancelAnimationFrame(resizeRafRef.current);
+        resizeRafRef.current = null;
+      }
+
+      if (resizeTimerRef.current) {
+        window.clearTimeout(resizeTimerRef.current);
+        resizeTimerRef.current = null;
+      }
+    };
+  }, [notifyViewportSize]);
+
+  const getMouseButton = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button === 2) return 'right';
+    if (event.button === 1) return 'middle';
+    return 'left';
+  };
+
+  const getPressedButtons = (event: React.MouseEvent<HTMLDivElement>, eventType: 'mouseMoved' | 'mousePressed' | 'mouseReleased') => {
+    if (eventType === 'mouseReleased') return 0;
+    if (eventType === 'mousePressed') {
+      if (event.button === 2) return 2;
+      if (event.button === 1) return 4;
+      return 1;
+    }
+
+    return event.buttons || 0;
+  };
+
+  const getBrowserPoint = (event: React.MouseEvent<HTMLDivElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const rawX = event.clientX - rect.left;
+    const rawY = event.clientY - rect.top;
+    const viewportWidth = frame?.width || lastViewportRef.current.width || rect.width;
+    const viewportHeight = frame?.height || lastViewportRef.current.height || rect.height;
+    const scaleX = rect.width > 0 ? viewportWidth / rect.width : 1;
+    const scaleY = rect.height > 0 ? viewportHeight / rect.height : 1;
+
+    return {
+      x: Math.max(0, Math.round(rawX * scaleX)),
+      y: Math.max(0, Math.round(rawY * scaleY)),
+    };
+  };
+
+  const sendMouse = (event: React.MouseEvent<HTMLDivElement>, type: 'mouseMoved' | 'mousePressed' | 'mouseReleased') => {
+    event.preventDefault();
+
+    const point = getBrowserPoint(event);
+
+    vscode?.postMessage({
+      type: 'browserInput',
+      inputType: 'mouse',
+      eventType: type,
+      x: point.x,
+      y: point.y,
+      button: type === 'mouseMoved' ? 'none' : getMouseButton(event),
+      buttons: getPressedButtons(event, type),
+      clickCount: type === 'mouseMoved' ? 0 : Math.max(1, event.detail || 1),
+    });
+  };
+
+  const sendWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    const rect = event.currentTarget.getBoundingClientRect();
+    const viewportWidth = frame?.width || lastViewportRef.current.width || rect.width;
+    const viewportHeight = frame?.height || lastViewportRef.current.height || rect.height;
+    const scaleX = rect.width > 0 ? viewportWidth / rect.width : 1;
+    const scaleY = rect.height > 0 ? viewportHeight / rect.height : 1;
+
+    vscode?.postMessage({
+      type: 'browserInput',
+      inputType: 'wheel',
+      x: Math.max(0, Math.round((event.clientX - rect.left) * scaleX)),
+      y: Math.max(0, Math.round((event.clientY - rect.top) * scaleY)),
+      deltaX: event.deltaX,
+      deltaY: event.deltaY,
+    });
+  };
+
+  const sendKey = (event: React.KeyboardEvent<HTMLDivElement>, eventType: 'keyDown' | 'keyUp') => {
+    if (eventType === 'keyDown') {
+      event.preventDefault();
+    }
+
+    vscode?.postMessage({
+      type: 'browserInput',
+      inputType: 'keyboard',
+      eventType,
+      key: event.key,
+      code: event.code,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+    });
+  };
+
+  return (
+    <div
+      ref={surfaceRef}
+      className={styles['browser-lite-surface']}
+      style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}
+      tabIndex={0}
+      onContextMenu={(event) => event.preventDefault()}
+      onMouseMove={(event) => sendMouse(event, 'mouseMoved')}
+      onMouseDown={(event) => {
+        event.currentTarget.focus();
+        sendMouse(event, 'mousePressed');
+      }}
+      onMouseUp={(event) => sendMouse(event, 'mouseReleased')}
+      onWheel={sendWheel}
+      onKeyDown={(event) => sendKey(event, 'keyDown')}
+      onKeyUp={(event) => sendKey(event, 'keyUp')}
+    >
+      {frame ? (
+        <img
+          className={styles['browser-lite-frame']}
+          style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block' }}
+          src={`data:image/jpeg;base64,${frame.data}`}
+          draggable={false}
+          alt="网页预览"
+        />
+      ) : (
+        <div className={styles['browser-lite-empty']}>
+          {loading ? '正在加载网页...' : '暂无网页内容'}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type PreviewType = 'web' | 'md' | 'pdf' | 'excel' | 'html';
 
 export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
-
-  const [proxyPort, setProxyPort] = useState<number>(0);
+  const [browserFrame, setBrowserFrame] = useState<BrowserFrameState | null>(null);
 
   const [previewType, setPreviewType] = useState<PreviewType>('web');
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -87,7 +300,7 @@ export default function LivePreviewApp() {
   const [copiedUrl, setCopiedUrl] = useState('');
   const [isPageLoaded, setIsPageLoaded] = useState(false);
 
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const htmlIframeRef = useRef<HTMLIFrameElement | null>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
   const previewLoadTimerRef = useRef<number | null>(null);
@@ -297,7 +510,7 @@ export default function LivePreviewApp() {
       updateFavicon(url);
 
       previewLoadTimerRef.current = window.setTimeout(() => {
-        showPreviewErrorByRequest(requestId, url, '页面加载超时', '该地址是默认书签，已等待 60 秒仍未完成加载。目标网站可能禁止 iframe 嵌入，建议使用外部浏览器打开。');
+        showPreviewErrorByRequest(requestId, url, '页面加载超时', '该地址是默认书签，已等待 60 秒仍未完成加载。目标网站加载较慢，建议稍后重试或使用外部浏览器打开。');
       }, 60000);
 
       return;
@@ -321,7 +534,7 @@ export default function LivePreviewApp() {
         clearPreviewLoadTimer();
 
         previewLoadTimerRef.current = window.setTimeout(() => {
-          showPreviewErrorByRequest(requestId, url, '页面加载超时', '已成功解析到网站图标，但页面仍未完成加载。目标网站可能禁止 iframe 嵌入，建议使用外部浏览器打开。');
+          showPreviewErrorByRequest(requestId, url, '页面加载超时', '已成功解析到网站图标，但页面仍未完成加载。目标网站加载较慢，建议稍后重试或使用外部浏览器打开。');
         }, 10000);
       },
     });
@@ -332,8 +545,6 @@ export default function LivePreviewApp() {
       const message = event.data;
 
       if (message.type === 'init') {
-        if (message.proxyPort) setProxyPort(message.proxyPort);
-
         if (message.device) setDevice(message.device);
 
         if (typeof message.url === 'string' && message.url.trim()) {
@@ -347,6 +558,45 @@ export default function LivePreviewApp() {
         vscode?.postMessage({ type: 'reqSyncFavorites' });
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
+      } else if (message.type === 'browserFrame') {
+        setBrowserFrame({
+          data: message.data || '',
+          width: message.width || 0,
+          height: message.height || 0,
+        });
+      } else if (message.type === 'browserPageLoaded') {
+        pageLoadedRef.current = true;
+        faviconResolvedRef.current = true;
+        clearPreviewLoadTimer();
+        setPreviewLoading(false);
+        setPreviewError(null);
+        setIsPageLoaded(true);
+        if (message.url) {
+          setFrameUrl(message.url);
+          setUrlInput(message.url);
+          vscode?.postMessage({ type: 'saveUrl', url: message.url });
+        }
+        if (message.title) {
+          updateCurrentHistoryTitle(message.title);
+        }
+      } else if (message.type === 'browserTitleChanged') {
+        updateCurrentHistoryTitle(message.title || frameUrl || urlInput);
+      } else if (message.type === 'browserUrlChanged') {
+        if (message.url) {
+          setFrameUrl(message.url);
+          setUrlInput(message.url);
+          vscode?.postMessage({ type: 'saveUrl', url: message.url });
+        }
+      } else if (message.type === 'browserPageError') {
+        pageLoadedRef.current = false;
+        clearPreviewLoadTimer();
+        setPreviewLoading(false);
+        setIsPageLoaded(false);
+        setPreviewError({
+          title: '页面加载失败',
+          message: message.message || '当前页面加载失败。',
+          url: message.url || frameUrl || urlInput,
+        });
       } else if (message.type === 'inner-nav') {
         const { url, isSpa } = message;
         if (isSpa) {
@@ -411,41 +661,6 @@ export default function LivePreviewApp() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleIframeLoad = () => {
-    if (frameUrl === 'about:blank') return;
-
-    pageLoadedRef.current = true;
-    setIsPageLoaded(true);
-
-    clearPreviewLoadTimer();
-    setPreviewLoading(false);
-    setPreviewError(null);
-
-    if (!iframeRef.current || historyIdx < 0 || previewType !== 'web') return;
-
-    const fallbackTitle = urlInput || frameUrl;
-
-    try {
-      const doc = iframeRef.current.contentDocument || iframeRef.current.contentWindow?.document;
-      updateCurrentHistoryTitle(doc?.title || fallbackTitle);
-    } catch {
-      updateCurrentHistoryTitle(fallbackTitle);
-    }
-  };
-
-  const handleIframeError = () => {
-    pageLoadedRef.current = false;
-    setIsPageLoaded(false);
-
-    clearPreviewLoadTimer();
-    setPreviewLoading(false);
-
-    setPreviewError({
-      title: '页面加载失败',
-      message: '当前页面无法在 iframe 中加载。可能是地址错误、网络异常。',
-      url: frameUrl,
-    });
-  };
 
   const pushHistory = (url: string, defaultTitle: string) => {
     if (isInternalNav.current) {
@@ -513,7 +728,9 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'saveUrl', url });
 
     if (pType === 'web') {
+      setBrowserFrame(null);
       startWebPreviewGuard(url);
+      vscode?.postMessage({ type: 'browserNavigate', url });
       return;
     }
 
@@ -555,6 +772,7 @@ export default function LivePreviewApp() {
       setIsPageLoaded(false);
 
       updateFavicon('');
+      vscode?.postMessage({ type: 'browserStop' });
       vscode?.postMessage({ type: 'saveUrl', url: '' });
       return;
     }
@@ -622,6 +840,7 @@ export default function LivePreviewApp() {
     setIsPageLoaded(false);
 
     updateFavicon('');
+    vscode?.postMessage({ type: 'browserStop' });
     vscode?.postMessage({ type: 'saveUrl', url: '' });
   };
 
@@ -694,13 +913,11 @@ export default function LivePreviewApp() {
     }
 
     setPreviewType('web');
-    setFrameUrl('about:blank');
-
-    window.setTimeout(() => {
-      setFrameUrl(temp);
-      vscode?.postMessage({ type: 'saveUrl', url: temp });
-      startWebPreviewGuard(temp);
-    }, 50);
+    setFrameUrl(temp);
+    setBrowserFrame(null);
+    vscode?.postMessage({ type: 'saveUrl', url: temp });
+    startWebPreviewGuard(temp);
+    vscode?.postMessage({ type: 'browserRefresh', url: temp });
 
     setMenuOpen(false);
   };
@@ -784,9 +1001,17 @@ export default function LivePreviewApp() {
 
   const handleCacheClear = (type: 'local' | 'session' | 'cookie') => {
     try {
-      if (previewType !== 'web' && previewType !== 'html') throw new Error('Not a web preview');
+      if (previewType === 'web') {
+        vscode?.postMessage({ type: 'browserClearCache' });
+        vscode?.postMessage({ type: 'showInfo', message: '✅ 缓存清理成功！' });
+        handleRefresh();
+        setMenuOpen(false);
+        return;
+      }
 
-      const win = iframeRef.current?.contentWindow;
+      if (previewType !== 'html') throw new Error('Not a web preview');
+
+      const win = htmlIframeRef.current?.contentWindow;
 
       if (!win) throw new Error('No Access');
 
@@ -808,7 +1033,6 @@ export default function LivePreviewApp() {
       vscode?.postMessage({ type: 'showInfo', message: '✅ 缓存清理成功！' });
       handleRefresh();
     } catch (e) {
-      console.log('e', e);
       vscode?.postMessage({ type: 'showWarning', message: '⚠️ 此页面不支持清理缓存或存在跨域限制' });
     }
 
@@ -934,15 +1158,14 @@ export default function LivePreviewApp() {
     );
   };
 
-  const getRenderIframeSrc = () => {
-    if (!frameUrl || frameUrl === 'about:blank') return frameUrl;
-
-    if (previewType === 'web' && proxyPort > 0) {
-      return `http://127.0.0.1:${proxyPort}/?url=${encodeURIComponent(frameUrl)}`;
-    }
-
-    return frameUrl;
-  };
+  const handleBrowserViewportChange = useCallback((width: number, height: number) => {
+    vscode?.postMessage({
+      type: 'browserSetViewport',
+      width,
+      height,
+      deviceScaleFactor: window.devicePixelRatio || 1,
+    });
+  }, []);
 
   return (
     <div className={styles['live-preview-container']}>
@@ -1149,7 +1372,7 @@ export default function LivePreviewApp() {
             <HtmlPreviewApp
               key={frameUrl}
               fsPath={frameUrl}
-              iframeRef={iframeRef}
+              iframeRef={htmlIframeRef}
               onTitleChange={(title) => {
                 updateCurrentHistoryTitle(title);
               }}
@@ -1173,15 +1396,19 @@ export default function LivePreviewApp() {
             }}
           />
         ) : (
-          <div id="deviceWrapper" className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}>
-            <iframe
-              ref={iframeRef}
-              src={getRenderIframeSrc()}
-              className={styles['fromPage']}
-              title="preview"
-              onLoad={handleIframeLoad}
-              onError={handleIframeError}
-              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-presentation"
+          <div
+            id="deviceWrapper"
+            className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}
+            style={
+              device === 'device-responsive'
+                ? { width: '100%', height: '100%', minWidth: 0, minHeight: 0, maxWidth: '100%', maxHeight: '100%' }
+                : undefined
+            }
+          >
+            <BrowserSurface
+              frame={browserFrame}
+              loading={previewLoading}
+              onViewportChange={handleBrowserViewportChange}
             />
           </div>
         )}

@@ -3,7 +3,7 @@ import * as path from 'path';
 import { IFeature } from '../core/interfaces/IFeature';
 import ColorLog from '../utils/ColorLog';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
-import { LocalProxyServer } from '../services/LocalProxyServer'; // 引入代理服务
+import { EmbeddedBrowserService } from '../services/EmbeddedBrowserService';
 
 interface BuiltinBookmark {
   name: string;
@@ -34,14 +34,10 @@ export class LivePreviewFeature implements IFeature {
   private pendingLocalFile: { fsPath: string; fileType: LocalPreviewFileType } | null = null;
   private defaultFavoritesCache: FavoriteItem[] | null = null;
 
-  private proxyServer: LocalProxyServer = new LocalProxyServer(); // 实例化代理
+  private browserService: EmbeddedBrowserService | null = null;
 
   public async activate(context: vscode.ExtensionContext): Promise<void> {
     context.globalState.setKeysForSync([this.GLOBAL_FAVORITES_KEY]);
-
-    // 启动代理服务
-    await this.proxyServer.start();
-    ColorLog.black(`[${this.id}]`, `Proxy server started on port ${this.proxyServer.port}`);
 
     const command = vscode.commands.registerCommand('quick-ops.openLivePreview', () => {
       this.togglePreviewPanel(context);
@@ -55,9 +51,11 @@ export class LivePreviewFeature implements IFeature {
 
     context.subscriptions.push(command, windowFocusWatcher);
 
-    // 确保插件卸载时关闭代理
     context.subscriptions.push({
-      dispose: () => this.proxyServer.stop(),
+      dispose: () => {
+        void this.browserService?.dispose();
+        this.browserService = null;
+      },
     });
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
@@ -475,6 +473,50 @@ export class LivePreviewFeature implements IFeature {
     }
   }
 
+
+  private ensureBrowserService(context: vscode.ExtensionContext): EmbeddedBrowserService {
+    if (this.browserService) return this.browserService;
+
+    this.browserService = new EmbeddedBrowserService(context);
+
+    this.browserService.on('frame', (frame) => {
+      this.panel?.webview.postMessage({
+        type: 'browserFrame',
+        ...frame,
+      });
+    });
+
+    this.browserService.on('pageLoaded', (payload) => {
+      this.panel?.webview.postMessage({
+        type: 'browserPageLoaded',
+        ...payload,
+      });
+    });
+
+    this.browserService.on('urlChanged', (payload) => {
+      this.panel?.webview.postMessage({
+        type: 'browserUrlChanged',
+        ...payload,
+      });
+    });
+
+    this.browserService.on('titleChanged', (payload) => {
+      this.panel?.webview.postMessage({
+        type: 'browserTitleChanged',
+        ...payload,
+      });
+    });
+
+    this.browserService.on('pageError', (payload) => {
+      this.panel?.webview.postMessage({
+        type: 'browserPageError',
+        ...payload,
+      });
+    });
+
+    return this.browserService;
+  }
+
   private showPreviewPanel(context: vscode.ExtensionContext) {
     if (this.panel) {
       this.panel.reveal(vscode.ViewColumn.Beside);
@@ -500,6 +542,7 @@ export class LivePreviewFeature implements IFeature {
     this.panel.onDidDispose(() => {
       this.panel = undefined;
       this.pendingLocalFile = null;
+      void this.browserService?.stop();
     });
 
     const lastUrl = context.workspaceState.get<string>('quickOps.lastPreviewUrl') || '';
@@ -513,7 +556,6 @@ export class LivePreviewFeature implements IFeature {
           type: 'init',
           device: lastDevice,
           url: lastUrl,
-          proxyPort: this.proxyServer.port, // 传递代理端口
         });
 
         await this.syncFavorites(context);
@@ -558,6 +600,26 @@ export class LivePreviewFeature implements IFeature {
 
         await context.globalState.update(this.GLOBAL_FAVORITES_KEY, favs);
         await this.syncFavorites(context);
+      } else if (message.type === 'browserNavigate') {
+        await this.ensureBrowserService(context).navigate(message.url || 'about:blank');
+      } else if (message.type === 'browserRefresh') {
+        await this.ensureBrowserService(context).reload(message.url || undefined);
+      } else if (message.type === 'browserBack') {
+        await this.ensureBrowserService(context).goBack();
+      } else if (message.type === 'browserForward') {
+        await this.ensureBrowserService(context).goForward();
+      } else if (message.type === 'browserSetViewport') {
+        await this.ensureBrowserService(context).setViewport({
+          width: message.width,
+          height: message.height,
+          deviceScaleFactor: message.deviceScaleFactor,
+        });
+      } else if (message.type === 'browserInput') {
+        await this.ensureBrowserService(context).dispatchInput(message as any);
+      } else if (message.type === 'browserClearCache') {
+        await this.ensureBrowserService(context).clearCache();
+      } else if (message.type === 'browserStop') {
+        await this.browserService?.stop();
       } else if (message.type === 'showInfo') {
         vscode.window.showInformationMessage(message.message || '');
       } else if (message.type === 'showWarning') {
@@ -565,7 +627,7 @@ export class LivePreviewFeature implements IFeature {
       } else if (message.type === 'showError') {
         vscode.window.showErrorMessage(message.message || '');
       } else if (message.type === 'openDevTools') {
-        vscode.commands.executeCommand('workbench.action.webview.openDeveloperTools');
+        await this.ensureBrowserService(context).openDevTools();
       } else if (message.type === 'openExternalBrowser') {
         vscode.env.openExternal(this.parseExternalUri(message.url));
       } else if (message.type === 'loadLocalHtmlFile') {
