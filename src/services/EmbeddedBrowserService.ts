@@ -50,7 +50,7 @@ export class EmbeddedBrowserService extends EventEmitter {
   private lastViewport = {
     width: 1280,
     height: 720,
-    deviceScaleFactor: 1,
+    deviceScaleFactor: 2,
   };
 
   constructor(private readonly context: vscode.ExtensionContext) {
@@ -134,7 +134,7 @@ export class EmbeddedBrowserService extends EventEmitter {
   public async setViewport(message: BrowserViewportMessage): Promise<void> {
     const width = Math.max(320, Math.floor(Number(message.width) || 1280));
     const height = Math.max(240, Math.floor(Number(message.height) || 720));
-    const deviceScaleFactor = Math.max(1, Number(message.deviceScaleFactor) || 1);
+    const deviceScaleFactor = Math.min(3, Math.max(1, Number(message.deviceScaleFactor) || 2));
 
     this.lastViewport = {
       width,
@@ -149,6 +149,17 @@ export class EmbeddedBrowserService extends EventEmitter {
       height,
       deviceScaleFactor,
     });
+
+    if (this.client) {
+      await this.client.send('Emulation.setDeviceMetricsOverride', {
+        width,
+        height,
+        deviceScaleFactor,
+        mobile: false,
+      }).catch(() => undefined);
+
+      await this.restartScreencast();
+    }
   }
 
   public async dispatchInput(message: BrowserInputMessage): Promise<void> {
@@ -210,6 +221,14 @@ export class EmbeddedBrowserService extends EventEmitter {
     }
 
     return 'mouseMoved';
+  }
+
+  private async restartScreencast(): Promise<void> {
+    if (!this.client || !this.isScreencastStarted) return;
+
+    await this.client.send('Page.stopScreencast').catch(() => undefined);
+    this.isScreencastStarted = false;
+    await this.startScreencast();
   }
 
   private async dispatchKeyboardInput(message: BrowserInputMessage): Promise<void> {
@@ -573,7 +592,9 @@ export class EmbeddedBrowserService extends EventEmitter {
 
     await this.client.send('Page.startScreencast', {
       format: 'jpeg',
-      quality: 85,
+      quality: 100,
+      maxWidth: Math.ceil(this.lastViewport.width * this.lastViewport.deviceScaleFactor),
+      maxHeight: Math.ceil(this.lastViewport.height * this.lastViewport.deviceScaleFactor),
       everyNthFrame: 1,
     });
   }

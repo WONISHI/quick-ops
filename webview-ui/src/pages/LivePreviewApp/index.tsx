@@ -174,48 +174,42 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
     };
   };
 
-  const getBrowserPointByClient = useCallback(
-    (clientX: number, clientY: number) => {
-      const target = surfaceRef.current;
+  const getBrowserPointByClient = useCallback((clientX: number, clientY: number) => {
+    const target = surfaceRef.current;
 
-      if (!target) {
-        return {
-          x: 0,
-          y: 0,
-        };
-      }
-
-      const rect = target.getBoundingClientRect();
-      const rawX = clientX - rect.left;
-      const rawY = clientY - rect.top;
-      const viewportWidth = frame?.width || lastViewportRef.current.width || rect.width;
-      const viewportHeight = frame?.height || lastViewportRef.current.height || rect.height;
-      const scaleX = rect.width > 0 ? viewportWidth / rect.width : 1;
-      const scaleY = rect.height > 0 ? viewportHeight / rect.height : 1;
-
+    if (!target) {
       return {
-        x: Math.max(0, Math.min(viewportWidth, Math.round(rawX * scaleX))),
-        y: Math.max(0, Math.min(viewportHeight, Math.round(rawY * scaleY))),
+        x: 0,
+        y: 0,
       };
-    },
-    [frame?.height, frame?.width],
-  );
+    }
 
-  const sendPanWheel = useCallback(
-    (clientX: number, clientY: number, deltaX: number, deltaY: number) => {
-      const point = getBrowserPointByClient(clientX, clientY);
+    const rect = target.getBoundingClientRect();
+    const rawX = clientX - rect.left;
+    const rawY = clientY - rect.top;
+    const viewportWidth = frame?.width || lastViewportRef.current.width || rect.width;
+    const viewportHeight = frame?.height || lastViewportRef.current.height || rect.height;
+    const scaleX = rect.width > 0 ? viewportWidth / rect.width : 1;
+    const scaleY = rect.height > 0 ? viewportHeight / rect.height : 1;
 
-      vscode?.postMessage({
-        type: 'browserInput',
-        inputType: 'wheel',
-        x: point.x,
-        y: point.y,
-        deltaX,
-        deltaY,
-      });
-    },
-    [getBrowserPointByClient],
-  );
+    return {
+      x: Math.max(0, Math.min(viewportWidth, Math.round(rawX * scaleX))),
+      y: Math.max(0, Math.min(viewportHeight, Math.round(rawY * scaleY))),
+    };
+  }, [frame?.height, frame?.width]);
+
+  const sendPanWheel = useCallback((clientX: number, clientY: number, deltaX: number, deltaY: number) => {
+    const point = getBrowserPointByClient(clientX, clientY);
+
+    vscode?.postMessage({
+      type: 'browserInput',
+      inputType: 'wheel',
+      x: point.x,
+      y: point.y,
+      deltaX,
+      deltaY,
+    });
+  }, [getBrowserPointByClient]);
 
   const stopMiddleDrag = useCallback(() => {
     if (!middleDragRef.current.active) return;
@@ -317,7 +311,10 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
   return (
     <div
       ref={surfaceRef}
-      className={[styles['browser-lite-surface'], isMiddleDragging ? styles['browser-lite-surface-dragging'] : ''].filter(Boolean).join(' ')}
+      className={[
+        styles['browser-lite-surface'],
+        isMiddleDragging ? styles['browser-lite-surface-dragging'] : '',
+      ].filter(Boolean).join(' ')}
       style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}
       tabIndex={0}
       onContextMenu={(event) => event.preventDefault()}
@@ -373,13 +370,21 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
       {frame ? (
         <img
           className={styles['browser-lite-frame']}
-          style={{ width: '100%', height: '100%', objectFit: 'fill', display: 'block' }}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'fill',
+            display: 'block',
+            imageRendering: 'auto',
+          }}
           src={`data:image/jpeg;base64,${frame.data}`}
           draggable={false}
           alt="网页预览"
         />
       ) : (
-        <div className={styles['browser-lite-empty']}>{loading ? '正在加载网页...' : '暂无网页内容'}</div>
+        <div className={styles['browser-lite-empty']}>
+          {loading ? '正在加载网页...' : '暂无网页内容'}
+        </div>
       )}
     </div>
   );
@@ -439,37 +444,61 @@ export default function LivePreviewApp() {
   const faviconResolvedRef = useRef(false);
   const faviconRequestIdRef = useRef(0);
 
-  // 🌟 新增：控制虚拟进度条的动画逻辑
+  // 控制顶部虚拟进度条：页面加载完成后直接卸载 DOM，避免残留一条线
   useEffect(() => {
+    let hideTimer: number | undefined;
+    let resetTimer: number | undefined;
+
     if (previewLoading) {
       setShowProgress(true);
       setLoadingProgress(15);
 
-      if (progressTimerRef.current) window.clearInterval(progressTimerRef.current);
+      if (progressTimerRef.current) {
+        window.clearInterval(progressTimerRef.current);
+      }
 
       progressTimerRef.current = window.setInterval(() => {
         setLoadingProgress((prev) => {
           if (prev >= 92) return 92;
+
           const increment = prev < 50 ? 10 : prev < 80 ? 4 : 1;
+
           return prev + increment;
         });
       }, 300);
-    } else {
-      // 加载结束（成功或失败）
-      if (progressTimerRef.current) {
-        window.clearInterval(progressTimerRef.current);
-        progressTimerRef.current = null;
+
+      return () => {
+        if (progressTimerRef.current) {
+          window.clearInterval(progressTimerRef.current);
+          progressTimerRef.current = null;
+        }
+      };
+    }
+
+    if (progressTimerRef.current) {
+      window.clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+
+    setLoadingProgress(100);
+
+    hideTimer = window.setTimeout(() => {
+      setShowProgress(false);
+
+      resetTimer = window.setTimeout(() => {
+        setLoadingProgress(0);
+      }, 120);
+    }, 180);
+
+    return () => {
+      if (hideTimer) {
+        window.clearTimeout(hideTimer);
       }
 
-      setLoadingProgress(100);
-
-      const hideTimer = window.setTimeout(() => {
-        setShowProgress(false);
-        window.setTimeout(() => setLoadingProgress(0), 300);
-      }, 400);
-
-      return () => window.clearTimeout(hideTimer);
-    }
+      if (resetTimer) {
+        window.clearTimeout(resetTimer);
+      }
+    };
   }, [previewLoading]);
 
   const normalizeFavoriteUrl = (url: string) => {
@@ -789,6 +818,7 @@ export default function LivePreviewApp() {
       clearPreviewLoadTimer();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const pushHistory = (url: string, defaultTitle: string) => {
     if (isInternalNav.current) {
@@ -1287,11 +1317,13 @@ export default function LivePreviewApp() {
   };
 
   const handleBrowserViewportChange = useCallback((width: number, height: number) => {
+    const deviceScaleFactor = Math.min(2, Math.max(1.5, window.devicePixelRatio || 1));
+
     vscode?.postMessage({
       type: 'browserSetViewport',
       width,
       height,
-      deviceScaleFactor: window.devicePixelRatio || 1,
+      deviceScaleFactor,
     });
   }, []);
 
@@ -1459,30 +1491,33 @@ export default function LivePreviewApp() {
         className={`${styles['preview-container']} ${device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''}`}
         style={{ position: 'relative' }}
       >
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: '2px',
-            backgroundColor: 'transparent',
-            zIndex: 9999, // 确保浮在 iframe 和其他元素上方
-            pointerEvents: 'none',
-            opacity: showProgress ? 1 : 0,
-            transition: showProgress ? 'opacity 0.2s ease-in' : 'opacity 0.4s ease-out',
-          }}
-        >
+        {showProgress && (
           <div
             style={{
-              height: '100%',
-              backgroundColor: 'var(--vscode-progressBar-background, #007acc)', // 使用 VS Code 原生进度条蓝色
-              width: `${loadingProgress}%`,
-              transition: loadingProgress === 0 ? 'none' : 'width 0.3s ease',
-              boxShadow: '0 0 10px var(--vscode-progressBar-background, #007acc), 0 0 5px var(--vscode-progressBar-background, #007acc)',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: '2px',
+              backgroundColor: 'transparent',
+              zIndex: 9999,
+              pointerEvents: 'none',
+              opacity: 1,
+              transition: 'opacity 0.2s ease-in',
             }}
-          />
-        </div>
+          >
+            <div
+              style={{
+                height: '100%',
+                backgroundColor: 'var(--vscode-progressBar-background, #007acc)',
+                width: `${loadingProgress}%`,
+                transition: loadingProgress === 0 ? 'none' : 'width 0.3s ease',
+                boxShadow:
+                  '0 0 10px var(--vscode-progressBar-background, #007acc), 0 0 5px var(--vscode-progressBar-background, #007acc)',
+              }}
+            />
+          </div>
+        )}
 
         {/* 原有转圈 Mask：可以与上方进度条共存，如果不喜欢可以将这行删掉 */}
         {renderPreviewLoadingMask()}
@@ -1527,9 +1562,17 @@ export default function LivePreviewApp() {
           <div
             id="deviceWrapper"
             className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}
-            style={device === 'device-responsive' ? { width: '100%', height: '100%', minWidth: 0, minHeight: 0, maxWidth: '100%', maxHeight: '100%' } : undefined}
+            style={
+              device === 'device-responsive'
+                ? { width: '100%', height: '100%', minWidth: 0, minHeight: 0, maxWidth: '100%', maxHeight: '100%' }
+                : undefined
+            }
           >
-            <BrowserSurface frame={browserFrame} loading={previewLoading} onViewportChange={handleBrowserViewportChange} />
+            <BrowserSurface
+              frame={browserFrame}
+              loading={previewLoading}
+              onViewportChange={handleBrowserViewportChange}
+            />
           </div>
         )}
       </div>
