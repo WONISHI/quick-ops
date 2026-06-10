@@ -21,7 +21,7 @@ function stripJsonComments(jsonString) {
 const plugins = [
   new webpack.IgnorePlugin({
     resourceRegExp:
-      /^(atpl|bracket-template|dot|dust|eco|ect|haml|hamlet|haml-coffee|hogan\.js|htmling|jade|jazz|jqtpl|just|liquor|marko|mote|mustache|nunjucks|plates|pug|qejs|ractive|razor-tmpl|react|react-dom|react-dom\/server|slm|squirrelly|swig|swig-templates|teacup|teacup\/lib\/express|templayed|then-jade|then-pug|toffee|twig|twing|tinyliquid|liquid-node|dustjs-helpers|dustjs-linkedin|ejs|hamljs|handlebars|babel-core|coffee-script|underscore|vash|velocityjs|walrus|whiskers|arc-templates\/dist\/es5)$/,
+      /^(atpl|bracket-template|dot|dust|eco|ect|haml|hamlet|haml-coffee|hogan\.js|htmling|jade|jazz|jqtpl|just|liquor|marko|mote|mustache|nunjucks|plates|pug|qejs|ractive|razor-tmpl|react|react-dom|react-dom\/server|slm|squirrelly|swig|swig-templates|teacup|teacup\/lib\/express|templayed|then-jade|then-pug|toffee|twig|twing|tinyliquid|liquid-node|dustjs-helpers|dustjs-linkedin|ejs|hamljs|handlebars|babel-core|coffee-script|underscore|vash|velocityjs|walrus|whiskers|arc-templates\/dist\/es5|kerberos)$/,
   }),
   new CopyPlugin({
     patterns: [
@@ -43,13 +43,13 @@ const plugins = [
               return content;
             }
           }
+
           return content;
         },
       },
     ],
   }),
 ];
-
 
 if (!isProduction) {
   plugins.push(
@@ -58,7 +58,7 @@ if (!isProduction) {
       openAnalyzer: false,
       reportFilename: 'bundle-report.html',
       logLevel: 'error',
-    })
+    }),
   );
 }
 
@@ -74,8 +74,10 @@ const extensionConfig = {
     filename: '[name].js',
     libraryTarget: 'commonjs',
   },
-  externalsPresets: { node: true },
-  externals: { 
+  externalsPresets: {
+    node: true,
+  },
+  externals: {
     vscode: 'commonjs vscode',
     bufferutil: 'bufferutil',
     'utf-8-validate': 'utf-8-validate', 
@@ -98,7 +100,7 @@ const extensionConfig = {
     {
       module: /@vue[\\/]compiler-sfc/,
       message: /Critical dependency/,
-    }
+    },
   ],
   module: {
     rules: [
@@ -131,7 +133,7 @@ const extensionConfig = {
   infrastructureLogging: {
     level: 'log',
   },
-  plugins: plugins,
+  plugins,
 };
 
 module.exports = [extensionConfig];

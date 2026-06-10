@@ -38,6 +38,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private _customCwd: string | null = null;
 
   private _isRemoteSyncChecking = false;
+  private _pendingRemoteSyncFetch = false;
+  private _lastRemoteFetchAt = 0;
+  private readonly REMOTE_FETCH_INTERVAL = 60 * 1000;
 
   private readonly VIEW_ID = 'quickOps.gitView';
   private readonly gitService = new GitService();
@@ -69,6 +72,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
   public async setCustomWorkspace(cwd: string | null) {
     this._customCwd = cwd;
+    this._lastRemoteFetchAt = 0;
+    this._pendingRemoteSyncFetch = false;
 
     const targetCwd = this.getWorkspaceRoot();
 
@@ -300,9 +305,26 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     await this.refreshStatus(cwd, false);
   }
 
+  private shouldFetchRemote(force = false): boolean {
+    if (force) return true;
+
+    const now = Date.now();
+
+    return now - this._lastRemoteFetchAt > this.REMOTE_FETCH_INTERVAL;
+  }
+
   private async checkRemoteSyncInBackground(cwd: string, options: { fetch?: boolean } = {}): Promise<void> {
     if (!this._view) return;
-    if (this._isRemoteSyncChecking) return;
+
+    const needFetch = !!options.fetch;
+
+    if (this._isRemoteSyncChecking) {
+      if (needFetch) {
+        this._pendingRemoteSyncFetch = true;
+      }
+
+      return;
+    }
 
     this._isRemoteSyncChecking = true;
 
@@ -312,8 +334,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     });
 
     try {
+      if (needFetch) {
+        this._lastRemoteFetchAt = Date.now();
+      }
+
       const remoteSync = await this.gitService.getRemoteSync(cwd, {
-        fetch: !!options.fetch,
+        fetch: needFetch,
       });
 
       this._view.webview.postMessage({
@@ -327,6 +353,14 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         type: 'remoteSyncChecking',
         checking: false,
       });
+
+      if (this._pendingRemoteSyncFetch) {
+        this._pendingRemoteSyncFetch = false;
+
+        setTimeout(() => {
+          void this.checkRemoteSyncInBackground(cwd, { fetch: true });
+        }, 0);
+      }
     }
   }
 
@@ -515,6 +549,10 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           case 'webviewLoaded':
           case 'refresh': {
             await this.refreshStatus(cwd, true);
+
+            if (msg.command === 'refresh') {
+              void this.checkRemoteSyncInBackground(cwd, { fetch: true });
+            }
 
             if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.scheme === 'file') {
               const relativePath = path.relative(cwd, vscode.window.activeTextEditor.document.uri.fsPath).replace(/\\/g, '/');
@@ -2151,7 +2189,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       });
 
       if (repoStatus.remoteUrl) {
-        void this.checkRemoteSyncInBackground(cwd);
+        void this.checkRemoteSyncInBackground(cwd, {
+          fetch: this.shouldFetchRemote(false),
+        });
       }
 
       if (fullRefresh) {
