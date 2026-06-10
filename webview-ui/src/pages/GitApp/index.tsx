@@ -1173,8 +1173,9 @@ export default function GitApp() {
                           >
                             <i className={`codicon ${isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['stash-chevron']}`} />
                             <i className={`codicon codicon-archive ${styles['stash-icon']}`} />
-                            <div className={styles['file-name']}>{stash.message}</div>
-                            <div className={styles['flex-spacer']} />
+                            <div className={styles['file-name']} title={stash.message}>
+                              {stash.message}
+                            </div>
 
                             <div className={styles['file-actions']}>
                               <Tooltip content="应用贮藏并保留 (Apply)">

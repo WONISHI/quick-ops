@@ -573,46 +573,45 @@ body {
 .stash-row {
   display: flex;
   align-items: center;
+  gap: 4px;
   padding-left: 12px;
   cursor: pointer;
   width: 100%;
   box-sizing: border-box;
   height: 26px;
+  overflow: hidden;
 }
 
 .stash-chevron,
 .stash-icon {
-  flex-shrink: 0;
+  flex: 0 0 auto;
 }
 
-.file-name {
-  flex: 1;
-  /* 占据除图标和按钮外的剩余全部空间 */
+.stash-icon {
+  margin-right: 2px;
+  color: var(--vscode-icon-foreground);
+}
+
+.stash-row .file-name {
+  flex: 1 1 auto;
   min-width: 0;
-  /* 【关键】允许 flex 子项在宽度不足时收缩，触发内部文字截断 */
+  max-width: calc(100% - 104px);
+  margin-right: 8px;
   white-space: nowrap;
-  /* 强制文本不换行 */
   overflow: hidden;
-  /* 超出部分隐藏 */
   text-overflow: ellipsis;
-  /* 超出部分显示省略号 */
 }
 
-.flex-spacer {
-  flex-shrink: 0;
-}
-
-.file-actions {
+.stash-row .file-actions {
   display: flex;
   align-items: center;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   gap: 2px;
   padding-right: 8px;
 }
 
-.stash-icon {
-  margin-right: 6px;
-  color: var(--vscode-icon-foreground);
+.flex-spacer {
+  display: none;
 }
 
 .stash-expanded {
@@ -630,10 +629,6 @@ body {
 
 .stash-files-wrap {
   padding-left: 30px;
-}
-
-.flex-spacer {
-  flex: 1;
 }
 
 /* =========================================
