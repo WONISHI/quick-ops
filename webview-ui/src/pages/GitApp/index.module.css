@@ -387,12 +387,14 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex: none;
 }
 
 .change-stash {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  flex: none;
 }
 
 .section-top-gap {
