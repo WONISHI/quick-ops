@@ -52,9 +52,10 @@ interface BrowserSurfaceProps {
   frame: BrowserFrameState | null;
   loading: boolean;
   onViewportChange: (width: number, height: number) => void;
+  onFindShortcut: () => void;
 }
 
-function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProps) {
+function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: BrowserSurfaceProps) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const lastViewportRef = useRef({ width: 0, height: 0 });
   const resizeRafRef = useRef<number | null>(null);
@@ -395,10 +396,17 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
   };
 
   const sendKey = (event: React.KeyboardEvent<HTMLDivElement>, eventType: 'keyDown' | 'keyUp') => {
-    const isCopyShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c';
+    const shortcutKey = event.key.toLowerCase();
+    const isCopyShortcut = (event.ctrlKey || event.metaKey) && shortcutKey === 'c';
+    const isFindShortcut = (event.ctrlKey || event.metaKey) && shortcutKey === 'f';
 
     if (eventType === 'keyDown') {
       event.preventDefault();
+
+      if (isFindShortcut) {
+        onFindShortcut();
+        return;
+      }
 
       if (isCopyShortcut) {
         vscode?.postMessage({
@@ -408,7 +416,7 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
       }
     }
 
-    if (eventType === 'keyUp' && isCopyShortcut) {
+    if (eventType === 'keyUp' && (isCopyShortcut || isFindShortcut)) {
       event.preventDefault();
       return;
     }
@@ -557,6 +565,11 @@ export default function LivePreviewApp() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
 
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchOpenRef = useRef(false);
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchResult, setSearchResult] = useState({ keyword: '', total: 0, current: 0 });
+
   const [favSort, setFavSort] = useState<'time' | 'title'>('time');
   const [favForm, setFavForm] = useState({
     visible: false,
@@ -574,6 +587,7 @@ export default function LivePreviewApp() {
   const htmlIframeRef = useRef<HTMLIFrameElement | null>(null);
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const previewLoadTimerRef = useRef<number | null>(null);
 
   const previewRequestIdRef = useRef(0);
@@ -654,6 +668,45 @@ export default function LivePreviewApp() {
 
     clearPreviewLoadTimer();
     vscode?.postMessage({ type: 'browserStopLoading' });
+  };
+
+  const openSearchBar = () => {
+    searchOpenRef.current = true;
+    setSearchOpen(true);
+
+    window.setTimeout(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    }, 0);
+  };
+
+  const closeSearchBar = () => {
+    searchOpenRef.current = false;
+    setSearchOpen(false);
+    setSearchKeyword('');
+    setSearchResult({ keyword: '', total: 0, current: 0 });
+    vscode?.postMessage({ type: 'browserSearch', keyword: '', direction: 'next' });
+  };
+
+  const runPageSearch = (keyword = searchKeyword, direction: 'next' | 'previous' = 'next') => {
+    const value = keyword.trim();
+
+    if (!value) {
+      setSearchResult({ keyword: '', total: 0, current: 0 });
+      vscode?.postMessage({ type: 'browserSearch', keyword: '', direction });
+      return;
+    }
+
+    if (previewType !== 'web') {
+      setSearchResult({ keyword: value, total: 0, current: 0 });
+      return;
+    }
+
+    vscode?.postMessage({
+      type: 'browserSearch',
+      keyword: value,
+      direction,
+    });
   };
 
   const getFavoriteByUrl = (url: string) => {
@@ -863,6 +916,12 @@ export default function LivePreviewApp() {
           setUrlInput(message.url);
           vscode?.postMessage({ type: 'saveUrl', url: message.url });
         }
+      } else if (message.type === 'browserSearchResult') {
+        setSearchResult({
+          keyword: message.keyword || '',
+          total: Number(message.total) || 0,
+          current: Number(message.current) || 0,
+        });
       } else if (message.type === 'browserPageError') {
         pageLoadedRef.current = false;
         clearPreviewLoadTimer();
@@ -919,6 +978,23 @@ export default function LivePreviewApp() {
 
     window.addEventListener('click', handleClickOutside);
 
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      const shortcutKey = event.key.toLowerCase();
+
+      if ((event.metaKey || event.ctrlKey) && shortcutKey === 'f') {
+        event.preventDefault();
+        event.stopPropagation();
+        openSearchBar();
+      }
+
+      if (shortcutKey === 'escape' && searchOpenRef.current) {
+        event.preventDefault();
+        closeSearchBar();
+      }
+    };
+
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+
     const handleWindowBlur = () => {
       setShowSuggest(false);
       setSuggestIndex(-1);
@@ -932,6 +1008,7 @@ export default function LivePreviewApp() {
     return () => {
       window.removeEventListener('message', handleMessage);
       window.removeEventListener('click', handleClickOutside);
+      window.removeEventListener('keydown', handleGlobalKeyDown, true);
       window.removeEventListener('blur', handleWindowBlur);
       clearPreviewLoadTimer();
     };
@@ -993,6 +1070,7 @@ export default function LivePreviewApp() {
 
     setPreviewType(pType);
     setPreviewError(null);
+    setSearchResult({ keyword: '', total: 0, current: 0 });
     clearPreviewLoadTimer();
 
     pageLoadedRef.current = false;
@@ -1616,6 +1694,125 @@ export default function LivePreviewApp() {
         onClose={() => setMenuOpen(false)}
       />
 
+      {searchOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 52,
+            right: 12,
+            zIndex: 10020,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '6px 8px',
+            borderRadius: 6,
+            border: '1px solid var(--vscode-widget-border, var(--vscode-panel-border))',
+            background: 'var(--vscode-editorWidget-background)',
+            color: 'var(--vscode-editorWidget-foreground)',
+            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+          }}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <input
+            ref={searchInputRef}
+            value={searchKeyword}
+            placeholder="搜索网页内容"
+            style={{
+              width: 190,
+              height: 26,
+              padding: '0 8px',
+              borderRadius: 4,
+              border: '1px solid var(--vscode-input-border, var(--vscode-widget-border))',
+              background: 'var(--vscode-input-background)',
+              color: 'var(--vscode-input-foreground)',
+              outline: 'none',
+              fontSize: 12,
+            }}
+            onChange={(event) => {
+              const value = event.target.value;
+
+              setSearchKeyword(value);
+              runPageSearch(value, 'next');
+            }}
+            onKeyDown={(event) => {
+              event.stopPropagation();
+
+              if (event.key === 'Enter') {
+                runPageSearch(searchKeyword, event.shiftKey ? 'previous' : 'next');
+              }
+
+              if (event.key === 'Escape') {
+                closeSearchBar();
+              }
+            }}
+          />
+
+          <span
+            style={{
+              minWidth: 54,
+              textAlign: 'center',
+              fontSize: 12,
+              opacity: 0.78,
+              userSelect: 'none',
+            }}
+          >
+            {searchKeyword.trim() ? `${searchResult.current}/${searchResult.total}` : '0/0'}
+          </span>
+
+          <button
+            type="button"
+            style={{
+              height: 26,
+              minWidth: 28,
+              border: 'none',
+              borderRadius: 4,
+              background: 'transparent',
+              color: 'inherit',
+              cursor: 'pointer',
+            }}
+            title="上一个"
+            onClick={() => runPageSearch(searchKeyword, 'previous')}
+          >
+            ↑
+          </button>
+
+          <button
+            type="button"
+            style={{
+              height: 26,
+              minWidth: 28,
+              border: 'none',
+              borderRadius: 4,
+              background: 'transparent',
+              color: 'inherit',
+              cursor: 'pointer',
+            }}
+            title="下一个"
+            onClick={() => runPageSearch(searchKeyword, 'next')}
+          >
+            ↓
+          </button>
+
+          <button
+            type="button"
+            style={{
+              height: 26,
+              minWidth: 28,
+              border: 'none',
+              borderRadius: 4,
+              background: 'transparent',
+              color: 'inherit',
+              cursor: 'pointer',
+            }}
+            title="关闭"
+            onClick={closeSearchBar}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
       <div
         className={`${styles['preview-container']} ${device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''}`}
         style={{ position: 'relative' }}
@@ -1701,6 +1898,7 @@ export default function LivePreviewApp() {
               frame={browserFrame}
               loading={previewLoading}
               onViewportChange={handleBrowserViewportChange}
+              onFindShortcut={openSearchBar}
             />
           </div>
         )}

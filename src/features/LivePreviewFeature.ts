@@ -718,6 +718,15 @@ export class LivePreviewFeature implements IFeature {
             Number(message.endY) || 0
           )
         );
+      } else if (message.type === 'browserSearch') {
+        await runDetachedBrowserAction(async () => {
+          const result = await browserService.searchInPage(message.keyword || '', message.direction === 'previous' ? 'previous' : 'next');
+
+          panel.webview.postMessage({
+            type: 'browserSearchResult',
+            ...result,
+          });
+        });
       } else if (message.type === 'browserBack') {
         await runDetachedBrowserAction(() => browserService.goBack());
       } else if (message.type === 'browserForward') {
@@ -858,6 +867,16 @@ export class LivePreviewFeature implements IFeature {
           Number(message.endX) || 0,
           Number(message.endY) || 0
         );
+      } else if (message.type === 'browserSearch') {
+        const result = await this.ensureBrowserService(context).searchInPage(
+          message.keyword || '',
+          message.direction === 'previous' ? 'previous' : 'next'
+        );
+
+        this.panel?.webview.postMessage({
+          type: 'browserSearchResult',
+          ...result,
+        });
       } else if (message.type === 'browserBack') {
         await this.ensureBrowserService(context).goBack();
       } else if (message.type === 'browserForward') {

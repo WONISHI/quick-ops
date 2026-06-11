@@ -18,6 +18,12 @@ interface BrowserSnapshot {
   hasPage: boolean;
 }
 
+interface BrowserSearchResult {
+  keyword: string;
+  total: number;
+  current: number;
+}
+
 type BrowserMouseEventType = 'mouseMoved' | 'mousePressed' | 'mouseReleased' | 'mouseWheel';
 type BrowserKeyboardEventType = 'keyDown' | 'keyUp';
 
@@ -288,6 +294,232 @@ export class EmbeddedBrowserService extends EventEmitter {
       startY,
       endX,
       endY,
+    }).catch(() => undefined);
+  }
+
+  public async searchInPage(keyword: string, direction: 'next' | 'previous' = 'next'): Promise<BrowserSearchResult> {
+    const page = await this.ensurePage();
+    const normalizedKeyword = String(keyword || '').trim();
+
+    if (!normalizedKeyword) {
+      await this.clearSearchHighlights();
+      return {
+        keyword: '',
+        total: 0,
+        current: 0,
+      };
+    }
+
+    return page.evaluate((payload) => {
+      const highlightAttr = 'data-quick-ops-search-highlight';
+      const activeAttr = 'data-quick-ops-search-active';
+      const stateKey = '__quickOpsSearchState__';
+
+      type SearchState = {
+        keyword: string;
+        activeIndex: number;
+      };
+
+      const win = window as typeof window & {
+        [stateKey]?: SearchState;
+      };
+
+      const clearHighlights = () => {
+        const highlights = Array.from(document.querySelectorAll(`[${highlightAttr}="true"]`));
+
+        for (const node of highlights) {
+          const parent = node.parentNode;
+
+          if (!parent) continue;
+
+          parent.replaceChild(document.createTextNode(node.textContent || ''), node);
+          parent.normalize();
+        }
+      };
+
+      const shouldSkipTextNode = (node: Text) => {
+        const parent = node.parentElement;
+
+        if (!parent) return true;
+
+        const tagName = parent.tagName.toLowerCase();
+
+        if (
+          tagName === 'script' ||
+          tagName === 'style' ||
+          tagName === 'noscript' ||
+          tagName === 'textarea' ||
+          tagName === 'input' ||
+          tagName === 'select' ||
+          tagName === 'option'
+        ) {
+          return true;
+        }
+
+        if (parent.closest(`[${highlightAttr}="true"]`)) return true;
+        if (parent.closest('[contenteditable="true"]')) return true;
+
+        const style = window.getComputedStyle(parent);
+
+        return style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0;
+      };
+
+      const previousState = win[stateKey];
+      const previousActiveIndex =
+        previousState?.keyword === payload.keyword && Number.isFinite(previousState.activeIndex)
+          ? previousState.activeIndex
+          : -1;
+
+      clearHighlights();
+
+      const keyword = payload.keyword;
+      const lowerKeyword = keyword.toLowerCase();
+      const walker = document.createTreeWalker(document.body || document.documentElement, NodeFilter.SHOW_TEXT);
+      const textNodes: Text[] = [];
+      let currentNode = walker.nextNode();
+
+      while (currentNode) {
+        const textNode = currentNode as Text;
+
+        if (!shouldSkipTextNode(textNode) && textNode.nodeValue?.trim()) {
+          textNodes.push(textNode);
+        }
+
+        currentNode = walker.nextNode();
+      }
+
+      const highlights: HTMLElement[] = [];
+
+      for (const textNode of textNodes) {
+        const source = textNode.nodeValue || '';
+        const lowerSource = source.toLowerCase();
+        let index = 0;
+        let matchIndex = lowerSource.indexOf(lowerKeyword, index);
+
+        if (matchIndex === -1) continue;
+
+        const fragment = document.createDocumentFragment();
+
+        while (matchIndex !== -1) {
+          if (matchIndex > index) {
+            fragment.appendChild(document.createTextNode(source.slice(index, matchIndex)));
+          }
+
+          const span = document.createElement('span');
+
+          span.setAttribute(highlightAttr, 'true');
+          span.textContent = source.slice(matchIndex, matchIndex + keyword.length);
+          span.style.backgroundColor = 'rgba(255, 213, 0, 0.78)';
+          span.style.color = 'inherit';
+          span.style.borderRadius = '2px';
+          span.style.boxShadow = '0 0 0 1px rgba(180, 120, 0, 0.35)';
+
+          fragment.appendChild(span);
+          highlights.push(span);
+
+          index = matchIndex + keyword.length;
+          matchIndex = lowerSource.indexOf(lowerKeyword, index);
+        }
+
+        if (index < source.length) {
+          fragment.appendChild(document.createTextNode(source.slice(index)));
+        }
+
+        textNode.parentNode?.replaceChild(fragment, textNode);
+      }
+
+      const total = highlights.length;
+
+      if (!total) {
+        win[stateKey] = {
+          keyword,
+          activeIndex: -1,
+        };
+
+        return {
+          keyword,
+          total: 0,
+          current: 0,
+        };
+      }
+
+      let activeIndex = 0;
+
+      if (previousActiveIndex > -1) {
+        activeIndex =
+          payload.direction === 'previous'
+            ? (previousActiveIndex - 1 + total) % total
+            : (previousActiveIndex + 1) % total;
+      }
+
+      const active = highlights[activeIndex];
+
+      active.setAttribute(activeAttr, 'true');
+      active.style.backgroundColor = 'rgba(255, 136, 0, 0.95)';
+      active.style.outline = '2px solid rgba(255, 98, 0, 0.9)';
+      active.style.outlineOffset = '1px';
+
+      active.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'center',
+      });
+
+      const selection = window.getSelection();
+
+      if (selection) {
+        const range = document.createRange();
+
+        range.selectNodeContents(active);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+
+      win[stateKey] = {
+        keyword,
+        activeIndex,
+      };
+
+      return {
+        keyword,
+        total,
+        current: activeIndex + 1,
+      };
+    }, {
+      keyword: normalizedKeyword,
+      direction,
+    }).catch((error) => {
+      if (this.isTargetClosedError(error)) {
+        return {
+          keyword: normalizedKeyword,
+          total: 0,
+          current: 0,
+        };
+      }
+
+      throw error;
+    });
+  }
+
+  public async clearSearchHighlights(): Promise<void> {
+    if (!this.page || this.page.isClosed()) return;
+
+    await this.page.evaluate(() => {
+      const highlightAttr = 'data-quick-ops-search-highlight';
+      const stateKey = '__quickOpsSearchState__';
+      const highlights = Array.from(document.querySelectorAll(`[${highlightAttr}="true"]`));
+
+      for (const node of highlights) {
+        const parent = node.parentNode;
+
+        if (!parent) continue;
+
+        parent.replaceChild(document.createTextNode(node.textContent || ''), node);
+        parent.normalize();
+      }
+
+      delete (window as any)[stateKey];
+      window.getSelection()?.removeAllRanges();
     }).catch(() => undefined);
   }
 
