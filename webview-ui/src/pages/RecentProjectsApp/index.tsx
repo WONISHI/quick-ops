@@ -102,6 +102,7 @@ export default function RecentProjectsApp() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const [isSearchMode, setIsSearchMode] = useState(false);
+  const isSearchModeRef = useRef(false);
   const [searchTargetProject, setSearchTargetProject] = useState<ContextMenuPayload | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
   const [folderSearchType, setFolderSearchType] = useState<'content' | 'name'>('content');
@@ -116,6 +117,10 @@ export default function RecentProjectsApp() {
   const isFocusModeRef = useRef(false);
   const focusRootPathRef = useRef('');
   const focusRootNameRef = useRef('');
+
+  useEffect(() => {
+    isSearchModeRef.current = isSearchMode;
+  }, [isSearchMode]);
 
   useEffect(() => {
     isFocusModeRef.current = isFocusMode;
@@ -434,6 +439,10 @@ export default function RecentProjectsApp() {
         setSelectedPath(targetPath);
         autoScrollTarget.current = targetPath;
 
+        window.setTimeout(() => {
+          scrollTreeNodeIntoView(targetPath);
+        }, 0);
+
         setExpandedPaths((prev) => {
           const next = new Set(prev);
           parentPaths.forEach((p: string) => next.add(p));
@@ -473,23 +482,36 @@ export default function RecentProjectsApp() {
     };
   }, []);
 
-  useEffect(() => {
-    if (autoScrollTarget.current && !isSearchMode) {
-      const target = autoScrollTarget.current;
-      const safeId = `tree-node-${encodeURIComponent(target)}`;
-      const el = document.getElementById(safeId);
+  const scrollTreeNodeIntoView = (targetPath: string, retryCount: number = 0) => {
+    if (!targetPath || isSearchModeRef.current) return;
 
-      if (el) {
-        setTimeout(() => {
-          el.scrollIntoView({
-            behavior: 'smooth',
-            block: 'center',
-          });
-        }, 100);
+    const safeId = `tree-node-${encodeURIComponent(targetPath)}`;
+    const el = document.getElementById(safeId);
 
-        autoScrollTarget.current = null;
-      }
+    if (!el) {
+      if (retryCount >= 30) return;
+
+      window.setTimeout(() => {
+        scrollTreeNodeIntoView(targetPath, retryCount + 1);
+      }, 80);
+      return;
     }
+
+    window.requestAnimationFrame(() => {
+      el.scrollIntoView({
+        behavior: retryCount > 0 ? 'auto' : 'smooth',
+        block: 'center',
+        inline: 'nearest',
+      });
+
+      autoScrollTarget.current = null;
+    });
+  };
+
+  useEffect(() => {
+    if (!autoScrollTarget.current || isSearchMode) return;
+
+    scrollTreeNodeIntoView(autoScrollTarget.current);
   }, [expandedPaths, isSearchMode, dirChildren, selectedPath]);
 
   useEffect(() => {
