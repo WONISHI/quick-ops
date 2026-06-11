@@ -16,29 +16,49 @@ export function formatAbsoluteTime(ms: number) {
   return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
 
+export type RemotePlatform = 'GitHub' | 'Gitee' | 'GitLab';
+
+export interface RemoteInfo {
+  platform: RemotePlatform;
+  iconType: 'codicon' | 'image';
+  icon: string;
+  url: string;
+}
+
 export function parseRemoteInfo(url: string, hash: string) {
   if (!url) return null;
 
-  let cleanUrl = url.replace(/\.git$/, '').trim();
+  let cleanUrl = url.replace(/\.git$/, "").trim();
 
-  if (cleanUrl.startsWith('git@')) {
-    cleanUrl = cleanUrl.replace(/^git@([^:]+):/, 'https://$1/');
+  if (cleanUrl.startsWith("git@")) {
+    cleanUrl = cleanUrl.replace(/^git@([^:]+):/, "https://$1/");
   }
 
-  let platform = 'GitLab';
-  let icon = 'codicon-repo';
+  const lowerUrl = cleanUrl.toLowerCase();
 
-  if (cleanUrl.includes('github.com')) {
-    platform = 'GitHub';
-    icon = 'codicon-github';
-  } else if (cleanUrl.includes('gitee.com')) {
-    platform = 'Gitee';
+  if (lowerUrl.includes("github.com")) {
+    return {
+      platform: "GitHub",
+      iconType: "codicon",
+      icon: "codicon-github",
+      url: `${cleanUrl}/commit/${hash}`
+    };
+  }
+
+  if (lowerUrl.includes("gitee.com")) {
+    return {
+      platform: "Gitee",
+      iconType: "svg",
+      icon: "gitee",
+      url: `${cleanUrl}/commit/${hash}`
+    };
   }
 
   return {
-    platform,
-    icon,
-    url: `${cleanUrl}/commit/${hash}`,
+    platform: "GitLab",
+    iconType: "svg",
+    icon: "gitlab",
+    url: `${cleanUrl}/-/commit/${hash}`
   };
 }
 

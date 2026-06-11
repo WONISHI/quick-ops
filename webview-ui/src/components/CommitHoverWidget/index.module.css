@@ -243,3 +243,30 @@
 .hover-change-deletions {
     color: #f85149;
 }
+
+.platform-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-block;
+  flex-shrink: 0;
+  background-color: var(--vscode-textLink-foreground);
+  vertical-align: middle;
+
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+}
+
+.platform-icon-gitee {
+  mask-image: url("../../assets/icon/gitee.svg");
+  -webkit-mask-image: url("../../assets/icon/gitee.svg");
+}
+
+.platform-icon-gitlab {
+  mask-image: url("../../assets/icon/gitlab.svg");
+  -webkit-mask-image: url("../../assets/icon/gitlab.svg");
+}
