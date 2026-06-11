@@ -146,6 +146,16 @@ export default function RecentProjectsApp() {
     return child === parent || child.startsWith(parentWithSlash);
   };
 
+  const isPathDescendant = (childPath: string, parentPath: string) => {
+    if (!childPath || !parentPath) return false;
+
+    const child = childPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
+    const parent = parentPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
+    const parentWithSlash = parent.endsWith('/') ? parent : `${parent}/`;
+
+    return child.startsWith(parentWithSlash);
+  };
+
   const cacheNormalDirChildrenBeforeFocus = (rootPath: string) => {
     const snapshot: Record<string, DirChild[]> = {}
     Object.keys(dirChildrenRef.current).forEach((key) => {
@@ -972,6 +982,36 @@ export default function RecentProjectsApp() {
           projectName: payload.isActiveProject ? undefined : payload.projectName,
         });
         break;
+
+      case 'collapseFolderChildren': {
+        const targetPath = payload.path;
+
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+
+          Array.from(next).forEach((itemPath) => {
+            if (isPathInside(itemPath, targetPath)) {
+              next.delete(itemPath);
+            }
+          });
+
+          return next;
+        });
+
+        setLoadingPaths((prev) => {
+          const next = new Set(prev);
+
+          Array.from(next).forEach((itemPath) => {
+            if (isPathInside(itemPath, targetPath)) {
+              next.delete(itemPath);
+            }
+          });
+
+          return next;
+        });
+
+        break;
+      }
 
       case 'searchInFolder':
         setSearchTargetProject(payload);

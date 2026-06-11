@@ -16,6 +16,7 @@ import {
   faListUl,
   faFolderPlus,
   faBullseye,
+  faAnglesUp,
 } from '@fortawesome/free-solid-svg-icons';
 import {
   faCopy,
@@ -192,6 +193,9 @@ export default function RecentProjectContextMenu({
               <>
                 <li onClick={() => onAction('searchInFolder')}>
                   <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
+                </li>
+                <li onClick={() => onAction('collapseFolderChildren')}>
+                  <FontAwesomeIcon icon={faAnglesUp} className={styles['menu-icon']} /> 折叠
                 </li>
                 {!payload.isRemote && (
                   <>
