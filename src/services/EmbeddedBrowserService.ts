@@ -180,6 +180,107 @@ export class EmbeddedBrowserService extends EventEmitter {
     await this.client.send('Page.stopLoading').catch(() => undefined);
   }
 
+  public async copySelectedText(): Promise<void> {
+    const page = await this.ensurePage();
+
+    const text = await page.evaluate(() => {
+      const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
+
+      if (
+        activeElement &&
+        typeof activeElement.selectionStart === 'number' &&
+        typeof activeElement.selectionEnd === 'number' &&
+        typeof activeElement.value === 'string'
+      ) {
+        const start = activeElement.selectionStart || 0;
+        const end = activeElement.selectionEnd || 0;
+
+        if (end > start) {
+          return activeElement.value.slice(start, end);
+        }
+      }
+
+      return window.getSelection()?.toString() || '';
+    }).catch(() => '');
+
+    if (!text) return;
+
+    await vscode.env.clipboard.writeText(text);
+  }
+
+  public async selectTextRange(startX: number, startY: number, endX: number, endY: number): Promise<void> {
+    const page = await this.ensurePage();
+
+    await page.evaluate((payload) => {
+      const getRangeByPoint = (x: number, y: number): Range | null => {
+        const normalizedX = Math.max(0, Math.floor(Number(x) || 0));
+        const normalizedY = Math.max(0, Math.floor(Number(y) || 0));
+        const doc = document as Document & {
+          caretRangeFromPoint?: (x: number, y: number) => Range | null;
+          caretPositionFromPoint?: (x: number, y: number) => { offsetNode: Node; offset: number } | null;
+        };
+
+        if (typeof doc.caretRangeFromPoint === 'function') {
+          return doc.caretRangeFromPoint(normalizedX, normalizedY);
+        }
+
+        if (typeof doc.caretPositionFromPoint === 'function') {
+          const position = doc.caretPositionFromPoint(normalizedX, normalizedY);
+
+          if (!position) return null;
+
+          const range = document.createRange();
+
+          range.setStart(position.offsetNode, position.offset);
+          range.collapse(true);
+
+          return range;
+        }
+
+        return null;
+      };
+
+      const createSelectionRange = (startRange: Range, endRange: Range): Range => {
+        const range = document.createRange();
+
+        range.setStart(startRange.startContainer, startRange.startOffset);
+        range.setEnd(endRange.startContainer, endRange.startOffset);
+
+        if (
+          range.collapsed &&
+          (startRange.startContainer !== endRange.startContainer || startRange.startOffset !== endRange.startOffset)
+        ) {
+          range.setStart(endRange.startContainer, endRange.startOffset);
+          range.setEnd(startRange.startContainer, startRange.startOffset);
+        }
+
+        return range;
+      };
+
+      const startRange = getRangeByPoint(payload.startX, payload.startY);
+      const endRange = getRangeByPoint(payload.endX, payload.endY);
+
+      if (!startRange || !endRange) return;
+
+      const selection = window.getSelection();
+
+      if (!selection) return;
+
+      const range = createSelectionRange(startRange, endRange);
+
+      selection.removeAllRanges();
+
+      if (!range.collapsed) {
+        selection.addRange(range);
+      }
+    }, {
+      startX,
+      startY,
+      endX,
+      endY,
+    }).catch(() => undefined);
+  }
+
   public async clearCache(): Promise<void> {
     const client = await this.ensureClient();
 

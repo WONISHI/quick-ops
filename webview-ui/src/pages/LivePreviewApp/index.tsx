@@ -64,6 +64,15 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
     lastX: 0,
     lastY: 0,
   });
+  const selectionDragRef = useRef({
+    active: false,
+    startX: 0,
+    startY: 0,
+    endX: 0,
+    endY: 0,
+    moved: false,
+  });
+  const selectionSelectRafRef = useRef<number | null>(null);
   const [isMiddleDragging, setIsMiddleDragging] = useState(false);
 
   const notifyViewportSize = useCallback(() => {
@@ -146,6 +155,13 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
     if (event.button === 2) return 'right';
     if (event.button === 1) return 'middle';
     return 'left';
+  };
+
+  const getMoveButton = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.buttons & 2) return 'right';
+    if (event.buttons & 4) return 'middle';
+    if (event.buttons & 1) return 'left';
+    return 'none';
   };
 
   const getPressedButtons = (event: React.MouseEvent<HTMLDivElement>, eventType: 'mouseMoved' | 'mousePressed' | 'mouseReleased') => {
@@ -254,6 +270,15 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
     };
   }, [sendPanWheel, stopMiddleDrag]);
 
+  useEffect(() => {
+    return () => {
+      if (selectionSelectRafRef.current) {
+        window.cancelAnimationFrame(selectionSelectRafRef.current);
+        selectionSelectRafRef.current = null;
+      }
+    };
+  }, []);
+
   const sendMouse = (event: React.MouseEvent<HTMLDivElement>, type: 'mouseMoved' | 'mousePressed' | 'mouseReleased') => {
     event.preventDefault();
 
@@ -265,10 +290,89 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
       eventType: type,
       x: point.x,
       y: point.y,
-      button: type === 'mouseMoved' ? 'none' : getMouseButton(event),
+      button: type === 'mouseMoved' ? getMoveButton(event) : getMouseButton(event),
       buttons: getPressedButtons(event, type),
       clickCount: type === 'mouseMoved' ? 0 : Math.max(1, event.detail || 1),
     });
+  };
+
+  const postTextSelectionRange = (drag = selectionDragRef.current) => {
+    if (!drag.active || !drag.moved) return;
+
+    vscode?.postMessage({
+      type: 'browserSelectTextRange',
+      startX: drag.startX,
+      startY: drag.startY,
+      endX: drag.endX,
+      endY: drag.endY,
+    });
+  };
+
+  const scheduleTextSelectionRange = () => {
+    if (selectionSelectRafRef.current) return;
+
+    selectionSelectRafRef.current = window.requestAnimationFrame(() => {
+      selectionSelectRafRef.current = null;
+      postTextSelectionRange();
+    });
+  };
+
+  const startTextSelectionDrag = (event: React.MouseEvent<HTMLDivElement>) => {
+    const point = getBrowserPoint(event);
+
+    if (selectionSelectRafRef.current) {
+      window.cancelAnimationFrame(selectionSelectRafRef.current);
+      selectionSelectRafRef.current = null;
+    }
+
+    selectionDragRef.current = {
+      active: true,
+      startX: point.x,
+      startY: point.y,
+      endX: point.x,
+      endY: point.y,
+      moved: false,
+    };
+  };
+
+  const updateTextSelectionDrag = (event: React.MouseEvent<HTMLDivElement>, sync = false) => {
+    if (!selectionDragRef.current.active) return;
+
+    const point = getBrowserPoint(event);
+    const dx = Math.abs(point.x - selectionDragRef.current.startX);
+    const dy = Math.abs(point.y - selectionDragRef.current.startY);
+
+    selectionDragRef.current.endX = point.x;
+    selectionDragRef.current.endY = point.y;
+    selectionDragRef.current.moved = dx > 3 || dy > 3;
+
+    if (!selectionDragRef.current.moved) return;
+
+    if (sync) {
+      scheduleTextSelectionRange();
+    }
+  };
+
+  const finishTextSelectionDrag = () => {
+    const drag = selectionDragRef.current;
+
+    if (selectionSelectRafRef.current) {
+      window.cancelAnimationFrame(selectionSelectRafRef.current);
+      selectionSelectRafRef.current = null;
+    }
+
+    selectionDragRef.current = {
+      active: false,
+      startX: 0,
+      startY: 0,
+      endX: 0,
+      endY: 0,
+      moved: false,
+    };
+
+    if (!drag.active || !drag.moved) return;
+
+    postTextSelectionRange(drag);
   };
 
   const sendWheel = (event: React.WheelEvent<HTMLDivElement>) => {
@@ -291,8 +395,22 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
   };
 
   const sendKey = (event: React.KeyboardEvent<HTMLDivElement>, eventType: 'keyDown' | 'keyUp') => {
+    const isCopyShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c';
+
     if (eventType === 'keyDown') {
       event.preventDefault();
+
+      if (isCopyShortcut) {
+        vscode?.postMessage({
+          type: 'browserCopySelection',
+        });
+        return;
+      }
+    }
+
+    if (eventType === 'keyUp' && isCopyShortcut) {
+      event.preventDefault();
+      return;
     }
 
     vscode?.postMessage({
@@ -329,6 +447,10 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
           return;
         }
 
+        if (selectionDragRef.current.active && event.buttons & 1) {
+          updateTextSelectionDrag(event, true);
+        }
+
         sendMouse(event, 'mouseMoved');
       }}
       onMouseDown={(event) => {
@@ -347,6 +469,10 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
           return;
         }
 
+        if (event.button === 0) {
+          startTextSelectionDrag(event);
+        }
+
         sendMouse(event, 'mousePressed');
       }}
       onMouseUp={(event) => {
@@ -357,10 +483,19 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
         }
 
         sendMouse(event, 'mouseReleased');
+
+        if (event.button === 0) {
+          updateTextSelectionDrag(event);
+          finishTextSelectionDrag();
+        }
       }}
       onMouseLeave={() => {
         if (middleDragRef.current.active) {
           stopMiddleDrag();
+        }
+
+        if (selectionDragRef.current.active) {
+          finishTextSelectionDrag();
         }
       }}
       onWheel={sendWheel}

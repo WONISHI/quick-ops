@@ -643,6 +643,15 @@ export class LivePreviewFeature implements IFeature {
         await this.ensureBrowserService(context).reload(message.url || undefined);
       } else if (message.type === 'browserStopLoading') {
         await this.ensureBrowserService(context).stopLoading();
+      } else if (message.type === 'browserCopySelection') {
+        await this.ensureBrowserService(context).copySelectedText();
+      } else if (message.type === 'browserSelectTextRange') {
+        await this.ensureBrowserService(context).selectTextRange(
+          Number(message.startX) || 0,
+          Number(message.startY) || 0,
+          Number(message.endX) || 0,
+          Number(message.endY) || 0
+        );
       } else if (message.type === 'browserBack') {
         await this.ensureBrowserService(context).goBack();
       } else if (message.type === 'browserForward') {
