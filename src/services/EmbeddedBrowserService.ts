@@ -45,6 +45,7 @@ export class EmbeddedBrowserService extends EventEmitter {
   private client: CDPSession | null = null;
   private isLaunching = false;
   private isScreencastStarted = false;
+  private navigationAbortController: AbortController | null = null;
   private readonly hookedPages = new WeakSet<Page>();
   private debugPort = 9222;
   private lastViewport = {
@@ -59,13 +60,20 @@ export class EmbeddedBrowserService extends EventEmitter {
 
   public async navigate(url: string): Promise<void> {
     const page = await this.ensurePage();
+    const signal = this.createNavigationSignal();
 
     try {
       await page.goto(url, {
         waitUntil: 'domcontentloaded',
         timeout: 0,
+        signal,
       });
     } catch (error: any) {
+      if (this.isNavigationAbortError(error)) {
+        console.warn('[EmbeddedBrowserService] navigation aborted:', url);
+        return;
+      }
+
       if (this.isNavigationTimeoutError(error)) {
         console.warn('[EmbeddedBrowserService] navigation timeout ignored:', error);
         return;
@@ -75,6 +83,8 @@ export class EmbeddedBrowserService extends EventEmitter {
         url,
         message: error?.message || String(error),
       });
+    } finally {
+      this.clearNavigationSignal(signal);
     }
   }
 
@@ -86,12 +96,20 @@ export class EmbeddedBrowserService extends EventEmitter {
       return;
     }
 
+    const signal = this.createNavigationSignal();
+
     try {
       await page.reload({
         waitUntil: 'domcontentloaded',
         timeout: 0,
+        signal,
       });
     } catch (error: any) {
+      if (this.isNavigationAbortError(error)) {
+        console.warn('[EmbeddedBrowserService] reload aborted:', page.url());
+        return;
+      }
+
       if (this.isNavigationTimeoutError(error)) {
         console.warn('[EmbeddedBrowserService] reload timeout ignored:', error);
         return;
@@ -101,17 +119,39 @@ export class EmbeddedBrowserService extends EventEmitter {
         url: page.url(),
         message: error?.message || String(error),
       });
+    } finally {
+      this.clearNavigationSignal(signal);
     }
   }
 
   public async goBack(): Promise<void> {
     const page = await this.ensurePage();
-    await page.goBack({ waitUntil: 'domcontentloaded', timeout: 0 }).catch(() => undefined);
+    const signal = this.createNavigationSignal();
+
+    try {
+      await page.goBack({ waitUntil: 'domcontentloaded', timeout: 0, signal }).catch(() => undefined);
+    } finally {
+      this.clearNavigationSignal(signal);
+    }
   }
 
   public async goForward(): Promise<void> {
     const page = await this.ensurePage();
-    await page.goForward({ waitUntil: 'domcontentloaded', timeout: 0 }).catch(() => undefined);
+    const signal = this.createNavigationSignal();
+
+    try {
+      await page.goForward({ waitUntil: 'domcontentloaded', timeout: 0, signal }).catch(() => undefined);
+    } finally {
+      this.clearNavigationSignal(signal);
+    }
+  }
+
+  public async stopLoading(): Promise<void> {
+    this.abortCurrentNavigation();
+
+    if (!this.client) return;
+
+    await this.client.send('Page.stopLoading').catch(() => undefined);
   }
 
   public async clearCache(): Promise<void> {
@@ -218,6 +258,38 @@ export class EmbeddedBrowserService extends EventEmitter {
     }
 
     this.removeAllListeners();
+  }
+
+  private createNavigationSignal(): AbortSignal {
+    this.abortCurrentNavigation();
+
+    const controller = new AbortController();
+
+    this.navigationAbortController = controller;
+
+    return controller.signal;
+  }
+
+  private clearNavigationSignal(signal: AbortSignal): void {
+    if (this.navigationAbortController?.signal === signal) {
+      this.navigationAbortController = null;
+    }
+  }
+
+  private abortCurrentNavigation(): void {
+    if (!this.navigationAbortController) return;
+
+    this.navigationAbortController.abort();
+    this.navigationAbortController = null;
+  }
+
+  private isNavigationAbortError(error: unknown): boolean {
+    if (!error) return false;
+
+    const name = typeof error === 'object' && 'name' in error ? String((error as { name?: unknown }).name || '') : '';
+    const message = error instanceof Error ? error.message : String(error);
+
+    return name === 'AbortError' || /abort|aborted/i.test(message);
   }
 
   private isNavigationTimeoutError(error: unknown): boolean {
@@ -618,9 +690,11 @@ export class EmbeddedBrowserService extends EventEmitter {
   }
 
   private async disposePage(): Promise<void> {
+    this.abortCurrentNavigation();
     this.isScreencastStarted = false;
 
     if (this.client) {
+      await this.client.send('Page.stopLoading').catch(() => undefined);
       await this.client.detach().catch(() => undefined);
       this.client = null;
     }

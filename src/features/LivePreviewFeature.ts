@@ -604,6 +604,8 @@ export class LivePreviewFeature implements IFeature {
         await this.ensureBrowserService(context).navigate(message.url || 'about:blank');
       } else if (message.type === 'browserRefresh') {
         await this.ensureBrowserService(context).reload(message.url || undefined);
+      } else if (message.type === 'browserStopLoading') {
+        await this.ensureBrowserService(context).stopLoading();
       } else if (message.type === 'browserBack') {
         await this.ensureBrowserService(context).goBack();
       } else if (message.type === 'browserForward') {

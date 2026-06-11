@@ -512,6 +512,13 @@ export default function LivePreviewApp() {
     }
   };
 
+  const interruptPendingWebNavigation = () => {
+    if (previewType !== 'web') return;
+
+    clearPreviewLoadTimer();
+    vscode?.postMessage({ type: 'browserStopLoading' });
+  };
+
   const getFavoriteByUrl = (url: string) => {
     const targetUrl = normalizeFavoriteUrl(url);
     if (!targetUrl) return undefined;
@@ -860,6 +867,7 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'saveUrl', url });
 
     if (pType === 'web') {
+      interruptPendingWebNavigation();
       setBrowserFrame(null);
       startWebPreviewGuard(url);
       vscode?.postMessage({ type: 'browserNavigate', url });
@@ -904,6 +912,7 @@ export default function LivePreviewApp() {
       setIsPageLoaded(false);
 
       updateFavicon('');
+      vscode?.postMessage({ type: 'browserStopLoading' });
       vscode?.postMessage({ type: 'browserStop' });
       vscode?.postMessage({ type: 'saveUrl', url: '' });
       return;
@@ -972,6 +981,7 @@ export default function LivePreviewApp() {
     setIsPageLoaded(false);
 
     updateFavicon('');
+    vscode?.postMessage({ type: 'browserStopLoading' });
     vscode?.postMessage({ type: 'browserStop' });
     vscode?.postMessage({ type: 'saveUrl', url: '' });
   };
@@ -1046,6 +1056,7 @@ export default function LivePreviewApp() {
 
     setPreviewType('web');
     setFrameUrl(temp);
+    interruptPendingWebNavigation();
     setBrowserFrame(null);
     vscode?.postMessage({ type: 'saveUrl', url: temp });
     startWebPreviewGuard(temp);
