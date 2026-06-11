@@ -53,6 +53,10 @@ export class EmbeddedBrowserService extends EventEmitter {
   private isScreencastStarted = false;
   private navigationAbortController: AbortController | null = null;
   private lastFramePayload: BrowserFramePayload | null = null;
+  private pendingFramePayload: BrowserFramePayload | null = null;
+  private frameFlushTimer: NodeJS.Timeout | null = null;
+  private lastFrameEmitAt = 0;
+  private readonly frameEmitInterval = 33;
   private readonly hookedPages = new WeakSet<Page>();
   private debugPort = 9222;
   private lastViewport = {
@@ -314,7 +318,7 @@ export class EmbeddedBrowserService extends EventEmitter {
   public async setViewport(message: BrowserViewportMessage): Promise<void> {
     const width = Math.max(320, Math.floor(Number(message.width) || 1280));
     const height = Math.max(240, Math.floor(Number(message.height) || 720));
-    const deviceScaleFactor = Math.min(3, Math.max(1, Number(message.deviceScaleFactor) || 2));
+    const deviceScaleFactor = Math.min(2.5, Math.max(1, Number(message.deviceScaleFactor) || 2));
 
     this.lastViewport = {
       width,
@@ -632,6 +636,13 @@ export class EmbeddedBrowserService extends EventEmitter {
         '--hide-scrollbars=false',
         '--ignore-certificate-errors',
         '--allow-insecure-localhost',
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-background-networking',
+        '--disable-background-timer-throttling',
+        '--disable-renderer-backgrounding',
+        '--disable-popup-blocking',
+        '--disable-dev-shm-usage',
       ];
 
       if (platform() === 'linux') {
@@ -852,8 +863,7 @@ export class EmbeddedBrowserService extends EventEmitter {
       };
 
       this.lastFramePayload = payload;
-
-      this.emit('frame', payload);
+      this.scheduleFrameEmit(payload);
 
       await this.client?.send('Page.screencastFrameAck', {
         sessionId: event.sessionId,
@@ -862,16 +872,52 @@ export class EmbeddedBrowserService extends EventEmitter {
 
     await this.client.send('Page.startScreencast', {
       format: 'jpeg',
-      quality: 100,
+      quality: 95,
       maxWidth: Math.ceil(this.lastViewport.width * this.lastViewport.deviceScaleFactor),
       maxHeight: Math.ceil(this.lastViewport.height * this.lastViewport.deviceScaleFactor),
       everyNthFrame: 1,
     });
   }
 
+  private scheduleFrameEmit(payload: BrowserFramePayload): void {
+    this.pendingFramePayload = payload;
+
+    const now = Date.now();
+    const elapsed = now - this.lastFrameEmitAt;
+
+    if (elapsed >= this.frameEmitInterval) {
+      this.flushPendingFrame();
+      return;
+    }
+
+    if (this.frameFlushTimer) return;
+
+    this.frameFlushTimer = setTimeout(() => {
+      this.frameFlushTimer = null;
+      this.flushPendingFrame();
+    }, this.frameEmitInterval - elapsed);
+  }
+
+  private flushPendingFrame(): void {
+    if (!this.pendingFramePayload) return;
+
+    const payload = this.pendingFramePayload;
+
+    this.pendingFramePayload = null;
+    this.lastFrameEmitAt = Date.now();
+
+    this.emit('frame', payload);
+  }
+
   private async disposePage(): Promise<void> {
     this.abortCurrentNavigation();
     this.isScreencastStarted = false;
+    this.pendingFramePayload = null;
+
+    if (this.frameFlushTimer) {
+      clearTimeout(this.frameFlushTimer);
+      this.frameFlushTimer = null;
+    }
 
     if (this.client) {
       await this.client.send('Page.stopLoading').catch(() => undefined);

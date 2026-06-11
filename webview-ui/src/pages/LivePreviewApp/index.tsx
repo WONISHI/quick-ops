@@ -511,6 +511,8 @@ function BrowserSurface({ frame, loading, onViewportChange }: BrowserSurfaceProp
             objectFit: 'fill',
             display: 'block',
             imageRendering: 'auto',
+            transform: 'translateZ(0)',
+            backfaceVisibility: 'hidden',
           }}
           src={`data:image/jpeg;base64,${frame.data}`}
           draggable={false}
