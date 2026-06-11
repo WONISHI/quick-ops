@@ -4,7 +4,7 @@ import UrlParser from '../../utils/UrlParser';
 import styles from './index.module.css';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faRotateRight, faGlobe, faXmark, faStar as faStarSolid, faArrowRight, faRotate, faArrowUpRightFromSquare, faEllipsis, faSpinner } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faRotateRight, faGlobe, faXmark, faStar as faStarSolid, faArrowRight, faRotate, faArrowUpRightFromSquare, faEllipsis, faSpinner, faChevronUp, faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 
 import VditorApp from '../VditorApp';
@@ -1696,119 +1696,85 @@ export default function LivePreviewApp() {
 
       {searchOpen && (
         <div
-          style={{
-            position: 'absolute',
-            top: 52,
-            right: 12,
-            zIndex: 10020,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '6px 8px',
-            borderRadius: 6,
-            border: '1px solid var(--vscode-widget-border, var(--vscode-panel-border))',
-            background: 'var(--vscode-editorWidget-background)',
-            color: 'var(--vscode-editorWidget-foreground)',
-            boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
-          }}
+          className={styles['page-search-bar']}
           onMouseDown={(event) => event.stopPropagation()}
           onClick={(event) => event.stopPropagation()}
         >
-          <input
-            ref={searchInputRef}
-            value={searchKeyword}
-            placeholder="搜索网页内容"
-            style={{
-              width: 190,
-              height: 26,
-              padding: '0 8px',
-              borderRadius: 4,
-              border: '1px solid var(--vscode-input-border, var(--vscode-widget-border))',
-              background: 'var(--vscode-input-background)',
-              color: 'var(--vscode-input-foreground)',
-              outline: 'none',
-              fontSize: 12,
-            }}
-            onChange={(event) => {
-              const value = event.target.value;
+          <div className={styles['page-search-input-wrapper']}>
+            <input
+              ref={searchInputRef}
+              className={styles['page-search-input']}
+              value={searchKeyword}
+              placeholder="搜索网页内容"
+              onChange={(event) => {
+                const value = event.target.value;
 
-              setSearchKeyword(value);
-              runPageSearch(value, 'next');
-            }}
-            onKeyDown={(event) => {
-              event.stopPropagation();
+                setSearchKeyword(value);
+                runPageSearch(value, 'next');
+              }}
+              onKeyDown={(event) => {
+                event.stopPropagation();
 
-              if (event.key === 'Enter') {
-                runPageSearch(searchKeyword, event.shiftKey ? 'previous' : 'next');
-              }
+                if (event.key === 'Enter') {
+                  runPageSearch(searchKeyword, event.shiftKey ? 'previous' : 'next');
+                }
 
-              if (event.key === 'Escape') {
-                closeSearchBar();
-              }
-            }}
-          />
+                if (event.key === 'Escape') {
+                  closeSearchBar();
+                }
+              }}
+            />
+
+            {searchKeyword && (
+              <button
+                type="button"
+                className={styles['page-search-clear']}
+                title="清空关键词"
+                onClick={() => {
+                  setSearchKeyword('');
+                  runPageSearch('', 'next');
+                  searchInputRef.current?.focus();
+                }}
+              >
+                <FontAwesomeIcon icon={faXmark} />
+              </button>
+            )}
+          </div>
 
           <span
-            style={{
-              minWidth: 54,
-              textAlign: 'center',
-              fontSize: 12,
-              opacity: 0.78,
-              userSelect: 'none',
-            }}
+            className={[
+              styles['page-search-count'],
+              searchKeyword.trim() && searchResult.total === 0 ? styles['page-search-count-empty'] : '',
+            ].filter(Boolean).join(' ')}
           >
             {searchKeyword.trim() ? `${searchResult.current}/${searchResult.total}` : '0/0'}
           </span>
 
           <button
             type="button"
-            style={{
-              height: 26,
-              minWidth: 28,
-              border: 'none',
-              borderRadius: 4,
-              background: 'transparent',
-              color: 'inherit',
-              cursor: 'pointer',
-            }}
+            className={styles['page-search-action']}
             title="上一个"
             onClick={() => runPageSearch(searchKeyword, 'previous')}
           >
-            ↑
+            <FontAwesomeIcon icon={faChevronUp} />
           </button>
 
           <button
             type="button"
-            style={{
-              height: 26,
-              minWidth: 28,
-              border: 'none',
-              borderRadius: 4,
-              background: 'transparent',
-              color: 'inherit',
-              cursor: 'pointer',
-            }}
+            className={styles['page-search-action']}
             title="下一个"
             onClick={() => runPageSearch(searchKeyword, 'next')}
           >
-            ↓
+            <FontAwesomeIcon icon={faChevronDown} />
           </button>
 
           <button
             type="button"
-            style={{
-              height: 26,
-              minWidth: 28,
-              border: 'none',
-              borderRadius: 4,
-              background: 'transparent',
-              color: 'inherit',
-              cursor: 'pointer',
-            }}
+            className={`${styles['page-search-action']} ${styles['page-search-close']}`}
             title="关闭"
             onClick={closeSearchBar}
           >
-            ×
+            <FontAwesomeIcon icon={faXmark} />
           </button>
         </div>
       )}
