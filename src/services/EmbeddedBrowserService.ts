@@ -65,7 +65,10 @@ export class EmbeddedBrowserService extends EventEmitter {
     deviceScaleFactor: 2,
   };
 
-  constructor(private readonly context: vscode.ExtensionContext) {
+  constructor(
+    private readonly context: vscode.ExtensionContext,
+    private readonly userDataDirName = 'BrowserUserData'
+  ) {
     super();
   }
 
@@ -654,7 +657,7 @@ export class EmbeddedBrowserService extends EventEmitter {
         headless: true,
         args,
         defaultViewport: this.lastViewport,
-        userDataDir: path.join(this.context.globalStorageUri.fsPath, 'BrowserUserData'),
+        userDataDir: path.join(this.context.globalStorageUri.fsPath, this.userDataDirName),
       });
 
       const pages = await this.browser.pages();

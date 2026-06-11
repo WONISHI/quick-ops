@@ -1602,6 +1602,13 @@ export default function LivePreviewApp() {
         visible={menuOpen}
         position={menuPos}
         onRefresh={handleRefresh}
+        onNewTab={() => {
+          vscode?.postMessage({
+            type: 'openNewPreviewTab',
+            url: (frameUrl || urlInput || '').trim(),
+            device,
+          });
+        }}
         onOpenFav={() => setActiveModal('fav')}
         onOpenHistory={() => setActiveModal('history')}
         onClearCache={handleCacheClear}

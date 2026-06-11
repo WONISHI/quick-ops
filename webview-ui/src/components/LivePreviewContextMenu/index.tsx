@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faRotateRight,
+  faPlus,
   faStar as faStarSolid,
   faClockRotateLeft,
   faBroom,
@@ -17,6 +18,7 @@ interface ContextMenuProps {
   visible: boolean;
   position: { x: number; y: number };
   onRefresh: () => void;
+  onNewTab: () => void;
   onOpenFav: () => void;
   onOpenHistory: () => void;
   onClearCache: (type: 'local' | 'session' | 'cookie') => void;
@@ -28,6 +30,7 @@ export default function LivePreviewContextMenu({
   visible,
   position,
   onRefresh,
+  onNewTab,
   onOpenFav,
   onOpenHistory,
   onClearCache,
@@ -41,8 +44,10 @@ export default function LivePreviewContextMenu({
   useEffect(() => {
     if (!visible) {
       setCacheSubmenuOpen(false);
+
       if (cacheMenuTimer.current) {
         window.clearTimeout(cacheMenuTimer.current);
+        cacheMenuTimer.current = null;
       }
     }
   }, [visible]);
@@ -59,6 +64,16 @@ export default function LivePreviewContextMenu({
         }}
       >
         <FontAwesomeIcon icon={faRotateRight} className={styles['menu-icon']} /> 刷新页面
+      </div>
+
+      <div
+        className={styles['menu-item']}
+        onClick={() => {
+          onNewTab();
+          onClose();
+        }}
+      >
+        <FontAwesomeIcon icon={faPlus} className={styles['menu-icon']} /> 新建标签页
       </div>
 
       <div
@@ -86,7 +101,11 @@ export default function LivePreviewContextMenu({
       <div
         className={`${styles['menu-item']} ${styles['has-submenu']}`}
         onMouseEnter={() => {
-          if (cacheMenuTimer.current) window.clearTimeout(cacheMenuTimer.current);
+          if (cacheMenuTimer.current) {
+            window.clearTimeout(cacheMenuTimer.current);
+            cacheMenuTimer.current = null;
+          }
+
           setCacheSubmenuOpen(true);
         }}
         onMouseLeave={() => {
@@ -97,7 +116,20 @@ export default function LivePreviewContextMenu({
         <FontAwesomeIcon icon={faChevronRight} className={styles['menu-chevron']} />
 
         {cacheSubmenuOpen && (
-          <div className={styles['submenu']}>
+          <div
+            className={styles['submenu']}
+            onMouseEnter={() => {
+              if (cacheMenuTimer.current) {
+                window.clearTimeout(cacheMenuTimer.current);
+                cacheMenuTimer.current = null;
+              }
+
+              setCacheSubmenuOpen(true);
+            }}
+            onMouseLeave={() => {
+              cacheMenuTimer.current = window.setTimeout(() => setCacheSubmenuOpen(false), 300);
+            }}
+          >
             <div
               className={styles['menu-item']}
               onClick={() => {

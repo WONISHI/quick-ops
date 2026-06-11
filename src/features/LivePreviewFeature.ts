@@ -547,6 +547,210 @@ export class LivePreviewFeature implements IFeature {
     return true;
   }
 
+  private async postFavoritesToPanel(context: vscode.ExtensionContext, panel: vscode.WebviewPanel): Promise<void> {
+    const mergedFavorites = await this.getMergedFavorites(context);
+
+    panel.webview.postMessage({
+      type: 'syncFavorites',
+      favorites: mergedFavorites,
+    });
+  }
+
+  private ensureDetachedBrowserService(context: vscode.ExtensionContext, panel: vscode.WebviewPanel): EmbeddedBrowserService {
+    const service = new EmbeddedBrowserService(context, `BrowserUserData-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+
+    service.on('frame', (frame) => {
+      panel.webview.postMessage({
+        type: 'browserFrame',
+        ...frame,
+      });
+    });
+
+    service.on('pageLoaded', (payload) => {
+      panel.webview.postMessage({
+        type: 'browserPageLoaded',
+        ...payload,
+      });
+    });
+
+    service.on('urlChanged', (payload) => {
+      panel.webview.postMessage({
+        type: 'browserUrlChanged',
+        ...payload,
+      });
+    });
+
+    service.on('titleChanged', (payload) => {
+      panel.webview.postMessage({
+        type: 'browserTitleChanged',
+        ...payload,
+      });
+    });
+
+    service.on('pageError', (payload) => {
+      panel.webview.postMessage({
+        type: 'browserPageError',
+        ...payload,
+      });
+    });
+
+    return service;
+  }
+
+  private createNewPreviewTab(context: vscode.ExtensionContext, initialUrl = '', initialDevice = ''): void {
+    const targetColumn = this.panel?.viewColumn || vscode.ViewColumn.Active;
+
+    const panel = vscode.window.createWebviewPanel('quickOpsLivePreview', '网页预览 (Preview)', targetColumn, {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      enableFindWidget: true,
+      localResourceRoots: this.getLocalResourceRoots(context),
+    });
+
+    panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
+
+    const browserService = this.ensureDetachedBrowserService(context, panel);
+    const lastDevice = initialDevice || context.workspaceState.get<string>('quickOps.lastPreviewDevice') || 'device-responsive';
+    const lastUrl = String(initialUrl || context.workspaceState.get<string>('quickOps.lastPreviewUrl') || '').trim();
+    let hasSentInit = false;
+
+    panel.title = '网页预览 (Preview)';
+    panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/preview');
+    panel.reveal(targetColumn, false);
+
+    const postInit = async () => {
+      if (hasSentInit) return;
+
+      hasSentInit = true;
+
+      panel.webview.postMessage({
+        type: 'init',
+        device: lastDevice,
+        url: lastUrl,
+      });
+
+      await this.postFavoritesToPanel(context, panel);
+    };
+
+    panel.onDidChangeViewState((event) => {
+      if (event.webviewPanel.visible) {
+        void this.postFavoritesToPanel(context, panel);
+      }
+    });
+
+    panel.onDidDispose(() => {
+      void browserService.dispose();
+    });
+
+    const runDetachedBrowserAction = async (action: () => Promise<void>) => {
+      try {
+        await action();
+      } catch (error: any) {
+        panel.webview.postMessage({
+          type: 'browserPageError',
+          url: lastUrl,
+          message: error?.message || String(error),
+        });
+      }
+    };
+
+    panel.webview.onDidReceiveMessage(async (message) => {
+      if (message.type === 'ready') {
+        await postInit();
+      } else if (message.type === 'saveUrl') {
+        await context.workspaceState.update('quickOps.lastPreviewUrl', message.url || '');
+      } else if (message.type === 'saveDevice') {
+        await context.workspaceState.update('quickOps.lastPreviewDevice', message.device);
+      } else if (message.type === 'reqSyncFavorites') {
+        await this.postFavoritesToPanel(context, panel);
+      } else if (message.type === 'saveAllFavorites') {
+        await this.saveUserFavorites(context, message.favorites || []);
+        await this.postFavoritesToPanel(context, panel);
+      } else if (message.type === 'toggleFavorite') {
+        const defaultFavorites = await this.loadDefaultFavorites(context);
+        const targetUrlKey = this.normalizeFavoriteUrl(message.url);
+
+        const isDefaultFavorite = defaultFavorites.some((item) => {
+          return this.normalizeFavoriteUrl(item.url) === targetUrlKey;
+        });
+
+        if (isDefaultFavorite) {
+          vscode.window.showInformationMessage('该收藏是插件内置默认书签，不能取消收藏。');
+          await this.postFavoritesToPanel(context, panel);
+          return;
+        }
+
+        const favs = this.normalizeUserFavorites(context.globalState.get<any[]>(this.GLOBAL_FAVORITES_KEY) || []);
+        const index = favs.findIndex((f) => this.normalizeFavoriteUrl(f.url) === targetUrlKey);
+
+        if (index > -1) {
+          favs.splice(index, 1);
+        } else {
+          favs.push({
+            url: message.url,
+            title: message.title || message.url,
+            logo: typeof message.logo === 'string' ? message.logo : '',
+            description: typeof message.description === 'string' ? message.description : '',
+            timestamp: Date.now(),
+            isDefault: false,
+            source: 'user',
+          });
+        }
+
+        await context.globalState.update(this.GLOBAL_FAVORITES_KEY, favs);
+        await this.postFavoritesToPanel(context, panel);
+      } else if (message.type === 'openNewPreviewTab') {
+        this.createNewPreviewTab(context, message.url || '', message.device || '');
+      } else if (message.type === 'browserNavigate') {
+        await runDetachedBrowserAction(() => browserService.navigate(message.url || 'about:blank'));
+      } else if (message.type === 'browserRefresh') {
+        await runDetachedBrowserAction(() => browserService.reload(message.url || undefined));
+      } else if (message.type === 'browserStopLoading') {
+        await runDetachedBrowserAction(() => browserService.stopLoading());
+      } else if (message.type === 'browserCopySelection') {
+        await runDetachedBrowserAction(() => browserService.copySelectedText());
+      } else if (message.type === 'browserSelectTextRange') {
+        await runDetachedBrowserAction(() =>
+          browserService.selectTextRange(
+            Number(message.startX) || 0,
+            Number(message.startY) || 0,
+            Number(message.endX) || 0,
+            Number(message.endY) || 0
+          )
+        );
+      } else if (message.type === 'browserBack') {
+        await runDetachedBrowserAction(() => browserService.goBack());
+      } else if (message.type === 'browserForward') {
+        await runDetachedBrowserAction(() => browserService.goForward());
+      } else if (message.type === 'browserSetViewport') {
+        await runDetachedBrowserAction(() =>
+          browserService.setViewport({
+            width: message.width,
+            height: message.height,
+            deviceScaleFactor: message.deviceScaleFactor,
+          })
+        );
+      } else if (message.type === 'browserInput') {
+        await runDetachedBrowserAction(() => browserService.dispatchInput(message));
+      } else if (message.type === 'browserClearCache') {
+        await runDetachedBrowserAction(() => browserService.clearCache());
+      } else if (message.type === 'openDevTools') {
+        await runDetachedBrowserAction(() => browserService.openDevTools());
+      } else if (message.type === 'browserStop') {
+        await runDetachedBrowserAction(() => browserService.stop());
+      } else if (message.type === 'openExternalBrowser') {
+        const rawUrl = message.url || '';
+        if (rawUrl) {
+          await vscode.env.openExternal(this.parseExternalUri(rawUrl));
+        }
+      } else if (message.type === 'showInfo') {
+        vscode.window.showInformationMessage(message.message || '');
+      } else if (message.type === 'showError') {
+        vscode.window.showErrorMessage(message.message || '');
+      }
+    });
+  }
+
   private showPreviewPanel(context: vscode.ExtensionContext) {
     if (this.panel) {
       this.panel.reveal(vscode.ViewColumn.Beside);
@@ -637,6 +841,8 @@ export class LivePreviewFeature implements IFeature {
 
         await context.globalState.update(this.GLOBAL_FAVORITES_KEY, favs);
         await this.syncFavorites(context);
+      } else if (message.type === 'openNewPreviewTab') {
+        this.createNewPreviewTab(context, message.url || '', message.device || '');
       } else if (message.type === 'browserNavigate') {
         await this.ensureBrowserService(context).navigate(message.url || 'about:blank');
       } else if (message.type === 'browserRefresh') {
