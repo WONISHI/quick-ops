@@ -745,6 +745,7 @@
     "nanoid": "^5.1.6",
     "prettier": "^3.6.2",
     "pug": "^3.0.3",
+    "puppeteer-core": "^25.1.0",
     "simple-git": "^3.35.2",
     "terser-webpack-plugin": "^5.3.14",
     "ts-loader": "^9.5.2",
@@ -759,7 +760,5 @@
     "node": "22.18.0",
     "yarn": "4.10.3"
   },
-  "dependencies": {
-    "puppeteer-core": "^25.1.0"
-  }
+  "dependencies": {}
 }
