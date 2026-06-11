@@ -174,9 +174,13 @@ export class EmbeddedBrowserService extends EventEmitter {
   public async stopLoading(): Promise<void> {
     this.abortCurrentNavigation();
 
-    if (!this.client) return;
+    if (!this.client || !this.page || this.page.isClosed()) return;
 
-    await this.client.send('Page.stopLoading').catch(() => undefined);
+    await this.client.send('Page.stopLoading').catch((error) => {
+      if (!this.isTargetClosedError(error)) {
+        console.warn('[EmbeddedBrowserService] stop loading failed:', error);
+      }
+    });
   }
 
   public async copySelectedText(): Promise<void> {
@@ -339,35 +343,49 @@ export class EmbeddedBrowserService extends EventEmitter {
   }
 
   public async dispatchInput(message: BrowserInputMessage): Promise<void> {
-    const client = await this.ensureClient();
+    if (!this.page || this.page.isClosed()) return;
 
-    if (message.inputType === 'mouse') {
-      const eventType = this.normalizeMouseEventType(message.eventType);
+    try {
+      const client = await this.ensureClient();
 
-      await client.send('Input.dispatchMouseEvent', {
-        type: eventType,
-        x: Math.max(0, Number(message.x) || 0),
-        y: Math.max(0, Number(message.y) || 0),
-        button: eventType === 'mouseMoved' ? 'none' : message.button || 'left',
-        buttons: Math.max(0, Number(message.buttons) || 0),
-        clickCount: eventType === 'mouseMoved' ? 0 : Math.max(1, Number(message.clickCount) || 1),
-      });
-      return;
-    }
+      if (!this.page || this.page.isClosed()) return;
 
-    if (message.inputType === 'wheel') {
-      await client.send('Input.dispatchMouseEvent', {
-        type: 'mouseWheel',
-        x: Math.max(0, Number(message.x) || 0),
-        y: Math.max(0, Number(message.y) || 0),
-        deltaX: Number(message.deltaX) || 0,
-        deltaY: Number(message.deltaY) || 0,
-      });
-      return;
-    }
+      if (message.inputType === 'mouse') {
+        const eventType = this.normalizeMouseEventType(message.eventType);
 
-    if (message.inputType === 'keyboard') {
-      await this.dispatchKeyboardInput(message);
+        await client.send('Input.dispatchMouseEvent', {
+          type: eventType,
+          x: Math.max(0, Number(message.x) || 0),
+          y: Math.max(0, Number(message.y) || 0),
+          button: eventType === 'mouseMoved' ? 'none' : message.button || 'left',
+          buttons: Math.max(0, Number(message.buttons) || 0),
+          clickCount: eventType === 'mouseMoved' ? 0 : Math.max(1, Number(message.clickCount) || 1),
+        });
+        return;
+      }
+
+      if (message.inputType === 'wheel') {
+        await client.send('Input.dispatchMouseEvent', {
+          type: 'mouseWheel',
+          x: Math.max(0, Number(message.x) || 0),
+          y: Math.max(0, Number(message.y) || 0),
+          deltaX: Number(message.deltaX) || 0,
+          deltaY: Number(message.deltaY) || 0,
+        });
+        return;
+      }
+
+      if (message.inputType === 'keyboard') {
+        await this.dispatchKeyboardInput(message);
+      }
+    } catch (error) {
+      if (this.isTargetClosedError(error)) {
+        console.warn('[EmbeddedBrowserService] input ignored because target was closed:', error);
+        await this.resetClosedPageState();
+        return;
+      }
+
+      console.warn('[EmbeddedBrowserService] dispatch input failed:', error);
     }
   }
 
@@ -384,6 +402,27 @@ export class EmbeddedBrowserService extends EventEmitter {
     }
 
     this.removeAllListeners();
+  }
+
+  private isTargetClosedError(error: unknown): boolean {
+    if (!error) return false;
+
+    const message = error instanceof Error ? error.message : String(error);
+
+    return /target closed|session closed|connection closed|protocol error.*target closed|target page, context or browser has been closed/i.test(message);
+  }
+
+  private async resetClosedPageState(): Promise<void> {
+    this.abortCurrentNavigation();
+    this.isScreencastStarted = false;
+    this.lastFramePayload = null;
+
+    if (this.client) {
+      await this.client.detach().catch(() => undefined);
+      this.client = null;
+    }
+
+    this.page = null;
   }
 
   private createNavigationSignal(): AbortSignal {
@@ -507,6 +546,10 @@ export class EmbeddedBrowserService extends EventEmitter {
   }
 
   private async ensurePage(): Promise<Page> {
+    if (this.page?.isClosed()) {
+      await this.resetClosedPageState();
+    }
+
     if (this.page) return this.page;
 
     await this.ensureBrowser();
@@ -526,6 +569,11 @@ export class EmbeddedBrowserService extends EventEmitter {
   private async ensureClient(): Promise<CDPSession> {
     const page = await this.ensurePageWithoutClientLoop();
 
+    if (this.client && (!this.page || this.page.isClosed())) {
+      await this.client.detach().catch(() => undefined);
+      this.client = null;
+    }
+
     if (this.client) return this.client;
 
     this.client = await page.target().createCDPSession();
@@ -538,6 +586,10 @@ export class EmbeddedBrowserService extends EventEmitter {
   }
 
   private async ensurePageWithoutClientLoop(): Promise<Page> {
+    if (this.page?.isClosed()) {
+      await this.resetClosedPageState();
+    }
+
     if (this.page) return this.page;
 
     await this.ensureBrowser();
