@@ -17,9 +17,16 @@
     overflow: hidden;
 }
 
-.file-item:hover,
 .file-item.active {
     background: var(--vscode-list-inactiveSelectionBackground);
+}
+
+.file-item:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--vscode-list-hoverBackground, var(--vscode-list-inactiveSelectionBackground)) 85%,
+    transparent
+  );
 }
 
 .file-icon {
