@@ -12,6 +12,13 @@ interface BrowserFramePayload {
   height: number;
 }
 
+interface BrowserSnapshot {
+  url: string;
+  title: string;
+  frame: BrowserFramePayload | null;
+  hasPage: boolean;
+}
+
 type BrowserMouseEventType = 'mouseMoved' | 'mousePressed' | 'mouseReleased' | 'mouseWheel';
 type BrowserKeyboardEventType = 'keyDown' | 'keyUp';
 
@@ -46,6 +53,7 @@ export class EmbeddedBrowserService extends EventEmitter {
   private isLaunching = false;
   private isScreencastStarted = false;
   private navigationAbortController: AbortController | null = null;
+  private lastFramePayload: BrowserFramePayload | null = null;
   private readonly hookedPages = new WeakSet<Page>();
   private debugPort = 9222;
   private lastViewport = {
@@ -56,6 +64,24 @@ export class EmbeddedBrowserService extends EventEmitter {
 
   constructor(private readonly context: vscode.ExtensionContext) {
     super();
+  }
+
+  public async getSnapshot(): Promise<BrowserSnapshot> {
+    if (!this.page) {
+      return {
+        url: '',
+        title: '',
+        frame: this.lastFramePayload,
+        hasPage: false,
+      };
+    }
+
+    return {
+      url: this.page.url(),
+      title: await this.page.title().catch(() => this.page?.url() || ''),
+      frame: this.lastFramePayload,
+      hasPage: true,
+    };
   }
 
   public async navigate(url: string): Promise<void> {
@@ -673,6 +699,8 @@ export class EmbeddedBrowserService extends EventEmitter {
         height: event.metadata?.deviceHeight || this.lastViewport.height,
       };
 
+      this.lastFramePayload = payload;
+
       this.emit('frame', payload);
 
       await this.client?.send('Page.screencastFrameAck', {
@@ -703,6 +731,8 @@ export class EmbeddedBrowserService extends EventEmitter {
       await this.page.close().catch(() => undefined);
       this.page = null;
     }
+
+    this.lastFramePayload = null;
   }
 
 

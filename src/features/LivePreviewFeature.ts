@@ -517,6 +517,36 @@ export class LivePreviewFeature implements IFeature {
     return this.browserService;
   }
 
+  private async postBrowserSnapshot(): Promise<boolean> {
+    if (!this.panel || !this.browserService) return false;
+
+    const snapshot = await this.browserService.getSnapshot();
+
+    if (!snapshot.hasPage && !snapshot.frame) return false;
+
+    if (snapshot.frame) {
+      this.panel.webview.postMessage({
+        type: 'browserFrame',
+        ...snapshot.frame,
+      });
+    }
+
+    if (snapshot.url) {
+      this.panel.webview.postMessage({
+        type: 'browserUrlChanged',
+        url: snapshot.url,
+      });
+
+      this.panel.webview.postMessage({
+        type: 'browserPageLoaded',
+        url: snapshot.url,
+        title: snapshot.title || snapshot.url,
+      });
+    }
+
+    return true;
+  }
+
   private showPreviewPanel(context: vscode.ExtensionContext) {
     if (this.panel) {
       this.panel.reveal(vscode.ViewColumn.Beside);
@@ -542,7 +572,8 @@ export class LivePreviewFeature implements IFeature {
     this.panel.onDidDispose(() => {
       this.panel = undefined;
       this.pendingLocalFile = null;
-      void this.browserService?.stop();
+      // 不在面板关闭时停止浏览器页面。
+      // 这样下次重新打开 Live Preview 时，可以直接恢复上一次的页面截图和 URL，不会重新请求页面。
     });
 
     const lastUrl = context.workspaceState.get<string>('quickOps.lastPreviewUrl') || '';
@@ -552,11 +583,17 @@ export class LivePreviewFeature implements IFeature {
 
     this.panel.webview.onDidReceiveMessage(async (message) => {
       if (message.type === 'ready') {
+        const restored = await this.postBrowserSnapshot();
+
         this.panel?.webview.postMessage({
           type: 'init',
           device: lastDevice,
-          url: lastUrl,
+          url: restored ? '' : lastUrl,
         });
+
+        if (restored) {
+          await this.postBrowserSnapshot();
+        }
 
         await this.syncFavorites(context);
       } else if (message.type === 'saveUrl') {
