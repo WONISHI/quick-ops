@@ -1,5 +1,4 @@
 import { EventEmitter } from 'events';
-import { existsSync } from 'fs';
 import { platform } from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -565,7 +564,7 @@ export class EmbeddedBrowserService extends EventEmitter {
     this.isLaunching = true;
 
     try {
-      const chromePath = this.getChromeExecutablePath();
+      const chromePath = await this.getChromeExecutablePath();
 
       if (!chromePath) {
         throw new Error('没有找到 Chrome/Edge，请安装 Chrome，或在 quickOps.browser.chromeExecutable 配置浏览器路径。');
@@ -861,14 +860,36 @@ export class EmbeddedBrowserService extends EventEmitter {
     return port;
   }
 
-  private getChromeExecutablePath(): string | undefined {
-    const configured = vscode.workspace.getConfiguration().get<string>('quickOps.browser.chromeExecutable') || vscode.workspace.getConfiguration().get<string>('browse-lite.chromeExecutable') || '';
+  private async getChromeExecutablePath(): Promise<string | undefined> {
+    const configured =
+      vscode.workspace.getConfiguration().get<string>('quickOps.browser.chromeExecutable') ||
+      vscode.workspace.getConfiguration().get<string>('browse-lite.chromeExecutable') ||
+      '';
 
-    if (configured && existsSync(configured)) return configured;
+    if (configured && await this.pathExists(configured)) {
+      return configured;
+    }
 
     const candidates = this.getPlatformChromeCandidates();
 
-    return candidates.find((item) => existsSync(item));
+    for (const candidate of candidates) {
+      if (await this.pathExists(candidate)) {
+        return candidate;
+      }
+    }
+
+    return undefined;
+  }
+
+  private async pathExists(fsPath: string): Promise<boolean> {
+    if (!fsPath) return false;
+
+    try {
+      await vscode.workspace.fs.stat(vscode.Uri.file(fsPath));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private getPlatformChromeCandidates(): string[] {
