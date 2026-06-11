@@ -662,38 +662,12 @@ export default function LivePreviewApp() {
 
     clearPreviewLoadTimer();
 
-    const isDefaultBookmark = isDefaultFavoriteUrl(url);
-
-    if (isDefaultBookmark) {
-      updateFavicon(url);
-
-      previewLoadTimerRef.current = window.setTimeout(() => {
-        showPreviewErrorByRequest(requestId, url, '页面加载超时', '该地址是默认书签，已等待 60 秒仍未完成加载。目标网站加载较慢，建议稍后重试或使用外部浏览器打开。');
-      }, 60000);
-
-      return;
-    }
-
-    previewLoadTimerRef.current = window.setTimeout(() => {
-      if (previewRequestIdRef.current !== requestId) return;
-      if (pageLoadedRef.current) return;
-      if (faviconResolvedRef.current) return;
-
-      showPreviewErrorByRequest(requestId, url, '页面加载失败', '60 秒内没有成功解析到网站图标。可能是地址错误、网络异常，或者目标网站无法访问。');
-    }, 60000);
-
     updateFavicon(url, {
       onResolved: () => {
         if (previewRequestIdRef.current !== requestId) return;
         if (pageLoadedRef.current) return;
 
         faviconResolvedRef.current = true;
-
-        clearPreviewLoadTimer();
-
-        previewLoadTimerRef.current = window.setTimeout(() => {
-          showPreviewErrorByRequest(requestId, url, '页面加载超时', '已成功解析到网站图标，但页面仍未完成加载。目标网站加载较慢，建议稍后重试或使用外部浏览器打开。');
-        }, 10000);
       },
     });
   };

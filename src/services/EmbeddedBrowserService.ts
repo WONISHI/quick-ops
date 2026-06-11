@@ -63,9 +63,14 @@ export class EmbeddedBrowserService extends EventEmitter {
     try {
       await page.goto(url, {
         waitUntil: 'domcontentloaded',
-        timeout: 45000,
+        timeout: 0,
       });
     } catch (error: any) {
+      if (this.isNavigationTimeoutError(error)) {
+        console.warn('[EmbeddedBrowserService] navigation timeout ignored:', error);
+        return;
+      }
+
       this.emit('pageError', {
         url,
         message: error?.message || String(error),
@@ -84,9 +89,14 @@ export class EmbeddedBrowserService extends EventEmitter {
     try {
       await page.reload({
         waitUntil: 'domcontentloaded',
-        timeout: 45000,
+        timeout: 0,
       });
     } catch (error: any) {
+      if (this.isNavigationTimeoutError(error)) {
+        console.warn('[EmbeddedBrowserService] reload timeout ignored:', error);
+        return;
+      }
+
       this.emit('pageError', {
         url: page.url(),
         message: error?.message || String(error),
@@ -96,12 +106,12 @@ export class EmbeddedBrowserService extends EventEmitter {
 
   public async goBack(): Promise<void> {
     const page = await this.ensurePage();
-    await page.goBack({ waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => undefined);
+    await page.goBack({ waitUntil: 'domcontentloaded', timeout: 0 }).catch(() => undefined);
   }
 
   public async goForward(): Promise<void> {
     const page = await this.ensurePage();
-    await page.goForward({ waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => undefined);
+    await page.goForward({ waitUntil: 'domcontentloaded', timeout: 0 }).catch(() => undefined);
   }
 
   public async clearCache(): Promise<void> {
@@ -208,6 +218,14 @@ export class EmbeddedBrowserService extends EventEmitter {
     }
 
     this.removeAllListeners();
+  }
+
+  private isNavigationTimeoutError(error: unknown): boolean {
+    if (!error) return false;
+
+    const message = error instanceof Error ? error.message : String(error);
+
+    return /timeout|timed out|navigation timeout/i.test(message);
   }
 
   private normalizeMouseEventType(eventType?: BrowserMouseEventType | BrowserKeyboardEventType): BrowserMouseEventType {
