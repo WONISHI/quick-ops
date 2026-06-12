@@ -74,6 +74,8 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
     moved: false,
   });
   const selectionSelectRafRef = useRef<number | null>(null);
+  const imeInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const isComposingRef = useRef(false);
   const [isMiddleDragging, setIsMiddleDragging] = useState(false);
 
   const notifyViewportSize = useCallback(() => {
@@ -395,20 +397,49 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
     });
   };
 
+  const focusImeInput = () => {
+    window.setTimeout(() => {
+      imeInputRef.current?.focus({ preventScroll: true });
+    }, 0);
+  };
+
+  const insertComposedText = (text: string) => {
+    if (!text) return;
+
+    vscode?.postMessage({
+      type: 'browserInput',
+      inputType: 'insertText',
+      text,
+    });
+  };
+
+  const updateImeInputPosition = (clientX: number, clientY: number) => {
+    const input = imeInputRef.current;
+
+    if (!input) return;
+
+    const left = Math.max(0, Math.min(window.innerWidth - 180, clientX));
+    const top = Math.max(0, Math.min(window.innerHeight - 28, clientY + 18));
+
+    input.style.left = `${left}px`;
+    input.style.top = `${top}px`;
+  };
+
   const sendKey = (event: React.KeyboardEvent<HTMLDivElement>, eventType: 'keyDown' | 'keyUp') => {
     const shortcutKey = event.key.toLowerCase();
     const isCopyShortcut = (event.ctrlKey || event.metaKey) && shortcutKey === 'c';
     const isFindShortcut = (event.ctrlKey || event.metaKey) && shortcutKey === 'f';
+    const isComposing = isComposingRef.current || event.nativeEvent.isComposing || event.key === 'Process';
 
     if (eventType === 'keyDown') {
-      event.preventDefault();
-
       if (isFindShortcut) {
+        event.preventDefault();
         onFindShortcut();
         return;
       }
 
       if (isCopyShortcut) {
+        event.preventDefault();
         vscode?.postMessage({
           type: 'browserCopySelection',
         });
@@ -419,6 +450,14 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
     if (eventType === 'keyUp' && (isCopyShortcut || isFindShortcut)) {
       event.preventDefault();
       return;
+    }
+
+    if (isComposing) {
+      return;
+    }
+
+    if (eventType === 'keyDown') {
+      event.preventDefault();
     }
 
     vscode?.postMessage({
@@ -463,6 +502,8 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
       }}
       onMouseDown={(event) => {
         event.currentTarget.focus();
+        updateImeInputPosition(event.clientX, event.clientY);
+        focusImeInput();
 
         if (event.button === 1) {
           event.preventDefault();
@@ -510,6 +551,63 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
       onKeyDown={(event) => sendKey(event, 'keyDown')}
       onKeyUp={(event) => sendKey(event, 'keyUp')}
     >
+      <textarea
+        ref={imeInputRef}
+        className={styles['browser-ime-capture']}
+        aria-hidden="true"
+        tabIndex={-1}
+        defaultValue=""
+        onChange={(event) => {
+          if (isComposingRef.current) {
+            return;
+          }
+
+          const value = event.currentTarget.value;
+
+          if (value) {
+            insertComposedText(value);
+          }
+
+          event.currentTarget.value = '';
+        }}
+        onCompositionStart={() => {
+          isComposingRef.current = true;
+        }}
+        onCompositionUpdate={() => {
+          isComposingRef.current = true;
+        }}
+        onCompositionEnd={(event) => {
+          isComposingRef.current = false;
+
+          const value = event.currentTarget.value || event.data || '';
+
+          if (value) {
+            insertComposedText(value);
+          }
+
+          window.setTimeout(() => {
+            if (!imeInputRef.current) return;
+
+            imeInputRef.current.value = '';
+            imeInputRef.current.focus({ preventScroll: true });
+          }, 0);
+        }}
+        onKeyDown={(event) => {
+          if (isComposingRef.current || event.nativeEvent.isComposing || event.key === 'Process') {
+            return;
+          }
+
+          sendKey(event as unknown as React.KeyboardEvent<HTMLDivElement>, 'keyDown');
+        }}
+        onKeyUp={(event) => {
+          if (isComposingRef.current || event.nativeEvent.isComposing || event.key === 'Process') {
+            return;
+          }
+
+          sendKey(event as unknown as React.KeyboardEvent<HTMLDivElement>, 'keyUp');
+        }}
+      />
+
       {frame ? (
         <img
           className={styles['browser-lite-frame']}
@@ -736,12 +834,12 @@ export default function LivePreviewApp() {
   //   });
   // }, [favorites, frameUrl, urlInput]);
 
-  const isDefaultFavoriteUrl = (url: string) => {
-    const targetUrl = normalizeFavoriteUrl(url);
-    if (!targetUrl) return false;
+  // const isDefaultFavoriteUrl = (url: string) => {
+  //   const targetUrl = normalizeFavoriteUrl(url);
+  //   if (!targetUrl) return false;
 
-    return favorites.some((item) => item.isDefault && normalizeFavoriteUrl(item.url) === targetUrl);
-  };
+  //   return favorites.some((item) => item.isDefault && normalizeFavoriteUrl(item.url) === targetUrl);
+  // };
 
   const updateHistoryLogo = (url: string, logo: string) => {
     if (!url || !logo) return;
@@ -830,21 +928,21 @@ export default function LivePreviewApp() {
     }
   };
 
-  const showPreviewErrorByRequest = (requestId: number, url: string, title: string, message: string) => {
-    if (previewRequestIdRef.current !== requestId) return;
-    if (pageLoadedRef.current) return;
+  // const showPreviewErrorByRequest = (requestId: number, url: string, title: string, message: string) => {
+  //   if (previewRequestIdRef.current !== requestId) return;
+  //   if (pageLoadedRef.current) return;
 
-    clearPreviewLoadTimer();
+  //   clearPreviewLoadTimer();
 
-    setPreviewLoading(false);
-    setIsPageLoaded(false);
+  //   setPreviewLoading(false);
+  //   setIsPageLoaded(false);
 
-    setPreviewError({
-      title,
-      message,
-      url,
-    });
-  };
+  //   setPreviewError({
+  //     title,
+  //     message,
+  //     url,
+  //   });
+  // };
 
   const startWebPreviewGuard = (url: string) => {
     const requestId = previewRequestIdRef.current + 1;
@@ -1391,6 +1489,7 @@ export default function LivePreviewApp() {
       vscode?.postMessage({ type: 'showInfo', message: '✅ 缓存清理成功！' });
       handleRefresh();
     } catch (e) {
+      console.log('err',e)
       vscode?.postMessage({ type: 'showWarning', message: '⚠️ 此页面不支持清理缓存或存在跨域限制' });
     }
 

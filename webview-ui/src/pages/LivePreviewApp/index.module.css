@@ -697,3 +697,27 @@
   color: var(--error-color);
 }
 
+
+/* ==================== 浏览器输入法捕获层 ==================== */
+
+.browser-ime-capture {
+  position: fixed;
+  left: 12px;
+  top: 52px;
+  z-index: 10030;
+  width: 180px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  outline: none;
+  opacity: 0.01;
+  color: transparent;
+  caret-color: transparent;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  pointer-events: none;
+  box-shadow: none;
+  transform: translateZ(0);
+  ime-mode: active;
+}

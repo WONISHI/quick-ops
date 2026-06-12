@@ -28,7 +28,7 @@ type BrowserMouseEventType = 'mouseMoved' | 'mousePressed' | 'mouseReleased' | '
 type BrowserKeyboardEventType = 'keyDown' | 'keyUp';
 
 interface BrowserInputMessage {
-  inputType: 'mouse' | 'wheel' | 'keyboard';
+  inputType: 'mouse' | 'wheel' | 'keyboard' | 'insertText';
   eventType?: BrowserMouseEventType | BrowserKeyboardEventType;
   x?: number;
   y?: number;
@@ -39,6 +39,7 @@ interface BrowserInputMessage {
   deltaY?: number;
   key?: string;
   code?: string;
+  text?: string;
   ctrlKey?: boolean;
   shiftKey?: boolean;
   altKey?: boolean;
@@ -65,6 +66,7 @@ export class EmbeddedBrowserService extends EventEmitter {
   private readonly frameEmitInterval = 33;
   private readonly hookedPages = new WeakSet<Page>();
   private debugPort = 9222;
+  private activeUserDataDirName = this.userDataDirName;
   private lastViewport = {
     width: 1280,
     height: 720,
@@ -73,9 +75,10 @@ export class EmbeddedBrowserService extends EventEmitter {
 
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly userDataDirName = 'BrowserUserData'
+    private readonly userDataDirName = `BrowserUserData-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
   ) {
     super();
+    this.activeUserDataDirName = userDataDirName;
   }
 
   public async getSnapshot(): Promise<BrowserSnapshot> {
@@ -614,6 +617,16 @@ export class EmbeddedBrowserService extends EventEmitter {
         return;
       }
 
+      if (message.inputType === 'insertText') {
+        const text = typeof message.text === 'string' ? message.text : '';
+
+        if (text) {
+          await client.send('Input.insertText', { text });
+        }
+
+        return;
+      }
+
       if (message.inputType === 'keyboard') {
         await this.dispatchKeyboardInput(message);
       }
@@ -731,6 +744,10 @@ export class EmbeddedBrowserService extends EventEmitter {
     const type = message.eventType === 'keyUp' ? 'keyUp' : 'keyDown';
     const modifiers = this.getKeyboardModifiers(message);
 
+    if (key === 'Process' || key === 'Unidentified' || key === 'Dead') {
+      return;
+    }
+
     if (type === 'keyDown' && key.length === 1 && !message.ctrlKey && !message.metaKey && !message.altKey) {
       await client.send('Input.insertText', { text: key });
       return;
@@ -844,6 +861,18 @@ export class EmbeddedBrowserService extends EventEmitter {
     return this.page;
   }
 
+  private createUserDataDirName(): string {
+    return `BrowserUserData-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  }
+
+  private isUserDataDirLockedError(error: unknown): boolean {
+    if (!error) return false;
+
+    const message = error instanceof Error ? error.message : String(error);
+
+    return /browser is already running|userdatadir|user data dir|process_singleton|profile.*in use|正在运行/i.test(message);
+  }
+
   private async ensureBrowser(): Promise<void> {
     if (this.browser || this.isLaunching) {
       while (this.isLaunching) {
@@ -884,13 +913,33 @@ export class EmbeddedBrowserService extends EventEmitter {
         args.push('--no-sandbox');
       }
 
-      this.browser = await puppeteer.launch({
-        executablePath: chromePath,
-        headless: true,
-        args,
-        defaultViewport: this.lastViewport,
-        userDataDir: path.join(this.context.globalStorageUri.fsPath, this.userDataDirName),
-      });
+      const launchBrowser = async (userDataDirName: string) => {
+        return puppeteer.launch({
+          executablePath: chromePath,
+          headless: true,
+          args,
+          defaultViewport: this.lastViewport,
+          userDataDir: path.join(this.context.globalStorageUri.fsPath, userDataDirName),
+        });
+      };
+
+      try {
+        this.browser = await launchBrowser(this.activeUserDataDirName);
+      } catch (error) {
+        if (!this.isUserDataDirLockedError(error)) {
+          throw error;
+        }
+
+        const fallbackUserDataDirName = this.createUserDataDirName();
+
+        console.warn(
+          `[EmbeddedBrowserService] userDataDir is locked, retry with ${fallbackUserDataDirName}:`,
+          error
+        );
+
+        this.activeUserDataDirName = fallbackUserDataDirName;
+        this.browser = await launchBrowser(this.activeUserDataDirName);
+      }
 
       const pages = await this.browser.pages();
       await Promise.allSettled(pages.map((item) => item.close()));
