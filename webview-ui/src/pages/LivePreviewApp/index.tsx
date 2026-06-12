@@ -76,7 +76,12 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
   const selectionSelectRafRef = useRef<number | null>(null);
   const imeInputRef = useRef<HTMLTextAreaElement | null>(null);
   const isComposingRef = useRef(false);
+  const ignoreNextInputRef = useRef(false);
+  const ignoreInputTimerRef = useRef<number | null>(null);
+  const lastCommittedCompositionTextRef = useRef('');
+  const lastCommittedCompositionAtRef = useRef(0);
   const [isMiddleDragging, setIsMiddleDragging] = useState(false);
+
 
   const notifyViewportSize = useCallback(() => {
     const target = surfaceRef.current;
@@ -403,13 +408,68 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
     }, 0);
   };
 
-  const insertComposedText = (text: string) => {
+  const clearImeInputValue = () => {
+    const input = imeInputRef.current;
+
+    if (!input) return;
+
+    input.value = '';
+  };
+
+  const clearIgnoreInputTimer = () => {
+    if (!ignoreInputTimerRef.current) return;
+
+    window.clearTimeout(ignoreInputTimerRef.current);
+    ignoreInputTimerRef.current = null;
+  };
+
+  const scheduleIgnoreNextInputReset = () => {
+    clearIgnoreInputTimer();
+
+    ignoreInputTimerRef.current = window.setTimeout(() => {
+      ignoreInputTimerRef.current = null;
+      ignoreNextInputRef.current = false;
+      lastCommittedCompositionTextRef.current = '';
+      lastCommittedCompositionAtRef.current = 0;
+    }, 500);
+  };
+
+  useEffect(() => {
+    return () => {
+      clearIgnoreInputTimer();
+    };
+  }, []);
+
+  const insertText = (text: string) => {
     if (!text) return;
 
     vscode?.postMessage({
       type: 'browserInput',
       inputType: 'insertText',
       text,
+    });
+  };
+
+  const updateCompositionText = (text: string) => {
+    vscode?.postMessage({
+      type: 'browserInput',
+      inputType: 'composition',
+      text,
+    });
+  };
+
+  const commitCompositionText = (text: string) => {
+    vscode?.postMessage({
+      type: 'browserInput',
+      inputType: 'commitComposition',
+      text,
+    });
+  };
+
+  const cancelCompositionText = () => {
+    vscode?.postMessage({
+      type: 'browserInput',
+      inputType: 'cancelComposition',
     });
   };
 
@@ -423,6 +483,34 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
 
     input.style.left = `${left}px`;
     input.style.top = `${top}px`;
+  };
+
+  const isEditableTextInputKey = (event: React.KeyboardEvent) => {
+    if (event.ctrlKey || event.metaKey || event.altKey) {
+      return false;
+    }
+
+    return event.key.length === 1;
+  };
+
+  const isBrowserControlKey = (event: React.KeyboardEvent) => {
+    const keys = new Set([
+      'Backspace',
+      'Delete',
+      'Enter',
+      'Tab',
+      'Escape',
+      'ArrowLeft',
+      'ArrowRight',
+      'ArrowUp',
+      'ArrowDown',
+      'Home',
+      'End',
+      'PageUp',
+      'PageDown',
+    ]);
+
+    return keys.has(event.key);
   };
 
   const sendKey = (event: React.KeyboardEvent<HTMLDivElement>, eventType: 'keyDown' | 'keyUp') => {
@@ -453,6 +541,75 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
     }
 
     if (isComposing) {
+      return;
+    }
+
+    if (eventType === 'keyDown') {
+      event.preventDefault();
+    }
+
+    vscode?.postMessage({
+      type: 'browserInput',
+      inputType: 'keyboard',
+      eventType,
+      key: event.key,
+      code: event.code,
+      ctrlKey: event.ctrlKey,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      metaKey: event.metaKey,
+    });
+  };
+
+  const sendImeControlKey = (
+    event: React.KeyboardEvent<HTMLTextAreaElement>,
+    eventType: 'keyDown' | 'keyUp'
+  ) => {
+    event.stopPropagation();
+
+    const shortcutKey = event.key.toLowerCase();
+    const isFindShortcut = (event.ctrlKey || event.metaKey) && shortcutKey === 'f';
+    const isCopyShortcut = (event.ctrlKey || event.metaKey) && shortcutKey === 'c';
+    const isComposing = isComposingRef.current || event.nativeEvent.isComposing || event.key === 'Process';
+
+    if (eventType === 'keyDown' && isFindShortcut) {
+      event.preventDefault();
+      onFindShortcut();
+      return;
+    }
+
+    if (eventType === 'keyDown' && isCopyShortcut) {
+      event.preventDefault();
+      vscode?.postMessage({
+        type: 'browserCopySelection',
+      });
+      return;
+    }
+
+    if (eventType === 'keyUp' && (isFindShortcut || isCopyShortcut)) {
+      event.preventDefault();
+      return;
+    }
+
+    if (isComposing) {
+      return;
+    }
+
+    /**
+     * 普通字符不能在 keyDown 里立即转发。
+     *
+     * 原因：中文输入法在部分系统里事件顺序是 keyDown(g) -> compositionStart -> compositionUpdate(g)。
+     * 如果 keyDown(g) 这里先发给真实浏览器，compositionUpdate(g) 又会再发一次，百度输入框就会变成 gg。
+     *
+     * 所以普通字符统一交给 textarea 的 onInput / compositionUpdate 处理：
+     * - 英文输入：onInput 插入一次 d。
+     * - 中文输入：compositionUpdate 显示拼音 g，compositionEnd 提交 谷歌。
+     */
+    if (isEditableTextInputKey(event)) {
+      return;
+    }
+
+    if (!isBrowserControlKey(event)) {
       return;
     }
 
@@ -557,62 +714,92 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
         aria-hidden="true"
         tabIndex={-1}
         defaultValue=""
-        onChange={(event) => {
-          if (isComposingRef.current) {
-            return;
-          }
+        onInput={(event) => {
+          event.stopPropagation();
 
           const value = event.currentTarget.value;
 
-          if (value) {
-            insertComposedText(value);
+          /**
+           * 中文输入法组合期间，拼音显示只走 compositionUpdate -> composition。
+           * 这里不能再 updateCompositionText，否则某些输入法会出现 g + g。
+           */
+          if (isComposingRef.current || event.nativeEvent.isComposing) {
+            return;
           }
 
-          event.currentTarget.value = '';
+          /**
+           * compositionEnd 后，有些输入法 / Webview 会继续补发一次 input，
+           * 这个 input 的 value 就是刚刚已经 commitCompositionText 的最终文本。
+           * 如果不吞掉，就会出现：选中“谷”后变成“谷谷”。
+           */
+          const committedText = lastCommittedCompositionTextRef.current;
+          const recentlyCommitted = Date.now() - lastCommittedCompositionAtRef.current < 500;
+
+          if (ignoreNextInputRef.current || (recentlyCommitted && value === committedText)) {
+            ignoreNextInputRef.current = false;
+            clearIgnoreInputTimer();
+            lastCommittedCompositionTextRef.current = '';
+            lastCommittedCompositionAtRef.current = 0;
+            clearImeInputValue();
+            return;
+          }
+
+          /**
+           * 普通英文输入不走 keyDown，统一从 textarea 的 input 插入一次。
+           */
+          if (value) {
+            insertText(value);
+          }
+
+          clearImeInputValue();
         }}
-        onCompositionStart={() => {
-          isComposingRef.current = true;
+        onChange={(event) => {
+          event.stopPropagation();
         }}
-        onCompositionUpdate={() => {
+        onCompositionStart={(event) => {
+          event.stopPropagation();
           isComposingRef.current = true;
+          ignoreNextInputRef.current = false;
+          clearIgnoreInputTimer();
+          lastCommittedCompositionTextRef.current = '';
+          lastCommittedCompositionAtRef.current = 0;
+          clearImeInputValue();
+          cancelCompositionText();
+        }}
+        onCompositionUpdate={(event) => {
+          event.stopPropagation();
+          isComposingRef.current = true;
+
+          const value = event.data || event.currentTarget.value || '';
+
+          updateCompositionText(value);
         }}
         onCompositionEnd={(event) => {
+          event.stopPropagation();
           isComposingRef.current = false;
 
-          const value = event.currentTarget.value || event.data || '';
+          const value = event.data || event.currentTarget.value || '';
 
-          if (value) {
-            insertComposedText(value);
-          }
+          ignoreNextInputRef.current = true;
+          lastCommittedCompositionTextRef.current = value;
+          lastCommittedCompositionAtRef.current = Date.now();
+          scheduleIgnoreNextInputReset();
+
+          commitCompositionText(value);
+          clearImeInputValue();
 
           window.setTimeout(() => {
             if (!imeInputRef.current) return;
 
-            imeInputRef.current.value = '';
+            clearImeInputValue();
             imeInputRef.current.focus({ preventScroll: true });
           }, 0);
         }}
         onKeyDown={(event) => {
-          if (isComposingRef.current || event.nativeEvent.isComposing || event.key === 'Process') {
-            return;
-          }
-
-          if (event.key === 'Enter') {
-            event.preventDefault();
-          }
-
-          sendKey(event as unknown as React.KeyboardEvent<HTMLDivElement>, 'keyDown');
+          sendImeControlKey(event, 'keyDown');
         }}
         onKeyUp={(event) => {
-          if (isComposingRef.current || event.nativeEvent.isComposing || event.key === 'Process') {
-            return;
-          }
-
-          if (event.key === 'Enter') {
-            event.preventDefault();
-          }
-
-          sendKey(event as unknown as React.KeyboardEvent<HTMLDivElement>, 'keyUp');
+          sendImeControlKey(event, 'keyUp');
         }}
       />
 

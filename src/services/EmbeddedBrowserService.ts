@@ -28,7 +28,7 @@ type BrowserMouseEventType = 'mouseMoved' | 'mousePressed' | 'mouseReleased' | '
 type BrowserKeyboardEventType = 'keyDown' | 'keyUp';
 
 interface BrowserInputMessage {
-  inputType: 'mouse' | 'wheel' | 'keyboard' | 'insertText';
+  inputType: 'mouse' | 'wheel' | 'keyboard' | 'insertText' | 'composition' | 'commitComposition' | 'cancelComposition';
   eventType?: BrowserMouseEventType | BrowserKeyboardEventType;
   x?: number;
   y?: number;
@@ -67,6 +67,7 @@ export class EmbeddedBrowserService extends EventEmitter {
   private readonly hookedPages = new WeakSet<Page>();
   private debugPort = 9222;
   private activeUserDataDirName = this.userDataDirName;
+  private imeCompositionText = '';
   private lastViewport = {
     width: 1280,
     height: 720,
@@ -620,6 +621,8 @@ export class EmbeddedBrowserService extends EventEmitter {
       if (message.inputType === 'insertText') {
         const text = typeof message.text === 'string' ? message.text : '';
 
+        this.imeCompositionText = '';
+
         if (text) {
           await client.send('Input.insertText', { text });
         }
@@ -627,7 +630,27 @@ export class EmbeddedBrowserService extends EventEmitter {
         return;
       }
 
+      if (message.inputType === 'composition') {
+        const text = typeof message.text === 'string' ? message.text : '';
+
+        await this.updateImeComposition(text);
+        return;
+      }
+
+      if (message.inputType === 'commitComposition') {
+        const text = typeof message.text === 'string' ? message.text : '';
+
+        await this.commitImeComposition(text);
+        return;
+      }
+
+      if (message.inputType === 'cancelComposition') {
+        await this.cancelImeComposition();
+        return;
+      }
+
       if (message.inputType === 'keyboard') {
+        this.imeCompositionText = '';
         await this.dispatchKeyboardInput(message);
       }
     } catch (error) {
@@ -736,6 +759,64 @@ export class EmbeddedBrowserService extends EventEmitter {
     await this.client.send('Page.stopScreencast').catch(() => undefined);
     this.isScreencastStarted = false;
     await this.startScreencast();
+  }
+
+  private async updateImeComposition(text: string): Promise<void> {
+    const client = await this.ensureClient();
+    const nextText = String(text || '');
+
+    this.imeCompositionText = nextText;
+
+    await (client as any).send('Input.imeSetComposition', {
+      text: nextText,
+      selectionStart: nextText.length,
+      selectionEnd: nextText.length,
+    }).catch((error: unknown) => {
+      if (!this.isTargetClosedError(error)) {
+        console.warn('[EmbeddedBrowserService] ime composition update failed:', error);
+      }
+    });
+  }
+
+  private async commitImeComposition(text: string): Promise<void> {
+    const client = await this.ensureClient();
+    const nextText = String(text || '');
+
+    if (this.imeCompositionText) {
+      await (client as any).send('Input.imeSetComposition', {
+        text: '',
+        selectionStart: 0,
+        selectionEnd: 0,
+      }).catch((error: unknown) => {
+        if (!this.isTargetClosedError(error)) {
+          console.warn('[EmbeddedBrowserService] ime composition clear before commit failed:', error);
+        }
+      });
+    }
+
+    this.imeCompositionText = '';
+
+    if (nextText) {
+      await client.send('Input.insertText', { text: nextText });
+    }
+  }
+
+  private async cancelImeComposition(): Promise<void> {
+    if (!this.imeCompositionText) return;
+
+    const client = await this.ensureClient();
+
+    await (client as any).send('Input.imeSetComposition', {
+      text: '',
+      selectionStart: 0,
+      selectionEnd: 0,
+    }).catch((error: unknown) => {
+      if (!this.isTargetClosedError(error)) {
+        console.warn('[EmbeddedBrowserService] ime composition cancel failed:', error);
+      }
+    });
+
+    this.imeCompositionText = '';
   }
 
   private async dispatchKeyboardInput(message: BrowserInputMessage): Promise<void> {

@@ -759,6 +759,5 @@
   "volta": {
     "node": "22.18.0",
     "yarn": "4.10.3"
-  },
-  "dependencies": {}
+  }
 }
