@@ -597,11 +597,19 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
             return;
           }
 
+          if (event.key === 'Enter') {
+            event.preventDefault();
+          }
+
           sendKey(event as unknown as React.KeyboardEvent<HTMLDivElement>, 'keyDown');
         }}
         onKeyUp={(event) => {
           if (isComposingRef.current || event.nativeEvent.isComposing || event.key === 'Process') {
             return;
+          }
+
+          if (event.key === 'Enter') {
+            event.preventDefault();
           }
 
           sendKey(event as unknown as React.KeyboardEvent<HTMLDivElement>, 'keyUp');
@@ -1489,7 +1497,7 @@ export default function LivePreviewApp() {
       vscode?.postMessage({ type: 'showInfo', message: '✅ 缓存清理成功！' });
       handleRefresh();
     } catch (e) {
-      console.log('err',e)
+      console.log('e',e)
       vscode?.postMessage({ type: 'showWarning', message: '⚠️ 此页面不支持清理缓存或存在跨域限制' });
     }
 

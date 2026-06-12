@@ -741,25 +741,30 @@ export class EmbeddedBrowserService extends EventEmitter {
   private async dispatchKeyboardInput(message: BrowserInputMessage): Promise<void> {
     const client = await this.ensureClient();
     const key = message.key || '';
-    const type = message.eventType === 'keyUp' ? 'keyUp' : 'keyDown';
+    const eventType = message.eventType === 'keyUp' ? 'keyUp' : 'keyDown';
     const modifiers = this.getKeyboardModifiers(message);
 
     if (key === 'Process' || key === 'Unidentified' || key === 'Dead') {
       return;
     }
 
-    if (type === 'keyDown' && key.length === 1 && !message.ctrlKey && !message.metaKey && !message.altKey) {
+    if (eventType === 'keyDown' && key.length === 1 && !message.ctrlKey && !message.metaKey && !message.altKey) {
       await client.send('Input.insertText', { text: key });
       return;
     }
 
+    const virtualKeyCode = this.getVirtualKeyCode(key);
+    const dispatchType = eventType === 'keyUp' ? 'keyUp' : 'rawKeyDown';
+    const enterText = key === 'Enter' && eventType === 'keyDown' ? '\r' : undefined;
+
     await client.send('Input.dispatchKeyEvent', {
-      type,
+      type: dispatchType,
       key,
       code: message.code || key,
-      text: type === 'keyDown' && key.length === 1 ? key : undefined,
-      windowsVirtualKeyCode: this.getVirtualKeyCode(key),
-      nativeVirtualKeyCode: this.getVirtualKeyCode(key),
+      text: enterText,
+      unmodifiedText: enterText,
+      windowsVirtualKeyCode: virtualKeyCode,
+      nativeVirtualKeyCode: virtualKeyCode,
       modifiers,
     });
   }
