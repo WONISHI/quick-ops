@@ -3,6 +3,9 @@
   overflow: hidden;
   width: 100%;
   height: 100%;
+  --quickops-scrollbar-bar-gap: 0px;
+  --quickops-scrollbar-bar-size: 8px;
+  --quickops-scrollbar-thumb-size: 8px;
 }
 
 .scrollbar-wrap {
@@ -21,6 +24,7 @@
 
 .scrollbar-wrap-native {
   scrollbar-width: auto;
+  scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4)) transparent;
   -ms-overflow-style: auto;
 }
 
@@ -38,10 +42,11 @@
 .scrollbar-bar {
   position: absolute;
   z-index: 20;
-  border-radius: 999px;
+  border-radius: 0;
   opacity: 0;
   transition: opacity 0.12s ease-out;
   user-select: none;
+  background: transparent;
 }
 
 .scrollbar:hover .scrollbar-bar,
@@ -51,25 +56,23 @@
 }
 
 .scrollbar-bar-vertical {
-  top: 2px;
-  right: 2px;
-  bottom: 2px;
-  width: 8px;
+  top: var(--quickops-scrollbar-bar-gap);
+  right: 0;
+  bottom: var(--quickops-scrollbar-bar-gap);
+  width: var(--quickops-scrollbar-bar-size);
 }
 
 .scrollbar-bar-horizontal {
-  right: 2px;
-  bottom: 2px;
-  left: 2px;
-  height: 8px;
+  right: var(--quickops-scrollbar-bar-gap);
+  bottom: 0;
+  left: var(--quickops-scrollbar-bar-gap);
+  height: var(--quickops-scrollbar-bar-size);
 }
 
 .scrollbar-thumb {
   position: relative;
   display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 999px;
+  border-radius: 0;
   cursor: pointer;
   background-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4));
   transition: background-color 0.12s ease-out;
@@ -84,9 +87,25 @@
 }
 
 .scrollbar-bar-vertical .scrollbar-thumb {
-  width: 100%;
+  width: var(--quickops-scrollbar-thumb-size);
+  margin-left: auto;
+  margin-right: 0;
 }
 
 .scrollbar-bar-horizontal .scrollbar-thumb {
-  height: 100%;
+  height: var(--quickops-scrollbar-thumb-size);
+  margin-top: auto;
+  margin-bottom: 0;
+}
+
+.is-inset .scrollbar-bar-vertical {
+  right: var(--quickops-scrollbar-bar-gap);
+}
+
+.is-inset .scrollbar-bar-horizontal {
+  bottom: var(--quickops-scrollbar-bar-gap);
+}
+
+.is-inset .scrollbar-thumb {
+  border-radius: 999px;
 }

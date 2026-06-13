@@ -23,6 +23,28 @@ export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement
   native?: boolean;
   always?: boolean;
   noresize?: boolean;
+
+  /**
+   * 是否让滚动条上下/左右留出间距。
+   * 默认 false：贴边显示，接近 VS Code 原生滚动条。
+   */
+  inset?: boolean;
+
+  /**
+   * 滚动条可交互区域宽度，默认 8px。
+   */
+  barSize?: number | string;
+
+  /**
+   * inset 模式下 thumb 的实际显示宽度，默认 6px。
+   */
+  insetSize?: number | string;
+
+  /**
+   * inset 模式下滚动条两端间距，默认 2px。
+   */
+  insetGap?: number;
+
   wrapClassName?: string;
   viewClassName?: string;
   viewStyle?: React.CSSProperties;
@@ -39,7 +61,6 @@ interface ThumbState {
 }
 
 const MIN_THUMB_SIZE = 20;
-const BAR_OFFSET = 4;
 
 function addUnit(value?: number | string) {
   if (value === undefined || value === null || value === '') {
@@ -59,6 +80,10 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     native = false,
     always = false,
     noresize = false,
+    inset = false,
+    barSize = 8,
+    insetSize = 6,
+    insetGap = 2,
     wrapClassName,
     viewClassName,
     viewStyle,
@@ -90,32 +115,46 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     horizontalVisible: false,
   });
 
+  const barGapSize = inset ? insetGap : 0;
+  const barOffsetSize = barGapSize * 2;
+
   const rootStyle = useMemo<React.CSSProperties>(() => {
     return {
       ...style,
       height: addUnit(height) || style?.height,
       maxHeight: addUnit(maxHeight) || style?.maxHeight,
-    };
-  }, [height, maxHeight, style]);
+      '--quickops-scrollbar-bar-gap': `${barGapSize}px`,
+      '--quickops-scrollbar-bar-size': addUnit(barSize),
+      '--quickops-scrollbar-thumb-size': addUnit(inset ? insetSize : barSize),
+    } as React.CSSProperties;
+  }, [barGapSize, barSize, height, inset, insetSize, maxHeight, style]);
 
   const update = useCallback(() => {
     const wrap = wrapRef.current;
 
     if (!wrap) return;
 
-    const { clientHeight, clientWidth, scrollHeight, scrollWidth, scrollTop, scrollLeft } = wrap;
+    const {
+      clientHeight,
+      clientWidth,
+      scrollHeight,
+      scrollWidth,
+      scrollTop,
+      scrollLeft,
+    } = wrap;
 
     const hasVertical = scrollHeight > clientHeight + 1;
     const hasHorizontal = scrollWidth > clientWidth + 1;
 
-    const verticalTrackSize = Math.max(0, clientHeight - BAR_OFFSET);
-    const horizontalTrackSize = Math.max(0, clientWidth - BAR_OFFSET);
+    const verticalTrackSize = Math.max(0, clientHeight - barOffsetSize);
+    const horizontalTrackSize = Math.max(0, clientWidth - barOffsetSize);
 
     const verticalSize = hasVertical
-      ? Math.max(Math.round((clientHeight * clientHeight) / scrollHeight), MIN_THUMB_SIZE)
+      ? Math.max(Math.round((clientHeight * verticalTrackSize) / scrollHeight), MIN_THUMB_SIZE)
       : 0;
+
     const horizontalSize = hasHorizontal
-      ? Math.max(Math.round((clientWidth * clientWidth) / scrollWidth), MIN_THUMB_SIZE)
+      ? Math.max(Math.round((clientWidth * horizontalTrackSize) / scrollWidth), MIN_THUMB_SIZE)
       : 0;
 
     const verticalMaxOffset = Math.max(0, verticalTrackSize - verticalSize);
@@ -124,6 +163,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     const verticalOffset = hasVertical
       ? Math.round((scrollTop / Math.max(1, scrollHeight - clientHeight)) * verticalMaxOffset)
       : 0;
+
     const horizontalOffset = hasHorizontal
       ? Math.round((scrollLeft / Math.max(1, scrollWidth - clientWidth)) * horizontalMaxOffset)
       : 0;
@@ -136,7 +176,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
       verticalVisible: hasVertical,
       horizontalVisible: hasHorizontal,
     });
-  }, []);
+  }, [barOffsetSize]);
 
   const scheduleUpdate = useCallback(() => {
     if (frameRef.current !== null) return;
@@ -171,6 +211,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
 
     scheduleUpdate();
     showScrollbarTemporarily();
+
     onScroll?.({
       scrollTop: wrap.scrollTop,
       scrollLeft: wrap.scrollLeft,
@@ -228,21 +269,28 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     event.preventDefault();
     event.stopPropagation();
 
-    const trackSize = axis === 'vertical' ? wrap.clientHeight - BAR_OFFSET : wrap.clientWidth - BAR_OFFSET;
-    const thumbSize = axis === 'vertical' ? thumbState.verticalSize : thumbState.horizontalSize;
+    const trackSize = axis === 'vertical'
+      ? wrap.clientHeight - barOffsetSize
+      : wrap.clientWidth - barOffsetSize;
+
+    const thumbSize = axis === 'vertical'
+      ? thumbState.verticalSize
+      : thumbState.horizontalSize;
 
     draggingRef.current = {
       axis,
       startClient: axis === 'vertical' ? event.clientY : event.clientX,
       startScroll: axis === 'vertical' ? wrap.scrollTop : wrap.scrollLeft,
-      maxScroll: axis === 'vertical' ? wrap.scrollHeight - wrap.clientHeight : wrap.scrollWidth - wrap.clientWidth,
+      maxScroll: axis === 'vertical'
+        ? wrap.scrollHeight - wrap.clientHeight
+        : wrap.scrollWidth - wrap.clientWidth,
       maxThumbOffset: Math.max(1, trackSize - thumbSize),
     };
 
     clearHideTimer();
     setDragging(true);
     setScrolling(true);
-  }, [clearHideTimer, thumbState.horizontalSize, thumbState.verticalSize]);
+  }, [barOffsetSize, clearHideTimer, thumbState.horizontalSize, thumbState.verticalSize]);
 
   const handleTrackMouseDown = useCallback((event: React.MouseEvent, axis: 'vertical' | 'horizontal') => {
     const wrap = wrapRef.current;
@@ -256,14 +304,16 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
 
     if (axis === 'vertical') {
       const offset = event.clientY - rect.top - thumbState.verticalSize / 2;
-      const maxThumbOffset = Math.max(1, wrap.clientHeight - BAR_OFFSET - thumbState.verticalSize);
+      const maxThumbOffset = Math.max(1, wrap.clientHeight - barOffsetSize - thumbState.verticalSize);
+
       wrap.scrollTop = (offset / maxThumbOffset) * (wrap.scrollHeight - wrap.clientHeight);
     } else {
       const offset = event.clientX - rect.left - thumbState.horizontalSize / 2;
-      const maxThumbOffset = Math.max(1, wrap.clientWidth - BAR_OFFSET - thumbState.horizontalSize);
+      const maxThumbOffset = Math.max(1, wrap.clientWidth - barOffsetSize - thumbState.horizontalSize);
+
       wrap.scrollLeft = (offset / maxThumbOffset) * (wrap.scrollWidth - wrap.clientWidth);
     }
-  }, [thumbState.horizontalSize, thumbState.verticalSize]);
+  }, [barOffsetSize, thumbState.horizontalSize, thumbState.verticalSize]);
 
   useEffect(() => {
     if (!dragging) return undefined;
@@ -345,6 +395,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
         styles['scrollbar'],
         native ? styles['is-native'] : '',
         always ? styles['is-always'] : '',
+        inset ? styles['is-inset'] : '',
         className || '',
       ].filter(Boolean).join(' ')}
       style={rootStyle}
