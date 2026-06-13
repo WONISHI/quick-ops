@@ -13,7 +13,7 @@ class CompareContentProvider implements vscode.TextDocumentContentProvider {
 
   setContent(id: string, content: string) {
     this.contentMap.set(id, content);
-    if (this.contentMap.size > 20) { 
+    if (this.contentMap.size > 20) {
       const firstKey = this.contentMap.keys().next().value;
       if (firstKey) {
         this.contentMap.delete(firstKey);
@@ -48,7 +48,7 @@ export class TextCompareFeature implements IFeature {
     if (this.currentPanel) {
       // 面板已存在时，原地唤起（不传 Beside，防止窗口乱分屏）
       this.currentPanel.reveal();
-      
+
       // 如果有新选中的文本，通过通信发给网页
       if (initialText) {
         this.currentPanel.webview.postMessage({ type: 'updateOriginal', text: initialText });
@@ -56,15 +56,15 @@ export class TextCompareFeature implements IFeature {
     } else {
       // 仅在首次打开时创建
       this.currentPanel = vscode.window.createWebviewPanel(
-        'quickOpsTextCompare', 
-        '文本差异对比', 
+        'quickOpsTextCompare',
+        '文本差异对比',
         vscode.ViewColumn.Beside, // 只有第一次放到侧边
-        { 
+        {
           enableScripts: true,
           retainContextWhenHidden: true, // 切换时保活，实现秒开
           // 🌟 2. 允许加载本地静态资源
-          localResourceRoots: [context.extensionUri]
-        }
+          localResourceRoots: [context.extensionUri],
+        },
       );
 
       this.currentPanel.onDidDispose(() => {
@@ -84,6 +84,7 @@ export class TextCompareFeature implements IFeature {
       });
 
       this.currentPanel.webview.html = getReactWebviewHtml(context.extensionUri, this.currentPanel.webview, '/compare');
+      this.currentPanel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'compare.svg');
 
       if (initialText) {
         setTimeout(() => {
