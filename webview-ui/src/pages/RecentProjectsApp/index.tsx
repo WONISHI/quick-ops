@@ -242,24 +242,69 @@ export default function RecentProjectsApp() {
   };
 
   const getSimpleGitStatusText = (status?: string, isFolder: boolean = false) => {
-    const normalizedStatus = String(status || '').trim();
+    const rawStatus = String(status || '').trim();
 
-    if (!normalizedStatus) return '';
+    if (!rawStatus) return '';
 
     if (isFolder) {
       return '包含强调项';
     }
 
-    const statusKey = normalizedStatus[0];
+    const statusTextMap: Record<string, string> = {
+      U: '未跟踪的',
+      '?': '未跟踪的',
+      M: '已修改',
+      A: '已添加',
+      D: '已删除',
+      R: '已重命名',
+      C: '已复制',
+      I: '已忽略',
+      '!': '已忽略',
+      X: '存在冲突',
+      T: '类型已变更',
+    };
 
-    if (statusKey === 'U' || statusKey === '?') return '未跟踪的';
-    if (statusKey === 'M') return '已修改';
-    if (statusKey === 'A') return '已添加';
-    if (statusKey === 'D') return '已删除';
-    if (statusKey === 'R') return '已重命名';
-    if (statusKey === 'C') return '已复制';
+    const cleanStatus = rawStatus
+      .replace(/[\[\]]/g, '')
+      .replace(/^\s*[·•-]?\s*/, '')
+      .trim();
 
-    return getGitStatusTitle('', normalizedStatus).replace(/^\s*[·•-]?\s*/, '') || normalizedStatus;
+    const statusTokens = cleanStatus
+      .split(/[\s,|/]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const matchedToken = statusTokens.find((item) => {
+      const key = item[0]?.toUpperCase();
+
+      return !!key && Object.prototype.hasOwnProperty.call(statusTextMap, key);
+    });
+
+    if (matchedToken) {
+      return statusTextMap[matchedToken[0].toUpperCase()];
+    }
+
+    const compactStatus = cleanStatus.replace(/\s+/g, '');
+    const matchedKey = Object.keys(statusTextMap).find((key) => {
+      return key === '?' ? compactStatus.includes('?') : compactStatus.toUpperCase().includes(key);
+    });
+
+    if (matchedKey) {
+      return statusTextMap[matchedKey];
+    }
+
+    const fallbackText = getGitStatusTitle('', cleanStatus || rawStatus)
+      .replace(/[\[\]]/g, '')
+      .replace(/^\s*[·•-]?\s*/, '')
+      .trim();
+
+    const fallbackKey = fallbackText[0]?.toUpperCase();
+
+    if (fallbackKey && Object.prototype.hasOwnProperty.call(statusTextMap, fallbackKey)) {
+      return statusTextMap[fallbackKey];
+    }
+
+    return fallbackText || cleanStatus || rawStatus;
   };
 
   const getProblemTooltipText = (item: any, isFolder: boolean = false) => {
