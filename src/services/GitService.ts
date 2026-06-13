@@ -736,6 +736,47 @@ export class GitService {
     await this.createGit(cwd).checkout(['--', file]);
   }
 
+  /**
+   * 给资源管理器右键菜单使用的单文件取消变更。
+   *
+   * 注意：不要改动上面的 discardFile。Git 视图里已经有一套针对工作区/暂存区的处理逻辑，
+   * 其它地方也在调用 discardFile。这里单独新增方法，避免影响 Git 视图已有行为。
+   */
+  public async discardRecentProjectFile(cwd: string, file: string, status: string): Promise<void> {
+    const git = this.createGit(cwd);
+    const rawStatus = String(status || '').trim();
+    const cleanStatus = rawStatus.replace(/[\[\]]/g, '').trim();
+    const statusKey = (cleanStatus[0] || '').toUpperCase();
+    const fileUri = vscode.Uri.file(path.join(cwd, file));
+    const isNewFile = statusKey === 'U' || statusKey === '?' || statusKey === 'A';
+
+    if (isNewFile) {
+      await git.raw(['restore', '--staged', '--', file]).catch(() => undefined);
+      await git.raw(['reset', '--', file]).catch(() => undefined);
+
+      try {
+        await vscode.workspace.fs.delete(fileUri, {
+          recursive: true,
+          useTrash: true,
+        });
+      } catch {
+        await git.clean('f', ['-d', '--', file]).catch(() => undefined);
+      }
+
+      return;
+    }
+
+    try {
+      await git.raw(['restore', '--staged', '--worktree', '--', file]);
+      return;
+    } catch {
+      // 兼容旧 Git 版本：restore 不可用时退回 reset + checkout。
+    }
+
+    await git.reset(['HEAD', '--', file]).catch(() => undefined);
+    await git.checkout(['--', file]);
+  }
+
   public async commit(cwd: string, message: string, skipVerify: boolean): Promise<void> {
     const git = this.createGit(cwd);
     const status = await git.status();

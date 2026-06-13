@@ -1307,6 +1307,23 @@ export default function RecentProjectsApp() {
         });
         break;
 
+      case 'compareWithOldCode':
+        vscode.postMessage({
+          type: 'compareWithOldCode',
+          fsPath: payload.path,
+          projectName: payload.projectName || getProjectNameByPath(payload.path),
+          status: (payload as any).status,
+        });
+        break;
+
+      case 'discardFileChanges':
+        vscode.postMessage({
+          type: 'discardFileChanges',
+          fsPath: payload.path,
+          status: (payload as any).status,
+        });
+        break;
+
       case 'collapseFolderChildren': {
         const targetPath = payload.path;
 
@@ -1606,7 +1623,7 @@ export default function RecentProjectsApp() {
 
                   <Tooltip
                     content={getTreeTooltipContent(childPath, child, true)}
-                    placement="bottom"
+                    placement="right"
                     align="start"
                     showArrow={false}
                     delay={2000}
@@ -1654,7 +1671,9 @@ export default function RecentProjectsApp() {
                     isFolder: false,
                     projectName,
                     isActiveProject,
-                  })
+                    isRemote: childPath.startsWith('vscode-vfs://') || /^https?:\/\//i.test(childPath),
+                    status: child.status,
+                  } as any)
                 }
               >
                 <div className={styles['chevron-placeholder']}></div>
@@ -1667,7 +1686,7 @@ export default function RecentProjectsApp() {
 
                 <Tooltip
                   content={getTreeTooltipContent(childPath, child, false)}
-                  placement="bottom"
+                  placement="right"
                   align="start"
                   showArrow={false}
                   delay={2000}

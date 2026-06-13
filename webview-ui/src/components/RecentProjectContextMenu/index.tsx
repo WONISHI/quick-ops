@@ -8,6 +8,7 @@ import {
   faPen,
   faLocationDot,
   faRotateRight,
+  faRotateLeft,
   faLink,
   faGlobe,
   faTrash,
@@ -40,6 +41,38 @@ interface ContextMenuProps {
   onAction: (action: string, arg?: string) => void;
 }
 
+function getStatusKey(status?: string) {
+  const raw = String(status || '').trim();
+
+  if (!raw) return '';
+
+  const cleanStatus = raw
+    .replace(/[\[\]]/g, '')
+    .replace(/^\s*[·•-]?\s*/, '')
+    .trim();
+
+  const tokens = cleanStatus
+    .split(/[\s,|/]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const matchedToken = tokens.find((item) => {
+    const key = item[0]?.toUpperCase();
+
+    return !!key && ['U', '?', 'M', 'A', 'D', 'R', 'C', 'I', '!', 'X', 'T'].includes(key);
+  });
+
+  if (matchedToken) {
+    return matchedToken[0].toUpperCase();
+  }
+
+  const compactStatus = cleanStatus.replace(/\s+/g, '');
+
+  return ['U', '?', 'M', 'A', 'D', 'R', 'C', 'I', '!', 'X', 'T'].find((key) => {
+    return key === '?' ? compactStatus.includes('?') : compactStatus.toUpperCase().includes(key);
+  }) || '';
+}
+
 export default function RecentProjectContextMenu({
   visible,
   x,
@@ -51,10 +84,26 @@ export default function RecentProjectContextMenu({
 }: ContextMenuProps) {
   if (!visible) return null;
 
+  const isRemotePath = payload.path.startsWith('vscode-vfs') || payload.path.startsWith('http');
   const isLocalHtmlOrSvg =
-    !payload.path.startsWith('vscode-vfs') &&
-    !payload.path.startsWith('http') &&
+    !isRemotePath &&
     /\.(html|htm|svg|svga)$/i.test(payload.path);
+
+  const statusKey = getStatusKey((payload as any).status);
+
+  /**
+   * “与旧代码对比 / 取消变更”只允许当前运行项目展示。
+   *
+   * 历史项目、远程项目、只读预览项目虽然也可能有 status，
+   * 但它们不是当前 VS Code 工作区，右侧无法稳定作为可编辑工作区文件，
+   * 所以这里统一不显示这两个操作，保持和 VS Code 原生资源管理器一致。
+   */
+  const hasFileChangeStatus =
+    type === 'sub' &&
+    !payload.isFolder &&
+    !isRemotePath &&
+    !!payload.isActiveProject &&
+    !!statusKey;
 
   const menuStyle: React.CSSProperties = {};
 
@@ -175,6 +224,19 @@ export default function RecentProjectContextMenu({
                 <li onClick={() => onAction('openFileInNewTab')}>
                   <FontAwesomeIcon icon={faWindowRestore} className={styles['menu-icon']} /> 在新标签页打开
                 </li>
+
+                {hasFileChangeStatus && (
+                  <>
+                    <li onClick={() => onAction('compareWithOldCode')}>
+                      <FontAwesomeIcon icon={faCodeCompare} className={styles['menu-icon']} /> 与旧代码对比
+                    </li>
+                    <li onClick={() => onAction('discardFileChanges')} style={{ color: 'var(--vscode-errorForeground)' }}>
+                      <FontAwesomeIcon icon={faRotateLeft} className={styles['menu-icon']} /> 取消变更
+                    </li>
+                    <div className={styles['menu-separator']}></div>
+                  </>
+                )}
+
                 <li onClick={() => onAction('copyFile')}>
                   <FontAwesomeIcon icon={faCopy} className={styles['menu-icon']} /> 复制文件
                 </li>
@@ -218,7 +280,7 @@ export default function RecentProjectContextMenu({
             <li onClick={() => onAction('copyText', payload.path)}>
               <FontAwesomeIcon icon={faLink} className={styles['menu-icon']} /> 复制路径
             </li>
-            {!payload.path.startsWith('vscode-vfs') && !payload.path.startsWith('http') && (
+            {!isRemotePath && (
               <>
                 <div className={styles['menu-separator']}></div>
                 <li onClick={() => onAction('revealInExplorer', payload.path)}>

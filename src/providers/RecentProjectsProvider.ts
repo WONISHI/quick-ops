@@ -6,6 +6,7 @@ import { setupMarkdown } from '../plugins/markdown/setupMarkdown';
 import markdownImagePlugin, { restoreMarkdownImagePaths } from '../plugins/markdown/markdownImagePlugin';
 import { RecentProjectsGitStatusService } from '../services/gitStatusService';
 import { RecentProjectsDirectoryService } from '../services/directoryService';
+import GitService from '../services/GitService';
 
 export interface RecentProject {
   name: string;
@@ -30,6 +31,33 @@ interface MetadataPatchItem {
   diagnostics: DiagnosticSummary;
 }
 
+class GitVirtualContentProvider implements vscode.TextDocumentContentProvider {
+  private readonly changeEmitter = new vscode.EventEmitter<vscode.Uri>();
+  public readonly onDidChange = this.changeEmitter.event;
+
+  private readonly contentMap = new Map<string, string>();
+
+  public provideTextDocumentContent(uri: vscode.Uri): string {
+    const key = new URLSearchParams(uri.query).get('key') || '';
+
+    return this.contentMap.get(key) || '';
+  }
+
+  public setContent(key: string, content: string): void {
+    this.contentMap.set(key, content);
+  }
+
+  public deleteContent(key: string): void {
+    this.contentMap.delete(key);
+  }
+
+  public dispose(): void {
+    this.contentMap.clear();
+    this.changeEmitter.dispose();
+  }
+}
+
+
 export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private stateKey = 'quickOps.recentProjectsHistory';
@@ -45,12 +73,19 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   private readonly gitStatusService = new RecentProjectsGitStatusService();
   private readonly directoryService = new RecentProjectsDirectoryService(this.gitStatusService);
+  private readonly gitService = new GitService();
+  private readonly gitVirtualContentProvider = new GitVirtualContentProvider();
 
   private readonly loadedDirChildren = new Map<string, any[]>();
   private readonly knownVisibleDirs = new Set<string>();
   private statusSyncTimer: NodeJS.Timeout | undefined;
 
   constructor(private context: vscode.ExtensionContext) {
+    this.context.subscriptions.push(
+      vscode.workspace.registerTextDocumentContentProvider('quickops-git-virtual', this.gitVirtualContentProvider),
+      this.gitVirtualContentProvider
+    );
+
     this.initializeCurrentWorkspace();
 
     this.checkPendingFileOpen();
@@ -523,6 +558,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'deleteFileEntity':
           this.deleteFileEntity(data.fsPath, !!data.isFolder);
           break;
+        case 'discardFileChanges':
+          await this.discardFileChanges(data.fsPath, data.status);
+          break;
+        case 'compareWithOldCode':
+          await this.compareWithOldCode(data.fsPath, data.projectName || '当前项目', data.status);
+          break;
         case 'openExternalLink':
           this.openExternalLink(data.fsPath, data.platform, data.customDomain);
           break;
@@ -648,6 +689,222 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
       }
     });
+  }
+
+
+  private normalizeGitStatusKey(status?: string): string {
+    const raw = String(status || '').trim();
+
+    if (!raw) return '';
+
+    const cleanStatus = raw
+      .replace(/[\[\]]/g, '')
+      .replace(/^\s*[·•-]?\s*/, '')
+      .trim();
+
+    const tokens = cleanStatus
+      .split(/[\s,|/]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const matchedToken = tokens.find((item) => {
+      const key = item[0]?.toUpperCase();
+
+      return !!key && ['U', '?', 'M', 'A', 'D', 'R', 'C', 'I', '!', 'X', 'T'].includes(key);
+    });
+
+    if (matchedToken) {
+      return matchedToken[0].toUpperCase();
+    }
+
+    const compactStatus = cleanStatus.replace(/\s+/g, '');
+    const matchedKey = ['U', '?', 'M', 'A', 'D', 'R', 'C', 'I', '!', 'X', 'T'].find((key) => {
+      return key === '?' ? compactStatus.includes('?') : compactStatus.toUpperCase().includes(key);
+    });
+
+    return matchedKey || cleanStatus[0]?.toUpperCase() || '';
+  }
+
+  private parseFileUri(fsPath: string): vscode.Uri {
+    if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(fsPath)) {
+      return vscode.Uri.parse(fsPath);
+    }
+
+    return vscode.Uri.file(fsPath);
+  }
+
+  private isLocalFilePath(fsPath: string): boolean {
+    if (!fsPath) return false;
+
+    return !fsPath.startsWith('vscode-vfs://') && !/^https?:\/\//i.test(fsPath);
+  }
+
+  private async getGitFileLocation(fsPath: string): Promise<{
+    uri: vscode.Uri;
+    nativePath: string;
+    gitRoot: string;
+    relativePath: string;
+  } | null> {
+    if (!this.isLocalFilePath(fsPath)) {
+      return null;
+    }
+
+    const uri = this.parseFileUri(fsPath);
+    const nativePath = uri.fsPath;
+
+    if (!nativePath) {
+      return null;
+    }
+
+    /**
+     * 注意：Git root 不能直接用文件路径查。
+     *
+     * 之前这里把 /xxx/src/preload/index.d.ts 直接传给 getGitRoot，
+     * 部分 Git 查询会把它当成 cwd，导致 checkIsRepo / rev-parse 失败，
+     * 最终误判成“该文件不在本地 Git 仓库中”。
+     *
+     * VS Code 原生资源管理器也是按文件所属目录向上查找 Git 仓库，
+     * 所以这里：
+     * - 文件存在：用文件所在目录查 Git root；
+     * - 文件已删除：stat 会失败，也用父目录查 Git root；
+     * - 如果传入本身就是目录：用该目录查 Git root。
+     */
+    const stat = await vscode.workspace.fs.stat(uri).catch(() => undefined);
+    const gitSearchPath =
+      stat && (stat.type & vscode.FileType.Directory) !== 0
+        ? nativePath
+        : path.dirname(nativePath);
+
+    const gitRoot = await this.getGitRoot(gitSearchPath).catch(() => '');
+
+    if (!gitRoot) {
+      return null;
+    }
+
+    const relativePath = path.relative(gitRoot, nativePath).replace(/\\/g, '/');
+
+    if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+      return null;
+    }
+
+    return {
+      uri,
+      nativePath,
+      gitRoot,
+      relativePath,
+    };
+  }
+
+  private async readWorkingFileContent(fileUri: vscode.Uri): Promise<string> {
+    try {
+      const contentBytes = await vscode.workspace.fs.readFile(fileUri);
+
+      return Buffer.from(contentBytes).toString('utf8');
+    } catch {
+      return '';
+    }
+  }
+
+  private createGitVirtualUri(label: string, fileName: string, key: string): vscode.Uri {
+    return vscode.Uri.from({
+      scheme: 'quickops-git-virtual',
+      path: `/${label}/${fileName}`,
+      query: `key=${encodeURIComponent(key)}`,
+    });
+  }
+
+  private async compareWithOldCode(fsPath: string, projectName: string, status?: string): Promise<void> {
+    const location = await this.getGitFileLocation(fsPath);
+
+    if (!location) {
+      vscode.window.showWarningMessage('该文件不在本地 Git 仓库中，无法与旧代码对比。');
+      return;
+    }
+
+    const statusKey = this.normalizeGitStatusKey(status);
+    const isNewFile = statusKey === 'U' || statusKey === '?' || statusKey === 'A';
+    const isDeletedFile = statusKey === 'D';
+
+    const oldContent = isNewFile
+      ? ''
+      : await this.gitService.getFileContent(location.gitRoot, 'HEAD', location.relativePath);
+
+    const timestamp = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const fileName = path.basename(location.nativePath);
+    const oldKey = `old_${timestamp}`;
+
+    this.gitVirtualContentProvider.setContent(oldKey, oldContent);
+
+    const oldUri = this.createGitVirtualUri('旧代码', fileName, oldKey);
+
+    let workingUri: vscode.Uri;
+
+    /**
+     * 右侧必须使用真实文件 URI，不能使用虚拟快照。
+     *
+     * 这样 VS Code diff 的右侧就是当前工作区文件，用户可以直接编辑保存；
+     * 左侧仍然是 HEAD/空内容快照，只读，用来代表“旧代码”。
+     *
+     * 删除状态的文件在工作区已经不存在，右侧只能显示空快照。
+     */
+    if (isDeletedFile) {
+      const emptyKey = `working_empty_${timestamp}`;
+      this.gitVirtualContentProvider.setContent(emptyKey, '');
+      workingUri = this.createGitVirtualUri('当前代码', fileName, emptyKey);
+    } else {
+      workingUri = location.uri;
+    }
+
+    const title = `${projectName ? `${projectName}: ` : ''}${fileName} · 旧代码 ↔ 当前代码`;
+
+    await vscode.commands.executeCommand('vscode.diff', oldUri, workingUri, title, {
+      preview: true,
+      viewColumn: vscode.ViewColumn.Active,
+    });
+  }
+
+  private async discardFileChanges(fsPath: string, status?: string): Promise<void> {
+    const location = await this.getGitFileLocation(fsPath);
+
+    if (!location) {
+      vscode.window.showWarningMessage('该文件不在本地 Git 仓库中，无法取消变更。');
+      return;
+    }
+
+    const fileName = path.basename(location.nativePath);
+    const statusKey = this.normalizeGitStatusKey(status);
+    const isUntracked = statusKey === 'U' || statusKey === '?' || statusKey === 'A';
+
+    const confirmText = isUntracked ? '删除未提交文件' : '取消变更';
+    const message = isUntracked
+      ? `确定要删除未提交的新文件 “${fileName}” 吗？该操作不可恢复。`
+      : `确定要取消 “${fileName}” 的所有未提交变更吗？该操作不可恢复。`;
+
+    const picked = await vscode.window.showWarningMessage(
+      message,
+      {
+        modal: true,
+      },
+      confirmText
+    );
+
+    if (picked !== confirmText) {
+      return;
+    }
+
+    try {
+      await this.gitService.discardRecentProjectFile(location.gitRoot, location.relativePath, statusKey || status || 'M');
+
+      this.closeExistingPreviews(location.nativePath).catch(() => undefined);
+      this.invalidateDirCache(location.gitRoot);
+      this.invalidateDirCache(path.dirname(location.nativePath));
+      this.requestVisibleMetadataSync();
+      this.refresh(true);
+
+      vscode.window.showInformationMessage(`已取消变更: ${fileName}`);
+    } catch (error: any) {
+      vscode.window.showErrorMessage(`取消变更失败: ${error?.message || String(error)}`);
+    }
   }
 
   private async handleOpenWith(fsPath: string, projectName: string) {
