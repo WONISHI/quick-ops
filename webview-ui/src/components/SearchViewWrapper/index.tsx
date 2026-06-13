@@ -240,8 +240,11 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
     const [activeExtensionTags, setActiveExtensionTags] = useState<Set<string>>(new Set());
 
-    const resetSearchData = () => {
-        setFolderSearchQuery('');
+    const resetSearchData = (options?: { keepQuery?: boolean }) => {
+        if (!options?.keepQuery) {
+            setFolderSearchQuery('');
+        }
+
         setFolderSearchResults([]);
         setFileNameSearchResults([]);
         setFolderSearchError('');
@@ -256,11 +259,54 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
         }
     };
 
-    const handleToggleSearchType = () => {
-        const newType = folderSearchType === 'content' ? 'name' : 'content';
-        setFolderSearchType(newType);
-        resetSearchData();
+    const switchSearchType = (nextType?: FolderSearchType, options?: { keepQuery?: boolean }) => {
+        const targetType = nextType || (folderSearchType === 'content' ? 'name' : 'content');
+
+        if (targetType === folderSearchType) {
+            return;
+        }
+
+        setFolderSearchType(targetType);
+        resetSearchData({
+            keepQuery: !!options?.keepQuery,
+        });
         setCurrentActiveMatch(0);
+    };
+
+    const handleToggleSearchType = () => {
+        switchSearchType();
+    };
+
+    const handleSearchInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        const value = e.currentTarget.value;
+        const key = e.key.toLowerCase();
+        const isCommandKey = e.ctrlKey || e.metaKey;
+
+        if (isCommandKey && e.key === 'Enter') {
+            e.preventDefault();
+            e.stopPropagation();
+            switchSearchType();
+            return;
+        }
+
+        if (isCommandKey && e.shiftKey && key === 'f') {
+            e.preventDefault();
+            e.stopPropagation();
+            switchSearchType('name');
+            return;
+        }
+
+        if (isCommandKey && e.shiftKey && key === 'c') {
+            e.preventDefault();
+            e.stopPropagation();
+            switchSearchType('content');
+            return;
+        }
+
+        if ((e.key === 'Backspace' || e.key === 'Delete') && value === '') {
+            e.preventDefault();
+            handleBack();
+        }
     };
 
     const getSearchTargetTitle = () => {
@@ -518,8 +564,8 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                         onClick={handleToggleSearchType}
                         title={
                             folderSearchType === 'content'
-                                ? '当前：文件内容检索。点击切换为「文件名/文件夹」检索'
-                                : '当前：文件名/文件夹检索。点击切换为「文件内容」检索'
+                                ? '当前：文件内容检索。点击切换为「文件名/文件夹」检索。快捷键：Ctrl/Cmd + Enter'
+                                : '当前：文件名/文件夹检索。点击切换为「文件内容」检索。快捷键：Ctrl/Cmd + Enter'
                         }
                     ></span>
 
@@ -533,14 +579,12 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                         }
                         value={folderSearchQuery}
                         onChange={(e) => setFolderSearchQuery(e.target.value)}
-                        onKeyDown={(e) => {
-                            const value = e.currentTarget.value;
-
-                            if ((e.key === 'Backspace' || e.key === 'Delete') && value === '') {
-                                e.preventDefault();
-                                handleBack();
-                            }
-                        }}
+                        onKeyDown={handleSearchInputKeyDown}
+                        title={
+                            folderSearchType === 'content'
+                                ? '快捷键：Ctrl/Cmd + Enter 切换文件名搜索；Ctrl/Cmd + Shift + F 进入文件名搜索，切换时清空关键词'
+                                : '快捷键：Ctrl/Cmd + Enter 切换内容搜索；Ctrl/Cmd + Shift + C 进入内容搜索，切换时清空关键词'
+                        }
                     />
 
                     {folderSearchQuery && (
@@ -573,7 +617,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                         className={styles['search-extension-tags']}
                         viewClassName={styles['search-extension-tags-view']}
                         direction="horizontal"
-                        barSize={6}
+                        barSize={4}
                     >
                         {extensionTagOptions.map((item) => {
                             const checked = activeExtensionTags.has(item.ext);

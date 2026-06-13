@@ -64,7 +64,7 @@
    ================================ */
 
 .search-header {
-  padding: 7px 10px 8px;
+  padding: 7px 10px 5px;
   border-bottom: 1px solid var(--vscode-panel-border);
   background: color-mix(
     in srgb,
@@ -249,6 +249,18 @@
   justify-content: flex-end;
 }
 
+/* ================================
+   搜索文件格式标签
+   ================================ */
+
+.search-extension-tags {
+  height: 30px;
+  min-height: 30px;
+  margin-top: 5px;
+  margin-bottom: 3px;
+  overflow: hidden;
+}
+
 .search-extension-tags-view {
   width: max-content;
   min-width: max-content;
@@ -257,39 +269,8 @@
   align-items: flex-start;
   flex-wrap: nowrap;
   gap: 6px;
-  padding: 0 0 9px;
+  padding: 0 0 7px;
   box-sizing: border-box;
-}
-
-/* ================================
-   搜索文件格式标签
-   ================================ */
-
-.search-extension-tags {
-  height: 34px;
-  min-height: 34px;
-  margin-top: 7px;
-  overflow: hidden;
-}
-
-.search-extension-tags::-webkit-scrollbar {
-  height: 6px;
-}
-
-.search-extension-tags::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.search-extension-tags::-webkit-scrollbar-thumb {
-  background-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4));
-}
-
-.search-extension-tags::-webkit-scrollbar-thumb:hover {
-  background-color: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
-}
-
-.search-extension-tags::-webkit-scrollbar-thumb:active {
-  background-color: var(--vscode-scrollbarSlider-activeBackground, rgba(191, 191, 191, 0.4));
 }
 
 .search-extension-tag {
@@ -370,7 +351,7 @@
 
 .search-results-view {
   min-height: 100%;
-  padding: 10px;
+  padding: 8px 10px 10px;
   box-sizing: border-box;
 }
 
