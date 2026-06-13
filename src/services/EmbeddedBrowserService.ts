@@ -63,7 +63,8 @@ export class EmbeddedBrowserService extends EventEmitter {
   private pendingFramePayload: BrowserFramePayload | null = null;
   private frameFlushTimer: NodeJS.Timeout | null = null;
   private lastFrameEmitAt = 0;
-  private readonly frameEmitInterval = 33;
+  private readonly frameEmitInterval = platform() === 'darwin' ? 90 : 66;
+  private screencastFrameHandler: ((event: any) => Promise<void>) | null = null;
   private readonly hookedPages = new WeakSet<Page>();
   private debugPort = 9222;
   private activeUserDataDirName = this.userDataDirName;
@@ -71,7 +72,7 @@ export class EmbeddedBrowserService extends EventEmitter {
   private lastViewport = {
     width: 1280,
     height: 720,
-    deviceScaleFactor: 2,
+    deviceScaleFactor: 1,
   };
 
   constructor(
@@ -204,28 +205,48 @@ export class EmbeddedBrowserService extends EventEmitter {
     const page = await this.ensurePage();
 
     const text = await page.evaluate(() => {
-      const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement | null;
+      const activeElement = document.activeElement as HTMLElement | null;
+      const selectionText = window.getSelection()?.toString() || '';
 
-      if (
-        activeElement &&
-        typeof activeElement.selectionStart === 'number' &&
-        typeof activeElement.selectionEnd === 'number' &&
-        typeof activeElement.value === 'string'
-      ) {
-        const start = activeElement.selectionStart || 0;
-        const end = activeElement.selectionEnd || 0;
-
-        if (end > start) {
-          return activeElement.value.slice(start, end);
-        }
+      if (selectionText) {
+        return selectionText;
       }
 
-      return window.getSelection()?.toString() || '';
+      if (!activeElement) {
+        return '';
+      }
+
+      const tagName = activeElement.tagName.toLowerCase();
+      const isInput = tagName === 'input';
+      const isTextarea = tagName === 'textarea';
+
+      if (isInput || isTextarea) {
+        const input = activeElement as HTMLInputElement | HTMLTextAreaElement;
+        const value = typeof input.value === 'string' ? input.value : '';
+        const start = typeof input.selectionStart === 'number' ? input.selectionStart : 0;
+        const end = typeof input.selectionEnd === 'number' ? input.selectionEnd : 0;
+
+        if (end > start) {
+          return value.slice(start, end);
+        }
+
+        return value;
+      }
+
+      const editable = activeElement.closest('[contenteditable="true"], [contenteditable="plaintext-only"]') as HTMLElement | null;
+
+      if (editable) {
+        return editable.innerText || editable.textContent || '';
+      }
+
+      return '';
     }).catch(() => '');
 
-    if (!text) return;
+    const normalizedText = String(text || '');
 
-    await vscode.env.clipboard.writeText(text);
+    if (!normalizedText) return;
+
+    await vscode.env.clipboard.writeText(normalizedText);
   }
 
   public async selectTextRange(startX: number, startY: number, endX: number, endY: number): Promise<void> {
@@ -557,7 +578,17 @@ export class EmbeddedBrowserService extends EventEmitter {
   public async setViewport(message: BrowserViewportMessage): Promise<void> {
     const width = Math.max(320, Math.floor(Number(message.width) || 1280));
     const height = Math.max(240, Math.floor(Number(message.height) || 720));
-    const deviceScaleFactor = Math.min(2.5, Math.max(1, Number(message.deviceScaleFactor) || 2));
+    const rawDeviceScaleFactor = Number(message.deviceScaleFactor) || 1;
+    const maxDeviceScaleFactor = platform() === 'darwin' ? 1.1 : 1.35;
+    const deviceScaleFactor = Math.min(maxDeviceScaleFactor, Math.max(1, rawDeviceScaleFactor));
+
+    if (
+      this.lastViewport.width === width &&
+      this.lastViewport.height === height &&
+      this.lastViewport.deviceScaleFactor === deviceScaleFactor
+    ) {
+      return;
+    }
 
     this.lastViewport = {
       width,
@@ -757,6 +788,12 @@ export class EmbeddedBrowserService extends EventEmitter {
     if (!this.client || !this.isScreencastStarted) return;
 
     await this.client.send('Page.stopScreencast').catch(() => undefined);
+
+    if (this.screencastFrameHandler) {
+      this.client.off('Page.screencastFrame', this.screencastFrameHandler as any);
+      this.screencastFrameHandler = null;
+    }
+
     this.isScreencastStarted = false;
     await this.startScreencast();
   }
@@ -829,6 +866,12 @@ export class EmbeddedBrowserService extends EventEmitter {
       return;
     }
 
+    if (key === 'Enter' && eventType === 'keyDown' && (await this.shouldInsertLineBreak(message))) {
+      this.imeCompositionText = '';
+      await client.send('Input.insertText', { text: '\n' });
+      return;
+    }
+
     if (eventType === 'keyDown' && key.length === 1 && !message.ctrlKey && !message.metaKey && !message.altKey) {
       await client.send('Input.insertText', { text: key });
       return;
@@ -848,6 +891,47 @@ export class EmbeddedBrowserService extends EventEmitter {
       nativeVirtualKeyCode: virtualKeyCode,
       modifiers,
     });
+  }
+
+  private async shouldInsertLineBreak(message: BrowserInputMessage): Promise<boolean> {
+    if (message.key !== 'Enter') return false;
+
+    const page = await this.ensurePage();
+
+    return page.evaluate((payload) => {
+      const activeElement = document.activeElement as HTMLElement | null;
+
+      if (!activeElement) return false;
+
+      const tagName = activeElement.tagName.toLowerCase();
+      const isTextarea = tagName === 'textarea';
+      const isContentEditable = activeElement.isContentEditable || !!activeElement.closest('[contenteditable="true"], [contenteditable="plaintext-only"]');
+      const isAriaMultiline = activeElement.getAttribute('aria-multiline') === 'true';
+      const isInput = tagName === 'input';
+
+      if (isTextarea || isContentEditable || isAriaMultiline) {
+        return true;
+      }
+
+      if (!isInput) return false;
+
+      const input = activeElement as HTMLInputElement;
+      const inputType = String(input.type || 'text').toLowerCase();
+      const textLikeTypes = new Set(['text', 'search', 'url', 'email', 'tel', 'password', 'number']);
+
+      if (!textLikeTypes.has(inputType)) return false;
+
+      /**
+       * input 本身是单行控件，普通 Enter 应该保留站点原生行为，比如百度搜索。
+       * 带换行快捷键时也不强行插入换行，避免单行搜索框出现不可见换行。
+       */
+      return false;
+    }, {
+      shiftKey: !!message.shiftKey,
+      ctrlKey: !!message.ctrlKey,
+      altKey: !!message.altKey,
+      metaKey: !!message.metaKey,
+    }).catch(() => false);
   }
 
   private getKeyboardModifiers(message: BrowserInputMessage): number {
@@ -993,6 +1077,11 @@ export class EmbeddedBrowserService extends EventEmitter {
         '--disable-renderer-backgrounding',
         '--disable-popup-blocking',
         '--disable-dev-shm-usage',
+        '--disable-extensions',
+        '--disable-sync',
+        '--mute-audio',
+        '--metrics-recording-only',
+        '--disable-component-update',
       ];
 
       if (platform() === 'linux') {
@@ -1225,27 +1314,53 @@ export class EmbeddedBrowserService extends EventEmitter {
 
     this.isScreencastStarted = true;
 
-    this.client.on('Page.screencastFrame', async (event: any) => {
+    if (this.screencastFrameHandler) {
+      this.client.off('Page.screencastFrame', this.screencastFrameHandler as any);
+      this.screencastFrameHandler = null;
+    }
+
+    this.screencastFrameHandler = async (event: any) => {
+      const currentClient = this.client;
+
+      /**
+       * 先 ACK 再处理帧，避免 Chrome 因为等待 ACK 堆积后续帧。
+       * Browse Lite 也是基于 CDP screencast + ack 的流式刷新思路。
+       */
+      await currentClient?.send('Page.screencastFrameAck', {
+        sessionId: event.sessionId,
+      }).catch(() => undefined);
+
       const payload: BrowserFramePayload = {
         data: event.data,
         width: event.metadata?.deviceWidth || this.lastViewport.width,
         height: event.metadata?.deviceHeight || this.lastViewport.height,
       };
 
-      this.lastFramePayload = payload;
-      this.scheduleFrameEmit(payload);
+      const isFirstFrame = !this.lastFramePayload;
 
-      await this.client?.send('Page.screencastFrameAck', {
-        sessionId: event.sessionId,
-      }).catch(() => undefined);
-    });
+      this.lastFramePayload = payload;
+
+      if (isFirstFrame) {
+        this.pendingFramePayload = null;
+        this.lastFrameEmitAt = Date.now();
+        this.emit('frame', payload);
+        return;
+      }
+
+      this.scheduleFrameEmit(payload);
+    };
+
+    this.client.on('Page.screencastFrame', this.screencastFrameHandler as any);
+
+    const isMac = platform() === 'darwin';
+    const scale = isMac ? 1 : Math.min(1.25, Math.max(1, this.lastViewport.deviceScaleFactor || 1));
 
     await this.client.send('Page.startScreencast', {
       format: 'jpeg',
-      quality: 95,
-      maxWidth: Math.ceil(this.lastViewport.width * this.lastViewport.deviceScaleFactor),
-      maxHeight: Math.ceil(this.lastViewport.height * this.lastViewport.deviceScaleFactor),
-      everyNthFrame: 1,
+      quality: isMac ? 58 : 68,
+      maxWidth: Math.ceil(this.lastViewport.width * scale),
+      maxHeight: Math.ceil(this.lastViewport.height * scale),
+      everyNthFrame: isMac ? 2 : 1,
     });
   }
 
@@ -1291,6 +1406,13 @@ export class EmbeddedBrowserService extends EventEmitter {
 
     if (this.client) {
       await this.client.send('Page.stopLoading').catch(() => undefined);
+      await this.client.send('Page.stopScreencast').catch(() => undefined);
+
+      if (this.screencastFrameHandler) {
+        this.client.off('Page.screencastFrame', this.screencastFrameHandler as any);
+        this.screencastFrameHandler = null;
+      }
+
       await this.client.detach().catch(() => undefined);
       this.client = null;
     }

@@ -126,7 +126,7 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
       resizeTimerRef.current = window.setTimeout(() => {
         resizeTimerRef.current = null;
         notifyViewportSize();
-      }, 360);
+      }, 260);
     });
 
     observer.observe(target);
@@ -714,6 +714,20 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
         aria-hidden="true"
         tabIndex={-1}
         defaultValue=""
+        onCopy={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          vscode?.postMessage({
+            type: 'browserCopySelection',
+          });
+        }}
+        onCut={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          vscode?.postMessage({
+            type: 'browserCopySelection',
+          });
+        }}
         onInput={(event) => {
           event.stopPropagation();
 
@@ -834,6 +848,8 @@ export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
   const [browserFrame, setBrowserFrame] = useState<BrowserFrameState | null>(null);
+  const browserFrameRafRef = useRef<number | null>(null);
+  const pendingBrowserFrameRef = useRef<BrowserFrameState | null>(null);
 
   const [previewType, setPreviewType] = useState<PreviewType>('web');
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -887,6 +903,17 @@ export default function LivePreviewApp() {
   const pageLoadedRef = useRef(false);
   const faviconResolvedRef = useRef(false);
   const faviconRequestIdRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      if (browserFrameRafRef.current) {
+        window.cancelAnimationFrame(browserFrameRafRef.current);
+        browserFrameRafRef.current = null;
+      }
+
+      pendingBrowserFrameRef.current = null;
+    };
+  }, []);
 
   // 控制顶部虚拟进度条：页面加载完成后直接卸载 DOM，避免残留一条线
   useEffect(() => {
@@ -1181,11 +1208,22 @@ export default function LivePreviewApp() {
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
       } else if (message.type === 'browserFrame') {
-        setBrowserFrame({
+        pendingBrowserFrameRef.current = {
           data: message.data || '',
           width: message.width || 0,
           height: message.height || 0,
-        });
+        };
+
+        if (!browserFrameRafRef.current) {
+          browserFrameRafRef.current = window.requestAnimationFrame(() => {
+            browserFrameRafRef.current = null;
+
+            if (!pendingBrowserFrameRef.current) return;
+
+            setBrowserFrame(pendingBrowserFrameRef.current);
+            pendingBrowserFrameRef.current = null;
+          });
+        }
       } else if (message.type === 'browserPageLoaded') {
         pageLoadedRef.current = true;
         faviconResolvedRef.current = true;
@@ -1376,7 +1414,6 @@ export default function LivePreviewApp() {
 
     if (pType === 'web') {
       interruptPendingWebNavigation();
-      setBrowserFrame(null);
       startWebPreviewGuard(url);
       vscode?.postMessage({ type: 'browserNavigate', url });
       return;
@@ -1565,7 +1602,6 @@ export default function LivePreviewApp() {
     setPreviewType('web');
     setFrameUrl(temp);
     interruptPendingWebNavigation();
-    setBrowserFrame(null);
     vscode?.postMessage({ type: 'saveUrl', url: temp });
     startWebPreviewGuard(temp);
     vscode?.postMessage({ type: 'browserRefresh', url: temp });
@@ -1811,7 +1847,9 @@ export default function LivePreviewApp() {
   };
 
   const handleBrowserViewportChange = useCallback((width: number, height: number) => {
-    const deviceScaleFactor = Math.min(2, Math.max(1.5, window.devicePixelRatio || 1));
+    const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || '');
+    const maxDeviceScaleFactor = isMac ? 1.1 : 1.35;
+    const deviceScaleFactor = Math.min(maxDeviceScaleFactor, Math.max(1, window.devicePixelRatio || 1));
 
     vscode?.postMessage({
       type: 'browserSetViewport',
