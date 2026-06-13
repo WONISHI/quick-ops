@@ -338,7 +338,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                         <ul>
                             {folderSearchResults.map((res, i) => (
                                 <li key={i} className={styles['search-file-list-item']}>
-                                    <Tooltip content={res.file} placement="bottom" textAlign="center">
+                                    <Tooltip content={res.file} placement="bottom" textAlign="left">
                                         <div className={styles['search-file-title']} title={res.file}>
                                             <FileIcon fileName={res.file} status={res.status} className={styles['search-file-icon']} />
                                             <span className={getFileStatusClassName(res.status)}>{res.file}</span>

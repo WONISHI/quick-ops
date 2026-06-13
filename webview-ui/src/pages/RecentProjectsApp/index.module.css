@@ -641,7 +641,7 @@ ul {
 }
 
 .sub-item[draggable="true"] {
-  cursor: grab;
+  cursor: pointer;
 }
 
 .sub-item[draggable="true"]:active {
