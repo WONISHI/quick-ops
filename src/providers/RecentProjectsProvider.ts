@@ -1604,11 +1604,40 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       .map((item) => item.trim())
       .filter(Boolean);
 
+    /**
+     * 默认不把 .gitignore、.gitattributes、.github、.git-crypt 这类隐藏文件/隐藏目录
+     * 混到普通关键词结果里，避免输入 git 时出现一大堆点文件。
+     *
+     * 需要搜隐藏文件时，显式输入 . 开头即可，例如：
+     * - .git
+     * - .github/workflows
+     * - .gitignore
+     */
+    const shouldIncludeHiddenEntries =
+      normalizedQuery.startsWith('.') ||
+      normalizedQuery.includes('/.') ||
+      queryParts.some((part) => part.startsWith('.'));
+
+    const isHiddenPathSegment = (segment: string) => {
+      return segment.startsWith('.') && segment !== '.' && segment !== '..';
+    };
+
+    const hasHiddenPathSegment = (relativePath: string) => {
+      return normalizeSearchText(relativePath)
+        .split('/')
+        .some((segment) => isHiddenPathSegment(segment));
+    };
+
+    const shouldSkipHiddenSearchEntry = (relativePath: string) => {
+      return !shouldIncludeHiddenEntries && hasHiddenPathSegment(relativePath);
+    };
+
     const getSearchScore = (fileName: string, relativePath: string) => {
       const normalizedName = normalizeSearchText(fileName);
       const normalizedPath = normalizeSearchText(relativePath);
       const compactName = compactSearchText(fileName);
       const compactPath = compactSearchText(relativePath);
+      const allowPathLevelMatch = queryParts.length > 1;
       let score: number | null = null;
 
       const updateScore = (nextScore: number | null) => {
@@ -1617,23 +1646,30 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       };
 
       if (normalizedName === normalizedQuery) updateScore(0);
-      if (normalizedPath === normalizedQuery) updateScore(1);
+
+      if (allowPathLevelMatch && normalizedPath === normalizedQuery) {
+        updateScore(1);
+      }
 
       const nameIndex = normalizedName.indexOf(normalizedQuery);
       if (nameIndex !== -1) updateScore(10 + nameIndex);
 
-      const pathIndex = normalizedPath.indexOf(normalizedQuery);
-      if (pathIndex !== -1) updateScore(20 + pathIndex);
+      if (allowPathLevelMatch) {
+        const pathIndex = normalizedPath.indexOf(normalizedQuery);
+        if (pathIndex !== -1) updateScore(20 + pathIndex);
+      }
 
       if (compactQuery) {
         const compactNameIndex = compactName.indexOf(compactQuery);
         if (compactNameIndex !== -1) updateScore(30 + compactNameIndex);
 
-        const compactPathIndex = compactPath.indexOf(compactQuery);
-        if (compactPathIndex !== -1) updateScore(40 + compactPathIndex);
+        if (allowPathLevelMatch) {
+          const compactPathIndex = compactPath.indexOf(compactQuery);
+          if (compactPathIndex !== -1) updateScore(40 + compactPathIndex);
+        }
       }
 
-      if (queryParts.length > 1) {
+      if (allowPathLevelMatch) {
         let lastIndex = -1;
         let sequentialPartScore = 0;
         let orderedMatched = true;
@@ -1670,8 +1706,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         const nameFuzzyScore = getSequentialFuzzyScore(compactName, compactQuery);
         if (nameFuzzyScore !== null) updateScore(90 + nameFuzzyScore);
 
-        const pathFuzzyScore = getSequentialFuzzyScore(compactPath, compactQuery);
-        if (pathFuzzyScore !== null) updateScore(110 + pathFuzzyScore);
+        if (allowPathLevelMatch) {
+          const pathFuzzyScore = getSequentialFuzzyScore(compactPath, compactQuery);
+          if (pathFuzzyScore !== null) updateScore(110 + pathFuzzyScore);
+        }
       }
 
       return score;
@@ -1701,6 +1739,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const fullPath = path.join(currentNativePath, name);
           const fullUri = vscode.Uri.joinPath(dirUri, name);
           const relativePath = path.relative(nativePath, fullPath).replace(/\\/g, '/');
+
+          if (shouldSkipHiddenSearchEntry(relativePath)) {
+            visitedCount++;
+            continue;
+          }
+
           const gitRelativePath = gitRoot ? path.relative(gitRoot, fullPath) : '';
           const status = gitRoot ? this.getChildGitStatus(gitRelativePath, isDir, statusMap) : undefined;
 
@@ -1711,7 +1755,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
               scoredResults.push({
                 item: {
                   path: fullUri.toString(),
-                  name: relativePath,
+                  name,
+                  relativePath,
                   isFolder: isDir,
                   status,
                 },

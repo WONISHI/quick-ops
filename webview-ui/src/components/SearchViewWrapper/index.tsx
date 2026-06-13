@@ -88,7 +88,8 @@ interface SearchViewWrapperProps {
     renderTreeChildren: (
         parentPath: string,
         projectName: string,
-        isActiveProject?: boolean
+        isActiveProject?: boolean,
+        highlightQuery?: string
     ) => React.ReactNode;
 }
 
@@ -193,6 +194,171 @@ function getExtensionTagColor(ext: string) {
     }
 
     return EXTENSION_TAG_FALLBACK_COLORS[hash % EXTENSION_TAG_FALLBACK_COLORS.length];
+}
+
+
+function normalizeTooltipPath(pathValue: string) {
+    if (!pathValue) return '';
+
+    try {
+        if (pathValue.includes('://')) {
+            const url = new URL(pathValue);
+
+            if (url.protocol === 'file:') {
+                let decoded = decodeURIComponent(url.pathname || '');
+
+                if (/^\/[a-zA-Z]:\//.test(decoded)) {
+                    decoded = decoded.slice(1);
+                }
+
+                return decoded.replace(/\\/g, '/').replace(/\/+$/, '');
+            }
+
+            return decodeURIComponent(url.pathname || pathValue).replace(/\\/g, '/').replace(/\/+$/, '');
+        }
+    } catch { }
+
+    return decodeURIComponent(pathValue.split('?')[0])
+        .replace(/^file:\/\//, '')
+        .replace(/\\/g, '/')
+        .replace(/\/+$/, '');
+}
+
+function formatSearchNameTooltipPath(pathValue: string) {
+    const normalizedPath = normalizeTooltipPath(pathValue);
+
+    if (!normalizedPath) return '';
+
+    const macHomeMatch = normalizedPath.match(/^\/Users\/[^/]+(\/.*)?$/);
+
+    if (macHomeMatch) {
+        return `~${macHomeMatch[1] || ''}`;
+    }
+
+    const windowsHomeMatch = normalizedPath.match(/^[a-zA-Z]:\/Users\/[^/]+(\/.*)?$/);
+
+    if (windowsHomeMatch) {
+        return `~${windowsHomeMatch[1] || ''}`;
+    }
+
+    return normalizedPath;
+}
+
+
+function getSearchNameHighlightTokens(query: string) {
+    const value = String(query || '').trim();
+
+    if (!value) return [] as string[];
+
+    const tokenSet = new Set<string>();
+    const parts = value
+        .replace(/\\/g, '/')
+        .split(/[\s/]+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+    const rawTokens = parts.length > 0 ? parts : [value];
+
+    rawTokens.forEach((item) => {
+        tokenSet.add(item);
+
+        const withoutDot = item.replace(/^\.+/, '');
+
+        if (withoutDot) {
+            tokenSet.add(withoutDot);
+        }
+    });
+
+    const compactValue = value.replace(/[\s/\_.-]+/g, '');
+
+    if (compactValue && compactValue !== value) {
+        tokenSet.add(compactValue);
+    }
+
+    return Array.from(tokenSet)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .sort((a, b) => b.length - a.length);
+}
+
+function renderSearchNameHighlightText(text: string, query: string) {
+    const value = String(text || '');
+    const tokens = getSearchNameHighlightTokens(query);
+
+    if (!value || tokens.length === 0) {
+        return value;
+    }
+
+    const lowerValue = value.toLowerCase();
+    const ranges: Array<{ start: number; end: number }> = [];
+
+    tokens.forEach((token) => {
+        const lowerToken = token.toLowerCase();
+
+        if (!lowerToken) return;
+
+        let start = 0;
+
+        while (start < lowerValue.length) {
+            const index = lowerValue.indexOf(lowerToken, start);
+
+            if (index === -1) break;
+
+            ranges.push({
+                start: index,
+                end: index + lowerToken.length,
+            });
+            start = index + Math.max(1, lowerToken.length);
+        }
+    });
+
+    if (ranges.length === 0) {
+        return value;
+    }
+
+    const mergedRanges: Array<{ start: number; end: number }> = [];
+
+    ranges
+        .sort((a, b) => (a.start === b.start ? b.end - a.end : a.start - b.start))
+        .forEach((range) => {
+            const lastRange = mergedRanges[mergedRanges.length - 1];
+
+            if (!lastRange || range.start >= lastRange.end) {
+                mergedRanges.push(range);
+            } else if (range.end > lastRange.end) {
+                lastRange.end = range.end;
+            }
+        });
+
+    const nodes: React.ReactNode[] = [];
+    let cursor = 0;
+
+    mergedRanges.forEach((range, index) => {
+        if (range.start > cursor) {
+            nodes.push(value.slice(cursor, range.start));
+        }
+
+        nodes.push(
+            <mark
+                key={`${range.start}-${range.end}-${index}`}
+                style={{
+                    padding: '0 1px',
+                    borderRadius: 2,
+                    color: 'inherit',
+                    background: 'var(--vscode-editor-findMatchHighlightBackground, rgba(234, 179, 8, 0.35))',
+                }}
+            >
+                {value.slice(range.start, range.end)}
+            </mark>,
+        );
+        cursor = range.end;
+    });
+
+    if (cursor < value.length) {
+        nodes.push(value.slice(cursor));
+    }
+
+    return nodes;
 }
 
 export default function SearchViewWrapper(props: SearchViewWrapperProps) {
@@ -667,7 +833,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                         <ul>
                             {filteredContentResults.map(({ result: res, originalIndex }) => (
                                 <li key={`${originalIndex}-${res.fullPath || res.file}`} className={styles['search-file-list-item']}>
-                                    <Tooltip content={res.file} placement="bottom" textAlign="left">
+                                    <Tooltip content={res.file} placement="bottom" textAlign="left" delay={2000}>
                                         <div className={styles['search-file-title']} title={res.file}>
                                             <FileIcon fileName={res.file} status={res.status} className={styles['search-file-icon']} />
                                             <span className={getFileStatusClassName(res.status)}>{res.file}</span>
@@ -748,38 +914,39 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                             if (child.isFolder) {
                                 return (
                                     <li key={childPath} className={styles['search-name-list-item']}>
-                                        <div
-                                            className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''
-                                                } ${styles['search-name-sub-item']}`}
-                                            onClick={(e) =>
-                                                handleToggleExpand(childPath, targetProjName, isRemote, e)
-                                            }
+                                        <Tooltip
+                                            content={formatSearchNameTooltipPath(childPath)}
+                                            placement="bottom"
+                                            textAlign="left"
+                                            delay={2000}
                                         >
-                                            <div className={styles['tree-chevron']}>
-                                                <FontAwesomeIcon
-                                                    icon={isExpanded ? faChevronDown : faChevronRight}
-                                                    className={styles['chevron-icon']}
-                                                />
-                                            </div>
-
-                                            <FontAwesomeIcon
-                                                icon={isExpanded ? faFolderOpen : faFolder}
-                                                className={`${styles['icon-closed']} ${styles['sub-icon']}`}
-                                            />
-
-                                            <span
-                                                className={`${styles['sub-name']} ${statusClassName}`}
-                                                title={child.status ? `${child.name} [${child.status}]` : child.name}
+                                            <div
+                                                className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''
+                                                    } ${styles['search-name-sub-item']}`}
+                                                onClick={(e) =>
+                                                    handleToggleExpand(childPath, targetProjName, isRemote, e)
+                                                }
                                             >
-                                                <HighlightText
-                                                    text={child.name}
-                                                    query={folderSearchQuery}
-                                                    globalStartIndex={-2}
-                                                    currentActiveMatch={-1}
-                                                    isLineActive={false}
+                                                <div className={styles['tree-chevron']}>
+                                                    <FontAwesomeIcon
+                                                        icon={isExpanded ? faChevronDown : faChevronRight}
+                                                        className={styles['chevron-icon']}
+                                                    />
+                                                </div>
+
+                                                <FontAwesomeIcon
+                                                    icon={isExpanded ? faFolderOpen : faFolder}
+                                                    className={`${styles['icon-closed']} ${styles['sub-icon']}`}
                                                 />
-                                            </span>
-                                        </div>
+
+                                                <span
+                                                    className={`${styles['sub-name']} ${statusClassName}`}
+                                                    title={child.status ? `${child.name} [${child.status}]` : child.name}
+                                                >
+                                                    {renderSearchNameHighlightText(child.name, folderSearchQuery)}
+                                                </span>
+                                            </div>
+                                        </Tooltip>
 
                                         {isExpanded && (
                                             <div
@@ -788,7 +955,8 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                                                 {renderTreeChildren(
                                                     childPath,
                                                     targetProjName,
-                                                    searchTargetProject.isActiveProject
+                                                    searchTargetProject.isActiveProject,
+                                                    folderSearchQuery
                                                 )}
                                             </div>
                                         )}
@@ -798,35 +966,36 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
                             return (
                                 <li key={childPath} className={styles['search-name-list-item']}>
-                                    <div
-                                        className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''
-                                            } ${styles['search-name-sub-item-clickable']}`}
-                                        onClick={(e) =>
-                                            handleOpenFile(
-                                                childPath,
-                                                targetProjName,
-                                                !!searchTargetProject.isActiveProject,
-                                                e
-                                            )
-                                        }
+                                    <Tooltip
+                                        content={formatSearchNameTooltipPath(childPath)}
+                                        placement="bottom"
+                                        textAlign="left"
+                                        delay={2000}
                                     >
-                                        <div className={styles['chevron-placeholder']}></div>
-
-                                        <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
-
-                                        <span
-                                            className={`${styles['sub-name']} ${statusClassName}`}
-                                            title={child.status ? `${child.name} [${child.status}]` : child.name}
+                                        <div
+                                            className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''
+                                                } ${styles['search-name-sub-item-clickable']}`}
+                                            onClick={(e) =>
+                                                handleOpenFile(
+                                                    childPath,
+                                                    targetProjName,
+                                                    !!searchTargetProject.isActiveProject,
+                                                    e
+                                                )
+                                            }
                                         >
-                                            <HighlightText
-                                                text={child.name}
-                                                query={folderSearchQuery}
-                                                globalStartIndex={-2}
-                                                currentActiveMatch={-1}
-                                                isLineActive={false}
-                                            />
-                                        </span>
-                                    </div>
+                                            <div className={styles['chevron-placeholder']}></div>
+
+                                            <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
+
+                                            <span
+                                                className={`${styles['sub-name']} ${statusClassName}`}
+                                                title={child.status ? `${child.name} [${child.status}]` : child.name}
+                                            >
+                                                {renderSearchNameHighlightText(child.name, folderSearchQuery)}
+                                            </span>
+                                        </div>
+                                    </Tooltip>
                                 </li>
                             );
                         })}

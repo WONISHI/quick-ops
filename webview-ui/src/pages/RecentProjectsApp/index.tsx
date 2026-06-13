@@ -379,6 +379,138 @@ export default function RecentProjectsApp() {
   };
 
 
+  const getSearchNameHighlightTokens = (query: string) => {
+    const value = String(query || '').trim();
+
+    if (!value) return [] as string[];
+
+    const tokenSet = new Set<string>();
+    const parts = value
+      .replace(/\\/g, '/')
+      .split(/[\s/]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const rawTokens = parts.length > 0 ? parts : [value];
+
+    rawTokens.forEach((item) => {
+      tokenSet.add(item);
+
+      const withoutDot = item.replace(/^\.+/, '');
+
+      if (withoutDot) {
+        tokenSet.add(withoutDot);
+      }
+    });
+
+    const compactValue = value.replace(/[\s/_.-]+/g, '');
+
+    if (compactValue && compactValue !== value) {
+      tokenSet.add(compactValue);
+    }
+
+    return Array.from(tokenSet)
+      .map((item) => item.trim())
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length);
+  };
+
+  const renderSearchNameHighlightText = (textValue: string, query: string = '') => {
+    const value = String(textValue || '');
+    const tokens = getSearchNameHighlightTokens(query);
+
+    if (!value || tokens.length === 0) {
+      return value;
+    }
+
+    const lowerValue = value.toLowerCase();
+    const ranges: Array<{ start: number; end: number }> = [];
+
+    tokens.forEach((token) => {
+      const lowerToken = token.toLowerCase();
+
+      if (!lowerToken) return;
+
+      let start = 0;
+
+      while (start < lowerValue.length) {
+        const index = lowerValue.indexOf(lowerToken, start);
+
+        if (index === -1) break;
+
+        ranges.push({
+          start: index,
+          end: index + lowerToken.length,
+        });
+        start = index + Math.max(1, lowerToken.length);
+      }
+    });
+
+    if (ranges.length === 0) {
+      return value;
+    }
+
+    const mergedRanges: Array<{ start: number; end: number }> = [];
+
+    ranges
+      .sort((a, b) => (a.start === b.start ? b.end - a.end : a.start - b.start))
+      .forEach((range) => {
+        const lastRange = mergedRanges[mergedRanges.length - 1];
+
+        if (!lastRange || range.start >= lastRange.end) {
+          mergedRanges.push(range);
+        } else if (range.end > lastRange.end) {
+          lastRange.end = range.end;
+        }
+      });
+
+    const nodes: React.ReactNode[] = [];
+    let cursor = 0;
+
+    mergedRanges.forEach((range, index) => {
+      if (range.start > cursor) {
+        nodes.push(value.slice(cursor, range.start));
+      }
+
+      nodes.push(
+        <mark
+          key={`${range.start}-${range.end}-${index}`}
+          style={{
+            padding: '0 1px',
+            borderRadius: 2,
+            color: 'inherit',
+            background: 'var(--vscode-editor-findMatchHighlightBackground, rgba(234, 179, 8, 0.35))',
+          }}
+        >
+          {value.slice(range.start, range.end)}
+        </mark>,
+      );
+      cursor = range.end;
+    });
+
+    if (cursor < value.length) {
+      nodes.push(value.slice(cursor));
+    }
+
+    return nodes;
+  };
+
+  const isSearchNameTextMatched = (textValue: string, query: string = '') => {
+    const value = String(textValue || '').toLowerCase();
+    const tokens = getSearchNameHighlightTokens(query);
+
+    if (!value || tokens.length === 0) {
+      return true;
+    }
+
+    return tokens.some((token) => {
+      const lowerToken = token.toLowerCase();
+
+      return !!lowerToken && value.includes(lowerToken);
+    });
+  };
+
+
   const renderDiagnosticsBadge = (item: any) => {
     const diagnostics = getDiagnosticSummary(item);
 
@@ -1928,7 +2060,8 @@ export default function RecentProjectsApp() {
   const renderTreeChildren = (
     parentPath: string,
     projectName: string,
-    isActiveProject: boolean = false
+    isActiveProject: boolean = false,
+    highlightQuery: string = ''
   ) => {
     const children = dirChildren[parentPath];
     const isLoading = loadingPaths.has(parentPath);
@@ -1956,10 +2089,18 @@ export default function RecentProjectsApp() {
       return <div className={styles['empty-node']}>（空文件夹/无读取权限）</div>;
     }
 
+    const visibleChildren = highlightQuery
+      ? children.filter((child) => isSearchNameTextMatched(child.name, highlightQuery))
+      : children;
+
+    if (visibleChildren.length === 0 && !pendingCreateRow) {
+      return <div className={styles['empty-node']}>没有匹配的子项</div>;
+    }
+
     return (
       <>
         {pendingCreateRow}
-        {children.map((child) => {
+        {visibleChildren.map((child) => {
           const childPath = child.path;
           const isExpanded = expandedPaths.has(childPath);
           const childLoading = loadingPaths.has(childPath) && !dirChildren[childPath];
@@ -2017,7 +2158,7 @@ export default function RecentProjectsApp() {
 
                   <Tooltip
                     content={getTreeTooltipContent(childPath, child, true)}
-                    placement="bottom"
+                    placement="right"
                     align="start"
                     delay={2000}
                   >
@@ -2029,7 +2170,7 @@ export default function RecentProjectsApp() {
                         pointerEvents: 'auto',
                       }}
                     >
-                      {child.name}
+                      {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
                     </span>
                   </Tooltip>
 
@@ -2043,7 +2184,7 @@ export default function RecentProjectsApp() {
                       styles['search-name-tree-children']
                     )}
                   >
-                    {renderTreeChildren(childPath, projectName, isActiveProject)}
+                    {renderTreeChildren(childPath, projectName, isActiveProject, highlightQuery)}
                   </div>
                 )}
               </div>
@@ -2082,7 +2223,7 @@ export default function RecentProjectsApp() {
 
                 <Tooltip
                   content={getTreeTooltipContent(childPath, child, false)}
-                  placement="bottom"
+                  placement="right"
                   align="start"
                   delay={2000}
                 >
@@ -2093,7 +2234,7 @@ export default function RecentProjectsApp() {
                       pointerEvents: 'auto',
                     }}
                   >
-                    {child.name}
+                    {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
                   </span>
                 </Tooltip>
 

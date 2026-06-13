@@ -94,8 +94,9 @@ import oxcIcon from 'material-icon-theme/icons/oxc.svg';
 import coderabbitAiIcon from 'material-icon-theme/icons/coderabbit-ai.svg';
 import codecovIcon from 'material-icon-theme/icons/codecov.svg';
 import playwrightIcon from 'material-icon-theme/icons/playwright.svg';
-import tsdownIcon from 'material-icon-theme/icons/tsdown.svg'
-import typescriptDefIcon from "material-icon-theme/icons/typescript-def.svg"
+import tsdownIcon from 'material-icon-theme/icons/tsdown.svg';
+import typescriptDefIcon from 'material-icon-theme/icons/typescript-def.svg';
+import testTsIcon from 'material-icon-theme/icons/test-ts.svg';
 
 export type FileGitStatus = 'u' | 'a' | 'm' | 'd' | 'r' | 'c' | string;
 
@@ -150,7 +151,7 @@ const EXACT_NAMES: Record<string, string> = {
   'readme.md': readmeIcon,
   readme: readmeIcon,
   'pnpm-lock.yaml': pnpmIcon,
-  'pnpm-workspace.yaml':pnpmIcon,
+  'pnpm-workspace.yaml': pnpmIcon,
   '.markdownlint.json': markdownlint,
   'postcss.config.js': postcssIcon,
   '.lintstagedrc': lintstagedIcon,
@@ -176,7 +177,7 @@ const EXACT_NAMES: Record<string, string> = {
   'rollup.config.mjs': rollupIcon,
   'rollup.config.js': rollupIcon,
   'turbo.json': turboIcon,
-  'tsdown.config.ts':tsdownIcon,
+  'tsdown.config.ts': tsdownIcon,
   'wrangler.toml': wranglerIcon,
   'nest-cli.json': nestIcon,
   '.swcrc': swcIcon,
@@ -219,6 +220,7 @@ const EXTENSIONS: Record<string, string> = {
   less: lessIcon,
   scss: sassIcon,
   sass: sassIcon,
+  snap: testTsIcon,
   html: htmlIcon,
   htm: htmlIcon,
   py: pythonIcon,
