@@ -607,7 +607,7 @@ export class LivePreviewFeature implements IFeature {
       localResourceRoots: this.getLocalResourceRoots(context),
     });
 
-    panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
+    panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'livepreview.svg');
 
     const browserService = this.ensureDetachedBrowserService(context, panel);
     const lastDevice = initialDevice || context.workspaceState.get<string>('quickOps.lastPreviewDevice') || 'device-responsive';
