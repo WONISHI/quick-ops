@@ -1768,17 +1768,12 @@ export default function RecentProjectsApp() {
 
         cacheNormalDirChildrenBeforeFocus(targetPath);
 
-        setDirChildren((prev) => {
-          const next = { ...prev };
-
-          Object.keys(next).forEach((key) => {
-            if (isPathInside(key, targetPath)) {
-              delete next[key];
-            }
-          });
-
-          return next;
-        });
+        const focusRefreshPaths = Array.from(new Set([
+          targetPath,
+          ...Array.from(expandedPathsRef.current).filter((itemPath) =>
+            !!itemPath && isPathInside(itemPath, targetPath)
+          ),
+        ]));
 
         setSearchTargetProject({
           ...payload,
@@ -1806,19 +1801,24 @@ export default function RecentProjectsApp() {
         setLoadingPaths((prev) => {
           const next = new Set(prev);
 
-          if (!dirChildrenRef.current[targetPath]) {
-            next.add(targetPath);
-          }
+          focusRefreshPaths.forEach((itemPath) => {
+            if (!dirChildrenRef.current[itemPath]) {
+              next.add(itemPath);
+            }
+          });
 
           return next;
         });
 
-        vscode.postMessage({
-          type: 'readDir',
-          fsPath: targetPath,
-          projectName: title,
-          forceRefresh: true,
+        focusRefreshPaths.forEach((itemPath) => {
+          vscode.postMessage({
+            type: 'readDir',
+            fsPath: itemPath,
+            projectName: title,
+            forceRefresh: true,
+          });
         });
+
         break;
       }
 
