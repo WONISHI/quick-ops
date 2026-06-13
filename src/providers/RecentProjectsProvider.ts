@@ -742,6 +742,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     return !fsPath.startsWith('vscode-vfs://') && !/^https?:\/\//i.test(fsPath);
   }
 
+  private async statFileSafe(uri: vscode.Uri): Promise<vscode.FileStat | undefined> {
+    try {
+      return await vscode.workspace.fs.stat(uri);
+    } catch {
+      return undefined;
+    }
+  }
+
   private async getGitFileLocation(fsPath: string): Promise<{
     uri: vscode.Uri;
     nativePath: string;
@@ -772,7 +780,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
      * - 文件已删除：stat 会失败，也用父目录查 Git root；
      * - 如果传入本身就是目录：用该目录查 Git root。
      */
-    const stat = await vscode.workspace.fs.stat(uri).catch(() => undefined);
+    const stat = await this.statFileSafe(uri);
     const gitSearchPath =
       stat && (stat.type & vscode.FileType.Directory) !== 0
         ? nativePath
@@ -1988,7 +1996,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         return;
       }
 
-      const targetStat = await vscode.workspace.fs.stat(targetFolderUri).catch(() => undefined);
+      const targetStat = await this.statFileSafe(targetFolderUri);
 
       if (!targetStat || (targetStat.type & vscode.FileType.Directory) === 0) {
         vscode.window.showWarningMessage('只能拖拽到文件夹中。');
