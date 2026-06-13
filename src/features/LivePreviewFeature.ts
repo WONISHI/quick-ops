@@ -4,6 +4,7 @@ import { IFeature } from '../core/interfaces/IFeature';
 import ColorLog from '../utils/ColorLog';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
 import { EmbeddedBrowserService } from '../services/EmbeddedBrowserService';
+import { DevToolsWebviewProvider } from '../providers/DevToolsWebviewProvider';
 
 interface BuiltinBookmark {
   name: string;
@@ -35,9 +36,24 @@ export class LivePreviewFeature implements IFeature {
   private defaultFavoritesCache: FavoriteItem[] | null = null;
 
   private browserService: EmbeddedBrowserService | null = null;
+  private devToolsProvider: DevToolsWebviewProvider | null = null;
 
   public async activate(context: vscode.ExtensionContext): Promise<void> {
     context.globalState.setKeysForSync([this.GLOBAL_FAVORITES_KEY]);
+
+    this.devToolsProvider = new DevToolsWebviewProvider(context.extensionUri);
+
+    context.subscriptions.push(
+      vscode.window.registerWebviewViewProvider(
+        DevToolsWebviewProvider.viewType,
+        this.devToolsProvider,
+        {
+          webviewOptions: {
+            retainContextWhenHidden: true,
+          },
+        }
+      )
+    );
 
     const command = vscode.commands.registerCommand('quick-ops.openLivePreview', () => {
       this.togglePreviewPanel(context);
@@ -744,7 +760,16 @@ export class LivePreviewFeature implements IFeature {
       } else if (message.type === 'browserClearCache') {
         await runDetachedBrowserAction(() => browserService.clearCache());
       } else if (message.type === 'openDevTools') {
-        await runDetachedBrowserAction(() => browserService.openDevTools());
+        await runDetachedBrowserAction(async () => {
+          const devToolsUrl = await browserService.getDevToolsUrl();
+
+          if (!devToolsUrl) {
+            await browserService.openDevTools();
+            return;
+          }
+
+          await this.devToolsProvider?.open(devToolsUrl);
+        });
       } else if (message.type === 'browserStop') {
         await runDetachedBrowserAction(() => browserService.stop());
       } else if (message.type === 'openExternalBrowser') {
@@ -900,7 +925,15 @@ export class LivePreviewFeature implements IFeature {
       } else if (message.type === 'showError') {
         vscode.window.showErrorMessage(message.message || '');
       } else if (message.type === 'openDevTools') {
-        await this.ensureBrowserService(context).openDevTools();
+        const service = this.ensureBrowserService(context);
+        const devToolsUrl = await service.getDevToolsUrl();
+
+        if (!devToolsUrl) {
+          await service.openDevTools();
+          return;
+        }
+
+        await this.devToolsProvider?.open(devToolsUrl);
       } else if (message.type === 'openExternalBrowser') {
         vscode.env.openExternal(this.parseExternalUri(message.url));
       } else if (message.type === 'loadLocalHtmlFile') {

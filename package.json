@@ -244,6 +244,13 @@
           "title": "Quick Ops",
           "icon": "$(server)"
         }
+      ],
+      "panel": [
+        {
+          "id": "quickOpsDevTools",
+          "title": "Q-ops DevTools",
+          "icon": "$(developer-tools)"
+        }
       ]
     },
     "views": {
@@ -265,6 +272,14 @@
           "name": "Git 管理器",
           "type": "webview",
           "icon": "$(source-control)"
+        }
+      ],
+      "quickOpsDevTools": [
+        {
+          "id": "quickOps.devtoolsView",
+          "name": "DevTools",
+          "type": "webview",
+          "icon": "$(developer-tools)"
         }
       ]
     },

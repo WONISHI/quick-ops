@@ -561,18 +561,26 @@ export class EmbeddedBrowserService extends EventEmitter {
     ]);
   }
 
-  public async openDevTools(): Promise<void> {
-    const client = await this.ensureClient();
+  public async getDevToolsUrl(): Promise<string> {
+    await this.ensureClient();
+
     const port = this.debugPort;
     const pageId = this.getPageId();
 
-    if (!pageId) {
+    if (!pageId) return '';
+
+    return `http://127.0.0.1:${port}/devtools/inspector.html?ws=127.0.0.1:${port}/devtools/page/${pageId}`;
+  }
+
+  public async openDevTools(): Promise<void> {
+    const devToolsUrl = await this.getDevToolsUrl();
+
+    if (!devToolsUrl) {
       await vscode.commands.executeCommand('workbench.action.webview.openDeveloperTools');
       return;
     }
 
-    await vscode.env.openExternal(vscode.Uri.parse(`http://127.0.0.1:${port}/devtools/inspector.html?ws=127.0.0.1:${port}/devtools/page/${pageId}`));
-    void client;
+    await vscode.env.openExternal(vscode.Uri.parse(devToolsUrl));
   }
 
   public async setViewport(message: BrowserViewportMessage): Promise<void> {

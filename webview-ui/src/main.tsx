@@ -17,6 +17,7 @@ import PdfPreviewApp from './pages/PdfPreviewApp';
 import GitDetailApp from './pages/GitDetailApp';
 import HtmlPreviewApp from './pages/HtmlPreviewApp';
 import DocPreviewApp from './pages/DocPreviewApp'
+import DevToolsApp from './pages/DevToolsApp';
 import './index.css';
 import '@vscode/codicons/dist/codicon.css';
 
@@ -33,6 +34,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         <Route path="/anchor" element={<AnchorApp />} />
         <Route path='/git' element={<GitApp />} />
         <Route path="/html-preview" element={<HtmlPreviewApp />} />
+        <Route path="/devtools" element={<DevToolsApp />} />
         <Route path="/git-detail" element={<GitDetailApp />} />
         <Route path="/mock" element={<MockSidebarApp />} />
         <Route path="/mock/proxy" element={<MockProxyPanelApp />} />
