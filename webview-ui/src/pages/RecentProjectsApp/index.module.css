@@ -595,3 +595,68 @@ ul {
   height: 16px;
   transform: translateY(0.5px);
 }
+/* ================================
+   VS Code 风格新建输入 / 拖拽移动
+   ================================ */
+
+.new-entity-wrapper {
+  min-width: 0;
+}
+
+.new-entity-row {
+  background-color: var(--vscode-list-activeSelectionBackground) !important;
+  color: var(--vscode-list-activeSelectionForeground) !important;
+}
+
+.new-entity-row .sub-icon,
+.new-entity-row .chevron-placeholder {
+  color: var(--vscode-list-activeSelectionForeground) !important;
+  opacity: 0.95;
+}
+
+.new-entity-input {
+  flex: 1;
+  min-width: 0;
+  height: 18px;
+  line-height: 18px;
+  padding: 0 4px;
+  margin: 0;
+  border: 1px solid var(--vscode-focusBorder);
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+  border-radius: 0;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: 13px;
+}
+
+.new-entity-input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+}
+
+.sub-item[draggable="true"] {
+  cursor: grab;
+}
+
+.sub-item[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.dragging {
+  opacity: 0.45;
+}
+
+.drop-target {
+  background-color: var(--vscode-list-dropBackground, var(--vscode-list-hoverBackground)) !important;
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.drop-target-invalid {
+  background-color: color-mix(in srgb,
+      var(--vscode-errorForeground, #f14c4c) 14%,
+      transparent) !important;
+  outline: 1px dashed var(--vscode-errorForeground, #f14c4c);
+  outline-offset: -1px;
+}

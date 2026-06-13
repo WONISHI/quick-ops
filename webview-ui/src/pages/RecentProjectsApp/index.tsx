@@ -45,6 +45,20 @@ interface MetadataPatchItem {
   diagnostics?: DiagnosticSummary;
 }
 
+interface PendingCreateEntity {
+  parentPath: string;
+  type: 'file' | 'folder';
+  projectName: string;
+  isActiveProject: boolean;
+}
+
+interface DraggingEntity {
+  path: string;
+  name: string;
+  isFolder: boolean;
+  projectName: string;
+}
+
 export default function RecentProjectsApp() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentUri, setCurrentUri] = useState('');
@@ -130,6 +144,14 @@ export default function RecentProjectsApp() {
   const focusRootPathRef = useRef('');
   const focusRootNameRef = useRef('');
 
+  const [pendingCreateEntity, setPendingCreateEntity] = useState<PendingCreateEntity | null>(null);
+  const [pendingCreateName, setPendingCreateName] = useState('');
+  const pendingCreateInputRef = useRef<HTMLInputElement>(null);
+
+  const [draggingEntity, setDraggingEntity] = useState<DraggingEntity | null>(null);
+  const [dragOverPath, setDragOverPath] = useState('');
+  const [invalidDragOverPath, setInvalidDragOverPath] = useState('');
+
   useEffect(() => {
     isSearchModeRef.current = isSearchMode;
   }, [isSearchMode]);
@@ -145,6 +167,15 @@ export default function RecentProjectsApp() {
   useEffect(() => {
     focusRootNameRef.current = focusRootName;
   }, [focusRootName]);
+
+  useEffect(() => {
+    if (!pendingCreateEntity) return;
+
+    window.setTimeout(() => {
+      pendingCreateInputRef.current?.focus();
+      pendingCreateInputRef.current?.select();
+    }, 0);
+  }, [pendingCreateEntity]);
 
   const normalizePatchPath = (pathValue: string) => {
     if (!pathValue) return '';
@@ -674,6 +705,73 @@ export default function RecentProjectsApp() {
 
           return prev;
         });
+      } else if (msg.type === 'createFileEntityResult' || msg.type === 'createFolderEntityResult') {
+        const createdPath = msg.fsPath as string;
+        const parentPath = msg.parentPath as string;
+
+        setPendingCreateEntity(null);
+        setPendingCreateName('');
+        setSelectedPath(createdPath);
+        setExpandedPaths((prev) => new Set(prev).add(parentPath));
+        setLoadingPaths((prev) => new Set(prev).add(parentPath));
+
+        vscode.postMessage({
+          type: 'readDir',
+          fsPath: parentPath,
+          projectName: getProjectNameByPath(parentPath),
+          forceRefresh: true,
+        });
+      } else if (msg.type === 'moveFileEntityResult') {
+        const sourcePath = msg.sourcePath as string;
+        const targetPath = msg.targetPath as string;
+        const oldParentPath = msg.oldParentPath as string;
+        const targetParentPath = msg.targetParentPath as string;
+
+        setDraggingEntity(null);
+        setDragOverPath('');
+        setInvalidDragOverPath('');
+        setSelectedPath(targetPath);
+
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+
+          Array.from(next).forEach((itemPath) => {
+            if (isPathInside(itemPath, sourcePath)) {
+              next.delete(itemPath);
+            }
+          });
+
+          next.add(targetParentPath);
+          return next;
+        });
+
+        setDirChildren((prev) => {
+          const next = { ...prev };
+
+          Object.keys(next).forEach((key) => {
+            if (isPathInside(key, sourcePath)) {
+              delete next[key];
+            }
+          });
+
+          if (next[oldParentPath]) {
+            next[oldParentPath] = next[oldParentPath].filter((item) => item.path !== sourcePath);
+          }
+
+          return next;
+        });
+
+        [oldParentPath, targetParentPath].forEach((pathValue) => {
+          if (!pathValue) return;
+
+          setLoadingPaths((prev) => new Set(prev).add(pathValue));
+          vscode.postMessage({
+            type: 'readDir',
+            fsPath: pathValue,
+            projectName: getProjectNameByPath(pathValue),
+            forceRefresh: true,
+          });
+        });
       } else if (msg.type === 'refreshExpandedDirs') {
         const expandedList = Array.from(expandedPathsRef.current).filter((itemPath) => {
           if (!itemPath) return false;
@@ -973,6 +1071,298 @@ export default function RecentProjectsApp() {
     });
   };
 
+  const isSameTreePath = (leftPath: string, rightPath: string) => {
+    return normalizePatchPath(leftPath) === normalizePatchPath(rightPath);
+  };
+
+  const getCurrentWorkspacePath = () => {
+    return currentWorkspaceRef.current?.fsPath || currentUri || '';
+  };
+
+  const isRemoteTreePath = (pathValue: string) => {
+    return pathValue.startsWith('vscode-vfs://') || /^https?:\/\//i.test(pathValue);
+  };
+
+  const isInsideCurrentWorkspacePath = (pathValue: string) => {
+    const workspacePath = getCurrentWorkspacePath();
+
+    if (!workspacePath || isRemoteTreePath(pathValue) || isRemoteTreePath(workspacePath)) {
+      return false;
+    }
+
+    return isPathInside(normalizePatchPath(pathValue), normalizePatchPath(workspacePath));
+  };
+
+  const getParentUriString = (pathValue: string) => {
+    if (!pathValue) return '';
+
+    try {
+      if (pathValue.includes('://')) {
+        const url = new URL(pathValue);
+        const pathname = url.pathname.replace(/\/[^/]*$/, '') || '/';
+        url.pathname = pathname;
+        url.search = '';
+        url.hash = '';
+        return url.toString().replace(/\/$/, '');
+      }
+    } catch { }
+
+    const normalized = pathValue.replace(/\\/g, '/').replace(/\/[^/]*$/, '');
+    return normalized || pathValue;
+  };
+
+  const getCreateParentPath = (payload: ContextMenuPayload) => {
+    if (payload.isFolder === false) {
+      return getParentUriString(payload.path);
+    }
+
+    return payload.path;
+  };
+
+  const canCreateInPayload = (payload: ContextMenuPayload) => {
+    const targetPath = getCreateParentPath(payload);
+
+    return !!payload.isActiveProject && isInsideCurrentWorkspacePath(targetPath);
+  };
+
+  const beginCreateEntity = (type: 'file' | 'folder', payload: ContextMenuPayload) => {
+    const parentPath = getCreateParentPath(payload);
+
+    if (!canCreateInPayload(payload)) {
+      return;
+    }
+
+    const projectName = payload.projectName || getProjectNameByPath(parentPath) || '当前项目';
+
+    setPendingCreateEntity({
+      parentPath,
+      type,
+      projectName,
+      isActiveProject: true,
+    });
+    setPendingCreateName('');
+    setSelectedPath(parentPath);
+    setExpandedPaths((prev) => new Set(prev).add(parentPath));
+    setDirChildren((prev) => {
+      if (prev[parentPath]) return prev;
+
+      return {
+        ...prev,
+        [parentPath]: [],
+      };
+    });
+  };
+
+  const cancelPendingCreateEntity = () => {
+    setPendingCreateEntity(null);
+    setPendingCreateName('');
+  };
+
+  const commitPendingCreateEntity = () => {
+    if (!pendingCreateEntity) return;
+
+    const name = pendingCreateName.trim();
+
+    if (!name) {
+      cancelPendingCreateEntity();
+      return;
+    }
+
+    vscode.postMessage({
+      type: pendingCreateEntity.type === 'file' ? 'createFile' : 'createFolder',
+      fsPath: pendingCreateEntity.parentPath,
+      name,
+    });
+
+    setPendingCreateEntity(null);
+    setPendingCreateName('');
+  };
+
+  const canDragEntity = (pathValue: string, isActiveProject: boolean) => {
+    const workspacePath = getCurrentWorkspacePath();
+
+    return (
+      !!isActiveProject &&
+      !!workspacePath &&
+      !isRemoteTreePath(pathValue) &&
+      isInsideCurrentWorkspacePath(pathValue) &&
+      !isSameTreePath(pathValue, workspacePath)
+    );
+  };
+
+  const getDragEntityFromEvent = (e: React.DragEvent): DraggingEntity | null => {
+    if (draggingEntity) return draggingEntity;
+
+    try {
+      const raw = e.dataTransfer.getData('application/quickops-tree-item');
+      return raw ? JSON.parse(raw) as DraggingEntity : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const canDropEntityToFolder = (entity: DraggingEntity | null, targetFolderPath: string, isActiveProject: boolean) => {
+    if (!entity || !targetFolderPath || !isActiveProject) return false;
+    if (!canDragEntity(entity.path, true)) return false;
+    if (!isInsideCurrentWorkspacePath(targetFolderPath)) return false;
+    if (isSameTreePath(entity.path, targetFolderPath)) return false;
+
+    const sourceParentPath = getParentUriString(entity.path);
+
+    if (isSameTreePath(sourceParentPath, targetFolderPath)) {
+      return false;
+    }
+
+    if (entity.isFolder && isPathInside(normalizePatchPath(targetFolderPath), normalizePatchPath(entity.path))) {
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleDragStart = (e: React.DragEvent, child: DirChild, projectName: string, isActiveProject: boolean) => {
+    if (!canDragEntity(child.path, isActiveProject)) {
+      e.preventDefault();
+      return;
+    }
+
+    const entity: DraggingEntity = {
+      path: child.path,
+      name: child.name,
+      isFolder: !!child.isFolder,
+      projectName,
+    };
+
+    setDraggingEntity(entity);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('application/quickops-tree-item', JSON.stringify(entity));
+    e.dataTransfer.setData('text/plain', child.path);
+  };
+
+  const handleDragEnd = () => {
+    setDraggingEntity(null);
+    setDragOverPath('');
+    setInvalidDragOverPath('');
+  };
+
+  const handleDragOverFolder = (e: React.DragEvent, targetFolderPath: string, isActiveProject: boolean) => {
+    const entity = getDragEntityFromEvent(e);
+    const canDrop = canDropEntityToFolder(entity, targetFolderPath, isActiveProject);
+
+    if (!entity) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = canDrop ? 'move' : 'none';
+
+    if (canDrop) {
+      setDragOverPath(targetFolderPath);
+      setInvalidDragOverPath('');
+    } else {
+      setDragOverPath('');
+      setInvalidDragOverPath(targetFolderPath);
+    }
+  };
+
+  const handleDragLeaveFolder = (e: React.DragEvent, targetFolderPath: string) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      return;
+    }
+
+    setDragOverPath((prev) => (prev === targetFolderPath ? '' : prev));
+    setInvalidDragOverPath((prev) => (prev === targetFolderPath ? '' : prev));
+  };
+
+  const handleDropOnFolder = (e: React.DragEvent, targetFolderPath: string, isActiveProject: boolean) => {
+    const entity = getDragEntityFromEvent(e);
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    setDragOverPath('');
+    setInvalidDragOverPath('');
+
+    if (!canDropEntityToFolder(entity, targetFolderPath, isActiveProject) || !entity) {
+      return;
+    }
+
+    setExpandedPaths((prev) => new Set(prev).add(targetFolderPath));
+    setLoadingPaths((prev) => new Set(prev).add(targetFolderPath));
+
+    vscode.postMessage({
+      type: 'moveFileEntity',
+      sourceFsPath: entity.path,
+      targetFolderFsPath: targetFolderPath,
+      isFolder: entity.isFolder,
+    });
+  };
+
+  const getDropClassName = (targetFolderPath: string) => {
+    if (dragOverPath === targetFolderPath) {
+      return styles['drop-target'];
+    }
+
+    if (invalidDragOverPath === targetFolderPath) {
+      return styles['drop-target-invalid'];
+    }
+
+    return '';
+  };
+
+  const renderPendingCreateRow = (parentPath: string, _projectName: string, isActiveProject: boolean) => {
+    if (!pendingCreateEntity || !isSameTreePath(pendingCreateEntity.parentPath, parentPath)) {
+      return null;
+    }
+
+    if (!pendingCreateEntity.isActiveProject || !isActiveProject) {
+      return null;
+    }
+
+    const isFolder = pendingCreateEntity.type === 'folder';
+
+    return (
+      <div className={styles['new-entity-wrapper']} key={`pending-${parentPath}`}>
+        <div className={`${styles['sub-item']} ${styles['new-entity-row']} ${styles['selected']}`}>
+          <div className={styles['chevron-placeholder']}></div>
+
+          {isFolder ? (
+            <FontAwesomeIcon
+              icon={faFolder}
+              className={`${styles['icon-closed']} ${styles['sub-icon']} ${styles['folder-icon']}`}
+            />
+          ) : (
+            <FileIcon
+              fileName={pendingCreateName || 'untitled'}
+              className={styles['sub-icon']}
+            />
+          )}
+
+          <input
+            ref={pendingCreateInputRef}
+            className={styles['new-entity-input']}
+            value={pendingCreateName}
+            placeholder={isFolder ? '新建文件夹' : '新建文件'}
+            autoComplete="off"
+            spellCheck={false}
+            onChange={(e) => setPendingCreateName(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onBlur={cancelPendingCreateEntity}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitPendingCreateEntity();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelPendingCreateEntity();
+              }
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
+
   const handleOpenProject = (pathValue: string) => {
     if (clickTimeout.current) clearTimeout(clickTimeout.current);
 
@@ -1185,17 +1575,11 @@ export default function RecentProjectsApp() {
         break;
 
       case 'createFile':
-        vscode.postMessage({
-          type: 'createFile',
-          fsPath: payload.path,
-        });
+        beginCreateEntity('file', payload);
         break;
 
       case 'createFolder':
-        vscode.postMessage({
-          type: 'createFolder',
-          fsPath: payload.path,
-        });
+        beginCreateEntity('folder', payload);
         break;
       case 'deleteFileEntity':
         vscode.postMessage({
@@ -1565,12 +1949,15 @@ export default function RecentProjectsApp() {
 
     if (!children) return null;
 
-    if (children.length === 0) {
+    const pendingCreateRow = renderPendingCreateRow(parentPath, projectName, isActiveProject);
+
+    if (children.length === 0 && !pendingCreateRow) {
       return <div className={styles['empty-node']}>（空文件夹/无读取权限）</div>;
     }
 
     return (
       <>
+        {pendingCreateRow}
         {children.map((child) => {
           const childPath = child.path;
           const isExpanded = expandedPaths.has(childPath);
@@ -1585,7 +1972,13 @@ export default function RecentProjectsApp() {
                 <div
                   id={elementId}
                   className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''
-                    } ${styles['search-name-sub-item']}`}
+                    } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
+                  draggable={canDragEntity(childPath, isActiveProject)}
+                  onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => handleDragOverFolder(e, childPath, isActiveProject)}
+                  onDragLeave={(e) => handleDragLeaveFolder(e, childPath)}
+                  onDrop={(e) => handleDropOnFolder(e, childPath, isActiveProject)}
                   onClick={(e) => handleToggleExpand(childPath, projectName, isRemote, e)}
                   onContextMenu={(e) =>
                     handleContextMenu(e, 'sub', {
@@ -1662,7 +2055,10 @@ export default function RecentProjectsApp() {
               <div
                 id={elementId}
                 className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''
-                  } ${styles['search-name-sub-item-clickable']}`}
+                  } ${styles['search-name-sub-item-clickable']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''}`}
+                draggable={canDragEntity(childPath, isActiveProject)}
+                onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
+                onDragEnd={handleDragEnd}
                 onClick={(e) => handleOpenFile(childPath, projectName, isActiveProject, e)}
                 onContextMenu={(e) =>
                   handleContextMenu(e, 'sub', {
@@ -1840,7 +2236,10 @@ export default function RecentProjectsApp() {
                         <div
                           id={elementId}
                           className={`${styles['active-top-project']} ${selectedPath === rootPath ? styles['selected'] : ''
-                            } ${inHistory ? styles['in-history'] : styles['not-in-history']}`}
+                            } ${inHistory ? styles['in-history'] : styles['not-in-history']} ${getDropClassName(rootPath)}`}
+                          onDragOver={(e) => handleDragOverFolder(e, rootPath, true)}
+                          onDragLeave={(e) => handleDragLeaveFolder(e, rootPath)}
+                          onDrop={(e) => handleDropOnFolder(e, rootPath, true)}
                           onContextMenu={(e) =>
                             handleContextMenu(e, 'top', {
                               path: rootPath,

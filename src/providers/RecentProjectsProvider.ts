@@ -550,13 +550,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           this.copyFileEntity(data.fsPath);
           break;
         case 'createFile':
-          this.createFileEntity(data.fsPath);
+          await this.createFileEntity(data.fsPath, data.name);
           break;
         case 'createFolder':
-          this.createFolderEntity(data.fsPath);
+          await this.createFolderEntity(data.fsPath, data.name);
+          break;
+        case 'moveFileEntity':
+          await this.moveFileEntity(data.sourceFsPath, data.targetFolderFsPath, !!data.isFolder);
           break;
         case 'deleteFileEntity':
-          this.deleteFileEntity(data.fsPath, !!data.isFolder);
+          await this.deleteFileEntity(data.fsPath, !!data.isFolder);
           break;
         case 'discardFileChanges':
           await this.discardFileChanges(data.fsPath, data.status);
@@ -1737,98 +1740,190 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this._view?.webview.postMessage({ type: 'searchFolderResult', results: enrichedResults });
   }
 
-  private getWritableLocalUri(fsPath: string) {
-    const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+  private parseLocalFileUri(fsPath: string): vscode.Uri | undefined {
+    if (!fsPath) return undefined;
 
-    if (uri.scheme !== 'file') {
+    try {
+      if (fsPath.includes('://')) {
+        const uri = vscode.Uri.parse(fsPath);
+        return uri.scheme === 'file' ? uri : undefined;
+      }
+
+      return vscode.Uri.file(fsPath);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private getCurrentWorkspaceUri(): vscode.Uri | undefined {
+    return vscode.workspace.workspaceFolders?.[0]?.uri;
+  }
+
+  private isCurrentWorkspaceFileUri(uri: vscode.Uri): boolean {
+    const currentWorkspaceUri = this.getCurrentWorkspaceUri();
+
+    if (!currentWorkspaceUri || uri.scheme !== 'file') {
+      return false;
+    }
+
+    return this.isInsidePath(uri.toString(), currentWorkspaceUri.toString());
+  }
+
+  private async getWritableLocalFolderUri(fsPath: string) {
+    const uri = this.parseLocalFileUri(fsPath);
+
+    if (!uri) {
       vscode.window.showWarningMessage('当前只支持在本地文件夹中新建文件或文件夹。');
       return null;
     }
 
-    return uri;
+    if (!this.isCurrentWorkspaceFileUri(uri)) {
+      vscode.window.showWarningMessage('只能在当前运行项目中新建文件或文件夹。');
+      return null;
+    }
+
+    try {
+      const stat = await vscode.workspace.fs.stat(uri);
+
+      if ((stat.type & vscode.FileType.Directory) !== 0) {
+        return uri;
+      }
+
+      return vscode.Uri.joinPath(uri, '..');
+    } catch {
+      vscode.window.showWarningMessage('目标文件夹不存在，无法新建文件或文件夹。');
+      return null;
+    }
   }
 
-  private validateNewEntityName(name: string) {
-    const value = name.trim();
+  private validateNewEntityName(name: string, entityType: 'file' | 'folder') {
+    const value = name.trim().replace(/\\/g, '/');
 
     if (!value) {
-      return '';
+      return [] as string[];
     }
 
-    if (/[\\/]/.test(value)) {
-      vscode.window.showWarningMessage('名称不能包含 / 或 \\。');
-      return '';
+    if (value.startsWith('/') || value.endsWith('/')) {
+      vscode.window.showWarningMessage('名称不能以 / 开头或结尾。');
+      return [] as string[];
     }
 
-    return value;
+    const parts = value.split('/').map((item) => item.trim());
+
+    if (parts.some((item) => !item || item === '.' || item === '..')) {
+      vscode.window.showWarningMessage('名称中不能包含空路径、. 或 ..。');
+      return [] as string[];
+    }
+
+    const invalidPart = parts.find((item) => /[<>:"|?*]/.test(item));
+
+    if (invalidPart) {
+      vscode.window.showWarningMessage(`名称包含非法字符: ${invalidPart}`);
+      return [] as string[];
+    }
+
+    if (entityType === 'file' && parts[parts.length - 1].endsWith('.')) {
+      vscode.window.showWarningMessage('文件名不能以 . 结尾。');
+      return [] as string[];
+    }
+
+    return parts;
   }
 
-  private async createFileEntity(parentFsPath: string) {
+  private async createFileEntity(parentFsPath: string, name?: string) {
     try {
-      const parentUri = this.getWritableLocalUri(parentFsPath);
+      const parentUri = await this.getWritableLocalFolderUri(parentFsPath);
       if (!parentUri) return;
 
-      const input = await vscode.window.showInputBox({
-        title: '新建文件',
-        prompt: '请输入新文件名',
-        placeHolder: '例如：index.ts',
-        ignoreFocusOut: true,
-      });
+      const input = typeof name === 'string'
+        ? name
+        : await vscode.window.showInputBox({
+          title: '新建文件',
+          prompt: '请输入新文件名',
+          placeHolder: '例如：index.ts',
+          ignoreFocusOut: true,
+        });
 
-      const fileName = this.validateNewEntityName(input || '');
-      if (!fileName) return;
+      const filePathParts = this.validateNewEntityName(input || '', 'file');
+      if (filePathParts.length === 0) return;
 
-      const fileUri = vscode.Uri.joinPath(parentUri, fileName);
+      const fileName = filePathParts[filePathParts.length - 1];
+      const folderParts = filePathParts.slice(0, -1);
+      const targetFolderUri = folderParts.length > 0 ? vscode.Uri.joinPath(parentUri, ...folderParts) : parentUri;
+      const fileUri = vscode.Uri.joinPath(targetFolderUri, fileName);
 
       try {
         await vscode.workspace.fs.stat(fileUri);
-        vscode.window.showWarningMessage(`文件已存在: ${fileName}`);
+        vscode.window.showWarningMessage(`文件已存在: ${filePathParts.join('/')}`);
         return;
       } catch {
         // 文件不存在时继续创建
       }
 
+      if (folderParts.length > 0) {
+        await vscode.workspace.fs.createDirectory(targetFolderUri);
+      }
+
       await vscode.workspace.fs.writeFile(fileUri, new Uint8Array());
+
       this.invalidateDirCache(parentUri.toString());
+      this.invalidateDirCache(targetFolderUri.toString());
       this.refresh(true);
+
+      this._view?.webview.postMessage({
+        type: 'createFileEntityResult',
+        fsPath: fileUri.toString(),
+        parentPath: targetFolderUri.toString(),
+      });
 
       const doc = await vscode.workspace.openTextDocument(fileUri);
       await vscode.window.showTextDocument(doc, { preview: false });
-      vscode.window.showInformationMessage(`已新建文件: ${fileName}`);
+      vscode.window.showInformationMessage(`已新建文件: ${filePathParts.join('/')}`);
     } catch (e) {
       vscode.window.showErrorMessage(`新建文件失败，详情: ${e}`);
     }
   }
 
-  private async createFolderEntity(parentFsPath: string) {
+  private async createFolderEntity(parentFsPath: string, name?: string) {
     try {
-      const parentUri = this.getWritableLocalUri(parentFsPath);
+      const parentUri = await this.getWritableLocalFolderUri(parentFsPath);
       if (!parentUri) return;
 
-      const input = await vscode.window.showInputBox({
-        title: '新建文件夹',
-        prompt: '请输入新文件夹名',
-        placeHolder: '例如：components',
-        ignoreFocusOut: true,
-      });
+      const input = typeof name === 'string'
+        ? name
+        : await vscode.window.showInputBox({
+          title: '新建文件夹',
+          prompt: '请输入新文件夹名',
+          placeHolder: '例如：components',
+          ignoreFocusOut: true,
+        });
 
-      const folderName = this.validateNewEntityName(input || '');
-      if (!folderName) return;
+      const folderPathParts = this.validateNewEntityName(input || '', 'folder');
+      if (folderPathParts.length === 0) return;
 
-      const folderUri = vscode.Uri.joinPath(parentUri, folderName);
+      const folderUri = vscode.Uri.joinPath(parentUri, ...folderPathParts);
 
       try {
         await vscode.workspace.fs.stat(folderUri);
-        vscode.window.showWarningMessage(`文件夹已存在: ${folderName}`);
+        vscode.window.showWarningMessage(`文件夹已存在: ${folderPathParts.join('/')}`);
         return;
       } catch {
         // 文件夹不存在时继续创建
       }
 
       await vscode.workspace.fs.createDirectory(folderUri);
+
       this.invalidateDirCache(parentUri.toString());
+      this.invalidateDirCache(folderUri.toString());
       this.refresh(true);
-      vscode.window.showInformationMessage(`已新建文件夹: ${folderName}`);
+
+      this._view?.webview.postMessage({
+        type: 'createFolderEntityResult',
+        fsPath: folderUri.toString(),
+        parentPath: parentUri.toString(),
+      });
+
+      vscode.window.showInformationMessage(`已新建文件夹: ${folderPathParts.join('/')}`);
     } catch (e) {
       vscode.window.showErrorMessage(`新建文件夹失败，详情: ${e}`);
     }
@@ -1865,6 +1960,85 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       vscode.window.showErrorMessage(`复制文件失败，详情: ${e}`);
     }
   }
+
+  private async moveFileEntity(sourceFsPath: string, targetFolderFsPath: string, isFolder: boolean) {
+    try {
+      const sourceUri = this.parseLocalFileUri(sourceFsPath);
+      const targetFolderUri = this.parseLocalFileUri(targetFolderFsPath);
+
+      if (!sourceUri || !targetFolderUri) {
+        vscode.window.showWarningMessage('当前只支持拖拽移动本地文件或文件夹。');
+        return;
+      }
+
+      const currentWorkspaceUri = this.getCurrentWorkspaceUri();
+
+      if (!currentWorkspaceUri) {
+        vscode.window.showWarningMessage('没有检测到当前运行项目，无法移动文件或文件夹。');
+        return;
+      }
+
+      if (!this.isInsidePath(sourceUri.toString(), currentWorkspaceUri.toString()) || !this.isInsidePath(targetFolderUri.toString(), currentWorkspaceUri.toString())) {
+        vscode.window.showWarningMessage('只能在当前运行项目内部拖拽文件或文件夹。');
+        return;
+      }
+
+      if (this.normalizeComparePath(sourceUri.toString()) === this.normalizeComparePath(currentWorkspaceUri.toString())) {
+        vscode.window.showWarningMessage('不能移动当前运行项目根目录。');
+        return;
+      }
+
+      const targetStat = await vscode.workspace.fs.stat(targetFolderUri).catch(() => undefined);
+
+      if (!targetStat || (targetStat.type & vscode.FileType.Directory) === 0) {
+        vscode.window.showWarningMessage('只能拖拽到文件夹中。');
+        return;
+      }
+
+      if (isFolder && this.isInsidePath(targetFolderUri.toString(), sourceUri.toString())) {
+        vscode.window.showWarningMessage('不能把文件夹移动到自身或自身的子文件夹中。');
+        return;
+      }
+
+      const sourceName = path.basename(sourceUri.fsPath || sourceUri.path);
+      const sourceParentUri = vscode.Uri.joinPath(sourceUri, '..');
+      const targetUri = vscode.Uri.joinPath(targetFolderUri, sourceName);
+
+      if (this.normalizeComparePath(sourceParentUri.toString()) === this.normalizeComparePath(targetFolderUri.toString())) {
+        return;
+      }
+
+      try {
+        await vscode.workspace.fs.stat(targetUri);
+        vscode.window.showWarningMessage(`目标文件夹中已存在同名${isFolder ? '文件夹' : '文件'}: ${sourceName}`);
+        return;
+      } catch {
+        // 目标不存在时继续移动
+      }
+
+      await vscode.workspace.fs.rename(sourceUri, targetUri, { overwrite: false });
+
+      this.invalidateDirCache(sourceParentUri.toString());
+      this.invalidateDirCache(targetFolderUri.toString());
+      this.invalidateDirCache(sourceUri.toString());
+      this.invalidateDirCache(targetUri.toString());
+      this.refresh(true);
+
+      this._view?.webview.postMessage({
+        type: 'moveFileEntityResult',
+        sourcePath: sourceUri.toString(),
+        targetPath: targetUri.toString(),
+        oldParentPath: sourceParentUri.toString(),
+        targetParentPath: targetFolderUri.toString(),
+        isFolder,
+      });
+
+      vscode.window.showInformationMessage(`已移动${isFolder ? '文件夹' : '文件'}: ${sourceName}`);
+    } catch (e: any) {
+      vscode.window.showErrorMessage(`移动失败，详情: ${e?.message || String(e)}`);
+    }
+  }
+
   private async deleteFileEntity(fsPath: string, isFolder: boolean) {
     try {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
