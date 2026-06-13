@@ -1,0 +1,89 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="40" y1="30" x2="216" y2="226" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#18242B"/>
+      <stop offset="1" stop-color="#091116"/>
+    </linearGradient>
+
+    <linearGradient id="blue" x1="64" y1="54" x2="150" y2="172" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#62C9FF"/>
+      <stop offset="1" stop-color="#2F80ED"/>
+    </linearGradient>
+
+    <linearGradient id="green" x1="82" y1="78" x2="182" y2="146" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8CF2B8"/>
+      <stop offset="1" stop-color="#35B779"/>
+    </linearGradient>
+
+    <linearGradient id="orange" x1="80" y1="120" x2="182" y2="188" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFD166"/>
+      <stop offset="1" stop-color="#F07A70"/>
+    </linearGradient>
+
+    <linearGradient id="panel" x1="126" y1="74" x2="190" y2="182" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F8FCFF"/>
+      <stop offset="1" stop-color="#D7E3EA"/>
+    </linearGradient>
+
+    <filter id="shadow" x="28" y="28" width="200" height="202" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="18" stdDeviation="17" flood-color="#020617" flood-opacity="0.32"/>
+    </filter>
+
+    <filter id="lineGlow" x="48" y="44" width="160" height="164" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="0" stdDeviation="3.5" flood-color="#62C9FF" flood-opacity="0.16"/>
+    </filter>
+
+    <clipPath id="clip">
+      <rect x="38" y="34" width="180" height="188" rx="48"/>
+    </clipPath>
+  </defs>
+
+  <rect x="38" y="34" width="180" height="188" rx="48" fill="url(#bg)" filter="url(#shadow)"/>
+  <rect x="40.5" y="36.5" width="175" height="183" rx="45.5" stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="5"/>
+
+  <g clip-path="url(#clip)">
+    <path d="M38 73C77 50 137 49 218 86V124C144 94 84 105 38 132V73Z" fill="#FFFFFF" opacity="0.035"/>
+    <path d="M38 166C76 137 135 132 218 158V222H38V166Z" fill="#103238" opacity="0.38"/>
+  </g>
+
+  <g filter="url(#lineGlow)" stroke-linecap="round" stroke-linejoin="round">
+    <!-- 主干 -->
+    <path d="M76 62V176" stroke="url(#blue)" stroke-width="10"/>
+
+    <!-- 上分支 -->
+    <path d="M76 94C102 94 116 72 146 72" stroke="url(#green)" stroke-width="10"/>
+
+    <!-- 中分支连接到选中提交详情 -->
+    <path d="M76 124C103 124 116 126 137 134" stroke="#6FC7D8" stroke-opacity="0.82" stroke-width="9"/>
+
+    <!-- 下分支 -->
+    <path d="M76 154C104 154 118 178 154 178" stroke="url(#orange)" stroke-width="10"/>
+
+    <!-- 提交节点 -->
+    <circle cx="76" cy="62" r="11" fill="#091116" stroke="url(#blue)" stroke-width="7"/>
+    <circle cx="76" cy="94" r="11" fill="#091116" stroke="url(#green)" stroke-width="7"/>
+    <circle cx="76" cy="124" r="11" fill="#091116" stroke="#6FC7D8" stroke-width="7"/>
+    <circle cx="76" cy="154" r="11" fill="#091116" stroke="url(#orange)" stroke-width="7"/>
+    <circle cx="76" cy="176" r="11" fill="#091116" stroke="url(#blue)" stroke-opacity="0.8" stroke-width="7"/>
+    <circle cx="146" cy="72" r="11" fill="#091116" stroke="url(#green)" stroke-width="7"/>
+    <circle cx="154" cy="178" r="11" fill="#091116" stroke="url(#orange)" stroke-width="7"/>
+  </g>
+
+  <!-- 选中提交详情层 -->
+  <path
+    d="M124 94C124 84.0589 132.059 76 142 76H177C186.941 76 195 84.0589 195 94V162C195 171.941 186.941 180 177 180H142C132.059 180 124 171.941 124 162V94Z"
+    fill="url(#panel)"
+    stroke="#FFFFFF"
+    stroke-opacity="0.48"
+    stroke-width="4"
+  />
+
+  <circle cx="124" cy="134" r="11" fill="#091116" stroke="#6FC7D8" stroke-width="7"/>
+
+  <path d="M141 101H176" stroke="#718690" stroke-opacity="0.45" stroke-width="7" stroke-linecap="round"/>
+  <path d="M141 121H169" stroke="#2F80ED" stroke-opacity="0.78" stroke-width="7" stroke-linecap="round"/>
+  <path d="M141 141H177" stroke="#35B779" stroke-opacity="0.74" stroke-width="7" stroke-linecap="round"/>
+  <path d="M141 161H160" stroke="#F07A70" stroke-opacity="0.74" stroke-width="7" stroke-linecap="round"/>
+
+  <path d="M68 199C94 188 145 187 176 198" stroke="#9BE7D1" stroke-opacity="0.14" stroke-width="7" stroke-linecap="round"/>
+</svg>

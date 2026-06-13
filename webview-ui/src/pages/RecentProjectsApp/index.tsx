@@ -151,15 +151,15 @@ export default function RecentProjectsApp() {
     return child === parent || child.startsWith(parentWithSlash);
   };
 
-  const isPathDescendant = (childPath: string, parentPath: string) => {
-    if (!childPath || !parentPath) return false;
+  // const isPathDescendant = (childPath: string, parentPath: string) => {
+  //   if (!childPath || !parentPath) return false;
 
-    const child = childPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
-    const parent = parentPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
-    const parentWithSlash = parent.endsWith('/') ? parent : `${parent}/`;
+  //   const child = childPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
+  //   const parent = parentPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
+  //   const parentWithSlash = parent.endsWith('/') ? parent : `${parent}/`;
 
-    return child.startsWith(parentWithSlash);
-  };
+  //   return child.startsWith(parentWithSlash);
+  // };
 
   const cacheNormalDirChildrenBeforeFocus = (rootPath: string) => {
     const snapshot: Record<string, DirChild[]> = {}
