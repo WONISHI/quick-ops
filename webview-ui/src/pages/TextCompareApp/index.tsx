@@ -295,34 +295,38 @@ export default function TextCompareApp() {
 
       <div className={styles['result-container']}>
         <div className={styles['result-header']}>
-          <span>👇 边界保留与空位感知视图 (Boundary & Empty-Slot Preserved)</span>
+          <div className={styles['result-title-row']}>
+            👇 边界保留与空位感知视图 (Boundary & Empty-Slot Preserved)
+          </div>
 
-          <span className={styles.legend}>
-            <span className={`${styles['legend-box']} ${styles['legend-added']}`} />
-            新增
-          </span>
+          <div className={styles['result-tools-row']}>
+            <span className={styles.legend}>
+              <span className={`${styles['legend-box']} ${styles['legend-added']}`} />
+              新增词块
+            </span>
 
-          <span className={styles.legend}>
-            <span className={`${styles['legend-box']} ${styles['legend-removed']}`} />
-            删除
-          </span>
+            <span className={styles.legend}>
+              <span className={`${styles['legend-box']} ${styles['legend-removed']}`} />
+              删除词块
+            </span>
 
-          <span className={styles.legend}>
-            <span className={`${styles['legend-box']} ${styles['legend-modified']}`} />
-            替换 / 修改
-          </span>
+            <span className={styles.legend}>
+              <span className={`${styles['legend-box']} ${styles['legend-modified']}`} />
+              整体替换 / 链接修改
+            </span>
 
-          <label
-            className={styles['wrap-toggle']}
-            title="开启后长文本将自动换行显示，无需横向滚动"
-          >
-            <input
-              type="checkbox"
-              checked={isWrap}
-              onChange={(event) => setIsWrap(event.target.checked)}
-            />
-            自动换行 (Wrap)
-          </label>
+            <label
+              className={styles['wrap-toggle']}
+              title="开启后长文本将自动换行显示，无需横向滚动"
+            >
+              <input
+                type="checkbox"
+                checked={isWrap}
+                onChange={(event) => setIsWrap(event.target.checked)}
+              />
+              自动换行 (Wrap)
+            </label>
+          </div>
         </div>
 
         <div className={styles['diff-wrapper']}>
