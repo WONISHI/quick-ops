@@ -129,7 +129,13 @@
   position: relative;
   width: 100%;
   height: 100%;
-  overflow: auto;
+  overflow: hidden;
+}
+
+.commit-list-view {
+  position: relative;
+  min-width: 100%;
+  min-height: 100%;
 }
 
 .graph-canvas {
@@ -586,7 +592,12 @@
 
 .commit-files-tree {
   height: 100%;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.commit-files-tree-view {
+  min-height: 100%;
   padding: 4px 0;
   box-sizing: border-box;
 }

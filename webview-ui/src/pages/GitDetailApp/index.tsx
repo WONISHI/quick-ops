@@ -10,6 +10,7 @@ import FilterPopup, {
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
 import FileIcon from '../../components/FileIcon';
+import Scrollbar, { type ScrollbarInstance } from '../../components/Scrollbar';
 
 interface GitFileItem {
   status: string;
@@ -714,7 +715,9 @@ export default function GitCommitDetailApp() {
   const [expandedCommitDirs, setExpandedCommitDirs] = useState<Record<string, boolean>>({});
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const listRef = useRef<HTMLDivElement | null>(null);
+  const listScrollbarRef = useRef<ScrollbarInstance | null>(null);
+
+  const getCommitListScrollWrap = () => listScrollbarRef.current?.wrapRef || null;
 
   const descFilterRef = useRef<HTMLElement | null>(null);
   const dateFilterRef = useRef<HTMLElement | null>(null);
@@ -852,7 +855,7 @@ export default function GitCommitDetailApp() {
   useEffect(() => {
     resizeObserverRef.current?.disconnect();
 
-    const container = listRef.current;
+    const container = getCommitListScrollWrap();
 
     if (!container) return;
 
@@ -882,7 +885,7 @@ export default function GitCommitDetailApp() {
         resizeObserverRef.current = null;
       }
     };
-  }, [loading]);
+  }, [loading, filteredCommits.length, displayCount]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -1026,7 +1029,7 @@ export default function GitCommitDetailApp() {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const container = listRef.current;
+    const container = getCommitListScrollWrap();
 
     if (!canvas || !container || filteredCommits.length === 0) return;
 
@@ -1141,8 +1144,10 @@ export default function GitCommitDetailApp() {
     document.body.style.userSelect = 'none';
   };
 
-  const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    const target = event.currentTarget;
+  const handleScroll = () => {
+    const target = getCommitListScrollWrap();
+
+    if (!target) return;
 
     if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
       if (displayCount < filteredCommits.length) {
@@ -1499,7 +1504,12 @@ export default function GitCommitDetailApp() {
         ) : filteredCommits.length === 0 ? (
           <div className={styles['empty-view']}>{graphCommits.length === 0 ? '暂无提交记录' : '没有匹配的筛选结果'}</div>
         ) : (
-          <div className={styles['commit-list-scroll']} ref={listRef} onScroll={handleScroll}>
+          <Scrollbar
+            ref={listScrollbarRef}
+            className={styles['commit-list-scroll']}
+            viewClassName={styles['commit-list-view']}
+            onScroll={handleScroll}
+          >
             <canvas ref={canvasRef} className={styles['graph-canvas']} />
 
             <ul className={styles['commit-list']} style={{ height: `${renderedHeight}px` }}>
@@ -1604,13 +1614,17 @@ export default function GitCommitDetailApp() {
                             ) : !commitFilesMap[commit.hash] || commitFilesMap[commit.hash].files.length === 0 ? (
                               <div className={styles['commit-files-empty']}>暂无文件变更</div>
                             ) : (
-                              <div className={styles['commit-files-tree']}>
+                              <Scrollbar
+                                className={styles['commit-files-tree']}
+                                viewClassName={styles['commit-files-tree-view']}
+                                barSize={6}
+                              >
                                 {renderCommitFileTree(
                                   commit.hash,
                                   commitFilesMap[commit.hash].parentHash,
                                   buildCommitFileTree(commitFilesMap[commit.hash].files),
                                 )}
-                              </div>
+                              </Scrollbar>
                             )}
                           </div>
                         </div>
@@ -1625,7 +1639,7 @@ export default function GitCommitDetailApp() {
                 );
               })}
             </ul>
-          </div>
+          </Scrollbar>
         )}
       </div>
     </div>
