@@ -121,7 +121,7 @@ ul {
 
 .active-top-project.not-in-history .branch-tag {
   border-color: var(--vscode-descriptionForeground);
-  color: var(--vscode-descriptionForeground);
+  color: var(--vscode-button-foreground, #ffffff);
 }
 
 .top-divider {
@@ -243,7 +243,7 @@ ul {
   line-height: 1;
   font-size: 10px;
   background: var(--vscode-badge-background, rgba(128, 128, 128, 0.15));
-  color: var(--vscode-badge-foreground, var(--vscode-descriptionForeground));
+  color: var(--vscode-button-foreground, #ffffff);
   padding: 2px 6px;
   border-radius: 10px;
   display: inline-flex;
