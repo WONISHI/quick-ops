@@ -19,7 +19,7 @@ import ProjectInitLoading from '../../components/ProjectInitLoading';
 import RecentProjectContextMenu from '../../components/RecentProjectContextMenu';
 import SearchViewWrapper from '../../components/SearchViewWrapper';
 import Tooltip from '../../components/Tooltip';
-import Scrollbar from '../../components/Scrollbar';
+import Scrollbar, { type ScrollbarInstance } from '../../components/Scrollbar';
 import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '../../utils';
 import {
   FileGitStatusBadge,
@@ -82,6 +82,7 @@ export default function RecentProjectsApp() {
 
   const [selectedPath, setSelectedPath] = useState<string>('');
   const autoScrollTarget = useRef<string | null>(null);
+  const listScrollbarRef = useRef<ScrollbarInstance>(null);
 
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
@@ -1031,11 +1032,28 @@ export default function RecentProjectsApp() {
     }
 
     window.requestAnimationFrame(() => {
-      el.scrollIntoView({
-        behavior: retryCount > 0 ? 'auto' : 'smooth',
-        block: 'center',
-        inline: 'nearest',
-      });
+      const scrollbar = listScrollbarRef.current;
+      const wrap = scrollbar?.wrapRef;
+
+      if (wrap && wrap.contains(el)) {
+        const wrapRect = wrap.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+        const nextScrollTop = Math.max(
+          0,
+          wrap.scrollTop + elRect.top - wrapRect.top - (wrap.clientHeight - elRect.height) / 2,
+        );
+
+        scrollbar.scrollTo({
+          top: nextScrollTop,
+          behavior: retryCount > 0 ? 'auto' : 'smooth',
+        });
+      } else {
+        el.scrollIntoView({
+          behavior: retryCount > 0 ? 'auto' : 'smooth',
+          block: 'center',
+          inline: 'nearest',
+        });
+      }
 
       autoScrollTarget.current = null;
     });
@@ -2322,7 +2340,11 @@ export default function RecentProjectsApp() {
             </div>
           )}
 
-          <Scrollbar className={styles['list-container']} viewClassName={styles['list-view']}>
+          <Scrollbar
+            ref={listScrollbarRef}
+            className={styles['list-container']}
+            viewClassName={styles['list-view']}
+          >
             {projects.length === 0 && !activeProjectToRender ? (
               <div className={styles['empty-state']}>
                 <div className={styles['empty-text']}>暂无项目记录，请添加：</div>
