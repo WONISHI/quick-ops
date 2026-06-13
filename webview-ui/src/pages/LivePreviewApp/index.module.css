@@ -543,10 +543,132 @@
 /* ==================== 小图标状态 ==================== */
 
 .favicon-img {
-  width: 14px;
-  height: 14px;
-  border-radius: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
   object-fit: contain;
+  flex-shrink: 0;
+}
+
+.browser-switcher {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.browser-switcher-btn {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--vscode-icon-foreground);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  outline: none;
+  transition: background 0.12s ease, transform 0.12s ease, opacity 0.12s ease;
+}
+
+.browser-switcher-btn:hover {
+  background: var(--btn-hover);
+}
+
+.browser-switcher-btn:active {
+  transform: scale(0.96);
+}
+
+.browser-engine-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.3px;
+  color: #ffffff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  user-select: none;
+}
+
+.browser-engine-icon-baidu {
+  background: linear-gradient(135deg, #4f7cff 0%, #2f5bea 100%);
+}
+
+.browser-engine-icon-bing {
+  background: linear-gradient(135deg, #00b7a8 0%, #0078d4 100%);
+}
+
+.browser-engine-icon-quark {
+  background: linear-gradient(135deg, #ff8a34 0%, #ff5a3c 100%);
+}
+
+.browser-switcher-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -6px;
+  z-index: 10030;
+  min-width: 132px;
+  padding: 5px;
+  border: 1px solid var(--menu-border, var(--border));
+  border-radius: 8px;
+  background: var(--menu-bg);
+  color: var(--menu-fg);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  box-sizing: border-box;
+}
+
+.browser-switcher-menu::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 13px;
+  width: 8px;
+  height: 8px;
+  border-left: 1px solid var(--menu-border, var(--border));
+  border-top: 1px solid var(--menu-border, var(--border));
+  background: var(--menu-bg);
+  transform: rotate(45deg);
+}
+
+.browser-switcher-item {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  outline: none;
+  font-size: 12px;
+  text-align: left;
+}
+
+.browser-switcher-item:hover,
+.browser-switcher-item-active {
+  background: var(--menu-hover-bg);
+  color: var(--menu-hover-fg);
+}
+
+.browser-switcher-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.browser-switcher-check {
+  font-size: 12px;
+  opacity: 0.9;
 }
 
 .globe-icon {

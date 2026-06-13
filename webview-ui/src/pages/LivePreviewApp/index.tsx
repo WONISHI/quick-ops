@@ -4,7 +4,7 @@ import UrlParser from '../../utils/UrlParser';
 import styles from './index.module.css';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faRotateRight, faGlobe, faXmark, faStar as faStarSolid, faArrowRight, faRotate, faArrowUpRightFromSquare, faEllipsis, faSpinner, faChevronUp, faChevronDown } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faRotateRight, faXmark, faStar as faStarSolid, faArrowRight, faRotate, faArrowUpRightFromSquare, faEllipsis, faSpinner, faChevronUp, faChevronDown } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 
 import VditorApp from '../VditorApp';
@@ -47,6 +47,51 @@ interface BrowserFrameState {
   width: number;
   height: number;
 }
+
+type BrowserEngineKey = 'baidu' | 'bing' | 'quark';
+
+interface BrowserEngineOption {
+  key: BrowserEngineKey;
+  label: string;
+  shortName: string;
+  homeUrl: string;
+  searchUrl: (keyword: string) => string;
+}
+
+const BROWSER_ENGINE_OPTIONS: BrowserEngineOption[] = [
+  {
+    key: 'baidu',
+    label: '百度',
+    shortName: '百',
+    homeUrl: 'https://www.baidu.com/',
+    searchUrl: (keyword) => `https://www.baidu.com/s?wd=${encodeURIComponent(keyword)}`,
+  },
+  {
+    key: 'bing',
+    label: 'Bing',
+    shortName: 'B',
+    homeUrl: 'https://www.bing.com/',
+    searchUrl: (keyword) => `https://www.bing.com/search?q=${encodeURIComponent(keyword)}`,
+  },
+  {
+    key: 'quark',
+    label: '夸克',
+    shortName: '夸',
+    homeUrl: 'https://quark.sm.cn/',
+    searchUrl: (keyword) => `https://quark.sm.cn/s?q=${encodeURIComponent(keyword)}`,
+  },
+];
+
+const DEFAULT_BROWSER_ENGINE_KEY: BrowserEngineKey = 'baidu';
+const BROWSER_ENGINE_STORAGE_KEY = 'quickOps.livePreview.browserEngine';
+
+const isBrowserEngineKey = (value: unknown): value is BrowserEngineKey => {
+  return value === 'baidu' || value === 'bing' || value === 'quark';
+};
+
+const getBrowserEngineOption = (key: BrowserEngineKey) => {
+  return BROWSER_ENGINE_OPTIONS.find((item) => item.key === key) || BROWSER_ENGINE_OPTIONS[0];
+};
 
 interface BrowserSurfaceProps {
   frame: BrowserFrameState | null;
@@ -863,7 +908,14 @@ export default function LivePreviewApp() {
   const [isRotated, setIsRotated] = useState(false);
   const [faviconUrl, setFaviconUrl] = useState('');
   const [faviconError, setFaviconError] = useState(false);
-  const [isFaviconLoading, setIsFaviconLoading] = useState(false);
+  const [, setIsFaviconLoading] = useState(false);
+
+  const [browserEngine, setBrowserEngine] = useState<BrowserEngineKey>(() => {
+    const cached = window.localStorage.getItem(BROWSER_ENGINE_STORAGE_KEY);
+
+    return isBrowserEngineKey(cached) ? cached : DEFAULT_BROWSER_ENGINE_KEY;
+  });
+  const [browserSwitcherOpen, setBrowserSwitcherOpen] = useState(false);
 
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [historyStack, setHistoryStack] = useState<HistoryItem[]>([]);
@@ -903,6 +955,7 @@ export default function LivePreviewApp() {
   const moreBtnRef = useRef<HTMLButtonElement>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const browserSwitcherRef = useRef<HTMLDivElement>(null);
   const previewLoadTimerRef = useRef<number | null>(null);
 
   const previewRequestIdRef = useRef(0);
@@ -918,6 +971,23 @@ export default function LivePreviewApp() {
       }
 
       pendingBrowserFrameRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleWindowPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+
+      if (!target) return;
+      if (browserSwitcherRef.current?.contains(target)) return;
+
+      setBrowserSwitcherOpen(false);
+    };
+
+    window.addEventListener('mousedown', handleWindowPointerDown);
+
+    return () => {
+      window.removeEventListener('mousedown', handleWindowPointerDown);
     };
   }, []);
 
@@ -981,6 +1051,41 @@ export default function LivePreviewApp() {
   const normalizeFavoriteUrl = (url: string) => {
     return (url || '').trim().replace(/\/+$/, '');
   };
+
+
+  const activeBrowserEngine = useMemo(() => {
+    return getBrowserEngineOption(browserEngine);
+  }, [browserEngine]);
+
+  const switchBrowserEngine = (nextEngine: BrowserEngineKey) => {
+    setBrowserEngine(nextEngine);
+    setBrowserSwitcherOpen(false);
+    window.localStorage.setItem(BROWSER_ENGINE_STORAGE_KEY, nextEngine);
+  };
+
+  const isSearchKeywordInput = (value: string) => {
+    const raw = value.trim();
+
+    if (!raw) return false;
+    if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(raw)) return false;
+    if (UrlParser.isAbsolutePath(raw)) return false;
+    if (/^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?([/?#].*)?$/i.test(raw)) return false;
+    if (/^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(:\d+)?([/?#].*)?$/.test(raw)) return false;
+
+    return true;
+  };
+
+  const parsePreviewInput = useCallback((value: string) => {
+    const raw = String(value || '').trim();
+
+    if (!raw) return '';
+
+    if (isSearchKeywordInput(raw)) {
+      return getBrowserEngineOption(browserEngine).searchUrl(raw);
+    }
+
+    return UrlParser.parse(raw) || '';
+  }, [browserEngine]);
 
   const clearPreviewLoadTimer = () => {
     if (previewLoadTimerRef.current) {
@@ -1588,7 +1693,7 @@ export default function LivePreviewApp() {
 
   const handleGo = (forceUrl?: string) => {
     const rawUrl = forceUrl !== undefined ? forceUrl : urlInput;
-    const finalUrl = UrlParser.parse(rawUrl);
+    const finalUrl = parsePreviewInput(rawUrl);
 
     setShowSuggest(false);
 
@@ -1699,7 +1804,7 @@ export default function LivePreviewApp() {
       return;
     }
 
-    const inputTarget = UrlParser.parse(refreshValue);
+    const inputTarget = parsePreviewInput(refreshValue);
 
     if (!inputTarget) {
       if (!inputValue && fallbackUrl) {
@@ -1778,8 +1883,8 @@ export default function LivePreviewApp() {
 
     if (!value) return '';
 
-    return UrlParser.parse(value) || '';
-  }, [urlInput]);
+    return parsePreviewInput(value) || '';
+  }, [urlInput, parsePreviewInput]);
 
   const activeAddressFavorite = useMemo(() => {
     const targetUrl = normalizeFavoriteUrl(parsedUrlInput || urlInput);
@@ -1790,13 +1895,6 @@ export default function LivePreviewApp() {
       return item.isDefault && item.logo && normalizeFavoriteUrl(item.url) === targetUrl;
     });
   }, [favorites, parsedUrlInput, urlInput]);
-
-  const shouldShowCurrentFavicon = useMemo(() => {
-    const inputUrl = normalizeFavoriteUrl(parsedUrlInput || urlInput);
-    const currentFrameUrl = normalizeFavoriteUrl(frameUrl);
-
-    return !!inputUrl && !!currentFrameUrl && inputUrl === currentFrameUrl && !!faviconUrl && !faviconError;
-  }, [parsedUrlInput, urlInput, frameUrl, faviconUrl, faviconError]);
 
   const isAddressSameAsFrame = useMemo(() => {
     const inputUrl = normalizeFavoriteUrl(parsedUrlInput || urlInput);
@@ -2032,25 +2130,62 @@ export default function LivePreviewApp() {
         </button>
 
         <div className={styles['address-bar-wrapper']}>
-          {urlInput.trim() ? (
-            activeAddressFavorite?.logo ? (
-              <img
-                src={activeAddressFavorite.logo}
-                className={styles['favicon-img']}
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                }}
-              />
-            ) : isFaviconLoading ? (
-              <FontAwesomeIcon icon={faSpinner} spin className={styles['spiner-icon']} />
-            ) : shouldShowCurrentFavicon ? (
-              <img src={faviconUrl} className={styles['favicon-img']} />
-            ) : (
-              <FontAwesomeIcon icon={faGlobe} className={styles['globe-icon']} />
-            )
-          ) : (
-            <FontAwesomeIcon icon={faGlobe} className={styles['globe-icon']} />
-          )}
+          <div ref={browserSwitcherRef} className={styles['browser-switcher']}>
+            <button
+              type="button"
+              className={styles['browser-switcher-btn']}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                setBrowserSwitcherOpen((visible) => !visible);
+              }}
+              title={`当前搜索引擎：${activeBrowserEngine.label}，点击切换`}
+              aria-label={`当前搜索引擎：${activeBrowserEngine.label}，点击切换`}
+            >
+              <span
+                className={[
+                  styles['favicon-img'],
+                  styles['browser-engine-icon'],
+                  styles[`browser-engine-icon-${activeBrowserEngine.key}`],
+                ].filter(Boolean).join(' ')}
+              >
+                {activeBrowserEngine.shortName}
+              </span>
+            </button>
+
+            {browserSwitcherOpen && (
+              <div className={styles['browser-switcher-menu']}>
+                {BROWSER_ENGINE_OPTIONS.map((item) => {
+                  const active = item.key === activeBrowserEngine.key;
+
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      className={`${styles['browser-switcher-item']} ${active ? styles['browser-switcher-item-active'] : ''}`}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        switchBrowserEngine(item.key);
+                      }}
+                    >
+                      <span
+                        className={[
+                          styles['favicon-img'],
+                          styles['browser-engine-icon'],
+                          styles[`browser-engine-icon-${item.key}`],
+                        ].filter(Boolean).join(' ')}
+                      >
+                        {item.shortName}
+                      </span>
+                      <span className={styles['browser-switcher-label']}>{item.label}</span>
+                      {active && <span className={styles['browser-switcher-check']}>✓</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           <input
             type="text"
@@ -2074,7 +2209,7 @@ export default function LivePreviewApp() {
             onDoubleClick={(e) => {
               e.currentTarget.select();
             }}
-            placeholder="输入网址、本地绝对路径 或 搜索内容"
+            placeholder={`使用 ${activeBrowserEngine.label} 搜索，或输入网址 / 本地绝对路径`}
             spellCheck="false"
             autoComplete="off"
           />
