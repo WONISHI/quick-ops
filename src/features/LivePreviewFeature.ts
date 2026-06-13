@@ -774,7 +774,7 @@ export class LivePreviewFeature implements IFeature {
       localResourceRoots: this.getLocalResourceRoots(context),
     });
 
-    this.panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'icon.png');
+    this.panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'livepreview.svg');
 
     this.panel.onDidChangeViewState((event) => {
       if (event.webviewPanel.visible) {
@@ -966,3 +966,7 @@ export class LivePreviewFeature implements IFeature {
     });
   }
 }
+
+/**
+ * 调整一下favicon-img这个元素用来放置浏览器的图标，点击可以切换其他浏览器，可以切换成百度，bing和夸克，这里用来放置
+ */
