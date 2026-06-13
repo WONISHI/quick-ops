@@ -2017,7 +2017,7 @@ export default function RecentProjectsApp() {
 
                   <Tooltip
                     content={getTreeTooltipContent(childPath, child, true)}
-                    placement="right"
+                    placement="bottom"
                     align="start"
                     delay={2000}
                   >
@@ -2082,7 +2082,7 @@ export default function RecentProjectsApp() {
 
                 <Tooltip
                   content={getTreeTooltipContent(childPath, child, false)}
-                  placement="right"
+                  placement="bottom"
                   align="start"
                   delay={2000}
                 >

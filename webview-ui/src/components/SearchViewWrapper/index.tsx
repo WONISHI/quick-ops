@@ -575,7 +575,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                         placeholder={
                             folderSearchType === 'content'
                                 ? '输入关键字自动检索文件内容...'
-                                : '输入关键字自动检索文件或文件夹名称...'
+                                : '输入文件名 / 文件夹名 / 路径片段，支持模糊搜索...'
                         }
                         value={folderSearchQuery}
                         onChange={(e) => setFolderSearchQuery(e.target.value)}

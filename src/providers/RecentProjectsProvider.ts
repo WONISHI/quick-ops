@@ -1540,8 +1540,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
     const nativePath = uri.fsPath;
+    const searchValue = query.trim();
 
-    if (!query.trim()) {
+    if (!searchValue) {
       this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [] });
       return;
     }
@@ -1553,9 +1554,133 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const results: any[] = [];
+    const normalizeSearchText = (value: string) => {
+      return String(value || '')
+        .replace(/\\/g, '/')
+        .replace(/\/+/g, '/')
+        .toLowerCase()
+        .trim();
+    };
+
+    const compactSearchText = (value: string) => {
+      return normalizeSearchText(value).replace(/[\s\/_.@#:$+~\-]+/g, '');
+    };
+
+    const getSequentialFuzzyScore = (target: string, input: string) => {
+      if (!target || !input) return null;
+
+      let targetIndex = 0;
+      let firstIndex = -1;
+      let lastIndex = -1;
+      let gapScore = 0;
+
+      for (let i = 0; i < input.length; i++) {
+        const char = input[i];
+        const foundIndex = target.indexOf(char, targetIndex);
+
+        if (foundIndex === -1) {
+          return null;
+        }
+
+        if (firstIndex === -1) {
+          firstIndex = foundIndex;
+        }
+
+        if (lastIndex !== -1) {
+          gapScore += Math.max(0, foundIndex - lastIndex - 1);
+        }
+
+        lastIndex = foundIndex;
+        targetIndex = foundIndex + 1;
+      }
+
+      return firstIndex + gapScore + Math.max(0, target.length - input.length) * 0.01;
+    };
+
+    const normalizedQuery = normalizeSearchText(searchValue);
+    const compactQuery = compactSearchText(searchValue);
+    const queryParts = normalizedQuery
+      .split(/[\s\/]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+    const getSearchScore = (fileName: string, relativePath: string) => {
+      const normalizedName = normalizeSearchText(fileName);
+      const normalizedPath = normalizeSearchText(relativePath);
+      const compactName = compactSearchText(fileName);
+      const compactPath = compactSearchText(relativePath);
+      let score: number | null = null;
+
+      const updateScore = (nextScore: number | null) => {
+        if (nextScore === null || Number.isNaN(nextScore)) return;
+        score = score === null ? nextScore : Math.min(score, nextScore);
+      };
+
+      if (normalizedName === normalizedQuery) updateScore(0);
+      if (normalizedPath === normalizedQuery) updateScore(1);
+
+      const nameIndex = normalizedName.indexOf(normalizedQuery);
+      if (nameIndex !== -1) updateScore(10 + nameIndex);
+
+      const pathIndex = normalizedPath.indexOf(normalizedQuery);
+      if (pathIndex !== -1) updateScore(20 + pathIndex);
+
+      if (compactQuery) {
+        const compactNameIndex = compactName.indexOf(compactQuery);
+        if (compactNameIndex !== -1) updateScore(30 + compactNameIndex);
+
+        const compactPathIndex = compactPath.indexOf(compactQuery);
+        if (compactPathIndex !== -1) updateScore(40 + compactPathIndex);
+      }
+
+      if (queryParts.length > 1) {
+        let lastIndex = -1;
+        let sequentialPartScore = 0;
+        let orderedMatched = true;
+
+        for (const part of queryParts) {
+          const partIndex = normalizedPath.indexOf(part, lastIndex + 1);
+
+          if (partIndex === -1) {
+            orderedMatched = false;
+            break;
+          }
+
+          sequentialPartScore += partIndex;
+          lastIndex = partIndex;
+        }
+
+        if (orderedMatched) {
+          updateScore(50 + sequentialPartScore);
+        }
+
+        const unorderedMatched = queryParts.every((part) => {
+          return normalizedPath.includes(part) || compactPath.includes(compactSearchText(part));
+        });
+
+        if (unorderedMatched) {
+          updateScore(70 + queryParts.reduce((total, part) => {
+            const index = normalizedPath.indexOf(part);
+            return total + (index === -1 ? 30 : index);
+          }, 0));
+        }
+      }
+
+      if (compactQuery) {
+        const nameFuzzyScore = getSequentialFuzzyScore(compactName, compactQuery);
+        if (nameFuzzyScore !== null) updateScore(90 + nameFuzzyScore);
+
+        const pathFuzzyScore = getSequentialFuzzyScore(compactPath, compactQuery);
+        if (pathFuzzyScore !== null) updateScore(110 + pathFuzzyScore);
+      }
+
+      return score;
+    };
+
+    const scoredResults: Array<{ item: any; score: number; depth: number; order: number }> = [];
     const maxResults = 200;
-    let currentResults = 0;
+    const maxCollectedResults = 800;
+    let visitedCount = 0;
 
     const gitRoot = await this.getGitRoot(nativePath);
     const statusMap = gitRoot ? await this.getGitStatusMap(nativePath) : new Map<string, string>();
@@ -1563,11 +1688,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const IGNORE_DIRS = new Set(['node_modules', 'dist', 'build', '.git', '.svn', '.vscode', '.idea']);
 
     const searchRecursive = async (dirUri: vscode.Uri, currentNativePath: string) => {
-      if (currentResults >= maxResults) return;
+      if (scoredResults.length >= maxCollectedResults) return;
+
       try {
         const entries = await vscode.workspace.fs.readDirectory(dirUri);
+
         for (const [name, type] of entries) {
-          if (currentResults >= maxResults) break;
+          if (scoredResults.length >= maxCollectedResults) break;
           if (IGNORE_DIRS.has(name) || name === '.DS_Store') continue;
 
           const isDir = (type & vscode.FileType.Directory) !== 0;
@@ -1577,19 +1704,25 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const gitRelativePath = gitRoot ? path.relative(gitRoot, fullPath) : '';
           const status = gitRoot ? this.getChildGitStatus(gitRelativePath, isDir, statusMap) : undefined;
 
-          if (focusOnly && !status) {
-            continue;
+          if (!(focusOnly && !status)) {
+            const score = getSearchScore(name, relativePath);
+
+            if (score !== null) {
+              scoredResults.push({
+                item: {
+                  path: fullUri.toString(),
+                  name: relativePath,
+                  isFolder: isDir,
+                  status,
+                },
+                score,
+                depth: relativePath.split('/').length,
+                order: visitedCount,
+              });
+            }
           }
 
-          if (name.toLowerCase().includes(query.toLowerCase())) {
-            results.push({
-              path: fullUri.toString(),
-              name: relativePath,
-              isFolder: isDir,
-              status
-            });
-            currentResults++;
-          }
+          visitedCount++;
 
           if (isDir) {
             await searchRecursive(fullUri, fullPath);
@@ -1600,10 +1733,20 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     await vscode.window.withProgress({
       location: vscode.ProgressLocation.Window,
-      title: 'Quick Ops: 正在按名称检索...'
+      title: 'Quick Ops: 正在按文件名/路径模糊检索...'
     }, async () => {
       await searchRecursive(uri, nativePath);
     });
+
+    const results = scoredResults
+      .sort((a, b) => {
+        if (a.score !== b.score) return a.score - b.score;
+        if (a.item.isFolder !== b.item.isFolder) return a.item.isFolder ? -1 : 1;
+        if (a.depth !== b.depth) return a.depth - b.depth;
+        return a.order - b.order;
+      })
+      .slice(0, maxResults)
+      .map((item) => item.item);
 
     const enrichedResults = await this.enrichChildren(results, fsPath);
     this._view?.webview.postMessage({ type: 'searchFileNameResult', results: enrichedResults });
