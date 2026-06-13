@@ -2019,7 +2019,6 @@ export default function RecentProjectsApp() {
                     content={getTreeTooltipContent(childPath, child, true)}
                     placement="right"
                     align="start"
-                    showArrow={false}
                     delay={2000}
                   >
                     <span
@@ -2085,7 +2084,6 @@ export default function RecentProjectsApp() {
                   content={getTreeTooltipContent(childPath, child, false)}
                   placement="right"
                   align="start"
-                  showArrow={false}
                   delay={2000}
                 >
                   <span className={styles['sub-name']}
@@ -2290,9 +2288,8 @@ export default function RecentProjectsApp() {
 
                                 <Tooltip
                                   content={getRootProjectTooltipContent(rootPath, p)}
-                                  placement="right"
+                                  placement="bottom"
                                   align="start"
-                                  showArrow={false}
                                   delay={2000}
                                 >
                                   <span
@@ -2408,9 +2405,8 @@ export default function RecentProjectsApp() {
 
                                 <Tooltip
                                   content={getRootProjectTooltipContent(rootPath, p)}
-                                  placement="right"
+                                  placement="bottom"
                                   align="start"
-                                  showArrow={false}
                                   delay={2000}
                                 >
                                   <span
