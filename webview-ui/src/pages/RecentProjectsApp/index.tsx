@@ -2222,12 +2222,14 @@ export default function RecentProjectsApp() {
                     const rootPath = p.fsPath;
                     const isRemote = p.fsPath.startsWith('vscode-vfs') || p.fsPath.startsWith('http');
                     const isGitlab = p.platform === 'gitlab' || p.fsPath.startsWith('vscode-vfs://gitlab');
-                    const icon = isRemote ? (isGitlab ? faGitlab : faGithub) : faFolderOpen;
                     const title = p.customName || p.name;
                     const displayPath = getDisplayPath(p);
                     const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
                     const branch = branchMap[p.fsPath] || p.branch;
                     const isExpanded = expandedPaths.has(rootPath);
+                    const projectIcon = isRemote
+                      ? (isGitlab ? faGitlab : faGithub)
+                      : (isExpanded ? faFolderOpen : faFolder);
                     const rootLoading = loadingPaths.has(rootPath) && !dirChildren[rootPath];
                     const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
 
@@ -2280,7 +2282,7 @@ export default function RecentProjectsApp() {
                             <div className={styles['info']}>
                               <div className={styles['title']}>
                                 <FontAwesomeIcon
-                                  icon={icon}
+                                  icon={projectIcon}
                                   className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''
                                     }`}
                                 />
@@ -2342,11 +2344,13 @@ export default function RecentProjectsApp() {
                     const isJustOpened = p.fsPath === lastOpenedPath;
                     const isRemote = p.fsPath.startsWith('vscode-vfs') || p.fsPath.startsWith('http');
                     const isGitlab = p.platform === 'gitlab' || p.fsPath.startsWith('vscode-vfs://gitlab');
-                    const icon = isRemote ? (isGitlab ? faGitlab : faGithub) : faFolder;
                     const title = p.customName || p.name;
                     const displayPath = getDisplayPath(p);
                     const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
                     const isExpanded = expandedPaths.has(rootPath);
+                    const projectIcon = isRemote
+                      ? (isGitlab ? faGitlab : faGithub)
+                      : (isExpanded ? faFolderOpen : faFolder);
                     const itemLoading = loadingPaths.has(rootPath) && !dirChildren[rootPath];
                     const branch = branchMap[p.fsPath] || p.branch;
                     const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
@@ -2397,7 +2401,7 @@ export default function RecentProjectsApp() {
                             <div className={styles['info']}>
                               <div className={styles['title']}>
                                 <FontAwesomeIcon
-                                  icon={icon}
+                                  icon={projectIcon}
                                   className={`${styles['project-icon']} ${styles['icon-closed']}`}
                                 />
 
