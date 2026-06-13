@@ -88,6 +88,15 @@ import dsStoreIcon from '../../assets/icon/ds_store.svg';
 import obsidianIcon from '../../assets/icon/obsidian.svg';
 import sheetIcon from '../../assets/icon/sheet.svg';
 import nginxIcon from 'material-icon-theme/icons/nginx.svg';
+import netlifyIcon from 'material-icon-theme/icons/netlify.svg';
+import LockIcon from 'material-icon-theme/icons/lock.svg';
+import claudeIcon from 'material-icon-theme/icons/claude.svg';
+import oxcIcon from 'material-icon-theme/icons/oxc.svg';
+import coderabbitAiIcon from 'material-icon-theme/icons/coderabbit-ai.svg';
+import codecovIcon from 'material-icon-theme/icons/codecov.svg';
+import playwrightIcon from 'material-icon-theme/icons/playwright.svg';
+import tsdownIcon from 'material-icon-theme/icons/tsdown.svg'
+import typescriptDefIcon from "material-icon-theme/icons/typescript-def.svg"
 
 export type FileGitStatus = 'u' | 'a' | 'm' | 'd' | 'r' | 'c' | string;
 
@@ -100,7 +109,10 @@ const EXACT_NAMES: Record<string, string> = {
   '.yarnrc.yml': yarnIcon,
   'yarn-error.log': yarnIcon,
   changelog: changelogIcon,
+  'claude.md': claudeIcon,
   'changelog.md': changelogIcon,
+  '.coderabbit.yaml': coderabbitAiIcon,
+  'codecov.yml': codecovIcon,
   dockerfile: dockerIcon,
   license: licenseIcon,
   licence: licenseIcon,
@@ -109,6 +121,7 @@ const EXACT_NAMES: Record<string, string> = {
   'license.txt': licenseIcon,
   'licence.txt': licenseIcon,
   'nginx,conf': nginxIcon,
+  'netlify.toml': netlifyIcon,
   'docker-compose.yml': dockerIcon,
   '.dockerignore': dockerIcon,
   '.gitignore': gitIcon,
@@ -133,9 +146,12 @@ const EXACT_NAMES: Record<string, string> = {
   '.quickopsrc': jsonIcon,
   '.telemetryrc': jsonIcon,
   'plopfile.js': plopIcon,
+  '.oxfmtrc.jsonc': oxcIcon,
+  '.oxlintrc.jsonc': oxcIcon,
   'readme.md': readmeIcon,
   readme: readmeIcon,
   'pnpm-lock.yaml': pnpmIcon,
+  'pnpm-workspace.yaml':pnpmIcon,
   '.markdownlint.json': markdownlint,
   'postcss.config.js': postcssIcon,
   '.lintstagedrc': lintstagedIcon,
@@ -161,9 +177,11 @@ const EXACT_NAMES: Record<string, string> = {
   'rollup.config.mjs': rollupIcon,
   'rollup.config.js': rollupIcon,
   'turbo.json': turboIcon,
+  'tsdown.config.ts':tsdownIcon,
   'wrangler.toml': wranglerIcon,
   'nest-cli.json': nestIcon,
   '.swcrc': swcIcon,
+  'security.md': LockIcon,
   'vitest.config.ts': vitestIcon,
   'vue.config.js': vueConfigIcon,
   'vite.config.ts': viteConfigIcon,
@@ -173,6 +191,7 @@ const EXACT_NAMES: Record<string, string> = {
   '.ds_store': dsStoreIcon,
   'commit-msg': consoleIcon,
   'pre-commit': consoleIcon,
+  'playwright.config.ts': playwrightIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {
@@ -191,7 +210,7 @@ const EXTENSIONS: Record<string, string> = {
   map: mapIcon,
   lottie: lottieIcon,
   ts: typescriptIcon,
-  mts: typescriptIcon,
+  mts: typescriptDefIcon,
   tsx: reactTsIcon,
   js: javascriptIcon,
   jsx: reactIcon,
