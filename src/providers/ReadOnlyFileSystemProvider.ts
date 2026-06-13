@@ -33,7 +33,7 @@ export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
     });
   }
 
-  public refresh(uri: vscode.Uri) {
+  public refresh(uri: vscode.Uri): void {
     const readonlyUri = this.normalizeReadonlyUri(uri);
     const readonlyUriKey = readonlyUri.toString();
     const targetUri = this.getTargetUri(readonlyUri);
@@ -65,7 +65,7 @@ export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
     this.debounceTimers.set(readonlyUriKey, timer);
   }
 
-  public refreshAllWatched() {
+  public refreshAllWatched(): void {
     Array.from(this.watchedDocuments).forEach((uriStr) => {
       this.refresh(vscode.Uri.parse(uriStr));
     });

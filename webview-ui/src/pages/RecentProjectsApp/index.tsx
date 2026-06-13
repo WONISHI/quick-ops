@@ -33,6 +33,17 @@ import type {
   ContextMenuPayload,
 } from '../../types/RecentProjectsApp';
 
+interface DiagnosticSummary {
+  errors: number;
+  warnings: number;
+}
+
+interface MetadataPatchItem {
+  path: string;
+  status?: string;
+  diagnostics?: DiagnosticSummary;
+}
+
 export default function RecentProjectsApp() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentUri, setCurrentUri] = useState('');
@@ -133,6 +144,142 @@ export default function RecentProjectsApp() {
   useEffect(() => {
     focusRootNameRef.current = focusRootName;
   }, [focusRootName]);
+
+  const normalizePatchPath = (pathValue: string) => {
+    if (!pathValue) return '';
+
+    try {
+      if (pathValue.includes('://')) {
+        const url = new URL(pathValue);
+
+        if (url.protocol === 'file:') {
+          let decoded = decodeURIComponent(url.pathname || '');
+
+          if (/^\/[a-zA-Z]:\//.test(decoded)) {
+            decoded = decoded.slice(1);
+          }
+
+          return decoded.replace(/\\/g, '/').replace(/\/+$/, '');
+        }
+
+        return decodeURIComponent(url.pathname || pathValue).replace(/\\/g, '/').replace(/\/+$/, '');
+      }
+    } catch { }
+
+    return decodeURIComponent(pathValue.split('?')[0]).replace(/^file:\/\//, '').replace(/\\/g, '/').replace(/\/+$/, '');
+  };
+
+  const applyMetadataPatchToItem = <T extends Record<string, any>>(item: T, patchMap: Map<string, MetadataPatchItem>): T => {
+    const itemPath = item.path || item.fullPath || item.fsPath;
+    const patch = patchMap.get(normalizePatchPath(itemPath || ''));
+
+    if (!patch) return item;
+
+    return {
+      ...item,
+      status: patch.status,
+      diagnostics: patch.diagnostics || { errors: 0, warnings: 0 },
+    };
+  };
+
+  const getDiagnosticSummary = (item: any): DiagnosticSummary => {
+    const diagnostics = item?.diagnostics || {};
+
+    return {
+      errors: Math.max(0, Number(diagnostics.errors) || 0),
+      warnings: Math.max(0, Number(diagnostics.warnings) || 0),
+    };
+  };
+
+  const getDiagnosticsTitle = (item: any) => {
+    const diagnostics = getDiagnosticSummary(item);
+
+    if (!diagnostics.errors && !diagnostics.warnings) {
+      return '';
+    }
+
+    return `错误 ${diagnostics.errors}，警告 ${diagnostics.warnings}`;
+  };
+
+  const getFolderDiagnosticsStyle = (item: any): React.CSSProperties | undefined => {
+    const diagnostics = getDiagnosticSummary(item);
+
+    if (diagnostics.errors > 0) {
+      return {
+        color: 'var(--vscode-editorError-foreground)',
+      };
+    }
+
+    if (diagnostics.warnings > 0) {
+      return {
+        color: 'var(--vscode-editorWarning-foreground)',
+      };
+    }
+
+    return undefined;
+  };
+
+  const renderDiagnosticsBadge = (item: any) => {
+    const diagnostics = getDiagnosticSummary(item);
+
+    if (!diagnostics.errors && !diagnostics.warnings) {
+      return null;
+    }
+
+    return (
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          marginLeft: 6,
+          flexShrink: 0,
+          fontSize: 11,
+          lineHeight: '14px',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+        title={getDiagnosticsTitle(item)}
+      >
+        {diagnostics.errors > 0 && (
+          <span
+            style={{
+              minWidth: 14,
+              height: 14,
+              padding: '0 4px',
+              boxSizing: 'border-box',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 999,
+              color: 'var(--vscode-editorError-foreground)',
+              background: 'color-mix(in srgb, var(--vscode-editorError-foreground) 18%, transparent)',
+            }}
+          >
+            {diagnostics.errors}
+          </span>
+        )}
+
+        {diagnostics.warnings > 0 && (
+          <span
+            style={{
+              minWidth: 14,
+              height: 14,
+              padding: '0 4px',
+              boxSizing: 'border-box',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 999,
+              color: 'var(--vscode-editorWarning-foreground)',
+              background: 'color-mix(in srgb, var(--vscode-editorWarning-foreground) 18%, transparent)',
+            }}
+          >
+            {diagnostics.warnings}
+          </span>
+        )}
+      </span>
+    );
+  };
 
   const getFallbackProjectName = (pathValue: string) => {
     const clean = decodeURIComponent(pathValue.split('?')[0]).replace(/\\/g, '/');
@@ -285,6 +432,33 @@ export default function RecentProjectsApp() {
           });
 
           return newMap;
+        });
+      } else if (msg.type === 'metadataPatch') {
+        const items = (msg.items as MetadataPatchItem[]) || [];
+        const patchMap = new Map<string, MetadataPatchItem>();
+
+        items.forEach((item) => {
+          const key = normalizePatchPath(item.path);
+
+          if (key) {
+            patchMap.set(key, item);
+          }
+        });
+
+        if (patchMap.size === 0) return;
+
+        setProjects((prev) => prev.map((project) => applyMetadataPatchToItem(project as any, patchMap) as Project));
+        setCurrentWorkspace((prev) => (prev ? applyMetadataPatchToItem(prev as any, patchMap) as Project : prev));
+        setFileNameSearchResults((prev) => prev.map((item) => applyMetadataPatchToItem(item as any, patchMap) as DirChild));
+        setFolderSearchResults((prev) => prev.map((item) => applyMetadataPatchToItem(item as any, patchMap) as SearchResult));
+        setDirChildren((prev) => {
+          const next: Record<string, DirChild[]> = {};
+
+          Object.keys(prev).forEach((key) => {
+            next[key] = prev[key].map((item) => applyMetadataPatchToItem(item as any, patchMap) as DirChild);
+          });
+
+          return next;
         });
       } else if (msg.type === 'activeEditorChanged') {
         setSelectedPath(msg.fsPath as string);
@@ -1304,7 +1478,8 @@ export default function RecentProjectsApp() {
 
                   <span
                     className={`${styles['sub-name']} ${statusClassName}`}
-                    title={getGitStatusTitle(child.name, child.status)}
+                    style={getFolderDiagnosticsStyle(child)}
+                    title={[getGitStatusTitle(child.name, child.status), getDiagnosticsTitle(child)].filter(Boolean).join('；')}
                   >
                     {child.name}
                   </span>
@@ -1360,6 +1535,7 @@ export default function RecentProjectsApp() {
                 </span>
 
                 <FileGitStatusBadge status={child.status} />
+                {renderDiagnosticsBadge(child)}
               </div>
             </div>
           );
@@ -1547,7 +1723,11 @@ export default function RecentProjectsApp() {
                                     }`}
                                 />
 
-                                <span className={styles['project-name']} title={title}>
+                                <span
+                                  className={styles['project-name']}
+                                  style={getFolderDiagnosticsStyle(p)}
+                                  title={[title, getDiagnosticsTitle(p)].filter(Boolean).join('；')}
+                                >
                                   {title}
                                 </span>
 
@@ -1649,7 +1829,11 @@ export default function RecentProjectsApp() {
                                   className={`${styles['project-icon']} ${styles['icon-closed']}`}
                                 />
 
-                                <span className={styles['project-name']} title={title}>
+                                <span
+                                  className={styles['project-name']}
+                                  style={getFolderDiagnosticsStyle(p)}
+                                  title={[title, getDiagnosticsTitle(p)].filter(Boolean).join('；')}
+                                >
                                   {title}
                                 </span>
 

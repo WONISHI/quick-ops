@@ -15,6 +15,19 @@ export interface RecentProject {
   branch?: string;
   platform?: 'github' | 'gitlab';
   customDomain?: string;
+  status?: string;
+  diagnostics?: DiagnosticSummary;
+}
+
+interface DiagnosticSummary {
+  errors: number;
+  warnings: number;
+}
+
+interface MetadataPatchItem {
+  path: string;
+  status?: string;
+  diagnostics: DiagnosticSummary;
 }
 
 export class RecentProjectsProvider implements vscode.WebviewViewProvider {
@@ -32,6 +45,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   private readonly gitStatusService = new RecentProjectsGitStatusService();
   private readonly directoryService = new RecentProjectsDirectoryService(this.gitStatusService);
+
+  private readonly loadedDirChildren = new Map<string, any[]>();
+  private readonly knownVisibleDirs = new Set<string>();
+  private statusSyncTimer: NodeJS.Timeout | undefined;
 
   constructor(private context: vscode.ExtensionContext) {
     this.initializeCurrentWorkspace();
@@ -1021,6 +1038,232 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private normalizePathForCompare(value: string): string {
+    if (!value) return '';
+
+    try {
+      if (value.includes('://')) {
+        const uri = vscode.Uri.parse(value);
+
+        if (uri.scheme === 'file') {
+          return uri.fsPath.replace(/\\/g, '/').replace(/\/+$/, '');
+        }
+
+        return decodeURIComponent(uri.path || value).replace(/\\/g, '/').replace(/\/+$/, '');
+      }
+    } catch { }
+
+    return value.replace(/^file:\/\//, '').replace(/\\/g, '/').replace(/\/+$/, '');
+  }
+
+  private toLocalUri(value: string): vscode.Uri | undefined {
+    if (!value) return undefined;
+
+    try {
+      if (value.includes('://')) {
+        const uri = vscode.Uri.parse(value);
+        return uri.scheme === 'file' ? uri : undefined;
+      }
+
+      return vscode.Uri.file(value);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private getDiagnosticsSummary(targetPath: string, isFolder: boolean): DiagnosticSummary {
+    const targetUri = this.toLocalUri(targetPath);
+
+    if (!targetUri) {
+      return { errors: 0, warnings: 0 };
+    }
+
+    const target = this.normalizePathForCompare(targetUri.toString());
+    const targetPrefix = target.endsWith('/') ? target : `${target}/`;
+    let errors = 0;
+    let warnings = 0;
+
+    for (const [uri, diagnostics] of vscode.languages.getDiagnostics()) {
+      if (uri.scheme !== 'file') continue;
+
+      const diagnosticPath = this.normalizePathForCompare(uri.toString());
+      const matched = isFolder ? diagnosticPath === target || diagnosticPath.startsWith(targetPrefix) : diagnosticPath === target;
+
+      if (!matched) continue;
+
+      diagnostics.forEach((diagnostic) => {
+        if (diagnostic.severity === vscode.DiagnosticSeverity.Error) {
+          errors++;
+        } else if (diagnostic.severity === vscode.DiagnosticSeverity.Warning) {
+          warnings++;
+        }
+      });
+    }
+
+    return { errors, warnings };
+  }
+
+  private getAggregatedGitStatus(
+    relativePath: string,
+    isFolder: boolean,
+    statusMap: Map<string, string>,
+    fallback?: string
+  ): string | undefined {
+    const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
+
+    if (!normalized && !isFolder) {
+      return fallback;
+    }
+
+    const directStatus = normalized ? statusMap.get(normalized) || statusMap.get(`${normalized}/`) || fallback : fallback;
+
+    if (!isFolder) {
+      return directStatus;
+    }
+
+    const prefix = normalized ? `${normalized}/` : '';
+    const priority = ['UU', 'AA', 'DD', 'UD', 'DU', 'U', '?', 'A', 'D', 'R', 'C', 'M'];
+    const foundStatuses = new Set<string>();
+
+    if (directStatus) {
+      foundStatuses.add(directStatus);
+    }
+
+    statusMap.forEach((status, filePath) => {
+      const key = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+
+      if (!normalized || key === normalized || key.startsWith(prefix)) {
+        foundStatuses.add(status);
+      }
+    });
+
+    for (const item of priority) {
+      if (foundStatuses.has(item)) {
+        return item;
+      }
+    }
+
+    return foundStatuses.values().next().value || directStatus;
+  }
+
+  private async createMetadataContext(rootPath: string) {
+    const uri = this.toLocalUri(rootPath);
+
+    if (!uri) {
+      return {
+        gitRoot: '',
+        statusMap: new Map<string, string>(),
+      };
+    }
+
+    const nativePath = uri.fsPath;
+    const gitRoot = await this.getGitRoot(nativePath).catch(() => '');
+    const statusMap = gitRoot ? await this.getGitStatusMap(nativePath).catch(() => new Map<string, string>()) : new Map<string, string>();
+
+    return {
+      gitRoot,
+      statusMap,
+    };
+  }
+
+  private async enrichFileItem<T extends { path?: string; fullPath?: string; fsPath?: string; isFolder?: boolean; status?: string; diagnostics?: DiagnosticSummary }>(
+    item: T,
+    context: { gitRoot: string; statusMap: Map<string, string> }
+  ): Promise<T> {
+    const targetPath = item.path || item.fullPath || item.fsPath || '';
+    const uri = this.toLocalUri(targetPath);
+
+    if (!uri) {
+      return item;
+    }
+
+    const nativePath = uri.fsPath;
+    const isFolder = !!item.isFolder;
+    const gitRelativePath = context.gitRoot ? path.relative(context.gitRoot, nativePath).replace(/\\/g, '/') : '';
+    const status = context.gitRoot
+      ? this.getAggregatedGitStatus(gitRelativePath, isFolder, context.statusMap, item.status)
+      : item.status;
+
+    return {
+      ...item,
+      status,
+      diagnostics: this.getDiagnosticsSummary(uri.toString(), isFolder),
+    };
+  }
+
+  private async enrichChildren(children: any[], rootPath: string): Promise<any[]> {
+    const context = await this.createMetadataContext(rootPath);
+
+    return Promise.all(children.map((child) => this.enrichFileItem(child, context)));
+  }
+
+  private async enrichProject(project: RecentProject): Promise<RecentProject> {
+    const context = await this.createMetadataContext(project.fsPath);
+    const uri = this.toLocalUri(project.fsPath);
+
+    if (!uri) return project;
+
+    return {
+      ...project,
+      status: context.gitRoot ? this.getAggregatedGitStatus('', true, context.statusMap, project.status) : project.status,
+      diagnostics: this.getDiagnosticsSummary(uri.toString(), true),
+    };
+  }
+
+  private scheduleStatusSync(delay = 160): void {
+    if (this.statusSyncTimer) {
+      clearTimeout(this.statusSyncTimer);
+    }
+
+    this.statusSyncTimer = setTimeout(() => {
+      this.statusSyncTimer = undefined;
+      void this.syncVisibleMetadata();
+    }, delay);
+  }
+
+  public requestVisibleMetadataSync(): void {
+    this.scheduleStatusSync(80);
+  }
+
+  public async syncVisibleMetadata(): Promise<void> {
+    if (!this._view) return;
+
+    const patch: MetadataPatchItem[] = [];
+    const pushPatch = (item: any) => {
+      const itemPath = item?.path || item?.fullPath || item?.fsPath;
+
+      if (!itemPath) return;
+
+      patch.push({
+        path: itemPath,
+        status: item.status,
+        diagnostics: item.diagnostics || { errors: 0, warnings: 0 },
+      });
+    };
+
+    const enrichedProjects = await Promise.all([
+      ...this.getRecentProjects(),
+      ...(vscode.workspace.workspaceFolders?.map((folder) => ({
+        name: folder.name,
+        fsPath: folder.uri.toString(),
+        timestamp: Date.now(),
+      } as RecentProject)) || []),
+    ].map((project) => this.enrichProject(project)));
+
+    enrichedProjects.forEach(pushPatch);
+
+    for (const [dirPath, children] of this.loadedDirChildren.entries()) {
+      const enrichedChildren = await this.enrichChildren(children, dirPath);
+      this.loadedDirChildren.set(dirPath, enrichedChildren);
+      enrichedChildren.forEach(pushPatch);
+    }
+
+    this._view.webview.postMessage({
+      type: 'metadataPatch',
+      items: patch,
+    });
+  }
+
   private async handleSearchFileName(fsPath: string, query: string, isRemote: boolean, focusOnly: boolean = false) {
     if (isRemote) {
       this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [], error: '远程仓库暂不支持名称检索。' });
@@ -1094,7 +1337,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       await searchRecursive(uri, nativePath);
     });
 
-    this._view?.webview.postMessage({ type: 'searchFileNameResult', results });
+    const enrichedResults = await this.enrichChildren(results, fsPath);
+    this._view?.webview.postMessage({ type: 'searchFileNameResult', results: enrichedResults });
   }
 
   private async handleSearchInFolder(fsPath: string, query: string, isRemote: boolean, focusOnly: boolean = false) {
@@ -1218,7 +1462,22 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       await searchRecursive(nativePath);
     });
 
-    this._view?.webview.postMessage({ type: 'searchFolderResult', results });
+    const context = await this.createMetadataContext(fsPath);
+    const enrichedResults = await Promise.all(results.map(async (item) => {
+      const enriched = await this.enrichFileItem({
+        ...item,
+        path: item.fullPath,
+        isFolder: false,
+      }, context);
+
+      return {
+        ...item,
+        status: enriched.status,
+        diagnostics: enriched.diagnostics,
+      };
+    }));
+
+    this._view?.webview.postMessage({ type: 'searchFolderResult', results: enrichedResults });
   }
 
   private getWritableLocalUri(fsPath: string) {
@@ -1888,12 +2147,37 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     focusOnly: boolean = false,
     forceRefresh: boolean = false
   ) {
+    this.knownVisibleDirs.add(fsPath);
+
     await this.directoryService.readDirectory({
       fsPath,
       projectName,
       focusOnly,
       forceRefresh,
-      postMessage: (message) => {
+      postMessage: async (message) => {
+        if (message?.type === 'readDirResult') {
+          const pathKey = String(message.fsPath || fsPath);
+          const children = Array.isArray(message.children) ? message.children : [];
+          const enrichedChildren = await this.enrichChildren(children, pathKey);
+
+          this.loadedDirChildren.set(pathKey, enrichedChildren);
+          this.knownVisibleDirs.add(pathKey);
+
+          enrichedChildren.forEach((child) => {
+            if (child?.isFolder && child.path) {
+              this.knownVisibleDirs.add(child.path);
+            }
+          });
+
+          this._view?.webview.postMessage({
+            ...message,
+            children: enrichedChildren,
+          });
+
+          this.scheduleStatusSync(120);
+          return;
+        }
+
         this._view?.webview.postMessage(message);
       },
     });
@@ -1939,6 +2223,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       lastOpenedPath: this.lastOpenedPath,
       activeFilePath: this.currentActivePath || activeFilePath
     });
+
+    this.scheduleStatusSync(120);
   }
 
   private getRecentProjects(): RecentProject[] {
