@@ -868,6 +868,12 @@ export default function LivePreviewApp() {
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [historyStack, setHistoryStack] = useState<HistoryItem[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
+  const historyStackRef = useRef<HistoryItem[]>([]);
+  const historyIdxRef = useRef(-1);
+  const lastRecordedHistoryUrlRef = useRef('');
+  const pendingExplicitNavigationRef = useRef(false);
+  const pendingHistoryNavigationRef = useRef(false);
+  const pendingRedirectUntilRef = useRef(0);
   const isInternalNav = useRef(false);
 
   const [activeModal, setActiveModal] = useState<'none' | 'fav' | 'history'>('none');
@@ -1082,13 +1088,19 @@ export default function LivePreviewApp() {
   };
 
   const updateCurrentHistoryTitle = (title: string) => {
+    const activeIndex = historyIdxRef.current;
+
     setHistoryStack((prev) => {
       const next = [...prev];
 
-      if (next[historyIdx]) {
-        next[historyIdx].title = title || next[historyIdx].url;
+      if (next[activeIndex]) {
+        next[activeIndex] = {
+          ...next[activeIndex],
+          title: title || next[activeIndex].url,
+        };
       }
 
+      historyStackRef.current = next;
       return next;
     });
   };
@@ -1189,6 +1201,157 @@ export default function LivePreviewApp() {
     });
   };
 
+
+  const normalizeHistoryUrl = (url: string) => {
+    return String(url || '').trim();
+  };
+
+  const syncHistoryState = (stack: HistoryItem[], index: number) => {
+    historyStackRef.current = stack;
+    historyIdxRef.current = index;
+    lastRecordedHistoryUrlRef.current = index > -1 ? normalizeHistoryUrl(stack[index]?.url || '') : '';
+  };
+
+  const setHistoryIdxSafe = (index: number) => {
+    historyIdxRef.current = index;
+    lastRecordedHistoryUrlRef.current = index > -1 ? normalizeHistoryUrl(historyStackRef.current[index]?.url || '') : '';
+    setHistoryIdx(index);
+  };
+
+  const replaceCurrentHistory = (url: string, title?: string) => {
+    const normalizedUrl = normalizeHistoryUrl(url);
+
+    if (!normalizedUrl || normalizedUrl === 'about:blank') return;
+
+    setHistoryStack((prev) => {
+      const activeIndex = historyIdxRef.current;
+
+      if (activeIndex < 0 || !prev[activeIndex]) {
+        const item: HistoryItem = {
+          url: normalizedUrl,
+          title: title || normalizedUrl,
+          timestamp: Date.now(),
+          logo: getKnownLogoByUrl(normalizedUrl),
+        };
+        const next = [item];
+
+        syncHistoryState(next, 0);
+        setHistoryIdx(0);
+        return next;
+      }
+
+      const next = [...prev];
+      const previous = next[activeIndex];
+
+      next[activeIndex] = {
+        ...previous,
+        url: normalizedUrl,
+        title: title || previous.title || normalizedUrl,
+        logo: previous.logo || getKnownLogoByUrl(normalizedUrl),
+        timestamp: previous.timestamp || Date.now(),
+      };
+
+      syncHistoryState(next, activeIndex);
+      return next;
+    });
+  };
+
+  const pushHistory = (url: string, defaultTitle: string, options?: { replace?: boolean; force?: boolean }) => {
+    const normalizedUrl = normalizeHistoryUrl(url);
+
+    if (!normalizedUrl || normalizedUrl === 'about:blank') return;
+
+    if (options?.replace) {
+      replaceCurrentHistory(normalizedUrl, defaultTitle);
+      return;
+    }
+
+    setHistoryStack((prev) => {
+      const activeIndex = historyIdxRef.current;
+
+      if (!options?.force && activeIndex > -1 && normalizeHistoryUrl(prev[activeIndex]?.url || '') === normalizedUrl) {
+        const next = [...prev];
+        const current = next[activeIndex];
+
+        if (current && defaultTitle && current.title !== defaultTitle) {
+          next[activeIndex] = {
+            ...current,
+            title: defaultTitle,
+          };
+          syncHistoryState(next, activeIndex);
+          return next;
+        }
+
+        syncHistoryState(prev, activeIndex);
+        return prev;
+      }
+
+      const nextStack = prev.slice(0, activeIndex + 1);
+      const logo = getKnownLogoByUrl(normalizedUrl);
+
+      nextStack.push({
+        url: normalizedUrl,
+        title: defaultTitle || normalizedUrl,
+        timestamp: Date.now(),
+        logo,
+      });
+
+      const nextIndex = nextStack.length - 1;
+
+      syncHistoryState(nextStack, nextIndex);
+      setHistoryIdx(nextIndex);
+      return nextStack;
+    });
+  };
+
+  const recordBrowserNavigation = (url: string, title?: string, eventType: 'urlChanged' | 'pageLoaded' = 'urlChanged') => {
+    const normalizedUrl = normalizeHistoryUrl(url);
+
+    if (!normalizedUrl || normalizedUrl === 'about:blank') return;
+
+    setFrameUrl(normalizedUrl);
+    setUrlInput(normalizedUrl);
+    vscode?.postMessage({ type: 'saveUrl', url: normalizedUrl });
+
+    if (pendingHistoryNavigationRef.current) {
+      replaceCurrentHistory(normalizedUrl, title || normalizedUrl);
+
+      if (eventType === 'pageLoaded') {
+        pendingHistoryNavigationRef.current = false;
+        pendingRedirectUntilRef.current = 0;
+        isInternalNav.current = false;
+      }
+
+      return;
+    }
+
+    if (pendingExplicitNavigationRef.current) {
+      pushHistory(normalizedUrl, title || normalizedUrl);
+      pendingExplicitNavigationRef.current = false;
+      pendingRedirectUntilRef.current = Date.now() + 1600;
+      return;
+    }
+
+    if (pendingRedirectUntilRef.current > Date.now()) {
+      replaceCurrentHistory(normalizedUrl, title || normalizedUrl);
+
+      if (eventType === 'pageLoaded') {
+        pendingRedirectUntilRef.current = 0;
+      }
+
+      return;
+    }
+
+    if (normalizeHistoryUrl(lastRecordedHistoryUrlRef.current) !== normalizedUrl) {
+      pushHistory(normalizedUrl, title || normalizedUrl);
+      return;
+    }
+
+    if (title) {
+      updateCurrentHistoryTitle(title);
+    }
+  };
+
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
@@ -1199,9 +1362,9 @@ export default function LivePreviewApp() {
         if (typeof message.url === 'string' && message.url.trim()) {
           const initUrl = message.url.trim();
 
+          pendingExplicitNavigationRef.current = true;
           setUrlInput(initUrl);
           loadPreviewTarget(initUrl);
-          pushHistory(initUrl, initUrl);
         }
 
         vscode?.postMessage({ type: 'reqSyncFavorites' });
@@ -1232,20 +1395,15 @@ export default function LivePreviewApp() {
         setPreviewError(null);
         setIsPageLoaded(true);
         if (message.url) {
-          setFrameUrl(message.url);
-          setUrlInput(message.url);
-          vscode?.postMessage({ type: 'saveUrl', url: message.url });
-        }
-        if (message.title) {
+          recordBrowserNavigation(message.url, message.title, 'pageLoaded');
+        } else if (message.title) {
           updateCurrentHistoryTitle(message.title);
         }
       } else if (message.type === 'browserTitleChanged') {
         updateCurrentHistoryTitle(message.title || frameUrl || urlInput);
       } else if (message.type === 'browserUrlChanged') {
         if (message.url) {
-          setFrameUrl(message.url);
-          setUrlInput(message.url);
-          vscode?.postMessage({ type: 'saveUrl', url: message.url });
+          recordBrowserNavigation(message.url, undefined, 'urlChanged');
         }
       } else if (message.type === 'browserSearchResult') {
         setSearchResult({
@@ -1266,9 +1424,7 @@ export default function LivePreviewApp() {
       } else if (message.type === 'inner-nav') {
         const { url, isSpa } = message;
         if (isSpa) {
-          setUrlInput(url);
-          vscode?.postMessage({ type: 'saveUrl', url });
-          pushHistory(url, url);
+          recordBrowserNavigation(url, url, 'urlChanged');
         } else {
           handleGo(url);
         }
@@ -1346,38 +1502,19 @@ export default function LivePreviewApp() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 
-  const pushHistory = (url: string, defaultTitle: string) => {
-    if (isInternalNav.current) {
-      isInternalNav.current = false;
-      return;
-    }
-
-    setHistoryStack((prev) => {
-      if (historyIdx > -1 && prev[historyIdx]?.url === url) return prev;
-
-      const nextStack = prev.slice(0, historyIdx + 1);
-      const logo = getKnownLogoByUrl(url);
-
-      nextStack.push({
-        url,
-        title: defaultTitle || url,
-        timestamp: Date.now(),
-        logo,
-      });
-
-      setHistoryIdx(nextStack.length - 1);
-      return nextStack;
-    });
-  };
-
   const navigateToHistory = (index: number) => {
-    if (index < 0 || index >= historyStack.length) return;
+    const stack = historyStackRef.current;
+
+    if (index < 0 || index >= stack.length) return;
 
     isInternalNav.current = true;
+    pendingHistoryNavigationRef.current = true;
+    pendingExplicitNavigationRef.current = false;
+    pendingRedirectUntilRef.current = 0;
 
-    const targetUrl = historyStack[index].url;
+    const targetUrl = stack[index].url;
 
-    setHistoryIdx(index);
+    setHistoryIdxSafe(index);
     setUrlInput(targetUrl);
     loadPreviewTarget(targetUrl);
     setActiveModal('none');
@@ -1435,6 +1572,18 @@ export default function LivePreviewApp() {
     setFaviconUrl('');
     setFaviconError(false);
     setIsFaviconLoading(false);
+
+    if (pendingHistoryNavigationRef.current) {
+      replaceCurrentHistory(url, url);
+      pendingHistoryNavigationRef.current = false;
+      isInternalNav.current = false;
+      return;
+    }
+
+    if (pendingExplicitNavigationRef.current) {
+      pushHistory(url, url);
+      pendingExplicitNavigationRef.current = false;
+    }
   };
 
   const handleGo = (forceUrl?: string) => {
@@ -1463,9 +1612,12 @@ export default function LivePreviewApp() {
       return;
     }
 
+    pendingExplicitNavigationRef.current = true;
+    pendingHistoryNavigationRef.current = false;
+    pendingRedirectUntilRef.current = 0;
+
     setUrlInput(finalUrl);
     loadPreviewTarget(finalUrl);
-    pushHistory(finalUrl, finalUrl);
   };
 
   const suggestions = useMemo(() => {
@@ -1864,6 +2016,15 @@ export default function LivePreviewApp() {
       <div className={styles['toolbar']}>
         <button className={styles['icon-btn']} disabled={historyIdx <= 0} onClick={() => navigateToHistory(historyIdx - 1)} title="后退">
           <FontAwesomeIcon icon={faArrowLeft} />
+        </button>
+
+        <button
+          className={styles['icon-btn']}
+          disabled={historyIdx < 0 || historyIdx >= historyStack.length - 1}
+          onClick={() => navigateToHistory(historyIdx + 1)}
+          title="前进"
+        >
+          <FontAwesomeIcon icon={faArrowRight} />
         </button>
 
         <button className={styles['icon-btn']} onClick={handleRefresh} title="刷新页面">

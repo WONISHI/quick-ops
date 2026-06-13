@@ -1123,6 +1123,28 @@ export class EmbeddedBrowserService extends EventEmitter {
     }
   }
 
+  private async installNavigationBridge(page: Page): Promise<void> {
+    await page.exposeFunction('__quickOpsNotifyNavigation', async (url: string, title?: string) => {
+      const nextUrl = String(url || '').trim();
+
+      if (!nextUrl) return;
+
+      this.emit('urlChanged', {
+        url: nextUrl,
+      });
+
+      this.emit('titleChanged', {
+        title: title || nextUrl,
+      });
+    }).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (!/already registered|window\['__quickOpsNotifyNavigation'\]/i.test(message)) {
+        console.warn('[EmbeddedBrowserService] expose navigation bridge failed:', error);
+      }
+    });
+  }
+
   private async installNavigationPatch(page: Page): Promise<void> {
     await page.evaluateOnNewDocument(() => {
       const normalizeTarget = (target: EventTarget | null): HTMLAnchorElement | null => {
@@ -1155,6 +1177,40 @@ export class EmbeddedBrowserService extends EventEmitter {
 
         return rawOpen ? rawOpen.call(window, url, target, features) : null;
       };
+
+      const notifyNavigation = () => {
+        window.setTimeout(() => {
+          const notify = (window as any).__quickOpsNotifyNavigation;
+
+          if (typeof notify !== 'function') return;
+
+          try {
+            notify(window.location.href, document.title || window.location.href);
+          } catch {
+            // noop
+          }
+        }, 0);
+      };
+
+      const rawPushState = history.pushState;
+      const rawReplaceState = history.replaceState;
+
+      history.pushState = function (...args) {
+        const result = rawPushState.apply(this, args as any);
+
+        notifyNavigation();
+        return result;
+      };
+
+      history.replaceState = function (...args) {
+        const result = rawReplaceState.apply(this, args as any);
+
+        notifyNavigation();
+        return result;
+      };
+
+      window.addEventListener('popstate', notifyNavigation, true);
+      window.addEventListener('hashchange', notifyNavigation, true);
 
       document.addEventListener(
         'click',
@@ -1236,6 +1292,7 @@ export class EmbeddedBrowserService extends EventEmitter {
 
     this.hookedPages.add(page);
 
+    await this.installNavigationBridge(page);
     await this.installNavigationPatch(page);
 
     page.on('load', async () => {
