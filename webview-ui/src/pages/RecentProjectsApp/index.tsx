@@ -18,6 +18,7 @@ import FileIcon from '../../components/FileIcon';
 import ProjectInitLoading from '../../components/ProjectInitLoading';
 import RecentProjectContextMenu from '../../components/RecentProjectContextMenu';
 import SearchViewWrapper from '../../components/SearchViewWrapper';
+import Tooltip from '../../components/Tooltip';
 import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '../../utils';
 import {
   FileGitStatusBadge,
@@ -218,6 +219,88 @@ export default function RecentProjectsApp() {
 
     return undefined;
   };
+
+  const formatTooltipPath = (pathValue: string) => {
+    const normalizedPath = normalizePatchPath(pathValue || '');
+
+    if (!normalizedPath) return '';
+
+    const normalized = normalizedPath.replace(/\\/g, '/');
+    const userHomeMatch = normalized.match(/^\/Users\/[^/]+(\/.*)?$/);
+
+    if (userHomeMatch) {
+      return `~${userHomeMatch[1] || ''}`;
+    }
+
+    const windowsHomeMatch = normalized.match(/^[a-zA-Z]:\/Users\/[^/]+(\/.*)?$/);
+
+    if (windowsHomeMatch) {
+      return `~${windowsHomeMatch[1] || ''}`;
+    }
+
+    return normalized;
+  };
+
+  const getSimpleGitStatusText = (status?: string, isFolder: boolean = false) => {
+    const normalizedStatus = String(status || '').trim();
+
+    if (!normalizedStatus) return '';
+
+    if (isFolder) {
+      return '包含强调项';
+    }
+
+    const statusKey = normalizedStatus[0];
+
+    if (statusKey === 'U' || statusKey === '?') return '未跟踪的';
+    if (statusKey === 'M') return '已修改';
+    if (statusKey === 'A') return '已添加';
+    if (statusKey === 'D') return '已删除';
+    if (statusKey === 'R') return '已重命名';
+    if (statusKey === 'C') return '已复制';
+
+    return getGitStatusTitle('', normalizedStatus).replace(/^\s*[·•-]?\s*/, '') || normalizedStatus;
+  };
+
+  const getProblemTooltipText = (item: any, isFolder: boolean = false) => {
+    const diagnostics = getDiagnosticSummary(item);
+    const total = diagnostics.errors + diagnostics.warnings;
+
+    if (!total) return '';
+
+    if (isFolder) {
+      if (diagnostics.errors > 0) return '包含错误';
+      return '包含警告';
+    }
+
+    return `此文件存在 ${total} 个问题`;
+  };
+
+  const getTreeTooltipContent = (pathValue: string, item: any, isFolder: boolean = false) => {
+    const displayPath = formatTooltipPath(pathValue || item?.path || item?.fsPath || '');
+    const meta = [
+      getProblemTooltipText(item, isFolder),
+      getSimpleGitStatusText(item?.status, isFolder),
+    ].filter(Boolean);
+
+    if (!displayPath && meta.length === 0) return null;
+
+    if (meta.length === 0) return displayPath;
+
+    return `${displayPath} · ${meta.join(' · ')}`;
+  };
+
+  const getRootProjectTooltipContent = (pathValue: string, item: any) => {
+    const displayPath = formatTooltipPath(pathValue || item?.fsPath || '');
+    const meta = [getProblemTooltipText(item, true)].filter(Boolean);
+
+    if (!displayPath && meta.length === 0) return null;
+
+    if (meta.length === 0) return displayPath;
+
+    return `${displayPath} · ${meta.join(' · ')}`;
+  };
+
 
   const renderDiagnosticsBadge = (item: any) => {
     const diagnostics = getDiagnosticSummary(item);
@@ -1476,13 +1559,24 @@ export default function RecentProjectsApp() {
                     className={`${styles['icon-closed']} ${styles['sub-icon']} ${styles['folder-icon']}`}
                   />
 
-                  <span
-                    className={`${styles['sub-name']} ${statusClassName}`}
-                    style={getFolderDiagnosticsStyle(child)}
-                    title={[getGitStatusTitle(child.name, child.status), getDiagnosticsTitle(child)].filter(Boolean).join('；')}
+                  <Tooltip
+                    content={getTreeTooltipContent(childPath, child, true)}
+                    placement="bottom"
+                    align="start"
+                    showArrow={false}
+                    delay={2000}
                   >
-                    {child.name}
-                  </span>
+                    <span
+                      className={styles['sub-name']}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        pointerEvents: 'auto',
+                      }}
+                    >
+                      {child.name}
+                    </span>
+                  </Tooltip>
 
                   <FolderGitStatusDot status={child.status} />
                 </div>
@@ -1517,7 +1611,6 @@ export default function RecentProjectsApp() {
                     isActiveProject,
                   })
                 }
-                title={isActiveProject ? '点击打开文件' : '点击预览'}
               >
                 <div className={styles['chevron-placeholder']}></div>
 
@@ -1527,12 +1620,23 @@ export default function RecentProjectsApp() {
                   className={styles['sub-icon']}
                 />
 
-                <span
-                  className={`${styles['sub-name']} ${statusClassName}`}
-                  title={getGitStatusTitle(child.name, child.status)}
+                <Tooltip
+                  content={getTreeTooltipContent(childPath, child, false)}
+                  placement="bottom"
+                  align="start"
+                  showArrow={false}
+                  delay={2000}
                 >
-                  {child.name}
-                </span>
+                  <span className={styles['sub-name']}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      pointerEvents: 'auto',
+                    }}
+                  >
+                    {child.name}
+                  </span>
+                </Tooltip>
 
                 <FileGitStatusBadge status={child.status} />
                 {renderDiagnosticsBadge(child)}
@@ -1673,11 +1777,6 @@ export default function RecentProjectsApp() {
                           id={elementId}
                           className={`${styles['active-top-project']} ${selectedPath === rootPath ? styles['selected'] : ''
                             } ${inHistory ? styles['in-history'] : styles['not-in-history']}`}
-                          title={
-                            inHistory
-                              ? '当前窗口正在运行的项目'
-                              : '当前正在运行的项目（未在历史记录中）'
-                          }
                           onContextMenu={(e) =>
                             handleContextMenu(e, 'top', {
                               path: rootPath,
@@ -1723,13 +1822,24 @@ export default function RecentProjectsApp() {
                                     }`}
                                 />
 
-                                <span
-                                  className={styles['project-name']}
-                                  style={getFolderDiagnosticsStyle(p)}
-                                  title={[title, getDiagnosticsTitle(p)].filter(Boolean).join('；')}
+                                <Tooltip
+                                  content={getRootProjectTooltipContent(rootPath, p)}
+                                  placement="right"
+                                  align="start"
+                                  showArrow={false}
+                                  delay={2000}
                                 >
-                                  {title}
-                                </span>
+                                  <span
+                                    className={styles['project-name']}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      pointerEvents: 'auto',
+                                    }}
+                                  >
+                                    {title}
+                                  </span>
+                                </Tooltip>
 
                                 {branch && (
                                   <span className={styles['branch-tag']} title={branch}>
@@ -1785,7 +1895,6 @@ export default function RecentProjectsApp() {
                           className={`${styles['project-item']} ${isJustOpened ? styles['just-opened'] : ''
                             } ${selectedPath === rootPath ? styles['selected'] : ''}`}
                           onDoubleClick={() => handleOpenProject(p.fsPath)}
-                          title={isJustOpened ? '刚刚在此窗口中唤起过' : ''}
                           onContextMenu={(e) =>
                             handleContextMenu(e, 'top', {
                               path: rootPath,
@@ -1829,13 +1938,24 @@ export default function RecentProjectsApp() {
                                   className={`${styles['project-icon']} ${styles['icon-closed']}`}
                                 />
 
-                                <span
-                                  className={styles['project-name']}
-                                  style={getFolderDiagnosticsStyle(p)}
-                                  title={[title, getDiagnosticsTitle(p)].filter(Boolean).join('；')}
+                                <Tooltip
+                                  content={getRootProjectTooltipContent(rootPath, p)}
+                                  placement="right"
+                                  align="start"
+                                  showArrow={false}
+                                  delay={2000}
                                 >
-                                  {title}
-                                </span>
+                                  <span
+                                    className={styles['project-name']}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      pointerEvents: 'auto',
+                                    }}
+                                  >
+                                    {title}
+                                  </span>
+                                </Tooltip>
 
                                 {branch && (
                                   <span className={styles['branch-tag']} title={branch}>
