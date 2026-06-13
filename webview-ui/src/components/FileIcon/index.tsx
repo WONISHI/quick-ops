@@ -87,6 +87,7 @@ import prismaIcon from 'material-icon-theme/icons/prisma.svg';
 import dsStoreIcon from '../../assets/icon/ds_store.svg';
 import obsidianIcon from '../../assets/icon/obsidian.svg';
 import sheetIcon from '../../assets/icon/sheet.svg';
+import nginxIcon from 'material-icon-theme/icons/nginx.svg';
 
 export type FileGitStatus = 'u' | 'a' | 'm' | 'd' | 'r' | 'c' | string;
 
@@ -107,6 +108,7 @@ const EXACT_NAMES: Record<string, string> = {
   'licence.md': licenseIcon,
   'license.txt': licenseIcon,
   'licence.txt': licenseIcon,
+  'nginx,conf': nginxIcon,
   'docker-compose.yml': dockerIcon,
   '.dockerignore': dockerIcon,
   '.gitignore': gitIcon,
@@ -132,7 +134,7 @@ const EXACT_NAMES: Record<string, string> = {
   '.telemetryrc': jsonIcon,
   'plopfile.js': plopIcon,
   'readme.md': readmeIcon,
-  'readme': readmeIcon,
+  readme: readmeIcon,
   'pnpm-lock.yaml': pnpmIcon,
   '.markdownlint.json': markdownlint,
   'postcss.config.js': postcssIcon,
@@ -189,6 +191,7 @@ const EXTENSIONS: Record<string, string> = {
   map: mapIcon,
   lottie: lottieIcon,
   ts: typescriptIcon,
+  mts: typescriptIcon,
   tsx: reactTsIcon,
   js: javascriptIcon,
   jsx: reactIcon,
