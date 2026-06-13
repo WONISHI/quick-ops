@@ -19,6 +19,7 @@ import ProjectInitLoading from '../../components/ProjectInitLoading';
 import RecentProjectContextMenu from '../../components/RecentProjectContextMenu';
 import SearchViewWrapper from '../../components/SearchViewWrapper';
 import Tooltip from '../../components/Tooltip';
+import Scrollbar from '../../components/Scrollbar';
 import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '../../utils';
 import {
   FileGitStatusBadge,
@@ -2182,7 +2183,7 @@ export default function RecentProjectsApp() {
             </div>
           )}
 
-          <div className={styles['list-container']}>
+          <Scrollbar className={styles['list-container']} viewClassName={styles['list-view']}>
             {projects.length === 0 && !activeProjectToRender ? (
               <div className={styles['empty-state']}>
                 <div className={styles['empty-text']}>暂无项目记录，请添加：</div>
@@ -2470,7 +2471,7 @@ export default function RecentProjectsApp() {
                 )}
               </>
             )}
-          </div>
+          </Scrollbar>
 
           {(projects.length > 0 || activeProjectToRender) && (
             <div className={styles['bottom-bar']}>

@@ -255,8 +255,15 @@
 
 .search-results-container {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.search-results-view {
+  min-height: 100%;
   padding: 10px;
+  box-sizing: border-box;
 }
 
 .search-status-msg {
@@ -295,13 +302,11 @@
   margin-bottom: 2px;
   word-break: break-all;
   overflow: hidden;
-  display: inline-flex;
+  display: inline-block;
   white-space: nowrap;
   text-overflow: ellipsis;
   align-items: center;
   width: 100%;
-  display: inline-block;
-  text-overflow: ellipsis;
 }
 
 .search-file-icon {

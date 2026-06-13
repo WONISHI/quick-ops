@@ -65,7 +65,12 @@ body {
 
 .list-container {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.list-view {
+  min-height: 100%;
 }
 
 ul {

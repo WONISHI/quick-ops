@@ -4,6 +4,7 @@ import {
     faChevronDown,
     faChevronRight,
     faFolder,
+    faFolderOpen,
     faSpinner,
 } from '@fortawesome/free-solid-svg-icons';
 
@@ -11,6 +12,7 @@ import { vscode } from '../../utils/vscode';
 import FileIcon from '../FileIcon';
 import HighlightText from '../HighlightText';
 import Tooltip from '../Tooltip';
+import Scrollbar from '../Scrollbar';
 import type {
     ContextMenuPayload,
     DirChild,
@@ -313,7 +315,10 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                 </div>
             </div>
 
-            <div className={styles['search-results-container']}>
+            <Scrollbar
+                className={styles['search-results-container']}
+                viewClassName={styles['search-results-view']}
+            >
                 {focusMode && !folderSearchQuery.trim() ? (
                     focusTree || (
                         <div className={styles['search-empty-msg']}>
@@ -429,7 +434,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                                             </div>
 
                                             <FontAwesomeIcon
-                                                icon={faFolder}
+                                                icon={isExpanded ? faFolderOpen : faFolder}
                                                 className={`${styles['icon-closed']} ${styles['sub-icon']}`}
                                             />
 
@@ -498,7 +503,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                         })}
                     </ul>
                 )}
-            </div>
+            </Scrollbar>
         </div>
     );
 }
