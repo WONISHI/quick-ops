@@ -39,6 +39,25 @@
   min-height: 100%;
 }
 
+.is-horizontal-only .scrollbar-wrap {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.is-horizontal-only .scrollbar-view {
+  min-height: 0;
+  height: 100%;
+}
+
+.is-vertical-only .scrollbar-wrap {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.is-vertical-only .scrollbar-view {
+  min-width: 100%;
+}
+
 .scrollbar-bar {
   position: absolute;
   z-index: 20;

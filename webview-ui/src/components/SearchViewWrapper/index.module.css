@@ -249,6 +249,114 @@
   justify-content: flex-end;
 }
 
+.search-extension-tags-view {
+  width: max-content;
+  min-width: max-content;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: flex-start;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 0 0 9px;
+  box-sizing: border-box;
+}
+
+/* ================================
+   搜索文件格式标签
+   ================================ */
+
+.search-extension-tags {
+  height: 34px;
+  min-height: 34px;
+  margin-top: 7px;
+  overflow: hidden;
+}
+
+.search-extension-tags::-webkit-scrollbar {
+  height: 6px;
+}
+
+.search-extension-tags::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.search-extension-tags::-webkit-scrollbar-thumb {
+  background-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4));
+}
+
+.search-extension-tags::-webkit-scrollbar-thumb:hover {
+  background-color: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
+}
+
+.search-extension-tags::-webkit-scrollbar-thumb:active {
+  background-color: var(--vscode-scrollbarSlider-activeBackground, rgba(191, 191, 191, 0.4));
+}
+
+.search-extension-tag {
+  --search-extension-tag-color: var(--vscode-textLink-foreground);
+  height: 22px;
+  max-width: 148px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in srgb, var(--search-extension-tag-color) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--search-extension-tag-color) 12%, transparent);
+  color: color-mix(in srgb, var(--vscode-foreground) 88%, var(--search-extension-tag-color));
+  font-family: var(--vscode-font-family);
+  font-size: 11px;
+  line-height: 20px;
+  cursor: pointer;
+  box-sizing: border-box;
+  user-select: none;
+  flex: 0 0 auto;
+  opacity: 0.62;
+}
+
+.search-extension-tag:hover {
+  opacity: 0.86;
+  border-color: color-mix(in srgb, var(--search-extension-tag-color) 58%, transparent);
+  background: color-mix(in srgb, var(--search-extension-tag-color) 18%, transparent);
+  color: var(--vscode-foreground);
+}
+
+.search-extension-tag.active {
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--search-extension-tag-color) 72%, transparent);
+  background: color-mix(in srgb, var(--search-extension-tag-color) 24%, transparent);
+  color: var(--vscode-foreground);
+}
+
+.search-extension-tag-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.search-extension-tag-count {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--search-extension-tag-color) 28%, transparent);
+  color: var(--vscode-foreground);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  box-sizing: border-box;
+}
+
+.search-extension-tag.active .search-extension-tag-count {
+  background: color-mix(in srgb, var(--search-extension-tag-color) 45%, transparent);
+}
+
 /* ================================
    搜索结果容器
    ================================ */

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faChevronDown,
@@ -92,6 +92,109 @@ interface SearchViewWrapperProps {
     ) => React.ReactNode;
 }
 
+interface ExtensionTagOption {
+    ext: string;
+    count: number;
+}
+
+const EXTENSION_TAG_PRIORITY = [
+    'js',
+    'ts',
+    'json',
+    'jsx',
+    'tsx',
+    'vue',
+    'css',
+    'scss',
+    'less',
+    'html',
+    'htm',
+    'md',
+    'mdx',
+    'yml',
+    'yaml',
+    'xml',
+    'svg',
+    'png',
+    'jpg',
+    'jpeg',
+    'webp',
+    'gif',
+    'txt',
+];
+
+const EXTENSION_TAG_COLOR_MAP: Record<string, string> = {
+    js: '#f1e05a',
+    jsx: '#f1e05a',
+    ts: '#3178c6',
+    tsx: '#3178c6',
+    json: '#cbcb41',
+    vue: '#41b883',
+    css: '#563d7c',
+    scss: '#c6538c',
+    less: '#1d365d',
+    html: '#e34c26',
+    htm: '#e34c26',
+    md: '#5dade2',
+    mdx: '#5dade2',
+    yml: '#cb171e',
+    yaml: '#cb171e',
+    xml: '#e37933',
+    svg: '#ffb13b',
+    png: '#a074c4',
+    jpg: '#a074c4',
+    jpeg: '#a074c4',
+    webp: '#a074c4',
+    gif: '#a074c4',
+    txt: '#8b949e',
+};
+
+const EXTENSION_TAG_FALLBACK_COLORS = [
+    '#007acc',
+    '#4ec9b0',
+    '#c586c0',
+    '#dcdcaa',
+    '#ce9178',
+    '#9cdcfe',
+    '#b5cea8',
+    '#d7ba7d',
+];
+
+function getFileExtensionTag(fileName: string) {
+    const purePath = String(fileName || '').split('?')[0].replace(/\\/g, '/');
+    const baseName = purePath.split('/').pop() || purePath || '未知文件';
+    const dotIndex = baseName.lastIndexOf('.');
+
+    if (dotIndex <= 0 || dotIndex === baseName.length - 1) {
+        return baseName;
+    }
+
+    return baseName.slice(dotIndex + 1).toLowerCase();
+}
+
+function getExtensionTagPriority(ext: string) {
+    const index = EXTENSION_TAG_PRIORITY.indexOf(ext.toLowerCase());
+
+    return index === -1 ? EXTENSION_TAG_PRIORITY.length + 1 : index;
+}
+
+function getExtensionTagColor(ext: string) {
+    const lowerExt = ext.toLowerCase();
+    const mappedColor = EXTENSION_TAG_COLOR_MAP[lowerExt];
+
+    if (mappedColor) {
+        return mappedColor;
+    }
+
+    let hash = 0;
+
+    for (let i = 0; i < lowerExt.length; i++) {
+        hash = (hash * 31 + lowerExt.charCodeAt(i)) >>> 0;
+    }
+
+    return EXTENSION_TAG_FALLBACK_COLORS[hash % EXTENSION_TAG_FALLBACK_COLORS.length];
+}
+
 export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     const {
         searchTargetProject,
@@ -135,11 +238,14 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
         renderTreeChildren,
     } = props;
 
+    const [activeExtensionTags, setActiveExtensionTags] = useState<Set<string>>(new Set());
+
     const resetSearchData = () => {
         setFolderSearchQuery('');
         setFolderSearchResults([]);
         setFileNameSearchResults([]);
         setFolderSearchError('');
+        setActiveExtensionTags(new Set());
     };
 
     const handleBack = () => {
@@ -190,6 +296,154 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
         return styles[`file-status-${safeStatus}`] || styles['file-status-xxx'] || '';
     };
 
+    const extensionTagOptions = useMemo<ExtensionTagOption[]>(() => {
+        if (folderSearchType !== 'content' || folderSearchResults.length === 0) {
+            return [];
+        }
+
+        const countMap = new Map<string, number>();
+
+        folderSearchResults.forEach((item) => {
+            const ext = getFileExtensionTag(item.file || item.fullPath || '');
+            countMap.set(ext, (countMap.get(ext) || 0) + 1);
+        });
+
+        return Array.from(countMap.entries())
+            .map(([ext, count]) => ({ ext, count }))
+            .sort((a, b) => {
+                const aPriority = getExtensionTagPriority(a.ext);
+                const bPriority = getExtensionTagPriority(b.ext);
+
+                if (aPriority !== bPriority) return aPriority - bPriority;
+                if (b.count !== a.count) return b.count - a.count;
+
+                return a.ext.localeCompare(b.ext);
+            });
+    }, [folderSearchResults, folderSearchType]);
+
+    const extensionTagKey = useMemo(() => {
+        return extensionTagOptions.map((item) => `${item.ext}:${item.count}`).join('|');
+    }, [extensionTagOptions]);
+
+    useEffect(() => {
+        if (folderSearchType !== 'content' || isSearchingFolder || folderSearchError) {
+            setActiveExtensionTags(new Set());
+            return;
+        }
+
+        setActiveExtensionTags(new Set(extensionTagOptions.map((item) => item.ext)));
+    }, [extensionTagKey, folderSearchType, folderSearchError, isSearchingFolder]);
+
+    const filteredContentResults = useMemo(() => {
+        if (folderSearchType !== 'content') {
+            return [] as Array<{ result: SearchResult; originalIndex: number }>;
+        }
+
+        if (extensionTagOptions.length === 0) {
+            return folderSearchResults.map((result, originalIndex) => ({
+                result,
+                originalIndex,
+            }));
+        }
+
+        return folderSearchResults
+            .map((result, originalIndex) => ({ result, originalIndex }))
+            .filter(({ result }) => activeExtensionTags.has(getFileExtensionTag(result.file || result.fullPath || '')));
+    }, [activeExtensionTags, extensionTagOptions.length, folderSearchResults, folderSearchType]);
+
+    const visibleContentFileIndexSet = useMemo(() => {
+        return new Set(filteredContentResults.map((item) => item.originalIndex));
+    }, [filteredContentResults]);
+
+    const filteredFlatMatchesList = useMemo(() => {
+        if (folderSearchType !== 'content' || extensionTagOptions.length === 0) {
+            return flatMatchesList.map((item, actualIndex) => ({
+                ...item,
+                actualIndex,
+            }));
+        }
+
+        return flatMatchesList
+            .map((item, actualIndex) => ({
+                ...item,
+                actualIndex,
+            }))
+            .filter((item) => visibleContentFileIndexSet.has(item.fileIndex));
+    }, [extensionTagOptions.length, flatMatchesList, folderSearchType, visibleContentFileIndexSet]);
+
+    const filteredCurrentActiveIndex = useMemo(() => {
+        return filteredFlatMatchesList.findIndex((item) => item.actualIndex === currentActiveMatch);
+    }, [currentActiveMatch, filteredFlatMatchesList]);
+
+    const effectiveTotalMatches = folderSearchType === 'content' && extensionTagOptions.length > 0
+        ? filteredFlatMatchesList.length
+        : totalMatches;
+
+    const effectiveCurrentActiveMatch = folderSearchType === 'content' && extensionTagOptions.length > 0
+        ? Math.max(0, filteredCurrentActiveIndex)
+        : currentActiveMatch;
+
+    const handlePrevEffectiveSearchMatch = () => {
+        if (folderSearchType !== 'content' || extensionTagOptions.length === 0) {
+            handlePrevSearchMatch();
+            return;
+        }
+
+        if (filteredFlatMatchesList.length === 0) return;
+
+        const currentIndex = filteredCurrentActiveIndex >= 0 ? filteredCurrentActiveIndex : 0;
+        const prevIndex = (currentIndex - 1 + filteredFlatMatchesList.length) % filteredFlatMatchesList.length;
+        setCurrentActiveMatch(filteredFlatMatchesList[prevIndex].actualIndex);
+    };
+
+    const handleNextEffectiveSearchMatch = () => {
+        if (folderSearchType !== 'content' || extensionTagOptions.length === 0) {
+            handleNextSearchMatch();
+            return;
+        }
+
+        if (filteredFlatMatchesList.length === 0) return;
+
+        const currentIndex = filteredCurrentActiveIndex >= 0 ? filteredCurrentActiveIndex : -1;
+        const nextIndex = (currentIndex + 1) % filteredFlatMatchesList.length;
+        setCurrentActiveMatch(filteredFlatMatchesList[nextIndex].actualIndex);
+    };
+
+    useEffect(() => {
+        if (folderSearchType !== 'content' || extensionTagOptions.length === 0) return;
+        if (filteredFlatMatchesList.length === 0) return;
+        if (filteredCurrentActiveIndex >= 0) return;
+
+        setCurrentActiveMatch(filteredFlatMatchesList[0].actualIndex);
+    }, [
+        extensionTagOptions.length,
+        filteredCurrentActiveIndex,
+        filteredFlatMatchesList,
+        folderSearchType,
+        setCurrentActiveMatch,
+    ]);
+
+    const handleToggleExtensionTag = (ext: string) => {
+        setActiveExtensionTags((prev) => {
+            const next = new Set(prev);
+
+            if (next.has(ext)) {
+                next.delete(ext);
+            } else {
+                next.add(ext);
+            }
+
+            return next;
+        });
+    };
+
+    const shouldShowExtensionTags =
+        folderSearchType === 'content' &&
+        !isSearchingFolder &&
+        !folderSearchError &&
+        folderSearchQuery.trim() &&
+        extensionTagOptions.length > 0;
+
     return (
         <div className={styles['search-view-wrapper']}>
             <div className={styles['search-header']}>
@@ -238,8 +492,8 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                         <div className={styles['search-nav-btns']}>
                             <button
                                 className={`${styles['action-btn-icon']} ${styles['search-nav-btn']}`}
-                                onClick={handlePrevSearchMatch}
-                                disabled={totalMatches === 0}
+                                onClick={handlePrevEffectiveSearchMatch}
+                                disabled={effectiveTotalMatches === 0}
                                 title="上一个匹配项"
                             >
                                 <span className={`codicon codicon-arrow-up ${styles['search-nav-icon']}`}></span>
@@ -247,8 +501,8 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
                             <button
                                 className={`${styles['action-btn-icon']} ${styles['search-nav-btn']}`}
-                                onClick={handleNextSearchMatch}
-                                disabled={totalMatches === 0}
+                                onClick={handleNextEffectiveSearchMatch}
+                                disabled={effectiveTotalMatches === 0}
                                 title="下一个匹配项"
                             >
                                 <span className={`codicon codicon-arrow-down ${styles['search-nav-icon']}`}></span>
@@ -309,10 +563,39 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
                     {folderSearchType === 'content' && (
                         <span className={styles['search-match-count']}>
-                            {totalMatches > 0 ? currentActiveMatch + 1 : 0} / {totalMatches}
+                            {effectiveTotalMatches > 0 ? effectiveCurrentActiveMatch + 1 : 0} / {effectiveTotalMatches}
                         </span>
                     )}
                 </div>
+
+                {shouldShowExtensionTags && (
+                    <Scrollbar
+                        className={styles['search-extension-tags']}
+                        viewClassName={styles['search-extension-tags-view']}
+                        direction="horizontal"
+                        barSize={6}
+                    >
+                        {extensionTagOptions.map((item) => {
+                            const checked = activeExtensionTags.has(item.ext);
+
+                            return (
+                                <button
+                                    key={item.ext}
+                                    type="button"
+                                    className={`${styles['search-extension-tag']} ${checked ? styles['active'] : ''}`}
+                                    style={{
+                                        '--search-extension-tag-color': getExtensionTagColor(item.ext),
+                                    } as React.CSSProperties}
+                                    onClick={() => handleToggleExtensionTag(item.ext)}
+                                    title={checked ? `点击隐藏 ${item.ext} 文件结果` : `点击显示 ${item.ext} 文件结果`}
+                                >
+                                    <span className={styles['search-extension-tag-name']}>{item.ext}</span>
+                                    <span className={styles['search-extension-tag-count']}>{item.count}</span>
+                                </button>
+                            );
+                        })}
+                    </Scrollbar>
+                )}
             </div>
 
             <Scrollbar
@@ -334,10 +617,12 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                 ) : folderSearchType === 'content' ? (
                     folderSearchResults.length === 0 && folderSearchQuery ? (
                         <div className={styles['search-empty-msg']}>没有找到符合条件的代码内容</div>
+                    ) : filteredContentResults.length === 0 && folderSearchResults.length > 0 ? (
+                        <div className={styles['search-empty-msg']}>没有找到符合当前文件格式筛选的结果</div>
                     ) : (
                         <ul>
-                            {folderSearchResults.map((res, i) => (
-                                <li key={i} className={styles['search-file-list-item']}>
+                            {filteredContentResults.map(({ result: res, originalIndex }) => (
+                                <li key={`${originalIndex}-${res.fullPath || res.file}`} className={styles['search-file-list-item']}>
                                     <Tooltip content={res.file} placement="bottom" textAlign="left">
                                         <div className={styles['search-file-title']} title={res.file}>
                                             <FileIcon fileName={res.file} status={res.status} className={styles['search-file-icon']} />
@@ -347,17 +632,17 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
                                     <ul className={styles['search-matches-list']}>
                                         {res.matches.map((m: SearchMatch, j: number) => {
-                                            const globalStartIndex = lineStartIndexMap.get(`${i}-${j}`) || 0;
+                                            const globalStartIndex = lineStartIndexMap.get(`${originalIndex}-${j}`) || 0;
                                             const matchInfo = flatMatchesList[currentActiveMatch];
                                             const isLineActive =
                                                 matchInfo &&
-                                                matchInfo.fileIndex === i &&
+                                                matchInfo.fileIndex === originalIndex &&
                                                 matchInfo.matchIndex === j;
 
                                             return (
                                                 <li
                                                     key={j}
-                                                    id={`search-line-${i}-${j}`}
+                                                    id={`search-line-${originalIndex}-${j}`}
                                                     onClick={() => {
                                                         setCurrentActiveMatch(globalStartIndex);
 

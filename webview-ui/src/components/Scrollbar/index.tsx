@@ -17,12 +17,22 @@ export interface ScrollbarInstance {
   setScrollLeft: (value: number) => void;
 }
 
+export type ScrollbarDirection = 'vertical' | 'horizontal' | 'both';
+
 export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
   height?: number | string;
   maxHeight?: number | string;
   native?: boolean;
   always?: boolean;
   noresize?: boolean;
+
+  /**
+   * 滚动方向。
+   * vertical：只显示纵向滚动条。
+   * horizontal：只显示横向滚动条，并支持鼠标滚轮横向滚动。
+   * both：横向和纵向都自动检测。
+   */
+  direction?: ScrollbarDirection;
 
   /**
    * 是否让滚动条上下/左右留出间距。
@@ -44,6 +54,11 @@ export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement
    * inset 模式下滚动条两端间距，默认 2px。
    */
   insetGap?: number;
+
+  /**
+   * direction="horizontal" 时，是否把普通鼠标滚轮转换为横向滚动。
+   */
+  wheelX?: boolean;
 
   wrapClassName?: string;
   viewClassName?: string;
@@ -80,14 +95,18 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     native = false,
     always = false,
     noresize = false,
+    direction = 'both',
     inset = false,
     barSize = 8,
     insetSize = 6,
     insetGap = 2,
+    wheelX = true,
     wrapClassName,
     viewClassName,
     viewStyle,
     onScroll,
+    onMouseEnter,
+    onMouseLeave,
     ...rest
   } = props;
 
@@ -118,6 +137,9 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
   const barGapSize = inset ? insetGap : 0;
   const barOffsetSize = barGapSize * 2;
 
+  const canScrollVertical = direction === 'vertical' || direction === 'both';
+  const canScrollHorizontal = direction === 'horizontal' || direction === 'both';
+
   const rootStyle = useMemo<React.CSSProperties>(() => {
     return {
       ...style,
@@ -143,8 +165,8 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
       scrollLeft,
     } = wrap;
 
-    const hasVertical = scrollHeight > clientHeight + 1;
-    const hasHorizontal = scrollWidth > clientWidth + 1;
+    const hasVertical = canScrollVertical && scrollHeight > clientHeight + 1;
+    const hasHorizontal = canScrollHorizontal && scrollWidth > clientWidth + 1;
 
     const verticalTrackSize = Math.max(0, clientHeight - barOffsetSize);
     const horizontalTrackSize = Math.max(0, clientWidth - barOffsetSize);
@@ -176,7 +198,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
       verticalVisible: hasVertical,
       horizontalVisible: hasHorizontal,
     });
-  }, [barOffsetSize]);
+  }, [barOffsetSize, canScrollHorizontal, canScrollVertical]);
 
   const scheduleUpdate = useCallback(() => {
     if (frameRef.current !== null) return;
@@ -218,6 +240,29 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     });
   }, [onScroll, scheduleUpdate, showScrollbarTemporarily]);
 
+  const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
+    const wrap = wrapRef.current;
+
+    if (!wrap || native || direction !== 'horizontal' || !wheelX) return;
+
+    const maxScrollLeft = wrap.scrollWidth - wrap.clientWidth;
+
+    if (maxScrollLeft <= 0) return;
+
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+
+    if (!delta) return;
+
+    const prevScrollLeft = wrap.scrollLeft;
+    const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, prevScrollLeft + delta));
+
+    if (nextScrollLeft === prevScrollLeft) return;
+
+    event.preventDefault();
+    wrap.scrollLeft = nextScrollLeft;
+    handleScroll();
+  }, [direction, handleScroll, native, wheelX]);
+
   const scrollTo = useCallback((options: ScrollToOptions | number, y?: number) => {
     const wrap = wrapRef.current;
 
@@ -244,7 +289,9 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
   }, []);
 
   useImperativeHandle(ref, () => ({
-    wrapRef: wrapRef.current,
+    get wrapRef() {
+      return wrapRef.current;
+    },
     update,
     scrollTo,
     setScrollTop,
@@ -253,13 +300,13 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
 
   const handleMouseEnter = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     setHovering(true);
-    rest.onMouseEnter?.(event);
-  }, [rest]);
+    onMouseEnter?.(event);
+  }, [onMouseEnter]);
 
   const handleMouseLeave = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     setHovering(false);
-    rest.onMouseLeave?.(event);
-  }, [rest]);
+    onMouseLeave?.(event);
+  }, [onMouseLeave]);
 
   const startDrag = useCallback((event: React.MouseEvent, axis: 'vertical' | 'horizontal') => {
     const wrap = wrapRef.current;
@@ -313,7 +360,9 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
 
       wrap.scrollLeft = (offset / maxThumbOffset) * (wrap.scrollWidth - wrap.clientWidth);
     }
-  }, [barOffsetSize, thumbState.horizontalSize, thumbState.verticalSize]);
+
+    handleScroll();
+  }, [barOffsetSize, handleScroll, thumbState.horizontalSize, thumbState.verticalSize]);
 
   useEffect(() => {
     if (!dragging) return undefined;
@@ -396,6 +445,9 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
         native ? styles['is-native'] : '',
         always ? styles['is-always'] : '',
         inset ? styles['is-inset'] : '',
+        direction === 'vertical' ? styles['is-vertical-only'] : '',
+        direction === 'horizontal' ? styles['is-horizontal-only'] : '',
+        direction === 'both' ? styles['is-both'] : '',
         className || '',
       ].filter(Boolean).join(' ')}
       style={rootStyle}
@@ -410,6 +462,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
           wrapClassName || '',
         ].filter(Boolean).join(' ')}
         onScroll={handleScroll}
+        onWheel={handleWheel}
       >
         <div
           ref={viewRef}
