@@ -18,9 +18,6 @@
   <a href="./LICENSE.md">
     <img src="https://img.shields.io/github/license/WONISHI/quick-ops?color=f59e0b" alt="License" />
   </a>
-  <a href="https://github.com/WONISHI/quick-ops">
-    <img src="https://img.shields.io/github/stars/WONISHI/quick-ops?style=social" alt="GitHub stars" />
-  </a>
 </p>
 
 ---
