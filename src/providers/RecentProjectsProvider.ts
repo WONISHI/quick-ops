@@ -599,7 +599,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           this.compareWithSelected(data.fsPath, data.projectName);
           break;
         case 'searchInFolder':
-          this.handleSearchInFolder(data.fsPath, data.query, data.isRemote, !!data.focusOnly);
+          this.handleSearchInFolder(data.fsPath, data.query, data.isRemote, !!data.focusOnly, data.requestId);
           break;
 
         case 'previewWithVditor':
@@ -662,7 +662,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
 
         case 'searchFileName':
-          this.handleSearchFileName(data.fsPath, data.query, data.isRemote, !!data.focusOnly);
+          this.handleSearchFileName(data.fsPath, data.query, data.isRemote, !!data.focusOnly, data.requestId);
           break;
 
         case 'openFileAtLine': {
@@ -1532,9 +1532,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private async handleSearchFileName(fsPath: string, query: string, isRemote: boolean, focusOnly: boolean = false) {
+  private async handleSearchFileName(fsPath: string, query: string, isRemote: boolean, focusOnly: boolean = false, requestId?: number) {
     if (isRemote) {
-      this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [], error: '远程仓库暂不支持名称检索。' });
+      this._view?.webview.postMessage({ type: 'searchFileNameResult', requestId, results: [], error: '远程仓库暂不支持名称检索。' });
       return;
     }
 
@@ -1543,14 +1543,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const searchValue = query.trim();
 
     if (!searchValue) {
-      this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [] });
+      this._view?.webview.postMessage({ type: 'searchFileNameResult', requestId, results: [] });
       return;
     }
 
     try {
       await vscode.workspace.fs.stat(uri);
     } catch {
-      this._view?.webview.postMessage({ type: 'searchFileNameResult', results: [] });
+      this._view?.webview.postMessage({ type: 'searchFileNameResult', requestId, results: [] });
       return;
     }
 
@@ -1794,12 +1794,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       .map((item) => item.item);
 
     const enrichedResults = await this.enrichChildren(results, fsPath);
-    this._view?.webview.postMessage({ type: 'searchFileNameResult', results: enrichedResults });
+    this._view?.webview.postMessage({ type: 'searchFileNameResult', requestId, results: enrichedResults });
   }
 
-  private async handleSearchInFolder(fsPath: string, query: string, isRemote: boolean, focusOnly: boolean = false) {
+  private async handleSearchInFolder(fsPath: string, query: string, isRemote: boolean, focusOnly: boolean = false, requestId?: number) {
     if (isRemote) {
-      this._view?.webview.postMessage({ type: 'searchFolderResult', results: [], error: '由于网络限制，远程仓库暂不支持全文代码检索，请在本地打开该项目后再尝试。' });
+      this._view?.webview.postMessage({ type: 'searchFolderResult', requestId, results: [], error: '由于网络限制，远程仓库暂不支持全文代码检索，请在本地打开该项目后再尝试。' });
       return;
     }
 
@@ -1807,14 +1807,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const nativePath = uri.fsPath;
 
     if (!query.trim()) {
-      this._view?.webview.postMessage({ type: 'searchFolderResult', results: [] });
+      this._view?.webview.postMessage({ type: 'searchFolderResult', requestId, results: [] });
       return;
     }
 
     try {
       await vscode.workspace.fs.stat(uri);
     } catch {
-      this._view?.webview.postMessage({ type: 'searchFolderResult', results: [] });
+      this._view?.webview.postMessage({ type: 'searchFolderResult', requestId, results: [] });
       return;
     }
 
@@ -1933,7 +1933,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       };
     }));
 
-    this._view?.webview.postMessage({ type: 'searchFolderResult', results: enrichedResults });
+    this._view?.webview.postMessage({ type: 'searchFolderResult', requestId, results: enrichedResults });
   }
 
   private parseLocalFileUri(fsPath: string): vscode.Uri | undefined {

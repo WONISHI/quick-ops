@@ -132,13 +132,21 @@ export default function RecentProjectsApp() {
   const [isSearchMode, setIsSearchMode] = useState(false);
   const isSearchModeRef = useRef(false);
   const [searchTargetProject, setSearchTargetProject] = useState<ContextMenuPayload | null>(null);
+  const searchTargetProjectRef = useRef<ContextMenuPayload | null>(null);
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
+  const folderSearchQueryRef = useRef('');
   const [folderSearchType, setFolderSearchType] = useState<'content' | 'name'>('content');
   const [fileNameSearchResults, setFileNameSearchResults] = useState<DirChild[]>([]);
   const [folderSearchResults, setFolderSearchResults] = useState<SearchResult[]>([]);
   const [isSearchingFolder, setIsSearchingFolder] = useState(false);
   const [folderSearchError, setFolderSearchError] = useState('');
   const [currentActiveMatch, setCurrentActiveMatch] = useState(0);
+  const [searchRefreshVersion, setSearchRefreshVersion] = useState(0);
+  const silentSearchRefreshRef = useRef(false);
+  const lastSubmittedSearchKeyRef = useRef('');
+  const pendingSearchResponseModeRef = useRef<'normal' | 'silent'>('normal');
+  const latestSearchRequestIdRef = useRef(0);
+  const activeSearchRequestIdRef = useRef(0);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [focusRootPath, setFocusRootPath] = useState('');
   const [focusRootName, setFocusRootName] = useState('');
@@ -157,6 +165,15 @@ export default function RecentProjectsApp() {
   useEffect(() => {
     isSearchModeRef.current = isSearchMode;
   }, [isSearchMode]);
+
+  useEffect(() => {
+    searchTargetProjectRef.current = searchTargetProject;
+  }, [searchTargetProject]);
+
+  useEffect(() => {
+    folderSearchQueryRef.current = folderSearchQuery;
+  }, [folderSearchQuery]);
+
 
   useEffect(() => {
     isFocusModeRef.current = isFocusMode;
@@ -687,6 +704,15 @@ export default function RecentProjectsApp() {
     };
   }, [folderSearchResults, folderSearchQuery, folderSearchType]);
 
+  const requestSilentFolderSearchRefresh = () => {
+    if (!isSearchModeRef.current) return;
+    if (!searchTargetProjectRef.current) return;
+    if (!folderSearchQueryRef.current.trim()) return;
+
+    silentSearchRefreshRef.current = true;
+    setSearchRefreshVersion((prev) => prev + 1);
+  };
+
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       const msg = e.data as Record<string, unknown>;
@@ -907,6 +933,8 @@ export default function RecentProjectsApp() {
           });
         });
       } else if (msg.type === 'refreshExpandedDirs') {
+        requestSilentFolderSearchRefresh();
+
         const expandedList = Array.from(expandedPathsRef.current).filter((itemPath) => {
           if (!itemPath) return false;
 
@@ -947,6 +975,12 @@ export default function RecentProjectsApp() {
           });
         });
       } else if (msg.type === 'searchFolderResult') {
+        if (typeof msg.requestId === 'number' && msg.requestId !== activeSearchRequestIdRef.current) {
+          return;
+        }
+
+        const responseMode = pendingSearchResponseModeRef.current;
+        pendingSearchResponseModeRef.current = 'normal';
         setIsSearchingFolder(false);
 
         if (msg.error) {
@@ -955,9 +989,17 @@ export default function RecentProjectsApp() {
         } else {
           setFolderSearchError('');
           setFolderSearchResults((msg.results as SearchResult[]) || []);
-          setCurrentActiveMatch(0);
+
+          if (responseMode !== 'silent') {
+            setCurrentActiveMatch(0);
+          }
         }
       } else if (msg.type === 'searchFileNameResult') {
+        if (typeof msg.requestId === 'number' && msg.requestId !== activeSearchRequestIdRef.current) {
+          return;
+        }
+
+        pendingSearchResponseModeRef.current = 'normal';
         setIsSearchingFolder(false);
 
         if (msg.error) {
@@ -1017,7 +1059,12 @@ export default function RecentProjectsApp() {
   }, []);
 
   const scrollTreeNodeIntoView = (targetPath: string, retryCount: number = 0) => {
-    if (!targetPath || isSearchModeRef.current) return;
+    if (!targetPath) return;
+
+    if (isSearchModeRef.current) {
+      autoScrollTarget.current = null;
+      return;
+    }
 
     const safeId = `tree-node-${encodeURIComponent(targetPath)}`;
     const el = document.getElementById(safeId);
@@ -1060,10 +1107,15 @@ export default function RecentProjectsApp() {
   };
 
   useEffect(() => {
-    if (!autoScrollTarget.current || isSearchMode) return;
+    if (isSearchMode) {
+      autoScrollTarget.current = null;
+      return;
+    }
+
+    if (!autoScrollTarget.current) return;
 
     scrollTreeNodeIntoView(autoScrollTarget.current);
-  }, [expandedPaths, isSearchMode, dirChildren, selectedPath]);
+  }, [expandedPaths, isSearchMode, dirChildren]);
 
   useEffect(() => {
     if (!isSearchMode || !searchTargetProject) return;
@@ -1073,15 +1125,39 @@ export default function RecentProjectsApp() {
       setFileNameSearchResults([]);
       setFolderSearchError('');
       setIsSearchingFolder(false);
+      silentSearchRefreshRef.current = false;
+      pendingSearchResponseModeRef.current = 'normal';
+      lastSubmittedSearchKeyRef.current = '';
+      activeSearchRequestIdRef.current = 0;
       return;
     }
 
+    const searchKey = [
+      searchTargetProject.path,
+      folderSearchType,
+      folderSearchQuery.trim(),
+      searchTargetProject.isRemote ? 'remote' : 'local',
+    ].join('\n');
+    const isSilentRefresh = silentSearchRefreshRef.current && lastSubmittedSearchKeyRef.current === searchKey;
+
+    silentSearchRefreshRef.current = false;
+
     const timeoutId = setTimeout(() => {
-      setIsSearchingFolder(true);
+      pendingSearchResponseModeRef.current = isSilentRefresh ? 'silent' : 'normal';
+      lastSubmittedSearchKeyRef.current = searchKey;
+
+      const requestId = latestSearchRequestIdRef.current + 1;
+      latestSearchRequestIdRef.current = requestId;
+      activeSearchRequestIdRef.current = requestId;
+
+      if (!isSilentRefresh) {
+        setIsSearchingFolder(true);
+      }
 
       if (folderSearchType === 'content') {
         vscode.postMessage({
           type: 'searchInFolder',
+          requestId,
           fsPath: searchTargetProject.path,
           query: folderSearchQuery,
           isRemote: searchTargetProject.isRemote,
@@ -1090,16 +1166,17 @@ export default function RecentProjectsApp() {
       } else {
         vscode.postMessage({
           type: 'searchFileName',
+          requestId,
           fsPath: searchTargetProject.path,
           query: folderSearchQuery,
           isRemote: searchTargetProject.isRemote,
           focusOnly: false,
         });
       }
-    }, 500);
+    }, isSilentRefresh ? 120 : 500);
 
     return () => clearTimeout(timeoutId);
-  }, [folderSearchQuery, isSearchMode, searchTargetProject, folderSearchType, isFocusMode]);
+  }, [folderSearchQuery, isSearchMode, searchTargetProject, folderSearchType, isFocusMode, searchRefreshVersion]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;

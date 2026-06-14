@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faChevronDown,
@@ -12,7 +12,7 @@ import { vscode } from '../../utils/vscode';
 import FileIcon from '../FileIcon';
 import HighlightText from '../HighlightText';
 import Tooltip from '../Tooltip';
-import Scrollbar from '../Scrollbar';
+import Scrollbar, { type ScrollbarInstance } from '../Scrollbar';
 import type {
     ContextMenuPayload,
     DirChild,
@@ -405,6 +405,9 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     } = props;
 
     const [activeExtensionTags, setActiveExtensionTags] = useState<Set<string>>(new Set());
+    const resultScrollbarRef = useRef<ScrollbarInstance>(null);
+    const resultScrollTopRef = useRef(0);
+    const previousResultSearchKeyRef = useRef('');
 
     const resetSearchData = (options?: { keepQuery?: boolean }) => {
         if (!options?.keepQuery) {
@@ -656,6 +659,28 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
         folderSearchQuery.trim() &&
         extensionTagOptions.length > 0;
 
+    useEffect(() => {
+        const searchKey = `${folderSearchType}
+${folderSearchQuery.trim()}
+${searchTargetProject.path || ''}`;
+        const shouldRestoreScroll = previousResultSearchKeyRef.current === searchKey;
+
+        previousResultSearchKeyRef.current = searchKey;
+
+        window.requestAnimationFrame(() => {
+            const scrollbar = resultScrollbarRef.current;
+
+            if (!scrollbar) return;
+
+            if (shouldRestoreScroll) {
+                scrollbar.setScrollTop(resultScrollTopRef.current);
+            } else {
+                resultScrollTopRef.current = 0;
+                scrollbar.setScrollTop(0);
+            }
+        });
+    }, [folderSearchResults, fileNameSearchResults, folderSearchQuery, folderSearchType, searchTargetProject.path]);
+
     return (
         <div className={styles['search-view-wrapper']}>
             <div className={styles['search-header']}>
@@ -809,8 +834,14 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
             </div>
 
             <Scrollbar
+                ref={resultScrollbarRef}
                 className={styles['search-results-container']}
                 viewClassName={styles['search-results-view']}
+                onScroll={({ scrollTop }) => {
+                    if (!isSearchingFolder) {
+                        resultScrollTopRef.current = scrollTop;
+                    }
+                }}
             >
                 {focusMode && !folderSearchQuery.trim() ? (
                     focusTree || (
