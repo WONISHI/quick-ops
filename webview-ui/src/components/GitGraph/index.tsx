@@ -5,6 +5,7 @@ import CommitHoverWidget from '../CommitHoverWidget';
 import GraphSearchWidget from '../GraphSearchWidget';
 import type { GitFile } from '../../types/GitApp';
 import Tooltip from '../Tooltip';
+import Scrollbar, { type ScrollbarInstance } from '../Scrollbar';
 
 export interface GraphCommit {
     hash: string;
@@ -365,6 +366,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
     const [resizeTrigger, setResizeTrigger] = useState(0);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const graphScrollbarRef = useRef<ScrollbarInstance>(null);
     const graphContainerRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -548,10 +550,12 @@ const GitGraph: React.FC<GitGraphProps> = ({
             }
 
             const y = yPositions[matchCommitIndex];
+            const scrollTop = Math.max(0, y - 60);
 
-            if (graphContainerRef.current) {
-                graphContainerRef.current.scrollTop = Math.max(0, y - 60);
-            }
+            graphScrollbarRef.current?.scrollTo({
+                top: scrollTop,
+                behavior: 'auto',
+            });
         }
     }, [currentMatchIndex, matchedIndices, yPositions, isSearchOpen, displayCount, setDisplayCount]);
 
@@ -621,7 +625,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
     useEffect(() => {
         const canvas = canvasRef.current;
-        const container = graphContainerRef.current;
+        const container = graphScrollbarRef.current?.wrapRef;
 
         if (!canvas || !container || graphCommits.length === 0) return;
 
@@ -765,12 +769,15 @@ const GitGraph: React.FC<GitGraphProps> = ({
         }, 250);
     };
 
-    const handleGraphScroll = (e: React.UIEvent<HTMLDivElement>) => {
-        const target = e.currentTarget;
-        const hasVerticalScroll = target.scrollHeight > target.clientHeight;
-        const isScrollMoved = target.scrollTop !== graphScrollTopRef.current;
+    const handleGraphScroll = ({ scrollTop }: { scrollTop: number; scrollLeft: number }) => {
+        const target = graphScrollbarRef.current?.wrapRef;
 
-        graphScrollTopRef.current = target.scrollTop;
+        if (!target) return;
+
+        const hasVerticalScroll = target.scrollHeight > target.clientHeight;
+        const isScrollMoved = scrollTop !== graphScrollTopRef.current;
+
+        graphScrollTopRef.current = scrollTop;
 
         if (hasVerticalScroll && isScrollMoved) {
             suppressHoverUntilRef.current = Date.now() + 300;
@@ -784,7 +791,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
             setHoverInfo(null);
         }
 
-        if (target.scrollHeight - target.scrollTop <= target.clientHeight + 100) {
+        if (target.scrollHeight - scrollTop <= target.clientHeight + 100) {
             if (displayCount < graphCommits.length) {
                 setDisplayCount((prev) => prev + 50);
             }
@@ -865,10 +872,20 @@ const GitGraph: React.FC<GitGraphProps> = ({
             />
 
             <div
-                className={styles['graph-scroll-view']}
                 ref={graphContainerRef}
-                onScroll={handleGraphScroll}
+                style={{
+                    height: '100%',
+                    minHeight: 0,
+                    overflow: 'hidden',
+                }}
             >
+                <Scrollbar
+                    ref={graphScrollbarRef}
+                    className={styles['graph-scroll-view']}
+                    direction="vertical"
+                    style={{ overflow: 'hidden' }}
+                    onScroll={handleGraphScroll}
+                >
                 <canvas
                     ref={canvasRef}
                     className={styles['graph-canvas']}
@@ -998,6 +1015,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
                         );
                     })}
                 </ul>
+                </Scrollbar>
             </div>
         </>
     );
