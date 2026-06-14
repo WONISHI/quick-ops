@@ -64,6 +64,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private lastOpenedPath: string = '';
   private selectedForCompareUri?: vscode.Uri;
   private selectedForCompareName?: string;
+  private readonly gitDiffTargetByUri = new Map<string, string>();
   private activePanels: Map<string, vscode.WebviewPanel> = new Map();
 
   private currentActivePath: string = '';
@@ -279,6 +280,97 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       if (tabsToClose.length > 0) {
         await vscode.window.tabGroups.close(tabsToClose);
       }
+    }
+  }
+
+  private getGitDiffTargetKey(fsPath: string): string {
+    return this.normalizeComparePath(fsPath);
+  }
+
+  private trackGitDiffUri(uri: vscode.Uri, targetFsPath: string): void {
+    const uriKey = uri.toString();
+    const targetKey = this.getGitDiffTargetKey(targetFsPath);
+
+    if (!uriKey || !targetKey) {
+      return;
+    }
+
+    this.gitDiffTargetByUri.set(uriKey, targetKey);
+  }
+
+  private isGitDiffUriMatchedTarget(uri: any, targetKey: string): boolean {
+    if (!uri || !targetKey) {
+      return false;
+    }
+
+    const uriString = typeof uri.toString === 'function' ? uri.toString() : '';
+    const mappedTarget = uriString ? this.gitDiffTargetByUri.get(uriString) : undefined;
+
+    if (mappedTarget && mappedTarget === targetKey) {
+      return true;
+    }
+
+    if (uri.scheme === 'file' && uri.fsPath) {
+      return this.getGitDiffTargetKey(uri.fsPath) === targetKey;
+    }
+
+    return false;
+  }
+
+  private isQuickOpsGitDiffUri(uri: any): boolean {
+    if (!uri) {
+      return false;
+    }
+
+    const uriString = typeof uri.toString === 'function' ? uri.toString() : '';
+
+    return uri.scheme === 'quickops-git-virtual' || (uriString ? this.gitDiffTargetByUri.has(uriString) : false);
+  }
+
+  private async closeExistingGitDiffTabs(fsPath: string): Promise<void> {
+    if (!vscode.window.tabGroups) {
+      return;
+    }
+
+    const targetKey = this.getGitDiffTargetKey(fsPath);
+
+    if (!targetKey) {
+      return;
+    }
+
+    const tabsToClose: vscode.Tab[] = [];
+
+    for (const group of vscode.window.tabGroups.all) {
+      for (const tab of group.tabs) {
+        const input = tab.input as any;
+        const originalUri = input?.original;
+        const modifiedUri = input?.modified;
+
+        if (!originalUri || !modifiedUri) {
+          continue;
+        }
+
+        const isTargetDiff =
+          this.isGitDiffUriMatchedTarget(originalUri, targetKey) ||
+          this.isGitDiffUriMatchedTarget(modifiedUri, targetKey);
+
+        if (!isTargetDiff) {
+          continue;
+        }
+
+        const isQuickOpsDiff =
+          this.isQuickOpsGitDiffUri(originalUri) ||
+          this.isQuickOpsGitDiffUri(modifiedUri) ||
+          String(tab.label || '').includes('旧代码');
+
+        if (isQuickOpsDiff) {
+          tabsToClose.push(tab);
+        }
+      }
+    }
+
+    if (tabsToClose.length > 0) {
+      await vscode.window.tabGroups.close(tabsToClose);
     }
   }
 
@@ -824,7 +916,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private async compareWithOldCode(fsPath: string, projectName: string, status?: string): Promise<void> {
+  private async compareWithOldCode(fsPath: string, _projectName: string, status?: string): Promise<void> {
     const location = await this.getGitFileLocation(fsPath);
 
     if (!location) {
@@ -847,6 +939,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.gitVirtualContentProvider.setContent(oldKey, oldContent);
 
     const oldUri = this.createGitVirtualUri('旧代码', fileName, oldKey);
+    this.trackGitDiffUri(oldUri, location.nativePath);
 
     let workingUri: vscode.Uri;
 
@@ -866,7 +959,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       workingUri = location.uri;
     }
 
-    const title = `${projectName ? `${projectName}: ` : ''}${fileName} · 旧代码 ↔ 当前代码`;
+    this.trackGitDiffUri(workingUri, location.nativePath);
+
+    const title = `${fileName} · 旧代码 ↔ 当前代码`;
 
     await vscode.commands.executeCommand('vscode.diff', oldUri, workingUri, title, {
       preview: true,
@@ -904,9 +999,17 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
 
     try {
+      /**
+       * 这里只关闭 quick-ops 打开的 diff tab，不关闭真实文件 tab。
+       *
+       * 之前这里还调用了 closeExistingPreviews(location.nativePath)，
+       * 该方法会把和当前文件 URI 相同的普通文本 tab 一起关掉。
+       * 取消变更时用户只希望关闭“旧代码 ↔ 当前代码”的对比页，
+       * 不应该把用户正在看的普通 .npmrc / .ts 文件页也关闭。
+       */
+      await this.closeExistingGitDiffTabs(location.nativePath);
       await this.gitService.discardRecentProjectFile(location.gitRoot, location.relativePath, statusKey || status || 'M');
 
-      this.closeExistingPreviews(location.nativePath).catch(() => undefined);
       this.invalidateDirCache(location.gitRoot);
       this.invalidateDirCache(path.dirname(location.nativePath));
       this.requestVisibleMetadataSync();

@@ -230,9 +230,6 @@ export default function RecentProjectContextMenu({
                     <li onClick={() => onAction('compareWithOldCode')}>
                       <FontAwesomeIcon icon={faCodeCompare} className={styles['menu-icon']} /> 与旧代码对比
                     </li>
-                    <li onClick={() => onAction('discardFileChanges')} style={{ color: 'var(--vscode-errorForeground)' }}>
-                      <FontAwesomeIcon icon={faRotateLeft} className={styles['menu-icon']} /> 取消变更
-                    </li>
                     <div className={styles['menu-separator']}></div>
                   </>
                 )}
@@ -301,6 +298,11 @@ export default function RecentProjectContextMenu({
             {payload.isActiveProject && !payload.isRemote && (
               <>
                 <div className={styles['menu-separator']}></div>
+                {hasFileChangeStatus && (
+                  <li onClick={() => onAction('discardFileChanges')} style={{ color: 'var(--vscode-errorForeground)' }}>
+                    <FontAwesomeIcon icon={faRotateLeft} className={styles['menu-icon']} /> 取消变更
+                  </li>
+                )}
                 <li onClick={() => onAction('deleteFileEntity')} style={{ color: 'var(--vscode-errorForeground)' }}>
                   <FontAwesomeIcon icon={faTrash} className={styles['menu-icon']} /> 删除
                 </li>
