@@ -19,6 +19,8 @@ export class PackageScriptsFeature implements IFeature {
   private commandSeq = 0;
   private statusTickTimer?: ReturnType<typeof setInterval>;
   private externalWatchTimer?: ReturnType<typeof setInterval>;
+  private externalWatchInFlight = false;
+  private packageScriptPortCache?: { expiresAt: number; value: Map<number, string> };
   private activeCommands = new Map<
     number,
     {
@@ -79,8 +81,8 @@ export class PackageScriptsFeature implements IFeature {
       dispose: () => this.disposeStatusBarResources(),
     });
     this.updateScriptStatusBar();
-    this.startExternalServerWatcher();
     this.startTerminalShellExecutionWatcher(context);
+    this.watchPackageJsonPortCache(context);
 
     ColorLog.black(`[${this.id}]`, "Activated.");
   }
@@ -464,8 +466,10 @@ export class PackageScriptsFeature implements IFeature {
     }, 1000);
   }
 
-  private stopStatusTickerIfIdle() {
-    if (this.activeCommands.size > 0 || this.externalServers.size > 0) return;
+  private stopStatusTickerIfIdle(force: boolean = false) {
+    const hasRunningCommand = Array.from(this.activeCommands.values()).some((item) => item.state === "running");
+
+    if (!force && hasRunningCommand) return;
     if (!this.statusTickTimer) return;
 
     clearInterval(this.statusTickTimer);
@@ -526,6 +530,12 @@ export class PackageScriptsFeature implements IFeature {
   }
 
   private async getWorkspacePackageScriptPorts() {
+    const now = Date.now();
+
+    if (this.packageScriptPortCache && this.packageScriptPortCache.expiresAt > now) {
+      return this.packageScriptPortCache.value;
+    }
+
     const decoder = new TextDecoder("utf-8");
     const result = new Map<number, string>();
     const workspaceFolders = vscode.workspace.workspaceFolders || [];
@@ -551,7 +561,26 @@ export class PackageScriptsFeature implements IFeature {
       }
     });
 
+    this.packageScriptPortCache = {
+      expiresAt: Date.now() + 15000,
+      value: result,
+    };
+
     return result;
+  }
+
+  private clearPackageScriptPortCache() {
+    this.packageScriptPortCache = undefined;
+  }
+
+  private watchPackageJsonPortCache(context: vscode.ExtensionContext) {
+    const watcher = vscode.workspace.createFileSystemWatcher("**/package.json");
+
+    watcher.onDidChange(() => this.clearPackageScriptPortCache());
+    watcher.onDidCreate(() => this.clearPackageScriptPortCache());
+    watcher.onDidDelete(() => this.clearPackageScriptPortCache());
+
+    context.subscriptions.push(watcher);
   }
 
   private isPortOpen(
@@ -687,25 +716,61 @@ export class PackageScriptsFeature implements IFeature {
     this.syncRunningCommandsWithExternalServers();
 
     if (oldKey !== newKey) {
-      if (this.externalServers.size > 0 && this.activeCommands.size === 0) {
-        this.lastStatus = {
-          type: "external",
-          displayName: `外部服务 ${this.externalServers.size} 个`,
-        };
-      }
-
+      /**
+       * 端口探测只用于：
+       * 1. 给正在执行的启动命令匹配成功状态；
+       * 2. 在 tooltip 里辅助展示外部服务。
+       *
+       * 不再因为本机已有 localhost 服务，就把状态栏主文案改成“外部已运行”。
+       * 否则用户没有通过 Quick Ops 启动任何命令时，也会误以为插件启动了项目。
+       */
       this.updateScriptStatusBar();
     }
   }
 
+  private hasRunningServerCommand() {
+    return Array.from(this.activeCommands.values()).some((item) => {
+      return item.state === "running" && item.commandType === "server";
+    });
+  }
+
+  private runExternalServerDetection() {
+    if (this.externalWatchInFlight) return;
+
+    this.externalWatchInFlight = true;
+
+    this.detectExternalServers()
+      .catch(() => undefined)
+      .finally(() => {
+        this.externalWatchInFlight = false;
+
+        if (!this.hasRunningServerCommand()) {
+          this.stopExternalServerWatcher();
+        }
+      });
+  }
+
   private startExternalServerWatcher() {
+    if (!this.hasRunningServerCommand()) return;
     if (this.externalWatchTimer) return;
 
-    this.detectExternalServers().catch(() => undefined);
+    this.runExternalServerDetection();
 
     this.externalWatchTimer = setInterval(() => {
-      this.detectExternalServers().catch(() => undefined);
-    }, 3500);
+      if (!this.hasRunningServerCommand()) {
+        this.stopExternalServerWatcher();
+        return;
+      }
+
+      this.runExternalServerDetection();
+    }, 5000);
+  }
+
+  private stopExternalServerWatcher() {
+    if (!this.externalWatchTimer) return;
+
+    clearInterval(this.externalWatchTimer);
+    this.externalWatchTimer = undefined;
   }
 
   private startTerminalShellExecutionWatcher(context: vscode.ExtensionContext) {
@@ -796,15 +861,15 @@ export class PackageScriptsFeature implements IFeature {
 
     const npmScriptMatch = value.match(/\b(?:npm|pnpm|bun)\s+run\s+([^\s]+)/i);
     if (npmScriptMatch?.[1]) {
-      return `外部: ${npmScriptMatch[1]}`;
+      return `外部命令: ${npmScriptMatch[1]}`;
     }
 
     const yarnScriptMatch = value.match(/\byarn\s+([^\s]+)/i);
     if (yarnScriptMatch?.[1]) {
-      return `外部: ${yarnScriptMatch[1]}`;
+      return `外部命令: ${yarnScriptMatch[1]}`;
     }
 
-    return `外部: ${value.split(/\s+/).slice(0, 3).join(" ")}`;
+    return `外部命令: ${value.split(/\s+/).slice(0, 3).join(" ")}`;
   }
 
   private handleTerminalShellExecutionStart(event: any) {
@@ -835,6 +900,10 @@ export class PackageScriptsFeature implements IFeature {
     this.lastStatus = { type: "idle" };
     this.updateScriptStatusBar();
     this.ensureStatusTicker();
+
+    if (commandType === "server") {
+      this.startExternalServerWatcher();
+    }
   }
 
   private handleTerminalShellExecutionEnd(event: any) {
@@ -860,6 +929,10 @@ export class PackageScriptsFeature implements IFeature {
     const exitCode = typeof exitCodeValue === "number" ? exitCodeValue : Number(exitCodeValue || 0);
 
     this.activeCommands.delete(commandId);
+
+    if (!this.hasRunningServerCommand()) {
+      this.stopExternalServerWatcher();
+    }
 
     if (exitCode === 0) {
       this.setLastCommandStatus("success", commandItem.displayName, commandItem.command);
@@ -891,10 +964,10 @@ export class PackageScriptsFeature implements IFeature {
         string
       > = {
         idle: "Quick Ops",
-        success: "success",
-        failed: "failed",
-        cancelled: "cancelled",
-        external: "external success",
+        success: "成功",
+        failed: "失败",
+        cancelled: "已取消",
+        external: "外部已运行",
       };
 
       return [
@@ -919,13 +992,13 @@ export class PackageScriptsFeature implements IFeature {
     return [
       `Quick Ops 后台命令`,
       `执行中：${runningCount}`,
-      `success：${successCount}`,
+      `成功：${successCount}`,
       "",
       ...commands.map((item) => {
         const runningText = item.commandType === "server" ? "启动中" : "执行中";
         const sourceText = item.source === "terminal" ? "外部终端" : "Quick Ops";
         const icon =
-          item.state === "success" ? "success" : `${runningText} ${item.progress}%`;
+          item.state === "success" ? "成功" : `${runningText} ${item.progress}%`;
         const elapsed = this.formatElapsed(Date.now() - item.startedAt);
         const url = item.url ? ` · ${item.url}` : "";
         return `${icon} · ${sourceText} · ${elapsed} · ${item.displayName} · ${item.command}${url}`;
@@ -935,7 +1008,7 @@ export class PackageScriptsFeature implements IFeature {
             "",
             `外部已运行：${this.externalServers.size}`,
             ...Array.from(this.externalServers.values()).map((item) => {
-              return `success · ${item.label} · http://localhost:${item.port}`;
+              return `已运行 · ${item.label} · http://localhost:${item.port}`;
             }),
           ]
         : []),
@@ -976,50 +1049,49 @@ export class PackageScriptsFeature implements IFeature {
 
         this.statusBarItem.text =
           successCount > 0
-            ? `$(sync~spin) Quick Ops: ${runningLabel} ${runningCount} · ${avgProgress}% · ${this.formatElapsed(maxElapsed)} · success ${successCount}`
+            ? `$(sync~spin) Quick Ops: ${runningLabel} ${runningCount} · ${avgProgress}% · ${this.formatElapsed(maxElapsed)} · 成功 ${successCount}`
             : `$(sync~spin) Quick Ops: ${runningLabel} ${runningCount} · ${avgProgress}% · ${this.formatElapsed(maxElapsed)}`;
         this.statusBarItem.color = new vscode.ThemeColor("charts.blue");
       } else {
-        this.statusBarItem.text = `$(check) Quick Ops: success ${successCount}`;
+        this.statusBarItem.text = `$(check) Quick Ops: 成功 ${successCount}`;
         this.statusBarItem.color = new vscode.ThemeColor("testing.iconPassed");
       }
 
       this.statusBarItem.tooltip = this.getActiveCommandsTooltip();
       this.statusBarItem.show();
-      this.ensureStatusTicker();
+
+      if (runningCount > 0) {
+        this.ensureStatusTicker();
+      } else {
+        this.stopStatusTickerIfIdle(true);
+        this.stopExternalServerWatcher();
+      }
+
       return;
     }
 
-    if (this.externalServers.size > 0) {
-      this.statusBarItem.text = `$(radio-tower) Quick Ops: external success ${this.externalServers.size}`;
-      this.statusBarItem.color = new vscode.ThemeColor("testing.iconPassed");
-      this.statusBarItem.tooltip = [
-        "监听到外部启动的本地服务",
-        "",
-        ...Array.from(this.externalServers.values()).map(
-          (item) => `${item.label} · http://localhost:${item.port}`,
-        ),
-        "",
-        "说明：这是通过 localhost 端口探测识别的，不是读取外部终端输出。",
-      ].join("\n");
-      this.statusBarItem.show();
-      this.ensureStatusTicker();
-      return;
-    }
+    /**
+     * 没有 Quick Ops 命令、也没有 VS Code 终端命令正在执行时，
+     * 不把端口探测结果显示到状态栏主文案。
+     *
+     * 例如本机本来就有 3000 / 5173 服务在跑，之前会显示：
+     * Quick Ops: external success 2
+     * 这会让用户误以为插件启动了项目。
+     */
 
     if (this.lastStatus.type === "success") {
-      this.statusBarItem.text = "$(check) Quick Ops: success";
+      this.statusBarItem.text = "$(check) Quick Ops: 成功";
       this.statusBarItem.color = new vscode.ThemeColor("testing.iconPassed");
     } else if (this.lastStatus.type === "failed") {
-      this.statusBarItem.text = "$(error) Quick Ops: failed";
+      this.statusBarItem.text = "$(error) Quick Ops: 失败";
       this.statusBarItem.color = new vscode.ThemeColor("testing.iconFailed");
     } else if (this.lastStatus.type === "cancelled") {
-      this.statusBarItem.text = "$(warning) Quick Ops: cancelled";
+      this.statusBarItem.text = "$(warning) Quick Ops: 已取消";
       this.statusBarItem.color = new vscode.ThemeColor(
         "list.warningForeground",
       );
     } else if (this.lastStatus.type === "external") {
-      this.statusBarItem.text = "$(radio-tower) Quick Ops: external success";
+      this.statusBarItem.text = "$(radio-tower) Quick Ops: 外部已运行";
       this.statusBarItem.color = new vscode.ThemeColor("testing.iconPassed");
     } else {
       this.statusBarItem.text = "$(rocket) Quick Ops";
@@ -1094,6 +1166,11 @@ export class PackageScriptsFeature implements IFeature {
       displayName: commandItem.displayName,
       command: commandItem.command,
     };
+
+    if (!this.hasRunningServerCommand()) {
+      this.stopExternalServerWatcher();
+    }
+
     this.updateScriptStatusBar();
   }
 
@@ -1152,6 +1229,8 @@ export class PackageScriptsFeature implements IFeature {
     const outputBuffer: string[] = [];
     let settled = false;
 
+    const commandType = this.getCommandType(command, displayName);
+
     this.activeCommands.set(commandId, {
       displayName,
       command,
@@ -1161,12 +1240,15 @@ export class PackageScriptsFeature implements IFeature {
       progress: 3,
       ports: this.extractPortsFromText(command),
       source: "quickops",
-      commandType: this.getCommandType(command, displayName),
+      commandType,
     });
     this.lastStatus = { type: "idle" };
     this.updateScriptStatusBar();
     this.ensureStatusTicker();
-    this.detectExternalServers().catch(() => undefined);
+
+    if (commandType === "server") {
+      this.startExternalServerWatcher();
+    }
 
     const childProcess = spawn(command, {
       cwd,
@@ -1225,6 +1307,11 @@ export class PackageScriptsFeature implements IFeature {
       const commandItem = this.activeCommands.get(commandId);
 
       this.activeCommands.delete(commandId);
+
+      if (!this.hasRunningServerCommand()) {
+        this.stopExternalServerWatcher();
+      }
+
       this.setLastCommandStatus(
         "failed",
         commandItem?.displayName || displayName,
@@ -1244,6 +1331,10 @@ export class PackageScriptsFeature implements IFeature {
       const currentState = commandItem?.state || "running";
 
       this.activeCommands.delete(commandId);
+
+      if (!this.hasRunningServerCommand()) {
+        this.stopExternalServerWatcher();
+      }
 
       if (signal) {
         this.setLastCommandStatus(
