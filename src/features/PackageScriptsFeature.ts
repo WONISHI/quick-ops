@@ -32,8 +32,11 @@ export class PackageScriptsFeature implements IFeature {
       url?: string;
       successAt?: number;
       lastOutputAt?: number;
+      source?: "quickops" | "terminal";
+      commandType?: "server" | "build" | "script";
     }
   >();
+  private terminalExecutionCommandIds = new WeakMap<object, number>();
   private externalServers = new Map<
     string,
     {
@@ -77,6 +80,7 @@ export class PackageScriptsFeature implements IFeature {
     });
     this.updateScriptStatusBar();
     this.startExternalServerWatcher();
+    this.startTerminalShellExecutionWatcher(context);
 
     ColorLog.black(`[${this.id}]`, "Activated.");
   }
@@ -475,9 +479,11 @@ export class PackageScriptsFeature implements IFeature {
       if (item.state !== "running") return;
 
       const elapsedSeconds = Math.floor((now - item.startedAt) / 1000);
+      const progressLimit = item.commandType === "server" ? 95 : 99;
+      const step = item.commandType === "server" ? 3 : 5;
       const nextProgress = Math.min(
-        95,
-        Math.max(item.progress, 8 + elapsedSeconds * 3),
+        progressLimit,
+        Math.max(item.progress, 8 + elapsedSeconds * step),
       );
 
       if (nextProgress !== item.progress) {
@@ -573,6 +579,77 @@ export class PackageScriptsFeature implements IFeature {
     });
   }
 
+  private getRunningCommandEntries() {
+    return Array.from(this.activeCommands.entries()).filter(([, item]) => item.state === "running");
+  }
+
+  private getServerFromCommandPorts(commandPorts: number[]) {
+    const portSet = new Set(commandPorts);
+
+    if (portSet.size === 0) return undefined;
+
+    return Array.from(this.externalServers.values()).find((server) => portSet.has(server.port));
+  }
+
+  private getFallbackSuccessServerForRunningCommand(startedAt: number) {
+    const servers = Array.from(this.externalServers.values()).sort((a, b) => a.port - b.port);
+
+    if (servers.length === 0) return undefined;
+
+    /**
+     * package scripts 里很多启动命令不会显式写端口，例如：
+     * pnpm run start -> vite/next/nuxt 自己输出 localhost。
+     * 这种情况下 item.ports 为空，不能只靠端口匹配。
+     * 如果当前只有一个后台命令在启动，并且已经探测到 localhost 端口可用，
+     * 就把这个后台命令视为启动成功，避免状态栏一直卡在 95%。
+     */
+    if (Date.now() - startedAt < 1200) return undefined;
+
+    return servers[0];
+  }
+
+  private syncRunningCommandsWithExternalServers() {
+    const runningEntries = this.getRunningCommandEntries();
+
+    if (runningEntries.length === 0 || this.externalServers.size === 0) {
+      return;
+    }
+
+    runningEntries.forEach(([commandId, item]) => {
+      const matchedServer = this.getServerFromCommandPorts(item.ports);
+
+      if (matchedServer) {
+        this.markCommandSuccess(commandId, {
+          port: matchedServer.port,
+          url: `http://localhost:${matchedServer.port}`,
+        });
+      }
+    });
+
+    const stillRunningEntries = this.getRunningCommandEntries();
+
+    if (stillRunningEntries.length !== 1) {
+      return;
+    }
+
+    const [commandId, item] = stillRunningEntries[0];
+
+    if (item.ports.length > 0) {
+      return;
+    }
+
+    const fallbackServer = this.getFallbackSuccessServerForRunningCommand(item.startedAt);
+
+    if (!fallbackServer) {
+      return;
+    }
+
+    this.markCommandSuccess(commandId, {
+      port: fallbackServer.port,
+      url: `http://localhost:${fallbackServer.port}`,
+    });
+  }
+
   private async detectExternalServers() {
     const portMap = await this.getWorkspacePackageScriptPorts();
     const now = Date.now();
@@ -600,16 +677,6 @@ export class PackageScriptsFeature implements IFeature {
           source: label.includes(":") ? "package.json" : "default-port",
           checkedAt: now,
         });
-
-        this.activeCommands.forEach((item, commandId) => {
-          if (item.state !== "running") return;
-          if (!item.ports.includes(port)) return;
-
-          this.markCommandSuccess(commandId, {
-            port,
-            url: `http://localhost:${port}`,
-          });
-        });
       }),
     );
 
@@ -617,6 +684,7 @@ export class PackageScriptsFeature implements IFeature {
     const newKey = Array.from(nextServers.keys()).sort().join("|");
 
     this.externalServers = nextServers;
+    this.syncRunningCommandsWithExternalServers();
 
     if (oldKey !== newKey) {
       if (this.externalServers.size > 0 && this.activeCommands.size === 0) {
@@ -638,6 +706,169 @@ export class PackageScriptsFeature implements IFeature {
     this.externalWatchTimer = setInterval(() => {
       this.detectExternalServers().catch(() => undefined);
     }, 3500);
+  }
+
+  private startTerminalShellExecutionWatcher(context: vscode.ExtensionContext) {
+    const vscodeWindow = vscode.window as any;
+    const onDidStartTerminalShellExecution = vscodeWindow.onDidStartTerminalShellExecution;
+    const onDidEndTerminalShellExecution = vscodeWindow.onDidEndTerminalShellExecution;
+
+    if (
+      typeof onDidStartTerminalShellExecution !== "function" ||
+      typeof onDidEndTerminalShellExecution !== "function"
+    ) {
+      return;
+    }
+
+    context.subscriptions.push(
+      onDidStartTerminalShellExecution((event: any) => {
+        this.handleTerminalShellExecutionStart(event);
+      }),
+      onDidEndTerminalShellExecution((event: any) => {
+        this.handleTerminalShellExecutionEnd(event);
+      }),
+    );
+  }
+
+  private getShellExecutionCommandLine(event: any) {
+    const commandLine = event?.execution?.commandLine;
+
+    if (typeof commandLine === "string") {
+      return commandLine.trim();
+    }
+
+    if (typeof commandLine?.value === "string") {
+      return commandLine.value.trim();
+    }
+
+    if (typeof commandLine?.original === "string") {
+      return commandLine.original.trim();
+    }
+
+    return "";
+  }
+
+  private getShellExecutionCwd(event: any) {
+    const cwd = event?.execution?.cwd || event?.terminal?.creationOptions?.cwd;
+
+    if (!cwd) {
+      return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || "";
+    }
+
+    if (typeof cwd === "string") {
+      return cwd;
+    }
+
+    if (typeof cwd.fsPath === "string") {
+      return cwd.fsPath;
+    }
+
+    return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || "";
+  }
+
+  private getCommandType(command: string, displayName: string = ""): "server" | "build" | "script" {
+    const value = `${displayName} ${command}`.toLowerCase();
+
+    if (/\b(dev|serve|start|preview)\b/.test(value)) {
+      return "server";
+    }
+
+    if (/\b(build|compile|typecheck|check|lint|test)\b/.test(value)) {
+      return "build";
+    }
+
+    return "script";
+  }
+
+  private isTrackableExternalCommand(command: string) {
+    const value = command.trim().toLowerCase();
+
+    if (!value) return false;
+
+    return /(^|\s)(npm|pnpm|yarn|bun)(\s+run)?\s+/.test(value) ||
+      /(^|\s)(vite|webpack|vue-cli-service|next|nuxt|tsc|eslint|vitest|jest)\b/.test(value);
+  }
+
+  private getExternalCommandDisplayName(command: string) {
+    const value = command.trim();
+
+    if (!value) return "外部命令";
+
+    const npmScriptMatch = value.match(/\b(?:npm|pnpm|bun)\s+run\s+([^\s]+)/i);
+    if (npmScriptMatch?.[1]) {
+      return `外部: ${npmScriptMatch[1]}`;
+    }
+
+    const yarnScriptMatch = value.match(/\byarn\s+([^\s]+)/i);
+    if (yarnScriptMatch?.[1]) {
+      return `外部: ${yarnScriptMatch[1]}`;
+    }
+
+    return `外部: ${value.split(/\s+/).slice(0, 3).join(" ")}`;
+  }
+
+  private handleTerminalShellExecutionStart(event: any) {
+    const execution = event?.execution;
+    const command = this.getShellExecutionCommandLine(event);
+
+    if (!execution || !this.isTrackableExternalCommand(command)) {
+      return;
+    }
+
+    const commandId = ++this.commandSeq;
+    const displayName = this.getExternalCommandDisplayName(command);
+    const commandType = this.getCommandType(command, displayName);
+
+    this.terminalExecutionCommandIds.set(execution, commandId);
+    this.activeCommands.set(commandId, {
+      displayName,
+      command,
+      cwd: this.getShellExecutionCwd(event),
+      state: "running",
+      startedAt: Date.now(),
+      progress: 3,
+      ports: this.extractPortsFromText(command),
+      source: "terminal",
+      commandType,
+    });
+
+    this.lastStatus = { type: "idle" };
+    this.updateScriptStatusBar();
+    this.ensureStatusTicker();
+  }
+
+  private handleTerminalShellExecutionEnd(event: any) {
+    const execution = event?.execution;
+
+    if (!execution) {
+      return;
+    }
+
+    const commandId = this.terminalExecutionCommandIds.get(execution);
+
+    if (!commandId) {
+      return;
+    }
+
+    const commandItem = this.activeCommands.get(commandId);
+
+    if (!commandItem) {
+      return;
+    }
+
+    const exitCodeValue = event?.exitCode ?? event?.execution?.exitCode;
+    const exitCode = typeof exitCodeValue === "number" ? exitCodeValue : Number(exitCodeValue || 0);
+
+    this.activeCommands.delete(commandId);
+
+    if (exitCode === 0) {
+      this.setLastCommandStatus("success", commandItem.displayName, commandItem.command);
+      return;
+    }
+
+    const errorMessage = `退出码 ${Number.isFinite(exitCode) ? exitCode : "未知"}`;
+    this.setLastCommandStatus("failed", commandItem.displayName, commandItem.command, errorMessage);
+    vscode.window.showErrorMessage(`命令执行失败：${commandItem.command}\n\n${errorMessage}`);
   }
 
   private clearStatusHideTimer() {
@@ -687,15 +918,17 @@ export class PackageScriptsFeature implements IFeature {
 
     return [
       `Quick Ops 后台命令`,
-      `启动中：${runningCount}`,
+      `执行中：${runningCount}`,
       `success：${successCount}`,
       "",
       ...commands.map((item) => {
+        const runningText = item.commandType === "server" ? "启动中" : "执行中";
+        const sourceText = item.source === "terminal" ? "外部终端" : "Quick Ops";
         const icon =
-          item.state === "success" ? "success" : `启动中 ${item.progress}%`;
+          item.state === "success" ? "success" : `${runningText} ${item.progress}%`;
         const elapsed = this.formatElapsed(Date.now() - item.startedAt);
         const url = item.url ? ` · ${item.url}` : "";
-        return `${icon} · ${elapsed} · ${item.displayName} · ${item.command}${url}`;
+        return `${icon} · ${sourceText} · ${elapsed} · ${item.displayName} · ${item.command}${url}`;
       }),
       ...(this.externalServers.size > 0
         ? [
@@ -737,11 +970,14 @@ export class PackageScriptsFeature implements IFeature {
         const maxElapsed = Math.max(
           ...runningCommands.map((item) => Date.now() - item.startedAt),
         );
+        const runningLabel = runningCommands.some((item) => item.commandType === "server")
+          ? "启动中"
+          : "执行中";
 
         this.statusBarItem.text =
           successCount > 0
-            ? `$(sync~spin) Quick Ops: 启动中 ${runningCount} · ${avgProgress}% · ${this.formatElapsed(maxElapsed)} · success ${successCount}`
-            : `$(sync~spin) Quick Ops: 启动中 ${runningCount} · ${avgProgress}% · ${this.formatElapsed(maxElapsed)}`;
+            ? `$(sync~spin) Quick Ops: ${runningLabel} ${runningCount} · ${avgProgress}% · ${this.formatElapsed(maxElapsed)} · success ${successCount}`
+            : `$(sync~spin) Quick Ops: ${runningLabel} ${runningCount} · ${avgProgress}% · ${this.formatElapsed(maxElapsed)}`;
         this.statusBarItem.color = new vscode.ThemeColor("charts.blue");
       } else {
         this.statusBarItem.text = `$(check) Quick Ops: success ${successCount}`;
@@ -816,6 +1052,10 @@ export class PackageScriptsFeature implements IFeature {
     return [
       "compiled successfully",
       "successfully compiled",
+      "built in",
+      "build complete",
+      "build completed",
+      "done in",
       "ready in",
       "local:",
       "network:",
@@ -857,6 +1097,52 @@ export class PackageScriptsFeature implements IFeature {
     this.updateScriptStatusBar();
   }
 
+  private getSafeProcessEnv(): NodeJS.ProcessEnv {
+    const env: NodeJS.ProcessEnv = { ...process.env };
+    const nodeOptions = env.NODE_OPTIONS || '';
+
+    if (nodeOptions.includes('quickops-boot.js')) {
+      const parts = nodeOptions
+        .split(/\s+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      const nextParts: string[] = [];
+
+      for (let index = 0; index < parts.length; index++) {
+        const item = parts[index];
+        const nextItem = parts[index + 1] || '';
+
+        if (item.includes('quickops-boot.js')) {
+          continue;
+        }
+
+        if ((item === '-r' || item === '--require') && nextItem.includes('quickops-boot.js')) {
+          index++;
+          continue;
+        }
+
+        if (item.startsWith('-r') && item.includes('quickops-boot.js')) {
+          continue;
+        }
+
+        if (item.startsWith('--require=') && item.includes('quickops-boot.js')) {
+          continue;
+        }
+
+        nextParts.push(item);
+      }
+
+      if (nextParts.length > 0) {
+        env.NODE_OPTIONS = nextParts.join(' ');
+      } else {
+        delete env.NODE_OPTIONS;
+      }
+    }
+
+    return env;
+  }
+
   private executeCommandInBackground(
     command: string,
     cwd: string,
@@ -874,6 +1160,8 @@ export class PackageScriptsFeature implements IFeature {
       startedAt: Date.now(),
       progress: 3,
       ports: this.extractPortsFromText(command),
+      source: "quickops",
+      commandType: this.getCommandType(command, displayName),
     });
     this.lastStatus = { type: "idle" };
     this.updateScriptStatusBar();
@@ -882,7 +1170,7 @@ export class PackageScriptsFeature implements IFeature {
 
     const childProcess = spawn(command, {
       cwd,
-      env: process.env,
+      env: this.getSafeProcessEnv(),
       shell: true,
       windowsHide: true,
     });
