@@ -17,16 +17,9 @@ import {
   faListUl,
   faFolderPlus,
   faBullseye,
-  faAnglesUp,
+  faFolderMinus,
 } from '@fortawesome/free-solid-svg-icons';
-import {
-  faCopy,
-  faSquareCheck,
-  faClone,
-  faFolderOpen as faFolderOpenReg,
-  faWindowRestore,
-  faFileCode,
-} from '@fortawesome/free-regular-svg-icons';
+import { faCopy, faSquareCheck, faClone, faFolderOpen as faFolderOpenReg, faWindowRestore, faFileCode } from '@fortawesome/free-regular-svg-icons';
 
 import styles from './index.module.css';
 import type { ContextMenuPayload } from '../../types/RecentProjectsApp';
@@ -68,26 +61,18 @@ function getStatusKey(status?: string) {
 
   const compactStatus = cleanStatus.replace(/\s+/g, '');
 
-  return ['U', '?', 'M', 'A', 'D', 'R', 'C', 'I', '!', 'X', 'T'].find((key) => {
-    return key === '?' ? compactStatus.includes('?') : compactStatus.toUpperCase().includes(key);
-  }) || '';
+  return (
+    ['U', '?', 'M', 'A', 'D', 'R', 'C', 'I', '!', 'X', 'T'].find((key) => {
+      return key === '?' ? compactStatus.includes('?') : compactStatus.toUpperCase().includes(key);
+    }) || ''
+  );
 }
 
-export default function RecentProjectContextMenu({
-  visible,
-  x,
-  y,
-  type,
-  payload,
-  menuRef,
-  onAction,
-}: ContextMenuProps) {
+export default function RecentProjectContextMenu({ visible, x, y, type, payload, menuRef, onAction }: ContextMenuProps) {
   if (!visible) return null;
 
   const isRemotePath = payload.path.startsWith('vscode-vfs') || payload.path.startsWith('http');
-  const isLocalHtmlOrSvg =
-    !isRemotePath &&
-    /\.(html|htm|svg|svga)$/i.test(payload.path);
+  const isLocalHtmlOrSvg = !isRemotePath && /\.(html|htm|svg|svga)$/i.test(payload.path);
 
   const statusKey = getStatusKey((payload as any).status);
 
@@ -98,12 +83,7 @@ export default function RecentProjectContextMenu({
    * 但它们不是当前 VS Code 工作区，右侧无法稳定作为可编辑工作区文件，
    * 所以这里统一不显示这两个操作，保持和 VS Code 原生资源管理器一致。
    */
-  const hasFileChangeStatus =
-    type === 'sub' &&
-    !payload.isFolder &&
-    !isRemotePath &&
-    !!payload.isActiveProject &&
-    !!statusKey;
+  const hasFileChangeStatus = type === 'sub' && !payload.isFolder && !isRemotePath && !!payload.isActiveProject && !!statusKey;
 
   const menuStyle: React.CSSProperties = {};
 
@@ -254,7 +234,7 @@ export default function RecentProjectContextMenu({
                   <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
                 </li>
                 <li onClick={() => onAction('collapseFolderChildren')}>
-                  <FontAwesomeIcon icon={faAnglesUp} className={styles['menu-icon']} /> 折叠
+                  <FontAwesomeIcon icon={faFolderMinus} className={styles['menu-icon']} /> 折叠
                 </li>
                 {!payload.isRemote && (
                   <>
