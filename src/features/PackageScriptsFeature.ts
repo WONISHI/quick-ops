@@ -1,41 +1,99 @@
-import * as vscode from 'vscode';
-import { TextDecoder } from 'util';
-import { IFeature } from '../core/interfaces/IFeature';
-import { WorkspaceContextService } from '../services/WorkspaceContextService';
-import { TemplateEngine } from '../utils/TemplateEngine';
-import { ConfigurationService } from '../services/ConfigurationService';
-import type { ShellConfigItem, ScriptItem } from '../core/types/package-script';
-import ColorLog from '../utils/ColorLog';
+import * as vscode from "vscode";
+import { TextDecoder } from "util";
+import { spawn } from "child_process";
+import * as net from "net";
+import { IFeature } from "../core/interfaces/IFeature";
+import { WorkspaceContextService } from "../services/WorkspaceContextService";
+import { TemplateEngine } from "../utils/TemplateEngine";
+import { ConfigurationService } from "../services/ConfigurationService";
+import type { ShellConfigItem, ScriptItem } from "../core/types/package-script";
+import ColorLog from "../utils/ColorLog";
 
 export class PackageScriptsFeature implements IFeature {
-  public readonly id = 'PackageScriptsFeature';
+  public readonly id = "PackageScriptsFeature";
   private extensionUri!: vscode.Uri;
-  private configService: ConfigurationService = ConfigurationService.getInstance();
+  private configService: ConfigurationService =
+    ConfigurationService.getInstance();
+  private statusBarItem?: vscode.StatusBarItem;
+  private statusHideTimer?: ReturnType<typeof setTimeout>;
+  private commandSeq = 0;
+  private statusTickTimer?: ReturnType<typeof setInterval>;
+  private externalWatchTimer?: ReturnType<typeof setInterval>;
+  private activeCommands = new Map<
+    number,
+    {
+      displayName: string;
+      command: string;
+      cwd: string;
+      state: "running" | "success";
+      startedAt: number;
+      progress: number;
+      ports: number[];
+      url?: string;
+      successAt?: number;
+      lastOutputAt?: number;
+    }
+  >();
+  private externalServers = new Map<
+    string,
+    {
+      host: string;
+      port: number;
+      label: string;
+      source: string;
+      checkedAt: number;
+    }
+  >();
+  private lastStatus: {
+    type: "idle" | "success" | "failed" | "cancelled" | "external";
+    displayName?: string;
+    command?: string;
+    message?: string;
+  } = {
+    type: "idle",
+  };
 
-  constructor(private contextService: WorkspaceContextService = WorkspaceContextService.getInstance()) {}
+  constructor(
+    private contextService: WorkspaceContextService = WorkspaceContextService.getInstance(),
+  ) {}
 
   public activate(context: vscode.ExtensionContext): void {
     this.extensionUri = context.extensionUri;
 
-    const commandId = 'quick-ops.showPackageScripts';
+    const commandId = "quick-ops.showPackageScripts";
 
-    // 🌟 只保留命令注册，移除状态栏相关代码
-    context.subscriptions.push(vscode.commands.registerCommand(commandId, this.showScripts.bind(this)));
+    context.subscriptions.push(
+      vscode.commands.registerCommand(commandId, this.showScripts.bind(this)),
+    );
 
-    ColorLog.black(`[${this.id}]`, 'Activated.');
+    this.statusBarItem = vscode.window.createStatusBarItem(
+      vscode.StatusBarAlignment.Left,
+      100,
+    );
+    this.statusBarItem.name = "Quick Ops Scripts";
+    this.statusBarItem.command = commandId;
+    context.subscriptions.push(this.statusBarItem, {
+      dispose: () => this.disposeStatusBarResources(),
+    });
+    this.updateScriptStatusBar();
+    this.startExternalServerWatcher();
+
+    ColorLog.black(`[${this.id}]`, "Activated.");
   }
 
-  private async findPackageJsonUri(startUri: vscode.Uri): Promise<vscode.Uri | undefined> {
+  private async findPackageJsonUri(
+    startUri: vscode.Uri,
+  ): Promise<vscode.Uri | undefined> {
     let currentUri = startUri;
 
     while (true) {
-      const packageJsonUri = vscode.Uri.joinPath(currentUri, 'package.json');
+      const packageJsonUri = vscode.Uri.joinPath(currentUri, "package.json");
       try {
         await vscode.workspace.fs.stat(packageJsonUri);
         return packageJsonUri;
       } catch {}
 
-      const parentUri = vscode.Uri.joinPath(currentUri, '..');
+      const parentUri = vscode.Uri.joinPath(currentUri, "..");
 
       if (parentUri.toString() === currentUri.toString()) {
         return undefined;
@@ -47,18 +105,24 @@ export class PackageScriptsFeature implements IFeature {
   private async showScripts() {
     const items: (ScriptItem | vscode.QuickPickItem)[] = [];
     const ctx = this.contextService.context;
-    const decoder = new TextDecoder('utf-8');
+    const decoder = new TextDecoder("utf-8");
 
     let startUri: vscode.Uri | undefined;
 
     if (vscode.window.activeTextEditor) {
-      startUri = vscode.Uri.joinPath(vscode.window.activeTextEditor.document.uri, '..');
-    } else if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+      startUri = vscode.Uri.joinPath(
+        vscode.window.activeTextEditor.document.uri,
+        "..",
+      );
+    } else if (
+      vscode.workspace.workspaceFolders &&
+      vscode.workspace.workspaceFolders.length > 0
+    ) {
       startUri = vscode.workspace.workspaceFolders[0].uri;
     }
 
     let packageJsonUri: vscode.Uri | undefined;
-    let projectRootStr = '';
+    let projectRootStr = "";
 
     if (startUri) {
       packageJsonUri = await this.findPackageJsonUri(startUri);
@@ -72,41 +136,58 @@ export class PackageScriptsFeature implements IFeature {
         const scripts = packageJson.scripts || {};
         const scriptNames = Object.keys(scripts);
 
-        const packageDirUri = vscode.Uri.joinPath(packageJsonUri, '..');
+        const packageDirUri = vscode.Uri.joinPath(packageJsonUri, "..");
         projectRootStr = packageDirUri.fsPath;
 
         if (scriptNames.length > 0) {
           items.push({
-            label: `NPM Scripts (${packageJson.name || 'Project'})`,
+            label: `NPM Scripts (${packageJson.name || "Project"})`,
             description: vscode.workspace.asRelativePath(packageDirUri),
             kind: vscode.QuickPickItemKind.Separator,
           });
 
           scriptNames.forEach((name) => {
-            items.push(this.createScriptItem(name, scripts[name], name, projectRootStr, true, undefined, false));
+            items.push(
+              this.createScriptItem(
+                name,
+                scripts[name],
+                name,
+                projectRootStr,
+                true,
+                undefined,
+                false,
+              ),
+            );
           });
         }
       } catch (e: any) {
-        console.error('Error parsing package.json', e);
+        console.error("Error parsing package.json", e);
       }
 
       const workspaceScripts = this.loadWorkspaceScripts(projectRootStr, ctx);
       if (workspaceScripts.length > 0) {
         items.push({
-          label: 'Workspace Custom Scripts',
+          label: "Workspace Custom Scripts",
           kind: vscode.QuickPickItemKind.Separator,
         });
         items.push(...workspaceScripts);
       }
     }
 
-    const shellResourceUri = vscode.Uri.joinPath(this.extensionUri, 'resources', 'shell');
+    const shellResourceUri = vscode.Uri.joinPath(
+      this.extensionUri,
+      "resources",
+      "shell",
+    );
 
     try {
       const entries = await vscode.workspace.fs.readDirectory(shellResourceUri);
 
       const fileReadPromises = entries
-        .filter(([name, type]) => type === vscode.FileType.File && name.endsWith('.json'))
+        .filter(
+          ([name, type]) =>
+            type === vscode.FileType.File && name.endsWith(".json"),
+        )
         .map(async ([name]) => {
           try {
             const fileUri = vscode.Uri.joinPath(shellResourceUri, name);
@@ -115,7 +196,11 @@ export class PackageScriptsFeature implements IFeature {
 
             const jsonItems: ShellConfigItem[] = JSON.parse(content);
             if (Array.isArray(jsonItems) && jsonItems.length > 0) {
-              const validShellItems = this.processShellItems(jsonItems, ctx, projectRootStr || this.extensionUri.fsPath);
+              const validShellItems = this.processShellItems(
+                jsonItems,
+                ctx,
+                projectRootStr || this.extensionUri.fsPath,
+              );
               if (validShellItems.length > 0) {
                 return { file: name, items: validShellItems };
               }
@@ -130,39 +215,55 @@ export class PackageScriptsFeature implements IFeature {
 
       results.forEach((res) => {
         if (res) {
-          items.push({ label: `Extension: ${res.file}`, kind: vscode.QuickPickItemKind.Separator });
+          items.push({
+            label: `Extension: ${res.file}`,
+            kind: vscode.QuickPickItemKind.Separator,
+          });
           items.push(...res.items);
         }
       });
     } catch (err) {}
 
     if (items.length === 0) {
-      vscode.window.showInformationMessage('No executable scripts found.');
+      vscode.window.showInformationMessage("No executable scripts found.");
       return;
     }
 
     const quickPick = vscode.window.createQuickPick<ScriptItem>();
     quickPick.items = items as ScriptItem[];
-    quickPick.placeholder = 'Select a script to execute';
+    quickPick.placeholder = "Select a script to execute";
     quickPick.matchOnDescription = true;
     quickPick.ignoreFocusOut = true;
 
     quickPick.onDidTriggerItemButton(async (e) => {
-      const isNewTerminal = e.button.tooltip === '在新终端执行';
-      await this.runScript(e.item, isNewTerminal);
-      if (!e.item.keepOpen) quickPick.hide();
+      if (!e.item.keepOpen) {
+        quickPick.hide();
+      }
+
+      await this.runScript(e.item);
+
+      if (e.item.keepOpen) {
+        quickPick.selectedItems = [];
+        quickPick.show();
+      }
     });
 
     quickPick.onDidAccept(async () => {
       const selected = quickPick.selectedItems[0];
-      if (selected) {
-        await this.runScript(selected, false);
-        if (!selected.keepOpen) {
-          quickPick.hide();
-        } else {
-          quickPick.selectedItems = [];
-          quickPick.show();
-        }
+
+      if (!selected || !selected.commandToExecute) {
+        return;
+      }
+
+      if (!selected.keepOpen) {
+        quickPick.hide();
+      }
+
+      await this.runScript(selected);
+
+      if (selected.keepOpen) {
+        quickPick.selectedItems = [];
+        quickPick.show();
       }
     });
 
@@ -177,17 +278,39 @@ export class PackageScriptsFeature implements IFeature {
     return [];
   }
 
-  private processShellItems(jsonItems: ShellConfigItem[], ctx: any, cwd: string): ScriptItem[] {
+  private processShellItems(
+    jsonItems: ShellConfigItem[],
+    ctx: any,
+    cwd: string,
+  ): ScriptItem[] {
     const validItems: ScriptItem[] = [];
     jsonItems.forEach((item) => {
       const { result, payload, status } = TemplateEngine.render(item.cmd, ctx);
-      if (status === 'empty' || status === 'missing') return;
-      validItems.push(this.createScriptItem(item.description, result, result, cwd, false, payload, item.keepOpen));
+      if (status === "empty" || status === "missing") return;
+      validItems.push(
+        this.createScriptItem(
+          item.description,
+          result,
+          result,
+          cwd,
+          false,
+          payload,
+          item.keepOpen,
+        ),
+      );
     });
     return validItems;
   }
 
-  private createScriptItem(label: string, description: string, commandToExecute: string, cwd: string, isNpmScript: boolean, payload?: Record<string, any>, keepOpen: boolean = false): ScriptItem {
+  private createScriptItem(
+    label: string,
+    description: string,
+    commandToExecute: string,
+    cwd: string,
+    isNpmScript: boolean,
+    payload?: Record<string, any>,
+    keepOpen: boolean = false,
+  ): ScriptItem {
     return {
       label: `$(terminal) ${label}`,
       description: description,
@@ -197,22 +320,23 @@ export class PackageScriptsFeature implements IFeature {
       payload: payload,
       keepOpen: keepOpen,
       buttons: [
-        { iconPath: new vscode.ThemeIcon('debug-start'), tooltip: '在当前终端执行' },
-        { iconPath: new vscode.ThemeIcon('add'), tooltip: '在新终端执行' },
+        { iconPath: new vscode.ThemeIcon("debug-start"), tooltip: "后台执行" },
       ],
     };
   }
 
   private async selectPackageManager(cwd: string): Promise<string | undefined> {
     const managers = [
-      { name: 'pnpm', lock: 'pnpm-lock.yaml' },
-      { name: 'yarn', lock: 'yarn.lock' },
-      { name: 'bun', lock: 'bun.lockb' },
-      { name: 'npm', lock: 'package-lock.json' },
+      { name: "pnpm", lock: "pnpm-lock.yaml" },
+      { name: "yarn", lock: "yarn.lock" },
+      { name: "bun", lock: "bun.lockb" },
+      { name: "npm", lock: "package-lock.json" },
     ];
 
     const getCwdUri = (cwdPath: string): vscode.Uri => {
-      const ws = vscode.workspace.workspaceFolders?.find((w) => w.uri.fsPath === cwdPath);
+      const ws = vscode.workspace.workspaceFolders?.find(
+        (w) => w.uri.fsPath === cwdPath,
+      );
       return ws ? ws.uri : vscode.Uri.file(cwdPath);
     };
 
@@ -229,34 +353,648 @@ export class PackageScriptsFeature implements IFeature {
     });
 
     const results = await Promise.all(checkPromises);
-    const detected = results.filter((m): m is (typeof managers)[0] => m !== null);
+    const detected = results.filter(
+      (m): m is (typeof managers)[0] => m !== null,
+    );
 
     const items: vscode.QuickPickItem[] = [];
 
     if (detected.length > 0) {
-      detected.forEach((m) => items.push({ label: m.name, description: `Detected ${m.lock}`, picked: true }));
-      items.push({ label: '', kind: vscode.QuickPickItemKind.Separator });
+      detected.forEach((m) =>
+        items.push({
+          label: m.name,
+          description: `Detected ${m.lock}`,
+          picked: true,
+        }),
+      );
+      items.push({ label: "", kind: vscode.QuickPickItemKind.Separator });
     }
 
     const detectedNames = detected.map((d) => d.name);
-    if (!detectedNames.includes('npm')) items.push({ label: 'npm', description: 'Default' });
+    if (!detectedNames.includes("npm"))
+      items.push({ label: "npm", description: "Default" });
 
-    ['pnpm', 'yarn', 'bun'].forEach((name) => {
-      if (!detectedNames.includes(name)) items.push({ label: name, description: 'Force use' });
+    ["pnpm", "yarn", "bun"].forEach((name) => {
+      if (!detectedNames.includes(name))
+        items.push({ label: name, description: "Force use" });
     });
 
-    if (detected.length === 0) return 'npm';
+    if (detected.length === 0) return "npm";
 
     const selected = await vscode.window.showQuickPick(items, {
-      placeHolder: 'Select package manager',
+      placeHolder: "Select package manager",
       ignoreFocusOut: true,
     });
 
     return selected ? selected.label : undefined;
   }
 
-  private async runScript(item: ScriptItem, newTerminal: boolean) {
+  private getScriptDisplayName(item: ScriptItem) {
+    return (
+      item.label.replace("$(terminal) ", "").trim() || item.commandToExecute
+    );
+  }
+
+  private getCommandErrorMessage(
+    error: Error | null,
+    stderr: string,
+    command: string,
+  ) {
+    const rawMessage = stderr.trim() || error?.message || "命令执行失败";
+    const firstLines = rawMessage
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 6)
+      .join("\n");
+
+    return `命令执行失败：${command}\n\n${firstLines}`;
+  }
+
+  private appendCommandOutput(buffer: string[], chunk: Buffer | string) {
+    const value = Buffer.isBuffer(chunk)
+      ? chunk.toString("utf8")
+      : String(chunk);
+
+    if (!value) return;
+
+    buffer.push(value);
+
+    const maxLength = 8000;
+    let totalLength = buffer.reduce((total, item) => total + item.length, 0);
+
+    while (totalLength > maxLength && buffer.length > 1) {
+      const removed = buffer.shift() || "";
+      totalLength -= removed.length;
+    }
+  }
+
+  private disposeStatusBarResources() {
+    this.clearStatusHideTimer();
+
+    if (this.statusTickTimer) {
+      clearInterval(this.statusTickTimer);
+      this.statusTickTimer = undefined;
+    }
+
+    if (this.externalWatchTimer) {
+      clearInterval(this.externalWatchTimer);
+      this.externalWatchTimer = undefined;
+    }
+  }
+
+  private formatElapsed(ms: number) {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  private ensureStatusTicker() {
+    if (this.statusTickTimer) return;
+
+    this.statusTickTimer = setInterval(() => {
+      this.updateRunningCommandProgress();
+      this.updateScriptStatusBar();
+    }, 1000);
+  }
+
+  private stopStatusTickerIfIdle() {
+    if (this.activeCommands.size > 0 || this.externalServers.size > 0) return;
+    if (!this.statusTickTimer) return;
+
+    clearInterval(this.statusTickTimer);
+    this.statusTickTimer = undefined;
+  }
+
+  private updateRunningCommandProgress() {
+    const now = Date.now();
+
+    this.activeCommands.forEach((item, commandId) => {
+      if (item.state !== "running") return;
+
+      const elapsedSeconds = Math.floor((now - item.startedAt) / 1000);
+      const nextProgress = Math.min(
+        95,
+        Math.max(item.progress, 8 + elapsedSeconds * 3),
+      );
+
+      if (nextProgress !== item.progress) {
+        this.activeCommands.set(commandId, {
+          ...item,
+          progress: nextProgress,
+        });
+      }
+    });
+  }
+
+  private extractPortsFromText(value: string) {
+    const ports = new Set<number>();
+    const text = String(value || "");
+
+    const patterns = [
+      /(?:localhost|127\.0\.0\.1|0\.0\.0\.0)[:：](\d{2,5})/gi,
+      /(?:--port|--https-port|--host\s+[^\s]+\s+--port)\s*[= ]\s*(\d{2,5})/gi,
+      /(?:PORT|port)\s*[=:]\s*(\d{2,5})/g,
+      /listen(?:ing)?\s+(?:on\s+)?(?:port\s+)?(\d{2,5})/gi,
+    ];
+
+    patterns.forEach((pattern) => {
+      let matched: RegExpExecArray | null;
+
+      while ((matched = pattern.exec(text))) {
+        const port = Number(matched[1]);
+
+        if (port >= 1 && port <= 65535) {
+          ports.add(port);
+        }
+      }
+    });
+
+    return Array.from(ports);
+  }
+
+  private getDefaultMonitorPorts() {
+    return [3000, 3001, 5173, 5174, 4173, 4200, 5000, 5170, 8000, 8080, 8888];
+  }
+
+  private async getWorkspacePackageScriptPorts() {
+    const decoder = new TextDecoder("utf-8");
+    const result = new Map<number, string>();
+    const workspaceFolders = vscode.workspace.workspaceFolders || [];
+
+    for (const folder of workspaceFolders) {
+      try {
+        const packageJsonUri = vscode.Uri.joinPath(folder.uri, "package.json");
+        const contentUint8 = await vscode.workspace.fs.readFile(packageJsonUri);
+        const packageJson = JSON.parse(decoder.decode(contentUint8));
+        const scripts = packageJson.scripts || {};
+
+        Object.entries(scripts).forEach(([name, command]) => {
+          this.extractPortsFromText(String(command)).forEach((port) => {
+            result.set(port, `${folder.name}:${name}`);
+          });
+        });
+      } catch {}
+    }
+
+    this.getDefaultMonitorPorts().forEach((port) => {
+      if (!result.has(port)) {
+        result.set(port, `localhost:${port}`);
+      }
+    });
+
+    return result;
+  }
+
+  private isPortOpen(
+    port: number,
+    host: string = "127.0.0.1",
+    timeout: number = 450,
+  ) {
+    return new Promise<boolean>((resolve) => {
+      const socket = new net.Socket();
+      let settled = false;
+
+      const finish = (opened: boolean) => {
+        if (settled) return;
+
+        settled = true;
+        socket.destroy();
+        resolve(opened);
+      };
+
+      socket.setTimeout(timeout);
+      socket.once("connect", () => finish(true));
+      socket.once("timeout", () => finish(false));
+      socket.once("error", () => finish(false));
+      socket.connect(port, host);
+    });
+  }
+
+  private async detectExternalServers() {
+    const portMap = await this.getWorkspacePackageScriptPorts();
+    const now = Date.now();
+    const nextServers = new Map<
+      string,
+      {
+        host: string;
+        port: number;
+        label: string;
+        source: string;
+        checkedAt: number;
+      }
+    >();
+
+    await Promise.all(
+      Array.from(portMap.entries()).map(async ([port, label]) => {
+        const opened = await this.isPortOpen(port);
+
+        if (!opened) return;
+
+        nextServers.set(`127.0.0.1:${port}`, {
+          host: "127.0.0.1",
+          port,
+          label,
+          source: label.includes(":") ? "package.json" : "default-port",
+          checkedAt: now,
+        });
+
+        this.activeCommands.forEach((item, commandId) => {
+          if (item.state !== "running") return;
+          if (!item.ports.includes(port)) return;
+
+          this.markCommandSuccess(commandId, {
+            port,
+            url: `http://localhost:${port}`,
+          });
+        });
+      }),
+    );
+
+    const oldKey = Array.from(this.externalServers.keys()).sort().join("|");
+    const newKey = Array.from(nextServers.keys()).sort().join("|");
+
+    this.externalServers = nextServers;
+
+    if (oldKey !== newKey) {
+      if (this.externalServers.size > 0 && this.activeCommands.size === 0) {
+        this.lastStatus = {
+          type: "external",
+          displayName: `外部服务 ${this.externalServers.size} 个`,
+        };
+      }
+
+      this.updateScriptStatusBar();
+    }
+  }
+
+  private startExternalServerWatcher() {
+    if (this.externalWatchTimer) return;
+
+    this.detectExternalServers().catch(() => undefined);
+
+    this.externalWatchTimer = setInterval(() => {
+      this.detectExternalServers().catch(() => undefined);
+    }, 3500);
+  }
+
+  private clearStatusHideTimer() {
+    if (!this.statusHideTimer) return;
+
+    clearTimeout(this.statusHideTimer);
+    this.statusHideTimer = undefined;
+  }
+
+  private getActiveCommandsTooltip() {
+    const commands = Array.from(this.activeCommands.values());
+
+    if (commands.length === 0) {
+      if (this.lastStatus.type === "idle") {
+        return "Quick Ops 脚本执行器：点击选择要执行的命令";
+      }
+
+      const prefixMap: Record<
+        "idle" | "success" | "failed" | "cancelled" | "external",
+        string
+      > = {
+        idle: "Quick Ops",
+        success: "success",
+        failed: "failed",
+        cancelled: "cancelled",
+        external: "external success",
+      };
+
+      return [
+        `Quick Ops ${prefixMap[this.lastStatus.type]}`,
+        this.lastStatus.displayName
+          ? `命令：${this.lastStatus.displayName}`
+          : "",
+        this.lastStatus.command ? `执行：${this.lastStatus.command}` : "",
+        this.lastStatus.message || "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    const runningCount = commands.filter(
+      (item) => item.state === "running",
+    ).length;
+    const successCount = commands.filter(
+      (item) => item.state === "success",
+    ).length;
+
+    return [
+      `Quick Ops 后台命令`,
+      `启动中：${runningCount}`,
+      `success：${successCount}`,
+      "",
+      ...commands.map((item) => {
+        const icon =
+          item.state === "success" ? "success" : `启动中 ${item.progress}%`;
+        const elapsed = this.formatElapsed(Date.now() - item.startedAt);
+        const url = item.url ? ` · ${item.url}` : "";
+        return `${icon} · ${elapsed} · ${item.displayName} · ${item.command}${url}`;
+      }),
+      ...(this.externalServers.size > 0
+        ? [
+            "",
+            `外部已运行：${this.externalServers.size}`,
+            ...Array.from(this.externalServers.values()).map((item) => {
+              return `success · ${item.label} · http://localhost:${item.port}`;
+            }),
+          ]
+        : []),
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  private updateScriptStatusBar() {
+    if (!this.statusBarItem) return;
+
+    this.clearStatusHideTimer();
+    this.updateRunningCommandProgress();
+
+    const commands = Array.from(this.activeCommands.values());
+
+    if (commands.length > 0) {
+      const runningCommands = commands.filter(
+        (item) => item.state === "running",
+      );
+      const successCommands = commands.filter(
+        (item) => item.state === "success",
+      );
+      const runningCount = runningCommands.length;
+      const successCount = successCommands.length;
+
+      if (runningCount > 0) {
+        const avgProgress = Math.round(
+          runningCommands.reduce((total, item) => total + item.progress, 0) /
+            Math.max(1, runningCount),
+        );
+        const maxElapsed = Math.max(
+          ...runningCommands.map((item) => Date.now() - item.startedAt),
+        );
+
+        this.statusBarItem.text =
+          successCount > 0
+            ? `$(sync~spin) Quick Ops: 启动中 ${runningCount} · ${avgProgress}% · ${this.formatElapsed(maxElapsed)} · success ${successCount}`
+            : `$(sync~spin) Quick Ops: 启动中 ${runningCount} · ${avgProgress}% · ${this.formatElapsed(maxElapsed)}`;
+        this.statusBarItem.color = new vscode.ThemeColor("charts.blue");
+      } else {
+        this.statusBarItem.text = `$(check) Quick Ops: success ${successCount}`;
+        this.statusBarItem.color = new vscode.ThemeColor("testing.iconPassed");
+      }
+
+      this.statusBarItem.tooltip = this.getActiveCommandsTooltip();
+      this.statusBarItem.show();
+      this.ensureStatusTicker();
+      return;
+    }
+
+    if (this.externalServers.size > 0) {
+      this.statusBarItem.text = `$(radio-tower) Quick Ops: external success ${this.externalServers.size}`;
+      this.statusBarItem.color = new vscode.ThemeColor("testing.iconPassed");
+      this.statusBarItem.tooltip = [
+        "监听到外部启动的本地服务",
+        "",
+        ...Array.from(this.externalServers.values()).map(
+          (item) => `${item.label} · http://localhost:${item.port}`,
+        ),
+        "",
+        "说明：这是通过 localhost 端口探测识别的，不是读取外部终端输出。",
+      ].join("\n");
+      this.statusBarItem.show();
+      this.ensureStatusTicker();
+      return;
+    }
+
+    if (this.lastStatus.type === "success") {
+      this.statusBarItem.text = "$(check) Quick Ops: success";
+      this.statusBarItem.color = new vscode.ThemeColor("testing.iconPassed");
+    } else if (this.lastStatus.type === "failed") {
+      this.statusBarItem.text = "$(error) Quick Ops: failed";
+      this.statusBarItem.color = new vscode.ThemeColor("testing.iconFailed");
+    } else if (this.lastStatus.type === "cancelled") {
+      this.statusBarItem.text = "$(warning) Quick Ops: cancelled";
+      this.statusBarItem.color = new vscode.ThemeColor(
+        "list.warningForeground",
+      );
+    } else if (this.lastStatus.type === "external") {
+      this.statusBarItem.text = "$(radio-tower) Quick Ops: external success";
+      this.statusBarItem.color = new vscode.ThemeColor("testing.iconPassed");
+    } else {
+      this.statusBarItem.text = "$(rocket) Quick Ops";
+      this.statusBarItem.color = undefined;
+    }
+
+    this.statusBarItem.tooltip = this.getActiveCommandsTooltip();
+    this.statusBarItem.show();
+    this.stopStatusTickerIfIdle();
+  }
+
+  private setLastCommandStatus(
+    type: "success" | "failed" | "cancelled",
+    displayName: string,
+    command: string,
+    message?: string,
+  ) {
+    this.lastStatus = {
+      type,
+      displayName,
+      command,
+      message,
+    };
+    this.updateScriptStatusBar();
+  }
+
+  private isStartupSuccessOutput(output: string) {
+    const value = output.toLowerCase();
+
+    return [
+      "compiled successfully",
+      "successfully compiled",
+      "ready in",
+      "local:",
+      "network:",
+      "localhost:",
+      "127.0.0.1:",
+      "server running",
+      "server started",
+      "started server",
+      "listening on",
+      "running at",
+      "app running",
+    ].some((keyword) => value.includes(keyword));
+  }
+
+  private markCommandSuccess(
+    commandId: number,
+    options?: { port?: number; url?: string },
+  ) {
+    const commandItem = this.activeCommands.get(commandId);
+
+    if (!commandItem || commandItem.state === "success") return;
+
+    this.activeCommands.set(commandId, {
+      ...commandItem,
+      state: "success",
+      progress: 100,
+      successAt: Date.now(),
+      url: options?.url || commandItem.url,
+      ports:
+        options?.port && !commandItem.ports.includes(options.port)
+          ? [...commandItem.ports, options.port]
+          : commandItem.ports,
+    });
+    this.lastStatus = {
+      type: "success",
+      displayName: commandItem.displayName,
+      command: commandItem.command,
+    };
+    this.updateScriptStatusBar();
+  }
+
+  private executeCommandInBackground(
+    command: string,
+    cwd: string,
+    displayName: string,
+  ): void {
+    const commandId = ++this.commandSeq;
+    const outputBuffer: string[] = [];
+    let settled = false;
+
+    this.activeCommands.set(commandId, {
+      displayName,
+      command,
+      cwd,
+      state: "running",
+      startedAt: Date.now(),
+      progress: 3,
+      ports: this.extractPortsFromText(command),
+    });
+    this.lastStatus = { type: "idle" };
+    this.updateScriptStatusBar();
+    this.ensureStatusTicker();
+    this.detectExternalServers().catch(() => undefined);
+
+    const childProcess = spawn(command, {
+      cwd,
+      env: process.env,
+      shell: true,
+      windowsHide: true,
+    });
+
+    const handleOutput = (chunk: Buffer | string) => {
+      this.appendCommandOutput(outputBuffer, chunk);
+
+      const value = Buffer.isBuffer(chunk)
+        ? chunk.toString("utf8")
+        : String(chunk);
+      const detectedPorts = this.extractPortsFromText(value);
+
+      if (detectedPorts.length > 0) {
+        const commandItem = this.activeCommands.get(commandId);
+
+        if (commandItem) {
+          const ports = Array.from(
+            new Set([...commandItem.ports, ...detectedPorts]),
+          );
+          const urlPort = detectedPorts[0];
+
+          this.activeCommands.set(commandId, {
+            ...commandItem,
+            ports,
+            url: commandItem.url || `http://localhost:${urlPort}`,
+            progress: Math.max(commandItem.progress, 80),
+            lastOutputAt: Date.now(),
+          });
+        }
+      }
+
+      if (this.isStartupSuccessOutput(value)) {
+        this.markCommandSuccess(
+          commandId,
+          detectedPorts[0]
+            ? {
+                port: detectedPorts[0],
+                url: `http://localhost:${detectedPorts[0]}`,
+              }
+            : undefined,
+        );
+      }
+    };
+
+    childProcess.stdout?.on("data", handleOutput);
+    childProcess.stderr?.on("data", handleOutput);
+
+    childProcess.on("error", (error) => {
+      if (settled) return;
+
+      settled = true;
+      const commandItem = this.activeCommands.get(commandId);
+
+      this.activeCommands.delete(commandId);
+      this.setLastCommandStatus(
+        "failed",
+        commandItem?.displayName || displayName,
+        commandItem?.command || command,
+        error.message,
+      );
+      vscode.window.showErrorMessage(
+        this.getCommandErrorMessage(error, outputBuffer.join(""), command),
+      );
+    });
+
+    childProcess.on("close", (code, signal) => {
+      if (settled) return;
+
+      settled = true;
+      const commandItem = this.activeCommands.get(commandId);
+      const currentState = commandItem?.state || "running";
+
+      this.activeCommands.delete(commandId);
+
+      if (signal) {
+        this.setLastCommandStatus(
+          "cancelled",
+          displayName,
+          command,
+          `信号：${signal}`,
+        );
+        return;
+      }
+
+      if (code && code !== 0) {
+        const errorMessage = `退出码 ${code}`;
+
+        this.setLastCommandStatus("failed", displayName, command, errorMessage);
+        vscode.window.showErrorMessage(
+          this.getCommandErrorMessage(
+            new Error(errorMessage),
+            outputBuffer.join(""),
+            command,
+          ),
+        );
+        return;
+      }
+
+      this.setLastCommandStatus("success", displayName, command);
+
+      if (currentState !== "success") {
+        this.updateScriptStatusBar();
+      }
+    });
+  }
+
+  private async runScript(item: ScriptItem) {
     let finalCommand = item.commandToExecute;
+
+    if (!finalCommand) {
+      return;
+    }
 
     if (item.payload && Object.keys(item.payload).length > 0) {
       for (const [key, value] of Object.entries(item.payload)) {
@@ -266,7 +1004,10 @@ export class PackageScriptsFeature implements IFeature {
             ignoreFocusOut: true,
           });
           if (!choice) return;
-          finalCommand = finalCommand.replace(new RegExp(`\\[\\[\\s*${key}\\s*\\]\\]`, 'g'), choice);
+          finalCommand = finalCommand.replace(
+            new RegExp(`\\[\\[\\s*${key}\\s*\\]\\]`, "g"),
+            choice,
+          );
         }
       }
     }
@@ -274,41 +1015,13 @@ export class PackageScriptsFeature implements IFeature {
     if (item.isNpmScript) {
       const packageManager = await this.selectPackageManager(item.cwd);
       if (!packageManager) return;
-      finalCommand = `${packageManager}${packageManager === 'yarn' ? ` ${finalCommand}` : ` run ${finalCommand}`}`;
+      finalCommand = `${packageManager}${packageManager === "yarn" ? ` ${finalCommand}` : ` run ${finalCommand}`}`;
     }
 
-    let terminal: vscode.Terminal;
-
-    if (newTerminal) {
-      terminal = vscode.window.createTerminal({
-        name: `Ops: ${item.label.replace('$(terminal) ', '')}`,
-        cwd: item.cwd,
-      });
-      terminal.show();
-      terminal.sendText(finalCommand);
-    } else {
-      if (vscode.window.activeTerminal) {
-        terminal = vscode.window.activeTerminal;
-        terminal.show();
-
-        // 🌟 1. 发送一次 Ctrl+C
-        terminal.sendText('\u0003', false);
-
-        // 🌟 2. 利用 setTimeout 和 Promise 阻塞执行，增加双重中断彻底绕过批处理 Y/N 询问
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        terminal.sendText('\u0003', false); // 再次发送 Ctrl+C (对付顽固的批处理阻塞)
-
-        await new Promise((resolve) => setTimeout(resolve, 150));
-        // 🌟 3. 发送真实的命令
-        terminal.sendText(finalCommand);
-      } else {
-        terminal = vscode.window.createTerminal({
-          name: 'Terminal',
-          cwd: item.cwd,
-        });
-        terminal.show();
-        terminal.sendText(finalCommand);
-      }
-    }
+    this.executeCommandInBackground(
+      finalCommand,
+      item.cwd,
+      this.getScriptDisplayName(item),
+    );
   }
 }
