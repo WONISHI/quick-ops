@@ -67,7 +67,6 @@ class GitVirtualContentProvider implements vscode.TextDocumentContentProvider {
   }
 }
 
-
 export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private stateKey = 'quickOps.recentProjectsHistory';
@@ -103,10 +102,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private readonly fileIndexCacheTtl = 15000;
 
   constructor(private context: vscode.ExtensionContext) {
-    this.context.subscriptions.push(
-      vscode.workspace.registerTextDocumentContentProvider('quickops-git-virtual', this.gitVirtualContentProvider),
-      this.gitVirtualContentProvider
-    );
+    this.context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('quickops-git-virtual', this.gitVirtualContentProvider), this.gitVirtualContentProvider);
 
     this.initializeCurrentWorkspace();
 
@@ -116,13 +112,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       this.handleEditorChange(vscode.window.activeTextEditor);
     }
 
-    vscode.window.onDidChangeActiveTextEditor(editor => {
+    vscode.window.onDidChangeActiveTextEditor((editor) => {
       this.handleEditorChange(editor);
     });
   }
 
   private async checkPendingFileOpen() {
-    const pending = this.context.globalState.get<{ path: string, line: number, char: number, targetWorkspace?: string }>('quickOps.pendingOpenFile');
+    const pending = this.context.globalState.get<{ path: string; line: number; char: number; targetWorkspace?: string }>('quickOps.pendingOpenFile');
     if (pending) {
       const currentWorkspaceStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
       if (pending.targetWorkspace && currentWorkspaceStr !== pending.targetWorkspace) {
@@ -211,10 +207,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     if (activePath) {
       if (Array.isArray(this.revealVisibleProjectPaths)) {
-        canReveal = this.revealVisibleProjectPaths.some(p => this.isInsidePath(activePath, p));
+        canReveal = this.revealVisibleProjectPaths.some((p) => this.isInsidePath(activePath, p));
       } else if (currentWorkspaceStr && this.isInsidePath(activePath, currentWorkspaceStr)) {
         canReveal = true;
-      } else if (projects.some(p => this.isInsidePath(activePath, p.fsPath))) {
+      } else if (projects.some((p) => this.isInsidePath(activePath, p.fsPath))) {
         canReveal = true;
       }
     }
@@ -228,7 +224,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (this._view) {
       this._view.webview.postMessage({
         type: 'activeEditorChanged',
-        fsPath: fsPath
+        fsPath: fsPath,
       });
     }
   }
@@ -245,7 +241,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const projects = this.getRecentProjects();
     const currentWorkspaceStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
 
-    let rootProj = projects.find(p => this.isInsidePath(realPath, p.fsPath));
+    let rootProj = projects.find((p) => this.isInsidePath(realPath, p.fsPath));
 
     if (!rootProj && currentWorkspaceStr && this.isInsidePath(realPath, currentWorkspaceStr)) {
       rootProj = { name: vscode.workspace.workspaceFolders![0].name, fsPath: currentWorkspaceStr } as any;
@@ -270,7 +266,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       type: 'revealPath',
       targetPath: realPath,
       parentPaths: parentPaths,
-      projectName
+      projectName,
     });
   }
 
@@ -371,18 +367,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           continue;
         }
 
-        const isTargetDiff =
-          this.isGitDiffUriMatchedTarget(originalUri, targetKey) ||
-          this.isGitDiffUriMatchedTarget(modifiedUri, targetKey);
+        const isTargetDiff = this.isGitDiffUriMatchedTarget(originalUri, targetKey) || this.isGitDiffUriMatchedTarget(modifiedUri, targetKey);
 
         if (!isTargetDiff) {
           continue;
         }
 
-        const isQuickOpsDiff =
-          this.isQuickOpsGitDiffUri(originalUri) ||
-          this.isQuickOpsGitDiffUri(modifiedUri) ||
-          String(tab.label || '').includes('旧代码');
+        const isQuickOpsDiff = this.isQuickOpsGitDiffUri(originalUri) || this.isQuickOpsGitDiffUri(modifiedUri) || String(tab.label || '').includes('旧代码');
 
         if (isQuickOpsDiff) {
           tabsToClose.push(tab);
@@ -395,7 +386,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-
   private getGitRoot(nativePath: string): Promise<string> {
     return this.gitStatusService.getGitRoot(nativePath);
   }
@@ -404,11 +394,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     return this.gitStatusService.getGitStatusMap(nativePath);
   }
 
-  private getChildGitStatus(
-    childRelativePath: string,
-    isFolder: boolean,
-    statusMap: Map<string, string>
-  ) {
+  private getChildGitStatus(childRelativePath: string, isFolder: boolean, statusMap: Map<string, string>) {
     return this.gitStatusService.getChildGitStatus(childRelativePath, isFolder, statusMap);
   }
 
@@ -487,9 +473,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       }
     }
 
-    const task = vscode.workspace.fs
-      .readDirectory(uri)
-      .then((entries) => {
+    const task = (async () => {
+      try {
+        const entries = await vscode.workspace.fs.readDirectory(uri);
+
         const children = entries
           .filter(([name]) => name !== '.DS_Store' && name !== 'Thumbs.db')
           .map(([name, type]) => {
@@ -521,10 +508,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         });
 
         return children;
-      })
-      .finally(() => {
+      } finally {
         this.localDirInflight.delete(cacheKey);
-      });
+      }
+    })();
 
     this.localDirInflight.set(cacheKey, task);
 
@@ -682,11 +669,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     return task;
   }
 
-  private async runWithConcurrency<T>(
-    items: T[],
-    concurrency: number,
-    worker: (item: T) => Promise<void>
-  ): Promise<void> {
+  private async runWithConcurrency<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> {
     let index = 0;
 
     const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
@@ -826,15 +809,15 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       {
         location: vscode.ProgressLocation.Window,
         title: 'Quick Ops: 正在同步所有项目的最新分支...',
-        cancellable: false
+        cancellable: false,
       },
       async () => {
         await this.refreshBranchesAsync();
         const currentUriStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
-        if (currentUriStr && !this.getRecentProjects().some(p => p.fsPath === currentUriStr)) {
+        if (currentUriStr && !this.getRecentProjects().some((p) => p.fsPath === currentUriStr)) {
           await this.updateSingleBranch(currentUriStr, true);
         }
-      }
+      },
     );
     vscode.window.showInformationMessage('🎉 所有项目分支状态已同步更新完毕！');
   }
@@ -851,15 +834,17 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async (data) => {
       switch (data.type) {
-
         case 'addToHistory': {
-          const currentWorkspace = vscode.workspace.workspaceFolders?.find(f => f.uri.toString() === data.fsPath);
-          const name = currentWorkspace ? currentWorkspace.name : (data.projectName || path.basename(data.fsPath));
+          const currentWorkspace = vscode.workspace.workspaceFolders?.find((f) => f.uri.toString() === data.fsPath);
+          const name = currentWorkspace ? currentWorkspace.name : data.projectName || path.basename(data.fsPath);
 
           let platform, customDomain;
           if (data.fsPath.startsWith('vscode-vfs://') || data.fsPath.startsWith('http')) {
             const parsed = this.parseRemoteUrlInput(data.fsPath);
-            if (parsed) { platform = parsed.platform; customDomain = parsed.customDomain; }
+            if (parsed) {
+              platform = parsed.platform;
+              customDomain = parsed.customDomain;
+            }
           }
 
           await this.insertProjectToHistory(name, data.fsPath, platform, customDomain);
@@ -869,12 +854,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
         case 'addToGitList': {
           const gitProjects = this.context.globalState.get<any[]>('quickOps.gitProjectsHistory') || [];
-          if (!gitProjects.find(p => p.fsPath === data.fsPath)) {
-            const proj = this.getRecentProjects().find(p => p.fsPath === data.fsPath);
+          if (!gitProjects.find((p) => p.fsPath === data.fsPath)) {
+            const proj = this.getRecentProjects().find((p) => p.fsPath === data.fsPath);
             gitProjects.unshift(proj || { fsPath: data.fsPath, name: path.basename(data.fsPath) });
             await this.context.globalState.update('quickOps.gitProjectsHistory', gitProjects);
             vscode.window.showInformationMessage('✅ 已添加到 Git 记录列表');
-            vscode.commands.executeCommand('quickOps.refreshGitProjects').then(undefined, () => { });
+            vscode.commands.executeCommand('quickOps.refreshGitProjects').then(undefined, () => {});
           } else {
             vscode.window.showWarningMessage('⚠️ 该项目已在 Git 记录列表中');
           }
@@ -887,10 +872,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const targetUri = data.fsPath.includes('://') ? vscode.Uri.parse(data.fsPath) : vscode.Uri.file(data.fsPath);
 
           for (const editor of vscode.window.visibleTextEditors) {
-            if (
-              editor.document.uri.fsPath === targetUri.fsPath ||
-              (editor.document.uri.scheme === 'quickops-ro' && editor.document.uri.query.includes(encodeURIComponent(data.fsPath)))
-            ) {
+            if (editor.document.uri.fsPath === targetUri.fsPath || (editor.document.uri.scheme === 'quickops-ro' && editor.document.uri.query.includes(encodeURIComponent(data.fsPath)))) {
               currentLine = editor.selection.active.line;
               currentChar = editor.selection.active.character;
               break;
@@ -902,7 +884,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             { modal: true },
             '在当前窗口打开 (替换工作区)',
             '在新窗口打开',
-            '仅作为散文件打开'
+            '仅作为散文件打开',
           );
 
           if (!choice) return;
@@ -922,17 +904,15 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             // 无论是替换当前窗口还是新窗口，都需要切换 Workspace
             const projects = this.getRecentProjects();
             // 寻找该文件所属的项目根目录
-            const rootProj = projects.find(p => this.isInsidePath(data.fsPath, p.fsPath));
-            const workspaceUri = rootProj
-              ? (rootProj.fsPath.includes('://') ? vscode.Uri.parse(rootProj.fsPath) : vscode.Uri.file(rootProj.fsPath))
-              : vscode.Uri.joinPath(targetUri, '..'); // 兜底用它的父级目录
+            const rootProj = projects.find((p) => this.isInsidePath(data.fsPath, p.fsPath));
+            const workspaceUri = rootProj ? (rootProj.fsPath.includes('://') ? vscode.Uri.parse(rootProj.fsPath) : vscode.Uri.file(rootProj.fsPath)) : vscode.Uri.joinPath(targetUri, '..'); // 兜底用它的父级目录
 
             // 把这颗“坐标种子”塞进 globalState
             await this.context.globalState.update('quickOps.pendingOpenFile', {
               path: data.fsPath,
               line: currentLine,
               char: currentChar,
-              targetWorkspace: workspaceUri.toString()
+              targetWorkspace: workspaceUri.toString(),
             });
 
             const forceNewWindow = choice === '在新窗口打开';
@@ -961,11 +941,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const proj = this.getRecentProjects().find((p) => p.fsPath === data.fsPath);
           const pName = proj?.customName || proj?.name || '该项目';
 
-          vscode.window.showWarningMessage(
-            `确定要在当前窗口打开 [ ${pName} ] 吗？\n这将会关闭您当前正在工作的工作区！`,
-            { modal: true },
-            '确认覆盖打开'
-          ).then(confirm => {
+          vscode.window.showWarningMessage(`确定要在当前窗口打开 [ ${pName} ] 吗？\n这将会关闭您当前正在工作的工作区！`, { modal: true }, '确认覆盖打开').then((confirm) => {
             if (confirm === '确认覆盖打开') {
               this.executeOpen(data.fsPath, false, proj?.branch);
             }
@@ -1069,11 +1045,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           break;
         case 'previewWithExcel':
         case 'previewWithExcelToSide': {
-          this.openExcelPanel(
-            data.fsPath,
-            data.projectName || '未知项目',
-            data.type === 'previewWithExcelToSide' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active
-          );
+          this.openExcelPanel(data.fsPath, data.projectName || '未知项目', data.type === 'previewWithExcelToSide' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active);
           break;
         }
         case 'openImageNative':
@@ -1105,21 +1077,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
         case 'previewWithPdf':
         case 'previewWithPdfToSide': {
-          this.openPdfPanel(
-            data.fsPath,
-            data.projectName || '未知项目',
-            data.type === 'previewWithPdfToSide' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active
-          );
+          this.openPdfPanel(data.fsPath, data.projectName || '未知项目', data.type === 'previewWithPdfToSide' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active);
           break;
         }
 
         case 'previewWithDoc':
         case 'previewWithDocToSide': {
-          this.openDocPanel(
-            data.fsPath,
-            data.projectName || '未知项目',
-            data.type === 'previewWithDocToSide' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active
-          );
+          this.openDocPanel(data.fsPath, data.projectName || '未知项目', data.type === 'previewWithDocToSide' ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active);
           break;
         }
 
@@ -1155,7 +1119,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       }
     });
   }
-
 
   private normalizeGitStatusKey(status?: string): string {
     const raw = String(status || '').trim();
@@ -1243,10 +1206,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
      * - 如果传入本身就是目录：用该目录查 Git root。
      */
     const stat = await this.statFileSafe(uri);
-    const gitSearchPath =
-      stat && (stat.type & vscode.FileType.Directory) !== 0
-        ? nativePath
-        : path.dirname(nativePath);
+    const gitSearchPath = stat && (stat.type & vscode.FileType.Directory) !== 0 ? nativePath : path.dirname(nativePath);
 
     const gitRoot = await this.getGitRoot(gitSearchPath).catch(() => '');
 
@@ -1298,9 +1258,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const isNewFile = statusKey === 'U' || statusKey === '?' || statusKey === 'A';
     const isDeletedFile = statusKey === 'D';
 
-    const oldContent = isNewFile
-      ? ''
-      : await this.gitService.getFileContent(location.gitRoot, 'HEAD', location.relativePath);
+    const oldContent = isNewFile ? '' : await this.gitService.getFileContent(location.gitRoot, 'HEAD', location.relativePath);
 
     const timestamp = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
     const fileName = path.basename(location.nativePath);
@@ -1352,16 +1310,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const isUntracked = statusKey === 'U' || statusKey === '?' || statusKey === 'A';
 
     const confirmText = isUntracked ? '删除未提交文件' : '取消变更';
-    const message = isUntracked
-      ? `确定要删除未提交的新文件 “${fileName}” 吗？该操作不可恢复。`
-      : `确定要取消 “${fileName}” 的所有未提交变更吗？该操作不可恢复。`;
+    const message = isUntracked ? `确定要删除未提交的新文件 “${fileName}” 吗？该操作不可恢复。` : `确定要取消 “${fileName}” 的所有未提交变更吗？该操作不可恢复。`;
 
     const picked = await vscode.window.showWarningMessage(
       message,
       {
         modal: true,
       },
-      confirmText
+      confirmText,
     );
 
     if (picked !== confirmText) {
@@ -1400,17 +1356,17 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       const textOption: vscode.QuickPickItem = {
         label: '$(code) 文本编辑器',
-        description: '以纯文本代码形式打开'
+        description: '以纯文本代码形式打开',
       };
       const previewOption: vscode.QuickPickItem = {
         label: '$(preview) 解析编辑器',
-        description: isDoc ? '预览 Word 文档' : '渲染并预览页面 / 图像'
+        description: isDoc ? '预览 Word 文档' : '渲染并预览页面 / 图像',
       };
 
       const items = isSvg || isDoc ? [previewOption, textOption] : [textOption, previewOption];
 
       const selected = await vscode.window.showQuickPick(items, {
-        placeHolder: `选择 ${path.basename(uri.path)} 的打开方式...`
+        placeHolder: `选择 ${path.basename(uri.path)} 的打开方式...`,
       });
 
       if (!selected) return;
@@ -1442,19 +1398,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
       const fileName = path.basename(uri.path);
 
-      const panel = vscode.window.createWebviewPanel(
-        'htmlPreviewReact',
-        `${projectName}: ${fileName}`,
-        viewColumn,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [
-            this.context.extensionUri,
-            vscode.Uri.file(path.dirname(uri.fsPath))
-          ]
-        }
-      );
+      const panel = vscode.window.createWebviewPanel('htmlPreviewReact', `${projectName}: ${fileName}`, viewColumn, {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [this.context.extensionUri, vscode.Uri.file(path.dirname(uri.fsPath))],
+      });
 
       this.activePanels.set(uri.fsPath, panel);
 
@@ -1526,16 +1474,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const contentBytes = await vscode.workspace.fs.readFile(uri);
       const fileBase64 = Buffer.from(contentBytes).toString('base64');
 
-      const panel = vscode.window.createWebviewPanel(
-        'excelPreviewReact',
-        `${projectName}: ${fileName}`,
-        viewColumn,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [this.context.extensionUri]
-        }
-      );
+      const panel = vscode.window.createWebviewPanel('excelPreviewReact', `${projectName}: ${fileName}`, viewColumn, {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [this.context.extensionUri],
+      });
 
       this.activePanels.set(uri.fsPath, panel);
 
@@ -1557,14 +1500,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             type: 'initExcelData',
             fsPath: fsPath,
             fileName: fileName,
-            contentBase64: fileBase64
+            contentBase64: fileBase64,
           });
         }
       });
 
       panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'table.svg');
       panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, `/xls?type=read`);
-
     } catch (e) {
       vscode.window.showErrorMessage('无法读取文件进行 Excel 预览。');
     }
@@ -1576,15 +1518,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const fileName = path.basename(uri.path);
       await this.closeExistingPreviews(uri.fsPath);
 
-      const panel = vscode.window.createWebviewPanel(
-        'pdfPreviewReact',
-        `${projectName}: ${fileName}`,
-        viewColumn,
-        {
-          enableScripts: true,
-          localResourceRoots: [this.context.extensionUri]
-        }
-      );
+      const panel = vscode.window.createWebviewPanel('pdfPreviewReact', `${projectName}: ${fileName}`, viewColumn, {
+        enableScripts: true,
+        localResourceRoots: [this.context.extensionUri],
+      });
       this.activePanels.set(uri.fsPath, panel);
 
       panel.onDidChangeViewState(({ webviewPanel }) => {
@@ -1606,7 +1543,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             const fileBase64 = Buffer.from(contentBytes).toString('base64');
             panel.webview.postMessage({
               type: 'initPdfData',
-              contentBase64: fileBase64
+              contentBase64: fileBase64,
             });
           } catch (e) {
             console.error('PDF 读取失败', e);
@@ -1616,7 +1553,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       panel.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'pdf.svg');
       panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, `/pdf?type=read`);
-
     } catch (e) {
       vscode.window.showErrorMessage('无法读取文件进行 PDF 预览。');
     }
@@ -1630,16 +1566,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       await this.closeExistingPreviews(uri.fsPath);
 
-      const panel = vscode.window.createWebviewPanel(
-        'docPreviewReact',
-        `${projectName}: ${fileName}`,
-        viewColumn,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [this.context.extensionUri]
-        }
-      );
+      const panel = vscode.window.createWebviewPanel('docPreviewReact', `${projectName}: ${fileName}`, viewColumn, {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [this.context.extensionUri],
+      });
 
       this.activePanels.set(uri.fsPath, panel);
 
@@ -1661,7 +1592,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             if (ext === '.doc') {
               panel.webview.postMessage({
                 type: 'initDocError',
-                message: '当前预览器暂不支持旧版 .doc 格式，请转换为 .docx 后再预览。'
+                message: '当前预览器暂不支持旧版 .doc 格式，请转换为 .docx 后再预览。',
               });
               return;
             }
@@ -1704,20 +1635,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const mdDir = path.dirname(uri.fsPath);
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
 
-      const panel = vscode.window.createWebviewPanel(
-        'vditorPreviewReact',
-        `${projectName}: ${fileName}`,
-        vscode.ViewColumn.Active,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [
-            this.context.extensionUri,
-            vscode.Uri.file(mdDir),
-            ...(workspaceRoot ? [vscode.Uri.file(workspaceRoot)] : [])
-          ]
-        }
-      );
+      const panel = vscode.window.createWebviewPanel('vditorPreviewReact', `${projectName}: ${fileName}`, vscode.ViewColumn.Active, {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [this.context.extensionUri, vscode.Uri.file(mdDir), ...(workspaceRoot ? [vscode.Uri.file(workspaceRoot)] : [])],
+      });
       this.activePanels.set(uri.fsPath, panel);
 
       const markdownResult = await setupMarkdown({
@@ -1753,7 +1675,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             type: 'initVditorData',
             content: markdownResult.content,
             mode: type,
-            fsPath: fsPath
+            fsPath: fsPath,
           });
         } else if (msg.command === 'saveMarkdown' && type === 'edit') {
           const assets = this.markdownImageAssets.get(uri.fsPath) || {};
@@ -1773,7 +1695,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       panel.webview.html = getReactWebviewHtml(this.context.extensionUri, panel.webview, `/Vditor?type=${type}`);
-
     } catch (e) {
       vscode.window.showErrorMessage('无法读取文件进行 Vditor 预览。');
     }
@@ -1790,11 +1711,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           return uri.fsPath.replace(/\\/g, '/').replace(/\/+$/, '');
         }
 
-        return decodeURIComponent(uri.path || value).replace(/\\/g, '/').replace(/\/+$/, '');
+        return decodeURIComponent(uri.path || value)
+          .replace(/\\/g, '/')
+          .replace(/\/+$/, '');
       }
-    } catch { }
+    } catch {}
 
-    return value.replace(/^file:\/\//, '').replace(/\\/g, '/').replace(/\/+$/, '');
+    return value
+      .replace(/^file:\/\//, '')
+      .replace(/\\/g, '/')
+      .replace(/\/+$/, '');
   }
 
   private toLocalUri(value: string): vscode.Uri | undefined {
@@ -1844,12 +1770,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     return { errors, warnings };
   }
 
-  private getAggregatedGitStatus(
-    relativePath: string,
-    isFolder: boolean,
-    statusMap: Map<string, string>,
-    fallback?: string
-  ): string | undefined {
+  private getAggregatedGitStatus(relativePath: string, isFolder: boolean, statusMap: Map<string, string>, fallback?: string): string | undefined {
     const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
 
     if (!normalized && !isFolder) {
@@ -1909,7 +1830,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   private async enrichFileItem<T extends { path?: string; fullPath?: string; fsPath?: string; isFolder?: boolean; status?: string; diagnostics?: DiagnosticSummary }>(
     item: T,
-    context: { gitRoot: string; statusMap: Map<string, string> }
+    context: { gitRoot: string; statusMap: Map<string, string> },
   ): Promise<T> {
     const targetPath = item.path || item.fullPath || item.fsPath || '';
     const uri = this.toLocalUri(targetPath);
@@ -1921,9 +1842,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const nativePath = uri.fsPath;
     const isFolder = !!item.isFolder;
     const gitRelativePath = context.gitRoot ? path.relative(context.gitRoot, nativePath).replace(/\\/g, '/') : '';
-    const status = context.gitRoot
-      ? this.getAggregatedGitStatus(gitRelativePath, isFolder, context.statusMap, item.status)
-      : item.status;
+    const status = context.gitRoot ? this.getAggregatedGitStatus(gitRelativePath, isFolder, context.statusMap, item.status) : item.status;
 
     return {
       ...item,
@@ -1982,14 +1901,19 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
     };
 
-    const enrichedProjects = await Promise.all([
-      ...this.getRecentProjects(),
-      ...(vscode.workspace.workspaceFolders?.map((folder) => ({
-        name: folder.name,
-        fsPath: folder.uri.toString(),
-        timestamp: Date.now(),
-      } as RecentProject)) || []),
-    ].map((project) => this.enrichProject(project)));
+    const enrichedProjects = await Promise.all(
+      [
+        ...this.getRecentProjects(),
+        ...(vscode.workspace.workspaceFolders?.map(
+          (folder) =>
+            ({
+              name: folder.name,
+              fsPath: folder.uri.toString(),
+              timestamp: Date.now(),
+            }) as RecentProject,
+        ) || []),
+      ].map((project) => this.enrichProject(project)),
+    );
 
     enrichedProjects.forEach(pushPatch);
 
@@ -2005,13 +1929,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private async handleSearchFileName(
-    fsPath: string,
-    query: string,
-    isRemote: boolean,
-    focusOnly: boolean = false,
-    requestId?: number
-  ) {
+  private async handleSearchFileName(fsPath: string, query: string, isRemote: boolean, focusOnly: boolean = false, requestId?: number) {
     if (isRemote) {
       this._view?.webview.postMessage({
         type: 'searchFileNameResult',
@@ -2060,10 +1978,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
        */
       const allowPathLevelMatch = normalizedQuery.includes('/') || queryParts.length > 1;
 
-      const shouldIncludeHiddenEntries =
-        normalizedQuery.startsWith('.') ||
-        normalizedQuery.includes('/.') ||
-        queryParts.some((part) => part.startsWith('.'));
+      const shouldIncludeHiddenEntries = normalizedQuery.startsWith('.') || normalizedQuery.includes('/.') || queryParts.some((part) => part.startsWith('.'));
 
       const shouldSkipHiddenSearchEntry = (relativePath: string) => {
         if (shouldIncludeHiddenEntries) {
@@ -2210,11 +2125,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         return;
       }
 
-      const matchedFolderPathSet = new Set(
-        rawScoredResults
-          .filter((item) => item.source.isFolder)
-          .map((item) => item.source.relativePath)
-      );
+      const matchedFolderPathSet = new Set(rawScoredResults.filter((item) => item.source.isFolder).map((item) => item.source.relativePath));
 
       const getFirstPathSegment = (relativePath: string) => {
         return relativePath.split('/').filter(Boolean)[0] || relativePath;
@@ -2335,13 +2246,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async handleSearchInFolder(
-    fsPath: string,
-    query: string,
-    isRemote: boolean,
-    focusOnly: boolean = false,
-    requestId?: number
-  ) {
+  private async handleSearchInFolder(fsPath: string, query: string, isRemote: boolean, focusOnly: boolean = false, requestId?: number) {
     if (isRemote) {
       this._view?.webview.postMessage({
         type: 'searchFolderResult',
@@ -2535,9 +2440,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         return;
       }
 
-      const sortedResults = results
-        .sort((a, b) => String(a.file || '').localeCompare(String(b.file || '')))
-        .slice(0, maxMatches);
+      const sortedResults = results.sort((a, b) => String(a.file || '').localeCompare(String(b.file || ''))).slice(0, maxMatches);
 
       this._view?.webview.postMessage({
         type: 'searchFolderResult',
@@ -2551,7 +2454,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           isFolder: false,
           name: path.basename(item.fullPath),
         })),
-        fsPath
+        fsPath,
       );
     } catch (error: any) {
       if (this.isSearchCancelled(runId)) {
@@ -2662,14 +2565,15 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const parentUri = await this.getWritableLocalFolderUri(parentFsPath);
       if (!parentUri) return;
 
-      const input = typeof name === 'string'
-        ? name
-        : await vscode.window.showInputBox({
-          title: '新建文件',
-          prompt: '请输入新文件名',
-          placeHolder: '例如：index.ts',
-          ignoreFocusOut: true,
-        });
+      const input =
+        typeof name === 'string'
+          ? name
+          : await vscode.window.showInputBox({
+              title: '新建文件',
+              prompt: '请输入新文件名',
+              placeHolder: '例如：index.ts',
+              ignoreFocusOut: true,
+            });
 
       const filePathParts = this.validateNewEntityName(input || '', 'file');
       if (filePathParts.length === 0) return;
@@ -2716,14 +2620,15 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const parentUri = await this.getWritableLocalFolderUri(parentFsPath);
       if (!parentUri) return;
 
-      const input = typeof name === 'string'
-        ? name
-        : await vscode.window.showInputBox({
-          title: '新建文件夹',
-          prompt: '请输入新文件夹名',
-          placeHolder: '例如：components',
-          ignoreFocusOut: true,
-        });
+      const input =
+        typeof name === 'string'
+          ? name
+          : await vscode.window.showInputBox({
+              title: '新建文件夹',
+              prompt: '请输入新文件夹名',
+              placeHolder: '例如：components',
+              ignoreFocusOut: true,
+            });
 
       const folderPathParts = this.validateNewEntityName(input || '', 'folder');
       if (folderPathParts.length === 0) return;
@@ -2775,12 +2680,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
       }
 
-      await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: '正在复制文件...' },
-        async () => {
-          await vscode.workspace.fs.copy(uri, newUri);
-        }
-      );
+      await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: '正在复制文件...' }, async () => {
+        await vscode.workspace.fs.copy(uri, newUri);
+      });
 
       vscode.window.showInformationMessage(`📄 文件已复制为: ${newFileName}`);
     } catch (e) {
@@ -2885,11 +2787,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const entityName = path.basename(uri.fsPath || uri.path);
       const entityType = isFolder ? '文件夹' : '文件';
 
-      const confirm = await vscode.window.showWarningMessage(
-        `确定要删除${entityType} “${entityName}” 吗？${isFolder ? ' 文件夹内的所有内容也会被删除。' : ''}`,
-        { modal: true },
-        '确认删除'
-      );
+      const confirm = await vscode.window.showWarningMessage(`确定要删除${entityType} “${entityName}” 吗？${isFolder ? ' 文件夹内的所有内容也会被删除。' : ''}`, { modal: true }, '确认删除');
 
       if (confirm !== '确认删除') {
         return;
@@ -3074,7 +2972,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             try {
               const url = new URL(p.fsPath);
               repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
-            } catch (e) { }
+            } catch (e) {}
           }
           if (repoFullName) {
             newBranch = await this.fetchDefaultBranch(p.platform || 'github', p.customDomain || '', repoFullName);
@@ -3092,9 +2990,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             const fileContent = Buffer.from(fileBytes).toString('utf8').trim();
             if (fileContent.startsWith('gitdir: ')) {
               const realGitDir = fileContent.replace('gitdir: ', '').trim();
-              const realGitDirPath = path.isAbsolute(realGitDir)
-                ? realGitDir
-                : path.join(baseUri.fsPath, realGitDir);
+              const realGitDirPath = path.isAbsolute(realGitDir) ? realGitDir : path.join(baseUri.fsPath, realGitDir);
               gitPath = vscode.Uri.file(realGitDirPath);
             }
           }
@@ -3103,9 +2999,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const contentBytes = await vscode.workspace.fs.readFile(headUri);
           const content = Buffer.from(contentBytes).toString('utf8').trim();
 
-          newBranch = content.startsWith('ref: ')
-            ? content.replace(/^ref:\s*refs\/heads\//, '')
-            : content.substring(0, 7);
+          newBranch = content.startsWith('ref: ') ? content.replace(/^ref:\s*refs\/heads\//, '') : content.substring(0, 7);
         } catch (e) {
           newBranch = undefined;
         }
@@ -3118,7 +3012,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         stateChanged = true;
       }
 
-      await new Promise(resolve => setTimeout(resolve, 5));
+      await new Promise((resolve) => setTimeout(resolve, 5));
     }
 
     if (stateChanged) {
@@ -3139,7 +3033,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         let platform, customDomain;
         if (fsPath.startsWith('vscode-vfs://') || fsPath.startsWith('http')) {
           const parsed = this.parseRemoteUrlInput(fsPath);
-          if (parsed) { platform = parsed.platform; customDomain = parsed.customDomain; }
+          if (parsed) {
+            platform = parsed.platform;
+            customDomain = parsed.customDomain;
+          }
         }
         p = { name: folders[0].name, fsPath: fsPath, timestamp: 0, platform, customDomain };
       } else {
@@ -3164,7 +3061,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             try {
               const url = new URL(p.fsPath);
               repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
-            } catch (e) { }
+            } catch (e) {}
           }
           if (repoFullName) {
             newBranch = await this.fetchDefaultBranch(p.platform || 'github', p.customDomain || '', repoFullName);
@@ -3182,9 +3079,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             const fileContent = Buffer.from(fileBytes).toString('utf8').trim();
             if (fileContent.startsWith('gitdir: ')) {
               const realGitDir = fileContent.replace('gitdir: ', '').trim();
-              const realGitDirPath = path.isAbsolute(realGitDir)
-                ? realGitDir
-                : path.join(baseUri.fsPath, realGitDir);
+              const realGitDirPath = path.isAbsolute(realGitDir) ? realGitDir : path.join(baseUri.fsPath, realGitDir);
               gitPath = vscode.Uri.file(realGitDirPath);
             }
           }
@@ -3193,9 +3088,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const contentBytes = await vscode.workspace.fs.readFile(headUri);
           const content = Buffer.from(contentBytes).toString('utf8').trim();
 
-          newBranch = content.startsWith('ref: ')
-            ? content.replace(/^ref:\s*refs\/heads\//, '')
-            : content.substring(0, 7);
+          newBranch = content.startsWith('ref: ') ? content.replace(/^ref:\s*refs\/heads\//, '') : content.substring(0, 7);
         } catch (e) {
           newBranch = undefined;
         }
@@ -3214,14 +3107,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     };
 
     if (silent) {
-      fetchTask().catch(() => { });
+      fetchTask().catch(() => {});
     } else {
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Window,
           title: `Quick Ops: 正在更新 [${displayName}] 的分支信息...`,
         },
-        fetchTask
+        fetchTask,
       );
       vscode.window.showInformationMessage(`🎉 项目 [${displayName}] 的分支更新成功！`);
     }
@@ -3319,7 +3212,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         const url = new URL(fsPath);
         domain = url.hostname;
         repoFullName = url.pathname.replace(/^\//, '').replace(/\.git$/, '');
-      } catch (e) { }
+      } catch (e) {}
     }
 
     if (!repoFullName) return;
@@ -3399,12 +3292,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async readDirectory(
-    fsPath: string,
-    projectName: string,
-    focusOnly: boolean = false,
-    forceRefresh: boolean = false
-  ) {
+  private async readDirectory(fsPath: string, projectName: string, focusOnly: boolean = false, forceRefresh: boolean = false) {
     this.knownVisibleDirs.add(fsPath);
 
     if (this.isRemoteFsPath(fsPath)) {
@@ -3501,7 +3389,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         name: currentName,
         fsPath: currentUriStr,
         platform,
-        customDomain
+        customDomain,
       };
     }
 
@@ -3514,7 +3402,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       currentUriStr: currentUriStr,
       currentWorkspace: currentWorkspaceInfo,
       lastOpenedPath: this.lastOpenedPath,
-      activeFilePath: this.currentActivePath || activeFilePath
+      activeFilePath: this.currentActivePath || activeFilePath,
     });
 
     this.scheduleStatusSync(120);
@@ -3537,7 +3425,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       platform: platform || existingProject?.platform,
       customDomain: customDomain || existingProject?.customDomain,
       branch: existingProject?.branch,
-      customName: existingProject?.customName
+      customName: existingProject?.customName,
     });
 
     if (projects.length > 50) projects = projects.slice(0, 50);
@@ -3622,12 +3510,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const project = this.getRecentProjects().find((p) => p.fsPath === fsPath);
     const pName = project?.customName || project?.name || '该项目';
 
-    const choice = await vscode.window.showInformationMessage(
-      `准备打开项目 [ ${pName} ]，请选择打开方式：`,
-      { modal: true },
-      '在当前窗口打开 (覆盖当前)',
-      '在新窗口打开'
-    );
+    const choice = await vscode.window.showInformationMessage(`准备打开项目 [ ${pName} ]，请选择打开方式：`, { modal: true }, '在当前窗口打开 (覆盖当前)', '在新窗口打开');
 
     if (choice === '在当前窗口打开 (覆盖当前)') {
       this.executeOpen(fsPath, false, project?.branch);
