@@ -31,6 +31,16 @@ interface MetadataPatchItem {
   diagnostics: DiagnosticSummary;
 }
 
+interface IndexedFileItem {
+  name: string;
+  fullPath: string;
+  uriString: string;
+  relativePath: string;
+  isFolder: boolean;
+  ext: string;
+  uri: vscode.Uri;
+}
+
 class GitVirtualContentProvider implements vscode.TextDocumentContentProvider {
   private readonly changeEmitter = new vscode.EventEmitter<vscode.Uri>();
   public readonly onDidChange = this.changeEmitter.event;
@@ -80,6 +90,17 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private readonly loadedDirChildren = new Map<string, any[]>();
   private readonly knownVisibleDirs = new Set<string>();
   private statusSyncTimer: NodeJS.Timeout | undefined;
+
+  private readonly localDirCache = new Map<string, { children: any[]; expiresAt: number }>();
+  private readonly localDirInflight = new Map<string, Promise<any[]>>();
+
+  private readonly fileIndexCache = new Map<string, { items: IndexedFileItem[]; expiresAt: number }>();
+  private readonly fileIndexInflight = new Map<string, Promise<IndexedFileItem[]>>();
+
+  private activeSearchRunId = 0;
+
+  private readonly localDirCacheTtl = 3000;
+  private readonly fileIndexCacheTtl = 15000;
 
   constructor(private context: vscode.ExtensionContext) {
     this.context.subscriptions.push(
@@ -404,6 +425,328 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  private isRemoteFsPath(fsPath: string): boolean {
+    return fsPath.startsWith('vscode-vfs://') || fsPath.startsWith('http://') || fsPath.startsWith('https://');
+  }
+
+  private getSearchRunId(): number {
+    this.activeSearchRunId += 1;
+    return this.activeSearchRunId;
+  }
+
+  private isSearchCancelled(runId: number): boolean {
+    return runId !== this.activeSearchRunId;
+  }
+
+  private toResourceUri(fsPath: string): vscode.Uri {
+    return fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+  }
+
+  private normalizeNativePath(fsPath: string): string {
+    return this.toResourceUri(fsPath).fsPath;
+  }
+
+  private decodeFileContent(contentBytes: Uint8Array): string {
+    return Buffer.from(contentBytes).toString('utf8');
+  }
+
+  private getRelativePathByUri(rootUri: vscode.Uri, childUri: vscode.Uri): string {
+    if (rootUri.scheme === 'file' && childUri.scheme === 'file') {
+      return path.relative(rootUri.fsPath, childUri.fsPath).replace(/\\/g, '/');
+    }
+
+    const rootPath = rootUri.path.replace(/\/+$/, '');
+    const childPath = childUri.path;
+
+    if (childPath === rootPath) {
+      return '';
+    }
+
+    if (childPath.startsWith(`${rootPath}/`)) {
+      return decodeURIComponent(childPath.slice(rootPath.length + 1));
+    }
+
+    return decodeURIComponent(childPath.split('/').pop() || childPath);
+  }
+
+  private async readLocalDirectoryChildrenFast(fsPath: string, forceRefresh: boolean = false): Promise<any[]> {
+    const uri = this.toResourceUri(fsPath);
+    const cacheKey = uri.toString();
+
+    if (!forceRefresh) {
+      const cached = this.localDirCache.get(cacheKey);
+
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.children;
+      }
+
+      const inflight = this.localDirInflight.get(cacheKey);
+
+      if (inflight) {
+        return inflight;
+      }
+    }
+
+    const task = vscode.workspace.fs
+      .readDirectory(uri)
+      .then((entries) => {
+        const children = entries
+          .filter(([name]) => name !== '.DS_Store' && name !== 'Thumbs.db')
+          .map(([name, type]) => {
+            const childUri = vscode.Uri.joinPath(uri, name);
+            const isFolder = (type & vscode.FileType.Directory) !== 0;
+
+            return {
+              path: childUri.toString(),
+              name,
+              isFolder,
+              status: undefined,
+              diagnostics: {
+                errors: 0,
+                warnings: 0,
+              },
+            };
+          })
+          .sort((a, b) => {
+            if (a.isFolder !== b.isFolder) {
+              return a.isFolder ? -1 : 1;
+            }
+
+            return a.name.localeCompare(b.name);
+          });
+
+        this.localDirCache.set(cacheKey, {
+          children,
+          expiresAt: Date.now() + this.localDirCacheTtl,
+        });
+
+        return children;
+      })
+      .finally(() => {
+        this.localDirInflight.delete(cacheKey);
+      });
+
+    this.localDirInflight.set(cacheKey, task);
+
+    return task;
+  }
+
+  private postMetadataPatch(items: any[]): void {
+    const patch = items
+      .map((item) => {
+        const itemPath = item?.path || item?.fullPath || item?.fsPath;
+
+        if (!itemPath) {
+          return undefined;
+        }
+
+        return {
+          path: itemPath,
+          status: item.status,
+          diagnostics: item.diagnostics || {
+            errors: 0,
+            warnings: 0,
+          },
+        };
+      })
+      .filter(Boolean);
+
+    if (patch.length === 0) {
+      return;
+    }
+
+    this._view?.webview.postMessage({
+      type: 'metadataPatch',
+      items: patch,
+    });
+  }
+
+  private async enrichAndPatchChildren(children: any[], rootPath: string): Promise<void> {
+    try {
+      const enrichedChildren = await this.enrichChildren(children, rootPath);
+
+      this.loadedDirChildren.set(rootPath, enrichedChildren);
+      this.postMetadataPatch(enrichedChildren);
+    } catch {
+      // Git 状态 / 诊断信息失败时，不影响目录展示
+    }
+  }
+
+  private async getFileIndex(rootFsPath: string, forceRefresh: boolean = false): Promise<IndexedFileItem[]> {
+    const rootUri = this.toResourceUri(rootFsPath);
+    const cacheKey = rootUri.toString();
+
+    if (!forceRefresh) {
+      const cached = this.fileIndexCache.get(cacheKey);
+
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.items;
+      }
+
+      const inflight = this.fileIndexInflight.get(cacheKey);
+
+      if (inflight) {
+        return inflight;
+      }
+    }
+
+    const ignoreDirs = new Set([
+      'node_modules',
+      'bower_components',
+      'vendor',
+      '.git',
+      '.svn',
+      '.hg',
+      'CVS',
+      '.vscode',
+      '.idea',
+      'dist',
+      'build',
+      'out',
+      'coverage',
+      '.next',
+      '.nuxt',
+      '.cache',
+      '.turbo',
+    ]);
+
+    const items: IndexedFileItem[] = [];
+
+    const walk = async (dirUri: vscode.Uri): Promise<void> => {
+      let entries: [string, vscode.FileType][];
+
+      try {
+        entries = await vscode.workspace.fs.readDirectory(dirUri);
+      } catch {
+        return;
+      }
+
+      const childDirs: vscode.Uri[] = [];
+
+      for (const [name, type] of entries) {
+        if (name === '.DS_Store' || name === 'Thumbs.db') {
+          continue;
+        }
+
+        const isFolder = (type & vscode.FileType.Directory) !== 0;
+
+        if (isFolder && ignoreDirs.has(name)) {
+          continue;
+        }
+
+        const childUri = vscode.Uri.joinPath(dirUri, name);
+        const relativePath = this.getRelativePathByUri(rootUri, childUri).replace(/\\/g, '/');
+        const ext = path.extname(name).toLowerCase();
+
+        items.push({
+          name,
+          fullPath: childUri.fsPath || childUri.toString(),
+          uriString: childUri.toString(),
+          relativePath,
+          isFolder,
+          ext,
+          uri: childUri,
+        });
+
+        if (isFolder) {
+          childDirs.push(childUri);
+        }
+      }
+
+      await this.runWithConcurrency(childDirs, 8, (childUri) => walk(childUri));
+    };
+
+    const task = walk(rootUri)
+      .then(() => {
+        const sorted = items.sort((a, b) => {
+          if (a.isFolder !== b.isFolder) {
+            return a.isFolder ? -1 : 1;
+          }
+
+          return a.relativePath.localeCompare(b.relativePath);
+        });
+
+        this.fileIndexCache.set(cacheKey, {
+          items: sorted,
+          expiresAt: Date.now() + this.fileIndexCacheTtl,
+        });
+
+        return sorted;
+      })
+      .finally(() => {
+        this.fileIndexInflight.delete(cacheKey);
+      });
+
+    this.fileIndexInflight.set(cacheKey, task);
+
+    return task;
+  }
+
+  private async runWithConcurrency<T>(
+    items: T[],
+    concurrency: number,
+    worker: (item: T) => Promise<void>
+  ): Promise<void> {
+    let index = 0;
+
+    const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+      while (index < items.length) {
+        const current = items[index];
+
+        index += 1;
+
+        await worker(current);
+      }
+    });
+
+    await Promise.all(runners);
+  }
+
+  private normalizeSearchText(value: string): string {
+    return String(value || '')
+      .replace(/\\/g, '/')
+      .replace(/\/+/g, '/')
+      .toLowerCase()
+      .trim();
+  }
+
+  private compactSearchText(value: string): string {
+    return this.normalizeSearchText(value).replace(/[\s/_.@#:$+~\-]+/g, '');
+  }
+
+  private getSequentialFuzzyScore(target: string, input: string): number | null {
+    if (!target || !input) {
+      return null;
+    }
+
+    let targetIndex = 0;
+    let firstIndex = -1;
+    let lastIndex = -1;
+    let gapScore = 0;
+
+    for (let i = 0; i < input.length; i++) {
+      const char = input[i];
+      const foundIndex = target.indexOf(char, targetIndex);
+
+      if (foundIndex === -1) {
+        return null;
+      }
+
+      if (firstIndex === -1) {
+        firstIndex = foundIndex;
+      }
+
+      if (lastIndex !== -1) {
+        gapScore += Math.max(0, foundIndex - lastIndex - 1);
+      }
+
+      lastIndex = foundIndex;
+      targetIndex = foundIndex + 1;
+    }
+
+    return firstIndex + gapScore + Math.max(0, target.length - input.length) * 0.01;
+  }
+
   public selectForCompare(fsPath: string, projectName?: string) {
     if (projectName) {
       this.selectedForCompareUri = this.getReadOnlyUri(fsPath, projectName);
@@ -449,6 +792,33 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   public invalidateDirCache(fsPath?: string) {
     this.directoryService.invalidateDirCache(fsPath);
+
+    if (!fsPath) {
+      this.localDirCache.clear();
+      this.localDirInflight.clear();
+      this.fileIndexCache.clear();
+      this.fileIndexInflight.clear();
+      return;
+    }
+
+    const targetKey = this.toResourceUri(fsPath).toString();
+
+    this.localDirCache.delete(targetKey);
+    this.localDirInflight.delete(targetKey);
+    this.fileIndexCache.delete(targetKey);
+    this.fileIndexInflight.delete(targetKey);
+
+    Array.from(this.localDirCache.keys()).forEach((key) => {
+      if (key.startsWith(targetKey)) {
+        this.localDirCache.delete(key);
+      }
+    });
+
+    Array.from(this.fileIndexCache.keys()).forEach((key) => {
+      if (key.startsWith(targetKey)) {
+        this.fileIndexCache.delete(key);
+      }
+    });
   }
 
   public async syncAllBranches() {
@@ -1635,408 +2005,491 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private async handleSearchFileName(fsPath: string, query: string, isRemote: boolean, focusOnly: boolean = false, requestId?: number) {
+  private async handleSearchFileName(
+    fsPath: string,
+    query: string,
+    isRemote: boolean,
+    focusOnly: boolean = false,
+    requestId?: number
+  ) {
     if (isRemote) {
-      this._view?.webview.postMessage({ type: 'searchFileNameResult', requestId, results: [], error: '远程仓库暂不支持名称检索。' });
+      this._view?.webview.postMessage({
+        type: 'searchFileNameResult',
+        requestId,
+        results: [],
+        error: '远程仓库暂不支持名称检索。',
+      });
       return;
     }
 
-    const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
-    const nativePath = uri.fsPath;
     const searchValue = query.trim();
 
     if (!searchValue) {
-      this._view?.webview.postMessage({ type: 'searchFileNameResult', requestId, results: [] });
+      this._view?.webview.postMessage({
+        type: 'searchFileNameResult',
+        requestId,
+        results: [],
+      });
       return;
     }
+
+    const runId = this.getSearchRunId();
 
     try {
-      await vscode.workspace.fs.stat(uri);
-    } catch {
-      this._view?.webview.postMessage({ type: 'searchFileNameResult', requestId, results: [] });
+      const rootUri = this.toResourceUri(fsPath);
+
+      await vscode.workspace.fs.stat(rootUri);
+
+      const rootNativePath = this.normalizeNativePath(fsPath);
+      const indexedItems = await this.getFileIndex(fsPath);
+
+      if (this.isSearchCancelled(runId)) {
+        return;
+      }
+
+      const normalizedQuery = this.normalizeSearchText(searchValue);
+      const compactQuery = this.compactSearchText(searchValue);
+      const queryParts = normalizedQuery
+        .split(/[\s/]+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+
+      const shouldIncludeHiddenEntries =
+        normalizedQuery.startsWith('.') ||
+        normalizedQuery.includes('/.') ||
+        queryParts.some((part) => part.startsWith('.'));
+
+      const shouldSkipHiddenSearchEntry = (relativePath: string) => {
+        if (shouldIncludeHiddenEntries) {
+          return false;
+        }
+
+        return this.normalizeSearchText(relativePath)
+          .split('/')
+          .some((segment) => segment.startsWith('.') && segment !== '.' && segment !== '..');
+      };
+
+      const getSearchScore = (item: IndexedFileItem): number | null => {
+        const normalizedName = this.normalizeSearchText(item.name);
+        const normalizedPath = this.normalizeSearchText(item.relativePath);
+        const compactName = this.compactSearchText(item.name);
+        const compactPath = this.compactSearchText(item.relativePath);
+        const allowPathLevelMatch = queryParts.length > 1;
+
+        let score: number | null = null;
+
+        const updateScore = (nextScore: number | null) => {
+          if (nextScore === null || Number.isNaN(nextScore)) {
+            return;
+          }
+
+          score = score === null ? nextScore : Math.min(score, nextScore);
+        };
+
+        if (normalizedName === normalizedQuery) {
+          updateScore(0);
+        }
+
+        if (allowPathLevelMatch && normalizedPath === normalizedQuery) {
+          updateScore(1);
+        }
+
+        const nameIndex = normalizedName.indexOf(normalizedQuery);
+
+        if (nameIndex !== -1) {
+          updateScore(10 + nameIndex);
+        }
+
+        if (allowPathLevelMatch) {
+          const pathIndex = normalizedPath.indexOf(normalizedQuery);
+
+          if (pathIndex !== -1) {
+            updateScore(20 + pathIndex);
+          }
+        }
+
+        if (compactQuery) {
+          const compactNameIndex = compactName.indexOf(compactQuery);
+
+          if (compactNameIndex !== -1) {
+            updateScore(30 + compactNameIndex);
+          }
+
+          if (allowPathLevelMatch) {
+            const compactPathIndex = compactPath.indexOf(compactQuery);
+
+            if (compactPathIndex !== -1) {
+              updateScore(40 + compactPathIndex);
+            }
+          }
+        }
+
+        if (allowPathLevelMatch) {
+          let lastIndex = -1;
+          let sequentialPartScore = 0;
+          let orderedMatched = true;
+
+          for (const part of queryParts) {
+            const partIndex = normalizedPath.indexOf(part, lastIndex + 1);
+
+            if (partIndex === -1) {
+              orderedMatched = false;
+              break;
+            }
+
+            sequentialPartScore += partIndex;
+            lastIndex = partIndex;
+          }
+
+          if (orderedMatched) {
+            updateScore(50 + sequentialPartScore);
+          }
+
+          const unorderedMatched = queryParts.every((part) => {
+            return normalizedPath.includes(part) || compactPath.includes(this.compactSearchText(part));
+          });
+
+          if (unorderedMatched) {
+            updateScore(
+              70 +
+                queryParts.reduce((total, part) => {
+                  const index = normalizedPath.indexOf(part);
+
+                  return total + (index === -1 ? 30 : index);
+                }, 0)
+            );
+          }
+        }
+
+        if (compactQuery) {
+          const nameFuzzyScore = this.getSequentialFuzzyScore(compactName, compactQuery);
+
+          if (nameFuzzyScore !== null) {
+            updateScore(90 + nameFuzzyScore);
+          }
+
+          if (allowPathLevelMatch) {
+            const pathFuzzyScore = this.getSequentialFuzzyScore(compactPath, compactQuery);
+
+            if (pathFuzzyScore !== null) {
+              updateScore(110 + pathFuzzyScore);
+            }
+          }
+        }
+
+        return score;
+      };
+
+      let gitRoot = '';
+      let statusMap = new Map<string, string>();
+
+      if (focusOnly) {
+        gitRoot = await this.getGitRoot(rootNativePath);
+        statusMap = gitRoot ? await this.getGitStatusMap(rootNativePath) : new Map<string, string>();
+      }
+
+      const scoredResults = indexedItems
+        .filter((item) => !shouldSkipHiddenSearchEntry(item.relativePath))
+        .map((item, order) => {
+          if (focusOnly) {
+            const gitRelativePath = gitRoot ? path.relative(gitRoot, item.fullPath) : '';
+            const status = gitRoot ? this.getChildGitStatus(gitRelativePath, item.isFolder, statusMap) : undefined;
+
+            if (!status) {
+              return undefined;
+            }
+          }
+
+          const score = getSearchScore(item);
+
+          if (score === null) {
+            return undefined;
+          }
+
+          return {
+            item: {
+              path: item.uriString,
+              name: item.name,
+              relativePath: item.relativePath,
+              isFolder: item.isFolder,
+              status: undefined,
+              diagnostics: {
+                errors: 0,
+                warnings: 0,
+              },
+            },
+            score,
+            depth: item.relativePath.split('/').length,
+            order,
+          };
+        })
+        .filter(Boolean) as Array<{ item: any; score: number; depth: number; order: number }>;
+
+      if (this.isSearchCancelled(runId)) {
+        return;
+      }
+
+      const results = scoredResults
+        .sort((a, b) => {
+          if (a.score !== b.score) return a.score - b.score;
+          if (a.item.isFolder !== b.item.isFolder) return a.item.isFolder ? -1 : 1;
+          if (a.depth !== b.depth) return a.depth - b.depth;
+          return a.order - b.order;
+        })
+        .slice(0, 200)
+        .map((item) => item.item);
+
+      this._view?.webview.postMessage({
+        type: 'searchFileNameResult',
+        requestId,
+        results,
+      });
+
+      void this.enrichAndPatchChildren(results, fsPath);
+    } catch (error: any) {
+      if (this.isSearchCancelled(runId)) {
+        return;
+      }
+
+      this._view?.webview.postMessage({
+        type: 'searchFileNameResult',
+        requestId,
+        results: [],
+        error: error?.message || '文件名检索失败。',
+      });
+    }
+  }
+
+  private async handleSearchInFolder(
+    fsPath: string,
+    query: string,
+    isRemote: boolean,
+    focusOnly: boolean = false,
+    requestId?: number
+  ) {
+    if (isRemote) {
+      this._view?.webview.postMessage({
+        type: 'searchFolderResult',
+        requestId,
+        results: [],
+        error: '由于网络限制，远程仓库暂不支持全文代码检索，请在本地打开该项目后再尝试。',
+      });
       return;
     }
 
-    const normalizeSearchText = (value: string) => {
-      return String(value || '')
-        .replace(/\\/g, '/')
-        .replace(/\/+/g, '/')
-        .toLowerCase()
-        .trim();
-    };
+    const searchValue = query.trim();
 
-    const compactSearchText = (value: string) => {
-      return normalizeSearchText(value).replace(/[\s\/_.@#:$+~\-]+/g, '');
-    };
+    if (!searchValue) {
+      this._view?.webview.postMessage({
+        type: 'searchFolderResult',
+        requestId,
+        results: [],
+      });
+      return;
+    }
 
-    const getSequentialFuzzyScore = (target: string, input: string) => {
-      if (!target || !input) return null;
+    const runId = this.getSearchRunId();
 
-      let targetIndex = 0;
-      let firstIndex = -1;
-      let lastIndex = -1;
-      let gapScore = 0;
+    const binaryExts = new Set([
+      '.png',
+      '.jpg',
+      '.jpeg',
+      '.gif',
+      '.ico',
+      '.svg',
+      '.webp',
+      '.bmp',
+      '.tif',
+      '.tiff',
+      '.woff',
+      '.woff2',
+      '.ttf',
+      '.eot',
+      '.otf',
+      '.mp4',
+      '.mp3',
+      '.wav',
+      '.ogg',
+      '.webm',
+      '.mov',
+      '.avi',
+      '.pdf',
+      '.zip',
+      '.tar',
+      '.gz',
+      '.7z',
+      '.rar',
+      '.doc',
+      '.docx',
+      '.xls',
+      '.xlsx',
+      '.ppt',
+      '.pptx',
+      '.exe',
+      '.dll',
+      '.so',
+      '.dylib',
+      '.class',
+      '.jar',
+      '.bin',
+      '.pyc',
+      '.o',
+    ]);
 
-      for (let i = 0; i < input.length; i++) {
-        const char = input[i];
-        const foundIndex = target.indexOf(char, targetIndex);
+    const maxMatches = 200;
+    const maxFileSize = 2 * 1024 * 1024;
+    const lowerQuery = searchValue.toLowerCase();
 
-        if (foundIndex === -1) {
-          return null;
-        }
+    try {
+      const rootUri = this.toResourceUri(fsPath);
 
-        if (firstIndex === -1) {
-          firstIndex = foundIndex;
-        }
+      await vscode.workspace.fs.stat(rootUri);
 
-        if (lastIndex !== -1) {
-          gapScore += Math.max(0, foundIndex - lastIndex - 1);
-        }
+      const rootNativePath = this.normalizeNativePath(fsPath);
+      const indexedItems = await this.getFileIndex(fsPath);
 
-        lastIndex = foundIndex;
-        targetIndex = foundIndex + 1;
+      if (this.isSearchCancelled(runId)) {
+        return;
       }
 
-      return firstIndex + gapScore + Math.max(0, target.length - input.length) * 0.01;
-    };
+      let gitRoot = '';
+      let statusMap = new Map<string, string>();
 
-    const normalizedQuery = normalizeSearchText(searchValue);
-    const compactQuery = compactSearchText(searchValue);
-    const queryParts = normalizedQuery
-      .split(/[\s\/]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    /**
-     * 默认不把 .gitignore、.gitattributes、.github、.git-crypt 这类隐藏文件/隐藏目录
-     * 混到普通关键词结果里，避免输入 git 时出现一大堆点文件。
-     *
-     * 需要搜隐藏文件时，显式输入 . 开头即可，例如：
-     * - .git
-     * - .github/workflows
-     * - .gitignore
-     */
-    const shouldIncludeHiddenEntries =
-      normalizedQuery.startsWith('.') ||
-      normalizedQuery.includes('/.') ||
-      queryParts.some((part) => part.startsWith('.'));
-
-    const isHiddenPathSegment = (segment: string) => {
-      return segment.startsWith('.') && segment !== '.' && segment !== '..';
-    };
-
-    const hasHiddenPathSegment = (relativePath: string) => {
-      return normalizeSearchText(relativePath)
-        .split('/')
-        .some((segment) => isHiddenPathSegment(segment));
-    };
-
-    const shouldSkipHiddenSearchEntry = (relativePath: string) => {
-      return !shouldIncludeHiddenEntries && hasHiddenPathSegment(relativePath);
-    };
-
-    const getSearchScore = (fileName: string, relativePath: string) => {
-      const normalizedName = normalizeSearchText(fileName);
-      const normalizedPath = normalizeSearchText(relativePath);
-      const compactName = compactSearchText(fileName);
-      const compactPath = compactSearchText(relativePath);
-      const allowPathLevelMatch = queryParts.length > 1;
-      let score: number | null = null;
-
-      const updateScore = (nextScore: number | null) => {
-        if (nextScore === null || Number.isNaN(nextScore)) return;
-        score = score === null ? nextScore : Math.min(score, nextScore);
-      };
-
-      if (normalizedName === normalizedQuery) updateScore(0);
-
-      if (allowPathLevelMatch && normalizedPath === normalizedQuery) {
-        updateScore(1);
+      if (focusOnly) {
+        gitRoot = await this.getGitRoot(rootNativePath);
+        statusMap = gitRoot ? await this.getGitStatusMap(rootNativePath) : new Map<string, string>();
       }
 
-      const nameIndex = normalizedName.indexOf(normalizedQuery);
-      if (nameIndex !== -1) updateScore(10 + nameIndex);
-
-      if (allowPathLevelMatch) {
-        const pathIndex = normalizedPath.indexOf(normalizedQuery);
-        if (pathIndex !== -1) updateScore(20 + pathIndex);
-      }
-
-      if (compactQuery) {
-        const compactNameIndex = compactName.indexOf(compactQuery);
-        if (compactNameIndex !== -1) updateScore(30 + compactNameIndex);
-
-        if (allowPathLevelMatch) {
-          const compactPathIndex = compactPath.indexOf(compactQuery);
-          if (compactPathIndex !== -1) updateScore(40 + compactPathIndex);
+      const candidateFiles = indexedItems.filter((item) => {
+        if (item.isFolder) {
+          return false;
         }
-      }
 
-      if (allowPathLevelMatch) {
-        let lastIndex = -1;
-        let sequentialPartScore = 0;
-        let orderedMatched = true;
+        if (binaryExts.has(item.ext)) {
+          return false;
+        }
 
-        for (const part of queryParts) {
-          const partIndex = normalizedPath.indexOf(part, lastIndex + 1);
+        if (!focusOnly) {
+          return true;
+        }
 
-          if (partIndex === -1) {
-            orderedMatched = false;
+        const gitRelativePath = gitRoot ? path.relative(gitRoot, item.fullPath) : '';
+        const status = gitRoot ? this.getChildGitStatus(gitRelativePath, false, statusMap) : undefined;
+
+        return !!status;
+      });
+
+      const results: any[] = [];
+      let matchCount = 0;
+
+      await this.runWithConcurrency(candidateFiles, 16, async (item) => {
+        if (this.isSearchCancelled(runId) || matchCount >= maxMatches) {
+          return;
+        }
+
+        let stat: vscode.FileStat;
+
+        try {
+          stat = await vscode.workspace.fs.stat(item.uri);
+        } catch {
+          return;
+        }
+
+        if (stat.size > maxFileSize) {
+          return;
+        }
+
+        let content = '';
+
+        try {
+          const contentBytes = await vscode.workspace.fs.readFile(item.uri);
+
+          content = this.decodeFileContent(contentBytes);
+        } catch {
+          return;
+        }
+
+        if (this.isSearchCancelled(runId) || matchCount >= maxMatches) {
+          return;
+        }
+
+        const lowerContent = content.toLowerCase();
+
+        if (!lowerContent.includes(lowerQuery)) {
+          return;
+        }
+
+        const lines = content.split(/\r?\n/);
+        const fileMatches: Array<{ line: number; text: string }> = [];
+
+        for (let i = 0; i < lines.length; i++) {
+          if (matchCount >= maxMatches) {
             break;
           }
 
-          sequentialPartScore += partIndex;
-          lastIndex = partIndex;
+          const line = lines[i];
+
+          if (line.toLowerCase().includes(lowerQuery)) {
+            fileMatches.push({
+              line: i + 1,
+              text: line.trim().substring(0, 300),
+            });
+
+            matchCount += 1;
+          }
         }
 
-        if (orderedMatched) {
-          updateScore(50 + sequentialPartScore);
+        if (fileMatches.length === 0) {
+          return;
         }
 
-        const unorderedMatched = queryParts.every((part) => {
-          return normalizedPath.includes(part) || compactPath.includes(compactSearchText(part));
+        results.push({
+          file: item.relativePath,
+          fullPath: item.fullPath,
+          path: item.uriString,
+          matches: fileMatches,
+          status: undefined,
+          diagnostics: {
+            errors: 0,
+            warnings: 0,
+          },
         });
+      });
 
-        if (unorderedMatched) {
-          updateScore(70 + queryParts.reduce((total, part) => {
-            const index = normalizedPath.indexOf(part);
-            return total + (index === -1 ? 30 : index);
-          }, 0));
-        }
+      if (this.isSearchCancelled(runId)) {
+        return;
       }
 
-      if (compactQuery) {
-        const nameFuzzyScore = getSequentialFuzzyScore(compactName, compactQuery);
-        if (nameFuzzyScore !== null) updateScore(90 + nameFuzzyScore);
+      const sortedResults = results
+        .sort((a, b) => String(a.file || '').localeCompare(String(b.file || '')))
+        .slice(0, maxMatches);
 
-        if (allowPathLevelMatch) {
-          const pathFuzzyScore = getSequentialFuzzyScore(compactPath, compactQuery);
-          if (pathFuzzyScore !== null) updateScore(110 + pathFuzzyScore);
-        }
+      this._view?.webview.postMessage({
+        type: 'searchFolderResult',
+        requestId,
+        results: sortedResults,
+      });
+
+      void this.enrichAndPatchChildren(
+        sortedResults.map((item) => ({
+          ...item,
+          isFolder: false,
+          name: path.basename(item.fullPath),
+        })),
+        fsPath
+      );
+    } catch (error: any) {
+      if (this.isSearchCancelled(runId)) {
+        return;
       }
 
-      return score;
-    };
-
-    const scoredResults: Array<{ item: any; score: number; depth: number; order: number }> = [];
-    const maxResults = 200;
-    const maxCollectedResults = 800;
-    let visitedCount = 0;
-
-    const gitRoot = await this.getGitRoot(nativePath);
-    const statusMap = gitRoot ? await this.getGitStatusMap(nativePath) : new Map<string, string>();
-
-    const IGNORE_DIRS = new Set(['node_modules', 'dist', 'build', '.git', '.svn', '.vscode', '.idea']);
-
-    const searchRecursive = async (dirUri: vscode.Uri, currentNativePath: string) => {
-      if (scoredResults.length >= maxCollectedResults) return;
-
-      try {
-        const entries = await vscode.workspace.fs.readDirectory(dirUri);
-
-        for (const [name, type] of entries) {
-          if (scoredResults.length >= maxCollectedResults) break;
-          if (IGNORE_DIRS.has(name) || name === '.DS_Store') continue;
-
-          const isDir = (type & vscode.FileType.Directory) !== 0;
-          const fullPath = path.join(currentNativePath, name);
-          const fullUri = vscode.Uri.joinPath(dirUri, name);
-          const relativePath = path.relative(nativePath, fullPath).replace(/\\/g, '/');
-
-          if (shouldSkipHiddenSearchEntry(relativePath)) {
-            visitedCount++;
-            continue;
-          }
-
-          const gitRelativePath = gitRoot ? path.relative(gitRoot, fullPath) : '';
-          const status = gitRoot ? this.getChildGitStatus(gitRelativePath, isDir, statusMap) : undefined;
-
-          if (!(focusOnly && !status)) {
-            const score = getSearchScore(name, relativePath);
-
-            if (score !== null) {
-              scoredResults.push({
-                item: {
-                  path: fullUri.toString(),
-                  name,
-                  relativePath,
-                  isFolder: isDir,
-                  status,
-                },
-                score,
-                depth: relativePath.split('/').length,
-                order: visitedCount,
-              });
-            }
-          }
-
-          visitedCount++;
-
-          if (isDir) {
-            await searchRecursive(fullUri, fullPath);
-          }
-        }
-      } catch (e) { }
-    };
-
-    await vscode.window.withProgress({
-      location: vscode.ProgressLocation.Window,
-      title: 'Quick Ops: 正在按文件名/路径模糊检索...'
-    }, async () => {
-      await searchRecursive(uri, nativePath);
-    });
-
-    const results = scoredResults
-      .sort((a, b) => {
-        if (a.score !== b.score) return a.score - b.score;
-        if (a.item.isFolder !== b.item.isFolder) return a.item.isFolder ? -1 : 1;
-        if (a.depth !== b.depth) return a.depth - b.depth;
-        return a.order - b.order;
-      })
-      .slice(0, maxResults)
-      .map((item) => item.item);
-
-    const enrichedResults = await this.enrichChildren(results, fsPath);
-    this._view?.webview.postMessage({ type: 'searchFileNameResult', requestId, results: enrichedResults });
-  }
-
-  private async handleSearchInFolder(fsPath: string, query: string, isRemote: boolean, focusOnly: boolean = false, requestId?: number) {
-    if (isRemote) {
-      this._view?.webview.postMessage({ type: 'searchFolderResult', requestId, results: [], error: '由于网络限制，远程仓库暂不支持全文代码检索，请在本地打开该项目后再尝试。' });
-      return;
+      this._view?.webview.postMessage({
+        type: 'searchFolderResult',
+        requestId,
+        results: [],
+        error: error?.message || '全文检索失败。',
+      });
     }
-
-    const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
-    const nativePath = uri.fsPath;
-
-    if (!query.trim()) {
-      this._view?.webview.postMessage({ type: 'searchFolderResult', requestId, results: [] });
-      return;
-    }
-
-    try {
-      await vscode.workspace.fs.stat(uri);
-    } catch {
-      this._view?.webview.postMessage({ type: 'searchFolderResult', requestId, results: [] });
-      return;
-    }
-
-    const results: any[] = [];
-    const maxResults = 200;
-    let currentResults = 0;
-
-    const gitRoot = await this.getGitRoot(nativePath);
-    const statusMap = gitRoot ? await this.getGitStatusMap(nativePath) : new Map<string, string>();
-
-    const IGNORE_DIRS = new Set([
-      'node_modules', 'bower_components', 'vendor',
-      '.git', '.svn', '.hg', 'CVS', '.vscode', '.idea',
-      'dist', 'build', 'out', 'coverage', '.next', '.nuxt', '.cache'
-    ]);
-
-    const BINARY_EXTS = new Set([
-      '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.webp', '.bmp', '.tif', '.tiff',
-      '.woff', '.woff2', '.ttf', '.eot', '.otf',
-      '.mp4', '.mp3', '.wav', '.ogg', '.webm', '.mov', '.avi',
-      '.pdf', '.zip', '.tar', '.gz', '.7z', '.rar', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-      '.exe', '.dll', '.so', '.dylib', '.class', '.jar', '.bin', '.DS_Store', 'Thumbs.db', '.pyc', '.o'
-    ]);
-
-    const searchRecursive = async (dirPath: string) => {
-      if (currentResults >= maxResults) return;
-      try {
-        const dirUri = vscode.Uri.file(dirPath);
-        let entries;
-        try {
-          entries = await vscode.workspace.fs.readDirectory(dirUri);
-        } catch (e) { return; }
-
-        for (const [name, type] of entries) {
-          if (currentResults >= maxResults) break;
-
-          if (IGNORE_DIRS.has(name) || name === '.DS_Store' || name === 'Thumbs.db') continue;
-
-          const fullPath = path.join(dirPath, name);
-          const isDir = (type & vscode.FileType.Directory) !== 0;
-          const isFile = (type & vscode.FileType.File) !== 0;
-
-          if (isDir) {
-            await searchRecursive(fullPath);
-          } else if (isFile) {
-            const ext = path.extname(name).toLowerCase();
-            if (BINARY_EXTS.has(ext)) continue;
-
-            const fileUri = vscode.Uri.file(fullPath);
-            try {
-              const stat = await vscode.workspace.fs.stat(fileUri);
-              if (stat.size > 2 * 1024 * 1024) continue;
-            } catch (e) { continue; }
-
-            const gitRelativePath = gitRoot ? path.relative(gitRoot, fullPath) : '';
-            const status = gitRoot ? this.getChildGitStatus(gitRelativePath, false, statusMap) : undefined;
-
-            if (focusOnly && !status) continue;
-
-            const fileMatches = [];
-            let lineNum = 1;
-
-            try {
-              const contentBytes = await vscode.workspace.fs.readFile(fileUri);
-              const contentStr = Buffer.from(contentBytes).toString('utf8');
-              const lines = contentStr.split(/\r?\n/);
-
-              for (const line of lines) {
-                if (line.toLowerCase().includes(query.toLowerCase())) {
-                  fileMatches.push({
-                    line: lineNum,
-                    text: line.trim().substring(0, 300)
-                  });
-                  currentResults++;
-                  if (currentResults >= maxResults) {
-                    break;
-                  }
-                }
-                lineNum++;
-              }
-            } catch (e) { }
-
-            if (fileMatches.length > 0) {
-              const relativePath = path.relative(nativePath, fullPath).replace(/\\/g, '/');
-              results.push({
-                file: relativePath,
-                fullPath: fullPath,
-                matches: fileMatches,
-                status
-              });
-            }
-          }
-        }
-      } catch (e) { }
-    };
-
-    await vscode.window.withProgress({
-      location: vscode.ProgressLocation.Window,
-      title: 'Quick Ops: 正在检索文件夹内容...'
-    }, async () => {
-      await searchRecursive(nativePath);
-    });
-
-    const context = await this.createMetadataContext(fsPath);
-    const enrichedResults = await Promise.all(results.map(async (item) => {
-      const enriched = await this.enrichFileItem({
-        ...item,
-        path: item.fullPath,
-        isFolder: false,
-      }, context);
-
-      return {
-        ...item,
-        status: enriched.status,
-        diagnostics: enriched.diagnostics,
-      };
-    }));
-
-    this._view?.webview.postMessage({ type: 'searchFolderResult', requestId, results: enrichedResults });
   }
 
   private parseLocalFileUri(fsPath: string): vscode.Uri | undefined {
@@ -2879,38 +3332,73 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   ) {
     this.knownVisibleDirs.add(fsPath);
 
-    await this.directoryService.readDirectory({
-      fsPath,
-      projectName,
-      focusOnly,
-      forceRefresh,
-      postMessage: async (message) => {
-        if (message?.type === 'readDirResult') {
-          const pathKey = String(message.fsPath || fsPath);
-          const children = Array.isArray(message.children) ? message.children : [];
-          const enrichedChildren = await this.enrichChildren(children, pathKey);
+    if (this.isRemoteFsPath(fsPath)) {
+      await this.directoryService.readDirectory({
+        fsPath,
+        projectName,
+        focusOnly,
+        forceRefresh,
+        postMessage: async (message) => {
+          if (message?.type === 'readDirResult') {
+            const pathKey = String(message.fsPath || fsPath);
+            const children = Array.isArray(message.children) ? message.children : [];
+            const enrichedChildren = await this.enrichChildren(children, pathKey);
 
-          this.loadedDirChildren.set(pathKey, enrichedChildren);
-          this.knownVisibleDirs.add(pathKey);
+            this.loadedDirChildren.set(pathKey, enrichedChildren);
+            this.knownVisibleDirs.add(pathKey);
 
-          enrichedChildren.forEach((child) => {
-            if (child?.isFolder && child.path) {
-              this.knownVisibleDirs.add(child.path);
-            }
-          });
+            enrichedChildren.forEach((child) => {
+              if (child?.isFolder && child.path) {
+                this.knownVisibleDirs.add(child.path);
+              }
+            });
 
-          this._view?.webview.postMessage({
-            ...message,
-            children: enrichedChildren,
-          });
+            this._view?.webview.postMessage({
+              ...message,
+              children: enrichedChildren,
+            });
 
-          this.scheduleStatusSync(120);
-          return;
+            this.scheduleStatusSync(120);
+            return;
+          }
+
+          this._view?.webview.postMessage(message);
+        },
+      });
+
+      return;
+    }
+
+    try {
+      const children = await this.readLocalDirectoryChildrenFast(fsPath, forceRefresh);
+
+      this.loadedDirChildren.set(fsPath, children);
+      this.knownVisibleDirs.add(fsPath);
+
+      children.forEach((child) => {
+        if (child?.isFolder && child.path) {
+          this.knownVisibleDirs.add(child.path);
         }
+      });
 
-        this._view?.webview.postMessage(message);
-      },
-    });
+      this._view?.webview.postMessage({
+        type: 'readDirResult',
+        fsPath,
+        projectName,
+        focusOnly,
+        children,
+      });
+
+      void this.enrichAndPatchChildren(children, fsPath);
+    } catch {
+      this._view?.webview.postMessage({
+        type: 'readDirResult',
+        fsPath,
+        projectName,
+        focusOnly,
+        children: [],
+      });
+    }
   }
 
   private updateWebview() {

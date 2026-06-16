@@ -32,6 +32,12 @@ type FlatMatchItem = {
     lineNum: number;
 };
 
+type SearchNameTreeItem = DirChild & {
+    children?: SearchNameTreeItem[];
+    relativePath?: string;
+    isMatched?: boolean;
+};
+
 interface SearchViewWrapperProps {
     searchTargetProject: ContextMenuPayload;
 
@@ -408,6 +414,11 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     const resultScrollbarRef = useRef<ScrollbarInstance>(null);
     const resultScrollTopRef = useRef(0);
     const previousResultSearchKeyRef = useRef('');
+    const [collapsedSearchNamePaths, setCollapsedSearchNamePaths] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        setCollapsedSearchNamePaths(new Set());
+    }, [fileNameSearchResults, folderSearchQuery]);
 
     const resetSearchData = (options?: { keepQuery?: boolean }) => {
         if (!options?.keepQuery) {
@@ -681,6 +692,136 @@ ${searchTargetProject.path || ''}`;
         });
     }, [folderSearchResults, fileNameSearchResults, folderSearchQuery, folderSearchType, searchTargetProject.path]);
 
+    const toggleSearchNameFolder = (pathValue: string) => {
+        setCollapsedSearchNamePaths((prev) => {
+            const next = new Set(prev);
+
+            if (next.has(pathValue)) {
+                next.delete(pathValue);
+            } else {
+                next.add(pathValue);
+            }
+
+            return next;
+        });
+    };
+
+    const renderSearchNameTreeItems = (items: SearchNameTreeItem[], level: number = 0): React.ReactNode => {
+        return items.map((child) => {
+            const childPath = child.path;
+            const searchChildren = Array.isArray(child.children) ? child.children : [];
+            const hasSearchChildren = searchChildren.length > 0;
+            const isExpanded = hasSearchChildren
+                ? !collapsedSearchNamePaths.has(childPath)
+                : expandedPaths.has(childPath);
+            const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
+            const targetProjName = getTargetProjectName();
+            const statusClassName = getFileStatusClassName(child.status);
+            const indentStyle = level > 0 ? { paddingLeft: Math.min(level * 12, 72) } : undefined;
+
+            if (child.isFolder) {
+                return (
+                    <li key={childPath} className={styles['search-name-list-item']}>
+                        <Tooltip
+                            content={formatSearchNameTooltipPath(childPath)}
+                            placement="bottom"
+                            textAlign="left"
+                            delay={2000}
+                        >
+                            <div
+                                className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''
+                                    } ${styles['search-name-sub-item']}`}
+                                style={indentStyle}
+                                onClick={(e) => {
+                                    if (hasSearchChildren) {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        toggleSearchNameFolder(childPath);
+                                        return;
+                                    }
+
+                                    handleToggleExpand(childPath, targetProjName, isRemote, e);
+                                }}
+                            >
+                                <div className={styles['tree-chevron']}>
+                                    <FontAwesomeIcon
+                                        icon={isExpanded ? faChevronDown : faChevronRight}
+                                        className={styles['chevron-icon']}
+                                    />
+                                </div>
+
+                                <FontAwesomeIcon
+                                    icon={isExpanded ? faFolderOpen : faFolder}
+                                    className={`${styles['icon-closed']} ${styles['sub-icon']}`}
+                                />
+
+                                <span
+                                    className={`${styles['sub-name']} ${statusClassName}`}
+                                    title={child.status ? `${child.name} [${child.status}]` : child.name}
+                                >
+                                    {renderSearchNameHighlightText(child.name, folderSearchQuery)}
+                                </span>
+                            </div>
+                        </Tooltip>
+
+                        {isExpanded && hasSearchChildren && (
+                            <ul className={`${styles['tree-children']} ${styles['search-name-tree-children']}`}>
+                                {renderSearchNameTreeItems(searchChildren, level + 1)}
+                            </ul>
+                        )}
+
+                        {isExpanded && !hasSearchChildren && (
+                            <div className={`${styles['tree-children']} ${styles['search-name-tree-children']}`}>
+                                {renderTreeChildren(
+                                    childPath,
+                                    targetProjName,
+                                    searchTargetProject.isActiveProject,
+                                    folderSearchQuery
+                                )}
+                            </div>
+                        )}
+                    </li>
+                );
+            }
+
+            return (
+                <li key={childPath} className={styles['search-name-list-item']}>
+                    <Tooltip
+                        content={formatSearchNameTooltipPath(childPath)}
+                        placement="bottom"
+                        textAlign="left"
+                        delay={2000}
+                    >
+                        <div
+                            className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''
+                                } ${styles['search-name-sub-item-clickable']}`}
+                            style={indentStyle}
+                            onClick={(e) =>
+                                handleOpenFile(
+                                    childPath,
+                                    targetProjName,
+                                    !!searchTargetProject.isActiveProject,
+                                    e
+                                )
+                            }
+                        >
+                            <div className={styles['chevron-placeholder']}></div>
+
+                            <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
+
+                            <span
+                                className={`${styles['sub-name']} ${statusClassName}`}
+                                title={child.status ? `${child.name} [${child.status}]` : child.name}
+                            >
+                                {renderSearchNameHighlightText(child.name, folderSearchQuery)}
+                            </span>
+                        </div>
+                    </Tooltip>
+                </li>
+            );
+        });
+    };
+
     return (
         <div className={styles['search-view-wrapper']}>
             <div className={styles['search-header']}>
@@ -934,102 +1075,7 @@ ${searchTargetProject.path || ''}`;
                     <div className={styles['search-empty-msg']}>没有找到匹配的文件或文件夹</div>
                 ) : (
                     <ul>
-                        {fileNameSearchResults.map((child) => {
-                            const childPath = child.path;
-                            const isExpanded = expandedPaths.has(childPath);
-                            const isRemote =
-                                childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
-                            const targetProjName = getTargetProjectName();
-                            const statusClassName = getFileStatusClassName(child.status);
-
-                            if (child.isFolder) {
-                                return (
-                                    <li key={childPath} className={styles['search-name-list-item']}>
-                                        <Tooltip
-                                            content={formatSearchNameTooltipPath(childPath)}
-                                            placement="bottom"
-                                            textAlign="left"
-                                            delay={2000}
-                                        >
-                                            <div
-                                                className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''
-                                                    } ${styles['search-name-sub-item']}`}
-                                                onClick={(e) =>
-                                                    handleToggleExpand(childPath, targetProjName, isRemote, e)
-                                                }
-                                            >
-                                                <div className={styles['tree-chevron']}>
-                                                    <FontAwesomeIcon
-                                                        icon={isExpanded ? faChevronDown : faChevronRight}
-                                                        className={styles['chevron-icon']}
-                                                    />
-                                                </div>
-
-                                                <FontAwesomeIcon
-                                                    icon={isExpanded ? faFolderOpen : faFolder}
-                                                    className={`${styles['icon-closed']} ${styles['sub-icon']}`}
-                                                />
-
-                                                <span
-                                                    className={`${styles['sub-name']} ${statusClassName}`}
-                                                    title={child.status ? `${child.name} [${child.status}]` : child.name}
-                                                >
-                                                    {renderSearchNameHighlightText(child.name, folderSearchQuery)}
-                                                </span>
-                                            </div>
-                                        </Tooltip>
-
-                                        {isExpanded && (
-                                            <div
-                                                className={`${styles['tree-children']} ${styles['search-name-tree-children']}`}
-                                            >
-                                                {renderTreeChildren(
-                                                    childPath,
-                                                    targetProjName,
-                                                    searchTargetProject.isActiveProject,
-                                                    folderSearchQuery
-                                                )}
-                                            </div>
-                                        )}
-                                    </li>
-                                );
-                            }
-
-                            return (
-                                <li key={childPath} className={styles['search-name-list-item']}>
-                                    <Tooltip
-                                        content={formatSearchNameTooltipPath(childPath)}
-                                        placement="bottom"
-                                        textAlign="left"
-                                        delay={2000}
-                                    >
-                                        <div
-                                            className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''
-                                                } ${styles['search-name-sub-item-clickable']}`}
-                                            onClick={(e) =>
-                                                handleOpenFile(
-                                                    childPath,
-                                                    targetProjName,
-                                                    !!searchTargetProject.isActiveProject,
-                                                    e
-                                                )
-                                            }
-                                        >
-                                            <div className={styles['chevron-placeholder']}></div>
-
-                                            <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
-
-                                            <span
-                                                className={`${styles['sub-name']} ${statusClassName}`}
-                                                title={child.status ? `${child.name} [${child.status}]` : child.name}
-                                            >
-                                                {renderSearchNameHighlightText(child.name, folderSearchQuery)}
-                                            </span>
-                                        </div>
-                                    </Tooltip>
-                                </li>
-                            );
-                        })}
+                        {renderSearchNameTreeItems(fileNameSearchResults as SearchNameTreeItem[])}
                     </ul>
                 )}
             </Scrollbar>
