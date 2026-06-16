@@ -95,7 +95,10 @@ interface SearchViewWrapperProps {
         parentPath: string,
         projectName: string,
         isActiveProject?: boolean,
-        highlightQuery?: string
+        highlightQuery?: string,
+        options?: {
+            filterByHighlightQuery?: boolean;
+        }
     ) => React.ReactNode;
 }
 
@@ -776,7 +779,11 @@ ${searchTargetProject.path || ''}`;
                                     childPath,
                                     targetProjName,
                                     searchTargetProject.isActiveProject,
-                                    folderSearchQuery
+                                    folderSearchQuery,
+                                    {
+                                        // 命中文件夹展开时，显示里面所有内容；子级如果也命中，会在搜索结果中再单独出现一条。
+                                        filterByHighlightQuery: false,
+                                    }
                                 )}
                             </div>
                         )}

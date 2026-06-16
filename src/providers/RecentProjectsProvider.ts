@@ -2054,6 +2054,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         .map((item) => item.trim())
         .filter(Boolean);
 
+      /**
+       * 普通搜索 index 时，只匹配文件名 / 文件夹名。
+       * 用户输入 src/index 或 src index 这种带路径特征的内容时，才允许 relativePath 参与匹配。
+       */
+      const allowPathLevelMatch = normalizedQuery.includes('/') || queryParts.length > 1;
+
       const shouldIncludeHiddenEntries =
         normalizedQuery.startsWith('.') ||
         normalizedQuery.includes('/.') ||
@@ -2074,7 +2080,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         const normalizedPath = this.normalizeSearchText(item.relativePath);
         const compactName = this.compactSearchText(item.name);
         const compactPath = this.compactSearchText(item.relativePath);
-        const allowPathLevelMatch = queryParts.length > 1;
 
         let score: number | null = null;
 
@@ -2090,22 +2095,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           updateScore(0);
         }
 
-        if (allowPathLevelMatch && normalizedPath === normalizedQuery) {
-          updateScore(1);
+        if (normalizedName.startsWith(normalizedQuery)) {
+          updateScore(10);
         }
 
         const nameIndex = normalizedName.indexOf(normalizedQuery);
 
         if (nameIndex !== -1) {
-          updateScore(10 + nameIndex);
-        }
-
-        if (allowPathLevelMatch) {
-          const pathIndex = normalizedPath.indexOf(normalizedQuery);
-
-          if (pathIndex !== -1) {
-            updateScore(20 + pathIndex);
-          }
+          updateScore(20 + nameIndex);
         }
 
         if (compactQuery) {
@@ -2114,66 +2111,33 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           if (compactNameIndex !== -1) {
             updateScore(30 + compactNameIndex);
           }
-
-          if (allowPathLevelMatch) {
-            const compactPathIndex = compactPath.indexOf(compactQuery);
-
-            if (compactPathIndex !== -1) {
-              updateScore(40 + compactPathIndex);
-            }
-          }
         }
 
         if (allowPathLevelMatch) {
-          let lastIndex = -1;
-          let sequentialPartScore = 0;
-          let orderedMatched = true;
+          if (normalizedPath === normalizedQuery) {
+            updateScore(40);
+          }
 
-          for (const part of queryParts) {
-            const partIndex = normalizedPath.indexOf(part, lastIndex + 1);
+          const pathIndex = normalizedPath.indexOf(normalizedQuery);
 
-            if (partIndex === -1) {
-              orderedMatched = false;
-              break;
+          if (pathIndex !== -1) {
+            updateScore(60 + pathIndex);
+          }
+
+          if (compactQuery) {
+            const compactPathIndex = compactPath.indexOf(compactQuery);
+
+            if (compactPathIndex !== -1) {
+              updateScore(70 + compactPathIndex);
             }
-
-            sequentialPartScore += partIndex;
-            lastIndex = partIndex;
           }
 
-          if (orderedMatched) {
-            updateScore(50 + sequentialPartScore);
-          }
-
-          const unorderedMatched = queryParts.every((part) => {
+          const orderedMatched = queryParts.every((part) => {
             return normalizedPath.includes(part) || compactPath.includes(this.compactSearchText(part));
           });
 
-          if (unorderedMatched) {
-            updateScore(
-              70 +
-                queryParts.reduce((total, part) => {
-                  const index = normalizedPath.indexOf(part);
-
-                  return total + (index === -1 ? 30 : index);
-                }, 0)
-            );
-          }
-        }
-
-        if (compactQuery) {
-          const nameFuzzyScore = this.getSequentialFuzzyScore(compactName, compactQuery);
-
-          if (nameFuzzyScore !== null) {
-            updateScore(90 + nameFuzzyScore);
-          }
-
-          if (allowPathLevelMatch) {
-            const pathFuzzyScore = this.getSequentialFuzzyScore(compactPath, compactQuery);
-
-            if (pathFuzzyScore !== null) {
-              updateScore(110 + pathFuzzyScore);
-            }
+          if (orderedMatched) {
+            updateScore(90);
           }
         }
 
@@ -2188,7 +2152,22 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         statusMap = gitRoot ? await this.getGitStatusMap(rootNativePath) : new Map<string, string>();
       }
 
-      const scoredResults = indexedItems
+      const indexedItemByRelativePath = new Map<string, IndexedFileItem>();
+
+      indexedItems.forEach((item) => {
+        indexedItemByRelativePath.set(item.relativePath, item);
+      });
+
+      type ScoredSearchResult = {
+        item: any;
+        source: IndexedFileItem;
+        score: number;
+        depth: number;
+        order: number;
+        groupKey: string;
+      };
+
+      const rawScoredResults = indexedItems
         .filter((item) => !shouldSkipHiddenSearchEntry(item.relativePath))
         .map((item, order) => {
           if (focusOnly) {
@@ -2218,22 +2197,118 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
                 warnings: 0,
               },
             },
+            source: item,
             score,
             depth: item.relativePath.split('/').length,
             order,
+            groupKey: '',
           };
         })
-        .filter(Boolean) as Array<{ item: any; score: number; depth: number; order: number }>;
+        .filter(Boolean) as ScoredSearchResult[];
 
       if (this.isSearchCancelled(runId)) {
         return;
       }
 
+      const matchedFolderPathSet = new Set(
+        rawScoredResults
+          .filter((item) => item.source.isFolder)
+          .map((item) => item.source.relativePath)
+      );
+
+      const getFirstPathSegment = (relativePath: string) => {
+        return relativePath.split('/').filter(Boolean)[0] || relativePath;
+      };
+
+      const isRelativePathInside = (childPath: string, parentPath: string) => {
+        if (!childPath || !parentPath) return false;
+
+        const child = childPath.replace(/\\/g, '/').replace(/\/+$/, '');
+        const parent = parentPath.replace(/\\/g, '/').replace(/\/+$/, '');
+        const parentWithSlash = parent.endsWith('/') ? parent : `${parent}/`;
+
+        return child === parent || child.startsWith(parentWithSlash);
+      };
+
+      const getMatchedFolderGroupKey = (item: IndexedFileItem) => {
+        const segments = item.relativePath.split('/').filter(Boolean);
+        let currentPath = '';
+
+        for (const segment of segments) {
+          currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+
+          const currentItem = indexedItemByRelativePath.get(currentPath);
+
+          if (currentItem?.isFolder && matchedFolderPathSet.has(currentPath)) {
+            return currentPath;
+          }
+        }
+
+        return getFirstPathSegment(item.relativePath);
+      };
+
+      const scoredResults = rawScoredResults.map((item) => ({
+        ...item,
+        groupKey: getMatchedFolderGroupKey(item.source),
+      }));
+
+      const compareGroupKey = (a: ScoredSearchResult, b: ScoredSearchResult) => {
+        if (a.groupKey === b.groupKey) {
+          return 0;
+        }
+
+        const aRoot = getFirstPathSegment(a.groupKey);
+        const bRoot = getFirstPathSegment(b.groupKey);
+
+        if (aRoot !== bRoot) {
+          const aRootItem = indexedItemByRelativePath.get(aRoot);
+          const bRootItem = indexedItemByRelativePath.get(bRoot);
+
+          if (!!aRootItem?.isFolder !== !!bRootItem?.isFolder) {
+            return aRootItem?.isFolder ? -1 : 1;
+          }
+
+          return aRoot.localeCompare(bRoot);
+        }
+
+        if (isRelativePathInside(a.groupKey, b.groupKey)) {
+          return -1;
+        }
+
+        if (isRelativePathInside(b.groupKey, a.groupKey)) {
+          return 1;
+        }
+
+        return a.groupKey.localeCompare(b.groupKey);
+      };
+
       const results = scoredResults
         .sort((a, b) => {
-          if (a.score !== b.score) return a.score - b.score;
-          if (a.item.isFolder !== b.item.isFolder) return a.item.isFolder ? -1 : 1;
-          if (a.depth !== b.depth) return a.depth - b.depth;
+          const groupCompare = compareGroupKey(a, b);
+
+          if (groupCompare !== 0) {
+            return groupCompare;
+          }
+
+          const aIsGroupRoot = a.source.relativePath === a.groupKey;
+          const bIsGroupRoot = b.source.relativePath === b.groupKey;
+
+          if (aIsGroupRoot !== bIsGroupRoot) {
+            return aIsGroupRoot ? -1 : 1;
+          }
+
+          if (a.score !== b.score) {
+            return a.score - b.score;
+          }
+
+          if (a.depth !== b.depth) {
+            return a.depth - b.depth;
+          }
+
+          if (a.source.isFolder !== b.source.isFolder) {
+            return a.source.isFolder ? -1 : 1;
+          }
+
           return a.order - b.order;
         })
         .slice(0, 200)

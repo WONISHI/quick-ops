@@ -2156,7 +2156,10 @@ export default function RecentProjectsApp() {
     parentPath: string,
     projectName: string,
     isActiveProject: boolean = false,
-    highlightQuery: string = ''
+    highlightQuery: string = '',
+    options: {
+      filterByHighlightQuery?: boolean;
+    } = {}
   ) => {
     const children = dirChildren[parentPath];
     const isLoading = loadingPaths.has(parentPath);
@@ -2184,7 +2187,10 @@ export default function RecentProjectsApp() {
       return <div className={styles['empty-node']}>（空文件夹/无读取权限）</div>;
     }
 
-    const visibleChildren = highlightQuery
+    const shouldFilterByHighlightQuery =
+      !!highlightQuery && options.filterByHighlightQuery !== false;
+
+    const visibleChildren = shouldFilterByHighlightQuery
       ? children.filter((child) => isSearchNameTextMatched(child.name, highlightQuery))
       : children;
 
@@ -2279,7 +2285,7 @@ export default function RecentProjectsApp() {
                       styles['search-name-tree-children']
                     )}
                   >
-                    {renderTreeChildren(childPath, projectName, isActiveProject, highlightQuery)}
+                    {renderTreeChildren(childPath, projectName, isActiveProject, highlightQuery, options)}
                   </div>
                 )}
               </div>
