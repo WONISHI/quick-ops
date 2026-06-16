@@ -7,69 +7,42 @@ import markdownImagePlugin, { restoreMarkdownImagePaths } from '../plugins/markd
 import { RecentProjectsGitStatusService } from '../services/gitStatusService';
 import { RecentProjectsDirectoryService } from '../services/directoryService';
 import GitService from '../services/GitService';
+import {
+  FILE_INDEX_CACHE_TTL,
+  GIT_STATUS_KEYS,
+  GIT_STATUS_PRIORITY,
+  GIT_VIRTUAL_SCHEME,
+  IGNORE_DIRS,
+  LOCAL_DIR_CACHE_TTL,
+  PENDING_OPEN_FILE_STATE_KEY,
+  READONLY_SCHEME,
+  RECENT_PROJECTS_STATE_KEY,
+  SYSTEM_IGNORE_FILES,
+} from '../constants/recentProjects';
+import type { DiagnosticSummary, IndexedFileItem, MetadataPatchItem, RecentProject } from '../types/recentProjects';
+import { GitVirtualContentProvider } from './GitVirtualContentProvider';
+import {
+  getRelativePathByUri as getRecentProjectRelativePathByUri,
+  isInsidePath as isRecentProjectInsidePath,
+  isLocalFilePath as isRecentProjectLocalFilePath,
+  normalizeComparePath as normalizeRecentProjectComparePath,
+  normalizeNativePath as normalizeRecentProjectNativePath,
+  normalizePathForCompare as normalizeRecentProjectPathForCompare,
+  parseFileUri as parseRecentProjectFileUri,
+  toLocalUri as toRecentProjectLocalUri,
+  toResourceUri as toRecentProjectResourceUri,
+} from '../utils/recentProjectPath';
+import {
+  compactSearchText as compactRecentProjectSearchText,
+  getSequentialFuzzyScore as getRecentProjectSequentialFuzzyScore,
+  normalizeSearchText as normalizeRecentProjectSearchText,
+} from '../utils/recentProjectSearch';
 
-export interface RecentProject {
-  name: string;
-  customName?: string;
-  fsPath: string;
-  timestamp: number;
-  branch?: string;
-  platform?: 'github' | 'gitlab';
-  customDomain?: string;
-  status?: string;
-  diagnostics?: DiagnosticSummary;
-}
-
-interface DiagnosticSummary {
-  errors: number;
-  warnings: number;
-}
-
-interface MetadataPatchItem {
-  path: string;
-  status?: string;
-  diagnostics: DiagnosticSummary;
-}
-
-interface IndexedFileItem {
-  name: string;
-  fullPath: string;
-  uriString: string;
-  relativePath: string;
-  isFolder: boolean;
-  ext: string;
-  uri: vscode.Uri;
-}
-
-class GitVirtualContentProvider implements vscode.TextDocumentContentProvider {
-  private readonly changeEmitter = new vscode.EventEmitter<vscode.Uri>();
-  public readonly onDidChange = this.changeEmitter.event;
-
-  private readonly contentMap = new Map<string, string>();
-
-  public provideTextDocumentContent(uri: vscode.Uri): string {
-    const key = new URLSearchParams(uri.query).get('key') || '';
-
-    return this.contentMap.get(key) || '';
-  }
-
-  public setContent(key: string, content: string): void {
-    this.contentMap.set(key, content);
-  }
-
-  public deleteContent(key: string): void {
-    this.contentMap.delete(key);
-  }
-
-  public dispose(): void {
-    this.contentMap.clear();
-    this.changeEmitter.dispose();
-  }
-}
+export type { DiagnosticSummary, IndexedFileItem, MetadataPatchItem, RecentProject } from '../types/recentProjects';
 
 export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
-  private stateKey = 'quickOps.recentProjectsHistory';
+  private stateKey = RECENT_PROJECTS_STATE_KEY;
   private lastOpenedPath: string = '';
   private selectedForCompareUri?: vscode.Uri;
   private selectedForCompareName?: string;
@@ -98,11 +71,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   private activeSearchRunId = 0;
 
-  private readonly localDirCacheTtl = 3000;
-  private readonly fileIndexCacheTtl = 15000;
+  private readonly localDirCacheTtl = LOCAL_DIR_CACHE_TTL;
+  private readonly fileIndexCacheTtl = FILE_INDEX_CACHE_TTL;
 
   constructor(private context: vscode.ExtensionContext) {
-    this.context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider('quickops-git-virtual', this.gitVirtualContentProvider), this.gitVirtualContentProvider);
+    this.context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(GIT_VIRTUAL_SCHEME, this.gitVirtualContentProvider), this.gitVirtualContentProvider);
 
     this.initializeCurrentWorkspace();
 
@@ -118,14 +91,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private async checkPendingFileOpen() {
-    const pending = this.context.globalState.get<{ path: string; line: number; char: number; targetWorkspace?: string }>('quickOps.pendingOpenFile');
+    const pending = this.context.globalState.get<{ path: string; line: number; char: number; targetWorkspace?: string }>(PENDING_OPEN_FILE_STATE_KEY);
     if (pending) {
       const currentWorkspaceStr = vscode.workspace.workspaceFolders?.[0]?.uri.toString();
       if (pending.targetWorkspace && currentWorkspaceStr !== pending.targetWorkspace) {
         return;
       }
 
-      await this.context.globalState.update('quickOps.pendingOpenFile', undefined);
+      await this.context.globalState.update(PENDING_OPEN_FILE_STATE_KEY, undefined);
 
       const targetUri = pending.path.includes('://') ? vscode.Uri.parse(pending.path) : vscode.Uri.file(pending.path);
 
@@ -167,7 +140,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private handleEditorChange(editor: vscode.TextEditor | undefined) {
     if (editor) {
       let activePath = editor.document.uri.toString();
-      if (editor.document.uri.scheme === 'quickops-ro') {
+      if (editor.document.uri.scheme === READONLY_SCHEME) {
         const match = editor.document.uri.query.match(/target=([^&]+)/);
         if (match) {
           activePath = decodeURIComponent(match[1]);
@@ -178,26 +151,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private normalizeComparePath(value: string) {
-    if (!value) return '';
-
-    let result = value.split('?')[0];
-
-    if (result.startsWith('file://')) {
-      result = decodeURIComponent(result.replace(/^file:\/\//, ''));
-
-      if (/^\/[a-zA-Z]:\//.test(result)) {
-        result = result.slice(1);
-      }
-    }
-
-    return result.replace(/\\/g, '/').replace(/\/+$/, '');
+    return normalizeRecentProjectComparePath(value);
   }
 
   private isInsidePath(child: string, parent: string) {
-    const childBase = this.normalizeComparePath(child);
-    const parentBase = this.normalizeComparePath(parent);
-    const normalizedParent = parentBase.endsWith('/') ? parentBase : parentBase + '/';
-    return childBase === parentBase || childBase.startsWith(normalizedParent);
+    return isRecentProjectInsidePath(child, parent);
   }
 
   private updateRevealContext(activePath: string) {
@@ -233,7 +191,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (!this.currentActivePath) return;
 
     let realPath = this.currentActivePath;
-    if (this.currentActivePath.startsWith('quickops-ro:')) {
+    if (this.currentActivePath.startsWith(`${READONLY_SCHEME}:`)) {
       const match = this.currentActivePath.match(/target=([^&]+)/);
       if (match) realPath = decodeURIComponent(match[1]);
     }
@@ -341,7 +299,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     const uriString = typeof uri.toString === 'function' ? uri.toString() : '';
 
-    return uri.scheme === 'quickops-git-virtual' || (uriString ? this.gitDiffTargetByUri.has(uriString) : false);
+    return uri.scheme === GIT_VIRTUAL_SCHEME || (uriString ? this.gitDiffTargetByUri.has(uriString) : false);
   }
 
   private async closeExistingGitDiffTabs(fsPath: string): Promise<void> {
@@ -405,7 +363,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const virtualPath = `/${projectName}: ${fileName}`;
 
     return vscode.Uri.from({
-      scheme: 'quickops-ro',
+      scheme: READONLY_SCHEME,
       path: virtualPath,
       query: `target=${encodeURIComponent(originalUri.toString())}`,
     });
@@ -425,11 +383,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private toResourceUri(fsPath: string): vscode.Uri {
-    return fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
+    return toRecentProjectResourceUri(fsPath);
   }
 
   private normalizeNativePath(fsPath: string): string {
-    return this.toResourceUri(fsPath).fsPath;
+    return normalizeRecentProjectNativePath(fsPath);
   }
 
   private decodeFileContent(contentBytes: Uint8Array): string {
@@ -437,22 +395,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private getRelativePathByUri(rootUri: vscode.Uri, childUri: vscode.Uri): string {
-    if (rootUri.scheme === 'file' && childUri.scheme === 'file') {
-      return path.relative(rootUri.fsPath, childUri.fsPath).replace(/\\/g, '/');
-    }
-
-    const rootPath = rootUri.path.replace(/\/+$/, '');
-    const childPath = childUri.path;
-
-    if (childPath === rootPath) {
-      return '';
-    }
-
-    if (childPath.startsWith(`${rootPath}/`)) {
-      return decodeURIComponent(childPath.slice(rootPath.length + 1));
-    }
-
-    return decodeURIComponent(childPath.split('/').pop() || childPath);
+    return getRecentProjectRelativePathByUri(rootUri, childUri);
   }
 
   private async readLocalDirectoryChildrenFast(fsPath: string, forceRefresh: boolean = false): Promise<any[]> {
@@ -478,7 +421,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         const entries = await vscode.workspace.fs.readDirectory(uri);
 
         const children = entries
-          .filter(([name]) => name !== '.DS_Store' && name !== 'Thumbs.db')
+          .filter(([name]) => !SYSTEM_IGNORE_FILES.has(name))
           .map(([name, type]) => {
             const childUri = vscode.Uri.joinPath(uri, name);
             const isFolder = (type & vscode.FileType.Directory) !== 0;
@@ -577,26 +520,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       }
     }
 
-    const ignoreDirs = new Set([
-      'node_modules',
-      'bower_components',
-      'vendor',
-      '.git',
-      '.svn',
-      '.hg',
-      'CVS',
-      '.vscode',
-      '.idea',
-      'dist',
-      'build',
-      'out',
-      'coverage',
-      '.next',
-      '.nuxt',
-      '.cache',
-      '.turbo',
-    ]);
-
     const items: IndexedFileItem[] = [];
 
     const walk = async (dirUri: vscode.Uri): Promise<void> => {
@@ -611,13 +534,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const childDirs: vscode.Uri[] = [];
 
       for (const [name, type] of entries) {
-        if (name === '.DS_Store' || name === 'Thumbs.db') {
+        if (SYSTEM_IGNORE_FILES.has(name)) {
           continue;
         }
 
         const isFolder = (type & vscode.FileType.Directory) !== 0;
 
-        if (isFolder && ignoreDirs.has(name)) {
+        if (isFolder && IGNORE_DIRS.has(name)) {
           continue;
         }
 
@@ -686,48 +609,15 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private normalizeSearchText(value: string): string {
-    return String(value || '')
-      .replace(/\\/g, '/')
-      .replace(/\/+/g, '/')
-      .toLowerCase()
-      .trim();
+    return normalizeRecentProjectSearchText(value);
   }
 
   private compactSearchText(value: string): string {
-    return this.normalizeSearchText(value).replace(/[\s/_.@#:$+~\-]+/g, '');
+    return compactRecentProjectSearchText(value);
   }
 
   private getSequentialFuzzyScore(target: string, input: string): number | null {
-    if (!target || !input) {
-      return null;
-    }
-
-    let targetIndex = 0;
-    let firstIndex = -1;
-    let lastIndex = -1;
-    let gapScore = 0;
-
-    for (let i = 0; i < input.length; i++) {
-      const char = input[i];
-      const foundIndex = target.indexOf(char, targetIndex);
-
-      if (foundIndex === -1) {
-        return null;
-      }
-
-      if (firstIndex === -1) {
-        firstIndex = foundIndex;
-      }
-
-      if (lastIndex !== -1) {
-        gapScore += Math.max(0, foundIndex - lastIndex - 1);
-      }
-
-      lastIndex = foundIndex;
-      targetIndex = foundIndex + 1;
-    }
-
-    return firstIndex + gapScore + Math.max(0, target.length - input.length) * 0.01;
+    return getRecentProjectSequentialFuzzyScore(target, input);
   }
 
   public selectForCompare(fsPath: string, projectName?: string) {
@@ -872,7 +762,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           const targetUri = data.fsPath.includes('://') ? vscode.Uri.parse(data.fsPath) : vscode.Uri.file(data.fsPath);
 
           for (const editor of vscode.window.visibleTextEditors) {
-            if (editor.document.uri.fsPath === targetUri.fsPath || (editor.document.uri.scheme === 'quickops-ro' && editor.document.uri.query.includes(encodeURIComponent(data.fsPath)))) {
+            if (editor.document.uri.fsPath === targetUri.fsPath || (editor.document.uri.scheme === READONLY_SCHEME && editor.document.uri.query.includes(encodeURIComponent(data.fsPath)))) {
               currentLine = editor.selection.active.line;
               currentChar = editor.selection.active.character;
               break;
@@ -908,7 +798,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             const workspaceUri = rootProj ? (rootProj.fsPath.includes('://') ? vscode.Uri.parse(rootProj.fsPath) : vscode.Uri.file(rootProj.fsPath)) : vscode.Uri.joinPath(targetUri, '..'); // 兜底用它的父级目录
 
             // 把这颗“坐标种子”塞进 globalState
-            await this.context.globalState.update('quickOps.pendingOpenFile', {
+            await this.context.globalState.update(PENDING_OPEN_FILE_STATE_KEY, {
               path: data.fsPath,
               line: currentLine,
               char: currentChar,
@@ -1138,7 +1028,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const matchedToken = tokens.find((item) => {
       const key = item[0]?.toUpperCase();
 
-      return !!key && ['U', '?', 'M', 'A', 'D', 'R', 'C', 'I', '!', 'X', 'T'].includes(key);
+      return !!key && GIT_STATUS_KEYS.includes(key);
     });
 
     if (matchedToken) {
@@ -1146,7 +1036,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
 
     const compactStatus = cleanStatus.replace(/\s+/g, '');
-    const matchedKey = ['U', '?', 'M', 'A', 'D', 'R', 'C', 'I', '!', 'X', 'T'].find((key) => {
+    const matchedKey = GIT_STATUS_KEYS.find((key) => {
       return key === '?' ? compactStatus.includes('?') : compactStatus.toUpperCase().includes(key);
     });
 
@@ -1154,17 +1044,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private parseFileUri(fsPath: string): vscode.Uri {
-    if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(fsPath)) {
-      return vscode.Uri.parse(fsPath);
-    }
-
-    return vscode.Uri.file(fsPath);
+    return parseRecentProjectFileUri(fsPath);
   }
 
   private isLocalFilePath(fsPath: string): boolean {
-    if (!fsPath) return false;
-
-    return !fsPath.startsWith('vscode-vfs://') && !/^https?:\/\//i.test(fsPath);
+    return isRecentProjectLocalFilePath(fsPath);
   }
 
   private async statFileSafe(uri: vscode.Uri): Promise<vscode.FileStat | undefined> {
@@ -1240,7 +1124,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   private createGitVirtualUri(label: string, fileName: string, key: string): vscode.Uri {
     return vscode.Uri.from({
-      scheme: 'quickops-git-virtual',
+      scheme: GIT_VIRTUAL_SCHEME,
       path: `/${label}/${fileName}`,
       query: `key=${encodeURIComponent(key)}`,
     });
@@ -1701,41 +1585,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private normalizePathForCompare(value: string): string {
-    if (!value) return '';
-
-    try {
-      if (value.includes('://')) {
-        const uri = vscode.Uri.parse(value);
-
-        if (uri.scheme === 'file') {
-          return uri.fsPath.replace(/\\/g, '/').replace(/\/+$/, '');
-        }
-
-        return decodeURIComponent(uri.path || value)
-          .replace(/\\/g, '/')
-          .replace(/\/+$/, '');
-      }
-    } catch {}
-
-    return value
-      .replace(/^file:\/\//, '')
-      .replace(/\\/g, '/')
-      .replace(/\/+$/, '');
+    return normalizeRecentProjectPathForCompare(value);
   }
 
   private toLocalUri(value: string): vscode.Uri | undefined {
-    if (!value) return undefined;
-
-    try {
-      if (value.includes('://')) {
-        const uri = vscode.Uri.parse(value);
-        return uri.scheme === 'file' ? uri : undefined;
-      }
-
-      return vscode.Uri.file(value);
-    } catch {
-      return undefined;
-    }
+    return toRecentProjectLocalUri(value);
   }
 
   private getDiagnosticsSummary(targetPath: string, isFolder: boolean): DiagnosticSummary {
@@ -1784,7 +1638,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
 
     const prefix = normalized ? `${normalized}/` : '';
-    const priority = ['UU', 'AA', 'DD', 'UD', 'DU', 'U', '?', 'A', 'D', 'R', 'C', 'M'];
+    const priority = GIT_STATUS_PRIORITY;
     const foundStatuses = new Set<string>();
 
     if (directStatus) {
