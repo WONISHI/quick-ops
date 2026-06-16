@@ -24,7 +24,6 @@ import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '../../utils
 import {
   FileGitStatusBadge,
   FolderGitStatusDot,
-  getGitStatusClassName,
   getGitStatusTitle,
 } from '../../components/GitStatusMark';
 import type {
@@ -250,24 +249,6 @@ export default function RecentProjectsApp() {
     }
 
     return `错误 ${diagnostics.errors}，警告 ${diagnostics.warnings}`;
-  };
-
-  const getFolderDiagnosticsStyle = (item: any): React.CSSProperties | undefined => {
-    const diagnostics = getDiagnosticSummary(item);
-
-    if (diagnostics.errors > 0) {
-      return {
-        color: 'var(--vscode-editorError-foreground)',
-      };
-    }
-
-    if (diagnostics.warnings > 0) {
-      return {
-        color: 'var(--vscode-editorWarning-foreground)',
-      };
-    }
-
-    return undefined;
   };
 
   const formatTooltipPath = (pathValue: string) => {
@@ -2207,7 +2188,6 @@ export default function RecentProjectsApp() {
           const childLoading = loadingPaths.has(childPath) && !dirChildren[childPath];
           const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
           const elementId = `tree-node-${encodeURIComponent(childPath)}`;
-          const statusClassName = getGitStatusClassName(child.status);
 
           if (child.isFolder) {
             return (
