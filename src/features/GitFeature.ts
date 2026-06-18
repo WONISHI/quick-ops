@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { IFeature } from '../core/interfaces/IFeature';
+import { IFeature } from '../core/interfaces/feature.interface';
 import { GitWebviewProvider } from '../providers/GitWebviewProvider';
 import ColorLog from '../utils/ColorLog';
 import simpleGit from 'simple-git';

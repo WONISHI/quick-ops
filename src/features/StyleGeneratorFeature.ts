@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { IFeature } from '../core/interfaces/IFeature';
+import { IFeature } from '../core/interfaces/feature.interface';
 import ColorLog from '../utils/ColorLog';
 
 export class StyleGeneratorFeature implements IFeature {

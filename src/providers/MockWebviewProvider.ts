@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { nanoid } from 'nanoid';
 
-import { ConfigurationService } from '../services/ConfigurationService';
+import { ConfigurationService } from '../common/services/configuration.service';
 import { MockServerFeature } from '../features/MockServerFeature';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
 import { IMockRuleConfig, IProxyConfig, MockYamlStore } from '../services/MockYamlStore';

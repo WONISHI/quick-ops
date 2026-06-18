@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { debounce } from 'lodash-es';
-import { IFeature } from '../core/interfaces/IFeature';
-import { ConfigurationService } from '../services/ConfigurationService';
+import { IFeature } from '../core/interfaces/feature.interface';
+import { ConfigurationService } from '../common/services/configuration.service';
 import type { MarkStyle } from '../core/types/mark-style';
 import ColorLog from '../utils/ColorLog';
 

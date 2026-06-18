@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import { TextDecoder } from 'util';
 import type { ISnippetItem } from '../core/types/snippet';
-import { IFeature } from '../core/interfaces/IFeature';
-import { ConfigurationService } from '../services/ConfigurationService';
+import { IFeature } from '../core/interfaces/feature.interface';
+import { ConfigurationService } from '../common/services/configuration.service';
 import { WorkspaceContextService } from '../services/WorkspaceContextService';
 import { TemplateEngine } from '../utils/TemplateEngine';
 import ColorLog from '../utils/ColorLog';

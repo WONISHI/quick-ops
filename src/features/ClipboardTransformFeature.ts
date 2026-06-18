@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { camelCase, kebabCase, snakeCase, upperFirst } from 'lodash-es';
-import { IFeature } from '../core/interfaces/IFeature';
+import { IFeature } from '../core/interfaces/feature.interface';
 
 export class ClipboardTransformFeature implements IFeature {
   public readonly id = 'ClipboardTransformFeature';

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { IFeature } from '../core/interfaces/IFeature';
-import { EditorContextService } from '../services/EditorContextService';
+import { IFeature } from '../core/interfaces/feature.interface';
+import { EditorContextService } from '../common/services/editor-context.service';
 
 export class SmartScrollFeature implements IFeature {
   public readonly id = 'SmartScrollFeature';

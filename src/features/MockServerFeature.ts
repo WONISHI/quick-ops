@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-import { IFeature } from '../core/interfaces/IFeature';
-import { ConfigurationService } from '../services/ConfigurationService';
+import { IFeature } from '../core/interfaces/feature.interface';
+import { ConfigurationService } from '../common/services/configuration.service';
 import { MockWebviewProvider } from '../providers/MockWebviewProvider';
 import ColorLog from '../utils/ColorLog';
 import { IProxyConfig, MockYamlStore } from '../services/MockYamlStore';

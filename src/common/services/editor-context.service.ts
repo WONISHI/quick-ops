@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { IService } from '../core/interfaces/IService';
+import { IService } from '../../core/interfaces/service.interface';
 
 export class EditorContextService implements IService {
   public readonly serviceId = 'EditorContextService';

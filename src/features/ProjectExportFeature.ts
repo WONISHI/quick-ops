@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 import * as path from 'path'; // 路径字符串处理仍需 path
 import { isFunction } from 'lodash-es';
 import { TextDecoder } from 'util';
-import { IFeature } from '../core/interfaces/IFeature';
-import { ConfigurationService } from '../services/ConfigurationService';
-import { EditorContextService } from '../services/EditorContextService';
+import { IFeature } from '../core/interfaces/feature.interface';
+import { ConfigurationService } from '../common/services/configuration.service';
+import { EditorContextService } from '../common/services/editor-context.service';
 import { PathHelper } from '../utils/PathHelper';
 import { AstParser } from '../utils/AstParser';
 import type { ExportState, ParseResult } from '../core/types/export';

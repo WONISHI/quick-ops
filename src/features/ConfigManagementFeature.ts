@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { IFeature } from '../core/interfaces/IFeature';
-import { ConfigurationService } from '../services/ConfigurationService';
+import { IFeature } from '../core/interfaces/feature.interface';
+import { ConfigurationService } from '../common/services/configuration.service';
 import ColorLog from '../utils/ColorLog';
 
 export class ConfigManagementFeature implements IFeature {

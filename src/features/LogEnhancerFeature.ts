@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { IFeature } from '../core/interfaces/IFeature';
-import { ConfigurationService } from '../services/ConfigurationService';
-import { WorkspaceStateService } from '../services/WorkspaceStateService';
+import { IFeature } from '../core/interfaces/feature.interface';
+import { ConfigurationService } from '../common/services/configuration.service';
+import { WorkspaceStateService } from '../common/services/workspace-state.service';
 import { LogHelper } from '../utils/LogHelper';
 import ColorLog from '../utils/ColorLog';
 

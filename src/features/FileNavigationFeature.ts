@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { IFeature } from '../core/interfaces/IFeature';
+import { IFeature } from '../core/interfaces/feature.interface';
 import ColorLog from '../utils/ColorLog';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
 import { setupMarkdown } from '../plugins/markdown/setupMarkdown';

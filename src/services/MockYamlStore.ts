@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as YAML from 'yaml';
 
-import { ConfigurationService } from '../services/ConfigurationService';
+import { ConfigurationService } from '../common/services/configuration.service';
 
 export type MockRuleMode = 'mock' | 'custom' | 'file';
 

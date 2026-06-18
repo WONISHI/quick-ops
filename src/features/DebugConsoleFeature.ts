@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { IFeature } from '../core/interfaces/IFeature';
-import { ConfigurationService } from '../services/ConfigurationService';
+import { IFeature } from '../core/interfaces/feature.interface';
+import { ConfigurationService } from '../common/services/configuration.service';
 
 const COMMON_COMMANDS = [
   { label: '刷新窗口', icon: 'refresh', command: 'workbench.action.reloadWindow' },

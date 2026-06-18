@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { IFeature } from '../core/interfaces/IFeature';
+import { IFeature } from '../core/interfaces/feature.interface';
 import ColorLog from '../utils/ColorLog';
 
 export class InlineConstantHintFeature implements IFeature {

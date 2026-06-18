@@ -2,10 +2,10 @@ import * as vscode from "vscode";
 import { TextDecoder } from "util";
 import { spawn } from "child_process";
 import * as net from "net";
-import { IFeature } from "../core/interfaces/IFeature";
+import { IFeature } from "../core/interfaces/feature.interface";
 import { WorkspaceContextService } from "../services/WorkspaceContextService";
 import { TemplateEngine } from "../utils/TemplateEngine";
-import { ConfigurationService } from "../services/ConfigurationService";
+import { ConfigurationService } from "../common/services/configuration.service";
 import type { ShellConfigItem, ScriptItem } from "../core/types/package-script";
 import ColorLog from "../utils/ColorLog";
 

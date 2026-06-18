@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { isNumber, debounce, isFunction } from 'lodash-es';
-import { IFeature } from '../core/interfaces/IFeature';
+import { IFeature } from '../core/interfaces/feature.interface';
 import { AnchorService } from '../services/AnchorService';
 import { AnchorCodeLensProvider } from '../providers/AnchorCodeLensProvider';
 import { ColorUtils } from '../utils/ColorUtils';
-import { ConfigurationService } from '../services/ConfigurationService';
+import { ConfigurationService } from '../common/services/configuration.service';
 import { TOOLTIPS } from '../core/constants';
 import { getReactWebviewHtml } from '../utils/WebviewHelper';
 
