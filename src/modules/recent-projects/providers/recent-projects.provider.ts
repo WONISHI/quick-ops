@@ -39,7 +39,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = getReactWebviewHtml(
       context.extensionUri,
       webviewView.webview,
-      '/recent-projects',
+      '/projects',
     );
 
     webviewView.webview.onDidReceiveMessage(async message => {
