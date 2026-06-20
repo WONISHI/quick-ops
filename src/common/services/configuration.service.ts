@@ -3,41 +3,9 @@ import * as path from 'path';
 import { EventEmitter } from 'events';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import type { QuickOpsConfig, QuickOpsShellConfig, ConfigurationChangeListener } from '../types/common.type';
 
 const execFileAsync = promisify(execFile);
-
-export interface QuickOpsShellConfig {
-  label: string;
-  command: string;
-  cwd?: string;
-}
-
-export interface QuickOpsConfig {
-  general: {
-    debug: boolean;
-    excludeConfigFiles: boolean;
-    anchorViewMode: string;
-    mindMapPosition: string;
-  };
-  logger: {
-    template: string;
-    dateFormat: string;
-  };
-  utils: {
-    uuidLength: number;
-  };
-  git: {
-    ignoreList: string[];
-  };
-  shells: QuickOpsShellConfig[];
-  project: {
-    marks: Record<string, unknown>;
-    alias: Record<string, string>;
-  };
-  snippets: unknown[];
-}
-
-export type ConfigurationChangeListener = (config: Readonly<QuickOpsConfig>) => void;
 
 export class ConfigurationService extends EventEmitter {
   public readonly serviceId = 'ConfigurationService';

@@ -40,7 +40,6 @@ src
 │  ├─ config-management
 │  │  ├─ config-management.module.ts
 │  │  ├─ config-management.controller.ts
-│  │  ├─ config-management.service.ts
 │  │  └─ config-management.type.ts
 │  │
 │  ├─ file-navigation

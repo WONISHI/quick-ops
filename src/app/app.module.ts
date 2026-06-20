@@ -17,6 +17,7 @@ import { ProjectExportModule } from '../modules/project-export/project-export.mo
 import { CodeSnippetModule } from '../modules/code-snippet/code-snippet.module';
 import { SnippetGeneratorModule } from '../modules/snippet-generator/snippet-generator.module';
 import { LivePreviewModule } from '../modules/live-preview/live-preview.module';
+import { DevToolsModule } from '../modules/devtools/devtools.module';
 import { RecentProjectsModule } from '../modules/recent-projects/recent-projects.module';
 import { ComponentIntellisenseModule } from '../modules/component-intellisense/component-intellisense.module';
 import { TextCompareModule } from '../modules/text-compare/text-compare.module';
@@ -44,6 +45,7 @@ export const AppModule: QuickOpsModule = {
     CodeSnippetModule,
     SnippetGeneratorModule,
     LivePreviewModule,
+    DevToolsModule,
     RecentProjectsModule,
     ComponentIntellisenseModule,
     TextCompareModule,
