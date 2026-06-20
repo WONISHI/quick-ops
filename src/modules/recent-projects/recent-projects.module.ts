@@ -8,14 +8,6 @@ import { ReadOnlyFileSystemProvider } from './providers/read-only-file-system.pr
 export const RecentProjectsModule: QuickOpsModule = {
   imports: [CommonModule],
   controllers: [RecentProjectsController],
-  providers: [
-    RecentProjectsService,
-    RecentProjectsProvider,
-    ReadOnlyFileSystemProvider,
-  ],
-  exports: [
-    RecentProjectsService,
-    RecentProjectsProvider,
-    ReadOnlyFileSystemProvider,
-  ],
+  providers: [RecentProjectsService, RecentProjectsProvider, ReadOnlyFileSystemProvider],
+  exports: [RecentProjectsService, RecentProjectsProvider, ReadOnlyFileSystemProvider],
 };

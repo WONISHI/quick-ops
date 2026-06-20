@@ -4,20 +4,7 @@ import { debounce, isFunction, isNumber } from 'lodash-es';
 import { getReactWebviewHtml } from '../../utils/WebviewHelper';
 import { ColorUtils } from '../../utils/ColorUtils';
 import { ConfigurationService } from '../../common/services/configuration.service';
-import type {
-  AnchorChildCreateInput,
-  AnchorConfig,
-  AnchorCreateInput,
-  AnchorData,
-  AnchorDirection,
-  AnchorEditorContext,
-  AnchorInsertPosition,
-  AnchorMindMapNode,
-  AnchorMoveDirection,
-  AnchorQuickPickItem,
-  AnchorUpdateInput,
-  AnchorWebviewMessage,
-} from './anchor.type';
+import type { AnchorChildCreateInput, AnchorConfig, AnchorCreateInput, AnchorData, AnchorDirection, AnchorEditorContext, AnchorInsertPosition, AnchorMindMapNode, AnchorMoveDirection, AnchorQuickPickItem, AnchorUpdateInput, AnchorWebviewMessage } from './anchor.type';
 
 const ANCHOR_TOOLTIPS = {
   ADD_NOTE: '添加备注',
@@ -83,11 +70,7 @@ export class AnchorService {
     const allAnchors = this.getAnchors();
     const hasAnchors = allAnchors.length > 0;
 
-    void vscode.commands.executeCommand(
-      'setContext',
-      'quickOps.hasAnchorsInProject',
-      hasAnchors,
-    );
+    void vscode.commands.executeCommand('setContext', 'quickOps.hasAnchorsInProject', hasAnchors);
   }
 
   public updateDecorationsDebounced(): void {
@@ -132,7 +115,7 @@ export class AnchorService {
       if (!ctx) return;
 
       const groups = this.getGroups();
-      const items: vscode.QuickPickItem[] = groups.map(group => ({
+      const items: vscode.QuickPickItem[] = groups.map((group) => ({
         label: group,
         iconPath: new vscode.ThemeIcon('symbol-folder'),
         description: ColorUtils.getEmoji(group),
@@ -140,14 +123,13 @@ export class AnchorService {
 
       const quickPick = vscode.window.createQuickPick();
 
-      const previewText =
-        ctx.text.length > 20 ? `${ctx.text.substring(0, 20)}...` : ctx.text;
+      const previewText = ctx.text.length > 20 ? `${ctx.text.substring(0, 20)}...` : ctx.text;
 
       quickPick.title = `添加锚点: 第 ${ctx.uiLineNumber} 行 [${previewText}]`;
       quickPick.placeholder = '输入新分组名称或从列表中选择';
       quickPick.items = items;
 
-      quickPick.onDidChangeValue(value => {
+      quickPick.onDidChangeValue((value) => {
         if (value && !groups.includes(value)) {
           quickPick.items = [
             {
@@ -175,9 +157,7 @@ export class AnchorService {
         this.addGroup(groupName);
         quickPick.hide();
 
-        const existingAnchors = this.getAnchors().filter(
-          anchor => anchor.group === groupName,
-        );
+        const existingAnchors = this.getAnchors().filter((anchor) => anchor.group === groupName);
 
         if (existingAnchors.length === 0) {
           this.addAnchor({
@@ -202,48 +182,28 @@ export class AnchorService {
     }
   }
 
-  public async showAnchorList(
-    groupName: string,
-    isPreviewMode: boolean,
-    pinnedLineIndex?: number,
-    defaultAnchorId?: string,
-  ): Promise<void> {
+  public async showAnchorList(groupName: string, isPreviewMode: boolean, pinnedLineIndex?: number, defaultAnchorId?: string): Promise<void> {
     const quickPick = vscode.window.createQuickPick<AnchorQuickPickItem>();
 
-    const insertLineDisplay =
-      pinnedLineIndex !== undefined ? pinnedLineIndex + 1 : '?';
+    const insertLineDisplay = pinnedLineIndex !== undefined ? pinnedLineIndex + 1 : '?';
 
-    quickPick.title =
-      pinnedLineIndex !== undefined && !isPreviewMode
-        ? `${ColorUtils.getEmoji(groupName)} [${groupName}] (待插入: 第 ${insertLineDisplay} 行)`
-        : `${ColorUtils.getEmoji(groupName)} [${groupName}] 列表`;
+    quickPick.title = pinnedLineIndex !== undefined && !isPreviewMode ? `${ColorUtils.getEmoji(groupName)} [${groupName}] (待插入: 第 ${insertLineDisplay} 行)` : `${ColorUtils.getEmoji(groupName)} [${groupName}] 列表`;
 
     const mapItems = (): AnchorQuickPickItem[] => {
-      const latestAnchors = this.anchors.filter(anchor => anchor.group === groupName);
+      const latestAnchors = this.anchors.filter((anchor) => anchor.group === groupName);
 
       return latestAnchors.map((anchor, index) => {
         const icon = this.getIconForFile(anchor.filePath);
-        const buttons = this.getAnchorButtons(
-          anchor,
-          index,
-          latestAnchors.length,
-          isPreviewMode,
-          Boolean(defaultAnchorId),
-        );
+        const buttons = this.getAnchorButtons(anchor, index, latestAnchors.length, isPreviewMode, Boolean(defaultAnchorId));
 
         let detailText = anchor.filePath;
 
         if (anchor.description?.trim()) {
-          detailText =
-            anchor.description.length > 30
-              ? ` ${anchor.description.substring(0, 30)}...`
-              : ` ${anchor.description}`;
+          detailText = anchor.description.length > 30 ? ` ${anchor.description.substring(0, 30)}...` : ` ${anchor.description}`;
         }
 
         return {
-          label: `${anchor.items?.length ? '$(symbol-folder)' : icon} ${path.basename(
-            anchor.filePath,
-          )} : ${anchor.line}`,
+          label: `${anchor.items?.length ? '$(symbol-folder)' : icon} ${path.basename(anchor.filePath)} : ${anchor.line}`,
           description: anchor.content,
           detail: detailText,
           anchorId: anchor.id,
@@ -258,12 +218,11 @@ export class AnchorService {
 
       quickPick.items = items;
 
-      const idToSelect =
-        targetAnchorId || (defaultAnchorId && !targetAnchorId ? defaultAnchorId : undefined);
+      const idToSelect = targetAnchorId || (defaultAnchorId && !targetAnchorId ? defaultAnchorId : undefined);
 
       if (!idToSelect) return;
 
-      const targetItem = items.find(item => item.anchorId === idToSelect);
+      const targetItem = items.find((item) => item.anchorId === idToSelect);
 
       if (targetItem) {
         quickPick.activeItems = [targetItem];
@@ -284,7 +243,7 @@ export class AnchorService {
       }
     });
 
-    quickPick.onDidTriggerItemButton(async event => {
+    quickPick.onDidTriggerItemButton(async (event) => {
       const anchorId = event.item.anchorId;
       const tooltip = String(event.button.tooltip || '');
 
@@ -295,7 +254,7 @@ export class AnchorService {
           const input = await vscode.window.showInputBox({
             title: '设置锚点备注',
             value: event.item.rawDescription || '',
-            validateInput: text => (text.trim().length === 0 ? '备注不能为空' : null),
+            validateInput: (text) => (text.trim().length === 0 ? '备注不能为空' : null),
           });
 
           if (input !== undefined) {
@@ -336,12 +295,7 @@ export class AnchorService {
           break;
 
         case ANCHOR_TOOLTIPS.VIEW_CHILDREN:
-          await this.handleViewChildren(
-            anchorId,
-            pinnedLineIndex,
-            isPreviewMode,
-            defaultAnchorId,
-          );
+          await this.handleViewChildren(anchorId, pinnedLineIndex, isPreviewMode, defaultAnchorId);
           break;
 
         case ANCHOR_TOOLTIPS.NEW_SUBGROUP:
@@ -351,12 +305,7 @@ export class AnchorService {
 
         case ANCHOR_TOOLTIPS.INSERT_BEFORE:
         case ANCHOR_TOOLTIPS.INSERT_AFTER:
-          await this.handleInsertAnchor(
-            anchorId,
-            tooltip === ANCHOR_TOOLTIPS.INSERT_BEFORE ? 'before' : 'after',
-            groupName,
-            pinnedLineIndex,
-          );
+          await this.handleInsertAnchor(anchorId, tooltip === ANCHOR_TOOLTIPS.INSERT_BEFORE ? 'before' : 'after', groupName, pinnedLineIndex);
 
           refreshList();
 
@@ -371,10 +320,7 @@ export class AnchorService {
     quickPick.show();
   }
 
-  public async navigateAnchor(
-    currentId: string,
-    direction: AnchorDirection,
-  ): Promise<void> {
+  public async navigateAnchor(currentId: string, direction: AnchorDirection): Promise<void> {
     const target = this.getNeighborAnchor(currentId, direction);
 
     if (target) {
@@ -382,18 +328,14 @@ export class AnchorService {
       return;
     }
 
-    vscode.window.showInformationMessage(
-      direction === 'prev' ? '已经是第一个了' : '已经是最后一个了',
-    );
+    vscode.window.showInformationMessage(direction === 'prev' ? '已经是第一个了' : '已经是最后一个了');
   }
 
   public async syncAnchorsWithContent(doc: vscode.TextDocument): Promise<void> {
     const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
     const relativePath = path.relative(rootPath, doc.uri.fsPath).replace(/\\/g, '/');
 
-    const fileAnchors = this.getAnchors().filter(
-      anchor => anchor.filePath === relativePath,
-    );
+    const fileAnchors = this.getAnchors().filter((anchor) => anchor.filePath === relativePath);
 
     if (fileAnchors.length === 0) return;
 
@@ -402,10 +344,7 @@ export class AnchorService {
     for (const anchor of fileAnchors) {
       const oldIndex = anchor.line - 1;
 
-      if (
-        oldIndex < doc.lineCount &&
-        doc.lineAt(oldIndex).text.trim() === anchor.content
-      ) {
+      if (oldIndex < doc.lineCount && doc.lineAt(oldIndex).text.trim() === anchor.content) {
         continue;
       }
 
@@ -448,9 +387,7 @@ export class AnchorService {
     if (filePath) {
       const targetPath = this.normalizePath(filePath);
 
-      return this.flotAnchors.filter(
-        anchor => this.normalizePath(anchor.filePath) === targetPath,
-      );
+      return this.flotAnchors.filter((anchor) => this.normalizePath(anchor.filePath) === targetPath);
     }
 
     return this.flotAnchors;
@@ -475,7 +412,7 @@ export class AnchorService {
   }
 
   public removeGroup(group: string): void {
-    this.groups = this.groups.filter(item => item !== group);
+    this.groups = this.groups.filter((item) => item !== group);
     this.save();
   }
 
@@ -487,7 +424,7 @@ export class AnchorService {
       items: [],
     };
 
-    const groupAnchors = this.anchors.filter(item => item.group === anchor.group);
+    const groupAnchors = this.anchors.filter((item) => item.group === anchor.group);
 
     if (groupAnchors.length > 0) {
       const lastAnchor = groupAnchors[groupAnchors.length - 1];
@@ -524,11 +461,7 @@ export class AnchorService {
     this.save();
   }
 
-  public insertAnchor(
-    anchor: AnchorCreateInput,
-    targetId: string,
-    position: AnchorInsertPosition,
-  ): void {
+  public insertAnchor(anchor: AnchorCreateInput, targetId: string, position: AnchorInsertPosition): void {
     const container = this.findContainerArray(targetId, this.anchors);
 
     if (!container) {
@@ -563,7 +496,7 @@ export class AnchorService {
 
     let sortCounter = 1;
 
-    list.forEach(item => {
+    list.forEach((item) => {
       if (item.group === newAnchor.group) {
         item.sort = sortCounter++;
       }
@@ -602,10 +535,7 @@ export class AnchorService {
       changed = true;
     }
 
-    if (
-      updates.description !== undefined &&
-      anchor.description !== updates.description
-    ) {
+    if (updates.description !== undefined && anchor.description !== updates.description) {
       anchor.description = updates.description;
 
       if (anchor.items?.length && anchor.description) {
@@ -655,29 +585,24 @@ export class AnchorService {
   }
 
   public getAnchorById(id: string): AnchorData | undefined {
-    let found = this.flotAnchors.find(anchor => anchor.id === id);
+    let found = this.flotAnchors.find((anchor) => anchor.id === id);
 
     if (!found) {
       this.refreshFlotAnchors();
-      found = this.flotAnchors.find(anchor => anchor.id === id);
+      found = this.flotAnchors.find((anchor) => anchor.id === id);
     }
 
     return found;
   }
 
-  public getNeighborAnchor(
-    currentId: string,
-    direction: AnchorDirection,
-  ): AnchorData | undefined {
+  public getNeighborAnchor(currentId: string, direction: AnchorDirection): AnchorData | undefined {
     const currentAnchor = this.getAnchorById(currentId);
 
     if (!currentAnchor) return undefined;
 
-    const groupAnchors = this.flotAnchors.filter(
-      anchor => anchor.group === currentAnchor.group,
-    );
+    const groupAnchors = this.flotAnchors.filter((anchor) => anchor.group === currentAnchor.group);
 
-    const index = groupAnchors.findIndex(anchor => anchor.id === currentId);
+    const index = groupAnchors.findIndex((anchor) => anchor.id === currentId);
 
     if (index === -1) return undefined;
 
@@ -694,8 +619,8 @@ export class AnchorService {
       children: [],
     };
 
-    this.groups.forEach(groupName => {
-      const groupAnchors = this.anchors.filter(anchor => anchor.group === groupName);
+    this.groups.forEach((groupName) => {
+      const groupAnchors = this.anchors.filter((anchor) => anchor.group === groupName);
 
       const transform = (anchor: AnchorData): AnchorMindMapNode => {
         const fileName = anchor.filePath.split(/[/\\]/).pop() || anchor.filePath;
@@ -762,9 +687,7 @@ export class AnchorService {
     try {
       await this.context.workspaceState.update(this.stateKey, data);
     } catch (error) {
-      vscode.window.showErrorMessage(
-        `无法保存锚点到工作区状态: ${this.toErrorMessage(error)}`,
-      );
+      vscode.window.showErrorMessage(`无法保存锚点到工作区状态: ${this.toErrorMessage(error)}`);
     }
   }
 
@@ -772,7 +695,7 @@ export class AnchorService {
     const allAnchors = new Set<AnchorData>();
 
     const traverse = (items: AnchorData[]): void => {
-      items.forEach(item => {
+      items.forEach((item) => {
         allAnchors.add(item);
 
         if (item.items?.length) {
@@ -788,11 +711,8 @@ export class AnchorService {
     this.flotAnchors = Array.from(allAnchors);
   }
 
-  private findContainerArray(
-    targetId: string,
-    currentList: AnchorData[],
-  ): { list: AnchorData[]; index: number } | null {
-    const index = currentList.findIndex(anchor => anchor.id === targetId);
+  private findContainerArray(targetId: string, currentList: AnchorData[]): { list: AnchorData[]; index: number } | null {
+    const index = currentList.findIndex((anchor) => anchor.id === targetId);
 
     if (index !== -1) {
       return {
@@ -813,7 +733,7 @@ export class AnchorService {
   }
 
   private updateChildrenGroup(items: AnchorData[], newGroupName: string): void {
-    items.forEach(child => {
+    items.forEach((child) => {
       child.group = newGroupName;
 
       if (child.items?.length) {
@@ -829,8 +749,7 @@ export class AnchorService {
     const mode = config.mindMapPosition || 'right';
 
     if (this.currentPanel) {
-      const revealColumn =
-        mode === 'left' ? vscode.ViewColumn.One : vscode.ViewColumn.Beside;
+      const revealColumn = mode === 'left' ? vscode.ViewColumn.One : vscode.ViewColumn.Beside;
 
       this.currentPanel.reveal(revealColumn);
       return;
@@ -843,28 +762,17 @@ export class AnchorService {
       targetColumn = vscode.ViewColumn.Active;
     }
 
-    this.currentPanel = vscode.window.createWebviewPanel(
-      'anchorMindMap',
-      'Anchors Mind Map',
-      targetColumn,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [this.context.extensionUri],
-      },
-    );
+    this.currentPanel = vscode.window.createWebviewPanel('anchorMindMap', 'Anchors Mind Map', targetColumn, {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [this.context.extensionUri],
+    });
 
-    this.currentPanel.webview.html = getReactWebviewHtml(
-      this.context.extensionUri,
-      this.currentPanel.webview,
-      '/anchor',
-    );
+    this.currentPanel.webview.html = getReactWebviewHtml(this.context.extensionUri, this.currentPanel.webview, '/anchor');
 
-    this.currentPanel.webview.onDidReceiveMessage(
-      async (message: AnchorWebviewMessage) => {
-        await this.handleMindMapMessage(message);
-      },
-    );
+    this.currentPanel.webview.onDidReceiveMessage(async (message: AnchorWebviewMessage) => {
+      await this.handleMindMapMessage(message);
+    });
 
     this.currentPanel.onDidDispose(() => {
       this.currentPanel = undefined;
@@ -886,9 +794,7 @@ export class AnchorService {
 
       case 'toggleFullscreen':
         try {
-          await vscode.commands.executeCommand(
-            'workbench.action.toggleMaximizeEditorGroup',
-          );
+          await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
         } catch (error) {
           console.warn('Failed to toggle maximize, trying fallback...', error);
           await vscode.commands.executeCommand('workbench.action.minimizeOtherEditors');
@@ -901,9 +807,7 @@ export class AnchorService {
     }
   }
 
-  private async handleMindMapAnchorAction(
-    message: AnchorWebviewMessage,
-  ): Promise<void> {
+  private async handleMindMapAnchorAction(message: AnchorWebviewMessage): Promise<void> {
     if (!message.anchorId) return;
 
     if (message.action === 'delete') {
@@ -920,7 +824,7 @@ export class AnchorService {
       const input = await vscode.window.showInputBox({
         title: '修改锚点备注',
         value: anchor.description || '',
-        validateInput: text => (text.trim().length === 0 ? '备注不能为空' : null),
+        validateInput: (text) => (text.trim().length === 0 ? '备注不能为空' : null),
       });
 
       if (input !== undefined) {
@@ -941,13 +845,10 @@ export class AnchorService {
       return null;
     }
 
-    const rootPath =
-      vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ||
-      path.dirname(editor.document.uri.fsPath);
+    const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || path.dirname(editor.document.uri.fsPath);
 
     const doc = editor.document;
-    const lineIndex =
-      overrideLineNumber !== undefined ? overrideLineNumber : editor.selection.active.line;
+    const lineIndex = overrideLineNumber !== undefined ? overrideLineNumber : editor.selection.active.line;
 
     const text = doc.lineAt(lineIndex).text.trim();
     const relativePath = path.relative(rootPath, doc.uri.fsPath).replace(/\\/g, '/');
@@ -967,16 +868,13 @@ export class AnchorService {
     const getGroupItems = (): vscode.QuickPickItem[] => {
       const groups = this.getGroups();
 
-      return groups.map(group => ({
+      return groups.map((group) => ({
         label: group,
         iconPath: new vscode.ThemeIcon('symbol-folder'),
         description: ColorUtils.getEmoji(group),
         buttons: [
           {
-            iconPath: new vscode.ThemeIcon(
-              'trash',
-              new vscode.ThemeColor('errorForeground'),
-            ),
+            iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')),
             tooltip: ANCHOR_TOOLTIPS.DELETE,
           },
         ],
@@ -998,7 +896,7 @@ export class AnchorService {
       }
     });
 
-    quickPick.onDidTriggerItemButton(async event => {
+    quickPick.onDidTriggerItemButton(async (event) => {
       await this.handleDeleteGroup(event.item.label);
       quickPick.items = getGroupItems();
     });
@@ -1009,23 +907,15 @@ export class AnchorService {
   private async handleDeleteGroup(groupName: string): Promise<void> {
     const isDefault = this.defaultGroups.includes(groupName);
 
-    const confirmMessage = isDefault
-      ? `是否清空默认分组 [${groupName}] 下的所有记录？`
-      : `确认要删除分组 [${groupName}] 及其下所有记录吗？`;
+    const confirmMessage = isDefault ? `是否清空默认分组 [${groupName}] 下的所有记录？` : `确认要删除分组 [${groupName}] 及其下所有记录吗？`;
 
-    const selection = await vscode.window.showWarningMessage(
-      confirmMessage,
-      '确认删除',
-      '取消',
-    );
+    const selection = await vscode.window.showWarningMessage(confirmMessage, '确认删除', '取消');
 
     if (selection !== '确认删除') return;
 
-    const anchorsToDelete = this.getAnchors().filter(
-      anchor => anchor.group === groupName,
-    );
+    const anchorsToDelete = this.getAnchors().filter((anchor) => anchor.group === groupName);
 
-    anchorsToDelete.forEach(anchor => {
+    anchorsToDelete.forEach((anchor) => {
       this.removeAnchor(anchor.id);
     });
 
@@ -1035,18 +925,10 @@ export class AnchorService {
 
     this.updateDecorations();
 
-    vscode.window.showInformationMessage(
-      `已${isDefault ? '清空' : '删除'}分组 [${groupName}]`,
-    );
+    vscode.window.showInformationMessage(`已${isDefault ? '清空' : '删除'}分组 [${groupName}]`);
   }
 
-  private getAnchorButtons(
-    anchor: AnchorData,
-    index: number,
-    total: number,
-    isPreviewMode: boolean,
-    hasDefaultAnchorId: boolean,
-  ): vscode.QuickInputButton[] {
+  private getAnchorButtons(anchor: AnchorData, index: number, total: number, isPreviewMode: boolean, hasDefaultAnchorId: boolean): vscode.QuickInputButton[] {
     const buttons: vscode.QuickInputButton[] = [];
 
     if (hasDefaultAnchorId) {
@@ -1077,10 +959,7 @@ export class AnchorService {
           tooltip: ANCHOR_TOOLTIPS.ADD_NOTE,
         },
         {
-          iconPath: new vscode.ThemeIcon(
-            'trash',
-            new vscode.ThemeColor('errorForeground'),
-          ),
+          iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')),
           tooltip: ANCHOR_TOOLTIPS.DELETE,
         },
       );
@@ -1102,10 +981,7 @@ export class AnchorService {
           tooltip: ANCHOR_TOOLTIPS.ADD_NOTE,
         },
         {
-          iconPath: new vscode.ThemeIcon(
-            'trash',
-            new vscode.ThemeColor('errorForeground'),
-          ),
+          iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')),
           tooltip: ANCHOR_TOOLTIPS.DELETE,
         },
       );
@@ -1132,21 +1008,13 @@ export class AnchorService {
             tooltip: ANCHOR_TOOLTIPS.NEW_SUBGROUP,
           },
       {
-        iconPath: new vscode.ThemeIcon(
-          'trash',
-          new vscode.ThemeColor('errorForeground'),
-        ),
+        iconPath: new vscode.ThemeIcon('trash', new vscode.ThemeColor('errorForeground')),
         tooltip: ANCHOR_TOOLTIPS.DELETE,
       },
     ];
   }
 
-  private async handleViewChildren(
-    anchorId: string,
-    pinnedLineIndex?: number,
-    isPreviewMode?: boolean,
-    defaultAnchorId?: string,
-  ): Promise<void> {
+  private async handleViewChildren(anchorId: string, pinnedLineIndex?: number, isPreviewMode?: boolean, defaultAnchorId?: string): Promise<void> {
     const targetAnchor = this.getAnchorById(anchorId);
 
     if (!targetAnchor) return;
@@ -1168,22 +1036,14 @@ export class AnchorService {
 
     if (defaultAnchorId || isPreviewMode) {
       const resolvedDefaultAnchorId = defaultAnchorId || targetAnchor.id;
-      await this.showAnchorList(
-        childGroupName,
-        true,
-        undefined,
-        resolvedDefaultAnchorId,
-      );
+      await this.showAnchorList(childGroupName, true, undefined, resolvedDefaultAnchorId);
       return;
     }
 
     await this.showAnchorList(childGroupName, false, ctx.uiLineNumber);
   }
 
-  private async handleCreateSubGroup(
-    parentId: string,
-    pinnedLineIndex?: number,
-  ): Promise<void> {
+  private async handleCreateSubGroup(parentId: string, pinnedLineIndex?: number): Promise<void> {
     const parentAnchor = this.getAnchorById(parentId);
 
     if (!parentAnchor) return;
@@ -1226,12 +1086,7 @@ export class AnchorService {
     vscode.window.showInformationMessage(`已为记录创建子分组结构: ${targetGroupName}`);
   }
 
-  private async handleInsertAnchor(
-    targetId: string,
-    position: AnchorInsertPosition,
-    groupName: string,
-    pinnedLineIndex?: number,
-  ): Promise<void> {
+  private async handleInsertAnchor(targetId: string, position: AnchorInsertPosition, groupName: string, pinnedLineIndex?: number): Promise<void> {
     const ctx = this.getEditorContext(pinnedLineIndex);
 
     if (!ctx) return;
@@ -1264,10 +1119,7 @@ export class AnchorService {
 
       if (this.currentPanel?.visible && this.currentPanel.viewColumn) {
         const mindMapColumn = this.currentPanel.viewColumn;
-        targetColumn =
-          mindMapColumn === vscode.ViewColumn.One
-            ? vscode.ViewColumn.Two
-            : vscode.ViewColumn.One;
+        targetColumn = mindMapColumn === vscode.ViewColumn.One ? vscode.ViewColumn.Two : vscode.ViewColumn.One;
       }
 
       const editor = await vscode.window.showTextDocument(doc, {
@@ -1279,10 +1131,7 @@ export class AnchorService {
       const pos = new vscode.Position(lineIndex, 0);
 
       editor.selection = new vscode.Selection(pos, pos);
-      editor.revealRange(
-        new vscode.Range(pos, pos),
-        vscode.TextEditorRevealType.InCenter,
-      );
+      editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
     } catch {
       vscode.window.showErrorMessage(`无法打开文件: ${filePath}`);
     }
@@ -1324,7 +1173,7 @@ export class AnchorService {
   }
 
   private disposeDecorations(): void {
-    this.decorationTypes.forEach(decoration => {
+    this.decorationTypes.forEach((decoration) => {
       decoration.dispose();
     });
 
@@ -1405,9 +1254,7 @@ class AnchorCodeLensProvider implements vscode.CodeLensProvider {
 
         if (candidates?.length) {
           const foundLineIndex = candidates.reduce((prev, curr) => {
-            return Math.abs(curr - targetLineIndex) < Math.abs(prev - targetLineIndex)
-              ? curr
-              : prev;
+            return Math.abs(curr - targetLineIndex) < Math.abs(prev - targetLineIndex) ? curr : prev;
           });
 
           targetLineIndex = foundLineIndex;
@@ -1430,9 +1277,7 @@ class AnchorCodeLensProvider implements vscode.CodeLensProvider {
     return lenses;
   }
 
-  private buildContentToLinesMap(
-    document: vscode.TextDocument,
-  ): Map<string, number[]> {
+  private buildContentToLinesMap(document: vscode.TextDocument): Map<string, number[]> {
     const map = new Map<string, number[]>();
 
     for (let lineIndex = 0; lineIndex < document.lineCount; lineIndex++) {
@@ -1450,11 +1295,7 @@ class AnchorCodeLensProvider implements vscode.CodeLensProvider {
     return map;
   }
 
-  private pushParentCodeLenses(
-    lenses: vscode.CodeLens[],
-    range: vscode.Range,
-    anchor: AnchorData,
-  ): void {
+  private pushParentCodeLenses(lenses: vscode.CodeLens[], range: vscode.Range, anchor: AnchorData): void {
     const parents: AnchorData[] = [];
     let currentItem = anchor;
 
@@ -1467,7 +1308,7 @@ class AnchorCodeLensProvider implements vscode.CodeLensProvider {
       currentItem = parent;
     }
 
-    parents.forEach(parent => {
+    parents.forEach((parent) => {
       const emoji = ColorUtils.getEmoji(parent.group);
 
       lenses.push(
@@ -1481,11 +1322,7 @@ class AnchorCodeLensProvider implements vscode.CodeLensProvider {
     });
   }
 
-  private pushCurrentCodeLens(
-    lenses: vscode.CodeLens[],
-    range: vscode.Range,
-    anchor: AnchorData,
-  ): void {
+  private pushCurrentCodeLens(lenses: vscode.CodeLens[], range: vscode.Range, anchor: AnchorData): void {
     const emoji = ColorUtils.getEmoji(anchor.group);
 
     lenses.push(
@@ -1498,11 +1335,7 @@ class AnchorCodeLensProvider implements vscode.CodeLensProvider {
     );
   }
 
-  private pushActionCodeLenses(
-    lenses: vscode.CodeLens[],
-    range: vscode.Range,
-    anchor: AnchorData,
-  ): void {
+  private pushActionCodeLenses(lenses: vscode.CodeLens[], range: vscode.Range, anchor: AnchorData): void {
     lenses.push(
       new vscode.CodeLens(range, {
         title: '$(debug-step-out)',

@@ -39,12 +39,7 @@ export class AnchorController implements OnModuleInit {
   }
 
   private registerCodeLensProvider(): void {
-    this.extensionContextProvider.register(
-      vscode.languages.registerCodeLensProvider(
-        { scheme: 'file' },
-        this.anchorService.createCodeLensProvider(),
-      ),
-    );
+    this.extensionContextProvider.register(vscode.languages.registerCodeLensProvider({ scheme: 'file' }, this.anchorService.createCodeLensProvider()));
   }
 
   private registerListeners(): void {
@@ -59,7 +54,7 @@ export class AnchorController implements OnModuleInit {
         this.anchorService.updateDecorationsDebounced();
       }),
 
-      vscode.workspace.onDidSaveTextDocument(doc => {
+      vscode.workspace.onDidSaveTextDocument((doc) => {
         void this.anchorService.syncAnchorsWithContent(doc);
       }),
     );
@@ -67,42 +62,25 @@ export class AnchorController implements OnModuleInit {
 
   private registerCommands(): void {
     this.extensionContextProvider.register(
-      vscode.commands.registerCommand(
-        'quick-ops.anchor.add',
-        async (...args: any[]) => {
-          await this.anchorService.handleAddAnchorCommand(...args);
-        },
-      ),
+      vscode.commands.registerCommand('quick-ops.anchor.add', async (...args: any[]) => {
+        await this.anchorService.handleAddAnchorCommand(...args);
+      }),
 
       vscode.commands.registerCommand('quick-ops.anchor.showMenu', async () => {
         await this.anchorService.handleShowMenuCommand();
       }),
 
-      vscode.commands.registerCommand(
-        'quick-ops.anchor.listByGroup',
-        async (groupName: string, anchorId: string) => {
-          await this.anchorService.showAnchorList(
-            groupName,
-            true,
-            undefined,
-            anchorId,
-          );
-        },
-      ),
+      vscode.commands.registerCommand('quick-ops.anchor.listByGroup', async (groupName: string, anchorId: string) => {
+        await this.anchorService.showAnchorList(groupName, true, undefined, anchorId);
+      }),
 
-      vscode.commands.registerCommand(
-        'quick-ops.anchor.navigate',
-        async (currentId: string, direction: AnchorDirection) => {
-          await this.anchorService.navigateAnchor(currentId, direction);
-        },
-      ),
+      vscode.commands.registerCommand('quick-ops.anchor.navigate', async (currentId: string, direction: AnchorDirection) => {
+        await this.anchorService.navigateAnchor(currentId, direction);
+      }),
 
-      vscode.commands.registerCommand(
-        'quick-ops.anchor.delete',
-        async (id: string) => {
-          this.anchorService.removeAnchor(id);
-        },
-      ),
+      vscode.commands.registerCommand('quick-ops.anchor.delete', async (id: string) => {
+        this.anchorService.removeAnchor(id);
+      }),
     );
   }
 }

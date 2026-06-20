@@ -25,15 +25,9 @@ export interface AnchorConfig {
   anchors: AnchorData[];
 }
 
-export type AnchorCreateInput = Omit<
-  AnchorData,
-  'id' | 'timestamp' | 'items'
->;
+export type AnchorCreateInput = Omit<AnchorData, 'id' | 'timestamp' | 'items'>;
 
-export type AnchorChildCreateInput = Omit<
-  AnchorData,
-  'id' | 'timestamp' | 'items' | 'pid'
->;
+export type AnchorChildCreateInput = Omit<AnchorData, 'id' | 'timestamp' | 'items' | 'pid'>;
 
 export interface AnchorUpdateInput {
   line?: number;
@@ -64,12 +58,7 @@ export interface AnchorMindMapNode {
 }
 
 export interface AnchorWebviewMessage {
-  command:
-    | 'ready'
-    | 'refresh'
-    | 'jump'
-    | 'toggleFullscreen'
-    | 'anchorAction';
+  command: 'ready' | 'refresh' | 'jump' | 'toggleFullscreen' | 'anchorAction';
   data?: {
     filePath: string;
     line: number;

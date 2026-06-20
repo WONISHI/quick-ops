@@ -1,11 +1,6 @@
 import type * as vscode from 'vscode';
 
-export type RecentProjectPlatform =
-  | 'local'
-  | 'github'
-  | 'gitlab'
-  | 'gitee'
-  | 'remote';
+export type RecentProjectPlatform = 'local' | 'github' | 'gitlab' | 'gitee' | 'remote';
 
 export interface RecentProjectItem {
   id: string;

@@ -1,16 +1,12 @@
 import * as vscode from 'vscode';
 import ColorLog from '../../utils/ColorLog';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
 import { RecentProjectsProvider } from './providers/recent-projects.provider';
 import { ReadOnlyFileSystemProvider } from './providers/read-only-file-system.provider';
+import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
 
 export class RecentProjectsController implements OnModuleInit {
-  public static inject = [
-    ExtensionContextProvider,
-    RecentProjectsProvider,
-    ReadOnlyFileSystemProvider,
-  ];
+  public static inject = [ExtensionContextProvider, RecentProjectsProvider, ReadOnlyFileSystemProvider];
 
   private readonly id = 'RecentProjectsModule';
 
@@ -48,23 +44,15 @@ export class RecentProjectsController implements OnModuleInit {
 
   private registerProviders(): void {
     this.extensionContextProvider.register(
-      vscode.window.registerWebviewViewProvider(
-        'quickOps.recentProjectsView',
-        this.recentProjectsProvider,
-        {
-          webviewOptions: {
-            retainContextWhenHidden: true,
-          },
+      vscode.window.registerWebviewViewProvider('quickOps.recentProjectsView', this.recentProjectsProvider, {
+        webviewOptions: {
+          retainContextWhenHidden: true,
         },
-      ),
+      }),
 
-      vscode.workspace.registerFileSystemProvider(
-        'quickops-ro',
-        this.readOnlyFileSystemProvider,
-        {
-          isReadonly: true,
-        },
-      ),
+      vscode.workspace.registerFileSystemProvider('quickops-ro', this.readOnlyFileSystemProvider, {
+        isReadonly: true,
+      }),
     );
   }
 
@@ -96,23 +84,17 @@ export class RecentProjectsController implements OnModuleInit {
         this.requestMetadataSync();
       }),
 
-      vscode.commands.registerCommand(
-        'quickOps.selectForCompare',
-        (uri: vscode.Uri) => {
-          if (uri) {
-            this.recentProjectsProvider.selectForCompare(uri.toString());
-          }
-        },
-      ),
+      vscode.commands.registerCommand('quickOps.selectForCompare', (uri: vscode.Uri) => {
+        if (uri) {
+          this.recentProjectsProvider.selectForCompare(uri.toString());
+        }
+      }),
 
-      vscode.commands.registerCommand(
-        'quickOps.compareWithSelected',
-        (uri: vscode.Uri) => {
-          if (uri) {
-            void this.recentProjectsProvider.compareWithSelected(uri.toString());
-          }
-        },
-      ),
+      vscode.commands.registerCommand('quickOps.compareWithSelected', (uri: vscode.Uri) => {
+        if (uri) {
+          void this.recentProjectsProvider.compareWithSelected(uri.toString());
+        }
+      }),
     );
   }
 
@@ -123,7 +105,7 @@ export class RecentProjectsController implements OnModuleInit {
         this.requestMetadataSync();
       }),
 
-      vscode.workspace.onDidSaveTextDocument(document => {
+      vscode.workspace.onDidSaveTextDocument((document) => {
         if (document.uri.scheme !== 'file') return;
 
         this.requestRefresh(true);
@@ -145,7 +127,7 @@ export class RecentProjectsController implements OnModuleInit {
         this.requestMetadataSync();
       }),
 
-      vscode.window.onDidChangeWindowState(event => {
+      vscode.window.onDidChangeWindowState((event) => {
         if (event.focused) {
           this.requestRefresh(true);
         }

@@ -3,12 +3,7 @@ import * as path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import type {
-  CompareSelection,
-  RecentProjectItem,
-  RecentProjectPlatform,
-  RemoteProjectParseResult,
-} from './recent-projects.type';
+import type { CompareSelection, RecentProjectItem, RecentProjectPlatform, RemoteProjectParseResult } from './recent-projects.type';
 
 const execFileAsync = promisify(execFile);
 
@@ -32,15 +27,10 @@ export class RecentProjectsService {
     await context.globalState.update(this.storageKey, projects);
   }
 
-  public async insertProjectToHistory(
-    name: string,
-    fsPath: string,
-    platform: RecentProjectPlatform = 'local',
-    customDomain?: string,
-  ): Promise<RecentProjectItem> {
+  public async insertProjectToHistory(name: string, fsPath: string, platform: RecentProjectPlatform = 'local', customDomain?: string): Promise<RecentProjectItem> {
     const projects = this.getRecentProjects();
     const normalizedPath = this.normalizeProjectPath(fsPath);
-    const existed = projects.find(item => {
+    const existed = projects.find((item) => {
       return this.normalizeProjectPath(item.fsPath) === normalizedPath;
     });
 
@@ -86,7 +76,7 @@ export class RecentProjectsService {
     if (!uri) return undefined;
 
     const uriStr = uri.toString();
-    const existed = this.getRecentProjects().some(item => item.fsPath === uriStr);
+    const existed = this.getRecentProjects().some((item) => item.fsPath === uriStr);
 
     if (existed) {
       vscode.window.showWarningMessage('⚠️ 该本地项目已存在于列表中！');
@@ -95,11 +85,7 @@ export class RecentProjectsService {
 
     const folderName = path.basename(uri.fsPath) || '本地项目';
 
-    const project = await this.insertProjectToHistory(
-      folderName,
-      uriStr,
-      'local',
-    );
+    const project = await this.insertProjectToHistory(folderName, uriStr, 'local');
 
     vscode.window.showInformationMessage(`✅ 已添加本地项目: ${folderName}`);
 
@@ -122,7 +108,7 @@ export class RecentProjectsService {
       return undefined;
     }
 
-    const existed = this.getRecentProjects().some(item => {
+    const existed = this.getRecentProjects().some((item) => {
       return item.fsPath === parsed.targetUriStr;
     });
 
@@ -138,12 +124,7 @@ export class RecentProjectsService {
 
     if (!projectName) return undefined;
 
-    const project = await this.insertProjectToHistory(
-      projectName,
-      parsed.targetUriStr,
-      parsed.platform,
-      parsed.customDomain,
-    );
+    const project = await this.insertProjectToHistory(projectName, parsed.targetUriStr, parsed.platform, parsed.customDomain);
 
     vscode.window.showInformationMessage(`✅ 已添加远程项目: ${projectName}`);
 
@@ -223,7 +204,7 @@ export class RecentProjectsService {
     const projects = this.getRecentProjects();
 
     const nextProjects = await Promise.all(
-      projects.map(async project => {
+      projects.map(async (project) => {
         if (project.platform && project.platform !== 'local') {
           return project;
         }
@@ -269,12 +250,7 @@ export class RecentProjectsService {
       return;
     }
 
-    await vscode.commands.executeCommand(
-      'vscode.diff',
-      sourceUri,
-      target,
-      `${path.basename(sourceUri.path)} ↔ ${path.basename(target.path)}`,
-    );
+    await vscode.commands.executeCommand('vscode.diff', sourceUri, target, `${path.basename(sourceUri.path)} ↔ ${path.basename(target.path)}`);
 
     this.compareSelection = undefined;
   }
@@ -321,13 +297,9 @@ export class RecentProjectsService {
 
   private async getGitBranch(cwd: string): Promise<string> {
     try {
-      const { stdout } = await execFileAsync(
-        'git',
-        ['branch', '--show-current'],
-        {
-          cwd,
-        },
-      );
+      const { stdout } = await execFileAsync('git', ['branch', '--show-current'], {
+        cwd,
+      });
 
       return stdout.trim();
     } catch {
