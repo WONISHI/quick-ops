@@ -250,6 +250,11 @@
           "id": "quickOpsDevTools",
           "title": "Q-ops DevTools",
           "icon": "$(developer-tools)"
+        },
+        {
+          "id": "quickOpsApiDevToolsContainer",
+          "title": "Q-ops Api",
+          "icon": "$(globe)"
         }
       ]
     },
@@ -280,6 +285,14 @@
           "name": "DevTools",
           "type": "webview",
           "icon": "$(developer-tools)"
+        }
+      ],
+      "quickOpsApiDevToolsContainer": [
+        {
+          "id": "quickOpsApiDevTools",
+          "name": "Q-ops Api",
+          "type": "webview",
+          "icon": "$(globe)"
         }
       ]
     },

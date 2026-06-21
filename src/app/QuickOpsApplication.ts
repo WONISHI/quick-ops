@@ -31,7 +31,8 @@ import { ComponentIntellisenseFeature } from '../features/ComponentIntellisenseF
 import { TextCompareFeature } from '../features/TextCompareFeature';
 import { GitFeature } from '../features/GitFeature';
 import { InlineConstantHintFeature } from '../features/InlineConstantHintFeature';
-import { FocusHistoryFeature } from '../features/FocusHistoryFeature'
+import { FocusHistoryFeature } from '../features/FocusHistoryFeature';
+import { ApiDevToolsFeature } from '../features/ApiDevToolsFeature';
 
 export class QuickOpsApplication {
   private readonly context: vscode.ExtensionContext;
@@ -82,7 +83,8 @@ export class QuickOpsApplication {
       new TextCompareFeature(),
       new GitFeature(),
       new InlineConstantHintFeature(),
-      new FocusHistoryFeature()
+      new FocusHistoryFeature(),
+      new ApiDevToolsFeature(),
     ];
 
     for (const feature of this.features) {
