@@ -9,6 +9,7 @@ interface BrowserFramePayload {
   data: string;
   width: number;
   height: number;
+  format?: 'jpeg' | 'png';
 }
 
 interface BrowserSnapshot {
@@ -63,7 +64,7 @@ export class EmbeddedBrowserService extends EventEmitter {
   private pendingFramePayload: BrowserFramePayload | null = null;
   private frameFlushTimer: NodeJS.Timeout | null = null;
   private lastFrameEmitAt = 0;
-  private readonly frameEmitInterval = platform() === 'darwin' ? 90 : 66;
+  private readonly frameEmitInterval = platform() === 'darwin' ? 66 : 50;
   private screencastFrameHandler: ((event: any) => Promise<void>) | null = null;
   private readonly hookedPages = new WeakSet<Page>();
   private debugPort = 9222;
@@ -587,8 +588,7 @@ export class EmbeddedBrowserService extends EventEmitter {
     const width = Math.max(320, Math.floor(Number(message.width) || 1280));
     const height = Math.max(240, Math.floor(Number(message.height) || 720));
     const rawDeviceScaleFactor = Number(message.deviceScaleFactor) || 1;
-    const maxDeviceScaleFactor = platform() === 'darwin' ? 1.1 : 1.35;
-    const deviceScaleFactor = Math.min(maxDeviceScaleFactor, Math.max(1, rawDeviceScaleFactor));
+    const deviceScaleFactor = Math.min(this.getMaxDeviceScaleFactor(), Math.max(1, rawDeviceScaleFactor));
 
     if (
       this.lastViewport.width === width &&
@@ -730,6 +730,12 @@ export class EmbeddedBrowserService extends EventEmitter {
     this.abortCurrentNavigation();
     this.isScreencastStarted = false;
     this.lastFramePayload = null;
+    this.pendingFramePayload = null;
+
+    if (this.frameFlushTimer) {
+      clearTimeout(this.frameFlushTimer);
+      this.frameFlushTimer = null;
+    }
 
     if (this.client) {
       await this.client.detach().catch(() => undefined);
@@ -790,6 +796,43 @@ export class EmbeddedBrowserService extends EventEmitter {
     }
 
     return 'mouseMoved';
+  }
+
+  private getNumberConfig(key: string, fallback: number): number {
+    const value = vscode.workspace.getConfiguration().get<number>(key);
+
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return fallback;
+    }
+
+    return value;
+  }
+
+  private clampNumber(value: number, min: number, max: number): number {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  private getMaxDeviceScaleFactor(): number {
+    const fallback = 2;
+
+    return this.clampNumber(this.getNumberConfig('quickOps.browser.maxDeviceScaleFactor', fallback), 1, 3);
+  }
+
+  private getScreencastQuality(): number {
+    const fallback = 100;
+
+    return Math.round(this.clampNumber(this.getNumberConfig('quickOps.browser.screencastQuality', fallback), 45, 100));
+  }
+
+  private getScreencastEveryNthFrame(): number {
+    const fallback = platform() === 'darwin' ? 1 : 1;
+
+    return Math.round(this.clampNumber(this.getNumberConfig('quickOps.browser.screencastEveryNthFrame', fallback), 1, 3));
+  }
+  private getScreencastFormat(): 'jpeg' | 'png' {
+    const format = String(vscode.workspace.getConfiguration().get<string>('quickOps.browser.screencastFormat') || 'png').toLowerCase();
+
+    return format === 'png' ? 'png' : 'jpeg';
   }
 
   private async restartScreencast(): Promise<void> {
@@ -1399,6 +1442,7 @@ export class EmbeddedBrowserService extends EventEmitter {
         data: event.data,
         width: event.metadata?.deviceWidth || this.lastViewport.width,
         height: event.metadata?.deviceHeight || this.lastViewport.height,
+        format: this.getScreencastFormat(),
       };
 
       const isFirstFrame = !this.lastFramePayload;
@@ -1417,16 +1461,25 @@ export class EmbeddedBrowserService extends EventEmitter {
 
     this.client.on('Page.screencastFrame', this.screencastFrameHandler as any);
 
-    const isMac = platform() === 'darwin';
-    const scale = isMac ? 1 : Math.min(1.25, Math.max(1, this.lastViewport.deviceScaleFactor || 1));
+    const format = this.getScreencastFormat();
 
-    await this.client.send('Page.startScreencast', {
-      format: 'jpeg',
-      quality: isMac ? 58 : 68,
-      maxWidth: Math.ceil(this.lastViewport.width * scale),
-      maxHeight: Math.ceil(this.lastViewport.height * scale),
-      everyNthFrame: isMac ? 2 : 1,
-    });
+    /**
+     * 对齐 vscode-browse-lite 的清晰度策略：
+     * - 默认 png
+     * - quality 100
+     * - everyNthFrame 1
+     * - 不传 maxWidth / maxHeight，避免 Chrome 把高 DPR 截图再次压缩缩放
+     *
+     * 真实清晰度主要由 setViewport / Emulation.setDeviceMetricsOverride 的
+     * deviceScaleFactor 决定，前端按 window.devicePixelRatio 传入。
+     */
+    const startParams: Record<string, unknown> = {
+      quality: format === 'jpeg' ? this.getScreencastQuality() : 100,
+      format,
+      everyNthFrame: this.getScreencastEveryNthFrame(),
+    };
+
+    await this.client.send('Page.startScreencast', startParams as any);
   }
 
   private scheduleFrameEmit(payload: BrowserFramePayload): void {

@@ -46,6 +46,7 @@ interface BrowserFrameState {
   data: string;
   width: number;
   height: number;
+  format?: 'jpeg' | 'png';
 }
 
 type BrowserEngineKey = 'baidu' | 'bing' | 'quark';
@@ -94,13 +95,12 @@ const getBrowserEngineOption = (key: BrowserEngineKey) => {
 };
 
 interface BrowserSurfaceProps {
-  frame: BrowserFrameState | null;
   loading: boolean;
   onViewportChange: (width: number, height: number) => void;
   onFindShortcut: () => void;
 }
 
-function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: BrowserSurfaceProps) {
+function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSurfaceProps) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const lastViewportRef = useRef({ width: 0, height: 0 });
   const resizeRafRef = useRef<number | null>(null);
@@ -126,6 +126,81 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
   const lastCommittedCompositionTextRef = useRef('');
   const lastCommittedCompositionAtRef = useRef(0);
   const [isMiddleDragging, setIsMiddleDragging] = useState(false);
+  const [hasBrowserFrame, setHasBrowserFrame] = useState(false);
+  const hasBrowserFrameRef = useRef(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const frameInfoRef = useRef({ width: 0, height: 0 });
+  const pendingFrameRef = useRef<BrowserFrameState | null>(null);
+  const frameRafRef = useRef<number | null>(null);
+
+  const commitBrowserFrame = useCallback((frame: BrowserFrameState) => {
+    const img = imgRef.current;
+
+    if (!img || !frame.data) return;
+
+    const format = frame.format === 'png' ? 'png' : 'jpeg';
+
+    frameInfoRef.current = {
+      width: Math.max(0, Number(frame.width) || 0),
+      height: Math.max(0, Number(frame.height) || 0),
+    };
+
+    img.src = `data:image/${format};base64,${frame.data}`;
+
+    if (!hasBrowserFrameRef.current) {
+      hasBrowserFrameRef.current = true;
+      setHasBrowserFrame(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleBrowserFrame = (event: Event) => {
+      const frame = (event as CustomEvent<BrowserFrameState>).detail;
+
+      if (!frame?.data) return;
+
+      pendingFrameRef.current = frame;
+
+      if (frameRafRef.current) return;
+
+      frameRafRef.current = window.requestAnimationFrame(() => {
+        frameRafRef.current = null;
+
+        const nextFrame = pendingFrameRef.current;
+        pendingFrameRef.current = null;
+
+        if (nextFrame) {
+          commitBrowserFrame(nextFrame);
+        }
+      });
+    };
+
+    const handleBrowserFrameClear = () => {
+      pendingFrameRef.current = null;
+      frameInfoRef.current = { width: 0, height: 0 };
+      hasBrowserFrameRef.current = false;
+      setHasBrowserFrame(false);
+
+      if (imgRef.current) {
+        imgRef.current.removeAttribute('src');
+      }
+    };
+
+    window.addEventListener('quickops-browser-frame', handleBrowserFrame as EventListener);
+    window.addEventListener('quickops-browser-frame-clear', handleBrowserFrameClear);
+
+    return () => {
+      window.removeEventListener('quickops-browser-frame', handleBrowserFrame as EventListener);
+      window.removeEventListener('quickops-browser-frame-clear', handleBrowserFrameClear);
+
+      if (frameRafRef.current) {
+        window.cancelAnimationFrame(frameRafRef.current);
+        frameRafRef.current = null;
+      }
+
+      pendingFrameRef.current = null;
+    };
+  }, [commitBrowserFrame]);
 
 
   const notifyViewportSize = useCallback(() => {
@@ -232,8 +307,8 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
     const rect = event.currentTarget.getBoundingClientRect();
     const rawX = event.clientX - rect.left;
     const rawY = event.clientY - rect.top;
-    const viewportWidth = frame?.width || lastViewportRef.current.width || rect.width;
-    const viewportHeight = frame?.height || lastViewportRef.current.height || rect.height;
+    const viewportWidth = frameInfoRef.current.width || lastViewportRef.current.width || rect.width;
+    const viewportHeight = frameInfoRef.current.height || lastViewportRef.current.height || rect.height;
     const scaleX = rect.width > 0 ? viewportWidth / rect.width : 1;
     const scaleY = rect.height > 0 ? viewportHeight / rect.height : 1;
 
@@ -256,8 +331,8 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
     const rect = target.getBoundingClientRect();
     const rawX = clientX - rect.left;
     const rawY = clientY - rect.top;
-    const viewportWidth = frame?.width || lastViewportRef.current.width || rect.width;
-    const viewportHeight = frame?.height || lastViewportRef.current.height || rect.height;
+    const viewportWidth = frameInfoRef.current.width || lastViewportRef.current.width || rect.width;
+    const viewportHeight = frameInfoRef.current.height || lastViewportRef.current.height || rect.height;
     const scaleX = rect.width > 0 ? viewportWidth / rect.width : 1;
     const scaleY = rect.height > 0 ? viewportHeight / rect.height : 1;
 
@@ -265,7 +340,7 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
       x: Math.max(0, Math.min(viewportWidth, Math.round(rawX * scaleX))),
       y: Math.max(0, Math.min(viewportHeight, Math.round(rawY * scaleY))),
     };
-  }, [frame?.height, frame?.width]);
+  }, []);
 
   const sendPanWheel = useCallback((clientX: number, clientY: number, deltaX: number, deltaY: number) => {
     const point = getBrowserPointByClient(clientX, clientY);
@@ -432,8 +507,8 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
     event.preventDefault();
 
     const rect = event.currentTarget.getBoundingClientRect();
-    const viewportWidth = frame?.width || lastViewportRef.current.width || rect.width;
-    const viewportHeight = frame?.height || lastViewportRef.current.height || rect.height;
+    const viewportWidth = frameInfoRef.current.width || lastViewportRef.current.width || rect.width;
+    const viewportHeight = frameInfoRef.current.height || lastViewportRef.current.height || rect.height;
     const scaleX = rect.width > 0 ? viewportWidth / rect.width : 1;
     const scaleY = rect.height > 0 ? viewportHeight / rect.height : 1;
 
@@ -862,23 +937,25 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
         }}
       />
 
-      {frame ? (
-        <img
-          className={styles['browser-lite-frame']}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'fill',
-            display: 'block',
-            imageRendering: 'auto',
-            transform: 'translateZ(0)',
-            backfaceVisibility: 'hidden',
-          }}
-          src={`data:image/jpeg;base64,${frame.data}`}
-          draggable={false}
-          alt="网页预览"
-        />
-      ) : (
+      <img
+        ref={imgRef}
+        className={styles['browser-lite-frame']}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'fill',
+          display: hasBrowserFrame ? 'block' : 'none',
+          imageRendering: 'crisp-edges',
+          transform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          maxWidth: 'unset',
+          maxHeight: 'unset',
+        }}
+        draggable={false}
+        alt="网页预览"
+      />
+
+      {!hasBrowserFrame && (
         <div className={styles['browser-lite-empty']}>
           {loading ? '正在加载网页...' : '暂无网页内容'}
         </div>
@@ -892,10 +969,6 @@ type PreviewType = 'web' | 'md' | 'pdf' | 'excel' | 'html';
 export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
-  const [browserFrame, setBrowserFrame] = useState<BrowserFrameState | null>(null);
-  const browserFrameRafRef = useRef<number | null>(null);
-  const pendingBrowserFrameRef = useRef<BrowserFrameState | null>(null);
-
   const [previewType, setPreviewType] = useState<PreviewType>('web');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<PreviewErrorState | null>(null);
@@ -962,17 +1035,6 @@ export default function LivePreviewApp() {
   const pageLoadedRef = useRef(false);
   const faviconResolvedRef = useRef(false);
   const faviconRequestIdRef = useRef(0);
-
-  useEffect(() => {
-    return () => {
-      if (browserFrameRafRef.current) {
-        window.cancelAnimationFrame(browserFrameRafRef.current);
-        browserFrameRafRef.current = null;
-      }
-
-      pendingBrowserFrameRef.current = null;
-    };
-  }, []);
 
   useEffect(() => {
     const handleWindowPointerDown = (event: MouseEvent) => {
@@ -1476,22 +1538,14 @@ export default function LivePreviewApp() {
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
       } else if (message.type === 'browserFrame') {
-        pendingBrowserFrameRef.current = {
-          data: message.data || '',
-          width: message.width || 0,
-          height: message.height || 0,
-        };
-
-        if (!browserFrameRafRef.current) {
-          browserFrameRafRef.current = window.requestAnimationFrame(() => {
-            browserFrameRafRef.current = null;
-
-            if (!pendingBrowserFrameRef.current) return;
-
-            setBrowserFrame(pendingBrowserFrameRef.current);
-            pendingBrowserFrameRef.current = null;
-          });
-        }
+        window.dispatchEvent(new CustomEvent<BrowserFrameState>('quickops-browser-frame', {
+          detail: {
+            data: message.data || '',
+            width: message.width || 0,
+            height: message.height || 0,
+            format: message.format === 'png' ? 'png' : 'jpeg',
+          },
+        }));
       } else if (message.type === 'browserPageLoaded') {
         pageLoadedRef.current = true;
         faviconResolvedRef.current = true;
@@ -1711,6 +1765,7 @@ export default function LivePreviewApp() {
       setIsPageLoaded(false);
 
       updateFavicon('');
+      window.dispatchEvent(new CustomEvent('quickops-browser-frame-clear'));
       vscode?.postMessage({ type: 'browserStopLoading' });
       vscode?.postMessage({ type: 'browserStop' });
       vscode?.postMessage({ type: 'saveUrl', url: '' });
@@ -1783,6 +1838,7 @@ export default function LivePreviewApp() {
     setIsPageLoaded(false);
 
     updateFavicon('');
+    window.dispatchEvent(new CustomEvent('quickops-browser-frame-clear'));
     vscode?.postMessage({ type: 'browserStopLoading' });
     vscode?.postMessage({ type: 'browserStop' });
     vscode?.postMessage({ type: 'saveUrl', url: '' });
@@ -2097,9 +2153,12 @@ export default function LivePreviewApp() {
   };
 
   const handleBrowserViewportChange = useCallback((width: number, height: number) => {
-    const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || '');
-    const maxDeviceScaleFactor = isMac ? 1.1 : 1.35;
-    const deviceScaleFactor = Math.min(maxDeviceScaleFactor, Math.max(1, window.devicePixelRatio || 1));
+    /**
+     * vscode-browse-lite 这里直接使用 window.devicePixelRatio。
+     * Retina / 高缩放屏如果被压到 1.1 / 1.5，截图会被低清放大，所以这里不要前端限死。
+     * 后端仍然保留 quickOps.browser.maxDeviceScaleFactor 兜底上限，默认 2。
+     */
+    const deviceScaleFactor = Math.max(1, window.devicePixelRatio || 1);
 
     vscode?.postMessage({
       type: 'browserSetViewport',
@@ -2489,7 +2548,6 @@ export default function LivePreviewApp() {
             }
           >
             <BrowserSurface
-              frame={browserFrame}
               loading={previewLoading}
               onViewportChange={handleBrowserViewportChange}
               onFindShortcut={openSearchBar}
