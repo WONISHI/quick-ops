@@ -91,12 +91,12 @@ const RESPONSE_TABS: Array<{ key: ResponseTab; label: string }> = [
 ];
 
 const BOTTOM_PANEL_COLLAPSED_SIZE = 0;
-const BOTTOM_PANEL_DEFAULT_SIZE = 180;
-const BOTTOM_PANEL_MAX_SIZE = 520;
-const RESPONSE_PANEL_RESERVED_SIZE = 150;
-const RESPONSE_HEAD_SIZE = 42;
-const RESPONSE_TABS_SIZE = 39;
-const BOTTOM_RESIZER_SIZE = 8;
+const BOTTOM_PANEL_DEFAULT_SIZE = 140;
+const BOTTOM_PANEL_MAX_SIZE = 420;
+const RESPONSE_PANEL_RESERVED_SIZE = 110;
+const RESPONSE_HEAD_SIZE = 34;
+const RESPONSE_TABS_SIZE = 32;
+const BOTTOM_RESIZER_SIZE = 6;
 
 function clampNumber(value: number, min: number, max: number) {
   const safeMax = Math.max(min, max);
