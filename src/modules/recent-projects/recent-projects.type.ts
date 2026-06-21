@@ -1,29 +1,38 @@
-import type * as vscode from 'vscode';
+export type WebviewRequestId = string | number;
 
-export type RecentProjectPlatform = 'local' | 'github' | 'gitlab' | 'gitee' | 'remote';
+export type RecentProjectPlatform =
+  | 'local'
+  | 'github'
+  | 'gitlab'
+  | 'gitee'
+  | 'remote'
+  | string;
+
+export type GitFileStatus = 'M' | 'U' | 'A' | 'D' | 'R' | 'C';
 
 export interface RecentProjectItem {
   id: string;
   name: string;
+  customName?: string;
   fsPath: string;
   platform?: RecentProjectPlatform;
   customDomain?: string;
   branch?: string;
-  lastOpenedAt: number;
   createdAt: number;
+  updatedAt?: number;
+  lastOpenedAt: number;
 }
 
 export interface RecentProjectFileItem {
   path: string;
   name: string;
-  relativePath?: string;
   isFolder: boolean;
-  status?: string;
+  relativePath?: string;
+  status?: GitFileStatus | string;
   diagnostics?: {
     errors: number;
     warnings: number;
   };
-  children?: RecentProjectFileItem[];
 }
 
 export interface RemoteProjectParseResult {
@@ -38,19 +47,46 @@ export interface CompareSelection {
   selectedAt: number;
 }
 
+export interface PendingOpenFile {
+  path: string;
+  line: number;
+  char: number;
+  targetWorkspace?: string;
+}
+
 export interface RecentProjectsWebviewMessage {
   type: string;
+  requestId?: WebviewRequestId;
+
   fsPath?: string;
-  uri?: string;
   path?: string;
-  name?: string;
+  uri?: string;
   targetPath?: string;
+  filePath?: string;
+
   oldPath?: string;
   newPath?: string;
+
+  sourceFsPath?: string;
+  sourcePath?: string;
+  targetFolderFsPath?: string;
+  targetFolderPath?: string;
+
+  name?: string;
+  text?: string;
   query?: string;
-  isRemote?: boolean;
-  focusOnly?: boolean;
-  requestId?: number;
+  projectName?: string;
+
+  platform?: RecentProjectPlatform;
+  customDomain?: string;
+  status?: string;
+  branch?: string;
+
   refreshExpandedTree?: boolean;
-  project?: RecentProjectItem;
+  focusOnly?: boolean;
+  isFolder?: boolean;
+
+  visibleProjectPaths?: string[];
+
+  [key: string]: any;
 }
