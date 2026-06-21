@@ -19,7 +19,7 @@ export class ApiDevToolsFeature implements IFeature {
       }
     );
 
-    context.subscriptions.push(registration);
+    context.subscriptions.push(registration, provider);
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
