@@ -65,6 +65,45 @@ export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
     this.debounceTimers.set(readonlyUriKey, timer);
   }
 
+  /**
+   * 只刷新指向指定真实文件的 quickops-ro 文档。
+   *
+   * 之前保存一个文件时调用 refreshAllWatched，会让所有只读预览文档都刷新，
+   * 继而带动 RecentProjectsProvider 整体更新。这里改成按 target 命中。
+   */
+  public refreshByTargetUri(targetUri: vscode.Uri): void {
+    const targetKey = this.normalizeTargetKey(targetUri);
+
+    if (!targetKey) {
+      return;
+    }
+
+    Array.from(this.watchedDocuments).forEach((readonlyUriStr) => {
+      const readonlyUri = vscode.Uri.parse(readonlyUriStr);
+      const currentTargetUri = this.getTargetUri(readonlyUri);
+
+      if (!currentTargetUri) {
+        return;
+      }
+
+      if (this.normalizeTargetKey(currentTargetUri) === targetKey) {
+        this.refresh(readonlyUri);
+      }
+    });
+  }
+
+  public refreshByTargetPath(targetPath: string): void {
+    if (!targetPath) {
+      return;
+    }
+
+    const targetUri = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(targetPath)
+      ? vscode.Uri.parse(targetPath)
+      : vscode.Uri.file(targetPath);
+
+    this.refreshByTargetUri(targetUri);
+  }
+
   public refreshAllWatched(): void {
     Array.from(this.watchedDocuments).forEach((uriStr) => {
       this.refresh(vscode.Uri.parse(uriStr));
@@ -141,5 +180,13 @@ export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
     } catch {
       return undefined;
     }
+  }
+
+  private normalizeTargetKey(uri: vscode.Uri): string {
+    if (uri.scheme === 'file') {
+      return uri.fsPath.replace(/\\/g, '/').replace(/\/+$/, '');
+    }
+
+    return uri.toString().split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
   }
 }

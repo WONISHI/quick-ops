@@ -9,7 +9,6 @@ export class RecentProjectsFeature implements IFeature {
   public readonly id = 'RecentProjectsFeature';
 
   private refreshTimer: NodeJS.Timeout | undefined;
-  private metadataTimer: NodeJS.Timeout | undefined;
 
   public activate(context: vscode.ExtensionContext): void {
     const provider = new RecentProjectsProvider(context);
@@ -19,17 +18,31 @@ export class RecentProjectsFeature implements IFeature {
       isReadonly: true,
     });
 
-    const requestMetadataSync = () => {
-      if (this.metadataTimer) {
-        clearTimeout(this.metadataTimer);
+    /**
+     * 只同步指定文件/文件夹的 metadata。
+     *
+     * 注意：
+     * - 输入时 VS Code 会频繁触发 diagnostics 变化，不能走整棵树刷新；
+     * - 保存文件只影响当前文件和它所在的父级文件夹状态；
+     * - 切换应用回来只补当前激活文件，不刷新整棵树。
+     */
+    const requestPathMetadataSync = (
+      targets: vscode.Uri | string | Array<vscode.Uri | string> | undefined,
+      delay: number = 120
+    ) => {
+      if (!targets) {
+        return;
       }
 
-      this.metadataTimer = setTimeout(() => {
-        this.metadataTimer = undefined;
-        provider.requestVisibleMetadataSync();
-      }, 120);
+      (provider as any).requestPathMetadataSync(targets, delay);
     };
 
+    /**
+     * 结构变化才刷新树。
+     *
+     * 创建 / 删除 / 重命名会改变目录结构，所以这里可以 refreshExpandedTree。
+     * 保存 / 输入 / diagnostics / 窗口聚焦都不要走这里。
+     */
     const requestRefresh = (refreshExpandedTree: boolean = true) => {
       if (this.refreshTimer) {
         clearTimeout(this.refreshTimer);
@@ -47,21 +60,72 @@ export class RecentProjectsFeature implements IFeature {
           (provider as any).setActivePath(currentActivePath);
         }
 
-        requestMetadataSync();
-      }, 200);
+        provider.requestVisibleMetadataSync();
+      }, 260);
     };
 
-    const roTargetRefreshWatcher = roProvider.onDidRefreshReadonlyTarget(() => {
-      provider.refresh(true);
-      requestMetadataSync();
+    const getRealDocumentUri = (uri: vscode.Uri): vscode.Uri | undefined => {
+      if (uri.scheme === 'file') {
+        return uri;
+      }
+
+      if (uri.scheme === 'quickops-ro') {
+        const target = new URLSearchParams(uri.query).get('target');
+
+        if (!target) {
+          return undefined;
+        }
+
+        try {
+          const targetUri = vscode.Uri.parse(target);
+
+          return targetUri.scheme === 'file' ? targetUri : undefined;
+        } catch {
+          return undefined;
+        }
+      }
+
+      return undefined;
+    };
+
+    const getActiveFileUri = () => {
+      const activeUri = vscode.window.activeTextEditor?.document.uri;
+
+      return activeUri ? getRealDocumentUri(activeUri) : undefined;
+    };
+
+    const isSameUri = (a: vscode.Uri, b: vscode.Uri) => {
+      return a.toString() === b.toString() || a.fsPath === b.fsPath;
+    };
+
+    const roTargetRefreshWatcher = roProvider.onDidRefreshReadonlyTarget((event) => {
+      requestPathMetadataSync(event.targetUri, 120);
     });
 
-    const saveDocumentWatcher = vscode.workspace.onDidSaveTextDocument((document) => {
-      if (document.uri.scheme !== 'file') {
+    const typingDocumentWatcher = vscode.workspace.onDidChangeTextDocument((event) => {
+      const realUri = getRealDocumentUri(event.document.uri);
+
+      if (!realUri) {
         return;
       }
 
-      requestRefresh(true);
+      if (event.document.isDirty) {
+        (provider as any).requestDirtyDocumentMetadataSync(event.document, 90);
+        return;
+      }
+
+      requestPathMetadataSync(realUri, 120);
+    });
+
+    const saveDocumentWatcher = vscode.workspace.onDidSaveTextDocument((document) => {
+      const realUri = getRealDocumentUri(document.uri);
+
+      if (!realUri) {
+        return;
+      }
+
+      roProvider.refreshByTargetUri(realUri);
+      (provider as any).requestSavedDocumentMetadataSync(document, 80);
     });
 
     const createFilesWatcher = vscode.workspace.onDidCreateFiles(() => {
@@ -76,8 +140,25 @@ export class RecentProjectsFeature implements IFeature {
       requestRefresh(true);
     });
 
-    const diagnosticsWatcher = vscode.languages.onDidChangeDiagnostics(() => {
-      requestMetadataSync();
+    const diagnosticsWatcher = vscode.languages.onDidChangeDiagnostics((event) => {
+      const changedUris = event.uris.filter((uri) => uri.scheme === 'file');
+
+      if (changedUris.length === 0) {
+        return;
+      }
+
+      /**
+       * 用户输入时 diagnostics 可能带出一堆相关文件。
+       * 这里优先只更新当前正在输入的文件，避免整棵树/大量文件跟着闪。
+       */
+      const activeUri = getActiveFileUri();
+
+      if (activeUri && changedUris.some((uri) => isSameUri(uri, activeUri))) {
+        requestPathMetadataSync(activeUri, 180);
+        return;
+      }
+
+      requestPathMetadataSync(changedUris, 180);
     });
 
     const webviewView = vscode.window.registerWebviewViewProvider('quickOps.recentProjectsView', provider, {
@@ -146,7 +227,7 @@ export class RecentProjectsFeature implements IFeature {
               if (projectName) {
                 await (provider as any).insertProjectToHistory(projectName, parsed.targetUriStr, parsed.platform, parsed.customDomain);
                 vscode.window.showInformationMessage(`✅ 已添加远程项目: ${projectName}`);
-                requestMetadataSync();
+                provider.requestVisibleMetadataSync();
               }
             } else {
               vscode.window.showErrorMessage('❌ 无效的远程地址格式，请检查。');
@@ -168,7 +249,7 @@ export class RecentProjectsFeature implements IFeature {
                 const folderName = path.basename(inputValue) || '本地项目';
                 await (provider as any).insertProjectToHistory(folderName, uriStr);
                 vscode.window.showInformationMessage(`✅ 已添加本地项目: ${folderName}`);
-                requestMetadataSync();
+                provider.requestVisibleMetadataSync();
               } else {
                 vscode.window.showErrorMessage('❌ 输入的路径是一个文件，请提供文件夹路径。');
               }
@@ -183,7 +264,7 @@ export class RecentProjectsFeature implements IFeature {
             await provider.addRemoteProject();
           }
 
-          requestMetadataSync();
+          provider.requestVisibleMetadataSync();
         }
       });
 
@@ -194,13 +275,13 @@ export class RecentProjectsFeature implements IFeature {
       provider.refresh(true);
       roProvider.refreshAllWatched();
       await provider.syncAllBranches();
-      requestMetadataSync();
+      provider.requestVisibleMetadataSync();
     });
 
     const clearCmd = vscode.commands.registerCommand('quickOps.clearRecentProjects', () => provider.clearAll());
     const syncCmd = vscode.commands.registerCommand('quickOps.syncBranches', async () => {
       await provider.syncAllBranches();
-      requestMetadataSync();
+      provider.requestVisibleMetadataSync();
     });
 
     const selectForCompareCmd = vscode.commands.registerCommand('quickOps.selectForCompare', (uri: vscode.Uri) => {
@@ -212,8 +293,14 @@ export class RecentProjectsFeature implements IFeature {
     });
 
     const windowFocusWatcher = vscode.window.onDidChangeWindowState((event) => {
-      if (event.focused) {
-        requestRefresh(true);
+      if (!event.focused) {
+        return;
+      }
+
+      const activeUri = getActiveFileUri();
+
+      if (activeUri) {
+        requestPathMetadataSync(activeUri, 320);
       }
     });
 
@@ -222,6 +309,7 @@ export class RecentProjectsFeature implements IFeature {
       roDocRegistration,
       roTargetRefreshWatcher,
       roProvider,
+      typingDocumentWatcher,
       saveDocumentWatcher,
       createFilesWatcher,
       deleteFilesWatcher,
@@ -242,11 +330,6 @@ export class RecentProjectsFeature implements IFeature {
         if (this.refreshTimer) {
           clearTimeout(this.refreshTimer);
           this.refreshTimer = undefined;
-        }
-
-        if (this.metadataTimer) {
-          clearTimeout(this.metadataTimer);
-          this.metadataTimer = undefined;
         }
       },
     });

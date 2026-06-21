@@ -80,6 +80,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private readonly loadedDirChildren = new Map<string, any[]>();
   private readonly knownVisibleDirs = new Set<string>();
   private statusSyncTimer: NodeJS.Timeout | undefined;
+  private pathStatusSyncTimer: NodeJS.Timeout | undefined;
+  private dirtyStatusSyncTimer: NodeJS.Timeout | undefined;
+  private readonly pendingMetadataPaths = new Set<string>();
+  private readonly pendingDirtyMetadataPaths = new Set<string>();
 
   constructor(private context: vscode.ExtensionContext) {
     this.context.subscriptions.push(
@@ -1552,7 +1556,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const isFolder = !!item.isFolder;
     const gitRelativePath = context.gitRoot ? path.relative(context.gitRoot, nativePath).replace(/\\/g, '/') : '';
     const status = context.gitRoot
-      ? this.getAggregatedGitStatus(gitRelativePath, isFolder, context.statusMap, item.status)
+      // 这里不能 fallback item.status。
+      // item.status 可能是未保存输入时临时显示的 M；真实 git status clean 时必须覆盖成 undefined。
+      ? this.getAggregatedGitStatus(gitRelativePath, isFolder, context.statusMap)
       : item.status;
 
     return {
@@ -1576,12 +1582,15 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     return {
       ...project,
-      status: context.gitRoot ? this.getAggregatedGitStatus('', true, context.statusMap, project.status) : project.status,
+      // 这里不能把 project.status 当 fallback。
+      // project.status 可能是输入时临时打上的 M；保存后真实 git status 已经 clean，
+      // 如果继续 fallback 旧状态，M 就永远清不掉。
+      status: context.gitRoot ? this.getAggregatedGitStatus('', true, context.statusMap) : project.status,
       diagnostics: this.getDiagnosticsSummary(uri.toString(), true),
     };
   }
 
-  private scheduleStatusSync(delay = 160): void {
+  private scheduleStatusSync(delay = 260): void {
     if (this.statusSyncTimer) {
       clearTimeout(this.statusSyncTimer);
     }
@@ -1593,7 +1602,461 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   public requestVisibleMetadataSync(): void {
-    this.scheduleStatusSync(80);
+    this.scheduleStatusSync(220);
+  }
+
+  public requestPathMetadataSync(
+    paths: string | vscode.Uri | Array<string | vscode.Uri>,
+    delay = 120
+  ): void {
+    const list = Array.isArray(paths) ? paths : [paths];
+
+    list.forEach((item) => {
+      const resolved = this.resolveMetadataTargetPath(item);
+
+      if (resolved) {
+        this.pendingMetadataPaths.add(resolved);
+      }
+    });
+
+    if (this.pendingMetadataPaths.size === 0) {
+      return;
+    }
+
+    if (this.pathStatusSyncTimer) {
+      clearTimeout(this.pathStatusSyncTimer);
+    }
+
+    this.pathStatusSyncTimer = setTimeout(() => {
+      this.pathStatusSyncTimer = undefined;
+
+      const targets = Array.from(this.pendingMetadataPaths);
+      this.pendingMetadataPaths.clear();
+
+      void this.syncMetadataForPaths(targets);
+    }, delay);
+  }
+
+  public requestSavedDocumentMetadataSync(document: vscode.TextDocument | vscode.Uri | string, delay = 80): void {
+    const target = this.resolveMetadataTargetPath(
+      typeof document === 'string' || document instanceof vscode.Uri ? document : document.uri
+    );
+
+    if (!target) {
+      return;
+    }
+
+    this.clearPendingDirtyMetadataTargets([target]);
+    this.requestPathMetadataSync(target, delay);
+  }
+
+  private clearPendingDirtyMetadataTargets(targets: string[]): void {
+    targets.forEach((target) => {
+      const resolved = this.resolveMetadataTargetPath(target);
+
+      if (resolved) {
+        this.pendingDirtyMetadataPaths.delete(resolved);
+      }
+    });
+
+    if (this.pendingDirtyMetadataPaths.size === 0 && this.dirtyStatusSyncTimer) {
+      clearTimeout(this.dirtyStatusSyncTimer);
+      this.dirtyStatusSyncTimer = undefined;
+    }
+  }
+
+  public requestDirtyDocumentMetadataSync(document: vscode.TextDocument, delay = 90): void {
+    const target = this.resolveMetadataTargetPath(document.uri);
+
+    if (!target) {
+      return;
+    }
+
+    /**
+     * Git 只能感知已经写入磁盘的内容。
+     * 用户正在输入但还没保存时，git status 仍然可能是 clean。
+     * 所以这里用 document.isDirty 给当前文件先打一个临时 M，
+     * 保存 / 撤销回 clean 后再回到真实 Git 状态。
+     */
+    if (!document.isDirty) {
+      this.clearPendingDirtyMetadataTargets([target]);
+      this.requestPathMetadataSync(target, delay);
+      return;
+    }
+
+    this.pendingDirtyMetadataPaths.add(target);
+
+    if (this.dirtyStatusSyncTimer) {
+      clearTimeout(this.dirtyStatusSyncTimer);
+    }
+
+    this.dirtyStatusSyncTimer = setTimeout(() => {
+      this.dirtyStatusSyncTimer = undefined;
+
+      const targets = Array.from(this.pendingDirtyMetadataPaths);
+      this.pendingDirtyMetadataPaths.clear();
+
+      this.syncDirtyMetadataForPaths(targets);
+    }, delay);
+  }
+
+  private resolveDirtyDisplayStatus(previousStatus?: string): string {
+    const rawStatus = String(previousStatus || '').trim();
+    const statusKey = this.normalizeGitStatusKey(rawStatus);
+
+    /**
+     * 未跟踪 / 已添加 / 已修改 等原本已经有 Git 状态的文件，输入时不要把状态改丢。
+     * 原本 clean 的文件，输入后才临时显示 M。
+     */
+    if (statusKey) {
+      return rawStatus;
+    }
+
+    return 'M';
+  }
+
+  private createDirtyMetadataPatchItem(
+    targetPath: string,
+    isFolder: boolean,
+    previousStatus?: string
+  ): MetadataPatchItem | undefined {
+    if (!targetPath) {
+      return undefined;
+    }
+
+    return {
+      path: targetPath,
+      status: this.resolveDirtyDisplayStatus(previousStatus),
+      diagnostics: this.getDiagnosticsSummary(targetPath, isFolder),
+    };
+  }
+
+  private syncDirtyMetadataForPaths(paths: string[]): void {
+    if (!this._view) return;
+
+    const targets = Array.from(
+      new Set(
+        paths
+          .map((item) => this.resolveMetadataTargetPath(item))
+          .filter(Boolean)
+      )
+    );
+
+    if (targets.length === 0) {
+      return;
+    }
+
+    const patchMap = new Map<string, MetadataPatchItem>();
+
+    const pushPatch = (item: MetadataPatchItem | undefined) => {
+      if (!item?.path) return;
+
+      const key = this.normalizePathForCompare(item.path);
+
+      if (!key) return;
+
+      patchMap.set(key, item);
+    };
+
+    targets.forEach((target) => {
+      pushPatch(this.createDirtyMetadataPatchItem(target, false));
+    });
+
+    const visibleProjects = [
+      ...this.getRecentProjects(),
+      ...(vscode.workspace.workspaceFolders?.map((folder) => ({
+        name: folder.name,
+        fsPath: folder.uri.toString(),
+        timestamp: Date.now(),
+      } as RecentProject)) || []),
+    ];
+
+    visibleProjects.forEach((project) => {
+      const shouldUpdateProject = targets.some((target) =>
+        this.isSameOrInsideMetadataPath(target, project.fsPath)
+      );
+
+      if (!shouldUpdateProject) {
+        return;
+      }
+
+      pushPatch(this.createDirtyMetadataPatchItem(project.fsPath, true, project.status));
+    });
+
+    for (const [dirPath, children] of this.loadedDirChildren.entries()) {
+      let changed = false;
+
+      const nextChildren = children.map((child) => {
+        const childPath = this.getItemMetadataPath(child);
+
+        if (!childPath) {
+          return child;
+        }
+
+        const isFolder = !!child?.isFolder;
+        const shouldUpdateChild = targets.some((target) => {
+          if (this.isSameOrInsideMetadataPath(target, childPath)) {
+            return true;
+          }
+
+          return isFolder && this.isSameOrInsideMetadataPath(childPath, target);
+        });
+
+        if (!shouldUpdateChild) {
+          return child;
+        }
+
+        const patch = this.createDirtyMetadataPatchItem(childPath, isFolder, child.status);
+
+        pushPatch(patch);
+
+        if (!patch) {
+          return child;
+        }
+
+        changed = true;
+
+        return {
+          ...child,
+          status: patch.status,
+          diagnostics: patch.diagnostics,
+        };
+      });
+
+      if (changed) {
+        this.loadedDirChildren.set(dirPath, nextChildren);
+      }
+    }
+
+    const items = Array.from(patchMap.values());
+
+    if (items.length === 0) {
+      return;
+    }
+
+    this._view.webview.postMessage({
+      type: 'metadataPatch',
+      items,
+    });
+  }
+
+  private resolveMetadataTargetPath(value: string | vscode.Uri): string {
+    const rawValue = typeof value === 'string' ? value : value.toString();
+
+    if (!rawValue) {
+      return '';
+    }
+
+    try {
+      const shouldParseAsUri =
+        typeof value !== 'string' ||
+        rawValue.startsWith('quickops-ro:') ||
+        /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(rawValue);
+
+      if (shouldParseAsUri) {
+        const uri = typeof value === 'string' ? vscode.Uri.parse(rawValue) : value;
+
+        if (uri.scheme === 'quickops-ro') {
+          const target = new URLSearchParams(uri.query).get('target');
+
+          if (!target) {
+            return '';
+          }
+
+          return vscode.Uri.parse(target).toString();
+        }
+
+        if (uri.scheme === 'file') {
+          return uri.toString();
+        }
+
+        return '';
+      }
+
+      return vscode.Uri.file(rawValue).toString();
+    } catch {
+      return '';
+    }
+  }
+
+  private getItemMetadataPath(item: any): string {
+    return String(item?.path || item?.fullPath || item?.fsPath || '');
+  }
+
+  private isSameOrInsideMetadataPath(childPath: string, parentPath: string): boolean {
+    const child = this.normalizePathForCompare(childPath);
+    const parent = this.normalizePathForCompare(parentPath);
+
+    if (!child || !parent) {
+      return false;
+    }
+
+    const parentWithSlash = parent.endsWith('/') ? parent : `${parent}/`;
+
+    return child === parent || child.startsWith(parentWithSlash);
+  }
+
+  private async enrichDirectMetadataTarget(targetPath: string): Promise<any | undefined> {
+    const uri = this.toLocalUri(targetPath);
+
+    if (!uri) {
+      return undefined;
+    }
+
+    const stat = await this.statFileSafe(uri);
+    const isFolder = !!(stat && (stat.type & vscode.FileType.Directory) !== 0);
+    const contextRootUri = isFolder ? uri : vscode.Uri.file(path.dirname(uri.fsPath));
+    const context = await this.createMetadataContext(contextRootUri.toString());
+
+    return this.enrichFileItem(
+      {
+        path: targetPath,
+        isFolder,
+      },
+      context
+    );
+  }
+
+  public async syncMetadataForPaths(paths: string[]): Promise<void> {
+    if (!this._view) return;
+
+    const targets = Array.from(
+      new Set(
+        paths
+          .map((item) => this.resolveMetadataTargetPath(item))
+          .filter(Boolean)
+      )
+    );
+
+    if (targets.length === 0) {
+      return;
+    }
+
+    const patchMap = new Map<string, MetadataPatchItem>();
+
+    const pushPatch = (item: any) => {
+      const itemPath = this.getItemMetadataPath(item);
+
+      if (!itemPath) return;
+
+      const key = this.normalizePathForCompare(itemPath);
+
+      if (!key) return;
+
+      patchMap.set(key, {
+        path: itemPath,
+        status: item.status,
+        diagnostics: item.diagnostics || { errors: 0, warnings: 0 },
+      });
+    };
+
+    const visibleProjects = new Map<string, RecentProject>();
+
+    this.getRecentProjects().forEach((project) => {
+      const key = this.normalizePathForCompare(project.fsPath);
+
+      if (key) {
+        visibleProjects.set(key, project);
+      }
+    });
+
+    vscode.workspace.workspaceFolders?.forEach((folder) => {
+      const project = {
+        name: folder.name,
+        fsPath: folder.uri.toString(),
+        timestamp: Date.now(),
+      } as RecentProject;
+
+      const key = this.normalizePathForCompare(project.fsPath);
+
+      if (key && !visibleProjects.has(key)) {
+        visibleProjects.set(key, project);
+      }
+    });
+
+    await Promise.all(
+      Array.from(visibleProjects.values()).map(async (project) => {
+        const shouldUpdateProject = targets.some((target) =>
+          this.isSameOrInsideMetadataPath(target, project.fsPath)
+        );
+
+        if (!shouldUpdateProject) {
+          return;
+        }
+
+        pushPatch(await this.enrichProject(project));
+      })
+    );
+
+    await Promise.all(
+      targets.map(async (target) => {
+        const enrichedTarget = await this.enrichDirectMetadataTarget(target);
+
+        if (enrichedTarget) {
+          pushPatch(enrichedTarget);
+        }
+      })
+    );
+
+    for (const [dirPath, children] of this.loadedDirChildren.entries()) {
+      const shouldCheckDir = targets.some((target) =>
+        this.isSameOrInsideMetadataPath(target, dirPath) ||
+        this.isSameOrInsideMetadataPath(dirPath, target)
+      );
+
+      if (!shouldCheckDir) {
+        continue;
+      }
+
+      const context = await this.createMetadataContext(dirPath);
+      let changed = false;
+
+      const nextChildren = await Promise.all(
+        children.map(async (child) => {
+          const childPath = this.getItemMetadataPath(child);
+
+          if (!childPath) {
+            return child;
+          }
+
+          const isFolder = !!child?.isFolder;
+          const shouldUpdateChild = targets.some((target) => {
+            if (this.isSameOrInsideMetadataPath(target, childPath)) {
+              return true;
+            }
+
+            return isFolder && this.isSameOrInsideMetadataPath(childPath, target);
+          });
+
+          if (!shouldUpdateChild) {
+            return child;
+          }
+
+          changed = true;
+
+          const enrichedChild = await this.enrichFileItem(child, context);
+
+          pushPatch(enrichedChild);
+
+          return enrichedChild;
+        })
+      );
+
+      if (changed) {
+        this.loadedDirChildren.set(dirPath, nextChildren);
+      }
+    }
+
+    const items = Array.from(patchMap.values());
+
+    if (items.length === 0) {
+      return;
+    }
+
+    this._view.webview.postMessage({
+      type: 'metadataPatch',
+      items,
+    });
   }
 
   public async syncVisibleMetadata(): Promise<void> {
@@ -2904,7 +3367,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             children: enrichedChildren,
           });
 
-          this.scheduleStatusSync(120);
+          this.requestPathMetadataSync(pathKey, 160);
           return;
         }
 
