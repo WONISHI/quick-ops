@@ -18,6 +18,6 @@
     "sourceMaps": true
   },
   "workbench.colorCustomizations": {
-    "gitDecoration.ignoredResourceForeground": "#00ff00"
+   "gitDecoration.ignoredResourceForeground": "#7A8B6F"
   }
 }
