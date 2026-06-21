@@ -1,7 +1,7 @@
-import type { QuickOpsModule } from '../core/module/quick-ops-module.interface';
-import { CommonModule } from '../common/common.module';
+import type { QuickOpsModule } from '@/core/module/quick-ops-module.interface';
+import { CommonModule } from '@/common/common.module';
 
-import { ConfigManagementModule } from '../modules/config-management/config-management.module';
+import { ConfigManagementModule } from '@/modules/config-management/config-management.module';
 import { FileNavigationModule } from '../modules/file-navigation/file-navigation.module';
 import { SmartScrollModule } from '../modules/smart-scroll/smart-scroll.module';
 import { ClipboardTransformModule } from '../modules/clipboard-transform/clipboard-transform.module';

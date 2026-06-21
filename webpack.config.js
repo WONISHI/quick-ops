@@ -50,11 +50,9 @@ const plugins = [
             } catch (e) {
               // @ts-ignore
               console.error(`[Minify Failed] ${path.basename(absoluteFrom)}: ${e.message}`);
-
               return content;
             }
           }
-
           return content;
         },
       },
@@ -109,6 +107,11 @@ const extensionConfig = {
     extensions: ['.ts', '.js'],
     alias: {
       '@': path.resolve(__dirname, 'src'),
+      '@app': path.resolve(__dirname, 'src/app'),
+      '@core': path.resolve(__dirname, 'src/core'),
+      '@common': path.resolve(__dirname, 'src/common'),
+      '@modules': path.resolve(__dirname, 'src/modules'),
+      '@utils': path.resolve(__dirname, 'src/utils'),
       lodash: 'lodash-es',
     },
   },

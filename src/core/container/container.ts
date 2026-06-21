@@ -23,17 +23,48 @@ export class Container {
    */
   private readonly resolvingStack: string[] = [];
 
+  /**
+   * @description 注册 Provider 到依赖注入容器。
+   *
+   * Provider 通常来自模块的 providers 配置。
+   * 容器会根据 provider 解析出 token，并保存到 providers Map 中。
+   *
+   * 后续调用 container.resolve(token) 时，
+   * 容器会通过这个 token 找到 provider，
+   * 然后创建实例、注入依赖并缓存。
+   *
+   * 常见 Provider：
+   * - 类 Provider：GitService
+   * - useClass：{ provide, useClass }
+   * - useValue：{ provide, useValue }
+   * - useFactory：{ provide, useFactory, inject }
+   *
+   * @param provider 需要注册的 Provider
+   */
   public registerProvider(provider: Provider): void {
     if (!provider) {
       throw new Error('[Container] 注册 provider 失败：provider 是 undefined，请检查 module.providers 里的 import/export。');
     }
 
+    /**
+     * 解析 provider 对应的 token。
+     *
+     * 类 Provider 的 token 是类本身；
+     * 对象 Provider 的 token 是 provide 字段。
+     */
     const token = this.getProviderToken(provider);
 
     if (!token) {
       throw new Error(`[Container] 注册 provider 失败：无法获取 provider token。provider=${this.safeStringify(provider)}`);
     }
 
+    /**
+     * 将 token 和 provider 绑定保存。
+     *
+     * 示例：
+     * GitService -> GitService
+     * ConfigurationService -> { provide, useValue }
+     */
     this.providers.set(token, provider);
   }
 
