@@ -1,10 +1,6 @@
 import type * as vscode from 'vscode';
 import { Container } from '../container/container';
-import type {
-  InjectableConstructor,
-  InjectionToken,
-  Provider,
-} from '../container/container.type';
+import type { InjectableConstructor, InjectionToken, Provider } from '../container/container.type';
 import type { QuickOpsModule } from './quick-ops-module.interface';
 
 export class ModuleRunner {

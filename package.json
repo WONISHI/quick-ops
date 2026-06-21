@@ -702,17 +702,26 @@
       ]
     }
   },
-  "scripts": {
+ "scripts": {
     "vscode:prepublish": "npm run build:all",
+
     "compile": "webpack --mode development",
+    "compile:ext": "webpack --mode development",
+    "compile:ui": "cd webview-ui && npm run build",
+    "compile:all": "concurrently -c \"cyan.bold,green.bold\" -n \"EXT,UI\" \"npm run compile:ext\" \"npm run compile:ui\"",
+
+    "watch": "npm run watch:ext",
     "watch:ext": "webpack --mode development --watch",
     "watch:ui": "cd webview-ui && npm run build -- --watch",
     "watch:all": "concurrently -c \"cyan.bold,green.bold\" -n \"EXT,UI\" \"npm run watch:ext\" \"npm run watch:ui\"",
+
     "build:ext": "webpack --mode production --devtool hidden-source-map",
     "build:ui": "cd webview-ui && npm run build",
     "build:all": "concurrently -c \"blue.bold,yellow.bold\" -n \"EXT,UI\" \"npm run build:ext\" \"npm run build:ui\"",
     "build": "npm run build:all && vsce package --no-yarn --no-dependencies",
+
     "preinstall": "cd webview-ui && npm install",
+
     "compile-tests": "tsc -p . --outDir dist",
     "watch-tests": "tsc -p . -w --outDir dist",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",

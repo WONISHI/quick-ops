@@ -14,20 +14,14 @@ const npm_lifecycle_script = process.env.npm_lifecycle_script || '';
  * 调试时不要因为 script 名称里有 build 就强制 production。
  * 你可以通过 NODE_ENV=production 或 npm run package / production 来启用生产压缩。
  */
-const isProduction =
-  process.env.NODE_ENV === 'production' ||
-  npm_lifecycle_script.includes('production') ||
-  npm_lifecycle_script.includes('package');
+const isProduction = process.env.NODE_ENV === 'production' || npm_lifecycle_script.includes('production') || npm_lifecycle_script.includes('package');
 
 const isAnalyze = process.env.ANALYZE === 'true';
 
 // @ts-ignore
 function stripJsonComments(jsonString) {
   // @ts-ignore
-  return jsonString.replace(
-    /\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g,
-    (m, g) => (g ? '' : m),
-  );
+  return jsonString.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, g) => (g ? '' : m));
 }
 
 /** @type {any[]} */
@@ -55,9 +49,7 @@ const plugins = [
               return JSON.stringify(JSON.parse(jsonStr));
             } catch (e) {
               // @ts-ignore
-              console.error(
-                `[Minify Failed] ${path.basename(absoluteFrom)}: ${e.message}`,
-              );
+              console.error(`[Minify Failed] ${path.basename(absoluteFrom)}: ${e.message}`);
 
               return content;
             }
@@ -94,11 +86,9 @@ const extensionConfig = {
     path: path.resolve(__dirname, 'dist'),
     filename: '[name].js',
     libraryTarget: 'commonjs',
-
-    /**
-     * 调试源码映射更友好。
-     */
-    devtoolModuleFilenameTemplate: '../[resource-path]',
+    devtoolModuleFilenameTemplate: (info) => {
+      return `webpack://quick-ops/${info.resourcePath.replace(/\\/g, '/')}`;
+    },
   },
 
   externalsPresets: {
