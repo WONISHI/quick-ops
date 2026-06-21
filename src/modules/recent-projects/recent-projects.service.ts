@@ -3,7 +3,12 @@ import * as path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import type { CompareSelection, RecentProjectItem, RecentProjectPlatform, RemoteProjectParseResult } from './recent-projects.type';
+import type {
+  CompareSelection,
+  RecentProjectItem,
+  RecentProjectPlatform,
+  RemoteProjectParseResult,
+} from './recent-projects.type';
 
 const execFileAsync = promisify(execFile);
 
@@ -11,40 +16,106 @@ export class RecentProjectsService {
   public static inject = [ExtensionContextProvider];
 
   private readonly storageKey = 'quickOps.recentProjects';
+
+  /**
+   * @description 兼容重构前可能使用过的历史 key。
+   *
+   * 如果新 key 读取不到数据，会尝试从旧 key 中恢复，
+   * 并自动迁移到 quickOps.recentProjects。
+   */
+  private readonly legacyStorageKeys = [
+    'recentProjects',
+    'quickOps.recentProjectList',
+    'quickOps.recent-projects',
+    'quickOps.recentProjects.list',
+  ];
+
   private compareSelection: CompareSelection | undefined;
 
-  constructor(private readonly extensionContextProvider: ExtensionContextProvider) {}
+  constructor(
+    private readonly extensionContextProvider: ExtensionContextProvider,
+  ) {}
 
   public getRecentProjects(): RecentProjectItem[] {
     const context = this.extensionContextProvider.getContext();
 
-    return context.globalState.get<RecentProjectItem[]>(this.storageKey, []);
+    const currentProjects = context.globalState.get<RecentProjectItem[]>(
+      this.storageKey,
+      [],
+    );
+
+    if (Array.isArray(currentProjects) && currentProjects.length > 0) {
+      return this.sortProjects(currentProjects);
+    }
+
+    for (const legacyKey of this.legacyStorageKeys) {
+      const legacyProjects = context.globalState.get<RecentProjectItem[]>(
+        legacyKey,
+        [],
+      );
+
+      if (Array.isArray(legacyProjects) && legacyProjects.length > 0) {
+        const normalizedProjects = legacyProjects.map(project => {
+          return this.normalizeProject(project);
+        });
+
+        void context.globalState.update(this.storageKey, normalizedProjects);
+
+        return this.sortProjects(normalizedProjects);
+      }
+    }
+
+    return [];
   }
 
   public async saveRecentProjects(projects: RecentProjectItem[]): Promise<void> {
     const context = this.extensionContextProvider.getContext();
 
-    await context.globalState.update(this.storageKey, projects);
-  }
-
-  public async insertProjectToHistory(name: string, fsPath: string, platform: RecentProjectPlatform = 'local', customDomain?: string): Promise<RecentProjectItem> {
-    const projects = this.getRecentProjects();
-    const normalizedPath = this.normalizeProjectPath(fsPath);
-    const existed = projects.find((item) => {
-      return this.normalizeProjectPath(item.fsPath) === normalizedPath;
+    const normalizedProjects = projects.map(project => {
+      return this.normalizeProject(project);
     });
 
+    await context.globalState.update(
+      this.storageKey,
+      this.sortProjects(normalizedProjects),
+    );
+  }
+
+  public async insertProjectToHistory(
+    name: string,
+    fsPath: string,
+    platform: RecentProjectPlatform = 'local',
+    customDomain?: string,
+  ): Promise<RecentProjectItem> {
+    const projects = this.getRecentProjects();
+    const normalizedPath = this.normalizeProjectPath(fsPath);
     const now = Date.now();
 
+    const existed = projects.find(project => {
+      return this.normalizeProjectPath(project.fsPath) === normalizedPath;
+    });
+
     if (existed) {
-      existed.name = name;
-      existed.platform = platform;
-      existed.customDomain = customDomain;
-      existed.lastOpenedAt = now;
+      const updatedProject: RecentProjectItem = {
+        ...existed,
+        name: name || existed.name,
+        fsPath,
+        platform,
+        customDomain,
+        lastOpenedAt: now,
+      };
 
-      await this.saveRecentProjects(this.sortProjects(projects));
+      const nextProjects = projects.map(project => {
+        if (this.normalizeProjectPath(project.fsPath) !== normalizedPath) {
+          return project;
+        }
 
-      return existed;
+        return updatedProject;
+      });
+
+      await this.saveRecentProjects(nextProjects);
+
+      return updatedProject;
     }
 
     const project: RecentProjectItem = {
@@ -53,13 +124,57 @@ export class RecentProjectsService {
       fsPath,
       platform,
       customDomain,
-      lastOpenedAt: now,
       createdAt: now,
+      lastOpenedAt: now,
     };
 
-    await this.saveRecentProjects(this.sortProjects([project, ...projects]));
+    await this.saveRecentProjects([project, ...projects]);
 
     return project;
+  }
+
+  public async updateProject(
+    fsPath: string,
+    patch: Partial<RecentProjectItem>,
+  ): Promise<RecentProjectItem | undefined> {
+    const normalizedPath = this.normalizeProjectPath(fsPath);
+    let updatedProject: RecentProjectItem | undefined;
+
+    const projects = this.getRecentProjects().map(project => {
+      if (this.normalizeProjectPath(project.fsPath) !== normalizedPath) {
+        return project;
+      }
+
+      updatedProject = this.normalizeProject({
+        ...project,
+        ...patch,
+        id: patch.id || project.id,
+        createdAt: patch.createdAt || project.createdAt,
+        lastOpenedAt: patch.lastOpenedAt || Date.now(),
+      });
+
+      return updatedProject;
+    });
+
+    await this.saveRecentProjects(projects);
+
+    return updatedProject;
+  }
+
+  public async removeProject(fsPath: string): Promise<void> {
+    const normalizedPath = this.normalizeProjectPath(fsPath);
+
+    const projects = this.getRecentProjects().filter(project => {
+      return this.normalizeProjectPath(project.fsPath) !== normalizedPath;
+    });
+
+    await this.saveRecentProjects(projects);
+  }
+
+  public async touchProject(fsPath: string): Promise<void> {
+    await this.updateProject(fsPath, {
+      lastOpenedAt: Date.now(),
+    });
   }
 
   public async addLocalProject(): Promise<RecentProjectItem | undefined> {
@@ -76,7 +191,13 @@ export class RecentProjectsService {
     if (!uri) return undefined;
 
     const uriStr = uri.toString();
-    const existed = this.getRecentProjects().some((item) => item.fsPath === uriStr);
+
+    const existed = this.getRecentProjects().some(project => {
+      return (
+        this.normalizeProjectPath(project.fsPath) ===
+        this.normalizeProjectPath(uriStr)
+      );
+    });
 
     if (existed) {
       vscode.window.showWarningMessage('⚠️ 该本地项目已存在于列表中！');
@@ -85,7 +206,11 @@ export class RecentProjectsService {
 
     const folderName = path.basename(uri.fsPath) || '本地项目';
 
-    const project = await this.insertProjectToHistory(folderName, uriStr, 'local');
+    const project = await this.insertProjectToHistory(
+      folderName,
+      uriStr,
+      'local',
+    );
 
     vscode.window.showInformationMessage(`✅ 已添加本地项目: ${folderName}`);
 
@@ -95,8 +220,13 @@ export class RecentProjectsService {
   public async addRemoteProject(): Promise<RecentProjectItem | undefined> {
     const input = await vscode.window.showInputBox({
       title: '添加远程仓库',
-      placeHolder: 'GitHub/GitLab/Gitee 地址，例如 owner/repo 或 https://github.com/owner/repo',
+      placeHolder:
+        'GitHub/GitLab/Gitee 地址，例如 owner/repo 或 https://github.com/owner/repo',
       prompt: '输入远程仓库地址',
+      ignoreFocusOut: true,
+      validateInput: value => {
+        return value.trim() ? null : '远程仓库地址不能为空';
+      },
     });
 
     if (!input) return undefined;
@@ -108,8 +238,11 @@ export class RecentProjectsService {
       return undefined;
     }
 
-    const existed = this.getRecentProjects().some((item) => {
-      return item.fsPath === parsed.targetUriStr;
+    const existed = this.getRecentProjects().some(project => {
+      return (
+        this.normalizeProjectPath(project.fsPath) ===
+        this.normalizeProjectPath(parsed.targetUriStr)
+      );
     });
 
     if (existed) {
@@ -120,11 +253,20 @@ export class RecentProjectsService {
     const projectName = await vscode.window.showInputBox({
       title: '确认远程项目名称',
       value: parsed.repoFullName.split('/').pop() || parsed.repoFullName,
+      ignoreFocusOut: true,
+      validateInput: value => {
+        return value.trim() ? null : '项目名称不能为空';
+      },
     });
 
     if (!projectName) return undefined;
 
-    const project = await this.insertProjectToHistory(projectName, parsed.targetUriStr, parsed.platform, parsed.customDomain);
+    const project = await this.insertProjectToHistory(
+      projectName.trim(),
+      parsed.targetUriStr,
+      parsed.platform,
+      parsed.customDomain,
+    );
 
     vscode.window.showInformationMessage(`✅ 已添加远程项目: ${projectName}`);
 
@@ -168,7 +310,12 @@ export class RecentProjectsService {
 
       customDomain = match[1];
       repoFullName = match[2].replace(/\.git$/i, '');
+      platform = this.detectRemotePlatform(customDomain);
+    } else if (/^vscode-vfs:\/\//i.test(value)) {
+      const uri = vscode.Uri.parse(value);
 
+      customDomain = uri.authority;
+      repoFullName = uri.path.replace(/^\/+/, '');
       platform = this.detectRemotePlatform(customDomain);
     } else {
       let url: URL;
@@ -181,7 +328,6 @@ export class RecentProjectsService {
 
       customDomain = url.hostname;
       repoFullName = url.pathname.replace(/^\/+/, '').replace(/\.git$/i, '');
-
       platform = this.detectRemotePlatform(customDomain);
     }
 
@@ -204,8 +350,8 @@ export class RecentProjectsService {
     const projects = this.getRecentProjects();
 
     const nextProjects = await Promise.all(
-      projects.map(async (project) => {
-        if (project.platform && project.platform !== 'local') {
+      projects.map(async project => {
+        if (this.isRemoteProject(project)) {
           return project;
         }
 
@@ -224,7 +370,7 @@ export class RecentProjectsService {
       }),
     );
 
-    await this.saveRecentProjects(this.sortProjects(nextProjects));
+    await this.saveRecentProjects(nextProjects);
   }
 
   public selectForCompare(uri: string): void {
@@ -250,7 +396,12 @@ export class RecentProjectsService {
       return;
     }
 
-    await vscode.commands.executeCommand('vscode.diff', sourceUri, target, `${path.basename(sourceUri.path)} ↔ ${path.basename(target.path)}`);
+    await vscode.commands.executeCommand(
+      'vscode.diff',
+      sourceUri,
+      target,
+      `${path.basename(sourceUri.path)} ↔ ${path.basename(target.path)}`,
+    );
 
     this.compareSelection = undefined;
   }
@@ -279,6 +430,48 @@ export class RecentProjectsService {
     return !project.fsPath.startsWith('file:') && project.fsPath.includes('://');
   }
 
+  private normalizeProject(project: RecentProjectItem): RecentProjectItem {
+    const now = Date.now();
+
+    return {
+      ...project,
+      id: project.id || this.createId(),
+      name: project.name || this.getNameFromPath(project.fsPath),
+      fsPath: project.fsPath,
+      platform: project.platform || this.resolvePlatformByPath(project.fsPath),
+      createdAt: project.createdAt || now,
+      lastOpenedAt: project.lastOpenedAt || now,
+    };
+  }
+
+  private resolvePlatformByPath(fsPath: string): RecentProjectPlatform {
+    if (fsPath.startsWith('file:') || !fsPath.includes('://')) {
+      return 'local';
+    }
+
+    if (fsPath.includes('github.com')) return 'github';
+    if (fsPath.includes('gitlab.com')) return 'gitlab';
+    if (fsPath.includes('gitee.com')) return 'gitee';
+
+    return 'remote';
+  }
+
+  private getNameFromPath(fsPath: string): string {
+    try {
+      const uri = this.toUri(fsPath);
+
+      if (!uri) return '项目';
+
+      if (uri.scheme === 'file') {
+        return path.basename(uri.fsPath) || '本地项目';
+      }
+
+      return path.basename(uri.path) || uri.authority || '远程项目';
+    } catch {
+      return '项目';
+    }
+  }
+
   private detectRemotePlatform(domain: string): RecentProjectPlatform {
     const lower = domain.toLowerCase();
 
@@ -291,15 +484,19 @@ export class RecentProjectsService {
 
   private sortProjects(projects: RecentProjectItem[]): RecentProjectItem[] {
     return [...projects].sort((a, b) => {
-      return b.lastOpenedAt - a.lastOpenedAt;
+      return (b.lastOpenedAt || 0) - (a.lastOpenedAt || 0);
     });
   }
 
   private async getGitBranch(cwd: string): Promise<string> {
     try {
-      const { stdout } = await execFileAsync('git', ['branch', '--show-current'], {
-        cwd,
-      });
+      const { stdout } = await execFileAsync(
+        'git',
+        ['branch', '--show-current'],
+        {
+          cwd,
+        },
+      );
 
       return stdout.trim();
     } catch {
