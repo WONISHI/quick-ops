@@ -11,32 +11,12 @@ export const RECENT_PROJECTS_COMMANDS = {
   refreshGitProjects: 'quickOps.refreshGitProjects',
 } as const;
 
+export const RECENT_PROJECTS_CONTEXT_KEYS = {
+  canRevealInRecent: 'quickOps.canRevealInRecent',
+} as const;
+
 export const RECENT_PROJECTS_STORAGE_KEYS = {
   recentProjects: 'quickOps.recentProjects',
   gitProjectsHistory: 'quickOps.gitProjectsHistory',
   pendingOpenFile: 'quickOps.pendingOpenFile',
-} as const;
-
-export const RECENT_PROJECTS_WEBVIEW_MESSAGES = {
-  ready: 'ready',
-  webviewLoaded: 'webviewLoaded',
-
-  updateProjects: 'updateProjects',
-  recentProjects: 'recentProjects',
-
-  refreshExpandedDirs: 'refreshExpandedDirs',
-  readDirResult: 'readDirResult',
-  dirData: 'dirData',
-  updateDirChildren: 'updateDirChildren',
-
-  searchFileNameResult: 'searchFileNameResult',
-  searchFolderResult: 'searchFolderResult',
-
-  activePathChanged: 'activePathChanged',
-  revealActivePath: 'revealActivePath',
-
-  metadataSyncRequested: 'metadataSyncRequested',
-  refreshVisibleMetadata: 'refreshVisibleMetadata',
-
-  error: 'error',
 } as const;

@@ -6,6 +6,7 @@ import { RecentProjectsProvider } from './providers/recent-projects.provider';
 import { ReadOnlyFileSystemProvider } from './providers/read-only-file-system.provider';
 import {
   RECENT_PROJECTS_COMMANDS,
+  RECENT_PROJECTS_CONTEXT_KEYS,
   RECENT_PROJECTS_VIEW_ID,
 } from './recent-projects.constant';
 
@@ -31,6 +32,14 @@ export class RecentProjectsController implements OnModuleInit {
     this.registerCommands();
     this.registerListeners();
 
+    /**
+     * 初始化一次按钮上下文。
+     *
+     * master 的 package.json 使用：
+     * view == quickOps.recentProjectsView && quickOps.canRevealInRecent
+     */
+    this.updateRevealContext();
+
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
@@ -41,6 +50,12 @@ export class RecentProjectsController implements OnModuleInit {
     }
 
     this.recentProjectsProvider.dispose();
+
+    void vscode.commands.executeCommand(
+      'setContext',
+      RECENT_PROJECTS_CONTEXT_KEYS.canRevealInRecent,
+      false,
+    );
   }
 
   private registerProviders(): void {
@@ -99,6 +114,13 @@ export class RecentProjectsController implements OnModuleInit {
       vscode.commands.registerCommand(
         RECENT_PROJECTS_COMMANDS.revealInRecentProjects,
         () => {
+          this.updateRevealContext();
+
+          /**
+           * 关键：
+           * master 点击按钮后不是发 updateProjects，
+           * 而是 Provider 内部发送 revealPath。
+           */
           this.recentProjectsProvider.revealCurrentActive();
         },
       ),
@@ -145,8 +167,23 @@ export class RecentProjectsController implements OnModuleInit {
         this.requestRefreshMetadata();
       }),
 
+      vscode.workspace.onDidOpenTextDocument(() => {
+        this.updateRevealContext();
+      }),
+
+      vscode.workspace.onDidCloseTextDocument(() => {
+        this.updateRevealContext();
+      }),
+
       vscode.window.onDidChangeActiveTextEditor(() => {
-        this.recentProjectsProvider.revealCurrentActive();
+        this.updateRevealContext();
+
+        /**
+         * master 切换编辑器时只同步 activeEditorChanged，
+         * 不主动 revealPath。
+         */
+        this.recentProjectsProvider.syncActiveEditor();
+
         this.requestRefreshMetadata();
       }),
 
@@ -154,6 +191,16 @@ export class RecentProjectsController implements OnModuleInit {
         this.requestRefreshMetadata();
       }),
     );
+  }
+
+  private updateRevealContext(): void {
+    const editor = vscode.window.activeTextEditor;
+    const activePath =
+      editor && editor.document.uri.scheme === 'file'
+        ? editor.document.uri.toString()
+        : '';
+
+    this.recentProjectsProvider.updateRevealContext(activePath);
   }
 
   private requestRefreshMetadata(): void {
@@ -164,17 +211,6 @@ export class RecentProjectsController implements OnModuleInit {
     this.refreshTimer = setTimeout(() => {
       this.refreshTimer = undefined;
 
-      /**
-       * 这里不能只 refresh(false)。
-       *
-       * master 的逻辑是：
-       * - 目录缓存失效
-       * - 更新 webview
-       * - 通知前端 refreshExpandedDirs
-       *
-       * refactor 必须保留这个行为，否则取消修改后，
-       * 前端已展开目录不会重新 readDir，M/U/D 状态会残留。
-       */
       this.recentProjectsProvider.refresh(false);
       this.recentProjectsProvider.requestVisibleMetadataSync();
     }, 250);
