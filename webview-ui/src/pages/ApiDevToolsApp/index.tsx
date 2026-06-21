@@ -90,7 +90,7 @@ const RESPONSE_TABS: Array<{ key: ResponseTab; label: string }> = [
   { key: 'raw', label: 'Raw' },
 ];
 
-const BOTTOM_PANEL_MIN_SIZE = 110;
+const BOTTOM_PANEL_COLLAPSED_SIZE = 0;
 const BOTTOM_PANEL_DEFAULT_SIZE = 180;
 const BOTTOM_PANEL_MAX_SIZE = 520;
 const RESPONSE_PANEL_RESERVED_SIZE = 150;
@@ -358,6 +358,11 @@ export default function ApiDevToolsApp() {
   const bottomPanelSizeRef = useRef(BOTTOM_PANEL_DEFAULT_SIZE);
   const dragStartYRef = useRef(0);
   const dragStartSizeRef = useRef(BOTTOM_PANEL_DEFAULT_SIZE);
+  const isDraggingBottomPanelRef = useRef(false);
+  const bodyCursorRef = useRef('');
+  const bodyUserSelectRef = useRef('');
+  const bottomResizerRef = useRef<HTMLDivElement | null>(null);
+  const bottomResizerPointerIdRef = useRef<number | null>(null);
   const loadedStateRef = useRef(false);
 
   const globalVariables = useMemo(() => {
@@ -411,12 +416,12 @@ export default function ApiDevToolsApp() {
       BOTTOM_RESIZER_SIZE -
       RESPONSE_PANEL_RESERVED_SIZE;
 
-    return Math.min(BOTTOM_PANEL_MAX_SIZE, Math.max(BOTTOM_PANEL_MIN_SIZE, available));
+    return Math.min(BOTTOM_PANEL_MAX_SIZE, Math.max(BOTTOM_PANEL_COLLAPSED_SIZE, available));
   }, []);
 
   const setSafeBottomPanelSize = useCallback(
     (size: number) => {
-      const nextSize = clampNumber(size, BOTTOM_PANEL_MIN_SIZE, getBottomPanelMaxSize());
+      const nextSize = clampNumber(size, BOTTOM_PANEL_COLLAPSED_SIZE, getBottomPanelMaxSize());
 
       bottomPanelSizeRef.current = nextSize;
       setBottomPanelSize(nextSize);
@@ -424,70 +429,106 @@ export default function ApiDevToolsApp() {
     [getBottomPanelMaxSize]
   );
 
-  const handleBottomResizerPointerDown = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      dragStartYRef.current = event.clientY;
-      dragStartSizeRef.current = bottomPanelSizeRef.current;
-
-      setIsResizingBottomPanel(true);
-
-      try {
-        event.currentTarget.setPointerCapture(event.pointerId);
-      } catch {
-        // ignore
-      }
-    },
-    []
-  );
-
-  const handleBottomResizerPointerMove = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (!isResizingBottomPanel) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      const deltaY = dragStartYRef.current - event.clientY;
-      const nextSize = dragStartSizeRef.current + deltaY;
-
-      setSafeBottomPanelSize(nextSize);
-    },
-    [isResizingBottomPanel, setSafeBottomPanelSize]
-  );
-
-  const stopBottomResize = useCallback((event?: React.PointerEvent<HTMLDivElement>) => {
+  const stopBottomResize = useCallback(() => {
+    isDraggingBottomPanelRef.current = false;
     setIsResizingBottomPanel(false);
 
-    if (event) {
-      event.preventDefault();
-      event.stopPropagation();
+    const element = bottomResizerRef.current;
+    const pointerId = bottomResizerPointerIdRef.current;
 
+    if (element && pointerId !== null) {
       try {
-        event.currentTarget.releasePointerCapture(event.pointerId);
+        if (element.hasPointerCapture(pointerId)) {
+          element.releasePointerCapture(pointerId);
+        }
       } catch {
-        // ignore
+        // VS Code Webview 里 pointer capture 偶发不可用，直接忽略即可
       }
     }
+
+    bottomResizerRef.current = null;
+    bottomResizerPointerIdRef.current = null;
+
+    document.body.style.cursor = bodyCursorRef.current;
+    document.body.style.userSelect = bodyUserSelectRef.current;
+  }, []);
+
+  const handleBottomResizerPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    dragStartYRef.current = event.clientY;
+    dragStartSizeRef.current = bottomPanelSizeRef.current;
+    isDraggingBottomPanelRef.current = true;
+
+    bottomResizerRef.current = event.currentTarget;
+    bottomResizerPointerIdRef.current = event.pointerId;
+
+    bodyCursorRef.current = document.body.style.cursor;
+    bodyUserSelectRef.current = document.body.style.userSelect;
+
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // VS Code Webview 里 pointer capture 偶发失败，下面 window/document 监听兜底
+    }
+
+    setIsResizingBottomPanel(true);
   }, []);
 
   useEffect(() => {
     if (!isResizingBottomPanel) return;
 
-    const handleWindowBlur = () => {
-      setIsResizingBottomPanel(false);
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isDraggingBottomPanelRef.current) return;
+
+      event.preventDefault();
+
+      const deltaY = dragStartYRef.current - event.clientY;
+      const nextSize = dragStartSizeRef.current + deltaY;
+
+      setSafeBottomPanelSize(nextSize);
     };
 
-    window.addEventListener('blur', handleWindowBlur);
+    const handlePointerEnd = () => {
+      stopBottomResize();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopBottomResize();
+      }
+    };
+
+    const handleMouseLeaveWebview = () => {
+      stopBottomResize();
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerEnd);
+    window.addEventListener('pointercancel', handlePointerEnd);
+    window.addEventListener('blur', handlePointerEnd);
+
+    document.addEventListener('pointerup', handlePointerEnd);
+    document.addEventListener('pointercancel', handlePointerEnd);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.documentElement.addEventListener('mouseleave', handleMouseLeaveWebview);
 
     return () => {
-      window.removeEventListener('blur', handleWindowBlur);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
+      window.removeEventListener('blur', handlePointerEnd);
+
+      document.removeEventListener('pointerup', handlePointerEnd);
+      document.removeEventListener('pointercancel', handlePointerEnd);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.documentElement.removeEventListener('mouseleave', handleMouseLeaveWebview);
     };
-  }, [isResizingBottomPanel]);
+  }, [isResizingBottomPanel, setSafeBottomPanelSize, stopBottomResize]);
 
   useEffect(() => {
     const target = rightPaneRef.current;
@@ -1048,10 +1089,6 @@ export default function ApiDevToolsApp() {
               .join(' ')}
             title="拖拽调整历史记录/脚本日志高度"
             onPointerDown={handleBottomResizerPointerDown}
-            onPointerMove={handleBottomResizerPointerMove}
-            onPointerUp={stopBottomResize}
-            onPointerCancel={stopBottomResize}
-            onLostPointerCapture={() => setIsResizingBottomPanel(false)}
           />
 
           <div

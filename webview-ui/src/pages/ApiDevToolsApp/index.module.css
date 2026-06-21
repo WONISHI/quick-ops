@@ -46,7 +46,7 @@
   flex: 1 1 auto;
   height: calc(100vh - 44px);
   display: grid;
-  grid-template-columns: minmax(420px, 1fr) minmax(420px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 0;
   overflow: hidden;
 }
@@ -54,6 +54,7 @@
 .left-pane,
 .right-pane {
   width: 100%;
+  min-width: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -311,6 +312,7 @@
 
 .bottom-resizer {
   flex: 0 0 8px;
+  box-sizing: border-box;
   height: 8px;
   position: relative;
   cursor: row-resize;
@@ -342,14 +344,16 @@
 .bottom-panels {
   flex: 0 0 auto;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   border-top: none;
   overflow: hidden;
+  will-change: height;
 }
 
 .history-panel,
 .log-panel {
   width: 100%;
+  min-width: 0;
   height: 100%;
   overflow: auto;
   padding: 10px;
