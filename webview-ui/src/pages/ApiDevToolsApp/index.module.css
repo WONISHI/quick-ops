@@ -58,7 +58,7 @@
   flex: 1 1 auto;
   height: calc(100vh - 36px);
   display: grid;
-  grid-template-columns: 218px minmax(360px, 1.05fr) minmax(360px, 0.95fr);
+  grid-template-columns: var(--api-workspace-width, 218px) var(--api-workspace-resizer-size, 6px) minmax(360px, 1.05fr) minmax(360px, 0.95fr);
   gap: 0;
   overflow: hidden;
 }
@@ -77,6 +77,35 @@
 .workspace-pane,
 .left-pane {
   border-right: 1px solid var(--vscode-panel-border);
+}
+
+.workspace-resizer {
+  width: var(--api-workspace-resizer-size, 6px);
+  height: 100%;
+  position: relative;
+  cursor: col-resize;
+  background: var(--vscode-editor-background);
+  border-right: 1px solid var(--vscode-panel-border);
+  z-index: 10;
+  user-select: none;
+  touch-action: none;
+}
+
+.workspace-resizer::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 38px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: color-mix(in srgb, var(--vscode-foreground) 28%, transparent);
+}
+
+.workspace-resizer:hover::before,
+.workspace-resizer-active::before {
+  background: var(--vscode-focusBorder);
 }
 
 .request-line {
@@ -560,9 +589,14 @@
 @media (max-width: 900px) {
   .main {
     grid-template-columns: 1fr;
-    grid-template-rows: 1fr 1fr;
+    grid-template-rows: 180px minmax(0, 1fr) minmax(0, 1fr);
   }
 
+  .workspace-resizer {
+    display: none;
+  }
+
+  .workspace-pane,
   .left-pane {
     border-right: none;
     border-bottom: 1px solid var(--vscode-panel-border);
@@ -631,6 +665,11 @@
 
 .project-card-active {
   border-color: var(--vscode-focusBorder);
+  background: color-mix(in srgb, var(--vscode-focusBorder) 10%, var(--vscode-editor-background));
+}
+
+.project-card-active .project-title {
+  color: var(--vscode-textLink-foreground, var(--vscode-button-background));
 }
 
 .project-title-row {
@@ -785,7 +824,7 @@
 }
 
 .request-name-line span {
-  max-width: 170px;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -801,6 +840,10 @@
   .main {
     grid-template-columns: 1fr;
     grid-template-rows: 170px minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .workspace-resizer {
+    display: none;
   }
 
   .workspace-pane {

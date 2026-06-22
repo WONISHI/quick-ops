@@ -128,6 +128,10 @@ const RESPONSE_PANEL_RESERVED_SIZE = 110;
 const RESPONSE_HEAD_SIZE = 34;
 const RESPONSE_TABS_SIZE = 32;
 const BOTTOM_RESIZER_SIZE = 6;
+const WORKSPACE_PANE_DEFAULT_WIDTH = 218;
+const WORKSPACE_PANE_MIN_WIDTH = 170;
+const WORKSPACE_PANE_MAX_WIDTH = 380;
+const WORKSPACE_RESIZER_SIZE = 6;
 
 function clampNumber(value: number, min: number, max: number) {
   const safeMax = Math.max(min, max);
@@ -383,6 +387,46 @@ function safeBase64(value: string) {
 
 function cloneRequest(request: ApiRequestConfig): ApiRequestConfig {
   return JSON.parse(JSON.stringify(request));
+}
+
+function getComparableKeyValueList(list: KeyValueItem[]) {
+  return (list || []).map((item) => ({
+    enabled: item.enabled !== false,
+    key: String(item.key || ''),
+    value: String(item.value || ''),
+    description: String(item.description || ''),
+  }));
+}
+
+function getComparableRequest(request: ApiRequestConfig) {
+  return {
+    name: String(request.name || ''),
+    method: request.method,
+    url: String(request.url || ''),
+    params: getComparableKeyValueList(request.params),
+    headers: getComparableKeyValueList(request.headers),
+    cookies: getComparableKeyValueList(request.cookies),
+    bodyType: request.bodyType,
+    bodyRaw: String(request.bodyRaw || ''),
+    bodyForm: getComparableKeyValueList(request.bodyForm),
+    auth: {
+      type: request.auth?.type || 'none',
+      token: String(request.auth?.token || ''),
+      username: String(request.auth?.username || ''),
+      password: String(request.auth?.password || ''),
+    },
+    preScript: String(request.preScript || ''),
+    postScript: String(request.postScript || ''),
+    timeout: Number(request.timeout) || 30000,
+  };
+}
+
+function isSameRequest(left: ApiRequestConfig, right: ApiRequestConfig) {
+  return JSON.stringify(getComparableRequest(left)) === JSON.stringify(getComparableRequest(right));
+}
+
+function isDefaultRequestSnapshot(request: ApiRequestConfig) {
+  return isSameRequest(request, createDefaultRequest());
 }
 
 function formatTime(timestamp: number) {
@@ -1102,6 +1146,8 @@ export default function ApiDevToolsApp() {
   const [logs, setLogs] = useState<string[]>([]);
   const [bottomPanelSize, setBottomPanelSize] = useState(BOTTOM_PANEL_DEFAULT_SIZE);
   const [isResizingBottomPanel, setIsResizingBottomPanel] = useState(false);
+  const [workspacePaneWidth, setWorkspacePaneWidth] = useState(WORKSPACE_PANE_DEFAULT_WIDTH);
+  const [isResizingWorkspacePane, setIsResizingWorkspacePane] = useState(false);
   const [sharedDocUrl, setSharedDocUrl] = useState('');
   const [manageDialog, setManageDialog] = useState<ManageDialog>(null);
   const [manageDialogValue, setManageDialogValue] = useState('');
@@ -1116,13 +1162,19 @@ export default function ApiDevToolsApp() {
   const globalVariablesRef = useRef<Record<string, string>>({});
   const rightPaneRef = useRef<HTMLElement | null>(null);
   const bottomPanelSizeRef = useRef(BOTTOM_PANEL_DEFAULT_SIZE);
+  const workspacePaneWidthRef = useRef(WORKSPACE_PANE_DEFAULT_WIDTH);
   const dragStartYRef = useRef(0);
+  const dragStartXRef = useRef(0);
   const dragStartSizeRef = useRef(BOTTOM_PANEL_DEFAULT_SIZE);
+  const dragStartWidthRef = useRef(WORKSPACE_PANE_DEFAULT_WIDTH);
   const isDraggingBottomPanelRef = useRef(false);
+  const isDraggingWorkspacePaneRef = useRef(false);
   const bodyCursorRef = useRef('');
   const bodyUserSelectRef = useRef('');
   const bottomResizerRef = useRef<HTMLDivElement | null>(null);
   const bottomResizerPointerIdRef = useRef<number | null>(null);
+  const workspaceResizerRef = useRef<HTMLDivElement | null>(null);
+  const workspaceResizerPointerIdRef = useRef<number | null>(null);
   const loadedStateRef = useRef(false);
 
   const globalVariables = useMemo(() => {
@@ -1145,6 +1197,18 @@ export default function ApiDevToolsApp() {
     if (!activeProject) return null;
     return activeProject.interfaces.find((item) => item.id === activeInterfaceId) || null;
   }, [activeProject, activeInterfaceId]);
+
+  const requestBindText = useMemo(() => {
+    if (activeProject && activeInterface) {
+      return `绑定项目：${activeProject.name}`;
+    }
+
+    if (activeProject) {
+      return `将保存到：${activeProject.name}`;
+    }
+
+    return '未绑定项目';
+  }, [activeProject, activeInterface]);
 
   useEffect(() => {
     globalsRef.current = globals;
@@ -1177,6 +1241,10 @@ export default function ApiDevToolsApp() {
   useEffect(() => {
     bottomPanelSizeRef.current = bottomPanelSize;
   }, [bottomPanelSize]);
+
+  useEffect(() => {
+    workspacePaneWidthRef.current = workspacePaneWidth;
+  }, [workspacePaneWidth]);
 
   const getBottomPanelMaxSize = useCallback(() => {
     const pane = rightPaneRef.current;
@@ -1311,6 +1379,114 @@ export default function ApiDevToolsApp() {
       document.documentElement.removeEventListener('mouseleave', handleMouseLeaveWebview);
     };
   }, [isResizingBottomPanel, setSafeBottomPanelSize, stopBottomResize]);
+
+  const setSafeWorkspacePaneWidth = useCallback((width: number) => {
+    const nextWidth = clampNumber(width, WORKSPACE_PANE_MIN_WIDTH, WORKSPACE_PANE_MAX_WIDTH);
+
+    workspacePaneWidthRef.current = nextWidth;
+    setWorkspacePaneWidth(nextWidth);
+  }, []);
+
+  const stopWorkspaceResize = useCallback(() => {
+    isDraggingWorkspacePaneRef.current = false;
+    setIsResizingWorkspacePane(false);
+
+    const element = workspaceResizerRef.current;
+    const pointerId = workspaceResizerPointerIdRef.current;
+
+    if (element && pointerId !== null) {
+      try {
+        if (element.hasPointerCapture(pointerId)) {
+          element.releasePointerCapture(pointerId);
+        }
+      } catch {
+        // VS Code Webview 里 pointer capture 偶发不可用，直接忽略即可
+      }
+    }
+
+    workspaceResizerRef.current = null;
+    workspaceResizerPointerIdRef.current = null;
+
+    document.body.style.cursor = bodyCursorRef.current;
+    document.body.style.userSelect = bodyUserSelectRef.current;
+  }, []);
+
+  const handleWorkspaceResizerPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    dragStartXRef.current = event.clientX;
+    dragStartWidthRef.current = workspacePaneWidthRef.current;
+    isDraggingWorkspacePaneRef.current = true;
+
+    workspaceResizerRef.current = event.currentTarget;
+    workspaceResizerPointerIdRef.current = event.pointerId;
+
+    bodyCursorRef.current = document.body.style.cursor;
+    bodyUserSelectRef.current = document.body.style.userSelect;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // VS Code Webview 里 pointer capture 偶发失败，下面 window/document 监听兜底
+    }
+
+    setIsResizingWorkspacePane(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizingWorkspacePane) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isDraggingWorkspacePaneRef.current) return;
+
+      event.preventDefault();
+
+      const deltaX = event.clientX - dragStartXRef.current;
+      const nextWidth = dragStartWidthRef.current + deltaX;
+
+      setSafeWorkspacePaneWidth(nextWidth);
+    };
+
+    const handlePointerEnd = () => {
+      stopWorkspaceResize();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopWorkspaceResize();
+      }
+    };
+
+    const handleMouseLeaveWebview = () => {
+      stopWorkspaceResize();
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerEnd);
+    window.addEventListener('pointercancel', handlePointerEnd);
+    window.addEventListener('blur', handlePointerEnd);
+
+    document.addEventListener('pointerup', handlePointerEnd);
+    document.addEventListener('pointercancel', handlePointerEnd);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.documentElement.addEventListener('mouseleave', handleMouseLeaveWebview);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
+      window.removeEventListener('blur', handlePointerEnd);
+
+      document.removeEventListener('pointerup', handlePointerEnd);
+      document.removeEventListener('pointercancel', handlePointerEnd);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.documentElement.removeEventListener('mouseleave', handleMouseLeaveWebview);
+    };
+  }, [isResizingWorkspacePane, setSafeWorkspacePaneWidth, stopWorkspaceResize]);
 
   useEffect(() => {
     const target = rightPaneRef.current;
@@ -1483,7 +1659,13 @@ export default function ApiDevToolsApp() {
   }, [globals, request, history, projects, activeProjectId, activeInterfaceId, saveState]);
 
   const patchRequest = (patch: Partial<ApiRequestConfig>) => {
-    setRequest((prev) => ({ ...prev, ...patch }));
+    setRequest((prev) => {
+      const next = { ...prev, ...patch };
+
+      requestRef.current = next;
+
+      return next;
+    });
   };
 
   const buildRequestPayload = () => {
@@ -1619,13 +1801,177 @@ export default function ApiDevToolsApp() {
   };
 
   const loadHistory = (item: HistoryItem) => {
-    setRequest(cloneRequest(item.request));
+    if (!confirmSaveBeforeLeave()) return;
+
+    const nextRequest = cloneRequest(item.request);
+
+    requestRef.current = nextRequest;
+    activeInterfaceIdRef.current = '';
+
+    setRequest(nextRequest);
+    setActiveInterfaceId('');
     setRequestTab('params');
+    setResponse(null);
   };
 
   const closeManageDialog = () => {
     setManageDialog(null);
     setManageDialogValue('');
+  };
+
+  const getProjectById = (projectId: string) => {
+    return projectsRef.current.find((project) => project.id === projectId) || null;
+  };
+
+  const getInterfaceById = (projectId: string, interfaceId: string) => {
+    const project = getProjectById(projectId);
+    return project?.interfaces.find((item) => item.id === interfaceId) || null;
+  };
+
+  const hasUnsavedRequest = () => {
+    const currentRequest = requestRef.current;
+    const currentProjectId = activeProjectIdRef.current;
+    const currentInterfaceId = activeInterfaceIdRef.current;
+
+    if (currentProjectId && currentInterfaceId) {
+      const currentInterface = getInterfaceById(currentProjectId, currentInterfaceId);
+
+      if (!currentInterface) {
+        return !isDefaultRequestSnapshot(currentRequest);
+      }
+
+      return !isSameRequest(currentRequest, currentInterface.request);
+    }
+
+    return !isDefaultRequestSnapshot(currentRequest);
+  };
+
+  const resetEditorForProject = (projectId: string) => {
+    const nextRequest = createDefaultRequest();
+
+    activeProjectIdRef.current = projectId;
+    activeInterfaceIdRef.current = '';
+    requestRef.current = nextRequest;
+
+    setActiveProjectId(projectId);
+    setActiveInterfaceId('');
+    setRequest(nextRequest);
+    setRequestTab('params');
+    setResponse(null);
+    setResponseTab('body');
+  };
+
+  const saveCurrentRequestToProject = (options?: { silent?: boolean }) => {
+    const now = Date.now();
+    const snapshot = cloneRequest(requestRef.current);
+    const requestName = snapshot.name || snapshot.url || '未命名接口';
+
+    snapshot.name = requestName;
+
+    let targetProjectId = activeProjectIdRef.current;
+    let targetInterfaceId = activeInterfaceIdRef.current;
+    let nextProjects = projectsRef.current.map((project) => ({
+      ...project,
+      interfaces: project.interfaces.map((api) => ({ ...api })),
+    }));
+
+    if (!targetProjectId || !nextProjects.some((project) => project.id === targetProjectId)) {
+      const project = createProject('默认项目');
+
+      targetProjectId = project.id;
+      nextProjects = [project, ...nextProjects];
+    }
+
+    let savedRequest = cloneRequest(snapshot);
+    let savedInterfaceName = requestName;
+    let savedType: '新增' | '更新' = '新增';
+
+    nextProjects = nextProjects.map((project) => {
+      if (project.id !== targetProjectId) return project;
+
+      const hasInterface = !!targetInterfaceId && project.interfaces.some((api) => api.id === targetInterfaceId);
+
+      if (!hasInterface) {
+        const api = createInterfaceFromRequest(snapshot, requestName);
+
+        targetInterfaceId = api.id;
+        savedRequest = cloneRequest(api.request);
+        savedInterfaceName = api.name;
+
+        return {
+          ...project,
+          updatedAt: now,
+          interfaces: [api, ...project.interfaces],
+        };
+      }
+
+      savedType = '更新';
+
+      return {
+        ...project,
+        updatedAt: now,
+        interfaces: project.interfaces.map((api) => {
+          if (api.id !== targetInterfaceId) return api;
+
+          savedInterfaceName = requestName;
+          savedRequest = cloneRequest(snapshot);
+
+          return {
+            ...api,
+            name: requestName,
+            method: snapshot.method,
+            url: snapshot.url,
+            request: cloneRequest(snapshot),
+            updatedAt: now,
+          };
+        }),
+      };
+    });
+
+    projectsRef.current = nextProjects;
+    activeProjectIdRef.current = targetProjectId;
+    activeInterfaceIdRef.current = targetInterfaceId;
+    requestRef.current = savedRequest;
+
+    setProjects(nextProjects);
+    setActiveProjectId(targetProjectId);
+    setActiveInterfaceId(targetInterfaceId);
+    setRequest(savedRequest);
+
+    saveState({
+      projects: nextProjects,
+      activeProjectId: targetProjectId,
+      activeInterfaceId: targetInterfaceId,
+      request: savedRequest,
+    });
+
+    if (!options?.silent) {
+      setLog(`已${savedType}接口：${savedInterfaceName}`);
+    }
+
+    return true;
+  };
+
+  const confirmSaveBeforeLeave = () => {
+    if (!hasUnsavedRequest()) return true;
+
+    const shouldSave = window.confirm('当前接口有未保存修改，是否先保存？\n确定：保存后继续切换\n取消：留在当前接口');
+
+    if (!shouldSave) return false;
+
+    return saveCurrentRequestToProject({ silent: true });
+  };
+
+  const switchProject = (project: ApiProject) => {
+    const isSameProjectWithoutInterface =
+      activeProjectIdRef.current === project.id && !activeInterfaceIdRef.current;
+
+    if (isSameProjectWithoutInterface) return;
+
+    if (!confirmSaveBeforeLeave()) return;
+
+    resetEditorForProject(project.id);
+    setLog(`已切换项目：${project.name}`);
   };
 
   const addProject = () => {
@@ -1662,16 +2008,6 @@ export default function ApiDevToolsApp() {
     setManageDialogValue('');
   };
 
-  const ensureProjectForInterface = () => {
-    if (activeProjectIdRef.current) return activeProjectIdRef.current;
-
-    const project = createProject('默认项目');
-    projectsRef.current = [project, ...projectsRef.current];
-    setProjects(projectsRef.current);
-    setActiveProjectId(project.id);
-    return project.id;
-  };
-
   const addInterface = () => {
     const value = requestRef.current.name || requestRef.current.url || '未命名接口';
 
@@ -1685,37 +2021,28 @@ export default function ApiDevToolsApp() {
   };
 
   const saveInterface = () => {
-    if (!activeProjectIdRef.current || !activeInterfaceIdRef.current) {
-      addInterface();
-      return;
-    }
-
-    const now = Date.now();
-    const snapshot = cloneRequest(requestRef.current);
-
-    setProjects((prev) =>
-      prev.map((project) => {
-        if (project.id !== activeProjectIdRef.current) return project;
-
-        return {
-          ...project,
-          updatedAt: now,
-          interfaces: project.interfaces.map((api) =>
-            api.id === activeInterfaceIdRef.current
-              ? { ...api, name: snapshot.name || api.name, method: snapshot.method, url: snapshot.url, request: snapshot, updatedAt: now }
-              : api
-          ),
-        };
-      })
-    );
-    setLog(`已保存接口：${snapshot.name || requestRef.current.url || '未命名接口'}`);
+    saveCurrentRequestToProject();
   };
 
   const loadInterface = (project: ApiProject, api: ApiInterfaceItem) => {
+    if (activeProjectIdRef.current === project.id && activeInterfaceIdRef.current === api.id) {
+      return;
+    }
+
+    if (!confirmSaveBeforeLeave()) return;
+
+    const nextRequest = cloneRequest(api.request);
+
+    activeProjectIdRef.current = project.id;
+    activeInterfaceIdRef.current = api.id;
+    requestRef.current = nextRequest;
+
     setActiveProjectId(project.id);
     setActiveInterfaceId(api.id);
-    setRequest(cloneRequest(api.request));
+    setRequest(nextRequest);
     setRequestTab('params');
+    setResponse(null);
+    setResponseTab('body');
     setLog(`已打开接口：${api.name}`);
   };
 
@@ -1738,12 +2065,20 @@ export default function ApiDevToolsApp() {
 
     if (manageDialog.kind === 'project-create') {
       if (!value) return;
+      if (!confirmSaveBeforeLeave()) return;
 
       const project = createProject(value);
+      const nextProjects = [project, ...projectsRef.current];
 
-      setProjects((prev) => [project, ...prev]);
-      setActiveProjectId(project.id);
-      setActiveInterfaceId('');
+      projectsRef.current = nextProjects;
+      setProjects(nextProjects);
+      resetEditorForProject(project.id);
+      saveState({
+        projects: nextProjects,
+        activeProjectId: project.id,
+        activeInterfaceId: '',
+        request: requestRef.current,
+      });
       setLog(`已添加项目：${value}`);
       closeManageDialog();
       return;
@@ -1766,44 +2101,107 @@ export default function ApiDevToolsApp() {
     if (manageDialog.kind === 'interface-create') {
       if (!value) return;
 
-      const projectId = ensureProjectForInterface();
-      const api = createInterfaceFromRequest({ ...requestRef.current, name: value }, value);
+      const now = Date.now();
+      const snapshot = cloneRequest({ ...requestRef.current, name: value });
+      let projectId = activeProjectIdRef.current;
+      let nextProjects = projectsRef.current.map((project) => ({
+        ...project,
+        interfaces: project.interfaces.map((api) => ({ ...api })),
+      }));
 
-      setProjects((prev) =>
-        prev.map((project) =>
-          project.id === projectId ? { ...project, interfaces: [api, ...project.interfaces], updatedAt: Date.now() } : project
-        )
+      if (!projectId || !nextProjects.some((project) => project.id === projectId)) {
+        const project = createProject('默认项目');
+
+        projectId = project.id;
+        nextProjects = [project, ...nextProjects];
+      }
+
+      const api = createInterfaceFromRequest(snapshot, value);
+
+      nextProjects = nextProjects.map((project) =>
+        project.id === projectId
+          ? { ...project, interfaces: [api, ...project.interfaces], updatedAt: now }
+          : project
       );
-      setRequest(api.request);
+
+      projectsRef.current = nextProjects;
+      activeProjectIdRef.current = projectId;
+      activeInterfaceIdRef.current = api.id;
+      requestRef.current = cloneRequest(api.request);
+
+      setProjects(nextProjects);
+      setRequest(cloneRequest(api.request));
       setActiveProjectId(projectId);
       setActiveInterfaceId(api.id);
+      saveState({
+        projects: nextProjects,
+        activeProjectId: projectId,
+        activeInterfaceId: api.id,
+        request: api.request,
+      });
       setLog(`已添加接口：${value}`);
       closeManageDialog();
       return;
     }
 
     if (manageDialog.kind === 'project-delete') {
-      const nextProject = projectsRef.current.find((item) => item.id !== manageDialog.projectId);
+      const nextProjects = projectsRef.current.filter((item) => item.id !== manageDialog.projectId);
+      const nextProject = nextProjects[0];
 
-      setProjects((prev) => prev.filter((item) => item.id !== manageDialog.projectId));
+      projectsRef.current = nextProjects;
+      setProjects(nextProjects);
+
       if (activeProjectIdRef.current === manageDialog.projectId) {
-        setActiveProjectId(nextProject?.id || '');
-        setActiveInterfaceId('');
+        if (nextProject) {
+          resetEditorForProject(nextProject.id);
+        } else {
+          const nextRequest = createDefaultRequest();
+
+          activeProjectIdRef.current = '';
+          activeInterfaceIdRef.current = '';
+          requestRef.current = nextRequest;
+          setActiveProjectId('');
+          setActiveInterfaceId('');
+          setRequest(nextRequest);
+          setResponse(null);
+        }
       }
+
+      saveState({
+        projects: nextProjects,
+        activeProjectId: activeProjectIdRef.current,
+        activeInterfaceId: activeInterfaceIdRef.current,
+        request: requestRef.current,
+      });
       setLog(`已删除项目：${manageDialog.projectName}`);
       closeManageDialog();
       return;
     }
 
     if (manageDialog.kind === 'interface-delete') {
-      setProjects((prev) =>
-        prev.map((item) =>
-          item.id === manageDialog.projectId
-            ? { ...item, interfaces: item.interfaces.filter((current) => current.id !== manageDialog.interfaceId), updatedAt: Date.now() }
-            : item
-        )
+      const nextProjects = projectsRef.current.map((item) =>
+        item.id === manageDialog.projectId
+          ? {
+              ...item,
+              interfaces: item.interfaces.filter((current) => current.id !== manageDialog.interfaceId),
+              updatedAt: Date.now(),
+            }
+          : item
       );
-      if (activeInterfaceIdRef.current === manageDialog.interfaceId) setActiveInterfaceId('');
+
+      projectsRef.current = nextProjects;
+      setProjects(nextProjects);
+
+      if (activeInterfaceIdRef.current === manageDialog.interfaceId) {
+        resetEditorForProject(activeProjectIdRef.current || manageDialog.projectId);
+      }
+
+      saveState({
+        projects: nextProjects,
+        activeProjectId: activeProjectIdRef.current,
+        activeInterfaceId: activeInterfaceIdRef.current,
+        request: requestRef.current,
+      });
       setLog(`已删除接口：${manageDialog.interfaceName}`);
       closeManageDialog();
     }
@@ -1880,7 +2278,13 @@ export default function ApiDevToolsApp() {
           <button className={styles['ghost-btn']} onClick={() => setShowGlobals(true)}>
             变量
           </button>
-          <button className={styles['ghost-btn']} onClick={() => patchRequest(createDefaultRequest())}>
+          <button
+            className={styles['ghost-btn']}
+            onClick={() => {
+              if (!confirmSaveBeforeLeave()) return;
+              resetEditorForProject(activeProjectIdRef.current);
+            }}
+          >
             新请求
           </button>
           <button className={styles['ghost-btn']} onClick={clearAll}>
@@ -1892,7 +2296,15 @@ export default function ApiDevToolsApp() {
         </div>
       </header>
 
-      <main className={styles['main']}>
+      <main
+        className={styles['main']}
+        style={
+          {
+            '--api-workspace-width': `${workspacePaneWidth}px`,
+            '--api-workspace-resizer-size': `${WORKSPACE_RESIZER_SIZE}px`,
+          } as React.CSSProperties
+        }
+      >
         <aside className={styles['workspace-pane']}>
           <div className={styles['workspace-head']}>
             <strong>项目接口</strong>
@@ -1918,11 +2330,36 @@ export default function ApiDevToolsApp() {
                 <div
                   key={project.id}
                   className={[styles['project-card'], activeProjectId === project.id ? styles['project-card-active'] : ''].filter(Boolean).join(' ')}
+                  onClick={() => switchProject(project)}
                 >
                   <div className={styles['project-title-row']}>
-                    <button className={styles['project-title']} onClick={() => setActiveProjectId(project.id)}>{project.name}</button>
-                    <button className={styles['tiny-btn']} onClick={() => renameProject(project)}>改</button>
-                    <button className={styles['tiny-btn']} onClick={() => removeProject(project)}>删</button>
+                    <button
+                      className={styles['project-title']}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        switchProject(project);
+                      }}
+                    >
+                      {project.name}
+                    </button>
+                    <button
+                      className={styles['tiny-btn']}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        renameProject(project);
+                      }}
+                    >
+                      改
+                    </button>
+                    <button
+                      className={styles['tiny-btn']}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        removeProject(project);
+                      }}
+                    >
+                      删
+                    </button>
                   </div>
                   <div className={styles['interface-list']}>
                     {project.interfaces.length === 0 ? (
@@ -1931,14 +2368,33 @@ export default function ApiDevToolsApp() {
                       project.interfaces.map((api) => (
                         <div
                           key={api.id}
-                          className={[styles['interface-item'], activeInterfaceId === api.id ? styles['interface-item-active'] : ''].filter(Boolean).join(' ')}
+                          className={[
+                            styles['interface-item'],
+                            activeProjectId === project.id && activeInterfaceId === api.id ? styles['interface-item-active'] : '',
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
                         >
-                          <button className={styles['interface-main']} onClick={() => loadInterface(project, api)}>
+                          <button
+                            className={styles['interface-main']}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              loadInterface(project, api);
+                            }}
+                          >
                             <span className={styles[`method-${api.method.toLowerCase()}`]}>{api.method}</span>
                             <span className={styles['interface-name']}>{api.name}</span>
                             <span className={styles['interface-url']}>{api.url}</span>
                           </button>
-                          <button className={styles['interface-remove']} onClick={() => removeInterface(project, api)}>×</button>
+                          <button
+                            className={styles['interface-remove']}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              removeInterface(project, api);
+                            }}
+                          >
+                            ×
+                          </button>
                         </div>
                       ))
                     )}
@@ -1948,6 +2404,17 @@ export default function ApiDevToolsApp() {
             )}
           </div>
         </aside>
+
+        <div
+          className={[
+            styles['workspace-resizer'],
+            isResizingWorkspacePane ? styles['workspace-resizer-active'] : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          title="拖拽调整项目接口宽度"
+          onPointerDown={handleWorkspaceResizerPointerDown}
+        />
 
         <section className={styles['left-pane']}>
           <div className={styles['request-line']}>
@@ -1992,7 +2459,7 @@ export default function ApiDevToolsApp() {
               placeholder="接口名称"
               onChange={(event) => patchRequest({ name: event.target.value })}
             />
-            <span>{activeInterface ? `当前：${activeInterface.name}` : '未绑定接口'}</span>
+            <span title={requestBindText}>{requestBindText}</span>
           </div>
 
           <div className={styles['tabs']}>
