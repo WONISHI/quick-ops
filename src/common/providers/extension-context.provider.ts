@@ -15,35 +15,35 @@ export class ExtensionContextProvider {
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   /**
-   * 获取原始 ExtensionContext
+   * @description 获取原始 ExtensionContext
    */
   public getContext(): vscode.ExtensionContext {
     return this.context;
   }
 
   /**
-   * 插件订阅列表
+   * @description 插件订阅列表
    */
   public get subscriptions(): vscode.Disposable[] {
     return this.context.subscriptions;
   }
 
   /**
-   * 插件安装目录 URI
+   * @description 插件安装目录 URI
    */
   public get extensionUri(): vscode.Uri {
     return this.context.extensionUri;
   }
 
   /**
-   * 插件安装目录绝对路径
+   * @description 插件安装目录绝对路径
    */
   public get extensionPath(): string {
     return this.context.extensionPath;
   }
 
   /**
-   * 全局状态
+   * @description 全局状态
    */
   public get globalState(): vscode.Memento & {
     setKeysForSync(keys: readonly string[]): void;
@@ -52,63 +52,63 @@ export class ExtensionContextProvider {
   }
 
   /**
-   * 工作区状态
+   * @description 工作区状态
    */
   public get workspaceState(): vscode.Memento {
     return this.context.workspaceState;
   }
 
   /**
-   * 插件全局存储目录 URI
+   * @description 插件全局存储目录 URI
    */
   public get globalStorageUri(): vscode.Uri {
     return this.context.globalStorageUri;
   }
 
   /**
-   * 插件工作区存储目录 URI
+   * @description 插件工作区存储目录 URI
    */
   public get storageUri(): vscode.Uri | undefined {
     return this.context.storageUri;
   }
 
   /**
-   * 插件日志目录 URI
+   * @description 插件日志目录 URI
    */
   public get logUri(): vscode.Uri {
     return this.context.logUri;
   }
 
   /**
-   * 插件密钥存储
+   * @description 插件密钥存储
    */
   public get secrets(): vscode.SecretStorage {
     return this.context.secrets;
   }
 
   /**
-   * 当前插件 ID
+   * @description 当前插件 ID
    */
   public get extensionId(): string {
     return this.context.extension.id;
   }
 
   /**
-   * 当前插件 package.json
+   * @description 当前插件 package.json
    */
   public get packageJSON(): any {
     return this.context.extension.packageJSON;
   }
 
   /**
-   * 判断插件当前是否激活
+   * @description 判断插件当前是否激活
    */
   public get isActive(): boolean {
     return this.context.extension.isActive;
   }
 
   /**
-   * 注册 disposable
+   * @description 注册 disposable
    */
   public register(...disposables: vscode.Disposable[]): void {
     this.context.subscriptions.push(...disposables);
@@ -122,21 +122,21 @@ export class ExtensionContextProvider {
   }
 
   /**
-   * 获取插件目录下文件 URI
+   * @description 获取插件目录下文件 URI
    */
   public getExtensionUri(...paths: string[]): vscode.Uri {
     return vscode.Uri.joinPath(this.context.extensionUri, ...paths);
   }
 
   /**
-   * 获取全局存储目录下文件 URI
+   * @description 获取全局存储目录下文件 URI
    */
   public getGlobalStorageUri(...paths: string[]): vscode.Uri {
     return vscode.Uri.joinPath(this.context.globalStorageUri, ...paths);
   }
 
   /**
-   * 获取工作区存储目录下文件 URI
+   * @description 获取工作区存储目录下文件 URI
    */
   public getWorkspaceStorageUri(...paths: string[]): vscode.Uri | undefined {
     if (!this.context.storageUri) {
@@ -147,7 +147,7 @@ export class ExtensionContextProvider {
   }
 
   /**
-   * 获取日志目录下文件 URI
+   * @description 获取日志目录下文件 URI
    */
   public getLogUri(...paths: string[]): vscode.Uri {
     return vscode.Uri.joinPath(this.context.logUri, ...paths);

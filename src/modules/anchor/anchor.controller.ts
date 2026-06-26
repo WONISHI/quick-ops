@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import ColorLog from '../../utils/ColorLog';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
+import ColorLog from '@/utils/ColorLog';
+import { ExtensionContextProvider } from '@/common/providers/extension-context.provider';
 import { AnchorService } from './anchor.service';
 import type { AnchorDirection } from './anchor.type';
+import type { OnModuleInit } from '@/core/lifecycle/lifecycle.interface';
 
 export class AnchorController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, AnchorService];
@@ -15,7 +15,11 @@ export class AnchorController implements OnModuleInit {
     private readonly anchorService: AnchorService,
   ) {}
 
+  /**
+   * @description 生命周期初始化
+   */
   public onModuleInit(): void {
+    /** 获取插件上下文对象 */
     const context = this.extensionContextProvider.getContext();
 
     this.anchorService.init(context);
@@ -39,6 +43,12 @@ export class AnchorController implements OnModuleInit {
   }
 
   private registerCodeLensProvider(): void {
+    // 教程地址：https://juejin.cn/post/6976996315771174942
+    // 注册可以生效的CodeLens
+    /**
+     * scheme: 'file' 意味着这个 CodeLens 提示只会在保存在本地磁盘上的真实物理文件中显示。
+     * 它排除了其他类型的文件，比如还没保存的“无标题”文件（scheme: 'untitled'）、Git 历史对比文件、或者是通过网络打开的远程文件
+     */
     this.extensionContextProvider.register(vscode.languages.registerCodeLensProvider({ scheme: 'file' }, this.anchorService.createCodeLensProvider()));
   }
 
