@@ -24,12 +24,20 @@ export class AnchorController implements OnModuleInit {
 
     this.anchorService.init(context);
 
+    // 注册provider
     this.registerCodeLensProvider();
+
+    // 注册事件
     this.registerListeners();
+    // 注册命令
     this.registerCommands();
 
-    this.anchorService.updateProjectContextKey();
+    /**
+     * @description 初始检查整个项目是否有锚点
+     */
+    this.anchorService.checkContainsAnchor();
 
+    // ？？？
     const timer = setTimeout(() => {
       this.anchorService.updateDecorations();
       clearTimeout(timer);
@@ -56,7 +64,7 @@ export class AnchorController implements OnModuleInit {
     this.extensionContextProvider.register(
       this.anchorService.onDidChangeAnchors(() => {
         this.anchorService.updateDecorations();
-        this.anchorService.updateProjectContextKey();
+        this.anchorService.checkContainsAnchor();
         this.anchorService.refreshMindMapPanel();
       }),
 
@@ -70,6 +78,9 @@ export class AnchorController implements OnModuleInit {
     );
   }
 
+  /**
+   * @description 注册命令
+   */
   private registerCommands(): void {
     this.extensionContextProvider.register(
       vscode.commands.registerCommand('quick-ops.anchor.add', async (...args: any[]) => {

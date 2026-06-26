@@ -1,10 +1,23 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { debounce, isFunction, isNumber } from 'lodash-es';
-import { getReactWebviewHtml } from '../../utils/WebviewHelper';
-import { ColorUtils } from '../../utils/ColorUtils';
-import { ConfigurationService } from '../../common/services/configuration.service';
-import type { AnchorChildCreateInput, AnchorConfig, AnchorCreateInput, AnchorData, AnchorDirection, AnchorEditorContext, AnchorInsertPosition, AnchorMindMapNode, AnchorMoveDirection, AnchorQuickPickItem, AnchorUpdateInput, AnchorWebviewMessage } from './anchor.type';
+import { getReactWebviewHtml } from '@/utils/WebviewHelper';
+import { ColorUtils } from '@/utils/ColorUtils';
+import { ConfigurationService } from '@/common/services/configuration.service';
+import type {
+  AnchorChildCreateInput,
+  AnchorConfig,
+  AnchorCreateInput,
+  AnchorData,
+  AnchorDirection,
+  AnchorEditorContext,
+  AnchorInsertPosition,
+  AnchorMindMapNode,
+  AnchorMoveDirection,
+  AnchorQuickPickItem,
+  AnchorUpdateInput,
+  AnchorWebviewMessage,
+} from './anchor.type';
 
 const ANCHOR_TOOLTIPS = {
   ADD_NOTE: '添加备注',
@@ -20,6 +33,7 @@ const ANCHOR_TOOLTIPS = {
 export class AnchorService {
   public static inject = [ConfigurationService];
 
+  // 工作区存储的 Key
   private readonly stateKey = 'quickOps.workspaceAnchors';
   private readonly defaultGroups = ['default', 'Default', 'TODO', 'FIXME'];
 
@@ -46,6 +60,10 @@ export class AnchorService {
 
   constructor(private readonly configurationService: ConfigurationService) {}
 
+  /**
+   * @description 服务初始化
+   * @param context
+   */
   public init(context: vscode.ExtensionContext): void {
     this.context = context;
     this.load();
@@ -66,10 +84,12 @@ export class AnchorService {
     return new AnchorCodeLensProvider(this);
   }
 
-  public updateProjectContextKey(): void {
+  /**
+   * @description 检查是否含有锚点
+   */
+  public checkContainsAnchor(): void {
     const allAnchors = this.getAnchors();
     const hasAnchors = allAnchors.length > 0;
-
     void vscode.commands.executeCommand('setContext', 'quickOps.hasAnchorsInProject', hasAnchors);
   }
 
@@ -187,7 +207,10 @@ export class AnchorService {
 
     const insertLineDisplay = pinnedLineIndex !== undefined ? pinnedLineIndex + 1 : '?';
 
-    quickPick.title = pinnedLineIndex !== undefined && !isPreviewMode ? `${ColorUtils.getEmoji(groupName)} [${groupName}] (待插入: 第 ${insertLineDisplay} 行)` : `${ColorUtils.getEmoji(groupName)} [${groupName}] 列表`;
+    quickPick.title =
+      pinnedLineIndex !== undefined && !isPreviewMode
+        ? `${ColorUtils.getEmoji(groupName)} [${groupName}] (待插入: 第 ${insertLineDisplay} 行)`
+        : `${ColorUtils.getEmoji(groupName)} [${groupName}] 列表`;
 
     const mapItems = (): AnchorQuickPickItem[] => {
       const latestAnchors = this.anchors.filter((anchor) => anchor.group === groupName);
@@ -646,12 +669,15 @@ export class AnchorService {
     return root;
   }
 
+  /**
+   * @description 加载工作区的锚点
+   * @returns
+   */
   private load(): void {
     if (!this.context) return;
 
     try {
       const data = this.context.workspaceState.get<AnchorConfig>(this.stateKey);
-
       if (data) {
         this.anchors = data.anchors || [];
         this.groups = data.groups || ['Default'];
@@ -677,13 +703,12 @@ export class AnchorService {
 
   private async persist(): Promise<void> {
     if (!this.context) return;
-
     const data: AnchorConfig = {
       groups: this.groups,
       children: this.itemGroups,
       anchors: this.anchors,
     };
-
+    console.log('data', data);
     try {
       await this.context.workspaceState.update(this.stateKey, data);
     } catch (error) {
@@ -693,21 +718,17 @@ export class AnchorService {
 
   private refreshFlotAnchors(): void {
     const allAnchors = new Set<AnchorData>();
-
     const traverse = (items: AnchorData[]): void => {
       items.forEach((item) => {
         allAnchors.add(item);
-
         if (item.items?.length) {
           traverse(item.items);
         }
       });
     };
-
     if (this.anchors.length) {
       traverse(this.anchors);
     }
-
     this.flotAnchors = Array.from(allAnchors);
   }
 
@@ -1060,16 +1081,12 @@ export class AnchorService {
         value: suggestion,
         prompt: '确认新分组路径',
       });
-
       if (!input) return;
-
       targetGroupName = input.trim();
     }
 
     this.addChild(targetGroupName);
-
     const ctx = this.getEditorContext(pinnedLineIndex);
-
     if (ctx) {
       this.addChildAnchor(parentAnchor.id, {
         filePath: ctx.relativePath,
@@ -1077,7 +1094,6 @@ export class AnchorService {
         content: ctx.text,
         group: targetGroupName,
       });
-
       vscode.window.showInformationMessage(`已创建子分组: ${targetGroupName}`);
       this.updateDecorations();
       return;
@@ -1146,27 +1162,21 @@ export class AnchorService {
       case '.js':
       case '.jsx':
         return '$(file-code)';
-
       case '.vue':
       case '.html':
         return '$(browser)';
-
       case '.css':
       case '.scss':
       case '.less':
         return '$(paintcan)';
-
       case '.json':
         return '$(json)';
-
       case '.md':
         return '$(markdown)';
-
       case '.png':
       case '.jpg':
       case '.svg':
         return '$(file-media)';
-
       default:
         return '$(file)';
     }
@@ -1214,6 +1224,7 @@ class AnchorCodeLensProvider implements vscode.CodeLensProvider {
   private debounceTimer: NodeJS.Timeout | undefined;
 
   constructor(private readonly anchorService: AnchorService) {
+    /** 监听事件 */
     this.anchorService.onDidChangeAnchors(() => {
       if (this.isInternalUpdate) return;
 
