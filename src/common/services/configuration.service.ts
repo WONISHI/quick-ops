@@ -78,22 +78,16 @@ export class ConfigurationService extends EventEmitter {
    */
   public async init(context?: vscode.ExtensionContext): Promise<void> {
     this.context = context;
-
     await this.handleGitConfiguration();
-
     if (context) {
       this.configurationChangeDisposable = vscode.workspace.onDidChangeConfiguration((event) => {
         if (!event.affectsConfiguration('quick-ops')) return;
-
         this.emit('configChanged', this.config);
-
         if (event.affectsConfiguration('quick-ops.git.ignoreList') || event.affectsConfiguration('quick-ops.general.excludeConfigFiles')) {
           void this.handleGitConfiguration();
         }
       });
-
       this.decorationProviderDisposable = vscode.window.registerFileDecorationProvider(new GitIgnoreDecorationProvider(this));
-
       context.subscriptions.push(this.configurationChangeDisposable, this.decorationProviderDisposable);
     }
 

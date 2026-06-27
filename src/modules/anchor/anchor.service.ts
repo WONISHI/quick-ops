@@ -117,6 +117,7 @@ export class AnchorService {
 
   public async executeShowAnchorMenuCommand(): Promise<void> {
     const config = this.configurationService.config?.general || {};
+    console.log('anchor.service.ts文件的:第119行' , this.configurationService)
     const mode = config.anchorViewMode || 'menu';
 
     if (mode === 'mindmap') {

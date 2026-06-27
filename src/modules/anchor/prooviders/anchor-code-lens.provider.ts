@@ -113,7 +113,6 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
 
     parents.forEach((parent) => {
       const emoji = ColorUtils.getEmoji(parent.group);
-
       lenses.push(
         new vscode.CodeLens(range, {
           title: `${emoji} ${parent.group}:${parent.sort} >`,
@@ -127,7 +126,6 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
 
   private pushCurrentCodeLens(lenses: vscode.CodeLens[], range: vscode.Range, anchor: AnchorData): void {
     const emoji = ColorUtils.getEmoji(anchor.group);
-
     lenses.push(
       new vscode.CodeLens(range, {
         title: `${emoji} ${anchor.group}:${anchor.sort}`,
