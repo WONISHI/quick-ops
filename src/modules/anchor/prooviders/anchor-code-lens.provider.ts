@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
+import { ExtensionContextProvider } from '@/common/providers/extension-context.provider';
 import { ColorUtils } from '@/utils/ColorUtils';
 import { AnchorService } from '../anchor.service';
 import type { AnchorData } from '../anchor.type';
@@ -12,7 +12,10 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
   private isInternalUpdate = false;
   private debounceTimer: NodeJS.Timeout | undefined;
 
-  constructor(private readonly anchorService: AnchorService) {
+  constructor(
+    private readonly anchorService: AnchorService,
+    private readonly extensionContextProvider: ExtensionContextProvider,
+  ) {
     /**
      * @description 监听锚点数据变化，并通知 VS Code 重新计算 CodeLens
      *
@@ -54,9 +57,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
    */
   public provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
     const lenses: vscode.CodeLens[] = [];
-    const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-    const relativePath = path.relative(rootPath, document.uri.fsPath).replace(/\\/g, '/');
-
+    const relativePath = this.extensionContextProvider.getDocumentRelativePath(document);
     const anchors = this.anchorService.getAnchors(relativePath);
 
     let contentToLinesMap: Map<string, number[]> | null = null;

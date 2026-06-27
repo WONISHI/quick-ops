@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { TOKENS } from '../../core/container/token';
 
 /**
@@ -108,6 +109,27 @@ export class ExtensionContextProvider {
   }
 
   /**
+   * @description 获取当前第一个工作区
+   */
+  public get workspaceFolder(): vscode.WorkspaceFolder | undefined {
+    return vscode.workspace.workspaceFolders?.[0];
+  }
+
+  /**
+   * @description 获取当前第一个工作区 URI
+   */
+  public get workspaceUri(): vscode.Uri | undefined {
+    return this.workspaceFolder?.uri;
+  }
+
+  /**
+   * @description 获取当前第一个工作区绝对路径
+   */
+  public get workspacePath(): string {
+    return this.workspaceFolder?.uri.fsPath || '';
+  }
+
+  /**
    * @description 注册 disposable
    */
   public register(...disposables: vscode.Disposable[]): void {
@@ -115,7 +137,7 @@ export class ExtensionContextProvider {
   }
 
   /**
-   * 获取插件目录下文件的绝对路径
+   * @description 获取插件目录下文件的绝对路径
    */
   public asAbsolutePath(relativePath: string): string {
     return this.context.asAbsolutePath(relativePath);
@@ -151,5 +173,74 @@ export class ExtensionContextProvider {
    */
   public getLogUri(...paths: string[]): vscode.Uri {
     return vscode.Uri.joinPath(this.context.logUri, ...paths);
+  }
+
+  /**
+   * @description 把路径统一成 POSIX 风格
+   *
+   * 例如：
+   * - Windows: src\modules\anchor\anchor.service.ts
+   * - 统一后: src/modules/anchor/anchor.service.ts
+   */
+  public normalizePath(value: string): string {
+    return value.replace(/\\/g, '/');
+  }
+
+  /**
+   * @description 根据文件 URI 获取它所属的工作区
+   *
+   * 多工作区场景下，优先使用 vscode.workspace.getWorkspaceFolder(uri)
+   * 判断文件真正属于哪个 workspace。
+   */
+  public getWorkspaceFolderByUri(
+    uri: vscode.Uri,
+  ): vscode.WorkspaceFolder | undefined {
+    return vscode.workspace.getWorkspaceFolder(uri) || this.workspaceFolder;
+  }
+
+  /**
+   * @description 获取指定文件所属工作区的根目录路径
+   */
+  public getWorkspacePathByUri(uri: vscode.Uri): string {
+    return this.getWorkspaceFolderByUri(uri)?.uri.fsPath || '';
+  }
+
+  /**
+   * @description 获取文件相对于工作区根目录的路径
+   *
+   * 使用场景：
+   * - 锚点保存的是相对路径，例如 src/modules/anchor/anchor.service.ts
+   * - document.uri.fsPath 是绝对路径
+   * - 所以需要统一转成相对路径，才能和锚点 filePath 匹配
+   */
+  public getRelativePathByUri(uri: vscode.Uri): string {
+    const workspacePath = this.getWorkspacePathByUri(uri);
+
+    if (!workspacePath) {
+      return this.normalizePath(uri.fsPath);
+    }
+
+    return this.normalizePath(path.relative(workspacePath, uri.fsPath));
+  }
+
+  /**
+   * @description 获取文档相对于工作区根目录的路径
+   */
+  public getDocumentRelativePath(document: vscode.TextDocument): string {
+    return this.getRelativePathByUri(document.uri);
+  }
+
+  /**
+   * @description 判断指定 URI 是否在当前工作区内
+   */
+  public isUriInWorkspace(uri: vscode.Uri): boolean {
+    const workspaceFolder = this.getWorkspaceFolderByUri(uri);
+
+    if (!workspaceFolder) return false;
+
+    const workspacePath = this.normalizePath(workspaceFolder.uri.fsPath);
+    const targetPath = this.normalizePath(uri.fsPath);
+
+    return targetPath === workspacePath || targetPath.startsWith(`${workspacePath}/`);
   }
 }

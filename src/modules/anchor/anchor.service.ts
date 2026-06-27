@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { debounce, isFunction, isNumber } from 'lodash-es';
+import { ExtensionContextProvider } from '@/common/providers/extension-context.provider';
 import { AnchorCodeLensProvider } from './prooviders/anchor-code-lens.provider';
 import { getReactWebviewHtml } from '@/utils/WebviewHelper';
 import { ColorUtils } from '@/utils/ColorUtils';
@@ -59,7 +60,10 @@ export class AnchorService {
     this.updateDecorations();
   }, 200);
 
-  constructor(private readonly configurationService: ConfigurationService) {}
+  constructor(
+    private readonly configurationService: ConfigurationService,
+    private readonly extensionContextProvider: ExtensionContextProvider,
+  ) {}
 
   /**
    * @description 服务初始化
@@ -82,7 +86,7 @@ export class AnchorService {
   }
 
   public createCodeLensProvider(): vscode.CodeLensProvider {
-    return new AnchorCodeLensProvider(this);
+    return new AnchorCodeLensProvider(this, this.extensionContextProvider);
   }
 
   /**
