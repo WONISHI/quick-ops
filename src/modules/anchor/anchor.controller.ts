@@ -84,11 +84,11 @@ export class AnchorController implements OnModuleInit {
   private registerCommands(): void {
     this.extensionContextProvider.register(
       vscode.commands.registerCommand('quick-ops.anchor.add', async (...args: any[]) => {
-        await this.anchorService.handleAddAnchorCommand(...args);
+        await this.anchorService.executeAddAnchorCommand(...args);
       }),
 
       vscode.commands.registerCommand('quick-ops.anchor.showMenu', async () => {
-        await this.anchorService.handleShowMenuCommand();
+        await this.anchorService.executeShowAnchorMenuCommand();
       }),
 
       vscode.commands.registerCommand('quick-ops.anchor.listByGroup', async (groupName: string, anchorId: string) => {

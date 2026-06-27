@@ -64,27 +64,20 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
 
     for (const anchor of anchors) {
       let targetLineIndex = Math.max(0, anchor.line - 1);
-
       if (targetLineIndex >= document.lineCount) {
         continue;
       }
-
       const currentLineContent = document.lineAt(targetLineIndex).text.trim();
-
       if (currentLineContent !== anchor.content) {
         if (!contentToLinesMap) {
           contentToLinesMap = this.buildContentToLinesMap(document);
         }
-
         const candidates = contentToLinesMap.get(anchor.content);
-
         if (candidates?.length) {
           const foundLineIndex = candidates.reduce((prev, curr) => {
             return Math.abs(curr - targetLineIndex) < Math.abs(prev - targetLineIndex) ? curr : prev;
           });
-
           targetLineIndex = foundLineIndex;
-
           this.isInternalUpdate = true;
           this.anchorService.updateAnchorLine(anchor.id, foundLineIndex + 1);
           this.isInternalUpdate = false;

@@ -115,7 +115,7 @@ export class AnchorService {
     });
   }
 
-  public async handleShowMenuCommand(): Promise<void> {
+  public async executeShowAnchorMenuCommand(): Promise<void> {
     const config = this.configurationService.config?.general || {};
     const mode = config.anchorViewMode || 'menu';
 
@@ -127,7 +127,7 @@ export class AnchorService {
     this.showGroupList(true);
   }
 
-  public async handleAddAnchorCommand(...args: any[]): Promise<void> {
+  public async executeAddAnchorCommand(...args: any[]): Promise<void> {
     try {
       let argLineIndex: number | undefined;
 
@@ -406,13 +406,16 @@ export class AnchorService {
     }
   }
 
+  /**
+   * @description 获取扁平的锚点数据
+   * @param filePath 
+   * @returns 
+   */
   public getAnchors(filePath?: string): AnchorData[] {
     if (filePath) {
       const targetPath = this.normalizePath(filePath);
-
       return this.flotAnchors.filter((anchor) => this.normalizePath(anchor.filePath) === targetPath);
     }
-
     return this.flotAnchors;
   }
 
