@@ -2,6 +2,23 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { TOKENS } from '../../core/container/token';
 
+export interface OpenWorkspaceTextDocumentAtLineOptions {
+  /**
+   * @description 打开文件时使用的编辑器列
+   */
+  viewColumn?: vscode.ViewColumn;
+
+  /**
+   * @description 是否以预览模式打开
+   */
+  preview?: boolean;
+
+  /**
+   * @description 跳转到目标行后的滚动展示方式
+   */
+  revealType?: vscode.TextEditorRevealType;
+}
+
 /**
  * VSCode ExtensionContext 全局上下文 Provider
  *
@@ -9,6 +26,7 @@ import { TOKENS } from '../../core/container/token';
  * 1. 统一管理 vscode.ExtensionContext
  * 2. 让 service / provider / controller 都可以通过依赖注入拿到 context
  * 3. 避免到处把 context 当参数传来传去
+ * 4. 统一封装工作区路径、URI、文档打开等通用能力
  */
 export class ExtensionContextProvider {
   public static inject = [TOKENS.ExtensionContext];
@@ -130,7 +148,7 @@ export class ExtensionContextProvider {
   }
 
   /**
-   * @description 注册 disposable
+   * @description 注册 disposable，统一放进 context.subscriptions
    */
   public register(...disposables: vscode.Disposable[]): void {
     this.context.subscriptions.push(...disposables);
@@ -178,9 +196,14 @@ export class ExtensionContextProvider {
   /**
    * @description 把路径统一成 POSIX 风格
    *
-   * 例如：
-   * - Windows: src\modules\anchor\anchor.service.ts
-   * - 统一后: src/modules/anchor/anchor.service.ts
+   * 用途：
+   * - Windows 路径分隔符是 \
+   * - macOS / Linux 路径分隔符是 /
+   * - 扩展内部保存路径时建议统一成 /
+   *
+   * 示例：
+   * - src\modules\anchor\anchor.service.ts
+   * - 转成 src/modules/anchor/anchor.service.ts
    */
   public normalizePath(value: string): string {
     return value.replace(/\\/g, '/');
@@ -189,8 +212,10 @@ export class ExtensionContextProvider {
   /**
    * @description 根据文件 URI 获取它所属的工作区
    *
-   * 多工作区场景下，优先使用 vscode.workspace.getWorkspaceFolder(uri)
-   * 判断文件真正属于哪个 workspace。
+   * 说明：
+   * - 多工作区场景下，不能只拿 workspaceFolders[0]
+   * - vscode.workspace.getWorkspaceFolder(uri) 可以判断文件真正属于哪个工作区
+   * - 如果判断不到，则回退到第一个工作区
    */
   public getWorkspaceFolderByUri(
     uri: vscode.Uri,
@@ -199,7 +224,7 @@ export class ExtensionContextProvider {
   }
 
   /**
-   * @description 获取指定文件所属工作区的根目录路径
+   * @description 获取指定 URI 所属工作区的根目录路径
    */
   public getWorkspacePathByUri(uri: vscode.Uri): string {
     return this.getWorkspaceFolderByUri(uri)?.uri.fsPath || '';
@@ -211,7 +236,7 @@ export class ExtensionContextProvider {
    * 使用场景：
    * - 锚点保存的是相对路径，例如 src/modules/anchor/anchor.service.ts
    * - document.uri.fsPath 是绝对路径
-   * - 所以需要统一转成相对路径，才能和锚点 filePath 匹配
+   * - 所以需要把绝对路径转成相对路径，才能和锚点 filePath 匹配
    */
   public getRelativePathByUri(uri: vscode.Uri): string {
     const workspacePath = this.getWorkspacePathByUri(uri);
@@ -242,5 +267,89 @@ export class ExtensionContextProvider {
     const targetPath = this.normalizePath(uri.fsPath);
 
     return targetPath === workspacePath || targetPath.startsWith(`${workspacePath}/`);
+  }
+
+  /**
+   * @description 根据工作区相对路径获取文件 URI
+   *
+   * 支持：
+   * 1. 相对路径：src/index.ts
+   * 2. 绝对路径：/Users/xxx/project/src/index.ts
+   * 3. URI 字符串：file:///Users/xxx/project/src/index.ts
+   */
+  public getWorkspaceFileUri(filePath: string): vscode.Uri | undefined {
+    if (!filePath) return undefined;
+
+    if (filePath.includes('://')) {
+      return vscode.Uri.parse(filePath);
+    }
+
+    if (path.isAbsolute(filePath)) {
+      return vscode.Uri.file(filePath);
+    }
+
+    if (!this.workspacePath) {
+      return undefined;
+    }
+
+    return vscode.Uri.file(path.join(this.workspacePath, filePath));
+  }
+
+  /**
+   * @description 根据工作区相对路径获取文件绝对路径
+   */
+  public getWorkspaceFileAbsolutePath(filePath: string): string {
+    const uri = this.getWorkspaceFileUri(filePath);
+
+    return uri?.fsPath || '';
+  }
+
+  /**
+   * @description 打开工作区内的文本文件
+   */
+  public async openWorkspaceTextDocument(
+    filePath: string,
+  ): Promise<vscode.TextDocument | undefined> {
+    const uri = this.getWorkspaceFileUri(filePath);
+
+    if (!uri) return undefined;
+
+    return vscode.workspace.openTextDocument(uri);
+  }
+
+  /**
+   * @description 打开工作区内文件，并跳转到指定行
+   *
+   * 注意：
+   * - uiLine 是用户看到的行号，从 1 开始
+   * - vscode.Position 的行号从 0 开始
+   * - 所以这里会做 uiLine - 1
+   */
+  public async openWorkspaceTextDocumentAtLine(
+    filePath: string,
+    uiLine: number,
+    options: OpenWorkspaceTextDocumentAtLineOptions = {},
+  ): Promise<vscode.TextEditor | undefined> {
+    const document = await this.openWorkspaceTextDocument(filePath);
+
+    if (!document) return undefined;
+
+    const editor = await vscode.window.showTextDocument(document, {
+      viewColumn: options.viewColumn ?? vscode.ViewColumn.Active,
+      preview: options.preview ?? false,
+    });
+
+    const maxLineIndex = Math.max(0, document.lineCount - 1);
+    const lineIndex = Math.min(Math.max(0, uiLine - 1), maxLineIndex);
+    const position = new vscode.Position(lineIndex, 0);
+    const range = new vscode.Range(position, position);
+
+    editor.selection = new vscode.Selection(position, position);
+    editor.revealRange(
+      range,
+      options.revealType ?? vscode.TextEditorRevealType.InCenter,
+    );
+
+    return editor;
   }
 }

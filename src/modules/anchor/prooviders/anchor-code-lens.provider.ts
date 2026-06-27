@@ -39,31 +39,23 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
   }
 
   /**
-   * @description 监听锚点数据变化，并通知 VS Code 重新计算 CodeLens
+   * @description 为当前文档生成 CodeLens
    *
-   * 触发链路：
-   * 1. 用户新增 / 删除 / 修改锚点
-   * 2. AnchorService.save()
-   * 3. AnchorService 触发 onDidChangeAnchors
-   * 4. AnchorCodeLensProvider 监听到锚点变化
-   * 5. 调用 this.changeEmitter.fire()
-   * 6. 触发 onDidChangeCodeLenses
-   * 7. VS Code 重新调用 provideCodeLenses()
-   * 8. 编辑器上的 CodeLens 更新
-   *
-   * 注意：
-   * - 这里加 200ms 防抖，避免频繁操作锚点时重复刷新 CodeLens。
-   * - 如果是 CodeLensProvider 内部自动修正锚点行号导致的变化，则通过 isInternalUpdate 跳过本次刷新。
+   * 处理流程：
+   * 1. 获取当前文档相对于工作区的路径
+   * 2. 根据相对路径查找该文件下的锚点
+   * 3. 校验锚点记录的行号是否仍然匹配原始内容
+   * 4. 如果行号偏移，则根据锚点内容重新定位到最近的匹配行
+   * 5. 为每个锚点生成父级、当前项、操作按钮 CodeLens
    */
   public provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
     const lenses: vscode.CodeLens[] = [];
     const relativePath = this.extensionContextProvider.getDocumentRelativePath(document);
     const anchors = this.anchorService.getAnchors(relativePath);
-
     let contentToLinesMap: Map<string, number[]> | null = null;
-
     for (const anchor of anchors) {
       let targetLineIndex = Math.max(0, anchor.line - 1);
+
       if (targetLineIndex >= document.lineCount) {
         continue;
       }
@@ -78,51 +70,43 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
             return Math.abs(curr - targetLineIndex) < Math.abs(prev - targetLineIndex) ? curr : prev;
           });
           targetLineIndex = foundLineIndex;
-          this.isInternalUpdate = true;
-          this.anchorService.updateAnchorLine(anchor.id, foundLineIndex + 1);
-          this.isInternalUpdate = false;
+          try {
+            this.isInternalUpdate = true;
+            this.anchorService.updateAnchorLine(anchor.id, foundLineIndex + 1);
+          } finally {
+            this.isInternalUpdate = false;
+          }
         } else {
           continue;
         }
       }
-
       const range = new vscode.Range(targetLineIndex, 0, targetLineIndex, 0);
-
       this.pushParentCodeLenses(lenses, range, anchor);
       this.pushCurrentCodeLens(lenses, range, anchor);
       this.pushActionCodeLenses(lenses, range, anchor);
     }
-
     return lenses;
   }
 
   private buildContentToLinesMap(document: vscode.TextDocument): Map<string, number[]> {
     const map = new Map<string, number[]>();
-
     for (let lineIndex = 0; lineIndex < document.lineCount; lineIndex++) {
       const lineText = document.lineAt(lineIndex).text.trim();
-
       if (!lineText) continue;
-
       if (!map.has(lineText)) {
         map.set(lineText, []);
       }
-
       map.get(lineText)?.push(lineIndex);
     }
-
     return map;
   }
 
   private pushParentCodeLenses(lenses: vscode.CodeLens[], range: vscode.Range, anchor: AnchorData): void {
     const parents: AnchorData[] = [];
     let currentItem = anchor;
-
     while (currentItem.pid) {
       const parent = this.anchorService.getAnchorById(currentItem.pid);
-
       if (!parent) break;
-
       parents.unshift(parent);
       currentItem = parent;
     }

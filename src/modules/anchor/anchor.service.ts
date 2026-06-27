@@ -33,7 +33,7 @@ const ANCHOR_TOOLTIPS = {
 } as const;
 
 export class AnchorService {
-  public static inject = [ConfigurationService];
+  public static inject = [ConfigurationService, ExtensionContextProvider];
 
   // 工作区存储的 Key
   private readonly stateKey = 'quickOps.workspaceAnchors';
@@ -355,10 +355,8 @@ export class AnchorService {
   }
 
   public async syncAnchorsWithContent(doc: vscode.TextDocument): Promise<void> {
-    const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-    const relativePath = path.relative(rootPath, doc.uri.fsPath).replace(/\\/g, '/');
-
-    const fileAnchors = this.getAnchors().filter((anchor) => anchor.filePath === relativePath);
+    const relativePath = this.extensionContextProvider.getDocumentRelativePath(doc);
+    const fileAnchors = this.getAnchors(relativePath);
 
     if (fileAnchors.length === 0) return;
 
@@ -407,14 +405,18 @@ export class AnchorService {
   }
 
   /**
-   * @description 获取扁平的锚点数据
-   * @param filePath 
-   * @returns 
+   * @description 获取锚点列表
+   *
+   * 说明：
+   * - 不传 filePath 时，返回所有扁平化锚点
+   * - 传 filePath 时，只返回指定文件下的锚点
    */
   public getAnchors(filePath?: string): AnchorData[] {
     if (filePath) {
-      const targetPath = this.normalizePath(filePath);
-      return this.flotAnchors.filter((anchor) => this.normalizePath(anchor.filePath) === targetPath);
+      const targetPath = this.extensionContextProvider.normalizePath(filePath);
+      return this.flotAnchors.filter((anchor) => {
+        return this.extensionContextProvider.normalizePath(anchor.filePath) === targetPath;
+      });
     }
     return this.flotAnchors;
   }
@@ -856,6 +858,13 @@ export class AnchorService {
     }
   }
 
+  /**
+   * @description 获取当前编辑器上下文
+   *
+   * 用途：
+   * - 添加锚点时获取当前文件、当前行、当前行文本
+   * - pinnedLineIndex 有值时，优先使用指定行
+   */
   private getEditorContext(overrideLineNumber?: number): AnchorEditorContext | null {
     const editor = vscode.window.activeTextEditor;
 
@@ -864,18 +873,18 @@ export class AnchorService {
       return null;
     }
 
-    const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || path.dirname(editor.document.uri.fsPath);
-
     const doc = editor.document;
+    const workspacePath = this.extensionContextProvider.getWorkspacePathByUri(doc.uri) || path.dirname(doc.uri.fsPath);
+
     const lineIndex = overrideLineNumber !== undefined ? overrideLineNumber : editor.selection.active.line;
 
     const text = doc.lineAt(lineIndex).text.trim();
-    const relativePath = path.relative(rootPath, doc.uri.fsPath).replace(/\\/g, '/');
+    const relativePath = this.extensionContextProvider.getDocumentRelativePath(doc);
 
     return {
       editor,
       doc,
-      rootPath,
+      rootPath: workspacePath,
       relativePath,
       lineIndex,
       uiLineNumber: lineIndex + 1,
@@ -1122,30 +1131,25 @@ export class AnchorService {
     vscode.window.showInformationMessage(`已插入第 ${ctx.uiLineNumber} 行`);
   }
 
+  /**
+   * @description 打开锚点所在文件，并跳转到指定行
+   */
   private async openFileAtLine(filePath: string, uiLine: number): Promise<void> {
-    const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-    const absolutePath = path.join(rootPath, filePath);
-
     try {
-      const doc = await vscode.workspace.openTextDocument(absolutePath);
-
       let targetColumn = vscode.ViewColumn.Active;
-
       if (this.currentPanel?.visible && this.currentPanel.viewColumn) {
         const mindMapColumn = this.currentPanel.viewColumn;
         targetColumn = mindMapColumn === vscode.ViewColumn.One ? vscode.ViewColumn.Two : vscode.ViewColumn.One;
       }
-
-      const editor = await vscode.window.showTextDocument(doc, {
+      const editor = await this.extensionContextProvider.openWorkspaceTextDocumentAtLine(filePath, uiLine, {
         viewColumn: targetColumn,
         preview: false,
+        revealType: vscode.TextEditorRevealType.InCenter,
       });
 
-      const lineIndex = Math.max(0, uiLine - 1);
-      const pos = new vscode.Position(lineIndex, 0);
-
-      editor.selection = new vscode.Selection(pos, pos);
-      editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+      if (!editor) {
+        vscode.window.showErrorMessage(`无法打开文件: ${filePath}`);
+      }
     } catch {
       vscode.window.showErrorMessage(`无法打开文件: ${filePath}`);
     }
@@ -1186,10 +1190,6 @@ export class AnchorService {
     });
 
     this.decorationTypes.clear();
-  }
-
-  private normalizePath(value: string): string {
-    return value.replace(/\\/g, '/');
   }
 
   private createId(): string {
