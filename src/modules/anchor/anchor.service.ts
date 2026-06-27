@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { debounce, isFunction, isNumber } from 'lodash-es';
+import { AnchorCodeLensProvider } from './prooviders/anchor-code-lens.provider';
 import { getReactWebviewHtml } from '@/utils/WebviewHelper';
 import { ColorUtils } from '@/utils/ColorUtils';
 import { ConfigurationService } from '@/common/services/configuration.service';
@@ -129,11 +130,8 @@ export class AnchorService {
       if (args.length > 0 && args[0] && isNumber(args[0].lineNumber)) {
         argLineIndex = args[0].lineNumber - 1;
       }
-
       const ctx = this.getEditorContext(argLineIndex);
-
       if (!ctx) return;
-
       const groups = this.getGroups();
       const items: vscode.QuickPickItem[] = groups.map((group) => ({
         label: group,
@@ -142,9 +140,7 @@ export class AnchorService {
       }));
 
       const quickPick = vscode.window.createQuickPick();
-
       const previewText = ctx.text.length > 20 ? `${ctx.text.substring(0, 20)}...` : ctx.text;
-
       quickPick.title = `添加锚点: 第 ${ctx.uiLineNumber} 行 [${previewText}]`;
       quickPick.placeholder = '输入新分组名称或从列表中选择';
       quickPick.items = items;
@@ -689,6 +685,7 @@ export class AnchorService {
       }
 
       this.refreshFlotAnchors();
+      // 主动通知所有监听了 onDidChangeAnchors 的地方：锚点数据发生变化了，你们该刷新了。
       this.changeEmitter.fire();
     } catch (error) {
       console.error('Failed to load anchors from workspace state', error);
@@ -708,7 +705,6 @@ export class AnchorService {
       children: this.itemGroups,
       anchors: this.anchors,
     };
-    console.log('data', data);
     try {
       await this.context.workspaceState.update(this.stateKey, data);
     } catch (error) {
@@ -716,6 +712,10 @@ export class AnchorService {
     }
   }
 
+  /**
+   * @description 树形锚点数据拍平成一维数组
+   * getAnchors()、getAnchorById()、getNeighborAnchor() 都依赖 flotAnchors
+   */
   private refreshFlotAnchors(): void {
     const allAnchors = new Set<AnchorData>();
     const traverse = (items: AnchorData[]): void => {
@@ -765,36 +765,27 @@ export class AnchorService {
 
   private async openMindMapPanel(): Promise<void> {
     if (!this.context) return;
-
     const config = this.configurationService.config?.general || {};
     const mode = config.mindMapPosition || 'right';
-
     if (this.currentPanel) {
       const revealColumn = mode === 'left' ? vscode.ViewColumn.One : vscode.ViewColumn.Beside;
-
       this.currentPanel.reveal(revealColumn);
       return;
     }
-
     let targetColumn = vscode.ViewColumn.Beside;
-
     if (mode === 'left') {
       await vscode.commands.executeCommand('workbench.action.splitEditorLeft');
       targetColumn = vscode.ViewColumn.Active;
     }
-
     this.currentPanel = vscode.window.createWebviewPanel('anchorMindMap', 'Anchors Mind Map', targetColumn, {
       enableScripts: true,
       retainContextWhenHidden: true,
       localResourceRoots: [this.context.extensionUri],
     });
-
     this.currentPanel.webview.html = getReactWebviewHtml(this.context.extensionUri, this.currentPanel.webview, '/anchor');
-
     this.currentPanel.webview.onDidReceiveMessage(async (message: AnchorWebviewMessage) => {
       await this.handleMindMapMessage(message);
     });
-
     this.currentPanel.onDidDispose(() => {
       this.currentPanel = undefined;
     });
@@ -1212,166 +1203,5 @@ export class AnchorService {
     } catch {
       return String(error);
     }
-  }
-}
-
-class AnchorCodeLensProvider implements vscode.CodeLensProvider {
-  private readonly changeEmitter = new vscode.EventEmitter<void>();
-
-  public readonly onDidChangeCodeLenses = this.changeEmitter.event;
-
-  private isInternalUpdate = false;
-  private debounceTimer: NodeJS.Timeout | undefined;
-
-  constructor(private readonly anchorService: AnchorService) {
-    /** 监听事件 */
-    this.anchorService.onDidChangeAnchors(() => {
-      if (this.isInternalUpdate) return;
-
-      if (this.debounceTimer) {
-        clearTimeout(this.debounceTimer);
-      }
-
-      this.debounceTimer = setTimeout(() => {
-        this.changeEmitter.fire();
-      }, 200);
-    });
-  }
-
-  public provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
-    const lenses: vscode.CodeLens[] = [];
-    const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
-    const relativePath = path.relative(rootPath, document.uri.fsPath).replace(/\\/g, '/');
-
-    const anchors = this.anchorService.getAnchors(relativePath);
-
-    let contentToLinesMap: Map<string, number[]> | null = null;
-
-    for (const anchor of anchors) {
-      let targetLineIndex = Math.max(0, anchor.line - 1);
-
-      if (targetLineIndex >= document.lineCount) {
-        continue;
-      }
-
-      const currentLineContent = document.lineAt(targetLineIndex).text.trim();
-
-      if (currentLineContent !== anchor.content) {
-        if (!contentToLinesMap) {
-          contentToLinesMap = this.buildContentToLinesMap(document);
-        }
-
-        const candidates = contentToLinesMap.get(anchor.content);
-
-        if (candidates?.length) {
-          const foundLineIndex = candidates.reduce((prev, curr) => {
-            return Math.abs(curr - targetLineIndex) < Math.abs(prev - targetLineIndex) ? curr : prev;
-          });
-
-          targetLineIndex = foundLineIndex;
-
-          this.isInternalUpdate = true;
-          this.anchorService.updateAnchorLine(anchor.id, foundLineIndex + 1);
-          this.isInternalUpdate = false;
-        } else {
-          continue;
-        }
-      }
-
-      const range = new vscode.Range(targetLineIndex, 0, targetLineIndex, 0);
-
-      this.pushParentCodeLenses(lenses, range, anchor);
-      this.pushCurrentCodeLens(lenses, range, anchor);
-      this.pushActionCodeLenses(lenses, range, anchor);
-    }
-
-    return lenses;
-  }
-
-  private buildContentToLinesMap(document: vscode.TextDocument): Map<string, number[]> {
-    const map = new Map<string, number[]>();
-
-    for (let lineIndex = 0; lineIndex < document.lineCount; lineIndex++) {
-      const lineText = document.lineAt(lineIndex).text.trim();
-
-      if (!lineText) continue;
-
-      if (!map.has(lineText)) {
-        map.set(lineText, []);
-      }
-
-      map.get(lineText)?.push(lineIndex);
-    }
-
-    return map;
-  }
-
-  private pushParentCodeLenses(lenses: vscode.CodeLens[], range: vscode.Range, anchor: AnchorData): void {
-    const parents: AnchorData[] = [];
-    let currentItem = anchor;
-
-    while (currentItem.pid) {
-      const parent = this.anchorService.getAnchorById(currentItem.pid);
-
-      if (!parent) break;
-
-      parents.unshift(parent);
-      currentItem = parent;
-    }
-
-    parents.forEach((parent) => {
-      const emoji = ColorUtils.getEmoji(parent.group);
-
-      lenses.push(
-        new vscode.CodeLens(range, {
-          title: `${emoji} ${parent.group}:${parent.sort} >`,
-          tooltip: `跳转到父分组: ${parent.description || parent.group}`,
-          command: 'quick-ops.anchor.listByGroup',
-          arguments: [parent.group, parent.id],
-        }),
-      );
-    });
-  }
-
-  private pushCurrentCodeLens(lenses: vscode.CodeLens[], range: vscode.Range, anchor: AnchorData): void {
-    const emoji = ColorUtils.getEmoji(anchor.group);
-
-    lenses.push(
-      new vscode.CodeLens(range, {
-        title: `${emoji} ${anchor.group}:${anchor.sort}`,
-        tooltip: anchor.description || '查看该组所有锚点',
-        command: 'quick-ops.anchor.listByGroup',
-        arguments: [anchor.group, anchor.id],
-      }),
-    );
-  }
-
-  private pushActionCodeLenses(lenses: vscode.CodeLens[], range: vscode.Range, anchor: AnchorData): void {
-    lenses.push(
-      new vscode.CodeLens(range, {
-        title: '$(debug-step-out)',
-        tooltip: '上一个',
-        command: 'quick-ops.anchor.navigate',
-        arguments: [anchor.id, 'prev'],
-      }),
-    );
-
-    lenses.push(
-      new vscode.CodeLens(range, {
-        title: '$(debug-step-into)',
-        tooltip: '下一个',
-        command: 'quick-ops.anchor.navigate',
-        arguments: [anchor.id, 'next'],
-      }),
-    );
-
-    lenses.push(
-      new vscode.CodeLens(range, {
-        title: '$(trash)',
-        tooltip: '删除',
-        command: 'quick-ops.anchor.delete',
-        arguments: [anchor.id],
-      }),
-    );
   }
 }
