@@ -1055,9 +1055,15 @@ export default function RecentProjectsApp() {
         setSelectedPath(targetPath);
         autoScrollTarget.current = targetPath;
 
-        window.setTimeout(() => {
-          scrollTreeNodeIntoView(targetPath);
-        }, 0);
+        /**
+         * “在项目中定位”：
+         * - 普通搜索模式下，主项目树 DOM 不在当前视图，需要先退出搜索视图。
+         * - 专注模式下，目标文件就在专注树里，不能退出专注模式，只滚动当前专注树。
+         */
+        if (isSearchModeRef.current && !isFocusModeRef.current) {
+          isSearchModeRef.current = false;
+          exitSearchOrFocusMode();
+        }
 
         setExpandedPaths((prev) => {
           const next = new Set(prev);
@@ -1074,6 +1080,12 @@ export default function RecentProjectsApp() {
               projectName,
             });
           }
+        });
+
+        [0, 80, 180, 360, 700].forEach((delay) => {
+          window.setTimeout(() => {
+            scrollTreeNodeIntoView(targetPath);
+          }, delay);
         });
       }
     };
@@ -1098,16 +1110,101 @@ export default function RecentProjectsApp() {
     };
   }, []);
 
+  const findTreeNodeElement = (targetPath: string): HTMLElement | null => {
+    const safeId = `tree-node-${encodeURIComponent(targetPath)}`;
+    const exactElement = document.getElementById(safeId);
+
+    if (exactElement) {
+      return exactElement;
+    }
+
+    const targetKey = normalizePatchPath(targetPath);
+
+    if (!targetKey) {
+      return null;
+    }
+
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-tree-path]'));
+
+    return (
+      nodes.find((node) => {
+        return normalizePatchPath(node.dataset.treePath || '') === targetKey;
+      }) || null
+    );
+  };
+
+  const getNearestScrollableElement = (element: HTMLElement): HTMLElement | null => {
+    let current = element.parentElement;
+
+    while (current) {
+      const style = window.getComputedStyle(current);
+      const overflowY = style.overflowY;
+      const canScroll = /(auto|scroll|overlay)/.test(overflowY);
+
+      if (canScroll && current.scrollHeight > current.clientHeight) {
+        return current;
+      }
+
+      current = current.parentElement;
+    }
+
+    return null;
+  };
+
+  const scrollElementIntoVisibleArea = (element: HTMLElement, retryCount: number) => {
+    const behavior: ScrollBehavior = retryCount > 0 ? 'auto' : 'smooth';
+
+    element.scrollIntoView({
+      behavior,
+      block: 'center',
+      inline: 'nearest',
+    });
+
+    window.requestAnimationFrame(() => {
+      const scrollableElement = getNearestScrollableElement(element);
+
+      if (!scrollableElement) {
+        return;
+      }
+
+      const containerRect = scrollableElement.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const isVisible =
+        elementRect.top >= containerRect.top &&
+        elementRect.bottom <= containerRect.bottom;
+
+      if (isVisible) {
+        return;
+      }
+
+      const nextScrollTop = Math.max(
+        0,
+        scrollableElement.scrollTop +
+          elementRect.top -
+          containerRect.top -
+          (scrollableElement.clientHeight - elementRect.height) / 2,
+      );
+
+      scrollableElement.scrollTo({
+        top: nextScrollTop,
+        behavior,
+      });
+    });
+  };
+
   const scrollTreeNodeIntoView = (targetPath: string, retryCount: number = 0) => {
     if (!targetPath) return;
 
-    if (isSearchModeRef.current) {
-      autoScrollTarget.current = null;
+    if (isSearchModeRef.current && !isFocusModeRef.current) {
+      if (retryCount >= 30) return;
+
+      window.setTimeout(() => {
+        scrollTreeNodeIntoView(targetPath, retryCount + 1);
+      }, 80);
       return;
     }
 
-    const safeId = `tree-node-${encodeURIComponent(targetPath)}`;
-    const el = document.getElementById(safeId);
+    const el = findTreeNodeElement(targetPath);
 
     if (!el) {
       if (retryCount >= 30) return;
@@ -1119,30 +1216,20 @@ export default function RecentProjectsApp() {
     }
 
     window.requestAnimationFrame(() => {
-      /**
-       * “在项目中定位”使用浏览器原生 scrollIntoView。
-       * 这样可以让目标节点自己滚动到可视区域，避免手动计算 Scrollbar scrollTop 时出现偏移。
-       */
-      el.scrollIntoView({
-        behavior: retryCount > 0 ? 'auto' : 'smooth',
-        block: 'center',
-        inline: 'nearest',
-      });
-
+      scrollElementIntoVisibleArea(el, retryCount);
       autoScrollTarget.current = null;
     });
   };
 
   useEffect(() => {
-    if (isSearchMode) {
-      autoScrollTarget.current = null;
+    if (isSearchMode && !isFocusMode) {
       return;
     }
 
     if (!autoScrollTarget.current) return;
 
     scrollTreeNodeIntoView(autoScrollTarget.current);
-  }, [expandedPaths, isSearchMode, dirChildren]);
+  }, [expandedPaths, isSearchMode, isFocusMode, dirChildren]);
 
   useEffect(() => {
     if (!isSearchMode || !searchTargetProject) return;
@@ -2238,6 +2325,7 @@ export default function RecentProjectsApp() {
               <div key={childPath}>
                 <div
                   id={elementId}
+                  data-tree-path={childPath}
                   className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''
                     } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
                   draggable={canDragEntity(childPath, isActiveProject)}
@@ -2320,6 +2408,7 @@ export default function RecentProjectsApp() {
             <div key={childPath}>
               <div
                 id={elementId}
+                data-tree-path={childPath}
                 className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''
                   } ${styles['search-name-sub-item-clickable']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''}`}
                 draggable={canDragEntity(childPath, isActiveProject)}
@@ -2506,6 +2595,7 @@ export default function RecentProjectsApp() {
                       <div key={rootPath}>
                         <div
                           id={elementId}
+                          data-tree-path={rootPath}
                           className={`${styles['active-top-project']} ${selectedPath === rootPath ? styles['selected'] : ''
                             } ${inHistory ? styles['in-history'] : styles['not-in-history']} ${getDropClassName(rootPath)}`}
                           onDragOver={(e) => handleDragOverFolder(e, rootPath, true)}
@@ -2627,6 +2717,7 @@ export default function RecentProjectsApp() {
                       <li key={rootPath}>
                         <div
                           id={elementId}
+                          data-tree-path={rootPath}
                           className={`${styles['project-item']} ${isJustOpened ? styles['just-opened'] : ''
                             } ${selectedPath === rootPath ? styles['selected'] : ''}`}
                           onDoubleClick={() => handleOpenProject(p.fsPath)}
