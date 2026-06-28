@@ -97,6 +97,7 @@ import playwrightIcon from 'material-icon-theme/icons/playwright.svg';
 import tsdownIcon from 'material-icon-theme/icons/tsdown.svg';
 import typescriptDefIcon from 'material-icon-theme/icons/typescript-def.svg';
 import testTsIcon from 'material-icon-theme/icons/test-ts.svg';
+import webassemblyIcon from 'material-icon-theme/icons/webassembly.svg';
 
 export type FileGitStatus = 'u' | 'a' | 'm' | 'd' | 'r' | 'c' | string;
 
@@ -206,6 +207,7 @@ const EXTENSIONS: Record<string, string> = {
   ejs: ejsIcon,
   hbs: hbsIcon,
   font: fontIcon,
+  ttf: fontIcon,
   map: mapIcon,
   lottie: lottieIcon,
   ts: typescriptIcon,
@@ -255,6 +257,7 @@ const EXTENSIONS: Record<string, string> = {
   jpeg: imageIcon,
   gif: imageIcon,
   webp: imageIcon,
+  wasm: webassemblyIcon,
   ico: imageIcon,
   txt: documentIcon,
   log: logIcon,
