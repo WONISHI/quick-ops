@@ -447,7 +447,6 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     };
 
     const handleSearchInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        const value = e.currentTarget.value;
         const key = e.key.toLowerCase();
         const isCommandKey = e.ctrlKey || e.metaKey;
 
@@ -472,9 +471,13 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
             return;
         }
 
-        if ((e.key === 'Backspace' || e.key === 'Delete') && value === '') {
+        /**
+         * 搜索输入框为空时，Backspace / Delete 只拦截事件，不退出搜索 / 专注模式。
+         * 退出搜索 / 专注模式只能点击左上角 search-back-btn。
+         */
+        if ((e.key === 'Backspace' || e.key === 'Delete') && e.currentTarget.value === '') {
             e.preventDefault();
-            handleBack();
+            e.stopPropagation();
         }
     };
 

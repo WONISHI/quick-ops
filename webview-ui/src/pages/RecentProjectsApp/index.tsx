@@ -1119,28 +1119,15 @@ export default function RecentProjectsApp() {
     }
 
     window.requestAnimationFrame(() => {
-      const scrollbar = listScrollbarRef.current;
-      const wrap = scrollbar?.wrapRef;
-
-      if (wrap && wrap.contains(el)) {
-        const wrapRect = wrap.getBoundingClientRect();
-        const elRect = el.getBoundingClientRect();
-        const nextScrollTop = Math.max(
-          0,
-          wrap.scrollTop + elRect.top - wrapRect.top - (wrap.clientHeight - elRect.height) / 2,
-        );
-
-        scrollbar.scrollTo({
-          top: nextScrollTop,
-          behavior: retryCount > 0 ? 'auto' : 'smooth',
-        });
-      } else {
-        el.scrollIntoView({
-          behavior: retryCount > 0 ? 'auto' : 'smooth',
-          block: 'center',
-          inline: 'nearest',
-        });
-      }
+      /**
+       * “在项目中定位”使用浏览器原生 scrollIntoView。
+       * 这样可以让目标节点自己滚动到可视区域，避免手动计算 Scrollbar scrollTop 时出现偏移。
+       */
+      el.scrollIntoView({
+        behavior: retryCount > 0 ? 'auto' : 'smooth',
+        block: 'center',
+        inline: 'nearest',
+      });
 
       autoScrollTarget.current = null;
     });
