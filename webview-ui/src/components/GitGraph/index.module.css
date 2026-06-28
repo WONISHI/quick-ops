@@ -28,6 +28,19 @@
     position: relative;
 }
 
+/**
+ * @description Git Graph 滚动内容容器
+ *
+ * 说明：
+ * - graph-canvas 和 commit-timeline 必须放在同一个相对定位容器里。
+ * - 这样滚动列表时，提交树线条和提交行会一起滚动。
+ */
+.graph-scroll-inner {
+    position: relative;
+    width: 100%;
+    min-height: var(--graph-canvas-height);
+}
+
 .graph-canvas {
     position: absolute;
     top: 0;
