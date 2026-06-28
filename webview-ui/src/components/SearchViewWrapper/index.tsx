@@ -36,8 +36,11 @@ interface SearchViewWrapperProps {
     searchTargetProject: ContextMenuPayload;
 
     focusMode?: boolean;
+    focusLocked?: boolean;
     focusTree?: React.ReactNode;
     onBack?: () => void;
+    onLockFocusMode?: () => void;
+    onExitLockedFocusMode?: () => void;
 
     folderSearchQuery: string;
     setFolderSearchQuery: React.Dispatch<React.SetStateAction<string>>;
@@ -365,8 +368,11 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     const {
         searchTargetProject,
         focusMode,
+        focusLocked,
         focusTree,
         onBack,
+        onLockFocusMode,
+        onExitLockedFocusMode,
 
         folderSearchQuery,
         setFolderSearchQuery,
@@ -421,11 +427,24 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     };
 
     const handleBack = () => {
+        if (focusLocked) {
+            onExitLockedFocusMode?.();
+            return;
+        }
+
         if (onBack) {
             onBack();
         } else {
             setIsSearchMode(false);
         }
+    };
+
+    const handleSearchTitleDoubleClick = () => {
+        if (!focusMode || focusLocked) {
+            return;
+        }
+
+        onLockFocusMode?.();
     };
 
     const switchSearchType = (nextType?: FolderSearchType, options?: { keepQuery?: boolean }) => {
@@ -690,16 +709,25 @@ ${searchTargetProject.path || ''}`;
                 <div className={styles['search-header-top']}>
                     <div className={styles['search-header-title-box']}>
                         <button
-                            className={`${styles['action-btn-icon']} ${styles['search-back-btn']}`}
+                            className={`${styles['action-btn-icon']} ${styles['search-back-btn']} ${focusLocked ? styles['search-back-btn-locked'] : ''}`}
                             onClick={handleBack}
-                            title="返回项目列表"
+                            title={focusLocked ? '退出锁定模式下的专注模式' : '返回项目列表'}
                         >
-                            <span className={`codicon codicon-arrow-left ${styles['search-back-icon']}`}></span>
+                            <span
+                                className={`codicon ${focusLocked ? 'codicon-lock' : 'codicon-arrow-left'} ${styles['search-back-icon']}`}
+                            ></span>
                         </button>
 
                         <span
-                            className={styles['search-target-title']}
-                            title={getSearchTargetTitle()}
+                            className={`${styles['search-target-title']} ${focusMode ? styles['search-target-title-focus'] : ''} ${focusLocked ? styles['search-target-title-locked'] : ''}`}
+                            title={
+                                focusMode
+                                    ? focusLocked
+                                        ? `${getSearchTargetTitle()} · 已锁定，下次打开该项目会自动进入专注模式`
+                                        : `${getSearchTargetTitle()} · 双击进入锁定模式`
+                                    : getSearchTargetTitle()
+                            }
+                            onDoubleClick={handleSearchTitleDoubleClick}
                         >
                             {(() => {
                                 const projectName = searchTargetProject.projectName || '';
@@ -720,7 +748,9 @@ ${searchTargetProject.path || ''}`;
                                             </span>
                                         )}
                                         {focusMode && (
-                                            <span className={styles['search-target-subtitle']}> · 专注模式</span>
+                                            <span className={styles['search-target-subtitle']}>
+                                                {focusLocked ? ' · 锁定模式 · 专注模式' : ' · 专注模式'}
+                                            </span>
                                         )}
                                     </>
                                 );

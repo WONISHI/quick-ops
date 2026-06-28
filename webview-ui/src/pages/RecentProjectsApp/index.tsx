@@ -149,9 +149,11 @@ export default function RecentProjectsApp() {
   const latestSearchRequestIdRef = useRef(0);
   const activeSearchRequestIdRef = useRef(0);
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const [isFocusLocked, setIsFocusLocked] = useState(false);
   const [focusRootPath, setFocusRootPath] = useState('');
   const [focusRootName, setFocusRootName] = useState('');
   const isFocusModeRef = useRef(false);
+  const isFocusLockedRef = useRef(false);
   const focusRootPathRef = useRef('');
   const focusRootNameRef = useRef('');
 
@@ -179,6 +181,10 @@ export default function RecentProjectsApp() {
   useEffect(() => {
     isFocusModeRef.current = isFocusMode;
   }, [isFocusMode]);
+
+  useEffect(() => {
+    isFocusLockedRef.current = isFocusLocked;
+  }, [isFocusLocked]);
 
   useEffect(() => {
     focusRootPathRef.current = focusRootPath;
@@ -645,6 +651,131 @@ export default function RecentProjectsApp() {
     return project?.customName || project?.name || getFallbackProjectName(pathValue);
   };
 
+  const enterFocusMode = (
+    payload: ContextMenuPayload,
+    options?: {
+      targetPath?: string;
+      title?: string;
+      locked?: boolean;
+    },
+  ) => {
+    const currentWorkspaceValue = currentWorkspaceRef.current;
+    const targetPath = options?.targetPath || currentWorkspaceValue?.fsPath || payload.path;
+    const title =
+      options?.title ||
+      currentWorkspaceValue?.customName ||
+      currentWorkspaceValue?.name ||
+      payload.customName ||
+      payload.originalName ||
+      payload.name ||
+      '当前项目';
+
+    if (!targetPath) {
+      return;
+    }
+
+    cacheNormalDirChildrenBeforeFocus(targetPath);
+
+    const focusRefreshPaths = Array.from(new Set([
+      targetPath,
+      ...Array.from(expandedPathsRef.current).filter((itemPath) =>
+        !!itemPath && isPathInside(itemPath, targetPath)
+      ),
+    ]));
+
+    const nextSearchTargetProject: ContextMenuPayload = {
+      ...payload,
+      path: targetPath,
+      name: title,
+      projectName: title,
+      isActiveProject: true,
+    };
+
+    isSearchModeRef.current = true;
+    isFocusModeRef.current = true;
+    isFocusLockedRef.current = !!options?.locked;
+    focusRootPathRef.current = targetPath;
+    focusRootNameRef.current = title;
+    searchTargetProjectRef.current = nextSearchTargetProject;
+
+    setSearchTargetProject(nextSearchTargetProject);
+    setIsSearchMode(true);
+    setIsFocusMode(true);
+    setIsFocusLocked(!!options?.locked);
+    setFocusRootPath(targetPath);
+    setFocusRootName(title);
+    setFolderSearchQuery('');
+    setFolderSearchResults([]);
+    setFolderSearchTotalMatches(0);
+    setFileNameSearchResults([]);
+    setFolderSearchError('');
+    setCurrentActiveMatch(0);
+
+    setExpandedPaths((prev) => {
+      const next = new Set(prev);
+      next.add(targetPath);
+      return next;
+    });
+
+    setLoadingPaths((prev) => {
+      const next = new Set(prev);
+
+      focusRefreshPaths.forEach((itemPath) => {
+        if (!dirChildrenRef.current[itemPath]) {
+          next.add(itemPath);
+        }
+      });
+
+      return next;
+    });
+
+    focusRefreshPaths.forEach((itemPath) => {
+      vscode.postMessage({
+        type: 'readDir',
+        fsPath: itemPath,
+        projectName: title,
+        forceRefresh: true,
+      });
+    });
+  };
+
+  const lockCurrentFocusMode = () => {
+    if (!isFocusModeRef.current || isFocusLockedRef.current) {
+      return;
+    }
+
+    const targetPath = focusRootPathRef.current;
+    const title = focusRootNameRef.current || getProjectNameByPath(targetPath) || '当前项目';
+
+    if (!targetPath) {
+      return;
+    }
+
+    isFocusLockedRef.current = true;
+    setIsFocusLocked(true);
+
+    vscode.postMessage({
+      type: 'setFocusLock',
+      fsPath: targetPath,
+      name: title,
+    });
+  };
+
+  const exitLockedFocusMode = () => {
+    if (!isFocusLockedRef.current) {
+      exitSearchOrFocusMode();
+      return;
+    }
+
+    /**
+     * 锁定模式退出确认必须用 VS Code 原生二次确认弹窗。
+     * Webview 里的 window.confirm 在 VS Code 中表现不稳定，也不是 VS Code 风格。
+     */
+    vscode.postMessage({
+      type: 'confirmExitFocusLock',
+    });
+  };
+
   const { lineStartIndexMap, totalMatches, flatMatchesList } = useMemo(() => {
     const map = new Map<string, number>();
     const list: {
@@ -756,15 +887,49 @@ export default function RecentProjectsApp() {
 
       if (msg.type === 'updateProjects') {
         const data = (msg.data as Project[]) || [];
+        const currentWorkspaceValue = (msg.currentWorkspace as Project) || null;
+        const focusLock = (msg.focusLock as {
+          enabled?: boolean;
+          active?: boolean;
+          fsPath?: string;
+          name?: string;
+        }) || null;
+
+        projectsRef.current = data;
+        currentWorkspaceRef.current = currentWorkspaceValue;
 
         setProjects(data);
         setCurrentUri((msg.currentUriStr as string) || '');
         setLastOpenedPath((msg.lastOpenedPath as string) || '');
-        setCurrentWorkspace((msg.currentWorkspace as Project) || null);
+        setCurrentWorkspace(currentWorkspaceValue);
         setIsInitLoading(false);
 
         if (msg.activeFilePath) {
           setSelectedPath(msg.activeFilePath as string);
+        }
+
+        if (focusLock?.enabled && focusLock.active && currentWorkspaceValue?.fsPath) {
+          setIsFocusLocked(true);
+          isFocusLockedRef.current = true;
+
+          if (!isFocusModeRef.current) {
+            enterFocusMode({
+              path: currentWorkspaceValue.fsPath,
+              name: focusLock.name || currentWorkspaceValue.name,
+              projectName: focusLock.name || currentWorkspaceValue.name,
+              originalName: currentWorkspaceValue.name,
+              customName: currentWorkspaceValue.customName,
+              isActiveProject: true,
+              isRemote: currentWorkspaceValue.fsPath.startsWith('vscode-vfs://') || currentWorkspaceValue.fsPath.startsWith('http'),
+            }, {
+              targetPath: currentWorkspaceValue.fsPath,
+              title: focusLock.name || currentWorkspaceValue.customName || currentWorkspaceValue.name || '当前项目',
+              locked: true,
+            });
+          }
+        } else if (!isFocusModeRef.current) {
+          setIsFocusLocked(false);
+          isFocusLockedRef.current = false;
         }
 
         setBranchMap((prev) => {
@@ -816,6 +981,10 @@ export default function RecentProjectsApp() {
 
           return next;
         });
+      } else if (msg.type === 'focusLockExitConfirmed') {
+        isFocusLockedRef.current = false;
+        setIsFocusLocked(false);
+        exitSearchOrFocusMode();
       } else if (msg.type === 'activeEditorChanged') {
         setSelectedPath(msg.fsPath as string);
       } else if (msg.type === 'updateBranchTag') {
@@ -2094,77 +2263,11 @@ export default function RecentProjectsApp() {
         setFolderSearchError('');
         break;
 
-      case 'focusMode': {
-        const currentWorkspaceValue = currentWorkspaceRef.current;
-        const targetPath = currentWorkspaceValue?.fsPath || payload.path;
-        const title =
-          currentWorkspaceValue?.customName ||
-          currentWorkspaceValue?.name ||
-          payload.customName ||
-          payload.originalName ||
-          payload.name ||
-          '当前项目';
-
-        if (!targetPath) {
-          break;
-        }
-
-        cacheNormalDirChildrenBeforeFocus(targetPath);
-
-        const focusRefreshPaths = Array.from(new Set([
-          targetPath,
-          ...Array.from(expandedPathsRef.current).filter((itemPath) =>
-            !!itemPath && isPathInside(itemPath, targetPath)
-          ),
-        ]));
-
-        setSearchTargetProject({
-          ...payload,
-          path: targetPath,
-          name: title,
-          projectName: title,
-          isActiveProject: true,
+      case 'focusMode':
+        enterFocusMode(payload, {
+          locked: false,
         });
-        setIsSearchMode(true);
-        setIsFocusMode(true);
-        setFocusRootPath(targetPath);
-        setFocusRootName(title);
-        setFolderSearchQuery('');
-        setFolderSearchResults([]);
-        setFolderSearchTotalMatches(0);
-        setFileNameSearchResults([]);
-        setFolderSearchError('');
-        setCurrentActiveMatch(0);
-
-        setExpandedPaths((prev) => {
-          const next = new Set(prev);
-          next.add(targetPath);
-          return next;
-        });
-
-        setLoadingPaths((prev) => {
-          const next = new Set(prev);
-
-          focusRefreshPaths.forEach((itemPath) => {
-            if (!dirChildrenRef.current[itemPath]) {
-              next.add(itemPath);
-            }
-          });
-
-          return next;
-        });
-
-        focusRefreshPaths.forEach((itemPath) => {
-          vscode.postMessage({
-            type: 'readDir',
-            fsPath: itemPath,
-            projectName: title,
-            forceRefresh: true,
-          });
-        });
-
         break;
-      }
 
       default:
         break;
@@ -2205,8 +2308,14 @@ export default function RecentProjectsApp() {
     const exitingFocusRootName = focusRootNameRef.current || getProjectNameByPath(exitingFocusRootPath);
     const normalSnapshot = normalDirChildrenBeforeFocusRef.current;
 
+    isSearchModeRef.current = false;
+    isFocusModeRef.current = false;
+    isFocusLockedRef.current = false;
+    searchTargetProjectRef.current = null;
+
     setIsSearchMode(false);
     setIsFocusMode(false);
+    setIsFocusLocked(false);
     setSearchTargetProject(null);
     setFocusRootPath('');
     setFocusRootName('');
@@ -2482,6 +2591,9 @@ export default function RecentProjectsApp() {
         <SearchViewWrapper
           searchTargetProject={searchTargetProject}
           focusMode={isFocusMode}
+          focusLocked={isFocusLocked}
+          onLockFocusMode={lockCurrentFocusMode}
+          onExitLockedFocusMode={exitLockedFocusMode}
           focusTree={
             isFocusMode && focusRootPath ? (
               <div className={styles['focus-tree-wrapper']}>

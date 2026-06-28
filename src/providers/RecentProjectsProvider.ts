@@ -20,6 +20,12 @@ export interface RecentProject {
   diagnostics?: DiagnosticSummary;
 }
 
+interface FocusLockState {
+  enabled: boolean;
+  fsPath?: string;
+  name?: string;
+}
+
 interface DiagnosticSummary {
   errors: number;
   warnings: number;
@@ -61,6 +67,7 @@ class GitVirtualContentProvider implements vscode.TextDocumentContentProvider {
 export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private stateKey = 'quickOps.recentProjectsHistory';
+  private readonly focusLockStateKey = 'quickOps.recentProjects.focusLock';
   private lastOpenedPath: string = '';
   private selectedForCompareUri?: vscode.Uri;
   private selectedForCompareName?: string;
@@ -581,6 +588,52 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             this.setActivePath(this.currentActivePath);
           }
           break;
+
+        case 'setFocusLock': {
+          const currentWorkspaceUri = this.getCurrentWorkspaceUri();
+          const fsPath = String(data.fsPath || currentWorkspaceUri?.toString() || '').trim();
+          const name = String(data.name || vscode.workspace.workspaceFolders?.[0]?.name || '当前项目').trim();
+
+          if (!fsPath) {
+            break;
+          }
+
+          await this.context.workspaceState.update(this.focusLockStateKey, {
+            enabled: true,
+            fsPath,
+            name,
+          } satisfies FocusLockState);
+
+          this.updateWebview();
+          break;
+        }
+
+        case 'clearFocusLock': {
+          await this.context.workspaceState.update(this.focusLockStateKey, undefined);
+          this.updateWebview();
+          break;
+        }
+
+        case 'confirmExitFocusLock': {
+          const action = await vscode.window.showWarningMessage(
+            '是否退出锁定模式下的专注模式？\n确认后会关闭锁定模式，并退出专注模式。',
+            { modal: true },
+            '确认退出'
+          );
+
+          if (action !== '确认退出') {
+            break;
+          }
+
+          await this.context.workspaceState.update(this.focusLockStateKey, undefined);
+
+          this._view?.webview.postMessage({
+            type: 'focusLockExitConfirmed',
+          });
+
+          this.updateWebview();
+          break;
+        }
 
         case 'updateRevealVisibility':
           this.revealVisibleInWebview = true;
@@ -3489,6 +3542,29 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  private getFocusLockPayload(currentUriStr: string, currentName: string) {
+    const lockState = this.context.workspaceState.get<FocusLockState>(this.focusLockStateKey);
+
+    if (!lockState?.enabled || !currentUriStr) {
+      return {
+        enabled: false,
+        active: false,
+      };
+    }
+
+    const lockPath = String(lockState.fsPath || currentUriStr).trim();
+    const isActive =
+      !lockPath ||
+      this.normalizeComparePath(lockPath) === this.normalizeComparePath(currentUriStr);
+
+    return {
+      enabled: true,
+      active: isActive,
+      fsPath: lockPath || currentUriStr,
+      name: lockState.name || currentName,
+    };
+  }
+
   private updateWebview() {
     if (!this._view) return;
     const projects = this.getRecentProjects();
@@ -3526,6 +3602,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       data: projects,
       currentUriStr: currentUriStr,
       currentWorkspace: currentWorkspaceInfo,
+      focusLock: this.getFocusLockPayload(currentUriStr, folders?.[0]?.name || ''),
       lastOpenedPath: this.lastOpenedPath,
       activeFilePath: this.currentActivePath || activeFilePath
     });
