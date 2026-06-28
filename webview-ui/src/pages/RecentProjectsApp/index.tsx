@@ -53,14 +53,6 @@ interface PendingCreateEntity {
   isActiveProject: boolean;
 }
 
-interface PendingRenameEntity {
-  path: string;
-  name: string;
-  isFolder: boolean;
-  projectName: string;
-  isActiveProject: boolean;
-}
-
 interface DraggingEntity {
   path: string;
   name: string;
@@ -146,6 +138,7 @@ export default function RecentProjectsApp() {
   const [folderSearchType, setFolderSearchType] = useState<'content' | 'name'>('content');
   const [fileNameSearchResults, setFileNameSearchResults] = useState<DirChild[]>([]);
   const [folderSearchResults, setFolderSearchResults] = useState<SearchResult[]>([]);
+  const [folderSearchTotalMatches, setFolderSearchTotalMatches] = useState(0);
   const [isSearchingFolder, setIsSearchingFolder] = useState(false);
   const [folderSearchError, setFolderSearchError] = useState('');
   const [currentActiveMatch, setCurrentActiveMatch] = useState(0);
@@ -165,10 +158,6 @@ export default function RecentProjectsApp() {
   const [pendingCreateEntity, setPendingCreateEntity] = useState<PendingCreateEntity | null>(null);
   const [pendingCreateName, setPendingCreateName] = useState('');
   const pendingCreateInputRef = useRef<HTMLInputElement>(null);
-
-  const [pendingRenameEntity, setPendingRenameEntity] = useState<PendingRenameEntity | null>(null);
-  const [pendingRenameName, setPendingRenameName] = useState('');
-  const pendingRenameInputRef = useRef<HTMLInputElement>(null);
 
   const [draggingEntity, setDraggingEntity] = useState<DraggingEntity | null>(null);
   const [dragOverPath, setDragOverPath] = useState('');
@@ -207,15 +196,6 @@ export default function RecentProjectsApp() {
       pendingCreateInputRef.current?.select();
     }, 0);
   }, [pendingCreateEntity]);
-
-  useEffect(() => {
-    if (!pendingRenameEntity) return;
-
-    window.setTimeout(() => {
-      pendingRenameInputRef.current?.focus();
-      pendingRenameInputRef.current?.select();
-    }, 0);
-  }, [pendingRenameEntity]);
 
   const normalizePatchPath = (pathValue: string) => {
     if (!pathValue) return '';
@@ -689,20 +669,33 @@ export default function RecentProjectsApp() {
     const regex = new RegExp(`(${safeQuery})`, 'gi');
 
     folderSearchResults.forEach((res, fileIndex) => {
+      const fileMatchCount = Number((res as any).matchCount || (res as any).totalMatches) || 0;
+      let fileLineCount = 0;
+      let fileOccurrenceCount = 0;
+
       res.matches.forEach((m: SearchMatch, matchIndex: number) => {
         const startIdx = idx;
         map.set(`${fileIndex}-${matchIndex}`, startIdx);
 
+        const responseMatchCount = Number((m as any).count) || 0;
         let occurrencesCount = 0;
-        const parts = m.text.split(regex);
 
-        parts.forEach((part: string) => {
-          if (part.toLowerCase() === folderSearchQuery.toLowerCase()) {
-            occurrencesCount++;
-          }
-        });
+        if (responseMatchCount > 0) {
+          occurrencesCount = responseMatchCount;
+        } else {
+          const parts = m.text.split(regex);
+
+          parts.forEach((part: string) => {
+            if (part.toLowerCase() === folderSearchQuery.toLowerCase()) {
+              occurrencesCount++;
+            }
+          });
+        }
 
         const count = Math.max(1, occurrencesCount);
+
+        fileLineCount++;
+        fileOccurrenceCount += count;
 
         for (let k = 0; k < count; k++) {
           list.push({
@@ -716,14 +709,37 @@ export default function RecentProjectsApp() {
 
         idx += count;
       });
+
+      /**
+       * 兜底：
+       * 如果后端返回了文件级总匹配数，但 matches[].count 没有被旧前端/旧数据带上，
+       * 这里把差额补到最后一行，避免顶部总数仍然停留在“命中行数”。
+       */
+      const missingCount = fileMatchCount > fileOccurrenceCount ? fileMatchCount - fileOccurrenceCount : 0;
+      const lastMatchIndex = Math.max(0, fileLineCount - 1);
+
+      for (let k = 0; k < missingCount; k++) {
+        list.push({
+          fileIndex,
+          matchIndex: lastMatchIndex,
+          lineGlobalIndex: idx,
+          fullPath: res.fullPath,
+          lineNum: res.matches[lastMatchIndex]?.line || 1,
+        });
+
+        idx++;
+      }
     });
+
+    const responseTotalMatches = Number(folderSearchTotalMatches) || 0;
+    const safeTotalMatches = Math.max(idx, responseTotalMatches);
 
     return {
       lineStartIndexMap: map,
-      totalMatches: idx,
+      totalMatches: safeTotalMatches,
       flatMatchesList: list,
     };
-  }, [folderSearchResults, folderSearchQuery, folderSearchType]);
+  }, [folderSearchResults, folderSearchQuery, folderSearchType, folderSearchTotalMatches]);
 
   const requestSilentFolderSearchRefresh = () => {
     if (!isSearchModeRef.current) return;
@@ -953,49 +969,6 @@ export default function RecentProjectsApp() {
             forceRefresh: true,
           });
         });
-      } else if (msg.type === 'renameFileEntityResult') {
-        const sourcePath = msg.sourcePath as string;
-        const targetPath = msg.targetPath as string;
-        const parentPath = msg.parentPath as string;
-
-        cancelRenameEntity();
-        setSelectedPath(targetPath);
-
-        setExpandedPaths((prev) => {
-          const next = new Set(prev);
-
-          Array.from(next).forEach((itemPath) => {
-            if (isPathInside(itemPath, sourcePath)) {
-              next.delete(itemPath);
-            }
-          });
-
-          if (msg.isFolder) {
-            next.add(targetPath);
-          }
-
-          return next;
-        });
-
-        setDirChildren((prev) => {
-          const next = { ...prev };
-
-          Object.keys(next).forEach((key) => {
-            if (isPathInside(key, sourcePath)) {
-              delete next[key];
-            }
-          });
-
-          return next;
-        });
-
-        setLoadingPaths((prev) => new Set(prev).add(parentPath));
-        vscode.postMessage({
-          type: 'readDir',
-          fsPath: parentPath,
-          projectName: getProjectNameByPath(parentPath),
-          forceRefresh: true,
-        });
       } else if (msg.type === 'refreshExpandedDirs') {
         requestSilentFolderSearchRefresh();
 
@@ -1050,9 +1023,11 @@ export default function RecentProjectsApp() {
         if (msg.error) {
           setFolderSearchError(msg.error as string);
           setFolderSearchResults([]);
+          setFolderSearchTotalMatches(0);
         } else {
           setFolderSearchError('');
           setFolderSearchResults((msg.results as SearchResult[]) || []);
+          setFolderSearchTotalMatches(Number((msg as any).totalMatches) || 0);
 
           if (responseMode !== 'silent') {
             setCurrentActiveMatch(0);
@@ -1070,6 +1045,7 @@ export default function RecentProjectsApp() {
           setFolderSearchError(msg.error as string);
           setFileNameSearchResults([]);
         } else {
+          setFolderSearchTotalMatches(0);
           setFolderSearchError('');
           setFileNameSearchResults((msg.results as DirChild[]) || []);
         }
@@ -1186,6 +1162,7 @@ export default function RecentProjectsApp() {
 
     if (!folderSearchQuery.trim()) {
       setFolderSearchResults([]);
+      setFolderSearchTotalMatches(0);
       setFileNameSearchResults([]);
       setFolderSearchError('');
       setIsSearchingFolder(false);
@@ -1759,113 +1736,6 @@ export default function RecentProjectsApp() {
     }, 250);
   };
 
-  const beginRenameEntity = (payload: ContextMenuPayload) => {
-    if (!payload.isActiveProject || payload.isRemote) {
-      return;
-    }
-
-    const currentName = String(payload.name || '').trim();
-
-    if (!currentName) {
-      return;
-    }
-
-    setPendingCreateEntity(null);
-    setPendingCreateName('');
-    setPendingRenameEntity({
-      path: payload.path,
-      name: currentName,
-      isFolder: !!payload.isFolder,
-      projectName: payload.projectName || getProjectNameByPath(payload.path) || '当前项目',
-      isActiveProject: true,
-    });
-    setPendingRenameName(currentName);
-    setSelectedPath(payload.path);
-  };
-
-  const cancelRenameEntity = () => {
-    setPendingRenameEntity(null);
-    setPendingRenameName('');
-  };
-
-  const submitRenameEntity = () => {
-    const entity = pendingRenameEntity;
-
-    if (!entity) return;
-
-    const nextName = pendingRenameName.trim();
-
-    if (!nextName || nextName === entity.name) {
-      cancelRenameEntity();
-      return;
-    }
-
-    vscode.postMessage({
-      type: 'renameFileEntity',
-      fsPath: entity.path,
-      newName: nextName,
-      isFolder: entity.isFolder,
-      projectName: entity.projectName,
-    });
-  };
-
-  const renderRenameInput = () => (
-    <input
-      ref={pendingRenameInputRef}
-      className={styles['rename-entity-input']}
-      value={pendingRenameName}
-      onChange={(event) => setPendingRenameName(event.target.value)}
-      onClick={(event) => event.stopPropagation()}
-      onDoubleClick={(event) => event.stopPropagation()}
-      onContextMenu={(event) => event.stopPropagation()}
-      onBlur={submitRenameEntity}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          event.stopPropagation();
-          submitRenameEntity();
-        }
-
-        if (event.key === 'Escape') {
-          event.preventDefault();
-          event.stopPropagation();
-          cancelRenameEntity();
-        }
-      }}
-    />
-  );
-
-  const renderSubName = (
-    childPath: string,
-    childName: string,
-    tooltipContent: React.ReactNode,
-    highlightQuery: string
-  ) => {
-    if (pendingRenameEntity?.path === childPath) {
-      return renderRenameInput();
-    }
-
-    return (
-      <Tooltip
-        content={tooltipContent}
-        placement="bottom"
-        align="start"
-        delay={2000}
-      >
-        <span
-          className={styles['sub-name']}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            pointerEvents: 'auto',
-          }}
-        >
-          {highlightQuery ? renderSearchNameHighlightText(childName, highlightQuery) : childName}
-        </span>
-      </Tooltip>
-    );
-  };
-
   const handleContextMenu = (
     e: React.MouseEvent,
     type: 'top' | 'sub',
@@ -1986,10 +1856,6 @@ export default function RecentProjectsApp() {
           fsPath: payload.path,
           isFolder: !!payload.isFolder,
         });
-        break;
-
-      case 'renameFileEntity':
-        beginRenameEntity(payload);
         break;
 
       case 'openLink':
@@ -2149,6 +2015,7 @@ export default function RecentProjectsApp() {
         setFocusRootName('');
         setFolderSearchQuery('');
         setFolderSearchResults([]);
+        setFolderSearchTotalMatches(0);
         setFileNameSearchResults([]);
         setFolderSearchError('');
         break;
@@ -2190,6 +2057,7 @@ export default function RecentProjectsApp() {
         setFocusRootName(title);
         setFolderSearchQuery('');
         setFolderSearchResults([]);
+        setFolderSearchTotalMatches(0);
         setFileNameSearchResults([]);
         setFolderSearchError('');
         setCurrentActiveMatch(0);
@@ -2385,20 +2253,13 @@ export default function RecentProjectsApp() {
                   id={elementId}
                   className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''
                     } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
-                  draggable={canDragEntity(childPath, isActiveProject) && pendingRenameEntity?.path !== childPath}
+                  draggable={canDragEntity(childPath, isActiveProject)}
                   onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
                   onDragEnd={handleDragEnd}
                   onDragOver={(e) => handleDragOverFolder(e, childPath, isActiveProject)}
                   onDragLeave={(e) => handleDragLeaveFolder(e, childPath)}
                   onDrop={(e) => handleDropOnFolder(e, childPath, isActiveProject)}
-                  onClick={(e) => {
-                    if (pendingRenameEntity?.path === childPath) {
-                      e.stopPropagation();
-                      return;
-                    }
-
-                    handleToggleExpand(childPath, projectName, isRemote, e);
-                  }}
+                  onClick={(e) => handleToggleExpand(childPath, projectName, isRemote, e)}
                   onContextMenu={(e) =>
                     handleContextMenu(e, 'sub', {
                       path: childPath,
@@ -2433,14 +2294,25 @@ export default function RecentProjectsApp() {
                     className={`${styles['icon-closed']} ${styles['sub-icon']} ${styles['folder-icon']}`}
                   />
 
-                  {renderSubName(
-                    childPath,
-                    child.name,
-                    getTreeTooltipContent(childPath, child, true),
-                    highlightQuery
-                  )}
+                  <Tooltip
+                    content={getTreeTooltipContent(childPath, child, true)}
+                    placement="bottom"
+                    align="start"
+                    delay={2000}
+                  >
+                    <span
+                      className={styles['sub-name']}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        pointerEvents: 'auto',
+                      }}
+                    >
+                      {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
+                    </span>
+                  </Tooltip>
 
-                  {pendingRenameEntity?.path !== childPath && <FolderGitStatusDot status={child.status} />}
+                  <FolderGitStatusDot status={child.status} />
                 </div>
 
                 {isExpanded && (
@@ -2463,17 +2335,10 @@ export default function RecentProjectsApp() {
                 id={elementId}
                 className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''
                   } ${styles['search-name-sub-item-clickable']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''}`}
-                draggable={canDragEntity(childPath, isActiveProject) && pendingRenameEntity?.path !== childPath}
+                draggable={canDragEntity(childPath, isActiveProject)}
                 onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
                 onDragEnd={handleDragEnd}
-                onClick={(e) => {
-                  if (pendingRenameEntity?.path === childPath) {
-                    e.stopPropagation();
-                    return;
-                  }
-
-                  handleOpenFile(childPath, projectName, isActiveProject, e);
-                }}
+                onClick={(e) => handleOpenFile(childPath, projectName, isActiveProject, e)}
                 onContextMenu={(e) =>
                   handleContextMenu(e, 'sub', {
                     path: childPath,
@@ -2494,15 +2359,25 @@ export default function RecentProjectsApp() {
                   className={styles['sub-icon']}
                 />
 
-                {renderSubName(
-                  childPath,
-                  child.name,
-                  getTreeTooltipContent(childPath, child, false),
-                  highlightQuery
-                )}
+                <Tooltip
+                  content={getTreeTooltipContent(childPath, child, false)}
+                  placement="bottom"
+                  align="start"
+                  delay={2000}
+                >
+                  <span className={styles['sub-name']}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      pointerEvents: 'auto',
+                    }}
+                  >
+                    {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
+                  </span>
+                </Tooltip>
 
-                {pendingRenameEntity?.path !== childPath && <FileGitStatusBadge status={child.status} />}
-                {pendingRenameEntity?.path !== childPath && renderDiagnosticsBadge(child)}
+                <FileGitStatusBadge status={child.status} />
+                {renderDiagnosticsBadge(child)}
               </div>
             </div>
           );

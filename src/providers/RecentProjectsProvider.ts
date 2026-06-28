@@ -654,9 +654,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'moveFileEntity':
           await this.moveFileEntity(data.sourceFsPath, data.targetFolderFsPath, !!data.isFolder);
           break;
-        case 'renameFileEntity':
-          await this.renameFileEntity(data.fsPath, data.newName, !!data.isFolder);
-          break;
         case 'deleteFileEntity':
           await this.deleteFileEntity(data.fsPath, !!data.isFolder);
           break;
@@ -2101,6 +2098,177 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  /**
+   * @description 读取 VS Code 搜索排除规则
+   *
+   * 说明：
+   * - VS Code 搜索会继承 files.exclude。
+   * - search.exclude 会在搜索场景继续追加 / 覆盖。
+   * - 这里不再维护 node_modules / dist / build 等硬编码列表，避免和 VS Code 搜索结果数量不一致。
+   */
+  private getVSCodeSearchExcludePatterns(resource?: vscode.Uri): string[] {
+    const result = new Map<string, boolean>();
+
+    const applyExcludeConfig = (config: Record<string, any> | undefined, override: boolean = false) => {
+      Object.entries(config || {}).forEach(([pattern, value]) => {
+        const key = String(pattern || '').trim();
+
+        if (!key) return;
+
+        const enabled = value === true || (typeof value === 'object' && value !== null && value.when);
+
+        if (enabled) {
+          result.set(key, true);
+          return;
+        }
+
+        if (override) {
+          result.delete(key);
+        }
+      });
+    };
+
+    const filesExclude = vscode.workspace
+      .getConfiguration('files', resource)
+      .get<Record<string, any>>('exclude') || {};
+    const searchExclude = vscode.workspace
+      .getConfiguration('search', resource)
+      .get<Record<string, any>>('exclude') || {};
+
+    applyExcludeConfig(filesExclude);
+    applyExcludeConfig(searchExclude, true);
+
+    return Array.from(result.keys());
+  }
+
+  /**
+   * @description 生成 VS Code API 可用的搜索排除 glob
+   */
+  private getVSCodeSearchExcludeGlob(resource?: vscode.Uri): string | undefined {
+    const patterns = this.getVSCodeSearchExcludePatterns(resource);
+
+    if (patterns.length === 0) return undefined;
+    if (patterns.length === 1) return patterns[0];
+
+    return `{${patterns.join(',')}}`;
+  }
+
+  /**
+   * @description 判断文件内容是否像二进制
+   *
+   * 说明：
+   * - VS Code 搜索不会正常展示二进制文件内容。
+   * - 这里用 NUL 字节做轻量判断，避免把图片/压缩包等内容当文本读。
+   */
+  private isProbablyBinaryContent(content: Uint8Array): boolean {
+    const sampleLength = Math.min(content.length, 8192);
+
+    for (let index = 0; index < sampleLength; index++) {
+      if (content[index] === 0) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * @description 统计一行里普通关键词出现次数
+   *
+   * 说明：
+   * - VS Code 搜索结果数量按“出现次数”统计，不是按“命中的行数”统计。
+   * - 例如压缩后的 js 一行里出现 60 次 abc，VS Code 会算 60 个结果。
+   */
+  private countPlainTextOccurrences(lineText: string, query: string): number {
+    const searchValue = String(query || '').toLowerCase();
+
+    if (!searchValue) return 0;
+
+    const lowerText = String(lineText || '').toLowerCase();
+    let count = 0;
+    let startIndex = 0;
+
+    while (startIndex <= lowerText.length) {
+      const index = lowerText.indexOf(searchValue, startIndex);
+
+      if (index === -1) {
+        break;
+      }
+
+      count++;
+      startIndex = index + Math.max(searchValue.length, 1);
+    }
+
+    return count;
+  }
+
+  /**
+   * @description 生成展示用的匹配行片段
+   *
+   * 说明：
+   * - 不能直接把超长压缩行完整发给 Webview，否则列表会很卡。
+   * - 但是匹配数量要按完整行统计，所以 count 和 text 分开处理。
+   */
+  private getSearchPreviewLine(lineText: string, query: string, maxLength: number = 300): string {
+    const rawText = String(lineText || '').trim();
+
+    if (rawText.length <= maxLength) {
+      return rawText;
+    }
+
+    const lowerText = rawText.toLowerCase();
+    const searchValue = String(query || '').toLowerCase();
+    const firstMatchIndex = searchValue ? lowerText.indexOf(searchValue) : -1;
+
+    if (firstMatchIndex === -1) {
+      return `${rawText.slice(0, maxLength)}...`;
+    }
+
+    const start = Math.max(0, firstMatchIndex - 120);
+    const end = Math.min(rawText.length, start + maxLength);
+    const prefix = start > 0 ? '...' : '';
+    const suffix = end < rawText.length ? '...' : '';
+
+    return `${prefix}${rawText.slice(start, end)}${suffix}`;
+  }
+
+  /**
+   * @description 在文本中查找普通关键词匹配行
+   *
+   * 说明：
+   * - 返回一行一条记录用于展示。
+   * - count 记录这一行实际出现次数，用来让总数和 VS Code 搜索一致。
+   */
+  private getPlainTextSearchMatches(text: string, query: string, maxMatches: number = 5000) {
+    const searchValue = String(query || '').toLowerCase();
+
+    if (!searchValue) return [] as Array<{ line: number; text: string; count: number }>;
+
+    const lines = String(text || '').split(/\r?\n/);
+    const matches: Array<{ line: number; text: string; count: number }> = [];
+
+    for (let index = 0; index < lines.length; index++) {
+      const lineText = lines[index] || '';
+      const count = this.countPlainTextOccurrences(lineText, searchValue);
+
+      if (count <= 0) {
+        continue;
+      }
+
+      matches.push({
+        line: index + 1,
+        text: this.getSearchPreviewLine(lineText, searchValue),
+        count,
+      });
+
+      if (matches.length >= maxMatches) {
+        break;
+      }
+    }
+
+    return matches;
+  }
+
   private async handleSearchFileName(fsPath: string, query: string, isRemote: boolean, focusOnly: boolean = false, requestId?: number) {
     if (isRemote) {
       this._view?.webview.postMessage({ type: 'searchFileNameResult', requestId, results: [], error: '远程仓库暂不支持名称检索。' });
@@ -2132,7 +2300,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     };
 
     const compactSearchText = (value: string) => {
-      return normalizeSearchText(value).replace(/[\s\/_.@#:$+~\-]+/g, '');
+      return normalizeSearchText(value).replace(/[\s\/_\.@#:$+~\-]+/g, '');
     };
 
     const getSequentialFuzzyScore = (target: string, input: string) => {
@@ -2172,34 +2340,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       .split(/[\s\/]+/)
       .map((item) => item.trim())
       .filter(Boolean);
-
-    /**
-     * 默认不把 .gitignore、.gitattributes、.github、.git-crypt 这类隐藏文件/隐藏目录
-     * 混到普通关键词结果里，避免输入 git 时出现一大堆点文件。
-     *
-     * 需要搜隐藏文件时，显式输入 . 开头即可，例如：
-     * - .git
-     * - .github/workflows
-     * - .gitignore
-     */
-    const shouldIncludeHiddenEntries =
-      normalizedQuery.startsWith('.') ||
-      normalizedQuery.includes('/.') ||
-      queryParts.some((part) => part.startsWith('.'));
-
-    const isHiddenPathSegment = (segment: string) => {
-      return segment.startsWith('.') && segment !== '.' && segment !== '..';
-    };
-
-    const hasHiddenPathSegment = (relativePath: string) => {
-      return normalizeSearchText(relativePath)
-        .split('/')
-        .some((segment) => isHiddenPathSegment(segment));
-    };
-
-    const shouldSkipHiddenSearchEntry = (relativePath: string) => {
-      return !shouldIncludeHiddenEntries && hasHiddenPathSegment(relativePath);
-    };
 
     const getSearchScore = (fileName: string, relativePath: string) => {
       const normalizedName = normalizeSearchText(fileName);
@@ -2287,75 +2427,52 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const scoredResults: Array<{ item: any; score: number; depth: number; order: number }> = [];
     const maxResults = 200;
     const maxCollectedResults = 800;
-    let visitedCount = 0;
 
-    const gitRoot = await this.getGitRoot(nativePath);
+    const gitRoot = await this.getGitRoot(nativePath).catch(() => '');
     const statusMap = gitRoot ? await this.getGitStatusMap(nativePath) : new Map<string, string>();
-
-    const IGNORE_DIRS = new Set(['node_modules', 'dist', 'build', '.git', '.svn', '.vscode', '.idea']);
-
-    const searchRecursive = async (dirUri: vscode.Uri, currentNativePath: string) => {
-      if (scoredResults.length >= maxCollectedResults) return;
-
-      try {
-        const entries = await vscode.workspace.fs.readDirectory(dirUri);
-
-        for (const [name, type] of entries) {
-          if (scoredResults.length >= maxCollectedResults) break;
-          if (IGNORE_DIRS.has(name) || name === '.DS_Store') continue;
-
-          const isDir = (type & vscode.FileType.Directory) !== 0;
-          const fullPath = path.join(currentNativePath, name);
-          const fullUri = vscode.Uri.joinPath(dirUri, name);
-          const relativePath = path.relative(nativePath, fullPath).replace(/\\/g, '/');
-
-          if (shouldSkipHiddenSearchEntry(relativePath)) {
-            visitedCount++;
-            continue;
-          }
-
-          const gitRelativePath = gitRoot ? path.relative(gitRoot, fullPath) : '';
-          const status = gitRoot ? this.getChildGitStatus(gitRelativePath, isDir, statusMap) : undefined;
-
-          if (!(focusOnly && !status)) {
-            const score = getSearchScore(name, relativePath);
-
-            if (score !== null) {
-              scoredResults.push({
-                item: {
-                  path: fullUri.toString(),
-                  name,
-                  relativePath,
-                  isFolder: isDir,
-                  status,
-                },
-                score,
-                depth: relativePath.split('/').length,
-                order: visitedCount,
-              });
-            }
-          }
-
-          visitedCount++;
-
-          if (isDir) {
-            await searchRecursive(fullUri, fullPath);
-          }
-        }
-      } catch (e) { }
-    };
+    const excludeGlob = this.getVSCodeSearchExcludeGlob(uri);
 
     await vscode.window.withProgress({
       location: vscode.ProgressLocation.Window,
       title: 'Quick Ops: 正在按文件名/路径模糊检索...'
     }, async () => {
-      await searchRecursive(uri, nativePath);
+      const fileUris = await vscode.workspace.findFiles(
+        new vscode.RelativePattern(nativePath, '**/*'),
+        excludeGlob,
+        maxCollectedResults
+      );
+
+      fileUris.forEach((fileUri, order) => {
+        const fullPath = fileUri.fsPath;
+        const name = path.basename(fullPath);
+        const relativePath = path.relative(nativePath, fullPath).replace(/\\/g, '/');
+        const gitRelativePath = gitRoot ? path.relative(gitRoot, fullPath) : '';
+        const status = gitRoot ? this.getChildGitStatus(gitRelativePath, false, statusMap) : undefined;
+
+        if (focusOnly && !status) return;
+
+        const score = getSearchScore(name, relativePath);
+
+        if (score === null) return;
+
+        scoredResults.push({
+          item: {
+            path: fileUri.toString(),
+            name,
+            relativePath,
+            isFolder: false,
+            status,
+          },
+          score,
+          depth: relativePath.split('/').length,
+          order,
+        });
+      });
     });
 
     const results = scoredResults
       .sort((a, b) => {
         if (a.score !== b.score) return a.score - b.score;
-        if (a.item.isFolder !== b.item.isFolder) return a.item.isFolder ? -1 : 1;
         if (a.depth !== b.depth) return a.depth - b.depth;
         return a.order - b.order;
       })
@@ -2374,8 +2491,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     const uri = fsPath.includes('://') ? vscode.Uri.parse(fsPath) : vscode.Uri.file(fsPath);
     const nativePath = uri.fsPath;
+    const searchValue = query.trim();
 
-    if (!query.trim()) {
+    if (!searchValue) {
       this._view?.webview.postMessage({ type: 'searchFolderResult', requestId, results: [] });
       return;
     }
@@ -2387,108 +2505,91 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const results: any[] = [];
+    const resultsMap = new Map<string, any>();
+    let totalMatchCount = 0;
     const maxResults = 200;
-    let currentResults = 0;
+    const maxCollectedFiles = 8000;
+    const maxReadableFileSize = 2 * 1024 * 1024;
 
-    const gitRoot = await this.getGitRoot(nativePath);
+    const gitRoot = await this.getGitRoot(nativePath).catch(() => '');
     const statusMap = gitRoot ? await this.getGitStatusMap(nativePath) : new Map<string, string>();
-
-    const IGNORE_DIRS = new Set([
-      'node_modules', 'bower_components', 'vendor',
-      '.git', '.svn', '.hg', 'CVS', '.vscode', '.idea',
-      'dist', 'build', 'out', 'coverage', '.next', '.nuxt', '.cache'
-    ]);
-
-    const BINARY_EXTS = new Set([
-      '.png', '.jpg', '.jpeg', '.gif', '.ico', '.svg', '.webp', '.bmp', '.tif', '.tiff',
-      '.woff', '.woff2', '.ttf', '.eot', '.otf',
-      '.mp4', '.mp3', '.wav', '.ogg', '.webm', '.mov', '.avi',
-      '.pdf', '.zip', '.tar', '.gz', '.7z', '.rar', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-      '.exe', '.dll', '.so', '.dylib', '.class', '.jar', '.bin', '.DS_Store', 'Thumbs.db', '.pyc', '.o'
-    ]);
-
-    const searchRecursive = async (dirPath: string) => {
-      if (currentResults >= maxResults) return;
-      try {
-        const dirUri = vscode.Uri.file(dirPath);
-        let entries;
-        try {
-          entries = await vscode.workspace.fs.readDirectory(dirUri);
-        } catch (e) { return; }
-
-        for (const [name, type] of entries) {
-          if (currentResults >= maxResults) break;
-
-          if (IGNORE_DIRS.has(name) || name === '.DS_Store' || name === 'Thumbs.db') continue;
-
-          const fullPath = path.join(dirPath, name);
-          const isDir = (type & vscode.FileType.Directory) !== 0;
-          const isFile = (type & vscode.FileType.File) !== 0;
-
-          if (isDir) {
-            await searchRecursive(fullPath);
-          } else if (isFile) {
-            const ext = path.extname(name).toLowerCase();
-            if (BINARY_EXTS.has(ext)) continue;
-
-            const fileUri = vscode.Uri.file(fullPath);
-            try {
-              const stat = await vscode.workspace.fs.stat(fileUri);
-              if (stat.size > 2 * 1024 * 1024) continue;
-            } catch (e) { continue; }
-
-            const gitRelativePath = gitRoot ? path.relative(gitRoot, fullPath) : '';
-            const status = gitRoot ? this.getChildGitStatus(gitRelativePath, false, statusMap) : undefined;
-
-            if (focusOnly && !status) continue;
-
-            const fileMatches = [];
-            let lineNum = 1;
-
-            try {
-              const contentBytes = await vscode.workspace.fs.readFile(fileUri);
-              const contentStr = Buffer.from(contentBytes).toString('utf8');
-              const lines = contentStr.split(/\r?\n/);
-
-              for (const line of lines) {
-                if (line.toLowerCase().includes(query.toLowerCase())) {
-                  fileMatches.push({
-                    line: lineNum,
-                    text: line.trim().substring(0, 300)
-                  });
-                  currentResults++;
-                  if (currentResults >= maxResults) {
-                    break;
-                  }
-                }
-                lineNum++;
-              }
-            } catch (e) { }
-
-            if (fileMatches.length > 0) {
-              const relativePath = path.relative(nativePath, fullPath).replace(/\\/g, '/');
-              results.push({
-                file: relativePath,
-                fullPath: fullPath,
-                matches: fileMatches,
-                status
-              });
-            }
-          }
-        }
-      } catch (e) { }
-    };
+    const excludeGlob = this.getVSCodeSearchExcludeGlob(uri);
 
     await vscode.window.withProgress({
       location: vscode.ProgressLocation.Window,
-      title: 'Quick Ops: 正在检索文件夹内容...'
+      title: 'Quick Ops: 正在按 VS Code 排除规则检索文件夹内容...'
     }, async () => {
-      await searchRecursive(nativePath);
+      const fileUris = await vscode.workspace.findFiles(
+        new vscode.RelativePattern(nativePath, '**/*'),
+        excludeGlob,
+        maxCollectedFiles
+      );
+
+      for (const fileUri of fileUris) {
+        if (resultsMap.size >= maxResults) {
+          break;
+        }
+
+        if (fileUri.scheme !== 'file') {
+          continue;
+        }
+
+        const fullPath = fileUri.fsPath;
+        const relativePath = path.relative(nativePath, fullPath).replace(/\\/g, '/');
+
+        if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
+          continue;
+        }
+
+        const gitRelativePath = gitRoot ? path.relative(gitRoot, fullPath) : '';
+        const status = gitRoot ? this.getChildGitStatus(gitRelativePath, false, statusMap) : undefined;
+
+        if (focusOnly && !status) {
+          continue;
+        }
+
+        try {
+          const stat = await vscode.workspace.fs.stat(fileUri);
+
+          if (stat.size > maxReadableFileSize) {
+            continue;
+          }
+
+          const content = await vscode.workspace.fs.readFile(fileUri);
+
+          if (this.isProbablyBinaryContent(content)) {
+            continue;
+          }
+
+          const text = Buffer.from(content).toString('utf8');
+          const matches = this.getPlainTextSearchMatches(text, searchValue);
+
+          if (matches.length === 0) {
+            continue;
+          }
+
+          const fileMatchCount = matches.reduce((sum, item) => {
+            return sum + Math.max(1, Number((item as any).count) || 0);
+          }, 0);
+
+          totalMatchCount += fileMatchCount;
+
+          resultsMap.set(fileUri.toString(), {
+            file: relativePath,
+            fullPath,
+            matches,
+            matchCount: fileMatchCount,
+            totalMatches: fileMatchCount,
+            status,
+          });
+        } catch {
+          // 单个文件读取失败时跳过，避免中断整个搜索。
+        }
+      }
     });
 
     const context = await this.createMetadataContext(fsPath);
-    const enrichedResults = await Promise.all(results.map(async (item) => {
+    const enrichedResults = await Promise.all(Array.from(resultsMap.values()).map(async (item) => {
       const enriched = await this.enrichFileItem({
         ...item,
         path: item.fullPath,
@@ -2497,13 +2598,22 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       return {
         ...item,
+        matchCount: Number(item.matchCount) || 0,
+        totalMatches: Number(item.totalMatches) || Number(item.matchCount) || 0,
         status: enriched.status,
         diagnostics: enriched.diagnostics,
       };
     }));
 
-    this._view?.webview.postMessage({ type: 'searchFolderResult', requestId, results: enrichedResults });
+    this._view?.webview.postMessage({
+      type: 'searchFolderResult',
+      requestId,
+      results: enrichedResults,
+      totalMatches: totalMatchCount,
+      fileCount: enrichedResults.length,
+    });
   }
+
 
   private parseLocalFileUri(fsPath: string): vscode.Uri | undefined {
     if (!fsPath) return undefined;
@@ -2593,106 +2703,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
 
     return parts;
-  }
-
-  private validateRenameEntityName(name: string, entityType: 'file' | 'folder') {
-    const value = String(name || '').trim();
-
-    if (!value) {
-      vscode.window.showWarningMessage('名称不能为空。');
-      return '';
-    }
-
-    if (/[\\/]/.test(value)) {
-      vscode.window.showWarningMessage('重命名只允许修改当前文件或文件夹名称，不能包含路径分隔符。');
-      return '';
-    }
-
-    if (value === '.' || value === '..') {
-      vscode.window.showWarningMessage('名称不能为 . 或 ..。');
-      return '';
-    }
-
-    if (/[<>:"|?*]/.test(value)) {
-      vscode.window.showWarningMessage(`名称包含非法字符: ${value}`);
-      return '';
-    }
-
-    if (entityType === 'file' && value.endsWith('.')) {
-      vscode.window.showWarningMessage('文件名不能以 . 结尾。');
-      return '';
-    }
-
-    return value;
-  }
-
-  private async renameFileEntity(fsPath: string, newName: string, isFolder: boolean) {
-    try {
-      const sourceUri = this.parseLocalFileUri(fsPath);
-
-      if (!sourceUri) {
-        vscode.window.showWarningMessage('当前只支持重命名本地文件或文件夹。');
-        return;
-      }
-
-      const currentWorkspaceUri = this.getCurrentWorkspaceUri();
-
-      if (!currentWorkspaceUri || !this.isInsidePath(sourceUri.toString(), currentWorkspaceUri.toString())) {
-        vscode.window.showWarningMessage('只能重命名当前运行项目中的文件或文件夹。');
-        return;
-      }
-
-      if (this.normalizeComparePath(sourceUri.toString()) === this.normalizeComparePath(currentWorkspaceUri.toString())) {
-        vscode.window.showWarningMessage('不能重命名当前运行项目根目录。');
-        return;
-      }
-
-      const entityType = isFolder ? 'folder' : 'file';
-      const safeName = this.validateRenameEntityName(newName, entityType);
-
-      if (!safeName) return;
-
-      const oldName = path.basename(sourceUri.fsPath || sourceUri.path);
-
-      if (safeName === oldName) {
-        return;
-      }
-
-      const parentUri = vscode.Uri.joinPath(sourceUri, '..');
-      const targetUri = vscode.Uri.joinPath(parentUri, safeName);
-
-      try {
-        await vscode.workspace.fs.stat(targetUri);
-        vscode.window.showWarningMessage(`同级目录中已存在同名${isFolder ? '文件夹' : '文件'}: ${safeName}`);
-        return;
-      } catch {
-        // 目标不存在时继续重命名
-      }
-
-      if (!isFolder) {
-        await this.closeExistingPreviews(sourceUri.fsPath || sourceUri.toString());
-      }
-
-      await vscode.workspace.fs.rename(sourceUri, targetUri, { overwrite: false });
-
-      this.invalidateDirCache(parentUri.toString());
-      this.invalidateDirCache(sourceUri.toString());
-      this.invalidateDirCache(targetUri.toString());
-      this.refresh(false);
-
-      this._view?.webview.postMessage({
-        type: 'renameFileEntityResult',
-        sourcePath: sourceUri.toString(),
-        targetPath: targetUri.toString(),
-        parentPath: parentUri.toString(),
-        isFolder,
-        name: safeName,
-      });
-
-      vscode.window.showInformationMessage(`已重命名为: ${safeName}`);
-    } catch (e: any) {
-      vscode.window.showErrorMessage(`重命名失败，详情: ${e?.message || String(e)}`);
-    }
   }
 
   private async createFileEntity(parentFsPath: string, name?: string) {
