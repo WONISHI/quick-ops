@@ -654,6 +654,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         case 'moveFileEntity':
           await this.moveFileEntity(data.sourceFsPath, data.targetFolderFsPath, !!data.isFolder);
           break;
+        case 'renameFileEntity':
+          await this.renameFileEntity(data.fsPath, data.newName, !!data.isFolder);
+          break;
         case 'deleteFileEntity':
           await this.deleteFileEntity(data.fsPath, !!data.isFolder);
           break;
@@ -2590,6 +2593,106 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
 
     return parts;
+  }
+
+  private validateRenameEntityName(name: string, entityType: 'file' | 'folder') {
+    const value = String(name || '').trim();
+
+    if (!value) {
+      vscode.window.showWarningMessage('名称不能为空。');
+      return '';
+    }
+
+    if (/[\\/]/.test(value)) {
+      vscode.window.showWarningMessage('重命名只允许修改当前文件或文件夹名称，不能包含路径分隔符。');
+      return '';
+    }
+
+    if (value === '.' || value === '..') {
+      vscode.window.showWarningMessage('名称不能为 . 或 ..。');
+      return '';
+    }
+
+    if (/[<>:"|?*]/.test(value)) {
+      vscode.window.showWarningMessage(`名称包含非法字符: ${value}`);
+      return '';
+    }
+
+    if (entityType === 'file' && value.endsWith('.')) {
+      vscode.window.showWarningMessage('文件名不能以 . 结尾。');
+      return '';
+    }
+
+    return value;
+  }
+
+  private async renameFileEntity(fsPath: string, newName: string, isFolder: boolean) {
+    try {
+      const sourceUri = this.parseLocalFileUri(fsPath);
+
+      if (!sourceUri) {
+        vscode.window.showWarningMessage('当前只支持重命名本地文件或文件夹。');
+        return;
+      }
+
+      const currentWorkspaceUri = this.getCurrentWorkspaceUri();
+
+      if (!currentWorkspaceUri || !this.isInsidePath(sourceUri.toString(), currentWorkspaceUri.toString())) {
+        vscode.window.showWarningMessage('只能重命名当前运行项目中的文件或文件夹。');
+        return;
+      }
+
+      if (this.normalizeComparePath(sourceUri.toString()) === this.normalizeComparePath(currentWorkspaceUri.toString())) {
+        vscode.window.showWarningMessage('不能重命名当前运行项目根目录。');
+        return;
+      }
+
+      const entityType = isFolder ? 'folder' : 'file';
+      const safeName = this.validateRenameEntityName(newName, entityType);
+
+      if (!safeName) return;
+
+      const oldName = path.basename(sourceUri.fsPath || sourceUri.path);
+
+      if (safeName === oldName) {
+        return;
+      }
+
+      const parentUri = vscode.Uri.joinPath(sourceUri, '..');
+      const targetUri = vscode.Uri.joinPath(parentUri, safeName);
+
+      try {
+        await vscode.workspace.fs.stat(targetUri);
+        vscode.window.showWarningMessage(`同级目录中已存在同名${isFolder ? '文件夹' : '文件'}: ${safeName}`);
+        return;
+      } catch {
+        // 目标不存在时继续重命名
+      }
+
+      if (!isFolder) {
+        await this.closeExistingPreviews(sourceUri.fsPath || sourceUri.toString());
+      }
+
+      await vscode.workspace.fs.rename(sourceUri, targetUri, { overwrite: false });
+
+      this.invalidateDirCache(parentUri.toString());
+      this.invalidateDirCache(sourceUri.toString());
+      this.invalidateDirCache(targetUri.toString());
+      this.refresh(false);
+
+      this._view?.webview.postMessage({
+        type: 'renameFileEntityResult',
+        sourcePath: sourceUri.toString(),
+        targetPath: targetUri.toString(),
+        parentPath: parentUri.toString(),
+        isFolder,
+        name: safeName,
+      });
+
+      vscode.window.showInformationMessage(`已重命名为: ${safeName}`);
+    } catch (e: any) {
+      vscode.window.showErrorMessage(`重命名失败，详情: ${e?.message || String(e)}`);
+    }
   }
 
   private async createFileEntity(parentFsPath: string, name?: string) {

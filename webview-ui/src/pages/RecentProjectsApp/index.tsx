@@ -53,6 +53,14 @@ interface PendingCreateEntity {
   isActiveProject: boolean;
 }
 
+interface PendingRenameEntity {
+  path: string;
+  name: string;
+  isFolder: boolean;
+  projectName: string;
+  isActiveProject: boolean;
+}
+
 interface DraggingEntity {
   path: string;
   name: string;
@@ -158,6 +166,10 @@ export default function RecentProjectsApp() {
   const [pendingCreateName, setPendingCreateName] = useState('');
   const pendingCreateInputRef = useRef<HTMLInputElement>(null);
 
+  const [pendingRenameEntity, setPendingRenameEntity] = useState<PendingRenameEntity | null>(null);
+  const [pendingRenameName, setPendingRenameName] = useState('');
+  const pendingRenameInputRef = useRef<HTMLInputElement>(null);
+
   const [draggingEntity, setDraggingEntity] = useState<DraggingEntity | null>(null);
   const [dragOverPath, setDragOverPath] = useState('');
   const [invalidDragOverPath, setInvalidDragOverPath] = useState('');
@@ -195,6 +207,15 @@ export default function RecentProjectsApp() {
       pendingCreateInputRef.current?.select();
     }, 0);
   }, [pendingCreateEntity]);
+
+  useEffect(() => {
+    if (!pendingRenameEntity) return;
+
+    window.setTimeout(() => {
+      pendingRenameInputRef.current?.focus();
+      pendingRenameInputRef.current?.select();
+    }, 0);
+  }, [pendingRenameEntity]);
 
   const normalizePatchPath = (pathValue: string) => {
     if (!pathValue) return '';
@@ -931,6 +952,49 @@ export default function RecentProjectsApp() {
             projectName: getProjectNameByPath(pathValue),
             forceRefresh: true,
           });
+        });
+      } else if (msg.type === 'renameFileEntityResult') {
+        const sourcePath = msg.sourcePath as string;
+        const targetPath = msg.targetPath as string;
+        const parentPath = msg.parentPath as string;
+
+        cancelRenameEntity();
+        setSelectedPath(targetPath);
+
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+
+          Array.from(next).forEach((itemPath) => {
+            if (isPathInside(itemPath, sourcePath)) {
+              next.delete(itemPath);
+            }
+          });
+
+          if (msg.isFolder) {
+            next.add(targetPath);
+          }
+
+          return next;
+        });
+
+        setDirChildren((prev) => {
+          const next = { ...prev };
+
+          Object.keys(next).forEach((key) => {
+            if (isPathInside(key, sourcePath)) {
+              delete next[key];
+            }
+          });
+
+          return next;
+        });
+
+        setLoadingPaths((prev) => new Set(prev).add(parentPath));
+        vscode.postMessage({
+          type: 'readDir',
+          fsPath: parentPath,
+          projectName: getProjectNameByPath(parentPath),
+          forceRefresh: true,
         });
       } else if (msg.type === 'refreshExpandedDirs') {
         requestSilentFolderSearchRefresh();
@@ -1695,6 +1759,113 @@ export default function RecentProjectsApp() {
     }, 250);
   };
 
+  const beginRenameEntity = (payload: ContextMenuPayload) => {
+    if (!payload.isActiveProject || payload.isRemote) {
+      return;
+    }
+
+    const currentName = String(payload.name || '').trim();
+
+    if (!currentName) {
+      return;
+    }
+
+    setPendingCreateEntity(null);
+    setPendingCreateName('');
+    setPendingRenameEntity({
+      path: payload.path,
+      name: currentName,
+      isFolder: !!payload.isFolder,
+      projectName: payload.projectName || getProjectNameByPath(payload.path) || '当前项目',
+      isActiveProject: true,
+    });
+    setPendingRenameName(currentName);
+    setSelectedPath(payload.path);
+  };
+
+  const cancelRenameEntity = () => {
+    setPendingRenameEntity(null);
+    setPendingRenameName('');
+  };
+
+  const submitRenameEntity = () => {
+    const entity = pendingRenameEntity;
+
+    if (!entity) return;
+
+    const nextName = pendingRenameName.trim();
+
+    if (!nextName || nextName === entity.name) {
+      cancelRenameEntity();
+      return;
+    }
+
+    vscode.postMessage({
+      type: 'renameFileEntity',
+      fsPath: entity.path,
+      newName: nextName,
+      isFolder: entity.isFolder,
+      projectName: entity.projectName,
+    });
+  };
+
+  const renderRenameInput = () => (
+    <input
+      ref={pendingRenameInputRef}
+      className={styles['rename-entity-input']}
+      value={pendingRenameName}
+      onChange={(event) => setPendingRenameName(event.target.value)}
+      onClick={(event) => event.stopPropagation()}
+      onDoubleClick={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.stopPropagation()}
+      onBlur={submitRenameEntity}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          event.stopPropagation();
+          submitRenameEntity();
+        }
+
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          cancelRenameEntity();
+        }
+      }}
+    />
+  );
+
+  const renderSubName = (
+    childPath: string,
+    childName: string,
+    tooltipContent: React.ReactNode,
+    highlightQuery: string
+  ) => {
+    if (pendingRenameEntity?.path === childPath) {
+      return renderRenameInput();
+    }
+
+    return (
+      <Tooltip
+        content={tooltipContent}
+        placement="bottom"
+        align="start"
+        delay={2000}
+      >
+        <span
+          className={styles['sub-name']}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            pointerEvents: 'auto',
+          }}
+        >
+          {highlightQuery ? renderSearchNameHighlightText(childName, highlightQuery) : childName}
+        </span>
+      </Tooltip>
+    );
+  };
+
   const handleContextMenu = (
     e: React.MouseEvent,
     type: 'top' | 'sub',
@@ -1815,6 +1986,10 @@ export default function RecentProjectsApp() {
           fsPath: payload.path,
           isFolder: !!payload.isFolder,
         });
+        break;
+
+      case 'renameFileEntity':
+        beginRenameEntity(payload);
         break;
 
       case 'openLink':
@@ -2210,13 +2385,20 @@ export default function RecentProjectsApp() {
                   id={elementId}
                   className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''
                     } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
-                  draggable={canDragEntity(childPath, isActiveProject)}
+                  draggable={canDragEntity(childPath, isActiveProject) && pendingRenameEntity?.path !== childPath}
                   onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
                   onDragEnd={handleDragEnd}
                   onDragOver={(e) => handleDragOverFolder(e, childPath, isActiveProject)}
                   onDragLeave={(e) => handleDragLeaveFolder(e, childPath)}
                   onDrop={(e) => handleDropOnFolder(e, childPath, isActiveProject)}
-                  onClick={(e) => handleToggleExpand(childPath, projectName, isRemote, e)}
+                  onClick={(e) => {
+                    if (pendingRenameEntity?.path === childPath) {
+                      e.stopPropagation();
+                      return;
+                    }
+
+                    handleToggleExpand(childPath, projectName, isRemote, e);
+                  }}
                   onContextMenu={(e) =>
                     handleContextMenu(e, 'sub', {
                       path: childPath,
@@ -2251,25 +2433,14 @@ export default function RecentProjectsApp() {
                     className={`${styles['icon-closed']} ${styles['sub-icon']} ${styles['folder-icon']}`}
                   />
 
-                  <Tooltip
-                    content={getTreeTooltipContent(childPath, child, true)}
-                    placement="bottom"
-                    align="start"
-                    delay={2000}
-                  >
-                    <span
-                      className={styles['sub-name']}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        pointerEvents: 'auto',
-                      }}
-                    >
-                      {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
-                    </span>
-                  </Tooltip>
+                  {renderSubName(
+                    childPath,
+                    child.name,
+                    getTreeTooltipContent(childPath, child, true),
+                    highlightQuery
+                  )}
 
-                  <FolderGitStatusDot status={child.status} />
+                  {pendingRenameEntity?.path !== childPath && <FolderGitStatusDot status={child.status} />}
                 </div>
 
                 {isExpanded && (
@@ -2292,10 +2463,17 @@ export default function RecentProjectsApp() {
                 id={elementId}
                 className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''
                   } ${styles['search-name-sub-item-clickable']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''}`}
-                draggable={canDragEntity(childPath, isActiveProject)}
+                draggable={canDragEntity(childPath, isActiveProject) && pendingRenameEntity?.path !== childPath}
                 onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
                 onDragEnd={handleDragEnd}
-                onClick={(e) => handleOpenFile(childPath, projectName, isActiveProject, e)}
+                onClick={(e) => {
+                  if (pendingRenameEntity?.path === childPath) {
+                    e.stopPropagation();
+                    return;
+                  }
+
+                  handleOpenFile(childPath, projectName, isActiveProject, e);
+                }}
                 onContextMenu={(e) =>
                   handleContextMenu(e, 'sub', {
                     path: childPath,
@@ -2316,25 +2494,15 @@ export default function RecentProjectsApp() {
                   className={styles['sub-icon']}
                 />
 
-                <Tooltip
-                  content={getTreeTooltipContent(childPath, child, false)}
-                  placement="bottom"
-                  align="start"
-                  delay={2000}
-                >
-                  <span className={styles['sub-name']}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      pointerEvents: 'auto',
-                    }}
-                  >
-                    {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
-                  </span>
-                </Tooltip>
+                {renderSubName(
+                  childPath,
+                  child.name,
+                  getTreeTooltipContent(childPath, child, false),
+                  highlightQuery
+                )}
 
-                <FileGitStatusBadge status={child.status} />
-                {renderDiagnosticsBadge(child)}
+                {pendingRenameEntity?.path !== childPath && <FileGitStatusBadge status={child.status} />}
+                {pendingRenameEntity?.path !== childPath && renderDiagnosticsBadge(child)}
               </div>
             </div>
           );
