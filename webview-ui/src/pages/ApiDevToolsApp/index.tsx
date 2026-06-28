@@ -129,7 +129,7 @@ const RESPONSE_HEAD_SIZE = 34;
 const RESPONSE_TABS_SIZE = 32;
 const BOTTOM_RESIZER_SIZE = 6;
 const WORKSPACE_PANE_DEFAULT_WIDTH = 218;
-const WORKSPACE_PANE_MIN_WIDTH = 170;
+const WORKSPACE_PANE_MIN_WIDTH = 0;
 const WORKSPACE_PANE_MAX_WIDTH = 380;
 const WORKSPACE_RESIZER_SIZE = 6;
 
@@ -1952,23 +1952,89 @@ export default function ApiDevToolsApp() {
     return true;
   };
 
+  /**
+   * @description 放弃当前请求未保存的修改，并恢复到修改前的快照
+   *
+   * 说明：
+   * - 当前绑定了接口时，恢复为该接口已保存的 request。
+   * - 当前没有绑定接口时，恢复为默认空请求。
+   * - 该方法只负责恢复当前编辑器内容，不负责切换目标项目或接口。
+   */
+  const discardCurrentRequestChanges = () => {
+    const currentProjectId = activeProjectIdRef.current;
+    const currentInterfaceId = activeInterfaceIdRef.current;
+    const currentInterface =
+      currentProjectId && currentInterfaceId
+        ? getInterfaceById(currentProjectId, currentInterfaceId)
+        : null;
+
+    const restoredRequest = currentInterface
+      ? cloneRequest(currentInterface.request)
+      : createDefaultRequest();
+
+    requestRef.current = restoredRequest;
+
+    setRequest(restoredRequest);
+    setResponse(null);
+    setResponseTab('body');
+
+    saveState({
+      request: restoredRequest,
+      activeProjectId: currentProjectId,
+      activeInterfaceId: currentInterfaceId,
+    });
+
+    setLog('已放弃未保存修改');
+  };
+
+  /**
+   * @description 离开当前接口或项目前确认是否保存未保存修改
+   *
+   * 交互逻辑：
+   * - 没有修改：直接继续切换。
+   * - 点击“确定”：保存当前修改，然后继续切换。
+   * - 点击“取消”：不保存，恢复到修改前内容，然后继续切换。
+   */
   const confirmSaveBeforeLeave = () => {
     if (!hasUnsavedRequest()) return true;
 
-    const shouldSave = window.confirm('当前接口有未保存修改，是否先保存？\n确定：保存后继续切换\n取消：留在当前接口');
+    const shouldSave = window.confirm('当前接口有未保存修改，是否需要保存？\n确定：保存后继续切换\n取消：不保存并继续切换');
 
-    if (!shouldSave) return false;
+    if (shouldSave) {
+      return saveCurrentRequestToProject({ silent: true });
+    }
 
-    return saveCurrentRequestToProject({ silent: true });
+    discardCurrentRequestChanges();
+    return true;
   };
 
   const switchProject = (project: ApiProject) => {
-    const isSameProjectWithoutInterface =
-      activeProjectIdRef.current === project.id && !activeInterfaceIdRef.current;
+    const firstInterface = project.interfaces[0] || null;
+    const targetInterfaceId = firstInterface?.id || '';
+    const isSameProjectAndTargetInterface =
+      activeProjectIdRef.current === project.id &&
+      activeInterfaceIdRef.current === targetInterfaceId;
 
-    if (isSameProjectWithoutInterface) return;
+    if (isSameProjectAndTargetInterface) return;
 
     if (!confirmSaveBeforeLeave()) return;
+
+    if (firstInterface) {
+      const nextRequest = cloneRequest(firstInterface.request);
+
+      activeProjectIdRef.current = project.id;
+      activeInterfaceIdRef.current = firstInterface.id;
+      requestRef.current = nextRequest;
+
+      setActiveProjectId(project.id);
+      setActiveInterfaceId(firstInterface.id);
+      setRequest(nextRequest);
+      setRequestTab('params');
+      setResponse(null);
+      setResponseTab('body');
+      setLog(`已打开接口：${firstInterface.name}`);
+      return;
+    }
 
     resetEditorForProject(project.id);
     setLog(`已切换项目：${project.name}`);

@@ -665,7 +665,6 @@
 
 .project-card-active {
   border-color: var(--vscode-focusBorder);
-  background: color-mix(in srgb, var(--vscode-focusBorder) 10%, var(--vscode-editor-background));
 }
 
 .project-card-active .project-title {
