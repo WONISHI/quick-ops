@@ -1,16 +1,23 @@
 // Place your settings in this file to overwrite default and user settings.
 {
-	"files.exclude": {
-		"out": false, // set this to true to hide the "out" folder with the compiled JS files
-		"dist": false // set this to true to hide the "dist" folder with the compiled JS files
-	},
-	"search.exclude": {
-		"out": true, // set this to false to include "out" folder in search results
-		"dist": true // set this to false to include "dist" folder in search results
-	},
-	// Turn off tsc task auto detection since we have the necessary tasks as npm scripts
-	"typescript.tsc.autoDetect": "off",
-	"workbench.colorCustomizations": {
-		"gitDecoration.ignoredResourceForeground": "#00ff00"
-	}
+  "files.exclude": {
+    "out": false,
+    "dist": false
+  },
+  "search.exclude": {
+    "out": true,
+    "dist": false,
+    "node_modules": true,
+    ".vscode-test": true,
+    "bundle-report.html": true
+  },
+  "typescript.tsc.autoDetect": "off",
+  "debug.javascript.usePreview": true,
+  "debug.javascript.autoAttachFilter": "disabled",
+  "debug.javascript.terminalOptions": {
+    "sourceMaps": true
+  },
+  "workbench.colorCustomizations": {
+   "gitDecoration.ignoredResourceForeground": "#7A8B6F"
+  }
 }
