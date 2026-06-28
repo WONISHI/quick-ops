@@ -583,7 +583,7 @@ function isAbsoluteHttpUrl(value: string) {
  * - 没有被 {{变量名}} 引用的变量不展示。
  * - 相对路径请求会隐式依赖 baseUrl，所以这种情况下保留 baseUrl。
  */
-function getUsedDocGlobals(projects: ApiProject[], globals: GlobalVariable[]) {
+function getUsedDocGlobals(projects: ApiProject[], globals: GlobalVariable[], currentRequest?: ApiRequestConfig) {
   const usedNames = new Set<string>();
 
   projects.forEach((project) => {
@@ -605,6 +605,22 @@ function getUsedDocGlobals(projects: ApiProject[], globals: GlobalVariable[]) {
       }
     });
   });
+
+  if (currentRequest) {
+    collectDocVariableNamesFromText(currentRequest.url, usedNames);
+    collectDocVariableNamesFromList(currentRequest.params, usedNames);
+    collectDocVariableNamesFromList(currentRequest.headers, usedNames);
+    collectDocVariableNamesFromList(currentRequest.cookies, usedNames);
+    collectDocVariableNamesFromText(currentRequest.bodyRaw, usedNames);
+    collectDocVariableNamesFromList(currentRequest.bodyForm, usedNames);
+    collectDocVariableNamesFromText(currentRequest.auth?.token, usedNames);
+    collectDocVariableNamesFromText(currentRequest.auth?.username, usedNames);
+    collectDocVariableNamesFromText(currentRequest.auth?.password, usedNames);
+
+    if (!isAbsoluteHttpUrl(currentRequest.url)) {
+      usedNames.add('baseUrl');
+    }
+  }
 
   return globals.filter((item) => {
     const key = String(item.key || '').trim();
@@ -662,7 +678,7 @@ function buildApiDocsHtml(
   activeInterfaceId = ''
 ) {
   const rawDocsProjects = getDocsProjects(projects, currentRequest, activeProjectId, activeInterfaceId);
-  const usedGlobals = getUsedDocGlobals(rawDocsProjects, globals);
+  const usedGlobals = getUsedDocGlobals(rawDocsProjects, globals, currentRequest);
   const variables = getDocVariableMap(globals);
   const docsProjects = rawDocsProjects.map((project) => ({
     ...project,
@@ -820,7 +836,7 @@ function buildApiDocsHtml(
     .status-error { color: #cf222e; font-weight: 800; }
     pre { margin: 6px 0 10px; padding: 10px; overflow: auto; border: 1px solid #d8dee4; border-radius: 8px; background: #f6f8fa; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
     code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .globals { margin-bottom: 14px; padding: 12px; border: 1px solid #d0d7de; border-radius: 12px; background: #fff; }
+    .globals { margin: 14px 0; padding: 12px; border: 1px solid #d0d7de; border-radius: 12px; background: #fff; }
     .globals-title { margin: 0 0 8px; font-weight: 800; }
     .global-row { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 8px; padding: 6px 0; border-top: 1px solid #eef1f4; font-size: 13px; }
     .global-row:first-of-type { border-top: none; }
@@ -3516,7 +3532,12 @@ export default function ApiDevToolsApp() {
 
             <KeyValueEditor
               items={globals}
-              onChange={(items) => setGlobals(items.map((item) => ({ ...item })))}
+              onChange={(items) => {
+                const nextGlobals = items.map((item) => ({ ...item }));
+
+                globalsRef.current = nextGlobals;
+                setGlobals(nextGlobals);
+              }}
               keyPlaceholder="变量名"
               valuePlaceholder="变量值"
             />
