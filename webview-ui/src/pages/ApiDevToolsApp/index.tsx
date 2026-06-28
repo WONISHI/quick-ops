@@ -548,6 +548,71 @@ function getDocsProjects(
   return validProjects;
 }
 
+function collectDocVariableNamesFromText(value: unknown, result: Set<string>) {
+  const text = String(value ?? '');
+  const variableRegExp = /\{\{\s*([\w.-]+)\s*\}\}/g;
+
+  let match = variableRegExp.exec(text);
+
+  while (match) {
+    const key = String(match[1] || '').trim();
+
+    if (key) {
+      result.add(key);
+    }
+
+    match = variableRegExp.exec(text);
+  }
+}
+
+function collectDocVariableNamesFromList(list: KeyValueItem[], result: Set<string>) {
+  (list || []).forEach((item) => {
+    collectDocVariableNamesFromText(item.key, result);
+    collectDocVariableNamesFromText(item.value, result);
+  });
+}
+
+function isAbsoluteHttpUrl(value: string) {
+  return /^https?:\/\//i.test(String(value || '').trim());
+}
+
+/**
+ * @description 获取分享文档真正用到的全局变量
+ *
+ * 说明：
+ * - 没有被 {{变量名}} 引用的变量不展示。
+ * - 相对路径请求会隐式依赖 baseUrl，所以这种情况下保留 baseUrl。
+ */
+function getUsedDocGlobals(projects: ApiProject[], globals: GlobalVariable[]) {
+  const usedNames = new Set<string>();
+
+  projects.forEach((project) => {
+    project.interfaces.forEach((api) => {
+      const request = api.request;
+
+      collectDocVariableNamesFromText(request.url, usedNames);
+      collectDocVariableNamesFromList(request.params, usedNames);
+      collectDocVariableNamesFromList(request.headers, usedNames);
+      collectDocVariableNamesFromList(request.cookies, usedNames);
+      collectDocVariableNamesFromText(request.bodyRaw, usedNames);
+      collectDocVariableNamesFromList(request.bodyForm, usedNames);
+      collectDocVariableNamesFromText(request.auth?.token, usedNames);
+      collectDocVariableNamesFromText(request.auth?.username, usedNames);
+      collectDocVariableNamesFromText(request.auth?.password, usedNames);
+
+      if (!isAbsoluteHttpUrl(request.url)) {
+        usedNames.add('baseUrl');
+      }
+    });
+  });
+
+  return globals.filter((item) => {
+    const key = String(item.key || '').trim();
+
+    return item.enabled && key && usedNames.has(key);
+  });
+}
+
 function getDocVariableMap(globals: GlobalVariable[]) {
   const variables: Record<string, string> = {};
 
@@ -596,8 +661,10 @@ function buildApiDocsHtml(
   activeProjectId = '',
   activeInterfaceId = ''
 ) {
+  const rawDocsProjects = getDocsProjects(projects, currentRequest, activeProjectId, activeInterfaceId);
+  const usedGlobals = getUsedDocGlobals(rawDocsProjects, globals);
   const variables = getDocVariableMap(globals);
-  const docsProjects = getDocsProjects(projects, currentRequest, activeProjectId, activeInterfaceId).map((project) => ({
+  const docsProjects = rawDocsProjects.map((project) => ({
     ...project,
     interfaces: project.interfaces.map((api) => {
       const request = resolveRequestForDocs(api.request, variables);
@@ -610,11 +677,12 @@ function buildApiDocsHtml(
       };
     }),
   }));
-  const resolvedGlobals = globals.map((item) => ({
+  const resolvedGlobals = usedGlobals.map((item) => ({
     ...item,
     key: String(item.key || '').trim(),
     value: interpolateVariables(item.value, variables),
   }));
+  const hasResolvedGlobals = resolvedGlobals.some((item) => item.enabled && item.key.trim());
   const generatedAt = new Date().toLocaleString();
   const totalCount = docsProjects.reduce((sum, project) => sum + project.interfaces.length, 0);
   const docsData = {
@@ -707,16 +775,16 @@ function buildApiDocsHtml(
     header { position: sticky; top: 0; z-index: 5; padding: 16px 22px; color: #fff; background: linear-gradient(135deg, #0969da, #8250df); box-shadow: 0 8px 24px rgba(31,35,40,.12); }
     header h1 { margin: 0 0 6px; font-size: 22px; letter-spacing: .2px; }
     header p { margin: 0; opacity: .9; font-size: 14px; }
-    main { max-width: 1220px; margin: 0 auto; padding: 16px; }
-    .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 14px; align-items: start; }
-    nav { position: sticky; top: 86px; padding: 12px; border: 1px solid #d0d7de; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(31,35,40,.04); }
+    main { max-width: 1220px; margin: 0 auto; padding: 0px 16px 16px 16px; }
+    .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); align-items: start; }
+    nav { margin-top: 16px; position: sticky; top: 86px; padding: 12px; border: 1px solid #d0d7de; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(31,35,40,.04); }
     .nav-project { padding: 8px 0 10px; border-bottom: 1px solid #d8dee4; }
     .nav-project:last-child { border-bottom: none; }
     .nav-project-title { margin: 0 0 8px; font-weight: 800; font-size: 16px; color: #1f2328; }
     nav a { display: block; padding: 7px 8px; color: #57606a; text-decoration: none; border-radius: 8px; font-size: 13px; }
     nav a:hover { color: #0969da; background: #ddf4ff; }
     .doc-content { display: grid; gap: 14px; }
-    article.api { padding: 16px; border: 1px solid #d0d7de; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(31,35,40,.04); }
+    article.api { padding: 16px; margin-top: 16px; border: 1px solid #d0d7de; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(31,35,40,.04); }
     .api-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
     .api-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
     .method { min-width: 58px; padding: 4px 8px; text-align: center; border-radius: 999px; color: #fff; font-weight: 800; font-size: 12px; letter-spacing: .4px; }
@@ -740,10 +808,13 @@ function buildApiDocsHtml(
     .doc-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 4px 0 12px; color: #57606a; font-size: 13px; }
     .send-btn { height: 34px; padding: 0 16px; border: none; border-radius: 8px; color: #fff; background: #1a7f37; font-weight: 700; cursor: pointer; }
     .send-btn:hover { background: #116329; }
+    .send-btn:focus { outline: none; }
+    .send-btn:focus-visible { box-shadow: 0 0 0 3px rgba(9, 105, 218, .25); }
     .send-btn:disabled { opacity: .65; cursor: not-allowed; }
     .muted { color: #57606a; }
     .doc-response { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #d8dee4; }
     .doc-response.is-show { display: block; }
+    .doc-response-inner { padding: 10px; border: 1px solid #d8dee4; border-radius: 10px; background: #f6f8fa; }
     .response-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; color: #57606a; font-size: 13px; }
     .status-ok { color: #1a7f37; font-weight: 800; }
     .status-error { color: #cf222e; font-weight: 800; }
@@ -781,7 +852,7 @@ function buildApiDocsHtml(
           .join('')}
       </nav>
       <div class="doc-content">
-        ${resolvedGlobals.length > 0 ? `<div class="globals"><div class="globals-title">全局变量</div>${resolvedGlobals
+        ${hasResolvedGlobals ? `<div class="globals"><div class="globals-title">全局变量</div>${resolvedGlobals
           .filter((item) => item.enabled && item.key.trim())
           .map((item) => `<div class="global-row"><strong>${escapeHtml(item.key)}</strong><code>${escapeHtml(item.value)}</code></div>`)
           .join('')}</div>` : ''}
@@ -790,7 +861,7 @@ function buildApiDocsHtml(
             project.interfaces
               .map((api) => {
                 const req = api.request;
-                return `<article class="api" id="${escapeHtml(api.id)}" data-api-id="${escapeHtml(api.id)}">
+                return `<article class="api api-item" id="${escapeHtml(api.id)}" data-api-id="${escapeHtml(api.id)}">
                   <div class="api-head">
                     <div class="api-title"><span class="method ${escapeHtml(req.method)}">${escapeHtml(req.method)}</span><h3>${escapeHtml(api.name)}</h3></div>
                     <button class="send-btn" type="button" data-send-api>发送请求</button>
@@ -872,7 +943,7 @@ function buildApiDocsHtml(
       }
 
       function interpolate(value, variables) {
-        return String(value || '').replace(/\{\{\s*([\w.-]+)\s*\}\}/g, function (_, key) {
+        return String(value || '').replace(/\\{\\{\\s*([\\w.-]+)\\s*\\}\\}/g, function (_, key) {
           return Object.prototype.hasOwnProperty.call(variables, key) ? variables[key] : '';
         });
       }
@@ -904,9 +975,9 @@ function buildApiDocsHtml(
         var url = interpolate(req.url || '', variables).trim();
         var timeout = Number(req.timeout || 30000);
 
-        if (!/^https?:\/\//i.test(url)) {
-          url = url.replace(/^\/+/, '');
-          var baseUrl = interpolate(variables.baseUrl || '', variables).replace(/\/+$/, '');
+        if (!/^https?:\\/\\//i.test(url)) {
+          url = url.replace(/^\\/+/, '');
+          var baseUrl = interpolate(variables.baseUrl || '', variables).replace(/\\/+$/, '');
           url = baseUrl ? baseUrl + '/' + url : url;
         }
 
@@ -1010,7 +1081,23 @@ function buildApiDocsHtml(
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           });
-          return await response.json();
+          var text = await response.text();
+
+          try {
+            return JSON.parse(text || '{}');
+          } catch (error) {
+            return {
+              ok: false,
+              url: payload.url,
+              status: response.status || 0,
+              statusText: response.statusText || 'Request Failed',
+              duration: 0,
+              size: text ? new Blob([text]).size : 0,
+              headers: {},
+              body: '',
+              error: text || '分享服务返回数据格式错误',
+            };
+          }
         }
 
         return await directFetch(payload);
@@ -1028,27 +1115,31 @@ function buildApiDocsHtml(
         }
 
         box.classList.add('is-show');
-        box.innerHTML = '<div class="response-meta">'
+        box.innerHTML = '<div class="doc-response-inner">'
+          + '<div class="response-meta">'
           + '<span class="' + (result.ok ? 'status-ok' : 'status-error') + '">' + html(result.status || result.statusText || 'Failed') + '</span>'
           + '<span>' + html(result.duration || 0) + ' ms</span>'
           + '<span>' + html(formatSize(result.size || 0)) + '</span>'
           + '<span>' + html(result.url || '') + '</span>'
           + '</div>'
           + '<h4>响应 Body</h4><pre>' + html(body) + '</pre>'
-          + '<h4>响应 Headers</h4><pre>' + html(JSON.stringify(result.headers || {}, null, 2)) + '</pre>';
+          + '<h4>响应 Headers</h4><pre>' + html(JSON.stringify(result.headers || {}, null, 2)) + '</pre>'
+          + '</div>';
       }
 
-      document.addEventListener('click', async function (event) {
-        var target = event.target;
-        var button = target && target.closest ? target.closest('[data-send-api]') : null;
-        if (!button) return;
+      async function sendDocApiRequest(button) {
+        if (!button || button.getAttribute('data-sending') === 'true') return;
 
-        var article = button.closest('article.api');
+        var article = button.closest('article.api-item, article.api');
+        if (!article) return;
+
         var box = article.querySelector('[data-doc-response]');
 
         try {
+          button.setAttribute('data-sending', 'true');
           button.disabled = true;
           button.textContent = '请求中...';
+
           if (box) {
             box.classList.add('is-show');
             box.innerHTML = '<p class="muted">正在发送请求...</p>';
@@ -1069,9 +1160,20 @@ function buildApiDocsHtml(
             error: (error && error.message) || String(error),
           });
         } finally {
+          button.removeAttribute('data-sending');
           button.disabled = false;
           button.textContent = '发送请求';
         }
+      }
+
+      document.addEventListener('click', function (event) {
+        var target = event.target;
+        var button = target && target.closest ? target.closest('[data-send-api]') : null;
+
+        if (!button) return;
+
+        event.preventDefault();
+        sendDocApiRequest(button);
       });
     })();
   </script>
@@ -1162,6 +1264,8 @@ export default function ApiDevToolsApp() {
   const [workspacePaneWidth, setWorkspacePaneWidth] = useState(WORKSPACE_PANE_DEFAULT_WIDTH);
   const [isResizingWorkspacePane, setIsResizingWorkspacePane] = useState(false);
   const [sharedDocUrl, setSharedDocUrl] = useState('');
+  const [isShareSelecting, setIsShareSelecting] = useState(false);
+  const [shareSelectedInterfaceIds, setShareSelectedInterfaceIds] = useState<string[]>([]);
   const [manageDialog, setManageDialog] = useState<ManageDialog>(null);
   const [manageDialogValue, setManageDialogValue] = useState('');
   const [leaveConfirmDialog, setLeaveConfirmDialog] = useState<LeaveConfirmDialog>(null);
@@ -1173,6 +1277,7 @@ export default function ApiDevToolsApp() {
   const projectsRef = useRef(projects);
   const activeProjectIdRef = useRef(activeProjectId);
   const activeInterfaceIdRef = useRef(activeInterfaceId);
+  const shareSelectedInterfaceIdsRef = useRef(shareSelectedInterfaceIds);
   const globalVariablesRef = useRef<Record<string, string>>({});
   const rightPaneRef = useRef<HTMLElement | null>(null);
   const responsePanelRef = useRef<HTMLDivElement | null>(null);
@@ -1271,6 +1376,10 @@ export default function ApiDevToolsApp() {
   useEffect(() => {
     activeInterfaceIdRef.current = activeInterfaceId;
   }, [activeInterfaceId]);
+
+  useEffect(() => {
+    shareSelectedInterfaceIdsRef.current = shareSelectedInterfaceIds;
+  }, [shareSelectedInterfaceIds]);
 
   useEffect(() => {
     globalVariablesRef.current = globalVariables;
@@ -2365,9 +2474,50 @@ export default function ApiDevToolsApp() {
     }
   };
 
-  const createDocsHtml = () =>
+  const getAllInterfaceIds = () =>
+    projectsRef.current.flatMap((project) => project.interfaces.map((api) => api.id));
+
+  const getShareProjects = (selectedIds = shareSelectedInterfaceIdsRef.current) => {
+    const selectedIdSet = new Set(selectedIds);
+    const activeProjectIdValue = activeProjectIdRef.current;
+    const activeInterfaceIdValue = activeInterfaceIdRef.current;
+
+    return projectsRef.current
+      .map((project) => {
+        const interfaces = project.interfaces
+          .filter((api) => selectedIdSet.has(api.id))
+          .map((api) => {
+            if (project.id !== activeProjectIdValue || api.id !== activeInterfaceIdValue) {
+              return {
+                ...api,
+                request: cloneRequest(api.request),
+              };
+            }
+
+            const liveRequest = cloneRequest(requestRef.current);
+            const liveName = liveRequest.name || api.name || '未命名接口';
+
+            return {
+              ...api,
+              name: liveName,
+              method: liveRequest.method,
+              url: liveRequest.url,
+              request: liveRequest,
+              updatedAt: Date.now(),
+            };
+          });
+
+        return {
+          ...project,
+          interfaces,
+        };
+      })
+      .filter((project) => project.interfaces.length > 0);
+  };
+
+  const createDocsHtml = (docsProjects = projectsRef.current) =>
     buildApiDocsHtml(
-      projectsRef.current,
+      docsProjects,
       globalsRef.current,
       requestRef.current,
       activeProjectIdRef.current,
@@ -2375,7 +2525,51 @@ export default function ApiDevToolsApp() {
     );
 
   const shareDocs = () => {
-    vscode?.postMessage({ type: 'shareApiDocs', payload: { html: createDocsHtml(), fileName: 'q-ops-api-docs.html' } });
+    const allInterfaceIds = getAllInterfaceIds();
+
+    if (allInterfaceIds.length === 0) {
+      setLog('没有可分享的接口');
+      return;
+    }
+
+    setShareSelectedInterfaceIds((current) => {
+      const validIdSet = new Set(allInterfaceIds);
+      const next = current.filter((id) => validIdSet.has(id));
+
+      return next.length > 0 ? next : allInterfaceIds;
+    });
+    setIsShareSelecting(true);
+    setLog('请选择需要分享的接口');
+  };
+
+  const confirmShareDocs = () => {
+    const shareProjects = getShareProjects();
+
+    if (shareProjects.length === 0) {
+      setLog('请至少选择一个需要分享的接口');
+      return;
+    }
+
+    vscode?.postMessage({
+      type: 'shareApiDocs',
+      payload: {
+        html: createDocsHtml(shareProjects),
+        fileName: 'q-ops-api-docs.html',
+      },
+    });
+    setIsShareSelecting(false);
+  };
+
+  const cancelShareSelect = () => {
+    setIsShareSelecting(false);
+  };
+
+  const toggleShareInterface = (interfaceId: string) => {
+    setShareSelectedInterfaceIds((current) =>
+      current.includes(interfaceId)
+        ? current.filter((id) => id !== interfaceId)
+        : [...current, interfaceId]
+    );
   };
 
   const exportDocs = () => {
@@ -2386,14 +2580,18 @@ export default function ApiDevToolsApp() {
     if (!sharedDocUrl || !loadedStateRef.current) return;
 
     const timer = window.setTimeout(() => {
+      const shareProjects = getShareProjects();
+
+      if (shareProjects.length === 0) return;
+
       vscode?.postMessage({
         type: 'updateApiDocsShare',
-        payload: { html: createDocsHtml(), fileName: 'q-ops-api-docs.html' },
+        payload: { html: createDocsHtml(shareProjects), fileName: 'q-ops-api-docs.html' },
       });
     }, 300);
 
     return () => window.clearTimeout(timer);
-  }, [globals, request, projects, activeProjectId, activeInterfaceId, sharedDocUrl]);
+  }, [globals, request, projects, activeProjectId, activeInterfaceId, sharedDocUrl, shareSelectedInterfaceIds]);
 
   const stopShareDocs = () => {
     vscode?.postMessage({ type: 'stopApiDocsShare' });
@@ -2403,6 +2601,17 @@ export default function ApiDevToolsApp() {
     if (!sharedDocUrl) return;
     navigator.clipboard?.writeText(sharedDocUrl);
     setLog('已复制分享地址');
+  };
+
+  const openSharedUrl = () => {
+    if (!sharedDocUrl) return;
+
+    vscode?.postMessage({
+      type: 'openExternalUrl',
+      payload: {
+        url: sharedDocUrl,
+      },
+    });
   };
 
   const responseBody = getDisplayResponseBody(response);
@@ -2630,7 +2839,7 @@ export default function ApiDevToolsApp() {
             保存接口
           </button>
           <button className={styles['ghost-btn']} onClick={shareDocs}>
-            分享文档
+            {isShareSelecting ? '选择中...' : '分享文档'}
           </button>
           <button className={styles['ghost-btn']} onClick={exportDocs}>
             导出 HTML
@@ -2665,8 +2874,28 @@ export default function ApiDevToolsApp() {
           {sharedDocUrl && (
             <div className={styles['share-card']}>
               <div className={styles['share-title']}>文档分享中</div>
-              <button className={styles['share-url']} title={sharedDocUrl} onClick={copySharedUrl}>{sharedDocUrl}</button>
-              <button className={styles['tiny-btn']} onClick={stopShareDocs}>关闭分享</button>
+
+              <div className={styles['share-url-row']}>
+                <button
+                  className={styles['share-url']}
+                  title="点击后确认是否在外部浏览器打开"
+                  onClick={openSharedUrl}
+                >
+                  {sharedDocUrl}
+                </button>
+                <button
+                  className={styles['share-copy-btn']}
+                  title="复制链接"
+                  onClick={copySharedUrl}
+                >
+                  <i className="codicon codicon-copy" />
+                </button>
+              </div>
+
+              <div className={styles['share-card-actions']}>
+                <button className={styles['tiny-btn']} onClick={openSharedUrl}>预览链接</button>
+                <button className={styles['tiny-btn']} onClick={stopShareDocs}>关闭分享</button>
+              </div>
             </div>
           )}
 
@@ -2721,11 +2950,25 @@ export default function ApiDevToolsApp() {
                           key={api.id}
                           className={[
                             styles['interface-item'],
+                            isShareSelecting ? styles['interface-item-share-mode'] : '',
                             activeProjectId === project.id && activeInterfaceId === api.id ? styles['interface-item-active'] : '',
                           ]
                             .filter(Boolean)
                             .join(' ')}
                         >
+                          {isShareSelecting && (
+                            <label
+                              className={styles['share-checkbox']}
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={shareSelectedInterfaceIds.includes(api.id)}
+                                onChange={() => toggleShareInterface(api.id)}
+                              />
+                            </label>
+                          )}
+
                           <button
                             className={styles['interface-main']}
                             onClick={(event) => {
@@ -2754,6 +2997,20 @@ export default function ApiDevToolsApp() {
               ))
             )}
           </div>
+
+          {isShareSelecting && (
+            <div className={styles['share-select-actions']}>
+              <div className={styles['share-select-count']}>
+                已选择 {shareSelectedInterfaceIds.length} 个接口
+              </div>
+              <button className={styles['ghost-btn']} onClick={cancelShareSelect}>
+                取消
+              </button>
+              <button className={styles['primary-btn']} onClick={confirmShareDocs}>
+                确认分享
+              </button>
+            </div>
+          )}
         </aside>
 
         <div

@@ -98,6 +98,11 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider, v
           await this.exportApiDocsHtml(message.payload as ApiDocsPayload);
           break;
         }
+
+        case 'openExternalUrl': {
+          await this.openExternalUrl(message.payload as { url?: string });
+          break;
+        }
       }
     });
   }
@@ -381,6 +386,25 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider, v
     if (action === '打开文件') {
       vscode.env.openExternal(targetUri);
     }
+  }
+
+  private async openExternalUrl(payload: { url?: string }): Promise<void> {
+    const url = String(payload?.url || '').trim();
+
+    if (!url) {
+      vscode.window.showWarningMessage('链接不能为空。');
+      return;
+    }
+
+    const action = await vscode.window.showInformationMessage(
+      '是否在外部浏览器打开分享链接？',
+      '打开',
+      '取消'
+    );
+
+    if (action !== '打开') return;
+
+    await vscode.env.openExternal(vscode.Uri.parse(url));
   }
 
   private closeDocServer(): void {

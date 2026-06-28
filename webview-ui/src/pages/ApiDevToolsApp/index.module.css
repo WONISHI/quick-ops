@@ -808,6 +808,26 @@
   border-radius: 5px;
 }
 
+.interface-item-share-mode {
+  grid-template-columns: 20px minmax(0, 1fr) 22px;
+}
+
+.share-checkbox {
+  width: 20px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.share-checkbox input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color: var(--vscode-button-background);
+}
+
 .interface-item:not(.interface-item-active):hover {
   background: var(--vscode-list-hoverBackground);
 }
@@ -899,11 +919,19 @@
   font-size: 11px;
 }
 
+.share-url-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  gap: 4px;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
 .share-url {
   width: 100%;
   min-width: 0;
   height: 24px;
-  margin-bottom: 5px;
   padding: 0 6px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -914,6 +942,56 @@
   color: var(--vscode-textLink-foreground, var(--vscode-focusBorder));
   background: var(--vscode-input-background);
   cursor: pointer;
+}
+
+.share-url:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.share-copy-btn {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  color: var(--vscode-descriptionForeground);
+  background: var(--vscode-input-background);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.12s ease, background-color 0.12s ease;
+}
+
+.share-url-row:hover .share-copy-btn {
+  opacity: 1;
+}
+
+.share-copy-btn:hover {
+  color: var(--vscode-foreground);
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.share-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.share-select-actions {
+  flex: 0 0 auto;
+  padding: 6px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+  align-items: center;
+  border-top: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-sideBar-background);
+}
+
+.share-select-count {
+  min-width: 0;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .request-name-line {
