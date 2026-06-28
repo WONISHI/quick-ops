@@ -776,8 +776,8 @@ function buildApiDocsHtml(
     header h1 { margin: 0 0 6px; font-size: 22px; letter-spacing: .2px; }
     header p { margin: 0; opacity: .9; font-size: 14px; }
     main { max-width: 1220px; margin: 0 auto; padding: 0px 16px 16px 16px; }
-    .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); align-items: start; }
-    nav { margin-top: 16px; position: sticky; top: 86px; padding: 12px; border: 1px solid #d0d7de; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(31,35,40,.04); }
+    .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); align-items: start;gap:16px; }
+    nav { margin-top: 16px; position: sticky; top: 102px; padding: 12px; border: 1px solid #d0d7de; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(31,35,40,.04); }
     .nav-project { padding: 8px 0 10px; border-bottom: 1px solid #d8dee4; }
     .nav-project:last-child { border-bottom: none; }
     .nav-project-title { margin: 0 0 8px; font-weight: 800; font-size: 16px; color: #1f2328; }
