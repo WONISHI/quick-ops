@@ -101,7 +101,15 @@ type ManageDialog =
   | { kind: 'interface-create'; title: string; label: string; value: string }
   | { kind: 'project-delete'; title: string; message: string; projectId: string; projectName: string }
   | { kind: 'interface-delete'; title: string; message: string; projectId: string; interfaceId: string; interfaceName: string }
+  | { kind: 'clear-all'; title: string; message: string }
   | null;
+
+type LeaveConfirmAction = 'save' | 'discard' | 'cancel';
+
+type LeaveConfirmDialog = {
+  title: string;
+  message: string;
+} | null;
 
 const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 
@@ -122,7 +130,7 @@ const RESPONSE_TABS: Array<{ key: ResponseTab; label: string }> = [
 ];
 
 const BOTTOM_PANEL_COLLAPSED_SIZE = 0;
-const BOTTOM_PANEL_DEFAULT_SIZE = 140;
+const BOTTOM_PANEL_DEFAULT_SIZE = 0;
 const BOTTOM_PANEL_MAX_SIZE = 420;
 const RESPONSE_PANEL_RESERVED_SIZE = 110;
 const RESPONSE_HEAD_SIZE = 34;
@@ -1140,6 +1148,11 @@ export default function ApiDevToolsApp() {
   const [activeInterfaceId, setActiveInterfaceId] = useState('');
   const [requestTab, setRequestTab] = useState<RequestTab>('params');
   const [responseTab, setResponseTab] = useState<ResponseTab>('body');
+  const [isResponseSearchOpen, setIsResponseSearchOpen] = useState(false);
+  const [responseSearchQuery, setResponseSearchQuery] = useState('');
+  const [responseSearchIndex, setResponseSearchIndex] = useState(0);
+  const [responseSearchBarOffset, setResponseSearchBarOffset] = useState({ x: 0, y: 0 });
+  const [isDraggingResponseSearchBar, setIsDraggingResponseSearchBar] = useState(false);
   const [response, setResponse] = useState<ApiResponsePayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [showGlobals, setShowGlobals] = useState(false);
@@ -1151,6 +1164,7 @@ export default function ApiDevToolsApp() {
   const [sharedDocUrl, setSharedDocUrl] = useState('');
   const [manageDialog, setManageDialog] = useState<ManageDialog>(null);
   const [manageDialogValue, setManageDialogValue] = useState('');
+  const [leaveConfirmDialog, setLeaveConfirmDialog] = useState<LeaveConfirmDialog>(null);
 
   const pendingRequestIdRef = useRef('');
   const globalsRef = useRef(globals);
@@ -1161,11 +1175,31 @@ export default function ApiDevToolsApp() {
   const activeInterfaceIdRef = useRef(activeInterfaceId);
   const globalVariablesRef = useRef<Record<string, string>>({});
   const rightPaneRef = useRef<HTMLElement | null>(null);
+  const responsePanelRef = useRef<HTMLDivElement | null>(null);
+  const responseCodeRef = useRef<HTMLPreElement | null>(null);
+  const responseSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const responseSearchBarRef = useRef<HTMLDivElement | null>(null);
+  const responseSearchBarOffsetRef = useRef(responseSearchBarOffset);
+  const responseSearchDragStartRef = useRef({
+    x: 0,
+    y: 0,
+    offsetX: 0,
+    offsetY: 0,
+    panelLeft: 0,
+    panelTop: 0,
+    panelRight: 0,
+    panelBottom: 0,
+    barLeft: 0,
+    barTop: 0,
+    barWidth: 0,
+    barHeight: 0,
+  });
   const bottomPanelSizeRef = useRef(BOTTOM_PANEL_DEFAULT_SIZE);
   const workspacePaneWidthRef = useRef(WORKSPACE_PANE_DEFAULT_WIDTH);
   const dragStartYRef = useRef(0);
   const dragStartXRef = useRef(0);
   const dragStartSizeRef = useRef(BOTTOM_PANEL_DEFAULT_SIZE);
+  const leaveConfirmResolverRef = useRef<((action: LeaveConfirmAction) => void) | null>(null);
   const dragStartWidthRef = useRef(WORKSPACE_PANE_DEFAULT_WIDTH);
   const isDraggingBottomPanelRef = useRef(false);
   const isDraggingWorkspacePaneRef = useRef(false);
@@ -1213,6 +1247,10 @@ export default function ApiDevToolsApp() {
   useEffect(() => {
     globalsRef.current = globals;
   }, [globals]);
+
+  useEffect(() => {
+    responseSearchBarOffsetRef.current = responseSearchBarOffset;
+  }, [responseSearchBarOffset]);
 
   useEffect(() => {
     requestRef.current = request;
@@ -1782,7 +1820,7 @@ export default function ApiDevToolsApp() {
     }
   };
 
-  const clearAll = () => {
+  const clearAllData = () => {
     const nextRequest = createDefaultRequest();
     const nextGlobals = createDefaultGlobals();
 
@@ -1800,8 +1838,16 @@ export default function ApiDevToolsApp() {
     vscode?.postMessage({ type: 'clearApiDevToolsState' });
   };
 
-  const loadHistory = (item: HistoryItem) => {
-    if (!confirmSaveBeforeLeave()) return;
+  const clearAll = () => {
+    setManageDialog({
+      kind: 'clear-all',
+      title: '清空全部数据',
+      message: '确定要清空所有项目、接口、历史记录、变量和当前响应吗？此操作不可撤销。',
+    });
+  };
+
+  const loadHistory = async (item: HistoryItem) => {
+    if (!(await confirmSaveBeforeLeave())) return;
 
     const nextRequest = cloneRequest(item.request);
 
@@ -1988,27 +2034,67 @@ export default function ApiDevToolsApp() {
   };
 
   /**
+   * @description 关闭未保存确认弹窗
+   */
+  const closeLeaveConfirmDialog = (action: LeaveConfirmAction) => {
+    const resolver = leaveConfirmResolverRef.current;
+
+    leaveConfirmResolverRef.current = null;
+    setLeaveConfirmDialog(null);
+
+    resolver?.(action);
+  };
+
+  /**
+   * @description 打开未保存确认弹窗，并等待用户选择
+   *
+   * 说明：
+   * - VS Code Webview 里 window.confirm 体验不稳定，部分场景不会弹出。
+   * - 所以这里使用 React 自定义弹窗，确保切换项目 / 接口时一定可见。
+   */
+  const showLeaveConfirmDialog = (): Promise<LeaveConfirmAction> => {
+    if (leaveConfirmResolverRef.current) {
+      leaveConfirmResolverRef.current('cancel');
+      leaveConfirmResolverRef.current = null;
+    }
+
+    setLeaveConfirmDialog({
+      title: '当前接口有未保存修改',
+      message: '是否需要先保存当前修改？',
+    });
+
+    return new Promise((resolve) => {
+      leaveConfirmResolverRef.current = resolve;
+    });
+  };
+
+  /**
    * @description 离开当前接口或项目前确认是否保存未保存修改
    *
    * 交互逻辑：
    * - 没有修改：直接继续切换。
-   * - 点击“确定”：保存当前修改，然后继续切换。
-   * - 点击“取消”：不保存，恢复到修改前内容，然后继续切换。
+   * - 保存并切换：保存当前修改，然后继续切换。
+   * - 不保存并切换：恢复到修改前内容，然后继续切换。
+   * - 取消切换：留在当前接口。
    */
-  const confirmSaveBeforeLeave = () => {
+  const confirmSaveBeforeLeave = async () => {
     if (!hasUnsavedRequest()) return true;
 
-    const shouldSave = window.confirm('当前接口有未保存修改，是否需要保存？\n确定：保存后继续切换\n取消：不保存并继续切换');
+    const action = await showLeaveConfirmDialog();
 
-    if (shouldSave) {
+    if (action === 'save') {
       return saveCurrentRequestToProject({ silent: true });
     }
 
-    discardCurrentRequestChanges();
-    return true;
+    if (action === 'discard') {
+      discardCurrentRequestChanges();
+      return true;
+    }
+
+    return false;
   };
 
-  const switchProject = (project: ApiProject) => {
+  const switchProject = async (project: ApiProject) => {
     const firstInterface = project.interfaces[0] || null;
     const targetInterfaceId = firstInterface?.id || '';
     const isSameProjectAndTargetInterface =
@@ -2017,7 +2103,7 @@ export default function ApiDevToolsApp() {
 
     if (isSameProjectAndTargetInterface) return;
 
-    if (!confirmSaveBeforeLeave()) return;
+    if (!(await confirmSaveBeforeLeave())) return;
 
     if (firstInterface) {
       const nextRequest = cloneRequest(firstInterface.request);
@@ -2090,12 +2176,12 @@ export default function ApiDevToolsApp() {
     saveCurrentRequestToProject();
   };
 
-  const loadInterface = (project: ApiProject, api: ApiInterfaceItem) => {
+  const loadInterface = async (project: ApiProject, api: ApiInterfaceItem) => {
     if (activeProjectIdRef.current === project.id && activeInterfaceIdRef.current === api.id) {
       return;
     }
 
-    if (!confirmSaveBeforeLeave()) return;
+    if (!(await confirmSaveBeforeLeave())) return;
 
     const nextRequest = cloneRequest(api.request);
 
@@ -2124,14 +2210,20 @@ export default function ApiDevToolsApp() {
     setManageDialogValue('');
   };
 
-  const confirmManageDialog = () => {
+  const confirmManageDialog = async () => {
     if (!manageDialog) return;
 
     const value = manageDialogValue.trim();
 
+    if (manageDialog.kind === 'clear-all') {
+      clearAllData();
+      closeManageDialog();
+      return;
+    }
+
     if (manageDialog.kind === 'project-create') {
       if (!value) return;
-      if (!confirmSaveBeforeLeave()) return;
+      if (!(await confirmSaveBeforeLeave())) return;
 
       const project = createProject(value);
       const nextProjects = [project, ...projectsRef.current];
@@ -2314,6 +2406,208 @@ export default function ApiDevToolsApp() {
   };
 
   const responseBody = getDisplayResponseBody(response);
+  const responseSearchText = useMemo(() => {
+    if (!response) return '';
+
+    if (response.error) return response.error;
+
+    if (responseTab === 'headers') {
+      return JSON.stringify(response.headers, null, 2);
+    }
+
+    if (responseTab === 'raw') {
+      return response.body || '';
+    }
+
+    return responseBody;
+  }, [response, responseBody, responseTab]);
+
+  const responseSearchMatches = useMemo(() => {
+    const query = responseSearchQuery.trim().toLowerCase();
+
+    if (!query || !responseSearchText) return [];
+
+    const text = responseSearchText.toLowerCase();
+    const result: number[] = [];
+    let startIndex = 0;
+
+    while (startIndex <= text.length) {
+      const index = text.indexOf(query, startIndex);
+
+      if (index === -1) break;
+
+      result.push(index);
+      startIndex = index + Math.max(query.length, 1);
+    }
+
+    return result;
+  }, [responseSearchQuery, responseSearchText]);
+
+  const responseSearchTotal = responseSearchMatches.length;
+  const activeResponseSearchIndex = responseSearchTotal
+    ? Math.min(responseSearchIndex, responseSearchTotal - 1)
+    : 0;
+
+  useEffect(() => {
+    setResponseSearchIndex(0);
+  }, [responseSearchQuery, responseSearchText]);
+
+  useEffect(() => {
+    if (!isResponseSearchOpen) return;
+
+    window.setTimeout(() => {
+      responseSearchInputRef.current?.focus();
+      responseSearchInputRef.current?.select();
+    }, 0);
+  }, [isResponseSearchOpen]);
+
+  useEffect(() => {
+    if (!isResponseSearchOpen || responseSearchTotal === 0) return;
+
+    window.setTimeout(() => {
+      const activeElement = responseCodeRef.current?.querySelector(
+        '[data-response-search-active="true"]'
+      ) as HTMLElement | null;
+
+      activeElement?.scrollIntoView({
+        block: 'center',
+        inline: 'nearest',
+      });
+    }, 0);
+  }, [activeResponseSearchIndex, isResponseSearchOpen, responseSearchTotal]);
+
+  const openResponseSearch = () => {
+    if (!response) return;
+
+    setIsResponseSearchOpen(true);
+  };
+
+  const closeResponseSearch = () => {
+    setIsResponseSearchOpen(false);
+    setResponseSearchQuery('');
+    setResponseSearchIndex(0);
+  };
+
+  const jumpResponseSearchMatch = (direction: 'prev' | 'next') => {
+    if (responseSearchTotal === 0) return;
+
+    setResponseSearchIndex((current) => {
+      if (direction === 'prev') {
+        return current <= 0 ? responseSearchTotal - 1 : current - 1;
+      }
+
+      return current >= responseSearchTotal - 1 ? 0 : current + 1;
+    });
+  };
+
+  const handleResponseSearchBarPointerDown = (event: React.PointerEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const panelElement = responsePanelRef.current;
+    const barElement = responseSearchBarRef.current;
+
+    if (!panelElement || !barElement) return;
+
+    const panelRect = panelElement.getBoundingClientRect();
+    const barRect = barElement.getBoundingClientRect();
+
+    responseSearchDragStartRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      offsetX: responseSearchBarOffsetRef.current.x,
+      offsetY: responseSearchBarOffsetRef.current.y,
+      panelLeft: panelRect.left,
+      panelTop: panelRect.top,
+      panelRight: panelRect.right,
+      panelBottom: panelRect.bottom,
+      barLeft: barRect.left,
+      barTop: barRect.top,
+      barWidth: barRect.width,
+      barHeight: barRect.height,
+    };
+
+    setIsDraggingResponseSearchBar(true);
+  };
+
+  useEffect(() => {
+    if (!isDraggingResponseSearchBar) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      event.preventDefault();
+
+      const start = responseSearchDragStartRef.current;
+      const nextLeft = start.barLeft + event.clientX - start.x;
+      const nextTop = start.barTop + event.clientY - start.y;
+      const maxLeft = start.panelRight - start.barWidth;
+      const maxTop = start.panelBottom - start.barHeight;
+      const safeLeft = clampNumber(nextLeft, start.panelLeft, maxLeft);
+      const safeTop = clampNumber(nextTop, start.panelTop, maxTop);
+
+      setResponseSearchBarOffset({
+        x: start.offsetX + safeLeft - start.barLeft,
+        y: start.offsetY + safeTop - start.barTop,
+      });
+    };
+
+    const handlePointerUp = () => {
+      setIsDraggingResponseSearchBar(false);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+  }, [isDraggingResponseSearchBar]);
+
+  const renderResponseCode = (text: string) => {
+    const query = responseSearchQuery.trim();
+
+    if (!isResponseSearchOpen || !query || responseSearchTotal === 0) {
+      return text;
+    }
+
+    const nodes: React.ReactNode[] = [];
+    const queryLength = query.length;
+    let lastIndex = 0;
+
+    responseSearchMatches.forEach((matchIndex, index) => {
+      if (matchIndex > lastIndex) {
+        nodes.push(text.slice(lastIndex, matchIndex));
+      }
+
+      const isActive = index === activeResponseSearchIndex;
+
+      nodes.push(
+        <mark
+          key={`${matchIndex}-${index}`}
+          className={[
+            styles['response-search-mark'],
+            isActive ? styles['response-search-mark-active'] : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          data-response-search-active={isActive ? 'true' : undefined}
+        >
+          {text.slice(matchIndex, matchIndex + queryLength)}
+        </mark>
+      );
+
+      lastIndex = matchIndex + queryLength;
+    });
+
+    if (lastIndex < text.length) {
+      nodes.push(text.slice(lastIndex));
+    }
+
+    return nodes;
+  };
+
   const bottomPanelMaxSize = getBottomPanelMaxSize();
   const interfaceCount = projects.reduce((sum, project) => sum + project.interfaces.length, 0);
 
@@ -2343,15 +2637,6 @@ export default function ApiDevToolsApp() {
           </button>
           <button className={styles['ghost-btn']} onClick={() => setShowGlobals(true)}>
             变量
-          </button>
-          <button
-            className={styles['ghost-btn']}
-            onClick={() => {
-              if (!confirmSaveBeforeLeave()) return;
-              resetEditorForProject(activeProjectIdRef.current);
-            }}
-          >
-            新请求
           </button>
           <button className={styles['ghost-btn']} onClick={clearAll}>
             清空
@@ -2681,16 +2966,27 @@ export default function ApiDevToolsApp() {
         <section ref={rightPaneRef} className={styles['right-pane']}>
           <div className={styles['response-head']}>
             <strong>返回响应</strong>
-            <div className={styles['response-meta']}>
-              {response && (
-                <>
-                  <span className={response.ok ? styles['status-ok'] : styles['status-error']}>
-                    {response.status || response.statusText}
-                  </span>
-                  <span>{response.duration} ms</span>
-                  <span>{formatSize(response.size)}</span>
-                </>
-              )}
+            <div className={styles['response-head-actions']}>
+              <div className={styles['response-meta']}>
+                {response && (
+                  <>
+                    <span className={response.ok ? styles['status-ok'] : styles['status-error']}>
+                      {response.status || response.statusText}
+                    </span>
+                    <span>{response.duration} ms</span>
+                    <span>{formatSize(response.size)}</span>
+                  </>
+                )}
+              </div>
+
+              <button
+                className={styles['icon-btn']}
+                title="搜索响应内容"
+                disabled={!response}
+                onClick={openResponseSearch}
+              >
+                <i className="codicon codicon-search" />
+              </button>
             </div>
           </div>
 
@@ -2706,7 +3002,78 @@ export default function ApiDevToolsApp() {
             ))}
           </div>
 
-          <div className={styles['response-panel']}>
+          <div ref={responsePanelRef} className={styles['response-panel']}>
+            {isResponseSearchOpen && (
+              <div
+                ref={responseSearchBarRef}
+                className={[
+                  styles['response-search-bar'],
+                  isDraggingResponseSearchBar ? styles['response-search-bar-dragging'] : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                style={{
+                  transform: `translate(${responseSearchBarOffset.x}px, ${responseSearchBarOffset.y}px)`,
+                }}
+              >
+                <i
+                  className={`codicon codicon-gripper ${styles['response-search-grip']}`}
+                  title="拖拽搜索框"
+                  onPointerDown={handleResponseSearchBarPointerDown}
+                />
+
+                <input
+                  ref={responseSearchInputRef}
+                  value={responseSearchQuery}
+                  placeholder="搜索响应..."
+                  onChange={(event) => setResponseSearchQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      jumpResponseSearchMatch(event.shiftKey ? 'prev' : 'next');
+                    }
+
+                    if (event.key === 'Escape') {
+                      event.preventDefault();
+                      closeResponseSearch();
+                    }
+                  }}
+                />
+
+                <span className={styles['response-search-count']}>
+                  {responseSearchQuery.trim()
+                    ? `${responseSearchTotal === 0 ? 0 : activeResponseSearchIndex + 1}/${responseSearchTotal}`
+                    : '0/0'}
+                </span>
+
+                <button
+                  className={styles['response-search-btn']}
+                  title="上一个"
+                  disabled={responseSearchTotal === 0}
+                  onClick={() => jumpResponseSearchMatch('prev')}
+                >
+                  <i className="codicon codicon-arrow-up" />
+                </button>
+
+                <button
+                  className={styles['response-search-btn']}
+                  title="下一个"
+                  disabled={responseSearchTotal === 0}
+                  onClick={() => jumpResponseSearchMatch('next')}
+                >
+                  <i className="codicon codicon-arrow-down" />
+                </button>
+
+                <button
+                  className={styles['response-search-btn']}
+                  title="关闭搜索"
+                  onClick={closeResponseSearch}
+                >
+                  <i className="codicon codicon-close" />
+                </button>
+              </div>
+            )}
+
             {loading && <div className={styles['empty-state']}>正在请求...</div>}
 
             {!loading && !response && (
@@ -2716,18 +3083,28 @@ export default function ApiDevToolsApp() {
               </div>
             )}
 
-            {!loading && response?.error && <pre className={styles['error-box']}>{response.error}</pre>}
+            {!loading && response?.error && (
+              <pre ref={responseCodeRef} className={styles['error-box']}>
+                {renderResponseCode(response.error)}
+              </pre>
+            )}
 
             {!loading && response && !response.error && responseTab === 'body' && (
-              <pre className={styles['response-code']}>{responseBody}</pre>
+              <pre ref={responseCodeRef} className={styles['response-code']}>
+                {renderResponseCode(responseBody)}
+              </pre>
             )}
 
             {!loading && response && !response.error && responseTab === 'headers' && (
-              <pre className={styles['response-code']}>{JSON.stringify(response.headers, null, 2)}</pre>
+              <pre ref={responseCodeRef} className={styles['response-code']}>
+                {renderResponseCode(JSON.stringify(response.headers, null, 2))}
+              </pre>
             )}
 
             {!loading && response && !response.error && responseTab === 'raw' && (
-              <pre className={styles['response-code']}>{response.body}</pre>
+              <pre ref={responseCodeRef} className={styles['response-code']}>
+                {renderResponseCode(response.body)}
+              </pre>
             )}
           </div>
 
@@ -2806,7 +3183,7 @@ export default function ApiDevToolsApp() {
                   onChange={(event) => setManageDialogValue(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
-                      confirmManageDialog();
+                      void confirmManageDialog();
                     }
                     if (event.key === 'Escape') {
                       closeManageDialog();
@@ -2824,7 +3201,41 @@ export default function ApiDevToolsApp() {
                 className={'message' in manageDialog ? styles['danger-btn'] : styles['primary-btn']}
                 onClick={confirmManageDialog}
               >
-                {'message' in manageDialog ? '删除' : '确定'}
+                {'message' in manageDialog ? (manageDialog.kind === 'clear-all' ? '清空' : '删除') : '确定'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {leaveConfirmDialog && (
+        <div className={styles['modal-mask']} onMouseDown={() => closeLeaveConfirmDialog('cancel')}>
+          <div
+            className={[styles['modal'], styles['manage-modal']].filter(Boolean).join(' ')}
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className={styles['modal-head']}>
+              <strong>{leaveConfirmDialog.title}</strong>
+              <button className={styles['icon-btn']} onClick={() => closeLeaveConfirmDialog('cancel')}>
+                ×
+              </button>
+            </div>
+
+            <div className={styles['dialog-message']}>
+              {leaveConfirmDialog.message}
+              <br />
+              <span className={styles['hint']}>保存后继续切换，或不保存并恢复到修改前内容。</span>
+            </div>
+
+            <div className={styles['modal-footer']}>
+              <button className={styles['ghost-btn']} onClick={() => closeLeaveConfirmDialog('cancel')}>
+                取消切换
+              </button>
+              <button className={styles['ghost-btn']} onClick={() => closeLeaveConfirmDialog('discard')}>
+                不保存并切换
+              </button>
+              <button className={styles['primary-btn']} onClick={() => closeLeaveConfirmDialog('save')}>
+                保存并切换
               </button>
             </div>
           </div>
