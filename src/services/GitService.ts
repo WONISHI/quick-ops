@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import simpleGit, { SimpleGit } from 'simple-git';
 import { execFile } from 'child_process';
 import * as path from 'path';
+import * as fs from 'fs';
 
 export interface GitFileItem {
   status: string;
@@ -81,6 +82,28 @@ export class GitService {
     return cwd ? simpleGit(cwd) : simpleGit();
   }
 
+  /**
+   * @description 判断当前目录本身是否存在 Git 元数据
+   *
+   * 说明：
+   * - 这里只检查 cwd/.git。
+   * - 不向父级目录查找 .git。
+   * - 用来避免工作区目录没有初始化 Git，但父级目录是 Git 仓库时，被误识别为 Git 仓库。
+   */
+  public hasLocalGitMetadata(cwd: string): boolean {
+    if (!cwd) return false;
+
+    const gitMetadataPath = path.join(cwd, '.git');
+
+    try {
+      const stat = fs.statSync(gitMetadataPath);
+
+      return stat.isDirectory() || stat.isFile();
+    } catch {
+      return false;
+    }
+  }
+
   public checkGitInstalled(): Promise<boolean> {
     return new Promise((resolve) => {
       execFile('git', ['--version'], (error) => {
@@ -89,7 +112,19 @@ export class GitService {
     });
   }
 
+  /**
+   * @description 判断当前目录是否是 Git 仓库
+   *
+   * 注意：
+   * - simple-git / git 默认会向父级目录查找 .git。
+   * - 这里先要求当前 cwd 自己必须存在 .git。
+   * - 如果当前目录没有 .git，即使父级目录是 Git 仓库，也返回 false。
+   */
   public async checkIsRepo(cwd: string): Promise<boolean> {
+    if (!this.hasLocalGitMetadata(cwd)) {
+      return false;
+    }
+
     try {
       return await this.createGit(cwd).checkIsRepo();
     } catch {
@@ -151,7 +186,7 @@ export class GitService {
     const git = this.createGit(cwd);
 
     try {
-      const isRepo = await git.checkIsRepo();
+      const isRepo = await this.checkIsRepo(cwd);
 
       if (!isRepo) {
         return this.createEmptyRemoteSync();
@@ -196,7 +231,7 @@ export class GitService {
   public async getRepoStatus(cwd: string): Promise<GitRepoStatus> {
     const git = this.createGit(cwd);
 
-    const isRepo = await git.checkIsRepo().catch(() => false);
+    const isRepo = await this.checkIsRepo(cwd);
 
     if (!isRepo) {
       return {
