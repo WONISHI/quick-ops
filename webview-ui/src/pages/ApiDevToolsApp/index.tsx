@@ -456,39 +456,6 @@ function escapeHtml(value: unknown) {
     .replace(/'/g, '&#39;');
 }
 
-function getEnabledItems(list: KeyValueItem[]) {
-  return list.filter((item) => item.enabled && item.key.trim());
-}
-
-function renderKeyValueTable(title: string, list: KeyValueItem[]) {
-  const enabled = getEnabledItems(list);
-
-  if (enabled.length === 0) return '';
-
-  return `
-    <h4>${escapeHtml(title)}</h4>
-    <table>
-      <thead><tr><th>名称</th><th>值</th></tr></thead>
-      <tbody>
-        ${enabled
-          .map((item) => `<tr><td>${escapeHtml(item.key)}</td><td><code>${escapeHtml(item.value)}</code></td></tr>`)
-          .join('')}
-      </tbody>
-    </table>`;
-}
-
-function renderBodyBlock(request: ApiRequestConfig) {
-  if (request.bodyType === 'none' || ['GET', 'HEAD'].includes(request.method)) {
-    return '<p class="muted">无请求 Body</p>';
-  }
-
-  if (request.bodyType === 'form-urlencoded') {
-    return renderKeyValueTable('Body - form-urlencoded', request.bodyForm);
-  }
-
-  return `<pre>${escapeHtml(request.bodyType === 'json' ? tryFormatJson(request.bodyRaw) : request.bodyRaw)}</pre>`;
-}
-
 function escapeScriptJson(value: unknown) {
   return JSON.stringify(value)
     .replace(/</g, '\\u003c')
