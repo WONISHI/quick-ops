@@ -275,7 +275,7 @@ export default function RecentProjectContextMenu({ visible, x, y, type, payload,
               </>
             )}
 
-            {payload.isActiveProject && !payload.isRemote && (
+            {payload.isActiveProject && !isRemotePath && (
               <>
                 <div className={styles['menu-separator']}></div>
                 {hasFileChangeStatus && (
@@ -283,6 +283,9 @@ export default function RecentProjectContextMenu({ visible, x, y, type, payload,
                     <FontAwesomeIcon icon={faRotateLeft} className={styles['menu-icon']} /> 取消变更
                   </li>
                 )}
+                <li onClick={() => onAction('renameFileEntity')}>
+                  <FontAwesomeIcon icon={faPen} className={styles['menu-icon']} /> 重命名
+                </li>
                 <li onClick={() => onAction('deleteFileEntity')} style={{ color: 'var(--vscode-errorForeground)' }}>
                   <FontAwesomeIcon icon={faTrash} className={styles['menu-icon']} /> 删除
                 </li>
