@@ -78,7 +78,14 @@ export class EmbeddedBrowserService extends EventEmitter {
 
   constructor(
     private readonly context: vscode.ExtensionContext,
-    private readonly userDataDirName = `BrowserUserData-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
+    /**
+     * 使用固定的 Chrome User Data 目录。
+     *
+     * 之前这里每次都会生成 BrowserUserData-${processId}-${timestamp}-${random}，
+     * 会导致 cookies / localStorage / IndexedDB 无法跨扩展重启保留。
+     * 登录类页面例如 https://chat.deepseek.com/ 扫码登录后，下次重新打开会丢失登录态。
+     */
+    private readonly userDataDirName = 'BrowserUserData'
   ) {
     super();
     this.activeUserDataDirName = userDataDirName;
@@ -1083,7 +1090,7 @@ export class EmbeddedBrowserService extends EventEmitter {
   }
 
   private createUserDataDirName(): string {
-    return `BrowserUserData-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return `BrowserUserData-Temp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   }
 
   private isUserDataDirLockedError(error: unknown): boolean {

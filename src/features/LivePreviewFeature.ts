@@ -493,7 +493,7 @@ export class LivePreviewFeature implements IFeature {
   private ensureBrowserService(context: vscode.ExtensionContext): EmbeddedBrowserService {
     if (this.browserService) return this.browserService;
 
-    this.browserService = new EmbeddedBrowserService(context);
+    this.browserService = new EmbeddedBrowserService(context, 'BrowserUserData');
 
     this.browserService.on('frame', (frame) => {
       this.panel?.webview.postMessage({
@@ -573,7 +573,7 @@ export class LivePreviewFeature implements IFeature {
   }
 
   private ensureDetachedBrowserService(context: vscode.ExtensionContext, panel: vscode.WebviewPanel): EmbeddedBrowserService {
-    const service = new EmbeddedBrowserService(context, `BrowserUserData-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const service = new EmbeddedBrowserService(context, 'BrowserUserData-Detached');
 
     service.on('frame', (frame) => {
       panel.webview.postMessage({
