@@ -257,6 +257,9 @@
 .search-input-compact::placeholder {
   color: var(--vscode-input-placeholderForeground);
   opacity: 0.86;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .search-clear-btn {
