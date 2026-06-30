@@ -16,7 +16,6 @@ function stripJsonComments(jsonString) {
   return jsonString.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, g) => (g ? '' : m));
 }
 
-
 /** @type {any[]} */
 const plugins = [
   new webpack.IgnorePlugin({
@@ -80,7 +79,7 @@ const extensionConfig = {
   externals: {
     vscode: 'commonjs vscode',
     bufferutil: 'bufferutil',
-    'utf-8-validate': 'utf-8-validate', 
+    'utf-8-validate': 'utf-8-validate',
   },
   cache: {
     type: 'filesystem',
@@ -100,6 +99,10 @@ const extensionConfig = {
     {
       module: /@vue[\\/]compiler-sfc/,
       message: /Critical dependency/,
+    },
+    {
+      module: /[\\/]node_modules[\\/](@puppeteer|puppeteer-core|@puppeteer\/browsers)[\\/]/,
+      message: /Critical dependency: require function is used in a way/,
     },
   ],
   module: {

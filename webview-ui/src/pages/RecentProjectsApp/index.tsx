@@ -24,7 +24,6 @@ import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '../../utils
 import {
   FileGitStatusBadge,
   FolderGitStatusDot,
-  getGitStatusClassName,
   getGitStatusTitle,
 } from '../../components/GitStatusMark';
 import type {
@@ -66,6 +65,14 @@ interface DraggingEntity {
   name: string;
   isFolder: boolean;
   projectName: string;
+}
+
+interface SearchReturnState {
+  isFocusMode: boolean;
+  isFocusLocked: boolean;
+  focusRootPath: string;
+  focusRootName: string;
+  searchTargetProject: ContextMenuPayload | null;
 }
 
 export default function RecentProjectsApp() {
@@ -165,6 +172,15 @@ export default function RecentProjectsApp() {
   const focusRootPathRef = useRef('');
   const focusRootNameRef = useRef('');
 
+  /**
+   * 右键“查找文件内容”是临时搜索页。
+   *
+   * 从普通列表进入：返回普通列表；
+   * 从专注模式进入：返回专注模式；
+   * 从专注模式 + 锁定模式进入：返回专注模式 + 锁定模式。
+   */
+  const searchReturnStateRef = useRef<SearchReturnState | null>(null);
+
   const [pendingCreateEntity, setPendingCreateEntity] = useState<PendingCreateEntity | null>(null);
   const [pendingCreateName, setPendingCreateName] = useState('');
   const pendingCreateInputRef = useRef<HTMLInputElement>(null);
@@ -224,6 +240,13 @@ export default function RecentProjectsApp() {
     }, 0);
   }, [pendingRenameEntity]);
 
+  const normalizeFallbackPath = (pathValue: string) => {
+    return decodeURIComponent(pathValue.split('?')[0])
+      .replace(/^file:\/\//, '')
+      .replace(/\\/g, '/')
+      .replace(/\/+$/, '');
+  };
+
   const normalizePatchPath = (pathValue: string) => {
     if (!pathValue) return '';
 
@@ -243,9 +266,11 @@ export default function RecentProjectsApp() {
 
         return decodeURIComponent(url.pathname || pathValue).replace(/\\/g, '/').replace(/\/+$/, '');
       }
-    } catch { }
+    } catch {
+      return normalizeFallbackPath(pathValue);
+    }
 
-    return decodeURIComponent(pathValue.split('?')[0]).replace(/^file:\/\//, '').replace(/\\/g, '/').replace(/\/+$/, '');
+    return normalizeFallbackPath(pathValue);
   };
 
   const applyMetadataPatchToItem = <T extends Record<string, any>>(item: T, patchMap: Map<string, MetadataPatchItem>): T => {
@@ -278,24 +303,6 @@ export default function RecentProjectsApp() {
     }
 
     return `错误 ${diagnostics.errors}，警告 ${diagnostics.warnings}`;
-  };
-
-  const getFolderDiagnosticsStyle = (item: any): React.CSSProperties | undefined => {
-    const diagnostics = getDiagnosticSummary(item);
-
-    if (diagnostics.errors > 0) {
-      return {
-        color: 'var(--vscode-editorError-foreground)',
-      };
-    }
-
-    if (diagnostics.warnings > 0) {
-      return {
-        color: 'var(--vscode-editorWarning-foreground)',
-      };
-    }
-
-    return undefined;
   };
 
   const formatTooltipPath = (pathValue: string) => {
@@ -343,7 +350,7 @@ export default function RecentProjectsApp() {
     };
 
     const cleanStatus = rawStatus
-      .replace(/[\[\]]/g, '')
+      .replace(/\[|\]/g, '')
       .replace(/^\s*[·•-]?\s*/, '')
       .trim();
 
@@ -372,7 +379,7 @@ export default function RecentProjectsApp() {
     }
 
     const fallbackText = getGitStatusTitle('', cleanStatus || rawStatus)
-      .replace(/[\[\]]/g, '')
+      .replace(/\[|\]/g, '')
       .replace(/^\s*[·•-]?\s*/, '')
       .trim();
 
@@ -933,7 +940,7 @@ export default function RecentProjectsApp() {
           setIsFocusLocked(true);
           isFocusLockedRef.current = true;
 
-          if (!isFocusModeRef.current) {
+          if (!isFocusModeRef.current && !searchReturnStateRef.current) {
             enterFocusMode({
               path: currentWorkspaceValue.fsPath,
               name: focusLock.name || currentWorkspaceValue.name,
@@ -1361,6 +1368,8 @@ export default function RecentProjectsApp() {
       window.removeEventListener('click', handleClickOutside);
       window.removeEventListener('blur', handleClickOutside);
     };
+    // 这个监听只需要在 Webview 初始化时注册一次，内部读取最新值用 ref 保持同步。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const findTreeNodeElement = (targetPath: string): HTMLElement | null => {
@@ -1482,6 +1491,8 @@ export default function RecentProjectsApp() {
     if (!autoScrollTarget.current) return;
 
     scrollTreeNodeIntoView(autoScrollTarget.current);
+    // 这里只响应树展开、搜索/专注视图切换和目录数据变化，scrollTreeNodeIntoView 本身依赖内部 ref。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandedPaths, isSearchMode, isFocusMode, dirChildren]);
 
   useEffect(() => {
@@ -1562,14 +1573,20 @@ export default function RecentProjectsApp() {
   const projectInHistory = projects.find((p) => p.fsPath.split('?')[0] === currentBaseUri);
   const inHistory = !!projectInHistory;
 
-  const activeProjectToRender =
-    projectInHistory ||
-    (currentWorkspace
-      ? ({
-        ...currentWorkspace,
-        timestamp: Date.now(),
-      } as Project)
-      : null);
+  const activeProjectToRender = useMemo(() => {
+    if (projectInHistory) {
+      return projectInHistory;
+    }
+
+    if (!currentWorkspace) {
+      return null;
+    }
+
+    return {
+      ...currentWorkspace,
+      timestamp: Date.now(),
+    } as Project;
+  }, [currentWorkspace, projectInHistory]);
 
   const otherProjects = projects.filter((p) => p.fsPath.split('?')[0] !== currentBaseUri);
 
@@ -1615,7 +1632,7 @@ export default function RecentProjectsApp() {
       type: 'updateRevealVisibility',
       visibleProjectPaths: revealVisibleProjectPaths,
     });
-  }, [revealVisibleProjectPathKey]);
+  }, [revealVisibleProjectPathKey, revealVisibleProjectPaths]);
 
   const clickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1689,6 +1706,11 @@ export default function RecentProjectsApp() {
     return isPathInside(normalizePatchPath(pathValue), normalizePatchPath(workspacePath));
   };
 
+  const getFallbackParentUriString = (pathValue: string) => {
+    const normalized = pathValue.replace(/\\/g, '/').replace(/\/[^/]*$/, '');
+    return normalized || pathValue;
+  };
+
   const getParentUriString = (pathValue: string) => {
     if (!pathValue) return '';
 
@@ -1701,10 +1723,11 @@ export default function RecentProjectsApp() {
         url.hash = '';
         return url.toString().replace(/\/$/, '');
       }
-    } catch { }
+    } catch {
+      return getFallbackParentUriString(pathValue);
+    }
 
-    const normalized = pathValue.replace(/\\/g, '/').replace(/\/[^/]*$/, '');
-    return normalized || pathValue;
+    return getFallbackParentUriString(pathValue);
   };
 
   const getCreateParentPath = (payload: ContextMenuPayload) => {
@@ -2428,6 +2451,30 @@ export default function RecentProjectsApp() {
       }
 
       case 'searchInFolder':
+        /**
+         * 右键“查找文件内容”只是进入临时搜索页，不应该破坏上一层状态。
+         *
+         * 例如：
+         * - 普通列表 -> 搜索 -> 返回普通列表；
+         * - 专注模式 -> 搜索 -> 返回专注模式；
+         * - 专注模式 + 锁定模式 -> 搜索 -> 返回专注模式 + 锁定模式。
+         */
+        if (!searchReturnStateRef.current) {
+          searchReturnStateRef.current = {
+            isFocusMode: isFocusModeRef.current,
+            isFocusLocked: isFocusLockedRef.current,
+            focusRootPath: focusRootPathRef.current,
+            focusRootName: focusRootNameRef.current,
+            searchTargetProject: searchTargetProjectRef.current,
+          };
+        }
+
+        isSearchModeRef.current = true;
+        isFocusModeRef.current = false;
+        focusRootPathRef.current = '';
+        focusRootNameRef.current = '';
+        searchTargetProjectRef.current = payload;
+
         setSearchTargetProject(payload);
         setIsSearchMode(true);
         setIsFocusMode(false);
@@ -2438,6 +2485,7 @@ export default function RecentProjectsApp() {
         setFolderSearchTotalMatches(0);
         setFileNameSearchResults([]);
         setFolderSearchError('');
+        setCurrentActiveMatch(0);
         break;
 
       case 'focusMode':
@@ -2480,6 +2528,34 @@ export default function RecentProjectsApp() {
   }, [currentActiveMatch, totalMatches, isSearchMode, flatMatchesList]);
 
   const exitSearchOrFocusMode = () => {
+    const searchReturnState = searchReturnStateRef.current;
+
+    if (searchReturnState) {
+      searchReturnStateRef.current = null;
+
+      isSearchModeRef.current = searchReturnState.isFocusMode;
+      isFocusModeRef.current = searchReturnState.isFocusMode;
+      isFocusLockedRef.current = searchReturnState.isFocusLocked;
+      focusRootPathRef.current = searchReturnState.focusRootPath;
+      focusRootNameRef.current = searchReturnState.focusRootName;
+      searchTargetProjectRef.current = searchReturnState.searchTargetProject;
+
+      setIsSearchMode(searchReturnState.isFocusMode);
+      setIsFocusMode(searchReturnState.isFocusMode);
+      setIsFocusLocked(searchReturnState.isFocusLocked);
+      setFocusRootPath(searchReturnState.focusRootPath);
+      setFocusRootName(searchReturnState.focusRootName);
+      setSearchTargetProject(searchReturnState.searchTargetProject);
+      setFolderSearchQuery('');
+      setFolderSearchResults([]);
+      setFolderSearchTotalMatches(0);
+      setFileNameSearchResults([]);
+      setFolderSearchError('');
+      setIsSearchingFolder(false);
+      setCurrentActiveMatch(0);
+      return;
+    }
+
     const exitingFocusMode = isFocusModeRef.current;
     const exitingFocusRootPath = focusRootPathRef.current;
     const exitingFocusRootName = focusRootNameRef.current || getProjectNameByPath(exitingFocusRootPath);
@@ -2604,7 +2680,6 @@ export default function RecentProjectsApp() {
           const childLoading = loadingPaths.has(childPath) && !dirChildren[childPath];
           const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
           const elementId = `tree-node-${encodeURIComponent(childPath)}`;
-          const statusClassName = getGitStatusClassName(child.status);
           const renameInput = renderRenameInput(childPath);
 
           if (child.isFolder) {
