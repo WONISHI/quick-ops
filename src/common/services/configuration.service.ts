@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import ColorLog from '@/utils/ColorLog';
 import { EventEmitter } from 'events';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
@@ -31,6 +32,7 @@ export class ConfigurationService extends EventEmitter {
   }
 
   /**
+   * @description 获取全局配置项
    * 兼容旧代码：
    * 其他模块依然可以通过 this.configurationService.config 读取配置。
    */
@@ -94,7 +96,7 @@ export class ConfigurationService extends EventEmitter {
     await vscode.commands.executeCommand('setContext', 'quickOps.context.configMissing', false);
     await vscode.commands.executeCommand('setContext', 'quickOps.context.configState', 'exists');
 
-    console.log(`[${this.serviceId}] Native Settings Initialized.`);
+    ColorLog.orange(`[${this.serviceId}]`, 'Initialized.');
   }
 
   public get<T = unknown>(section: string, defaultValue?: T): T {

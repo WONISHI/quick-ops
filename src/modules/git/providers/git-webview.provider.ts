@@ -37,8 +37,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     );
 
     webviewView.webview.onDidReceiveMessage(async message => {
-      console.log('[GitWebviewProvider] receive message:', message);
-
       try {
         await this.handleMessage(message);
       } catch (error) {

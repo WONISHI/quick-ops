@@ -56,8 +56,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     );
 
     webviewView.webview.onDidReceiveMessage(async message => {
-      console.log('[RecentProjectsProvider] receive message:', message);
-
       try {
         await this.handleMessage(message);
       } catch (error) {
