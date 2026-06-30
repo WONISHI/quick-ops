@@ -330,7 +330,7 @@
         "icon": "$(refresh)"
       },
       {
-        "command": "quick-ops.showPackageScripts",
+        "command": "quickOps.showPackageScripts",
         "title": "运行快捷脚本 (Scripts)",
         "category": "Quick Ops",
         "icon": {
@@ -586,7 +586,7 @@
       ],
       "editor/title": [
         {
-          "command": "quick-ops.showPackageScripts",
+          "command": "quickOps.showPackageScripts",
           "group": "navigation@1"
         },
         {

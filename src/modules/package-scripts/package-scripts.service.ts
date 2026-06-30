@@ -915,7 +915,7 @@ export class PackageScriptsService {
     );
 
     this.statusBarItem.name = 'Quick Ops Scripts';
-    this.statusBarItem.command = 'quick-ops.showPackageScripts';
+    this.statusBarItem.command = 'quickOps.showPackageScripts';
 
     this.extensionContextProvider.register(this.statusBarItem);
   }

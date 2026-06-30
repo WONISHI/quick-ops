@@ -29,7 +29,7 @@ export class PackageScriptsController implements OnModuleInit {
 
   private registerCommands(): void {
     this.extensionContextProvider.register(
-      vscode.commands.registerCommand('quick-ops.showPackageScripts', async () => {
+      vscode.commands.registerCommand('quickOps.showPackageScripts', async () => {
         await this.packageScriptsService.showScripts();
       }),
 
