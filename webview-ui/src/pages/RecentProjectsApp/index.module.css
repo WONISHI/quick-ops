@@ -640,6 +640,25 @@ ul {
   color: var(--vscode-input-placeholderForeground);
 }
 
+.rename-entity-input {
+  flex: 1;
+  min-width: 0;
+  height: 18px;
+  line-height: 18px;
+  padding: 0 4px;
+  margin: 0;
+  border: 1px solid var(--vscode-focusBorder);
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+  border-radius: 0;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: 13px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .sub-item[draggable="true"] {
   cursor: pointer;
 }

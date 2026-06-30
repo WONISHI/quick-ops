@@ -304,6 +304,114 @@ export class RecentProjectsFeature implements IFeature {
       }
     });
 
+    /**
+     * 监听 VS Code Git 仓库状态变化，刷新 file-status-badge。
+     *
+     * 说明：
+     * - commit / reset / restore / discard / stage / unstage / checkout 都会改变 Git 状态；
+     * - 这些变化不一定会触发 onDidSaveTextDocument / onDidCreateFiles / onDidDeleteFiles；
+     * - 这里只刷新当前可见节点的 metadata，不刷新整棵树，避免树闪烁和展开状态丢失。
+     */
+    const registerGitStateWatcher = () => {
+      const disposables: vscode.Disposable[] = [];
+      const repoDisposables = new Map<any, vscode.Disposable>();
+      let gitStateRefreshTimer: NodeJS.Timeout | undefined;
+
+      const requestGitStateMetadataSync = (delay: number = 260) => {
+        if (gitStateRefreshTimer) {
+          clearTimeout(gitStateRefreshTimer);
+        }
+
+        gitStateRefreshTimer = setTimeout(() => {
+          gitStateRefreshTimer = undefined;
+
+          provider.requestVisibleMetadataSync();
+
+          const activeUri = getActiveFileUri();
+
+          if (activeUri) {
+            requestPathMetadataSync(activeUri, 0);
+          }
+        }, delay);
+      };
+
+      const watchRepository = (repo: any) => {
+        if (!repo || repoDisposables.has(repo)) {
+          return;
+        }
+
+        const disposable = repo.state.onDidChange(() => {
+          requestGitStateMetadataSync(260);
+        });
+
+        repoDisposables.set(repo, disposable);
+        disposables.push(disposable);
+      };
+
+      const setupGitWatchers = async () => {
+        try {
+          const gitExtension = vscode.extensions.getExtension('vscode.git');
+
+          if (!gitExtension) {
+            return;
+          }
+
+          const gitExports = gitExtension.isActive
+            ? gitExtension.exports
+            : await gitExtension.activate();
+
+          const gitApi = gitExports?.getAPI?.(1);
+
+          if (!gitApi) {
+            return;
+          }
+
+          gitApi.repositories.forEach((repo: any) => {
+            watchRepository(repo);
+          });
+
+          disposables.push(
+            gitApi.onDidOpenRepository((repo: any) => {
+              watchRepository(repo);
+              requestGitStateMetadataSync(120);
+            })
+          );
+
+          disposables.push(
+            gitApi.onDidCloseRepository((repo: any) => {
+              const disposable = repoDisposables.get(repo);
+
+              if (disposable) {
+                disposable.dispose();
+                repoDisposables.delete(repo);
+              }
+
+              requestGitStateMetadataSync(120);
+            })
+          );
+        } catch (error) {
+          console.warn('[Quick Ops] Git state watcher init failed:', error);
+        }
+      };
+
+      void setupGitWatchers();
+
+      return new vscode.Disposable(() => {
+        if (gitStateRefreshTimer) {
+          clearTimeout(gitStateRefreshTimer);
+          gitStateRefreshTimer = undefined;
+        }
+
+        repoDisposables.forEach((disposable) => disposable.dispose());
+        repoDisposables.clear();
+
+        disposables.forEach((disposable) => disposable.dispose());
+        disposables.length = 0;
+      });
+    };
+
+    const gitStateWatcher = registerGitStateWatcher();
+
     context.subscriptions.push(
       webviewView,
       roDocRegistration,
@@ -316,6 +424,7 @@ export class RecentProjectsFeature implements IFeature {
       renameFilesWatcher,
       diagnosticsWatcher,
       windowFocusWatcher,
+      gitStateWatcher,
       revealCmd,
       addCmd,
       refreshCmd,

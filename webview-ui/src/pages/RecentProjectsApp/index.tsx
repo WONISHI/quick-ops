@@ -53,6 +53,14 @@ interface PendingCreateEntity {
   isActiveProject: boolean;
 }
 
+interface PendingRenameEntity {
+  path: string;
+  name: string;
+  isFolder: boolean;
+  projectName: string;
+  isActiveProject: boolean;
+}
+
 interface DraggingEntity {
   path: string;
   name: string;
@@ -161,6 +169,10 @@ export default function RecentProjectsApp() {
   const [pendingCreateName, setPendingCreateName] = useState('');
   const pendingCreateInputRef = useRef<HTMLInputElement>(null);
 
+  const [pendingRenameEntity, setPendingRenameEntity] = useState<PendingRenameEntity | null>(null);
+  const [pendingRenameName, setPendingRenameName] = useState('');
+  const pendingRenameInputRef = useRef<HTMLInputElement>(null);
+
   const [draggingEntity, setDraggingEntity] = useState<DraggingEntity | null>(null);
   const [dragOverPath, setDragOverPath] = useState('');
   const [invalidDragOverPath, setInvalidDragOverPath] = useState('');
@@ -202,6 +214,15 @@ export default function RecentProjectsApp() {
       pendingCreateInputRef.current?.select();
     }, 0);
   }, [pendingCreateEntity]);
+
+  useEffect(() => {
+    if (!pendingRenameEntity) return;
+
+    window.setTimeout(() => {
+      pendingRenameInputRef.current?.focus();
+      pendingRenameInputRef.current?.select();
+    }, 0);
+  }, [pendingRenameEntity]);
 
   const normalizePatchPath = (pathValue: string) => {
     if (!pathValue) return '';
@@ -1087,6 +1108,69 @@ export default function RecentProjectsApp() {
           projectName: getProjectNameByPath(parentPath),
           forceRefresh: true,
         });
+      } else if (msg.type === 'renameFileEntityResult') {
+        const sourcePath = msg.sourcePath as string;
+        const targetPath = msg.targetPath as string;
+        const parentPath = msg.parentPath as string;
+        const targetName = msg.name as string;
+
+        setPendingRenameEntity(null);
+        setPendingRenameName('');
+        setSelectedPath(targetPath);
+
+        setExpandedPaths((prev) => {
+          const next = new Set<string>();
+
+          prev.forEach((itemPath) => {
+            if (isSameTreePath(itemPath, sourcePath)) {
+              next.add(targetPath);
+              return;
+            }
+
+            if (isPathInside(itemPath, sourcePath)) {
+              return;
+            }
+
+            next.add(itemPath);
+          });
+
+          next.add(parentPath);
+          return next;
+        });
+
+        setDirChildren((prev) => {
+          const next = { ...prev };
+
+          Object.keys(next).forEach((key) => {
+            if (isPathInside(key, sourcePath)) {
+              delete next[key];
+            }
+          });
+
+          if (next[parentPath]) {
+            next[parentPath] = next[parentPath].map((item) => {
+              if (item.path !== sourcePath) {
+                return item;
+              }
+
+              return {
+                ...item,
+                path: targetPath,
+                name: targetName || item.name,
+              };
+            });
+          }
+
+          return next;
+        });
+
+        setLoadingPaths((prev) => new Set(prev).add(parentPath));
+        vscode.postMessage({
+          type: 'readDir',
+          fsPath: parentPath,
+          projectName: getProjectNameByPath(parentPath),
+          forceRefresh: true,
+        });
       } else if (msg.type === 'moveFileEntityResult') {
         const sourcePath = msg.sourcePath as string;
         const targetPath = msg.targetPath as string;
@@ -1690,6 +1774,65 @@ export default function RecentProjectsApp() {
     setPendingCreateName('');
   };
 
+  const canRenameEntity = (payload: ContextMenuPayload) => {
+    const workspacePath = getCurrentWorkspacePath();
+
+    return (
+      !!payload.isActiveProject &&
+      !!workspacePath &&
+      !!payload.path &&
+      !payload.isRemote &&
+      !isRemoteTreePath(payload.path) &&
+      isInsideCurrentWorkspacePath(payload.path) &&
+      !isSameTreePath(payload.path, workspacePath)
+    );
+  };
+
+  const beginRenameEntity = (payload: ContextMenuPayload) => {
+    if (!canRenameEntity(payload)) {
+      return;
+    }
+
+    setPendingCreateEntity(null);
+    setPendingCreateName('');
+
+    setPendingRenameEntity({
+      path: payload.path,
+      name: payload.name || '',
+      isFolder: !!payload.isFolder,
+      projectName: payload.projectName || getProjectNameByPath(payload.path) || '当前项目',
+      isActiveProject: true,
+    });
+    setPendingRenameName(payload.name || '');
+    setSelectedPath(payload.path);
+  };
+
+  const cancelPendingRenameEntity = () => {
+    setPendingRenameEntity(null);
+    setPendingRenameName('');
+  };
+
+  const commitPendingRenameEntity = () => {
+    if (!pendingRenameEntity) return;
+
+    const name = pendingRenameName.trim();
+
+    if (!name || name === pendingRenameEntity.name) {
+      cancelPendingRenameEntity();
+      return;
+    }
+
+    vscode.postMessage({
+      type: 'renameFileEntity',
+      fsPath: pendingRenameEntity.path,
+      newName: name,
+      isFolder: pendingRenameEntity.isFolder,
+    });
+
+    setPendingRenameEntity(null);
+    setPendingRenameName('');
+  };
+
   const canDragEntity = (pathValue: string, isActiveProject: boolean) => {
     const workspacePath = getCurrentWorkspacePath();
 
@@ -1819,6 +1962,36 @@ export default function RecentProjectsApp() {
     }
 
     return '';
+  };
+
+  const renderRenameInput = (entityPath: string) => {
+    if (!pendingRenameEntity || !isSameTreePath(pendingRenameEntity.path, entityPath)) {
+      return null;
+    }
+
+    return (
+      <input
+        ref={pendingRenameInputRef}
+        className={`${styles['sub-name']} ${styles['rename-entity-input']}`}
+        value={pendingRenameName}
+        autoComplete="off"
+        spellCheck={false}
+        onChange={(e) => setPendingRenameName(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+        onBlur={commitPendingRenameEntity}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commitPendingRenameEntity();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            cancelPendingRenameEntity();
+          }
+        }}
+      />
+    );
   };
 
   const renderPendingCreateRow = (parentPath: string, _projectName: string, isActiveProject: boolean) => {
@@ -2093,6 +2266,10 @@ export default function RecentProjectsApp() {
       case 'createFolder':
         beginCreateEntity('folder', payload);
         break;
+      case 'renameFileEntity':
+        beginRenameEntity(payload);
+        break;
+
       case 'deleteFileEntity':
         vscode.postMessage({
           type: 'deleteFileEntity',
@@ -2428,6 +2605,7 @@ export default function RecentProjectsApp() {
           const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
           const elementId = `tree-node-${encodeURIComponent(childPath)}`;
           const statusClassName = getGitStatusClassName(child.status);
+          const renameInput = renderRenameInput(childPath);
 
           if (child.isFolder) {
             return (
@@ -2484,16 +2662,18 @@ export default function RecentProjectsApp() {
                     align="start"
                     delay={2000}
                   >
-                    <span
-                      className={styles['sub-name']}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        pointerEvents: 'auto',
-                      }}
-                    >
-                      {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
-                    </span>
+                    {renameInput || (
+                      <span
+                        className={styles['sub-name']}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          pointerEvents: 'auto',
+                        }}
+                      >
+                        {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
+                      </span>
+                    )}
                   </Tooltip>
 
                   <FolderGitStatusDot status={child.status} />
@@ -2550,15 +2730,17 @@ export default function RecentProjectsApp() {
                   align="start"
                   delay={2000}
                 >
-                  <span className={styles['sub-name']}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      pointerEvents: 'auto',
-                    }}
-                  >
-                    {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
-                  </span>
+                  {renameInput || (
+                    <span className={styles['sub-name']}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        pointerEvents: 'auto',
+                      }}
+                    >
+                      {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
+                    </span>
+                  )}
                 </Tooltip>
 
                 <FileGitStatusBadge status={child.status} />
