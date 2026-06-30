@@ -63,6 +63,7 @@ export class EmbeddedBrowserService extends EventEmitter {
   private lastFramePayload: BrowserFramePayload | null = null;
   private pendingFramePayload: BrowserFramePayload | null = null;
   private frameFlushTimer: NodeJS.Timeout | null = null;
+  private sharedCookiePersistTimer: NodeJS.Timeout | null = null;
   private lastFrameEmitAt = 0;
   private readonly frameEmitInterval = platform() === 'darwin' ? 66 : 50;
   private screencastFrameHandler: ((event: any) => Promise<void>) | null = null;
@@ -79,11 +80,11 @@ export class EmbeddedBrowserService extends EventEmitter {
   constructor(
     private readonly context: vscode.ExtensionContext,
     /**
-     * 使用固定的 Chrome User Data 目录。
+     * 固定 Chrome Profile 目录。
      *
-     * 之前这里每次都会生成 BrowserUserData-${processId}-${timestamp}-${random}，
-     * 会导致 cookies / localStorage / IndexedDB 无法跨扩展重启保留。
-     * 登录类页面例如 https://chat.deepseek.com/ 扫码登录后，下次重新打开会丢失登录态。
+     * 注意：多个 VS Code 窗口或多个新预览标签同时启动时，Chrome 会锁定 userDataDir，
+     * 这时会自动 fallback 到临时 Profile。为了让不同 Profile 也能复用登录态，
+     * 下方额外做了共享 Cookie 同步。
      */
     private readonly userDataDirName = 'BrowserUserData'
   ) {
@@ -111,6 +112,11 @@ export class EmbeddedBrowserService extends EventEmitter {
 
   public async navigate(url: string): Promise<void> {
     const page = await this.ensurePage();
+
+    await this.restoreSharedCookiesForUrl(url).catch((error) => {
+      console.warn('[EmbeddedBrowserService] restore shared cookies failed:', error);
+    });
+
     const signal = this.createNavigationSignal();
 
     try {
@@ -136,6 +142,7 @@ export class EmbeddedBrowserService extends EventEmitter {
       });
     } finally {
       this.clearNavigationSignal(signal);
+      this.schedulePersistSharedCookies(1200);
     }
   }
 
@@ -146,6 +153,10 @@ export class EmbeddedBrowserService extends EventEmitter {
       await this.navigate(url);
       return;
     }
+
+    await this.restoreSharedCookiesForUrl(url || page.url()).catch((error) => {
+      console.warn('[EmbeddedBrowserService] restore shared cookies before reload failed:', error);
+    });
 
     const signal = this.createNavigationSignal();
 
@@ -172,6 +183,7 @@ export class EmbeddedBrowserService extends EventEmitter {
       });
     } finally {
       this.clearNavigationSignal(signal);
+      this.schedulePersistSharedCookies(1200);
     }
   }
 
@@ -556,17 +568,220 @@ export class EmbeddedBrowserService extends EventEmitter {
     }).catch(() => undefined);
   }
 
+  private getSharedCookieDirUri(): vscode.Uri {
+    return vscode.Uri.joinPath(this.context.globalStorageUri, 'BrowserSharedState');
+  }
+
+  private getSharedCookieFileUri(): vscode.Uri {
+    return vscode.Uri.joinPath(this.getSharedCookieDirUri(), 'cookies.json');
+  }
+
+  private isHttpLikeUrl(rawUrl: string): boolean {
+    return /^https?:\/\//i.test(String(rawUrl || '').trim());
+  }
+
+  private async readSharedCookies(): Promise<any[]> {
+    try {
+      const content = await vscode.workspace.fs.readFile(this.getSharedCookieFileUri());
+      const json = JSON.parse(Buffer.from(content).toString('utf8'));
+
+      return Array.isArray(json) ? json : [];
+    } catch {
+      return [];
+    }
+  }
+
+  private async writeSharedCookies(cookies: any[]): Promise<void> {
+    await vscode.workspace.fs.createDirectory(this.getSharedCookieDirUri()).catch(() => undefined);
+
+    const safeCookies = Array.isArray(cookies) ? cookies : [];
+    const content = Buffer.from(JSON.stringify(safeCookies, null, 2), 'utf8');
+
+    await vscode.workspace.fs.writeFile(this.getSharedCookieFileUri(), content);
+  }
+
+  private getCookieMergeKey(cookie: any): string {
+    return [
+      String(cookie?.name || ''),
+      String(cookie?.domain || ''),
+      String(cookie?.path || '/'),
+    ].join('\n');
+  }
+
+  private normalizeCookieForStorage(cookie: any): any | null {
+    const name = String(cookie?.name || '').trim();
+    const value = typeof cookie?.value === 'string' ? cookie.value : String(cookie?.value ?? '');
+    const domain = String(cookie?.domain || '').trim();
+
+    if (!name || !domain) {
+      return null;
+    }
+
+    const result: any = {
+      name,
+      value,
+      domain,
+      path: String(cookie?.path || '/'),
+      secure: !!cookie?.secure,
+      httpOnly: !!cookie?.httpOnly,
+    };
+
+    const expires = Number(cookie?.expires);
+
+    if (Number.isFinite(expires) && expires > 0) {
+      result.expires = expires;
+    }
+
+    const sameSite = String(cookie?.sameSite || '').trim();
+
+    if (sameSite === 'Strict' || sameSite === 'Lax' || sameSite === 'None') {
+      result.sameSite = sameSite;
+    }
+
+    return result;
+  }
+
+  private isCookieMatchedUrl(cookie: any, rawUrl: string): boolean {
+    if (!this.isHttpLikeUrl(rawUrl)) return false;
+
+    try {
+      const targetUrl = new URL(rawUrl);
+      const host = targetUrl.hostname.toLowerCase();
+      const domain = String(cookie?.domain || '').replace(/^\./, '').toLowerCase();
+
+      if (!host || !domain) return false;
+
+      const domainMatched = host === domain || host.endsWith(`.${domain}`);
+
+      if (!domainMatched) return false;
+      if (cookie?.secure && targetUrl.protocol !== 'https:') return false;
+
+      const cookiePath = String(cookie?.path || '/');
+      const pathname = targetUrl.pathname || '/';
+
+      return pathname === cookiePath || pathname.startsWith(cookiePath.endsWith('/') ? cookiePath : `${cookiePath}/`) || cookiePath === '/';
+    } catch {
+      return false;
+    }
+  }
+
+  private toNetworkCookieParam(cookie: any): any | null {
+    const normalized = this.normalizeCookieForStorage(cookie);
+
+    if (!normalized) return null;
+
+    const result: any = {
+      name: normalized.name,
+      value: normalized.value,
+      domain: normalized.domain,
+      path: normalized.path || '/',
+      secure: !!normalized.secure,
+      httpOnly: !!normalized.httpOnly,
+    };
+
+    if (normalized.expires) {
+      result.expires = normalized.expires;
+    }
+
+    if (normalized.sameSite) {
+      result.sameSite = normalized.sameSite;
+    }
+
+    return result;
+  }
+
+  private async restoreSharedCookiesForUrl(rawUrl: string): Promise<void> {
+    if (!this.isHttpLikeUrl(rawUrl)) return;
+
+    const cookies = await this.readSharedCookies();
+    const matchedCookies = cookies
+      .filter((cookie) => this.isCookieMatchedUrl(cookie, rawUrl))
+      .map((cookie) => this.toNetworkCookieParam(cookie))
+      .filter(Boolean);
+
+    if (matchedCookies.length === 0) return;
+
+    const client = await this.ensureClient();
+
+    await client.send('Network.setCookies', {
+      cookies: matchedCookies,
+    }).catch((error) => {
+      console.warn('[EmbeddedBrowserService] set shared cookies failed:', error);
+    });
+  }
+
+  private schedulePersistSharedCookies(delay: number = 1500): void {
+    if (this.sharedCookiePersistTimer) return;
+
+    this.sharedCookiePersistTimer = setTimeout(() => {
+      this.sharedCookiePersistTimer = null;
+      void this.persistSharedCookies().catch((error) => {
+        console.warn('[EmbeddedBrowserService] persist shared cookies failed:', error);
+      });
+    }, delay);
+  }
+
+  private async persistSharedCookies(): Promise<void> {
+    if (!this.page || this.page.isClosed()) return;
+
+    const client = this.client || await this.ensureClient().catch(() => null);
+
+    if (!client) return;
+
+    const response = await client.send('Network.getAllCookies').catch(() => null) as any;
+    const currentCookies = Array.isArray(response?.cookies) ? response.cookies : [];
+
+    if (currentCookies.length === 0) return;
+
+    const existingCookies = await this.readSharedCookies();
+    const cookieMap = new Map<string, any>();
+    const nowSeconds = Date.now() / 1000;
+
+    existingCookies.forEach((cookie) => {
+      const normalized = this.normalizeCookieForStorage(cookie);
+
+      if (!normalized) return;
+      if (normalized.expires && normalized.expires <= nowSeconds) return;
+
+      cookieMap.set(this.getCookieMergeKey(normalized), normalized);
+    });
+
+    currentCookies.forEach((cookie) => {
+      const normalized = this.normalizeCookieForStorage(cookie);
+
+      if (!normalized) return;
+
+      const key = this.getCookieMergeKey(normalized);
+
+      if (normalized.expires && normalized.expires <= nowSeconds) {
+        cookieMap.delete(key);
+        return;
+      }
+
+      cookieMap.set(key, normalized);
+    });
+
+    await this.writeSharedCookies(Array.from(cookieMap.values()));
+  }
+
   public async clearCache(): Promise<void> {
     const client = await this.ensureClient();
 
-    await Promise.allSettled([
-      client.send('Network.clearBrowserCookies'),
-      client.send('Network.clearBrowserCache'),
-      client.send('Storage.clearDataForOrigin', {
-        origin: this.getCurrentOrigin(),
-        storageTypes: 'all',
-      }),
-    ]);
+    /**
+     * 只清 HTTP Cache，不清登录态。
+     *
+     * 不能调用：
+     * - Network.clearBrowserCookies
+     * - Storage.clearDataForOrigin(..., storageTypes: 'all')
+     *
+     * 否则会清掉 Cookie / localStorage / IndexedDB / Service Worker 数据，
+     * DeepSeek、ChatGPT 等需要登录的网站会被退出登录。
+     */
+    await client.send('Network.clearBrowserCache').catch((error) => {
+      console.warn('[EmbeddedBrowserService] clear browser cache failed:', error);
+    });
+
+    this.schedulePersistSharedCookies(300);
   }
 
   public async getDevToolsUrl(): Promise<string> {
@@ -715,6 +930,12 @@ export class EmbeddedBrowserService extends EventEmitter {
   }
 
   public async dispose(): Promise<void> {
+    if (this.sharedCookiePersistTimer) {
+      clearTimeout(this.sharedCookiePersistTimer);
+      this.sharedCookiePersistTimer = null;
+    }
+
+    await this.persistSharedCookies().catch(() => undefined);
     await this.disposePage();
 
     if (this.browser) {
@@ -1355,6 +1576,7 @@ export class EmbeddedBrowserService extends EventEmitter {
 
     page.on('load', async () => {
       await this.patchCurrentDocumentNavigation(page);
+      this.schedulePersistSharedCookies(800);
 
       this.emit('pageLoaded', {
         url: page.url(),
@@ -1364,6 +1586,7 @@ export class EmbeddedBrowserService extends EventEmitter {
 
     page.on('domcontentloaded', async () => {
       await this.patchCurrentDocumentNavigation(page);
+      this.schedulePersistSharedCookies(1200);
 
       this.emit('pageLoaded', {
         url: page.url(),
@@ -1375,6 +1598,7 @@ export class EmbeddedBrowserService extends EventEmitter {
       if (frame !== page.mainFrame()) return;
 
       await this.patchCurrentDocumentNavigation(page);
+      this.schedulePersistSharedCookies(1200);
 
       this.emit('urlChanged', {
         url: page.url(),
@@ -1451,6 +1675,8 @@ export class EmbeddedBrowserService extends EventEmitter {
         height: event.metadata?.deviceHeight || this.lastViewport.height,
         format: this.getScreencastFormat(),
       };
+
+      this.schedulePersistSharedCookies(3000);
 
       const isFirstFrame = !this.lastFramePayload;
 
