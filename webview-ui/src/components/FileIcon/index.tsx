@@ -169,6 +169,8 @@ const EXACT_NAMES: Record<string, string> = {
   '.env.test': tuneIcon,
   '.env.dev': tuneIcon,
   '.env.staging': tuneIcon,
+  '.env.agent': tuneIcon,
+  '.env.uat': tuneIcon,
   'gulpfile.js': gulpIcon,
   'gulpfile.babel.js': gulpIcon,
   '.babelrc': babelIcon,
