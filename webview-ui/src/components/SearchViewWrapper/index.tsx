@@ -221,7 +221,6 @@ function getSearchNameHighlightTokens(query: string) {
     }
   });
 
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
   const compactValue = value.replace(/[\s\/_.-]+/g, '');
 
   if (compactValue && compactValue !== value) {

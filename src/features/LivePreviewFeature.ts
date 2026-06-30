@@ -41,8 +41,6 @@ export class LivePreviewFeature implements IFeature {
   public async activate(context: vscode.ExtensionContext): Promise<void> {
     context.globalState.setKeysForSync([this.GLOBAL_FAVORITES_KEY]);
 
-    void this.cleanupOldBrowserProfileDirs(context);
-
     this.devToolsProvider = new DevToolsWebviewProvider(context.extensionUri);
 
     context.subscriptions.push(
@@ -77,63 +75,6 @@ export class LivePreviewFeature implements IFeature {
     });
 
     ColorLog.black(`[${this.id}]`, 'Activated.');
-  }
-
-  private isOldBrowserProfileDirName(name: string): boolean {
-    const dirName = String(name || '').trim();
-
-    if (!dirName) return false;
-
-    /**
-     * 只清理旧随机目录和临时目录：
-     * - BrowserUserData-Temp-*
-     * - BrowserUserData-数字-*
-     *
-     * 不清理：
-     * - BrowserUserData：主浏览器登录态目录
-     * - BrowserUserData-Detached：新预览标签页登录态目录
-     * - BrowserSharedState：跨 Profile 共享 Cookie 文件
-     */
-    return /^BrowserUserData-Temp-/i.test(dirName) || /^BrowserUserData-\d+-/i.test(dirName);
-  }
-
-  private async cleanupOldBrowserProfileDirs(context: vscode.ExtensionContext): Promise<void> {
-    const maxRecentAgeMs = 30 * 60 * 1000;
-    const now = Date.now();
-
-    try {
-      const entries = await vscode.workspace.fs.readDirectory(context.globalStorageUri);
-
-      await Promise.allSettled(entries.map(async ([dirName, fileType]) => {
-        if (fileType !== vscode.FileType.Directory) return;
-        if (!this.isOldBrowserProfileDirName(dirName)) return;
-
-        const dirUri = vscode.Uri.joinPath(context.globalStorageUri, dirName);
-
-        try {
-          const stat = await vscode.workspace.fs.stat(dirUri);
-
-          /**
-           * 防止多窗口场景下误删另一个窗口刚 fallback 出来的临时 Profile。
-           * 最近 30 分钟内修改过的目录先跳过，下次启动再清理。
-           */
-          if (stat.mtime && now - stat.mtime < maxRecentAgeMs) {
-            return;
-          }
-        } catch {
-          // stat 失败时继续尝试删除，delete 本身还会兜底。
-        }
-
-        await vscode.workspace.fs.delete(dirUri, {
-          recursive: true,
-          useTrash: false,
-        });
-
-        console.info(`[${this.id}] cleaned old browser profile: ${dirName}`);
-      }));
-    } catch (error) {
-      console.warn(`[${this.id}] cleanup old browser profiles failed:`, error);
-    }
   }
 
   private togglePreviewPanel(context: vscode.ExtensionContext) {
@@ -1058,7 +999,3 @@ export class LivePreviewFeature implements IFeature {
     });
   }
 }
-
-/**
- * 调整一下favicon-img这个元素用来放置浏览器的图标，点击可以切换其他浏览器，可以切换成百度，bing和夸克，这里用来放置
- */
