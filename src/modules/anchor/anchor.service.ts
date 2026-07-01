@@ -85,6 +85,10 @@ export class AnchorService {
     this.changeEmitter.dispose();
   }
 
+  /**
+   * @description 创建provider
+   * @returns 返回AnchorCodeLensProvider的实例
+   */
   public createCodeLensProvider(): vscode.CodeLensProvider {
     return new AnchorCodeLensProvider(this, this.extensionContextProvider);
   }
@@ -117,7 +121,6 @@ export class AnchorService {
 
   public async executeShowAnchorMenuCommand(): Promise<void> {
     const config = this.configurationService.config?.general || {};
-    console.log('anchor.service.ts文件的:第119行' , this.configurationService)
     const mode = config.anchorViewMode || 'menu';
 
     if (mode === 'mindmap') {
@@ -128,6 +131,11 @@ export class AnchorService {
     this.showGroupList(true);
   }
 
+  /**
+   * @description 注册新增锚点指令的回调
+   * @param args 
+   * @returns 
+   */
   public async executeAddAnchorCommand(...args: any[]): Promise<void> {
     try {
       let argLineIndex: number | undefined;

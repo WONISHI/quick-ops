@@ -9,6 +9,7 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "baseUrl": ".",
+     "types": ["node", "vscode"],
     "paths": {
       "@/*": ["src/*"],
       "@app/*": ["src/app/*"],

@@ -83,10 +83,12 @@ export class AnchorController implements OnModuleInit {
    */
   private registerCommands(): void {
     this.extensionContextProvider.register(
+      // 注册锚点新增
       vscode.commands.registerCommand('quick-ops.anchor.add', async (...args: any[]) => {
         await this.anchorService.executeAddAnchorCommand(...args);
       }),
 
+      // 注册预览锚点
       vscode.commands.registerCommand('quick-ops.anchor.showMenu', async () => {
         await this.anchorService.executeShowAnchorMenuCommand();
       }),
@@ -99,6 +101,7 @@ export class AnchorController implements OnModuleInit {
         await this.anchorService.navigateAnchor(currentId, direction);
       }),
 
+      // 注册异常锚点
       vscode.commands.registerCommand('quick-ops.anchor.delete', async (id: string) => {
         this.anchorService.removeAnchor(id);
       }),
