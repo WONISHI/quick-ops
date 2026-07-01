@@ -838,6 +838,16 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
                   quickPick.hide();
 
+                  const confirm = await vscode.window.showWarningMessage(
+                    `确定要切换到远程分支 [ ${selected.remoteBranchName} ] 吗？\n\n此操作可能会改变当前工作区文件状态，请确认当前更改已保存或已处理。`,
+                    { modal: true },
+                    '确认切换'
+                  );
+
+                  if (confirm !== '确认切换') {
+                    return;
+                  }
+
                   await this.executeGitOperation(async () => {
                     try {
                       const localBranchName = await this.gitService.checkoutRemoteBranch(cwd, selected.remoteBranchName);
@@ -968,6 +978,16 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
                   quickPick.hide();
 
+                  const confirm = await vscode.window.showWarningMessage(
+                    `确定要从当前分支 [ ${currentBranch} ] 切换到 [ ${selected.branchName} ] 吗？\n\n此操作可能会改变当前工作区文件状态，请确认当前更改已保存或已处理。`,
+                    { modal: true },
+                    '确认切换'
+                  );
+
+                  if (confirm !== '确认切换') {
+                    return;
+                  }
+
                   await this.executeGitOperation(async () => {
                     try {
                       await this.gitService.checkoutBranch(cwd, selected.branchName);
@@ -1047,6 +1067,16 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               });
 
               if (!selected) return;
+
+              const confirm = await vscode.window.showWarningMessage(
+                `确定要将分支 [ ${selected.branchName} ] 合并到当前分支 [ ${current} ] 吗？\n\n合并可能产生冲突，请确认当前工作区更改已保存或已处理。`,
+                { modal: true },
+                '确认合并'
+              );
+
+              if (confirm !== '确认合并') {
+                return;
+              }
 
               await this.executeGitOperation(async () => {
                 try {
