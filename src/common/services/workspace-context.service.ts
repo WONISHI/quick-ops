@@ -11,7 +11,7 @@ import {
   upperFirst,
 } from 'lodash-es';
 
-import type { IWorkspaceContext } from '../../core/types/work-space';
+import type { IWorkspaceContext } from '@core/types/work-space';
 
 export class WorkspaceContextService {
   public readonly serviceId = 'WorkspaceContextService';

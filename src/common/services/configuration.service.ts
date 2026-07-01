@@ -4,7 +4,7 @@ import ColorLog from '@/utils/ColorLog';
 import { EventEmitter } from 'events';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import type { QuickOpsConfig, QuickOpsShellConfig, ConfigurationChangeListener } from '../types/common.type';
+import type { QuickOpsConfig, QuickOpsShellConfig, ConfigurationChangeListener } from '@common/types/common.type';
 
 const execFileAsync = promisify(execFile);
 

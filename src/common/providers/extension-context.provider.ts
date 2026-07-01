@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { TOKENS } from '../../core/container/token';
+import { TOKENS } from '@core/container/token';
 
 export interface OpenWorkspaceTextDocumentAtLineOptions {
   /**

@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { IService } from '../../core/interfaces/service.interface';
-import type { ICurrentFileState } from '../../core/types/work-space';
-import ColorLog from '../../utils/ColorLog';
+import { IService } from '@core/interfaces/service.interface';
+import type { ICurrentFileState } from '@core/types/work-space';
+import ColorLog from '@utils/ColorLog';
 
 export class WorkspaceStateService implements IService {
   public readonly serviceId = 'WorkspaceStateService';
