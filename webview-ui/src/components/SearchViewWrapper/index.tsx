@@ -946,38 +946,40 @@ ${searchTargetProject.path || ''}`;
 
                 return (
                   <li key={`${originalIndex}-${res.fullPath || res.file}`} className={styles['search-file-list-item']}>
-                    <Tooltip content={res.file} placement="bottom" textAlign="left" delay={2000}>
-                      <div className={styles['search-file-title']} title={res.file}>
-                        <FileIcon fileName={fileDisplayInfo.fileName} status={res.status} className={styles['search-file-icon']} />
+                    <div className={styles['search-file-title-row']}>
+                      <Tooltip content={res.file} placement="bottom" textAlign="left" delay={2000}>
+                        <div className={styles['search-file-title']} title={res.file}>
+                          <FileIcon fileName={fileDisplayInfo.fileName} status={res.status} className={styles['search-file-icon']} />
 
-                        <span className={`${styles['search-file-name']} ${getFileStatusClassName(res.status)}`} title={fileTitle}>
-                          {fileDisplayInfo.fileName}
-                        </span>
-
-                        {fileDisplayInfo.folderPath && (
-                          <span className={styles['search-file-folder']} title={fileDisplayInfo.folderPath}>
-                            {fileDisplayInfo.folderPath}
+                          <span className={`${styles['search-file-name']} ${getFileStatusClassName(res.status)}`} title={fileTitle}>
+                            {fileDisplayInfo.fileName}
                           </span>
-                        )}
 
-                        <span className={styles['search-file-match-count']} title={`当前文件中有 ${fileMatchCount} 处关键词`}>
-                          {fileMatchCount}
-                        </span>
+                          {fileDisplayInfo.folderPath && (
+                            <span className={styles['search-file-folder']} title={fileDisplayInfo.folderPath}>
+                              {fileDisplayInfo.folderPath}
+                            </span>
+                          )}
+                        </div>
+                      </Tooltip>
 
-                        <button
-                          type="button"
-                          className={styles['search-file-remove-btn']}
-                          title={`清除当前文件，减少 ${fileMatchCount} 处关键词`}
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            handleExcludeContentResult(res, originalIndex);
-                          }}
-                        >
-                          <span className="codicon codicon-close"></span>
-                        </button>
-                      </div>
-                    </Tooltip>
+                      <span className={styles['search-file-match-count']} title={`当前文件中有 ${fileMatchCount} 处关键词`}>
+                        {fileMatchCount}
+                      </span>
+
+                      <button
+                        type="button"
+                        className={styles['search-file-remove-btn']}
+                        title={`清除当前文件，减少 ${fileMatchCount} 处关键词`}
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          handleExcludeContentResult(res, originalIndex);
+                        }}
+                      >
+                        <span className="codicon codicon-close"></span>
+                      </button>
+                    </div>
 
                     <ul className={styles['search-matches-list']}>
                       {res.matches.map((m: SearchMatch, j: number) => {

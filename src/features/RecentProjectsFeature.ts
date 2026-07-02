@@ -109,6 +109,8 @@ export class RecentProjectsFeature implements IFeature {
         return;
       }
 
+      (provider as any).notifySearchContentChanged(realUri, 280);
+
       if (event.document.isDirty) {
         (provider as any).requestDirtyDocumentMetadataSync(event.document, 90);
         return;

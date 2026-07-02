@@ -151,8 +151,10 @@ export default function RecentProjectsApp() {
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
   const folderSearchQueryRef = useRef('');
   const [folderSearchType, setFolderSearchType] = useState<'content' | 'name'>('content');
+  const folderSearchTypeRef = useRef<'content' | 'name'>('content');
   const [fileNameSearchResults, setFileNameSearchResults] = useState<DirChild[]>([]);
   const [folderSearchResults, setFolderSearchResults] = useState<SearchResult[]>([]);
+  const folderSearchResultsRef = useRef<SearchResult[]>([]);
   const [folderSearchTotalMatches, setFolderSearchTotalMatches] = useState(0);
   const [isSearchingFolder, setIsSearchingFolder] = useState(false);
   const [folderSearchError, setFolderSearchError] = useState('');
@@ -205,6 +207,13 @@ export default function RecentProjectsApp() {
     folderSearchQueryRef.current = folderSearchQuery;
   }, [folderSearchQuery]);
 
+  useEffect(() => {
+    folderSearchTypeRef.current = folderSearchType;
+  }, [folderSearchType]);
+
+  useEffect(() => {
+    folderSearchResultsRef.current = folderSearchResults;
+  }, [folderSearchResults]);
 
   useEffect(() => {
     isFocusModeRef.current = isFocusMode;
@@ -909,6 +918,37 @@ export default function RecentProjectsApp() {
     setSearchRefreshVersion((prev) => prev + 1);
   };
 
+  const isChangedPathRelatedToCurrentSearch = (changedPaths: string[]) => {
+    const searchTarget = searchTargetProjectRef.current;
+
+    if (!searchTarget?.path) {
+      return false;
+    }
+
+    const normalizedTarget = normalizePatchPath(searchTarget.path);
+
+    return changedPaths.some((itemPath) => {
+      const normalizedChangedPath = normalizePatchPath(itemPath);
+
+      if (!normalizedChangedPath) {
+        return false;
+      }
+
+      if (
+        normalizedTarget &&
+        (normalizedChangedPath === normalizedTarget || normalizedChangedPath.startsWith(`${normalizedTarget}/`))
+      ) {
+        return true;
+      }
+
+      return folderSearchResultsRef.current.some((item) => {
+        const resultPath = normalizePatchPath(item.fullPath || item.file || '');
+
+        return !!resultPath && resultPath === normalizedChangedPath;
+      });
+    });
+  };
+
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       const msg = e.data as Record<string, unknown>;
@@ -1015,6 +1055,16 @@ export default function RecentProjectsApp() {
         exitSearchOrFocusMode();
       } else if (msg.type === 'activeEditorChanged') {
         setSelectedPath(msg.fsPath as string);
+      } else if (msg.type === 'searchContentChanged') {
+        const changedPaths = ((msg.paths as string[]) || []).filter(Boolean);
+
+        if (
+          changedPaths.length > 0 &&
+          folderSearchTypeRef.current === 'content' &&
+          isChangedPathRelatedToCurrentSearch(changedPaths)
+        ) {
+          requestSilentFolderSearchRefresh();
+        }
       } else if (msg.type === 'updateBranchTag') {
         setBranchMap((prev) => ({
           ...prev,

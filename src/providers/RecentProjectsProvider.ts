@@ -89,8 +89,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private statusSyncTimer: NodeJS.Timeout | undefined;
   private pathStatusSyncTimer: NodeJS.Timeout | undefined;
   private dirtyStatusSyncTimer: NodeJS.Timeout | undefined;
+  private searchContentChangedTimer: NodeJS.Timeout | undefined;
   private readonly pendingMetadataPaths = new Set<string>();
   private readonly pendingDirtyMetadataPaths = new Set<string>();
+  private readonly pendingSearchContentChangedPaths = new Set<string>();
 
   constructor(private context: vscode.ExtensionContext) {
     this.context.subscriptions.push(
@@ -156,6 +158,36 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       // 立刻发起第一次尝试
       poll();
     }
+  }
+
+  public notifySearchContentChanged(target: vscode.Uri | string, delay: number = 260) {
+    const uriStr = typeof target === 'string' ? target : target.toString();
+
+    if (!uriStr) {
+      return;
+    }
+
+    this.pendingSearchContentChangedPaths.add(uriStr);
+
+    if (this.searchContentChangedTimer) {
+      clearTimeout(this.searchContentChangedTimer);
+    }
+
+    this.searchContentChangedTimer = setTimeout(() => {
+      this.searchContentChangedTimer = undefined;
+
+      if (this.pendingSearchContentChangedPaths.size === 0) {
+        return;
+      }
+
+      const paths = Array.from(this.pendingSearchContentChangedPaths);
+      this.pendingSearchContentChangedPaths.clear();
+
+      this._view?.webview.postMessage({
+        type: 'searchContentChanged',
+        paths,
+      });
+    }, delay);
   }
 
   private handleEditorChange(editor: vscode.TextEditor | undefined) {

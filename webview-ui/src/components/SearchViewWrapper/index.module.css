@@ -423,19 +423,28 @@
 
 .search-file-list-item {
   margin-bottom: 8px;
+  width: 100%;
+}
+
+.search-file-title-row {
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .search-file-title {
+  min-width: 0;
+  flex: 1 1 auto;
   font-size: 12px;
   font-weight: bold;
   color: var(--vscode-textLink-foreground);
-  margin-bottom: 2px;
   overflow: hidden;
   display: inline-flex;
   white-space: nowrap;
   align-items: center;
-  width: 100%;
-  min-width: 0;
 }
 
 .search-file-icon {
@@ -445,7 +454,6 @@
 
 .search-file-name {
   min-width: 0;
-  max-width: 52%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -468,7 +476,7 @@
 .search-file-match-count {
   min-width: 18px;
   height: 18px;
-  margin-left: 6px;
+  margin-left: auto;
   padding: 0 6px;
   display: inline-flex;
   align-items: center;
@@ -488,7 +496,6 @@
   height: 18px;
   min-width: 18px;
   min-height: 18px;
-  margin-left: 4px;
   padding: 0;
   border: none;
   border-radius: 4px;
@@ -502,7 +509,7 @@
   background: transparent;
 }
 
-.search-file-title:hover .search-file-remove-btn {
+.search-file-title-row:hover .search-file-remove-btn {
   opacity: 0.8;
 }
 
