@@ -305,6 +305,56 @@ export class RecentProjectsFeature implements IFeature {
     });
 
     /**
+     * 监听 VS Code 当前激活 Tab。
+     *
+     * 用途：
+     * - 用户打开文件 Tab；
+     * - 用户点击切换到已打开的文件 Tab；
+     * - 扩展通过 showTextDocument 打开文件后激活 Tab；
+     *
+     * 触发后同步当前文件路径，并执行“在项目中定位”。
+     */
+    let activeEditorRevealTimer: NodeJS.Timeout | undefined;
+    let lastRevealedActiveEditorUri = '';
+
+    const activeEditorRevealWatcher = vscode.window.onDidChangeActiveTextEditor((editor) => {
+      if (!editor) {
+        return;
+      }
+
+      const realUri = getRealDocumentUri(editor.document.uri);
+
+      if (!realUri) {
+        return;
+      }
+
+      const uriStr = realUri.toString();
+
+      if (uriStr === lastRevealedActiveEditorUri) {
+        return;
+      }
+
+      lastRevealedActiveEditorUri = uriStr;
+
+      if (activeEditorRevealTimer) {
+        clearTimeout(activeEditorRevealTimer);
+      }
+
+      activeEditorRevealTimer = setTimeout(() => {
+        activeEditorRevealTimer = undefined;
+
+        /**
+         * RecentProjectsProvider 内部也监听 activeTextEditor，
+         * 这里再显式 setActivePath 一次，避免事件先后顺序导致 revealCurrentActive 使用旧路径。
+         */
+        (provider as any).setActivePath(uriStr);
+
+        requestPathMetadataSync(realUri, 0);
+        provider.revealCurrentActive();
+      }, 120);
+    });
+
+    /**
      * 监听 VS Code Git 仓库状态变化，刷新 file-status-badge。
      *
      * 说明：
@@ -424,6 +474,7 @@ export class RecentProjectsFeature implements IFeature {
       renameFilesWatcher,
       diagnosticsWatcher,
       windowFocusWatcher,
+      activeEditorRevealWatcher,
       gitStateWatcher,
       revealCmd,
       addCmd,
@@ -439,6 +490,11 @@ export class RecentProjectsFeature implements IFeature {
         if (this.refreshTimer) {
           clearTimeout(this.refreshTimer);
           this.refreshTimer = undefined;
+        }
+
+        if (activeEditorRevealTimer) {
+          clearTimeout(activeEditorRevealTimer);
+          activeEditorRevealTimer = undefined;
         }
       },
     });
