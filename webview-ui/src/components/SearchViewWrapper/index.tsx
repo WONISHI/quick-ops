@@ -313,6 +313,85 @@ function renderSearchNameHighlightText(text: string, query: string) {
   return nodes;
 }
 
+function getContentSearchHighlightTokens(query: string) {
+  const value = String(query || '').trim();
+
+  if (!value) return [] as string[];
+
+  const tokenSet = new Set<string>();
+
+  tokenSet.add(value);
+
+  value
+    .replace(/\\/g, '/')
+    .split(/[\s/]+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .forEach((item) => {
+      tokenSet.add(item);
+
+      const withoutDot = item.replace(/^\.+/, '');
+
+      if (withoutDot) {
+        tokenSet.add(withoutDot);
+      }
+    });
+
+  return Array.from(tokenSet)
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .sort((a, b) => b.length - a.length);
+}
+
+function findFirstContentKeywordIndex(text: string, query: string) {
+  const value = String(text || '');
+  const lowerValue = value.toLowerCase();
+  const tokens = getContentSearchHighlightTokens(query);
+
+  let firstIndex = -1;
+
+  tokens.forEach((token) => {
+    const lowerToken = token.toLowerCase();
+
+    if (!lowerToken) return;
+
+    const index = lowerValue.indexOf(lowerToken);
+
+    if (index === -1) return;
+
+    if (firstIndex === -1 || index < firstIndex) {
+      firstIndex = index;
+    }
+  });
+
+  return firstIndex;
+}
+
+/**
+ * 内容搜索结果单行预览：
+ * - 关键词在前面：直接展示原文本；
+ * - 关键词在中间 / 后面：截取关键词附近内容，前面补 ...
+ * - 这样既能保持单行，又不会把关键词埋到省略号后面。
+ */
+function getContentSearchPreviewText(text: string, query: string) {
+  const value = String(text || '').replace(/\r?\n/g, ' ');
+  const keywordIndex = findFirstContentKeywordIndex(value, query);
+
+  if (keywordIndex === -1) {
+    return value.trimStart();
+  }
+
+  const keepBeforeKeyword = 18;
+
+  if (keywordIndex <= keepBeforeKeyword) {
+    return value.trimStart();
+  }
+
+  const start = Math.max(0, keywordIndex - keepBeforeKeyword);
+
+  return `... ${value.slice(start).trimStart()}`;
+}
+
 export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   const {
     searchTargetProject,
@@ -807,6 +886,7 @@ ${searchTargetProject.path || ''}`;
                       const globalStartIndex = lineStartIndexMap.get(`${originalIndex}-${j}`) || 0;
                       const matchInfo = flatMatchesList[currentActiveMatch];
                       const isLineActive = matchInfo && matchInfo.fileIndex === originalIndex && matchInfo.matchIndex === j;
+                      const previewText = getContentSearchPreviewText(m.text, folderSearchQuery);
 
                       return (
                         <li
@@ -840,7 +920,9 @@ ${searchTargetProject.path || ''}`;
                         >
                           <span className={styles['search-match-line-num']}>{m.line}</span>
 
-                          <HighlightText text={m.text} query={folderSearchQuery} globalStartIndex={globalStartIndex} currentActiveMatch={currentActiveMatch} isLineActive={!!isLineActive} />
+                          <span className={styles['search-match-text']} title={m.text}>
+                            <HighlightText text={previewText} query={folderSearchQuery} globalStartIndex={globalStartIndex} currentActiveMatch={currentActiveMatch} isLineActive={!!isLineActive} />
+                          </span>
                         </li>
                       );
                     })}
