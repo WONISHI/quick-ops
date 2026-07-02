@@ -221,6 +221,22 @@ function getSearchResultFileDisplayInfo(pathValue: string) {
   };
 }
 
+function getSearchResultKey(result: SearchResult, originalIndex?: number) {
+  return String(result.fullPath || result.file || originalIndex || '');
+}
+
+function getSearchResultMatchCount(result: SearchResult) {
+  const fileLevelCount = Number((result as any).matchCount || (result as any).totalMatches) || 0;
+
+  if (fileLevelCount > 0) {
+    return fileLevelCount;
+  }
+
+  return (result.matches || []).reduce((sum, item) => {
+    return sum + Math.max(1, Number((item as any).count) || 0);
+  }, 0);
+}
+
 function getSearchNameHighlightTokens(query: string) {
   const value = String(query || '').trim();
 
@@ -463,6 +479,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   } = props;
 
   const [activeExtensionTags, setActiveExtensionTags] = useState<Set<string>>(new Set());
+  const [excludedContentResultKeys, setExcludedContentResultKeys] = useState<Set<string>>(new Set());
   const resultScrollbarRef = useRef<ScrollbarInstance>(null);
   const resultScrollTopRef = useRef(0);
   const previousResultSearchKeyRef = useRef('');
@@ -483,6 +500,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     setFileNameSearchResults([]);
     setFolderSearchError('');
     setActiveExtensionTags(new Set());
+    setExcludedContentResultKeys(new Set());
   };
 
   const handleBack = () => {
@@ -582,6 +600,10 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     return styles[`file-status-${safeStatus}`] || styles['file-status-xxx'] || '';
   };
 
+  useEffect(() => {
+    setExcludedContentResultKeys(new Set());
+  }, [folderSearchQuery, folderSearchType, folderSearchResults, searchTargetProject.path]);
+
   const extensionTagOptions = useMemo<ExtensionTagOption[]>(() => {
     if (folderSearchType !== 'content' || folderSearchResults.length === 0) {
       return [];
@@ -589,7 +611,13 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
     const countMap = new Map<string, number>();
 
-    folderSearchResults.forEach((item) => {
+    folderSearchResults.forEach((item, originalIndex) => {
+      const resultKey = getSearchResultKey(item, originalIndex);
+
+      if (excludedContentResultKeys.has(resultKey)) {
+        return;
+      }
+
       const ext = getFileExtensionTag(item.file || item.fullPath || '');
       countMap.set(ext, (countMap.get(ext) || 0) + 1);
     });
@@ -605,7 +633,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
         return a.ext.localeCompare(b.ext);
       });
-  }, [folderSearchResults, folderSearchType]);
+  }, [excludedContentResultKeys, folderSearchResults, folderSearchType]);
 
   const defaultActiveExtensionTags = useMemo(() => {
     if (folderSearchType !== 'content' || isSearchingFolder || folderSearchError) {
@@ -630,22 +658,25 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
       return [] as Array<{ result: SearchResult; originalIndex: number }>;
     }
 
+    const results = folderSearchResults
+      .map((result, originalIndex) => ({ result, originalIndex }))
+      .filter(({ result, originalIndex }) => {
+        return !excludedContentResultKeys.has(getSearchResultKey(result, originalIndex));
+      });
+
     if (extensionTagOptions.length === 0) {
-      return folderSearchResults.map((result, originalIndex) => ({
-        result,
-        originalIndex,
-      }));
+      return results;
     }
 
-    return folderSearchResults.map((result, originalIndex) => ({ result, originalIndex })).filter(({ result }) => activeExtensionTags.has(getFileExtensionTag(result.file || result.fullPath || '')));
-  }, [activeExtensionTags, extensionTagOptions.length, folderSearchResults, folderSearchType]);
+    return results.filter(({ result }) => activeExtensionTags.has(getFileExtensionTag(result.file || result.fullPath || '')));
+  }, [activeExtensionTags, excludedContentResultKeys, extensionTagOptions.length, folderSearchResults, folderSearchType]);
 
   const visibleContentFileIndexSet = useMemo(() => {
     return new Set(filteredContentResults.map((item) => item.originalIndex));
   }, [filteredContentResults]);
 
   const filteredFlatMatchesList = useMemo(() => {
-    if (folderSearchType !== 'content' || extensionTagOptions.length === 0) {
+    if (folderSearchType !== 'content') {
       return flatMatchesList.map((item, actualIndex) => ({
         ...item,
         actualIndex,
@@ -658,18 +689,28 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
         actualIndex,
       }))
       .filter((item) => visibleContentFileIndexSet.has(item.fileIndex));
-  }, [extensionTagOptions.length, flatMatchesList, folderSearchType, visibleContentFileIndexSet]);
+  }, [flatMatchesList, folderSearchType, visibleContentFileIndexSet]);
 
   const filteredCurrentActiveIndex = useMemo(() => {
     return filteredFlatMatchesList.findIndex((item) => item.actualIndex === currentActiveMatch);
   }, [currentActiveMatch, filteredFlatMatchesList]);
 
-  const effectiveTotalMatches = folderSearchType === 'content' && extensionTagOptions.length > 0 ? filteredFlatMatchesList.length : totalMatches;
+  const effectiveTotalMatches = folderSearchType === 'content' ? filteredFlatMatchesList.length : totalMatches;
 
-  const effectiveCurrentActiveMatch = folderSearchType === 'content' && extensionTagOptions.length > 0 ? Math.max(0, filteredCurrentActiveIndex) : currentActiveMatch;
+  const effectiveCurrentActiveMatch = folderSearchType === 'content' ? Math.max(0, filteredCurrentActiveIndex) : currentActiveMatch;
+
+  const handleExcludeContentResult = (result: SearchResult, originalIndex: number) => {
+    const resultKey = getSearchResultKey(result, originalIndex);
+
+    setExcludedContentResultKeys((prev) => {
+      const next = new Set(prev);
+      next.add(resultKey);
+      return next;
+    });
+  };
 
   const handlePrevEffectiveSearchMatch = () => {
-    if (folderSearchType !== 'content' || extensionTagOptions.length === 0) {
+    if (folderSearchType !== 'content') {
       handlePrevSearchMatch();
       return;
     }
@@ -682,7 +723,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   };
 
   const handleNextEffectiveSearchMatch = () => {
-    if (folderSearchType !== 'content' || extensionTagOptions.length === 0) {
+    if (folderSearchType !== 'content') {
       handleNextSearchMatch();
       return;
     }
@@ -695,7 +736,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   };
 
   useEffect(() => {
-    if (folderSearchType !== 'content' || extensionTagOptions.length === 0) return;
+    if (folderSearchType !== 'content') return;
     if (filteredFlatMatchesList.length === 0) return;
     if (filteredCurrentActiveIndex >= 0) return;
 
@@ -706,7 +747,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [extensionTagOptions.length, filteredCurrentActiveIndex, filteredFlatMatchesList, folderSearchType, setCurrentActiveMatch]);
+  }, [filteredCurrentActiveIndex, filteredFlatMatchesList, folderSearchType, setCurrentActiveMatch]);
 
   const handleToggleExtensionTag = (ext: string) => {
     setActiveExtensionTags((prev) => {
@@ -898,6 +939,7 @@ ${searchTargetProject.path || ''}`;
             <ul>
               {filteredContentResults.map(({ result: res, originalIndex }) => {
                 const fileDisplayInfo = getSearchResultFileDisplayInfo(res.file || res.fullPath || '');
+                const fileMatchCount = getSearchResultMatchCount(res);
                 const fileTitle = fileDisplayInfo.folderPath
                   ? `${fileDisplayInfo.fileName} ${fileDisplayInfo.folderPath}`
                   : fileDisplayInfo.fileName;
@@ -917,6 +959,23 @@ ${searchTargetProject.path || ''}`;
                             {fileDisplayInfo.folderPath}
                           </span>
                         )}
+
+                        <span className={styles['search-file-match-count']} title={`当前文件中有 ${fileMatchCount} 处关键词`}>
+                          {fileMatchCount}
+                        </span>
+
+                        <button
+                          type="button"
+                          className={styles['search-file-remove-btn']}
+                          title={`清除当前文件，减少 ${fileMatchCount} 处关键词`}
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            handleExcludeContentResult(res, originalIndex);
+                          }}
+                        >
+                          <span className="codicon codicon-close"></span>
+                        </button>
                       </div>
                     </Tooltip>
 

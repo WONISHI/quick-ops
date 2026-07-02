@@ -445,7 +445,7 @@
 
 .search-file-name {
   min-width: 0;
-  max-width: 58%;
+  max-width: 52%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -463,6 +463,57 @@
   color: var(--vscode-descriptionForeground);
   opacity: 0.82;
   font-weight: 400;
+}
+
+.search-file-match-count {
+  min-width: 18px;
+  height: 18px;
+  margin-left: 6px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background);
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.search-file-remove-btn {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  margin-left: 4px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  opacity: 0;
+  color: var(--vscode-icon-foreground);
+  background: transparent;
+}
+
+.search-file-title:hover .search-file-remove-btn {
+  opacity: 0.8;
+}
+
+.search-file-remove-btn:hover {
+  opacity: 1 !important;
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.search-file-remove-btn :global(.codicon),
+.search-file-remove-btn .codicon {
+  font-size: 12px;
 }
 
 .search-matches-list {
