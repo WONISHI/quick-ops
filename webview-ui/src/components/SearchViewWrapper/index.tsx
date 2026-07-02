@@ -197,6 +197,30 @@ function formatSearchNameTooltipPath(pathValue: string) {
   return normalizedPath;
 }
 
+function getSearchResultFileDisplayInfo(pathValue: string) {
+  const normalizedPath = String(pathValue || '')
+    .split('?')[0]
+    .replace(/\\/g, '/')
+    .replace(/\/+/g, '/')
+    .replace(/\/+$/, '');
+
+  if (!normalizedPath) {
+    return {
+      fileName: '未知文件',
+      folderPath: '',
+    };
+  }
+
+  const parts = normalizedPath.split('/').filter(Boolean);
+  const fileName = parts.pop() || normalizedPath;
+  const folderPath = parts.join('/');
+
+  return {
+    fileName,
+    folderPath,
+  };
+}
+
 function getSearchNameHighlightTokens(query: string) {
   const value = String(query || '').trim();
 
@@ -872,17 +896,32 @@ ${searchTargetProject.path || ''}`;
             <div className={styles['search-empty-msg']}>没有找到符合当前文件格式筛选的结果</div>
           ) : (
             <ul>
-              {filteredContentResults.map(({ result: res, originalIndex }) => (
-                <li key={`${originalIndex}-${res.fullPath || res.file}`} className={styles['search-file-list-item']}>
-                  <Tooltip content={res.file} placement="bottom" textAlign="left" delay={2000}>
-                    <div className={styles['search-file-title']} title={res.file}>
-                      <FileIcon fileName={res.file} status={res.status} className={styles['search-file-icon']} />
-                      <span className={getFileStatusClassName(res.status)}>{res.file}</span>
-                    </div>
-                  </Tooltip>
+              {filteredContentResults.map(({ result: res, originalIndex }) => {
+                const fileDisplayInfo = getSearchResultFileDisplayInfo(res.file || res.fullPath || '');
+                const fileTitle = fileDisplayInfo.folderPath
+                  ? `${fileDisplayInfo.fileName} ${fileDisplayInfo.folderPath}`
+                  : fileDisplayInfo.fileName;
 
-                  <ul className={styles['search-matches-list']}>
-                    {res.matches.map((m: SearchMatch, j: number) => {
+                return (
+                  <li key={`${originalIndex}-${res.fullPath || res.file}`} className={styles['search-file-list-item']}>
+                    <Tooltip content={res.file} placement="bottom" textAlign="left" delay={2000}>
+                      <div className={styles['search-file-title']} title={res.file}>
+                        <FileIcon fileName={fileDisplayInfo.fileName} status={res.status} className={styles['search-file-icon']} />
+
+                        <span className={`${styles['search-file-name']} ${getFileStatusClassName(res.status)}`} title={fileTitle}>
+                          {fileDisplayInfo.fileName}
+                        </span>
+
+                        {fileDisplayInfo.folderPath && (
+                          <span className={styles['search-file-folder']} title={fileDisplayInfo.folderPath}>
+                            {fileDisplayInfo.folderPath}
+                          </span>
+                        )}
+                      </div>
+                    </Tooltip>
+
+                    <ul className={styles['search-matches-list']}>
+                      {res.matches.map((m: SearchMatch, j: number) => {
                       const globalStartIndex = lineStartIndexMap.get(`${originalIndex}-${j}`) || 0;
                       const matchInfo = flatMatchesList[currentActiveMatch];
                       const isLineActive = matchInfo && matchInfo.fileIndex === originalIndex && matchInfo.matchIndex === j;
@@ -925,10 +964,11 @@ ${searchTargetProject.path || ''}`;
                           </span>
                         </li>
                       );
-                    })}
-                  </ul>
-                </li>
-              ))}
+                      })}
+                    </ul>
+                  </li>
+                );
+              })}
             </ul>
           )
         ) : fileNameSearchResults.length === 0 && folderSearchQuery ? (

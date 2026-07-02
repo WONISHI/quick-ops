@@ -430,18 +430,39 @@
   font-weight: bold;
   color: var(--vscode-textLink-foreground);
   margin-bottom: 2px;
-  word-break: break-all;
   overflow: hidden;
-  display: inline-block;
+  display: inline-flex;
   white-space: nowrap;
-  text-overflow: ellipsis;
   align-items: center;
   width: 100%;
+  min-width: 0;
 }
 
 .search-file-icon {
   margin-right: 6px;
   flex-shrink: 0;
+}
+
+.search-file-name {
+  min-width: 0;
+  max-width: 58%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+  color: var(--vscode-textLink-foreground);
+}
+
+.search-file-folder {
+  min-width: 0;
+  margin-left: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.82;
+  font-weight: 400;
 }
 
 .search-matches-list {
