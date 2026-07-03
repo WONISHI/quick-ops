@@ -203,6 +203,60 @@ export default function GitApp() {
 
   const canCommit = isRepo && !loading && !!getNormalizedCommitMessage() && stagedFiles.length > 0;
 
+
+  const setCommitInputValue = (value: string) => {
+    setCommitMsg(value);
+
+    requestAnimationFrame(() => {
+      if (commitInputRef.current) {
+        commitInputRef.current.innerText = value;
+      }
+    });
+  };
+
+  const clearCommitDraft = () => {
+    setCommitMsg('');
+
+    requestAnimationFrame(() => {
+      if (commitInputRef.current) {
+        commitInputRef.current.innerText = '';
+      }
+    });
+  };
+
+  const restoreCommitDraft = (snapshot: CommitDraftSnapshot) => {
+    setCommitType(snapshot.commitType);
+    setCommitTypeEnabled(snapshot.commitTypeEnabled);
+    setCommitInputValue(snapshot.message);
+    setJustCommitted(false);
+
+    requestAnimationFrame(() => {
+      commitInputRef.current?.focus();
+    });
+  };
+
+  const restoreCommitMessageText = (value: string) => {
+    const message = value.trim();
+
+    if (!message) return;
+
+    const parsed = parseCommitTypeFromText(message);
+
+    if (parsed) {
+      setCommitType(parsed.type);
+      setCommitTypeEnabled(true);
+      setCommitInputValue(parsed.message);
+    } else {
+      setCommitInputValue(message);
+    }
+
+    setJustCommitted(false);
+
+    requestAnimationFrame(() => {
+      commitInputRef.current?.focus();
+    });
+  };
+
   useEffect(() => {
     lastRefreshRef.current = Date.now();
     vscode.postMessage({ command: 'webviewLoaded' });
@@ -506,59 +560,6 @@ export default function GitApp() {
     setJustCommitted(false);
 
     return true;
-  };
-
-  const setCommitInputValue = (value: string) => {
-    setCommitMsg(value);
-
-    requestAnimationFrame(() => {
-      if (commitInputRef.current) {
-        commitInputRef.current.innerText = value;
-      }
-    });
-  };
-
-  const clearCommitDraft = () => {
-    setCommitMsg('');
-
-    requestAnimationFrame(() => {
-      if (commitInputRef.current) {
-        commitInputRef.current.innerText = '';
-      }
-    });
-  };
-
-  const restoreCommitDraft = (snapshot: CommitDraftSnapshot) => {
-    setCommitType(snapshot.commitType);
-    setCommitTypeEnabled(snapshot.commitTypeEnabled);
-    setCommitInputValue(snapshot.message);
-    setJustCommitted(false);
-
-    requestAnimationFrame(() => {
-      commitInputRef.current?.focus();
-    });
-  };
-
-  const restoreCommitMessageText = (value: string) => {
-    const message = value.trim();
-
-    if (!message) return;
-
-    const parsed = parseCommitTypeFromText(message);
-
-    if (parsed) {
-      setCommitType(parsed.type);
-      setCommitTypeEnabled(true);
-      setCommitInputValue(parsed.message);
-    } else {
-      setCommitInputValue(message);
-    }
-
-    setJustCommitted(false);
-
-    requestAnimationFrame(() => {
-      commitInputRef.current?.focus();
-    });
   };
 
   const createCommitDraftSnapshot = (finalMessage: string): CommitDraftSnapshot => {
