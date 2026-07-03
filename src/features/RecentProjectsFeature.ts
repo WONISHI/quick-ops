@@ -280,6 +280,52 @@ export class RecentProjectsFeature implements IFeature {
       provider.requestVisibleMetadataSync();
     });
 
+    const refreshCurrentWorkspaceProjectCmd = vscode.commands.registerCommand('quickOps.refreshCurrentWorkspaceRecentProject', async (targetPath?: string) => {
+      const resolveProjectUriString = (value?: string) => {
+        const rawValue = String(value || '').trim();
+
+        if (!rawValue) {
+          return vscode.workspace.workspaceFolders?.[0]?.uri.toString() || '';
+        }
+
+        if (rawValue.includes('://')) {
+          try {
+            return vscode.Uri.parse(rawValue).toString();
+          } catch {
+            return rawValue;
+          }
+        }
+
+        return vscode.Uri.file(rawValue).toString();
+      };
+
+      const projectUriStr = resolveProjectUriString(targetPath);
+
+      if (!projectUriStr) {
+        return;
+      }
+
+      /**
+       * Git 切换分支后，当前项目的文件结构和 Git 分支都会变化。
+       * 这里只刷新目标项目：
+       * - 清掉目录缓存；
+       * - 静默更新该项目分支；
+       * - 重新推送项目列表；
+       * - 让已展开目录强制重新 readDir。
+       */
+      provider.invalidateDirCache(projectUriStr);
+      roProvider.refreshAllWatched();
+      await provider.updateSingleBranch(projectUriStr, true);
+      provider.refresh(true);
+      provider.requestVisibleMetadataSync();
+
+      const currentActivePath = (provider as any).currentActivePath;
+
+      if (currentActivePath) {
+        (provider as any).setActivePath(currentActivePath);
+      }
+    });
+
     const clearCmd = vscode.commands.registerCommand('quickOps.clearRecentProjects', () => provider.clearAll());
     const syncCmd = vscode.commands.registerCommand('quickOps.syncBranches', async () => {
       await provider.syncAllBranches();
@@ -481,6 +527,7 @@ export class RecentProjectsFeature implements IFeature {
       revealCmd,
       addCmd,
       refreshCmd,
+      refreshCurrentWorkspaceProjectCmd,
       syncCmd,
       clearCmd,
       selectForCompareCmd,

@@ -325,6 +325,14 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async refreshRecentProjectsAfterCheckout(cwd: string): Promise<void> {
+    try {
+      await vscode.commands.executeCommand('quickOps.refreshCurrentWorkspaceRecentProject', cwd);
+    } catch {
+      // Recent Projects 视图未激活或命令尚未注册时，不影响 Git 主流程。
+    }
+  }
+
   private async handleGitErrorWithConflictCheck(cwd: string, operationName: string, originalErrorMsg: string) {
     try {
       const repoStatus = await this.gitService.getRepoStatus(cwd);
@@ -785,6 +793,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 await this.gitService.createBranch(cwd, newBranchName);
                 vscode.window.showInformationMessage(`✅ 已成功创建并切换到新分支: ${newBranchName}`);
                 await this.refreshStatus(cwd, true);
+                await this.refreshRecentProjectsAfterCheckout(cwd);
               });
             } catch (e: any) {
               vscode.window.showErrorMessage(`创建新分支失败: ${e.message}`);
@@ -903,6 +912,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                       vscode.window.showInformationMessage(`✅ 已切换到分支: ${localBranchName}`);
 
                       await this.refreshStatus(cwd, true);
+                      await this.refreshRecentProjectsAfterCheckout(cwd);
                     } catch (err: any) {
                       await this.handleGitErrorWithConflictCheck(cwd, '切换远程分支', err.message);
                     }
@@ -1053,6 +1063,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                       vscode.window.showInformationMessage(`✅ 已切换到分支: ${selected.branchName}`);
 
                       await this.refreshStatus(cwd, true);
+                      await this.refreshRecentProjectsAfterCheckout(cwd);
                     } catch (err: any) {
                       await this.handleGitErrorWithConflictCheck(cwd, '切换分支', err.message);
                     }
