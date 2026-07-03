@@ -627,7 +627,7 @@ export class LivePreviewFeature implements IFeature {
 
     const browserService = this.ensureDetachedBrowserService(context, panel);
     const lastDevice = initialDevice || context.workspaceState.get<string>('quickOps.lastPreviewDevice') || 'device-responsive';
-    const lastUrl = String(initialUrl || context.workspaceState.get<string>('quickOps.lastPreviewUrl') || '').trim();
+    const lastUrl = String(initialUrl || '').trim();
     let hasSentInit = false;
 
     panel.title = '网页预览 (Preview)';
@@ -716,7 +716,7 @@ export class LivePreviewFeature implements IFeature {
         await context.globalState.update(this.GLOBAL_FAVORITES_KEY, favs);
         await this.postFavoritesToPanel(context, panel);
       } else if (message.type === 'openNewPreviewTab') {
-        this.createNewPreviewTab(context, message.url || '', message.device || '');
+        this.createNewPreviewTab(context, '', message.device || '');
       } else if (message.type === 'browserNavigate') {
         await runDetachedBrowserAction(() => browserService.navigate(message.url || 'about:blank'));
       } else if (message.type === 'browserRefresh') {
@@ -876,7 +876,7 @@ export class LivePreviewFeature implements IFeature {
         await context.globalState.update(this.GLOBAL_FAVORITES_KEY, favs);
         await this.syncFavorites(context);
       } else if (message.type === 'openNewPreviewTab') {
-        this.createNewPreviewTab(context, message.url || '', message.device || '');
+        this.createNewPreviewTab(context, '', message.device || '');
       } else if (message.type === 'browserNavigate') {
         await this.ensureBrowserService(context).navigate(message.url || 'about:blank');
       } else if (message.type === 'browserRefresh') {

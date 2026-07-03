@@ -1424,6 +1424,173 @@ export class EmbeddedBrowserService extends EventEmitter {
     });
   }
 
+  private async installClipboardBridge(page: Page): Promise<void> {
+    await page.exposeFunction('__quickOpsWriteClipboard', async (text: string) => {
+      const value = String(text || '');
+
+      if (!value) return;
+
+      await vscode.env.clipboard.writeText(value);
+    }).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (!/already registered|window\['__quickOpsWriteClipboard'\]/i.test(message)) {
+        console.warn('[EmbeddedBrowserService] expose clipboard bridge failed:', error);
+      }
+    });
+
+    await page.evaluateOnNewDocument(() => {
+      const win = window as typeof window & {
+        __quickOpsWriteClipboard?: (text: string) => Promise<void> | void;
+        __quickOpsClipboardBridgeInstalled?: boolean;
+      };
+
+      if (win.__quickOpsClipboardBridgeInstalled) {
+        return;
+      }
+
+      win.__quickOpsClipboardBridgeInstalled = true;
+
+      const notifyClipboardText = (value: unknown) => {
+        const text = String(value || '');
+
+        if (!text) return;
+
+        window.setTimeout(() => {
+          const writeClipboard = win.__quickOpsWriteClipboard;
+
+          if (typeof writeClipboard !== 'function') {
+            return;
+          }
+
+          Promise.resolve(writeClipboard(text)).catch(() => {
+            // noop
+          });
+        }, 0);
+      };
+
+      const getSelectedText = () => {
+        const activeElement = document.activeElement as HTMLElement | null;
+        const selectionText = window.getSelection()?.toString() || '';
+
+        if (selectionText) {
+          return selectionText;
+        }
+
+        if (!activeElement) {
+          return '';
+        }
+
+        const tagName = activeElement.tagName.toLowerCase();
+
+        if (tagName === 'input' || tagName === 'textarea') {
+          const input = activeElement as HTMLInputElement | HTMLTextAreaElement;
+          const value = typeof input.value === 'string' ? input.value : '';
+          const start = typeof input.selectionStart === 'number' ? input.selectionStart : 0;
+          const end = typeof input.selectionEnd === 'number' ? input.selectionEnd : 0;
+
+          if (end > start) {
+            return value.slice(start, end);
+          }
+
+          return value;
+        }
+
+        const editable = activeElement.closest('[contenteditable="true"], [contenteditable="plaintext-only"]') as HTMLElement | null;
+
+        if (editable) {
+          return editable.innerText || editable.textContent || '';
+        }
+
+        return '';
+      };
+
+      const patchNavigatorClipboard = () => {
+        const originalClipboard = navigator.clipboard;
+        const originalWriteText = originalClipboard?.writeText?.bind(originalClipboard);
+        const originalReadText = originalClipboard?.readText?.bind(originalClipboard);
+        const bridgeClipboard = originalClipboard || {};
+
+        try {
+          Object.defineProperty(bridgeClipboard, 'writeText', {
+            configurable: true,
+            value: async (text: string) => {
+              notifyClipboardText(text);
+
+              if (originalWriteText) {
+                try {
+                  return await originalWriteText(text);
+                } catch {
+                  return undefined;
+                }
+              }
+
+              return undefined;
+            },
+          });
+        } catch {
+          // noop
+        }
+
+        if (originalReadText) {
+          try {
+            Object.defineProperty(bridgeClipboard, 'readText', {
+              configurable: true,
+              value: async () => {
+                try {
+                  return await originalReadText();
+                } catch {
+                  return getSelectedText();
+                }
+              },
+            });
+          } catch {
+            // noop
+          }
+        }
+
+        try {
+          Object.defineProperty(navigator, 'clipboard', {
+            configurable: true,
+            get: () => bridgeClipboard,
+          });
+        } catch {
+          // noop
+        }
+      };
+
+      patchNavigatorClipboard();
+
+      const rawExecCommand = document.execCommand?.bind(document);
+
+      if (rawExecCommand) {
+        document.execCommand = function (commandId: string, showUI?: boolean, value?: string) {
+          const isCopy = String(commandId || '').toLowerCase() === 'copy';
+          const beforeText = isCopy ? getSelectedText() : '';
+          const result = rawExecCommand(commandId, showUI, value);
+
+          if (isCopy) {
+            notifyClipboardText(beforeText || getSelectedText());
+          }
+
+          return result;
+        };
+      }
+
+      document.addEventListener(
+        'copy',
+        (event) => {
+          const text = event.clipboardData?.getData('text/plain') || getSelectedText();
+
+          if (text) {
+            notifyClipboardText(text);
+          }
+        },
+        true
+      );
+    }).catch(() => undefined);
+  }
+
   private async installNavigationPatch(page: Page): Promise<void> {
     await page.evaluateOnNewDocument(() => {
       const normalizeTarget = (target: EventTarget | null): HTMLAnchorElement | null => {
@@ -1572,6 +1739,7 @@ export class EmbeddedBrowserService extends EventEmitter {
     this.hookedPages.add(page);
 
     await this.installNavigationBridge(page);
+    await this.installClipboardBridge(page);
     await this.installNavigationPatch(page);
 
     page.on('load', async () => {
