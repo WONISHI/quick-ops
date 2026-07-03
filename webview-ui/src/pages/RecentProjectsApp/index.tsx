@@ -110,6 +110,7 @@ export default function RecentProjectsApp() {
   }, [dirChildren]);
 
   const expandedPathsRef = useRef<Set<string>>(new Set());
+  const collapseRevealGuardUntilRef = useRef(0);
 
   useEffect(() => {
     expandedPathsRef.current = expandedPaths;
@@ -688,6 +689,35 @@ export default function RecentProjectsApp() {
     return project?.customName || project?.name || getFallbackProjectName(pathValue);
   };
 
+  const collapseAllFolders = (options?: { clearChildren?: boolean }) => {
+    /**
+     * 收起所有文件夹后，短时间内忽略自动 revealPath。
+     *
+     * 原因：
+     * - 退出专注模式 / 切换分支刷新时，会主动收起所有目录；
+     * - VS Code 当前激活编辑器或“在项目中定位”的自动同步，可能马上再发 revealPath；
+     * - revealPath 会把父级目录重新展开，导致外面的当前项目又被打开。
+     */
+    collapseRevealGuardUntilRef.current = Date.now() + 800;
+
+    const emptyExpandedPaths = new Set<string>();
+    const emptyLoadingPaths = new Set<string>();
+
+    expandedPathsRef.current = emptyExpandedPaths;
+    autoScrollTarget.current = null;
+
+    setExpandedPaths(emptyExpandedPaths);
+    setLoadingPaths(emptyLoadingPaths);
+
+    if (options?.clearChildren !== false) {
+      const emptyChildren: Record<string, DirChild[]> = {};
+
+      dirChildrenRef.current = emptyChildren;
+      normalDirChildrenBeforeFocusRef.current = {};
+      setDirChildren(emptyChildren);
+    }
+  };
+
   const enterFocusMode = (
     payload: ContextMenuPayload,
     options?: {
@@ -1053,6 +1083,10 @@ export default function RecentProjectsApp() {
         isFocusLockedRef.current = false;
         setIsFocusLocked(false);
         exitSearchOrFocusMode();
+      } else if (msg.type === 'collapseAllDirs') {
+        collapseAllFolders({
+          clearChildren: (msg as any).clearChildren !== false,
+        });
       } else if (msg.type === 'activeEditorChanged') {
         setSelectedPath(msg.fsPath as string);
       } else if (msg.type === 'searchContentChanged') {
@@ -1360,6 +1394,14 @@ export default function RecentProjectsApp() {
           setFileNameSearchResults((msg.results as DirChild[]) || []);
         }
       } else if (msg.type === 'revealPath') {
+        /**
+         * 刚刚执行过“收起所有文件夹”时，不允许自动 revealPath 重新展开外层项目。
+         * 这样退出专注模式后，会保持截图 2 那种所有项目都收起的状态。
+         */
+        if (!isSearchModeRef.current && Date.now() < collapseRevealGuardUntilRef.current) {
+          return;
+        }
+
         const { targetPath, parentPaths, projectName } = msg as any;
 
         setSelectedPath(targetPath);
@@ -2608,9 +2650,6 @@ export default function RecentProjectsApp() {
 
     const exitingFocusMode = isFocusModeRef.current;
     const exitingFocusRootPath = focusRootPathRef.current;
-    const exitingFocusRootName = focusRootNameRef.current || getProjectNameByPath(exitingFocusRootPath);
-    const normalSnapshot = normalDirChildrenBeforeFocusRef.current;
-
     isSearchModeRef.current = false;
     isFocusModeRef.current = false;
     isFocusLockedRef.current = false;
@@ -2634,47 +2673,13 @@ export default function RecentProjectsApp() {
       return;
     }
 
-    setDirChildren((prev) => {
-      const next = { ...prev };
-
-      Object.keys(next).forEach((key) => {
-        if (isPathInside(key, exitingFocusRootPath)) {
-          delete next[key];
-        }
-      });
-
-      Object.keys(normalSnapshot).forEach((key) => {
-        next[key] = normalSnapshot[key];
-      });
-
-      return next;
-    });
-
-    const expandedList = Array.from(expandedPathsRef.current).filter((itemPath) =>
-      isPathInside(itemPath, exitingFocusRootPath)
-    );
-
-    const refreshList = expandedList.length > 0 ? expandedList : [exitingFocusRootPath];
-
-    setLoadingPaths((prev) => {
-      const next = new Set(prev);
-
-      refreshList.forEach((itemPath) => {
-        if (!normalSnapshot[itemPath] && !dirChildrenRef.current[itemPath]) {
-          next.add(itemPath);
-        }
-      });
-
-      return next;
-    });
-
-    refreshList.forEach((itemPath) => {
-      vscode.postMessage({
-        type: 'readDir',
-        fsPath: itemPath,
-        projectName: getProjectNameByPath(itemPath) || exitingFocusRootName || '当前项目',
-        forceRefresh: true,
-      });
+    /**
+     * 退出专注模式后，资源管理器回到普通模式。
+     * 这里不再恢复 / 重新读取之前展开的文件夹，统一收起所有文件夹，
+     * 避免专注模式里的展开状态污染普通项目树。
+     */
+    collapseAllFolders({
+      clearChildren: true,
     });
 
     normalDirChildrenBeforeFocusRef.current = {};
