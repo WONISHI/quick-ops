@@ -1,11 +1,5 @@
 # anchor.readme
 
-# anchor.readme
-
-# anchor.readme
-
-# anchor.readme
-
 controller.ts：负责接收事件 / 命令 / webview message
 service.ts：负责业务逻辑
 provider.ts：负责 VS Code TreeView / WebviewView / FileSystemProvider 等 UI 或能力提供
