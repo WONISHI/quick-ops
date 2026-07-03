@@ -478,8 +478,22 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     renderTreeChildren,
   } = props;
 
-  const [activeExtensionTags, setActiveExtensionTags] = useState<Set<string>>(new Set());
-  const [excludedContentResultKeys, setExcludedContentResultKeys] = useState<Set<string>>(new Set());
+  const [activeExtensionTagState, setActiveExtensionTagState] = useState<{
+    searchKey: string;
+    activeTags: Set<string>;
+    knownTags: Set<string>;
+  }>({
+    searchKey: '',
+    activeTags: new Set(),
+    knownTags: new Set(),
+  });
+  const [excludedContentResultState, setExcludedContentResultState] = useState<{
+    searchKey: string;
+    keys: Set<string>;
+  }>({
+    searchKey: '',
+    keys: new Set(),
+  });
   const resultScrollbarRef = useRef<ScrollbarInstance>(null);
   const resultScrollTopRef = useRef(0);
   const previousResultSearchKeyRef = useRef('');
@@ -491,6 +505,18 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
    */
   const isLockedFocusView = !!focusMode && !!focusLocked;
 
+  const searchFilterKey = useMemo(() => {
+    return `${folderSearchType}\n${folderSearchQuery.trim()}\n${searchTargetProject.path || ''}`;
+  }, [folderSearchQuery, folderSearchType, searchTargetProject.path]);
+
+  const excludedContentResultKeys = useMemo(() => {
+    if (excludedContentResultState.searchKey !== searchFilterKey) {
+      return new Set<string>();
+    }
+
+    return excludedContentResultState.keys;
+  }, [excludedContentResultState, searchFilterKey]);
+
   const resetSearchData = (options?: { keepQuery?: boolean }) => {
     if (!options?.keepQuery) {
       setFolderSearchQuery('');
@@ -499,8 +525,15 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     setFolderSearchResults([]);
     setFileNameSearchResults([]);
     setFolderSearchError('');
-    setActiveExtensionTags(new Set());
-    setExcludedContentResultKeys(new Set());
+    setActiveExtensionTagState({
+      searchKey: '',
+      activeTags: new Set(),
+      knownTags: new Set(),
+    });
+    setExcludedContentResultState({
+      searchKey: '',
+      keys: new Set(),
+    });
   };
 
   const handleBack = () => {
@@ -600,10 +633,6 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     return styles[`file-status-${safeStatus}`] || styles['file-status-xxx'] || '';
   };
 
-  useEffect(() => {
-    setExcludedContentResultKeys(new Set());
-  }, [folderSearchQuery, folderSearchType, folderSearchResults, searchTargetProject.path]);
-
   const extensionTagOptions = useMemo<ExtensionTagOption[]>(() => {
     if (folderSearchType !== 'content' || folderSearchResults.length === 0) {
       return [];
@@ -635,23 +664,33 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
       });
   }, [excludedContentResultKeys, folderSearchResults, folderSearchType]);
 
-  const defaultActiveExtensionTags = useMemo(() => {
+  const extensionTagSet = useMemo(() => {
+    return new Set(extensionTagOptions.map((item) => item.ext));
+  }, [extensionTagOptions]);
+
+  const activeExtensionTags = useMemo(() => {
     if (folderSearchType !== 'content' || isSearchingFolder || folderSearchError) {
       return new Set<string>();
     }
 
-    return new Set(extensionTagOptions.map((item) => item.ext));
-  }, [extensionTagOptions, folderSearchType, folderSearchError, isSearchingFolder]);
+    if (activeExtensionTagState.searchKey !== searchFilterKey) {
+      return extensionTagSet;
+    }
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setActiveExtensionTags(defaultActiveExtensionTags);
-    }, 0);
+    const next = new Set<string>();
 
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [defaultActiveExtensionTags]);
+    extensionTagSet.forEach((ext) => {
+      /**
+       * 新出现的文件格式默认选中；
+       * 用户已经手动隐藏过的文件格式，不因为后台静默搜索刷新而恢复。
+       */
+      if (activeExtensionTagState.activeTags.has(ext) || !activeExtensionTagState.knownTags.has(ext)) {
+        next.add(ext);
+      }
+    });
+
+    return next;
+  }, [activeExtensionTagState, extensionTagSet, folderSearchError, folderSearchType, isSearchingFolder, searchFilterKey]);
 
   const filteredContentResults = useMemo(() => {
     if (folderSearchType !== 'content') {
@@ -702,10 +741,14 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   const handleExcludeContentResult = (result: SearchResult, originalIndex: number) => {
     const resultKey = getSearchResultKey(result, originalIndex);
 
-    setExcludedContentResultKeys((prev) => {
-      const next = new Set(prev);
+    setExcludedContentResultState((prev) => {
+      const next = new Set(prev.searchKey === searchFilterKey ? prev.keys : []);
       next.add(resultKey);
-      return next;
+
+      return {
+        searchKey: searchFilterKey,
+        keys: next,
+      };
     });
   };
 
@@ -750,8 +793,8 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   }, [filteredCurrentActiveIndex, filteredFlatMatchesList, folderSearchType, setCurrentActiveMatch]);
 
   const handleToggleExtensionTag = (ext: string) => {
-    setActiveExtensionTags((prev) => {
-      const next = new Set(prev);
+    setActiveExtensionTagState(() => {
+      const next = new Set(activeExtensionTags);
 
       if (next.has(ext)) {
         next.delete(ext);
@@ -759,7 +802,11 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
         next.add(ext);
       }
 
-      return next;
+      return {
+        searchKey: searchFilterKey,
+        activeTags: next,
+        knownTags: new Set(extensionTagSet),
+      };
     });
   };
 
