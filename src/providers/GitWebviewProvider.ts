@@ -713,7 +713,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
                 await this.gitService.undoLastCommit(cwd);
 
-                vscode.window.showInformationMessage('✅ 已撤销最近一次提交，更改已退回工作区。');
+                vscode.window.showInformationMessage('✅ 已撤销最近一次提交，更改已退回暂存区。');
 
                 this._view?.webview.postMessage({
                   type: 'undoLastCommitSuccess',

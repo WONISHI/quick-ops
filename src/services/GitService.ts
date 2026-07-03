@@ -562,7 +562,15 @@ export class GitService {
   }
 
   public async undoLastCommit(cwd: string): Promise<void> {
-    await this.createGit(cwd).reset(['--mixed', 'HEAD~1']);
+    /**
+     * 使用 --soft 撤销提交：
+     * - HEAD 回退到上一个提交；
+     * - 刚刚提交的文件保留在暂存区；
+     * - 这样用户点击“撤销刚刚的提交”后，可以直接重新编辑提交信息再提交。
+     *
+     * 之前的 --mixed 会把文件退回工作区，暂存区会被清空。
+     */
+    await this.createGit(cwd).reset(['--soft', 'HEAD~1']);
   }
 
   public async getFileHistory(cwd: string, file: string): Promise<GitGraphCommit[]> {
