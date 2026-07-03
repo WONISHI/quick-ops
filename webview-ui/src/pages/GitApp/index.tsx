@@ -1310,7 +1310,7 @@ export default function GitApp() {
                       </button>
                     </Tooltip>
 
-                    <Tooltip content="跨分支对比">
+                    <Tooltip content="跨分支文件对比：选择基准分支和目标分支">
                       <button
                         className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                         onClick={(e) => {
