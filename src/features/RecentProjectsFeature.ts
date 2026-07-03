@@ -311,12 +311,13 @@ export class RecentProjectsFeature implements IFeature {
        * - 清掉目录缓存；
        * - 静默更新该项目分支；
        * - 重新推送项目列表；
-       * - 让已展开目录强制重新 readDir。
+       * - 收起所有已展开目录，避免继续显示旧分支目录结构。
        */
       provider.invalidateDirCache(projectUriStr);
       roProvider.refreshAllWatched();
       await provider.updateSingleBranch(projectUriStr, true);
-      provider.refresh(true);
+      provider.refresh(false);
+      provider.collapseAllFolders(true);
       provider.requestVisibleMetadataSync();
 
       const currentActivePath = (provider as any).currentActivePath;

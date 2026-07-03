@@ -490,6 +490,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  public collapseAllFolders(clearChildren: boolean = true) {
+    this._view?.webview.postMessage({
+      type: 'collapseAllDirs',
+      clearChildren,
+    });
+  }
+
   public invalidateDirCache(fsPath?: string) {
     this.directoryService.invalidateDirCache(fsPath);
   }
