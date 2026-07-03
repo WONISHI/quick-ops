@@ -1508,15 +1508,21 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 }
 
                 if (!pushInfo.hasUpstream) {
-                  const confirm = await vscode.window.showInformationMessage(
-                    `当前分支 [ ${pushInfo.currentBranch} ] 尚未在远程仓库建立跟踪，是否要创建对应的远程分支并推送？`,
-                    {
-                      modal: true,
-                    },
-                    '创建远程分支并推送',
+                  const confirm = await vscode.window.showWarningMessage(
+                    `确定要创建远程分支并推送当前分支 [ ${pushInfo.currentBranch} ] 吗？\n\n当前分支尚未在远程仓库建立跟踪，确认后会创建 origin/${pushInfo.currentBranch} 并推送本地提交。`,
+                    { modal: true },
+                    '确认创建并推送',
                   );
 
-                  if (confirm !== '创建远程分支并推送') return;
+                  if (confirm !== '确认创建并推送') return;
+                } else {
+                  const confirm = await vscode.window.showWarningMessage(
+                    `确定要推送当前分支 [ ${pushInfo.currentBranch} ] 到远程仓库吗？\n\n推送会把本地提交发布到远程仓库，请确认提交内容无误。`,
+                    { modal: true },
+                    '确认推送',
+                  );
+
+                  if (confirm !== '确认推送') return;
                 }
 
                 vscode.window.showInformationMessage('正在推送到远程...');
@@ -1561,13 +1567,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           case 'stageAll': {
             await this.executeGitOperation(async () => {
               await this.gitService.stageAll(cwd);
-
-              /**
-               * 全部暂存后，工作区 diff 已经不再对应“未暂存更改”。
-               * 关闭所有工作区 diff tab，避免用户继续看到旧对比。
-               */
-              await this.closeWorkingTreeDiffTabs(cwd);
-
               await this.refreshStatus(cwd, false);
             });
 
@@ -1581,12 +1580,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               if (result === 'discarded-empty-change') {
                 vscode.window.showInformationMessage(`文件 ${msg.file} 无实质性内容更改，已自动剔除。`);
               }
-
-              /**
-               * 单文件暂存后，关闭这个文件对应的工作区 diff tab。
-               * 例如打开了 1.js 的工作区对比，点击暂存 1.js 后自动关闭该 diff。
-               */
-              await this.closeWorkingTreeDiffTabs(cwd, [msg.file]);
 
               await this.refreshStatus(cwd, false);
             });
