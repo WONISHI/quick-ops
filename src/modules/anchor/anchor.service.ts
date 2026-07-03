@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { debounce, isFunction, isNumber } from 'lodash-es';
-import { ExtensionContextProvider } from '@/common/providers/extension-context.provider';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { AnchorCodeLensProvider } from './prooviders/anchor-code-lens.provider';
-import { getReactWebviewHtml } from '@/utils/WebviewHelper';
-import { ColorUtils } from '@/utils/ColorUtils';
-import { ConfigurationService } from '@/common/services/configuration.service';
+import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import { ColorUtils } from '@utils/ColorUtils';
+import { ConfigurationService } from '@common/services/configuration.service';
 import type {
   AnchorChildCreateInput,
   AnchorConfig,

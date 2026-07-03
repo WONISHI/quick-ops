@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import ColorLog from '@/utils/ColorLog';
-import { ExtensionContextProvider } from '@/common/providers/extension-context.provider';
+import ColorLog from '@utils/ColorLog';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { AnchorService } from './anchor.service';
 import type { AnchorDirection } from './anchor.type';
-import type { OnModuleInit } from '@/core/lifecycle/lifecycle.interface';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class AnchorController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, AnchorService];
