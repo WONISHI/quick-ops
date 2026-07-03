@@ -1567,6 +1567,13 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           case 'stageAll': {
             await this.executeGitOperation(async () => {
               await this.gitService.stageAll(cwd);
+
+              /**
+               * 全部暂存后，所有工作区 diff tab 已经不再对应“未暂存更改”。
+               * 这里关闭所有工作区 diff tab，避免继续显示旧对比。
+               */
+              await this.closeWorkingTreeDiffTabs(cwd);
+
               await this.refreshStatus(cwd, false);
             });
 
@@ -1580,6 +1587,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               if (result === 'discarded-empty-change') {
                 vscode.window.showInformationMessage(`文件 ${msg.file} 无实质性内容更改，已自动剔除。`);
               }
+
+              /**
+               * 单文件暂存后，关闭该文件对应的工作区 diff tab。
+               * 例如打开了 1.js 的工作区对比，点击暂存 1.js 后自动关闭该 diff。
+               */
+              await this.closeWorkingTreeDiffTabs(cwd, [msg.file]);
 
               await this.refreshStatus(cwd, false);
             });
