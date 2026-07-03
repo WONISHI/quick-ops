@@ -297,6 +297,34 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async confirmCheckoutWhenCurrentBranchHasUnpushedCommits(cwd: string, targetBranch: string): Promise<boolean> {
+    try {
+      const unpushedInfo = await this.gitService.getCurrentBranchUnpushedInfo(cwd);
+
+      if (!unpushedInfo.hasUnpushedCommits) {
+        return true;
+      }
+
+      const countText = unpushedInfo.unpushedCommitCount > 0
+        ? `当前分支还有 ${unpushedInfo.unpushedCommitCount} 个本地提交没有 push。`
+        : '当前分支存在本地提交没有 push。';
+
+      const upstreamText = unpushedInfo.hasUpstream
+        ? `远程跟踪分支：${unpushedInfo.upstream}`
+        : '当前分支尚未建立远程跟踪分支。';
+
+      const confirm = await vscode.window.showWarningMessage(
+        `当前分支 [ ${unpushedInfo.currentBranch} ] 还有提交没有 push，确定要切换到 [ ${targetBranch} ] 吗？\n\n${countText}\n${upstreamText}\n\n建议先 push，避免切换后忘记当前分支还有未推送提交。`,
+        { modal: true },
+        '继续切换',
+      );
+
+      return confirm === '继续切换';
+    } catch {
+      return true;
+    }
+  }
+
   private async handleGitErrorWithConflictCheck(cwd: string, operationName: string, originalErrorMsg: string) {
     try {
       const repoStatus = await this.gitService.getRepoStatus(cwd);
@@ -858,6 +886,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                     return;
                   }
 
+                  const canCheckout = await this.confirmCheckoutWhenCurrentBranchHasUnpushedCommits(cwd, selected.localBranchName || selected.remoteBranchName);
+
+                  if (!canCheckout) {
+                    return;
+                  }
+
                   await this.executeGitOperation(async () => {
                     try {
                       const localBranchName = await this.gitService.checkoutRemoteBranch(cwd, selected.remoteBranchName);
@@ -999,6 +1033,12 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   );
 
                   if (confirm !== '确认切换') {
+                    return;
+                  }
+
+                  const canCheckout = await this.confirmCheckoutWhenCurrentBranchHasUnpushedCommits(cwd, selected.branchName);
+
+                  if (!canCheckout) {
                     return;
                   }
 

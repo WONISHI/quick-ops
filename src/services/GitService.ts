@@ -74,6 +74,16 @@ export interface PushInfo {
   hasUpstream: boolean;
 }
 
+export interface BranchUnpushedInfo {
+  currentBranch: string;
+  hasRemote: boolean;
+  hasUpstream: boolean;
+  upstream: string;
+  ahead: number;
+  unpushedCommitCount: number;
+  hasUnpushedCommits: boolean;
+}
+
 export class GitService {
   public readonly CURRENT_BRANCH_FILTER = '当前分支';
   public readonly ALL_BRANCH_FILTER = '全部分支';
@@ -851,6 +861,49 @@ export class GitService {
     return {
       currentBranch: branchSummary.current,
       hasUpstream: !!status.tracking,
+    };
+  }
+
+  public async getCurrentBranchUnpushedInfo(cwd: string): Promise<BranchUnpushedInfo> {
+    const git = this.createGit(cwd);
+    const status = await git.status();
+    const branchSummary = await git.branchLocal();
+    const currentBranch = branchSummary.current || '';
+    const upstream = status.tracking || '';
+    const ahead = Number(status.ahead || 0);
+    const remoteUrl = await this.getRemoteUrl(cwd);
+
+    let unpushedCommitCount = 0;
+
+    if (upstream) {
+      unpushedCommitCount = ahead;
+    } else if (remoteUrl && currentBranch && currentBranch !== 'HEAD') {
+      try {
+        /**
+         * 当前分支没有 upstream 时，status.ahead 通常为 0。
+         * 这里统计当前分支上存在、但任何远程分支都没有包含的提交。
+         *
+         * 例如：
+         * - 从 dev 切出 feature/test；
+         * - 在 feature/test 上 commit；
+         * - 还没 push；
+         * - 此时切换分支前应该提示存在未推送提交。
+         */
+        const rawCount = await git.raw(['rev-list', '--count', currentBranch, '--not', '--remotes']);
+        unpushedCommitCount = Number(rawCount.trim()) || 0;
+      } catch {
+        unpushedCommitCount = 0;
+      }
+    }
+
+    return {
+      currentBranch,
+      hasRemote: !!remoteUrl,
+      hasUpstream: !!upstream,
+      upstream,
+      ahead,
+      unpushedCommitCount,
+      hasUnpushedCommits: unpushedCommitCount > 0,
     };
   }
 
