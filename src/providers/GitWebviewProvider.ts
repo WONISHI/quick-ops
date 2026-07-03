@@ -42,6 +42,16 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   private _lastRemoteFetchAt = 0;
   private readonly REMOTE_FETCH_INTERVAL = 60 * 1000;
 
+  /**
+   * 记录每个仓库上一次切换前所在的分支。
+   *
+   * 例如：
+   * - 当前在 feature/0.0.1
+   * - 切换到 dev
+   * - 那么在 dev 点击“合并本地分支”时，默认选中 feature/0.0.1
+   */
+  private readonly _lastCheckoutSourceBranchByCwd = new Map<string, string>();
+
   private readonly VIEW_ID = 'quickOps.gitView';
   private readonly gitService = new GitService();
   private _currentGraphFilter = '当前分支';
@@ -852,6 +862,10 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                     try {
                       const localBranchName = await this.gitService.checkoutRemoteBranch(cwd, selected.remoteBranchName);
 
+                      if (currentBranch && currentBranch !== localBranchName) {
+                        this._lastCheckoutSourceBranchByCwd.set(cwd, currentBranch);
+                      }
+
                       vscode.window.showInformationMessage(`✅ 已切换到分支: ${localBranchName}`);
 
                       await this.refreshStatus(cwd, true);
@@ -992,6 +1006,10 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                     try {
                       await this.gitService.checkoutBranch(cwd, selected.branchName);
 
+                      if (currentBranch && currentBranch !== selected.branchName) {
+                        this._lastCheckoutSourceBranchByCwd.set(cwd, currentBranch);
+                      }
+
                       vscode.window.showInformationMessage(`✅ 已切换到分支: ${selected.branchName}`);
 
                       await this.refreshStatus(cwd, true);
@@ -1061,9 +1079,52 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 branchName: b,
               }));
 
-              const selected = await vscode.window.showQuickPick(items, {
-                placeHolder: `请选择要合并到【${current}】的本地分支`,
-                matchOnDescription: true,
+              const quickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { branchName: string }>();
+
+              quickPick.title = '合并本地分支';
+              quickPick.placeholder = `请选择要合并到【${current}】的本地分支`;
+              quickPick.matchOnDescription = true;
+              quickPick.ignoreFocusOut = true;
+              quickPick.items = items;
+
+              const lastCheckoutSourceBranch = this._lastCheckoutSourceBranchByCwd.get(cwd);
+              const lastCheckoutSourceItem = lastCheckoutSourceBranch
+                ? items.find((item) => item.branchName === lastCheckoutSourceBranch)
+                : undefined;
+
+              /**
+               * 如果上一次切换来源分支已经被删除，就清掉缓存。
+               * 例如之前记录的是 feature/0.0.1，但该分支已删除，
+               * 此时合并列表里找不到它，就回退选中第一个可合并分支。
+               */
+              if (lastCheckoutSourceBranch && !lastCheckoutSourceItem) {
+                this._lastCheckoutSourceBranchByCwd.delete(cwd);
+              }
+
+              const activeItem = lastCheckoutSourceItem || items[0];
+
+              if (activeItem) {
+                quickPick.activeItems = [activeItem];
+              }
+
+              const selected = await new Promise<(vscode.QuickPickItem & { branchName: string }) | undefined>((resolve) => {
+                let accepted = false;
+
+                quickPick.onDidAccept(() => {
+                  accepted = true;
+                  resolve(quickPick.selectedItems[0]);
+                  quickPick.hide();
+                });
+
+                quickPick.onDidHide(() => {
+                  quickPick.dispose();
+
+                  if (!accepted) {
+                    resolve(undefined);
+                  }
+                });
+
+                quickPick.show();
               });
 
               if (!selected) return;
