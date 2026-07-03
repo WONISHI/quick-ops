@@ -16,6 +16,40 @@ const escapeAttr = (value: string): string => {
   return escapeHtml(value).replace(/"/g, '&quot;');
 };
 
+const normalizeTitleText = (value: string): string => {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+};
+
+const hasSameLeadingH1Title = (content: string, title: string): boolean => {
+  const expectedTitle = normalizeTitleText(title);
+
+  if (!expectedTitle) return false;
+
+  const firstLine = String(content || '')
+    .replace(/^\uFEFF/, '')
+    .trimStart()
+    .split(/\r?\n/)[0]
+    ?.trim();
+
+  if (!firstLine) return false;
+
+  /**
+   * 只判断 Markdown 一级标题：
+   * # 标题
+   * # 标题 #
+   * # 标题 ####
+   *
+   * 不匹配：
+   * ## 标题
+   * #标题
+   */
+  const match = firstLine.match(/^#\s+(.+?)\s*#*\s*$/);
+
+  if (!match) return false;
+
+  return normalizeTitleText(match[1]) === expectedTitle;
+};
+
 const shouldKeepWikiLinkRaw = (value: string): boolean => {
   const text = value.trim();
 
@@ -186,6 +220,15 @@ const VditorCompat = {
   install(content: string, options?: CompatOptions): string {
     let processedContent = content;
 
+    /**
+     * 先基于原始内容判断是否需要补标题。
+     *
+     * 注意：
+     * - 必须在 Markdown 链接 / meta tag 转换前判断；
+     * - 避免标题里有特殊内容时，被转换后的 HTML 影响判断。
+     */
+    const shouldPrependTitle = !!options?.title && !hasSameLeadingH1Title(processedContent, options.title);
+
     // 1. 先把 Markdown 链接转成 a 标签，并用 token 临时保护
     const linkResult = renderMarkdownLinksToTokens(processedContent);
     processedContent = linkResult.content;
@@ -197,7 +240,8 @@ const VditorCompat = {
     // 3. 最后恢复 a 标签
     processedContent = restoreHtmlLinks(processedContent, linkResult.links);
 
-    if (options && options.title) {
+    // 4. 如果开头一级标题已经等于 options.title，就不重复添加
+    if (shouldPrependTitle) {
       processedContent = `# ${options.title}\n\n${processedContent}`;
     }
 
