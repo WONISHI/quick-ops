@@ -912,7 +912,7 @@ export default function GitApp() {
                 </Tooltip>
 
                 {canUndoLastCommit && (
-                  <Tooltip content="撤销刚刚的提交 (退回工作区)">
+                  <Tooltip content="撤销刚刚的提交 (退回暂存区)">
                     <button
                       className={`${styles['action-btn']} ${styles['section-action-btn']}`}
                       onClick={(e) => {
