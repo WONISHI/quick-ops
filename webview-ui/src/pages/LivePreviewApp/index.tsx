@@ -1049,6 +1049,8 @@ export default function LivePreviewApp() {
   const pageLoadedRef = useRef(false);
   const faviconResolvedRef = useRef(false);
   const faviconRequestIdRef = useRef(0);
+  const favoriteMetaRequestIdRef = useRef(0);
+  const favoriteMetaResolversRef = useRef(new Map<number, (value: any) => void>());
 
   useEffect(() => {
     const handleWindowPointerDown = (event: MouseEvent) => {
@@ -1563,6 +1565,14 @@ export default function LivePreviewApp() {
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
         setFavoriteFolders(message.folders || []);
+      } else if (message.type === 'favoriteMetaResolved') {
+        const requestId = Number(message.requestId) || 0;
+        const resolver = favoriteMetaResolversRef.current.get(requestId);
+
+        if (resolver) {
+          favoriteMetaResolversRef.current.delete(requestId);
+          resolver(message.ok ? message : null);
+        }
       } else if (message.type === 'browserFrame') {
         window.dispatchEvent(new CustomEvent<BrowserFrameState>('quickops-browser-frame', {
           detail: {
@@ -2101,21 +2111,68 @@ export default function LivePreviewApp() {
     window.setTimeout(() => setCopiedUrl(''), 1500);
   };
 
-  const saveFavorite = () => {
-    const t = favForm.title.trim();
+  const resolveFavoriteMeta = (url: string) => {
+    const requestId = favoriteMetaRequestIdRef.current + 1;
+
+    favoriteMetaRequestIdRef.current = requestId;
+
+    return new Promise<any | null>((resolve) => {
+      favoriteMetaResolversRef.current.set(requestId, resolve);
+
+      vscode?.postMessage({
+        type: 'resolveFavoriteMeta',
+        requestId,
+        url,
+      });
+
+      window.setTimeout(() => {
+        const resolver = favoriteMetaResolversRef.current.get(requestId);
+
+        if (!resolver) return;
+
+        favoriteMetaResolversRef.current.delete(requestId);
+        resolver(null);
+      }, 12000);
+    });
+  };
+
+  const getFallbackFavoriteTitle = (url: string) => {
+    try {
+      return new URL(url).hostname || url;
+    } catch {
+      return url;
+    }
+  };
+
+  const saveFavorite = async () => {
     const u = UrlParser.parse(favForm.url);
-    const description = favForm.description.trim();
-    const logo = favForm.logo.trim();
+    let t = favForm.title.trim();
+    let description = favForm.description.trim();
+    let logo = favForm.logo.trim();
     const folderId = favForm.folderId || ROOT_FAVORITE_FOLDER_ID;
 
-    if (!t || !u) {
-      return vscode?.postMessage({ type: 'showError', message: '标题和链接不能为空' });
+    if (!u) {
+      return vscode?.postMessage({ type: 'showError', message: '链接不能为空' });
     }
 
     const editingTarget = favorites.find((f) => f.url === favForm.editingOriginalUrl);
 
     if (editingTarget?.isDefault) {
       return vscode?.postMessage({ type: 'showInfo', message: '默认收藏不能编辑。' });
+    }
+
+    if (!t || !description || !logo) {
+      const meta = await resolveFavoriteMeta(u);
+
+      if (meta) {
+        t = t || String(meta.title || '').trim();
+        description = description || String(meta.description || '').trim();
+        logo = logo || String(meta.logo || '').trim();
+      }
+    }
+
+    if (!t) {
+      t = getFallbackFavoriteTitle(u);
     }
 
     const newFavs = [...favorites];

@@ -290,6 +290,113 @@ export class LivePreviewFeature implements IFeature {
       .replace(/&amp;/g, '&');
   }
 
+  private normalizeHtmlText(value: string): string {
+    return this.decodeBookmarkHtml(String(value || '').replace(/\s+/g, ' ').trim());
+  }
+
+  private getHtmlAttribute(tag: string, attrName: string): string {
+    const match = String(tag || '').match(new RegExp(`\\s${attrName}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i'));
+
+    return this.normalizeHtmlText(match?.[1] || match?.[2] || match?.[3] || '');
+  }
+
+  private getMetaContent(html: string, keys: string[]): string {
+    const targetKeys = keys.map((item) => item.toLowerCase());
+    const tags = html.match(/<meta\b[^>]*>/gi) || [];
+
+    for (const tag of tags) {
+      const name = this.getHtmlAttribute(tag, 'name').toLowerCase();
+      const property = this.getHtmlAttribute(tag, 'property').toLowerCase();
+
+      if (targetKeys.includes(name) || targetKeys.includes(property)) {
+        return this.getHtmlAttribute(tag, 'content');
+      }
+    }
+
+    return '';
+  }
+
+  private getFavoriteIconFromHtml(html: string, baseUrl: string): string {
+    const links = html.match(/<link\b[^>]*>/gi) || [];
+    const iconLink = links.find((tag) => {
+      const rel = this.getHtmlAttribute(tag, 'rel');
+      const type = this.getHtmlAttribute(tag, 'type');
+
+      return /icon/i.test(rel) || /icon/i.test(type);
+    });
+
+    const href = iconLink ? this.getHtmlAttribute(iconLink, 'href') : '/favicon.ico';
+
+    try {
+      return new URL(href, baseUrl).href;
+    } catch {
+      return '';
+    }
+  }
+
+  private async resolveFavoriteMeta(url: string) {
+    const rawUrl = String(url || '').trim();
+
+    if (!rawUrl) {
+      throw new Error('链接不能为空。');
+    }
+
+    const fetchFn = (globalThis as any).fetch as undefined | ((input: string, init?: any) => Promise<any>);
+
+    if (!fetchFn) {
+      throw new Error('当前 VS Code 运行环境不支持 fetch，无法自动解析网页信息。');
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      const response = await fetchFn(rawUrl, {
+        signal: controller.signal,
+        headers: {
+          'user-agent': 'Mozilla/5.0 QuickOpsLivePreview/1.0',
+          accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+      });
+
+      const html = String(await response.text());
+      const finalUrl = response.url || rawUrl;
+      const title = this.getMetaContent(html, ['og:title', 'twitter:title']) ||
+        this.normalizeHtmlText((html.match(/<title\b[^>]*>([\s\S]*?)<\/title>/i)?.[1] || '').replace(/<[^>]*>/g, ''));
+      const description = this.getMetaContent(html, ['description', 'og:description', 'twitter:description']);
+      const logo = this.getFavoriteIconFromHtml(html, finalUrl);
+
+      return {
+        url: finalUrl,
+        title,
+        description,
+        logo,
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private async postFavoriteMetaResolved(panel: vscode.WebviewPanel, message: any): Promise<void> {
+    try {
+      const meta = await this.resolveFavoriteMeta(message.url || '');
+
+      panel.webview.postMessage({
+        type: 'favoriteMetaResolved',
+        requestId: message.requestId,
+        ok: true,
+        ...meta,
+      });
+    } catch (error: any) {
+      panel.webview.postMessage({
+        type: 'favoriteMetaResolved',
+        requestId: message.requestId,
+        ok: false,
+        error: error?.message || String(error),
+      });
+    }
+  }
+
   private buildBookmarksHtml(favorites: FavoriteItem[], folders: FavoriteFolder[]): string {
     const nowSeconds = Math.floor(Date.now() / 1000);
     const folderMap = new Map<string, FavoriteFolder>();
@@ -1050,6 +1157,8 @@ export class LivePreviewFeature implements IFeature {
         await context.workspaceState.update('quickOps.lastPreviewDevice', message.device);
       } else if (message.type === 'reqSyncFavorites') {
         await this.postFavoritesToPanel(context, panel);
+      } else if (message.type === 'resolveFavoriteMeta') {
+        await this.postFavoriteMetaResolved(panel, message);
       } else if (message.type === 'saveAllFavorites') {
         if (Array.isArray(message.folders)) {
           await this.saveFavoriteFolders(context, message.folders);
@@ -1220,6 +1329,10 @@ export class LivePreviewFeature implements IFeature {
         await context.workspaceState.update('quickOps.lastPreviewDevice', message.device);
       } else if (message.type === 'reqSyncFavorites') {
         await this.syncFavorites(context);
+      } else if (message.type === 'resolveFavoriteMeta') {
+        if (this.panel) {
+          await this.postFavoriteMetaResolved(this.panel, message);
+        }
       } else if (message.type === 'saveAllFavorites') {
         if (Array.isArray(message.folders)) {
           await this.saveFavoriteFolders(context, message.folders);
