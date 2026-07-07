@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faStar as faStarSolid,
@@ -59,7 +59,7 @@ interface FavoriteModalProps {
   onCopy: (url: string) => void;
   onSaveFavorite: () => void;
   onDeleteFavorite: (favorite: FavoriteItem) => void;
-  onCreateFolder: (name: string) => void;
+  onCreateFolder: (name: string) => string | void;
   onRenameFolder: (folder: FavoriteFolder, nextName: string) => void;
   onDeleteFolder: (folder: FavoriteFolder) => void;
   onMoveFavoriteToFolder: (favorite: FavoriteItem, folderId: string) => void;
@@ -98,6 +98,8 @@ export default function FavoriteModal(props: FavoriteModalProps) {
     setFavForm,
   } = props;
   const [folderName, setFolderName] = useState('');
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
+  const isFolderComposingRef = useRef(false);
 
   const folderCountMap = useMemo(() => {
     const countMap = new Map<string, number>();
@@ -123,12 +125,30 @@ export default function FavoriteModal(props: FavoriteModalProps) {
   if (!visible) return null;
 
   const handleCreateFolder = () => {
-    const name = folderName.trim();
+    /**
+     * 这里不要只依赖 folderName state。
+     * 中文输入法刚结束组合输入后立即点击“新增”时，React state 可能还没来得及同步，
+     * 直接读 input 当前值可以避免“点了没反应 / 新建不了文件夹”。
+     */
+    const name = (folderInputRef.current?.value || folderName).trim();
 
-    if (!name) return;
+    if (!name) {
+      folderInputRef.current?.focus();
+      return;
+    }
 
-    onCreateFolder(name);
+    const createdFolderId = onCreateFolder(name);
+
     setFolderName('');
+
+    if (folderInputRef.current) {
+      folderInputRef.current.value = '';
+      folderInputRef.current.focus();
+    }
+
+    if (createdFolderId) {
+      setSelectedFolderId(createdFolderId);
+    }
   };
 
   const handleRenameFolder = (folder: FavoriteFolder) => {
@@ -200,18 +220,32 @@ export default function FavoriteModal(props: FavoriteModalProps) {
           <aside className={styles['fav-sidebar']}>
             <div className={styles['fav-folder-create']}>
               <input
+                ref={folderInputRef}
                 className={styles['fav-folder-input']}
                 value={folderName}
                 placeholder="新增文件夹"
                 onChange={(e) => setFolderName(e.target.value)}
+                onCompositionStart={() => {
+                  isFolderComposingRef.current = true;
+                }}
+                onCompositionEnd={(e) => {
+                  isFolderComposingRef.current = false;
+                  setFolderName(e.currentTarget.value);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
+                    e.preventDefault();
+
+                    if (isFolderComposingRef.current) {
+                      return;
+                    }
+
                     handleCreateFolder();
                   }
                 }}
               />
 
-              <button className={styles['fav-folder-add']} onClick={handleCreateFolder} title="新增文件夹">
+              <button type="button" className={styles['fav-folder-add']} onClick={handleCreateFolder} title="新增文件夹">
                 <FontAwesomeIcon icon={faFolderPlus} />
               </button>
             </div>

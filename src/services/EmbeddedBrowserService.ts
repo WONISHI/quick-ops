@@ -70,6 +70,8 @@ export class EmbeddedBrowserService extends EventEmitter {
   private readonly hookedPages = new WeakSet<Page>();
   private debugPort = 9222;
   private activeUserDataDirName = this.userDataDirName;
+  private readonly TEMP_USER_DATA_DIR_PREFIX = 'BrowserUserData-Temp-';
+  private readonly tempUserDataDirNames = new Set<string>();
   private imeCompositionText = '';
   private lastViewport = {
     width: 1280,
@@ -90,6 +92,15 @@ export class EmbeddedBrowserService extends EventEmitter {
   ) {
     super();
     this.activeUserDataDirName = userDataDirName;
+
+    /**
+     * 启动时顺手清理历史遗留的临时 Profile。
+     *
+     * 注意：这里只清理超过 1 天的 BrowserUserData-Temp-*，
+     * 避免误删其它 VS Code 窗口正在使用的临时 Profile。
+     * 当前实例创建的临时 Profile 会在 dispose() 时立即删除。
+     */
+    void this.cleanupStaleTempUserDataDirs();
   }
 
   public async getSnapshot(): Promise<BrowserSnapshot> {
@@ -746,7 +757,7 @@ export class EmbeddedBrowserService extends EventEmitter {
       cookieMap.set(this.getCookieMergeKey(normalized), normalized);
     });
 
-    currentCookies.forEach((cookie:any) => {
+    currentCookies.forEach((cookie) => {
       const normalized = this.normalizeCookieForStorage(cookie);
 
       if (!normalized) return;
@@ -943,6 +954,9 @@ export class EmbeddedBrowserService extends EventEmitter {
       this.browser = null;
     }
 
+    await this.cleanupCreatedTempUserDataDirs();
+
+    this.activeUserDataDirName = this.userDataDirName;
     this.removeAllListeners();
   }
 
@@ -1310,8 +1324,72 @@ export class EmbeddedBrowserService extends EventEmitter {
     return this.page;
   }
 
+  private isTempUserDataDirName(userDataDirName: string): boolean {
+    return String(userDataDirName || '').startsWith(this.TEMP_USER_DATA_DIR_PREFIX);
+  }
+
+  private getUserDataDirUri(userDataDirName: string): vscode.Uri {
+    return vscode.Uri.joinPath(this.context.globalStorageUri, userDataDirName);
+  }
+
+  private async deleteTempUserDataDir(userDataDirName: string): Promise<void> {
+    if (!this.isTempUserDataDirName(userDataDirName)) return;
+
+    const uri = this.getUserDataDirUri(userDataDirName);
+
+    await vscode.workspace.fs.delete(uri, {
+      recursive: true,
+      useTrash: false,
+    }).catch(() => undefined);
+  }
+
+  private async cleanupCreatedTempUserDataDirs(): Promise<void> {
+    const names = new Set(this.tempUserDataDirNames);
+
+    if (this.isTempUserDataDirName(this.activeUserDataDirName)) {
+      names.add(this.activeUserDataDirName);
+    }
+
+    await Promise.allSettled(Array.from(names).map((name) => this.deleteTempUserDataDir(name)));
+    this.tempUserDataDirNames.clear();
+  }
+
+  private async cleanupStaleTempUserDataDirs(maxAge = 24 * 60 * 60 * 1000): Promise<void> {
+    try {
+      const entries = await vscode.workspace.fs.readDirectory(this.context.globalStorageUri);
+      const now = Date.now();
+
+      await Promise.allSettled(
+        entries
+          .filter(([name, fileType]) => {
+            return fileType === vscode.FileType.Directory && this.isTempUserDataDirName(name);
+          })
+          .map(async ([name]) => {
+            const uri = this.getUserDataDirUri(name);
+            const stat = await vscode.workspace.fs.stat(uri).catch(() => null);
+
+            if (!stat) return;
+
+            /**
+             * 不立即删除所有临时目录，避免多窗口并发运行时误删正在使用的 Profile。
+             * 当前实例创建的临时目录会在 dispose() 中立即清理。
+             */
+            if (now - stat.mtime < maxAge) return;
+
+            await this.deleteTempUserDataDir(name);
+          })
+      );
+    } catch {
+      // ignore
+    }
+  }
+
   private createUserDataDirName(): string {
-    return `BrowserUserData-Temp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const userDataDirName = `${this.TEMP_USER_DATA_DIR_PREFIX}${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    this.tempUserDataDirNames.add(userDataDirName);
+
+    return userDataDirName;
   }
 
   private isUserDataDirLockedError(error: unknown): boolean {

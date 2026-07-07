@@ -2189,19 +2189,21 @@ export default function LivePreviewApp() {
       return;
     }
 
-    const nextFolders = [
-      ...favoriteFolders,
-      {
-        id: createFavoriteFolderId(folderName),
-        name: folderName,
-        timestamp: Date.now(),
-        isDefault: false,
-        source: 'user' as const,
-      },
-    ];
+    const newFolder: FavoriteFolder = {
+      id: createFavoriteFolderId(folderName),
+      name: folderName,
+      timestamp: Date.now(),
+      isDefault: false,
+      source: 'user' as const,
+    };
+
+    const nextFolders = [...favoriteFolders, newFolder];
 
     setFavoriteFolders(nextFolders);
+    setSelectedFavoriteFolderId(newFolder.id);
     saveFavoriteData(favorites, nextFolders);
+
+    return newFolder.id;
   };
 
   const renameFavoriteFolder = (folder: FavoriteFolder, nextName: string) => {
