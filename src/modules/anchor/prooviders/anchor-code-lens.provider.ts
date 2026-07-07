@@ -33,6 +33,15 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
       }
 
       this.debounceTimer = setTimeout(() => {
+        /**
+         * AnchorService.save()
+         *   -> AnchorService.changeEmitter.fire()
+         *   -> AnchorCodeLensProvider 监听到 onDidChangeAnchors
+         *   -> AnchorCodeLensProvider.changeEmitter.fire()
+         *   -> VS Code 监听到 onDidChangeCodeLenses
+         *   -> VS Code 重新调用 provideCodeLenses(document)
+         *   -> 编辑器里的 CodeLens 更新
+         */
         this.changeEmitter.fire();
       }, 200);
     });
