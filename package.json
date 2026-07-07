@@ -702,7 +702,7 @@
       ]
     }
   },
- "scripts": {
+  "scripts": {
     "vscode:prepublish": "npm run build:all",
     "compile": "webpack --mode development",
     "compile:ext": "webpack --mode development",

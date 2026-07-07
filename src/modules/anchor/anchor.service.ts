@@ -2,10 +2,11 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { debounce, isFunction, isNumber } from 'lodash-es';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
-import { AnchorCodeLensProvider } from './prooviders/anchor-code-lens.provider';
+import { AnchorCodeLensProvider } from '@modules/anchor/prooviders/anchor-code-lens.provider';
 import { getReactWebviewHtml } from '@utils/WebviewHelper';
 import { ColorUtils } from '@utils/ColorUtils';
 import { ConfigurationService } from '@common/services/configuration.service';
+import { ANCHOR_TOOLTIPS } from '@modules/anchor/constants/anchor.constant';
 import type {
   AnchorChildCreateInput,
   AnchorConfig,
@@ -19,18 +20,7 @@ import type {
   AnchorQuickPickItem,
   AnchorUpdateInput,
   AnchorWebviewMessage,
-} from './anchor.type';
-
-const ANCHOR_TOOLTIPS = {
-  ADD_NOTE: '添加备注',
-  UP: '上移',
-  DOWN: '下移',
-  DELETE: '删除',
-  NEW_SUBGROUP: '由此创建新分组',
-  VIEW_CHILDREN: '查看子级',
-  INSERT_BEFORE: '在此项〖之前〗插入',
-  INSERT_AFTER: '在此项〖之后〗插入',
-} as const;
+} from '@modules/anchor/anchor.type';
 
 export class AnchorService {
   public static inject = [ConfigurationService, ExtensionContextProvider];
@@ -133,8 +123,8 @@ export class AnchorService {
 
   /**
    * @description 注册新增锚点指令的回调
-   * @param args 
-   * @returns 
+   * @param args
+   * @returns
    */
   public async executeAddAnchorCommand(...args: any[]): Promise<void> {
     try {
