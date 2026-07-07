@@ -42,6 +42,12 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
          *   -> VS Code 重新调用 provideCodeLenses(document)
          *   -> 编辑器里的 CodeLens 更新
          */
+
+        /**
+         * onDidChangeCodeLenses 是 VS Code 约定的“插座”
+         * changeEmitter.fire() 是你自己往这个插座里发信号
+         * provideCodeLenses() 才是真正重新生成 CodeLens 的地方
+         */
         this.changeEmitter.fire();
       }, 200);
     });
