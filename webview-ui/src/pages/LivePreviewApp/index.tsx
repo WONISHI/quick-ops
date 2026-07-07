@@ -1686,6 +1686,26 @@ export default function LivePreviewApp() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (activeModal !== 'fav') return;
+
+    /**
+     * VS Code globalState 是全局存储，但不是跨窗口实时事件总线。
+     * 收藏夹打开时主动拉取最新收藏 / 分组，避免不同工作区窗口不同步。
+     */
+    const syncFavoriteData = () => {
+      vscode?.postMessage({ type: 'reqSyncFavorites' });
+    };
+
+    syncFavoriteData();
+
+    const timer = window.setInterval(syncFavoriteData, 1500);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [activeModal]);
+
 
   const navigateToHistory = (index: number) => {
     const stack = historyStackRef.current;
@@ -2139,7 +2159,6 @@ export default function LivePreviewApp() {
     vscode?.postMessage({
       type: 'saveAllFavorites',
       favorites: newFavs.filter((item) => !item.isDefault),
-      folders: favoriteFolders.filter((item) => !item.isDefault),
     });
 
     setFavForm({
@@ -2164,16 +2183,24 @@ export default function LivePreviewApp() {
     vscode?.postMessage({
       type: 'saveAllFavorites',
       favorites: newFavs.filter((item) => !item.isDefault),
-      folders: favoriteFolders.filter((item) => !item.isDefault),
     });
   };
 
-  const saveFavoriteData = (nextFavorites: FavoriteItem[], nextFolders: FavoriteFolder[] = favoriteFolders) => {
-    vscode?.postMessage({
+  const saveFavoriteData = (nextFavorites: FavoriteItem[], nextFolders?: FavoriteFolder[]) => {
+    const payload: {
+      type: 'saveAllFavorites';
+      favorites: FavoriteItem[];
+      folders?: FavoriteFolder[];
+    } = {
       type: 'saveAllFavorites',
       favorites: nextFavorites.filter((item) => !item.isDefault),
-      folders: nextFolders.filter((item) => !item.isDefault),
-    });
+    };
+
+    if (nextFolders) {
+      payload.folders = nextFolders.filter((item) => !item.isDefault);
+    }
+
+    vscode?.postMessage(payload);
   };
 
   const createFavoriteFolder = (name: string) => {

@@ -1051,7 +1051,10 @@ export class LivePreviewFeature implements IFeature {
       } else if (message.type === 'reqSyncFavorites') {
         await this.postFavoritesToPanel(context, panel);
       } else if (message.type === 'saveAllFavorites') {
-        await this.saveFavoriteFolders(context, message.folders || []);
+        if (Array.isArray(message.folders)) {
+          await this.saveFavoriteFolders(context, message.folders);
+        }
+
         await this.saveUserFavorites(context, message.favorites || []);
         await this.postFavoritesToPanel(context, panel);
       } else if (message.type === 'exportFavorites') {
@@ -1218,7 +1221,10 @@ export class LivePreviewFeature implements IFeature {
       } else if (message.type === 'reqSyncFavorites') {
         await this.syncFavorites(context);
       } else if (message.type === 'saveAllFavorites') {
-        await this.saveFavoriteFolders(context, message.folders || []);
+        if (Array.isArray(message.folders)) {
+          await this.saveFavoriteFolders(context, message.folders);
+        }
+
         await this.saveUserFavorites(context, message.favorites || []);
       } else if (message.type === 'exportFavorites') {
         const folders = message.folders || await this.getFavoriteFolders(context);
