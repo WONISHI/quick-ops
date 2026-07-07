@@ -746,7 +746,7 @@ export class EmbeddedBrowserService extends EventEmitter {
       cookieMap.set(this.getCookieMergeKey(normalized), normalized);
     });
 
-    currentCookies.forEach((cookie) => {
+    currentCookies.forEach((cookie:any) => {
       const normalized = this.normalizeCookieForStorage(cookie);
 
       if (!normalized) return;

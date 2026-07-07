@@ -25,9 +25,20 @@ interface FavoriteItem {
   timestamp: number;
   description?: string;
   logo?: string;
+  folderId?: string;
   isDefault?: boolean;
   source?: 'builtin' | 'user';
 }
+
+interface FavoriteFolder {
+  id: string;
+  name: string;
+  timestamp: number;
+  isDefault?: boolean;
+  source?: 'builtin' | 'user';
+}
+
+const ROOT_FAVORITE_FOLDER_ID = 'root';
 
 interface HistoryItem {
   url: string;
@@ -991,6 +1002,8 @@ export default function LivePreviewApp() {
   const [browserSwitcherOpen, setBrowserSwitcherOpen] = useState(false);
 
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
+  const [favoriteFolders, setFavoriteFolders] = useState<FavoriteFolder[]>([]);
+  const [selectedFavoriteFolderId, setSelectedFavoriteFolderId] = useState('all');
   const [historyStack, setHistoryStack] = useState<HistoryItem[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
   const historyStackRef = useRef<HistoryItem[]>([]);
@@ -1018,6 +1031,7 @@ export default function LivePreviewApp() {
     description: '',
     logo: '',
     editingOriginalUrl: '',
+    folderId: ROOT_FAVORITE_FOLDER_ID,
   });
   const [showSuggest, setShowSuggest] = useState(false);
   const [suggestIndex, setSuggestIndex] = useState(-1);
@@ -1112,6 +1126,17 @@ export default function LivePreviewApp() {
 
   const normalizeFavoriteUrl = (url: string) => {
     return (url || '').trim().replace(/\/+$/, '');
+  };
+
+  const createFavoriteFolderId = (name: string) => {
+    const safeName = name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\u4e00-\u9fa5_-]+/gi, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40);
+
+    return `folder-${safeName || 'custom'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   };
 
 
@@ -1537,6 +1562,7 @@ export default function LivePreviewApp() {
         vscode?.postMessage({ type: 'reqSyncFavorites' });
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
+        setFavoriteFolders(message.folders || []);
       } else if (message.type === 'browserFrame') {
         window.dispatchEvent(new CustomEvent<BrowserFrameState>('quickops-browser-frame', {
           detail: {
@@ -1976,7 +2002,13 @@ export default function LivePreviewApp() {
     const title = currentHistory?.title || urlInput || favoriteTargetUrl;
     const logo = activeAddressFavorite?.logo || faviconUrl || '';
 
-    vscode?.postMessage({ type: 'toggleFavorite', url: favoriteTargetUrl, title, logo });
+    vscode?.postMessage({
+      type: 'toggleFavorite',
+      url: favoriteTargetUrl,
+      title,
+      logo,
+      folderId: ROOT_FAVORITE_FOLDER_ID,
+    });
   };
 
   const openContextMenu = () => {
@@ -2054,6 +2086,7 @@ export default function LivePreviewApp() {
     const u = UrlParser.parse(favForm.url);
     const description = favForm.description.trim();
     const logo = favForm.logo.trim();
+    const folderId = favForm.folderId || ROOT_FAVORITE_FOLDER_ID;
 
     if (!t || !u) {
       return vscode?.postMessage({ type: 'showError', message: '标题和链接不能为空' });
@@ -2081,6 +2114,7 @@ export default function LivePreviewApp() {
           url: u,
           description,
           logo,
+          folderId,
           isDefault: false,
           source: 'user',
         };
@@ -2095,6 +2129,7 @@ export default function LivePreviewApp() {
         title: t,
         description,
         logo,
+        folderId,
         timestamp: Date.now(),
         isDefault: false,
         source: 'user',
@@ -2104,6 +2139,7 @@ export default function LivePreviewApp() {
     vscode?.postMessage({
       type: 'saveAllFavorites',
       favorites: newFavs.filter((item) => !item.isDefault),
+      folders: favoriteFolders.filter((item) => !item.isDefault),
     });
 
     setFavForm({
@@ -2113,6 +2149,7 @@ export default function LivePreviewApp() {
       description: '',
       logo: '',
       editingOriginalUrl: '',
+      folderId: ROOT_FAVORITE_FOLDER_ID,
     });
   };
 
@@ -2123,7 +2160,131 @@ export default function LivePreviewApp() {
     }
 
     const newFavs = favorites.filter((f) => f.url !== favorite.url || f.isDefault);
-    vscode?.postMessage({ type: 'saveAllFavorites', favorites: newFavs });
+
+    vscode?.postMessage({
+      type: 'saveAllFavorites',
+      favorites: newFavs.filter((item) => !item.isDefault),
+      folders: favoriteFolders.filter((item) => !item.isDefault),
+    });
+  };
+
+  const saveFavoriteData = (nextFavorites: FavoriteItem[], nextFolders: FavoriteFolder[] = favoriteFolders) => {
+    vscode?.postMessage({
+      type: 'saveAllFavorites',
+      favorites: nextFavorites.filter((item) => !item.isDefault),
+      folders: nextFolders.filter((item) => !item.isDefault),
+    });
+  };
+
+  const createFavoriteFolder = (name: string) => {
+    const folderName = name.trim();
+
+    if (!folderName) {
+      vscode?.postMessage({ type: 'showError', message: '文件夹名称不能为空' });
+      return;
+    }
+
+    if (favoriteFolders.some((folder) => folder.name === folderName)) {
+      vscode?.postMessage({ type: 'showError', message: '文件夹名称已存在' });
+      return;
+    }
+
+    const nextFolders = [
+      ...favoriteFolders,
+      {
+        id: createFavoriteFolderId(folderName),
+        name: folderName,
+        timestamp: Date.now(),
+        isDefault: false,
+        source: 'user' as const,
+      },
+    ];
+
+    setFavoriteFolders(nextFolders);
+    saveFavoriteData(favorites, nextFolders);
+  };
+
+  const renameFavoriteFolder = (folder: FavoriteFolder, nextName: string) => {
+    if (folder.isDefault) {
+      vscode?.postMessage({ type: 'showInfo', message: '默认文件夹不能重命名。' });
+      return;
+    }
+
+    const folderName = nextName.trim();
+
+    if (!folderName) {
+      vscode?.postMessage({ type: 'showError', message: '文件夹名称不能为空' });
+      return;
+    }
+
+    if (favoriteFolders.some((item) => item.id !== folder.id && item.name === folderName)) {
+      vscode?.postMessage({ type: 'showError', message: '文件夹名称已存在' });
+      return;
+    }
+
+    const nextFolders = favoriteFolders.map((item) => {
+      return item.id === folder.id ? { ...item, name: folderName } : item;
+    });
+
+    setFavoriteFolders(nextFolders);
+    saveFavoriteData(favorites, nextFolders);
+  };
+
+  const deleteFavoriteFolder = (folder: FavoriteFolder) => {
+    if (folder.isDefault) {
+      vscode?.postMessage({ type: 'showInfo', message: '默认文件夹不能删除。' });
+      return;
+    }
+
+    const nextFolders = favoriteFolders.filter((item) => item.id !== folder.id);
+    const nextFavorites = favorites.map((item) => {
+      if (item.folderId !== folder.id) return item;
+
+      return {
+        ...item,
+        folderId: ROOT_FAVORITE_FOLDER_ID,
+      };
+    });
+
+    setFavoriteFolders(nextFolders);
+    setFavorites(nextFavorites);
+
+    if (selectedFavoriteFolderId === folder.id) {
+      setSelectedFavoriteFolderId('all');
+    }
+
+    saveFavoriteData(nextFavorites, nextFolders);
+  };
+
+  const moveFavoriteToFolder = (favorite: FavoriteItem, folderId: string) => {
+    if (favorite.isDefault) {
+      vscode?.postMessage({ type: 'showInfo', message: '默认收藏不能移动。' });
+      return;
+    }
+
+    const nextFavorites = favorites.map((item) => {
+      if (item.url !== favorite.url || item.isDefault) return item;
+
+      return {
+        ...item,
+        folderId: folderId || ROOT_FAVORITE_FOLDER_ID,
+      };
+    });
+
+    setFavorites(nextFavorites);
+    saveFavoriteData(nextFavorites);
+  };
+
+  const importFavorites = () => {
+    vscode?.postMessage({ type: 'importFavorites' });
+  };
+
+  const exportFavorites = () => {
+    vscode?.postMessage({
+      type: 'exportFavorites',
+      favorites: sortedFavorites,
+      folders: favoriteFolders,
+    });
   };
 
   const sortedFavorites = useMemo(() => {
@@ -2559,9 +2720,12 @@ export default function LivePreviewApp() {
       <FavoriteModal
         visible={activeModal === 'fav'}
         sortedFavorites={sortedFavorites}
+        favoriteFolders={favoriteFolders}
+        selectedFolderId={selectedFavoriteFolderId}
         favSort={favSort}
         favForm={favForm}
         copiedUrl={copiedUrl}
+        setSelectedFolderId={setSelectedFavoriteFolderId}
         setFavSort={setFavSort}
         setFavForm={setFavForm}
         onClose={() => setActiveModal('none')}
@@ -2572,6 +2736,12 @@ export default function LivePreviewApp() {
         onCopy={handleCopy}
         onSaveFavorite={saveFavorite}
         onDeleteFavorite={deleteFavorite}
+        onCreateFolder={createFavoriteFolder}
+        onRenameFolder={renameFavoriteFolder}
+        onDeleteFolder={deleteFavoriteFolder}
+        onMoveFavoriteToFolder={moveFavoriteToFolder}
+        onImportFavorites={importFavorites}
+        onExportFavorites={exportFavorites}
       />
 
       <HistoryModal
