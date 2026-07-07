@@ -116,6 +116,27 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
     return map;
   }
 
+  /**
+   * @description 生成当前锚点的父级路径 CodeLens
+   *
+   * 使用场景：
+   * - 当前锚点可能是一个子锚点，也就是存在 pid。
+   * - 这里会根据 pid 一层一层往上查找父级锚点。
+   * - 查到的父级会通过 CodeLens 展示成类似面包屑的路径。
+   *
+   * 展示效果示例：
+   * - 📁 父分组:1 >
+   * - 📁 上级分组:2 >
+   *
+   * 点击后：
+   * - 执行 quick-ops.anchor.listByGroup
+   * - 打开父级所在分组列表
+   * - 并定位到父级锚点
+   *
+   * @param lenses CodeLens 收集数组，生成的 CodeLens 会 push 到这里
+   * @param range CodeLens 显示的位置，一般是锚点所在行的行首
+   * @param anchor 当前锚点数据
+   */
   private pushParentCodeLenses(lenses: vscode.CodeLens[], range: vscode.Range, anchor: AnchorData): void {
     const parents: AnchorData[] = [];
     let currentItem = anchor;
@@ -139,6 +160,26 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
     });
   }
 
+  /**
+   * @description 生成当前锚点本身的 CodeLens
+   *
+   * 使用场景：
+   * - 每个锚点都会生成一个当前项 CodeLens。
+   * - 用于展示当前锚点所属分组和排序号。
+   *
+   * 展示效果示例：
+   * - 📌 TODO:3
+   * - 🔥 Feature:1
+   *
+   * 点击后：
+   * - 执行 quick-ops.anchor.listByGroup
+   * - 打开当前锚点所在分组列表
+   * - 并定位到当前锚点
+   *
+   * @param lenses CodeLens 收集数组，生成的 CodeLens 会 push 到这里
+   * @param range CodeLens 显示的位置，一般是锚点所在行的行首
+   * @param anchor 当前锚点数据
+   */
   private pushCurrentCodeLens(lenses: vscode.CodeLens[], range: vscode.Range, anchor: AnchorData): void {
     const emoji = ColorUtils.getEmoji(anchor.group);
     lenses.push(
@@ -151,6 +192,27 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
     );
   }
 
+  /**
+   * @description 生成当前锚点的操作按钮 CodeLens
+   *
+   * 使用场景：
+   * - 每个锚点后面追加快捷操作按钮。
+   * - 这些按钮不展示分组信息，只负责操作当前锚点。
+   *
+   * 生成的按钮：
+   * - $(debug-step-out)  上一个
+   * - $(debug-step-into) 下一个
+   * - $(trash)           删除
+   *
+   * 点击后：
+   * - 上一个：执行 quick-ops.anchor.navigate，跳转到同组上一个锚点
+   * - 下一个：执行 quick-ops.anchor.navigate，跳转到同组下一个锚点
+   * - 删除：执行 quick-ops.anchor.delete，删除当前锚点
+   *
+   * @param lenses CodeLens 收集数组，生成的 CodeLens 会 push 到这里
+   * @param range CodeLens 显示的位置，一般是锚点所在行的行首
+   * @param anchor 当前锚点数据
+   */
   private pushActionCodeLenses(lenses: vscode.CodeLens[], range: vscode.Range, anchor: AnchorData): void {
     lenses.push(
       new vscode.CodeLens(range, {

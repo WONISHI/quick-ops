@@ -37,7 +37,7 @@ export class AnchorController implements OnModuleInit {
      */
     this.anchorService.checkContainsAnchor();
 
-    // ？？？
+    // 插件刚激活后，延迟 500ms 再刷新一次锚点装饰器。
     const timer = setTimeout(() => {
       this.anchorService.updateDecorations();
       clearTimeout(timer);
@@ -50,6 +50,9 @@ export class AnchorController implements OnModuleInit {
     this.anchorService.dispose();
   }
 
+  /**
+   * @description 注册provider
+   */
   private registerCodeLensProvider(): void {
     // 教程地址：https://juejin.cn/post/6976996315771174942
     // 注册可以生效的CodeLens
