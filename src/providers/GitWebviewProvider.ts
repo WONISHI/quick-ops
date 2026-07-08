@@ -2159,6 +2159,30 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'diffCommitFileWithLocalBranch': {
+            if (!msg.hash) break;
+
+            const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
+            const leftUri = this.createGitContentUri(cwd, msg.hash, msg.file);
+            const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+            const isCurrentWorkspace = defaultWorkspace && cwd === defaultWorkspace;
+            let rightUri = isCurrentWorkspace ? fileUri : this.createGitContentUri(cwd, 'working', msg.file);
+
+            if (isCurrentWorkspace) {
+              try {
+                await vscode.workspace.fs.stat(fileUri);
+              } catch {
+                rightUri = this.createGitContentUri(cwd, 'empty', msg.file);
+              }
+            }
+
+            const title = `${path.basename(msg.file)} (${msg.hash.substring(0, 7)} ↔ 当前分支)`;
+
+            vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+
+            break;
+          }
+
           case 'copy': {
             vscode.env.clipboard.writeText(msg.text);
             vscode.window.showInformationMessage(`已复制: ${msg.text}`);

@@ -108,6 +108,7 @@ export interface ContextMenuState {
   type: 'file' | 'commit';
   file?: { file: string; status: string };
   listType?: 'staged' | 'unstaged' | 'history' | 'compare' | 'stash-file';
+  historyHash?: string;
   commit?: { hash: string; message: string };
 }
 
@@ -383,7 +384,26 @@ export const GitContextMenu: React.FC<GitContextMenuProps> = ({ contextMenu, onC
 
       {/* 5. 历史/对比文件的菜单 (history / compare) */}
       {contextMenu.type === 'file' && (contextMenu.listType === 'history' || contextMenu.listType === 'compare') && (
-        <MenuItem icon="codicon-go-to-file" text="打开文件" onClick={() => exec(() => vscode.postMessage({ command: 'open', file: contextMenu.file!.file }))} />
+        <>
+          <MenuItem icon="codicon-go-to-file" text="打开文件" onClick={() => exec(() => vscode.postMessage({ command: 'open', file: contextMenu.file!.file }))} />
+
+          {contextMenu.listType === 'history' && contextMenu.historyHash && (
+            <MenuItem
+              icon="codicon-git-compare"
+              text="与本地分支比较"
+              onClick={() =>
+                exec(() =>
+                  vscode.postMessage({
+                    command: 'diffCommitFileWithLocalBranch',
+                    file: contextMenu.file!.file,
+                    status: contextMenu.file!.status,
+                    hash: contextMenu.historyHash,
+                  }),
+                )
+              }
+            />
+          )}
+        </>
       )}
 
     </ContextMenu>

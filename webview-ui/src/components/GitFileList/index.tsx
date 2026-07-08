@@ -120,6 +120,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
       type: 'file',
       file: item,
       listType: listType as any,
+      historyHash,
     });
   };
 
