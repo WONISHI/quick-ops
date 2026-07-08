@@ -17,9 +17,16 @@ export class AnchorController implements OnModuleInit {
 
   /**
    * @description 生命周期初始化
+   *
+   * 处理流程：
+   * 1. 获取插件上下文
+   * 2. 初始化 AnchorService
+   * 3. 注册 CodeLensProvider
+   * 4. 注册模块事件监听
+   * 5. 注册模块命令
+   * 6. 初始化插件上下文变量
    */
   public onModuleInit(): void {
-    /** 获取插件上下文对象 */
     const context = this.extensionContextProvider.getContext();
 
     this.anchorService.init(context);
@@ -37,21 +44,23 @@ export class AnchorController implements OnModuleInit {
      */
     this.anchorService.checkContainsAnchor();
 
-    // 插件刚激活后，延迟 500ms 再刷新一次锚点装饰器。
-    const timer = setTimeout(() => {
-      this.anchorService.updateDecorations();
-      clearTimeout(timer);
-    }, 500);
-
     ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
+  /**
+   * @description 释放 Anchor 模块资源
+   */
   public dispose(): void {
     this.anchorService.dispose();
   }
 
   /**
-   * @description 注册provider
+   * @description 注册 Anchor CodeLensProvider
+   *
+   * CodeLensProvider 负责在编辑器中显示锚点行内提示。
+   *
+   * scheme: 'file' 表示只在真实本地文件中显示 CodeLens。
+   * 不包含 untitled、Git diff、远程虚拟文档等非 file 文档。
    */
   private registerCodeLensProvider(): void {
     // 教程地址：https://juejin.cn/post/6976996315771174942
@@ -60,19 +69,38 @@ export class AnchorController implements OnModuleInit {
      * scheme: 'file' 意味着这个 CodeLens 提示只会在保存在本地磁盘上的真实物理文件中显示。
      * 它排除了其他类型的文件，比如还没保存的“无标题”文件（scheme: 'untitled'）、Git 历史对比文件、或者是通过网络打开的远程文件
      */
-    this.extensionContextProvider.register(vscode.languages.registerCodeLensProvider({ scheme: 'file' }, this.anchorService.createCodeLensProvider()));
+    const codeLensProvider = this.anchorService.createCodeLensProvider();
+
+    this.extensionContextProvider.register(
+      vscode.languages.registerCodeLensProvider(
+        {
+          scheme: 'file',
+        },
+        codeLensProvider,
+      ),
+    );
   }
 
+  /**
+   * @description 注册 Anchor 模块事件监听
+   *
+   * 当前保留两类监听：
+   *
+   * 1. AnchorService.onDidChangeAnchors
+   *    - 锚点数据变化后，刷新插件上下文变量
+   *    - 如果 MindMap 面板已打开，则同步刷新 MindMap 数据
+   *
+   * 2. vscode.workspace.onDidSaveTextDocument
+   *    - 保存文件时，同步锚点行号和内容
+   *
+   * 注意：
+   * decoration 相关能力已经删除，所以这里不再监听 activeTextEditor 变化。
+   */
   private registerListeners(): void {
     this.extensionContextProvider.register(
       this.anchorService.onDidChangeAnchors(() => {
-        this.anchorService.updateDecorations();
         this.anchorService.checkContainsAnchor();
         this.anchorService.refreshMindMapPanel();
-      }),
-
-      vscode.window.onDidChangeActiveTextEditor(() => {
-        this.anchorService.updateDecorationsDebounced();
       }),
 
       vscode.workspace.onDidSaveTextDocument((doc) => {
@@ -82,29 +110,41 @@ export class AnchorController implements OnModuleInit {
   }
 
   /**
-   * @description 注册命令
+   * @description 注册 Anchor 模块命令
    */
   private registerCommands(): void {
     this.extensionContextProvider.register(
-      // 注册锚点新增
+      /**
+       * @description 新增锚点
+       */
       vscode.commands.registerCommand('quick-ops.anchor.add', async (...args: any[]) => {
         await this.anchorService.executeAddAnchorCommand(...args);
       }),
 
-      // 注册预览锚点
+      /**
+       * @description 打开锚点菜单
+       */
       vscode.commands.registerCommand('quick-ops.anchor.showMenu', async () => {
         await this.anchorService.executeShowAnchorMenuCommand();
       }),
 
+      /**
+       * @description 查看指定分组下的锚点列表
+       */
       vscode.commands.registerCommand('quick-ops.anchor.listByGroup', async (groupName: string, anchorId: string) => {
         await this.anchorService.showAnchorList(groupName, true, undefined, anchorId);
       }),
 
+      /**
+       * @description 跳转到上一个或下一个锚点
+       */
       vscode.commands.registerCommand('quick-ops.anchor.navigate', async (currentId: string, direction: AnchorDirection) => {
         await this.anchorService.navigateAnchor(currentId, direction);
       }),
 
-      // 注册异常锚点
+      /**
+       * @description 删除锚点
+       */
       vscode.commands.registerCommand('quick-ops.anchor.delete', async (id: string) => {
         this.anchorService.removeAnchor(id);
       }),
