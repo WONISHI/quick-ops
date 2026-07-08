@@ -33,6 +33,7 @@ import { GitFeature } from '../features/GitFeature';
 import { InlineConstantHintFeature } from '../features/InlineConstantHintFeature';
 import { FocusHistoryFeature } from '../features/FocusHistoryFeature';
 import { ApiDevToolsFeature } from '../features/ApiDevToolsFeature';
+import { ProxyPreviewFeature } from '../features/ProxyPreviewFeature';
 
 export class QuickOpsApplication {
   private readonly context: vscode.ExtensionContext;
@@ -85,6 +86,7 @@ export class QuickOpsApplication {
       new InlineConstantHintFeature(),
       new FocusHistoryFeature(),
       new ApiDevToolsFeature(),
+      new ProxyPreviewFeature()
     ];
 
     for (const feature of this.features) {

@@ -19,6 +19,7 @@ import HtmlPreviewApp from './pages/HtmlPreviewApp';
 import DocPreviewApp from './pages/DocPreviewApp'
 import DevToolsApp from './pages/DevToolsApp';
 import ApiDevToolsApp from './pages/ApiDevToolsApp';
+import ProxyPreviewApp from './pages/ProxyPreviewApp';
 import './index.css';
 import '@vscode/codicons/dist/codicon.css';
 
@@ -45,6 +46,7 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         <Route path='/xls' element={<ExcelPreviewApp />} />
         <Route path='/doc' element={<DocPreviewApp />} />
         <Route path='/api-fox' element={<ApiDevToolsApp />} />
+        <Route path='/proxy-preview' element={<ProxyPreviewApp />} />
         <Route path="/" element={<div>Welcome to Quick Ops Dashboard!</div>} />
       </Routes>
     </MemoryRouter>

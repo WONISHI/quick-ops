@@ -517,6 +517,12 @@
         "title": "从外部条件打开...",
         "category": "QuickOps",
         "icon": "$(preview)"
+      },
+      {
+        "command": "quick-ops.proxyPreview.open",
+        "title": "打开代理页面 (Open proxyPreview)",
+        "category": "Quick Ops",
+        "icon": "$(server-environment)"
       }
     ],
     "keybindings": [
