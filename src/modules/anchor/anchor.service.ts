@@ -37,8 +37,6 @@ export class AnchorService {
   private groups: string[] = ['Default'];
   private itemGroups: string[] = [];
 
-  private readonly decorationTypes = new Map<string, vscode.TextEditorDecorationType>();
-
   private readonly changeEmitter = new vscode.EventEmitter<void>();
   public readonly onDidChangeAnchors = this.changeEmitter.event;
 
@@ -46,10 +44,13 @@ export class AnchorService {
     void this.persist();
   }, 500);
 
-  private readonly debouncedUpdate = debounce(() => {
-    this.updateDecorations();
-  }, 200);
 
+  /**
+   * @description 创建 AnchorService 实例
+   *
+   * @param configurationService 配置服务，用于读取锚点展示模式、思维导图位置等配置
+   * @param extensionContextProvider VS Code 上下文适配器，用于获取工作区、文档路径和打开文件
+   */
   constructor(
     private readonly configurationService: ConfigurationService,
     private readonly extensionContextProvider: ExtensionContextProvider,
@@ -64,14 +65,16 @@ export class AnchorService {
     this.load();
   }
 
+  /**
+   * @description 释放锚点服务资源
+   *
+   * 会取消防抖保存任务、关闭思维导图面板，并释放锚点变化事件。
+   */
   public dispose(): void {
     this.debouncedSave.cancel();
-    this.debouncedUpdate.cancel();
-
     this.currentPanel?.dispose();
     this.currentPanel = undefined;
 
-    this.disposeDecorations();
     this.changeEmitter.dispose();
   }
 
@@ -92,14 +95,9 @@ export class AnchorService {
     void vscode.commands.executeCommand('setContext', 'quickOps.hasAnchorsInProject', hasAnchors);
   }
 
-  public updateDecorationsDebounced(): void {
-    this.debouncedUpdate();
-  }
-
-  public updateDecorations(): void {
-    this.disposeDecorations();
-  }
-
+  /**
+   * @description 刷新锚点思维导图面板
+   */
   public refreshMindMapPanel(): void {
     if (!this.currentPanel) return;
 
@@ -109,6 +107,11 @@ export class AnchorService {
     });
   }
 
+  /**
+   * @description 执行查看锚点命令
+   *
+   * 根据配置决定打开思维导图面板或普通 QuickPick 分组列表。
+   */
   public async executeShowAnchorMenuCommand(): Promise<void> {
     const config = this.configurationService.config?.general || {};
     const mode = config.anchorViewMode || 'menu';
@@ -201,6 +204,14 @@ export class AnchorService {
     }
   }
 
+  /**
+   * @description 展示指定分组下的锚点列表
+   *
+   * @param groupName 分组名称
+   * @param isPreviewMode 是否为预览模式
+   * @param pinnedLineIndex 待插入的编辑器行索引
+   * @param defaultAnchorId 默认选中的锚点 ID
+   */
   public async showAnchorList(groupName: string, isPreviewMode: boolean, pinnedLineIndex?: number, defaultAnchorId?: string): Promise<void> {
     const quickPick = vscode.window.createQuickPick<AnchorQuickPickItem>();
 
@@ -285,7 +296,6 @@ export class AnchorService {
             });
 
             refreshList(anchorId);
-            this.updateDecorations();
 
             vscode.window.showInformationMessage('备注已更新');
           }
@@ -296,19 +306,16 @@ export class AnchorService {
         case ANCHOR_TOOLTIPS.UP:
           this.moveAnchor(anchorId, 'up');
           refreshList(anchorId);
-          this.updateDecorations();
           break;
 
         case ANCHOR_TOOLTIPS.DOWN:
           this.moveAnchor(anchorId, 'down');
           refreshList(anchorId);
-          this.updateDecorations();
           break;
 
         case ANCHOR_TOOLTIPS.DELETE:
           this.removeAnchor(anchorId);
           refreshList();
-          this.updateDecorations();
 
           if (quickPick.items.length === 0 && isPreviewMode) {
             quickPick.hide();
@@ -342,6 +349,12 @@ export class AnchorService {
     quickPick.show();
   }
 
+  /**
+   * @description 跳转到同分组中的上一个或下一个锚点
+   *
+   * @param currentId 当前锚点 ID
+   * @param direction 跳转方向
+   */
   public async navigateAnchor(currentId: string, direction: AnchorDirection): Promise<void> {
     const target = this.getNeighborAnchor(currentId, direction);
 
@@ -353,6 +366,11 @@ export class AnchorService {
     vscode.window.showInformationMessage(direction === 'prev' ? '已经是第一个了' : '已经是最后一个了');
   }
 
+  /**
+   * @description 保存文档时同步锚点行号和文本内容
+   *
+   * @param doc 保存的 VS Code 文档
+   */
   public async syncAnchorsWithContent(doc: vscode.TextDocument): Promise<void> {
     const relativePath = this.extensionContextProvider.getDocumentRelativePath(doc);
     const fileAnchors = this.getAnchors(relativePath);
@@ -399,7 +417,6 @@ export class AnchorService {
     }
 
     if (hasUpdates) {
-      this.updateDecorations();
     }
   }
 
@@ -420,10 +437,20 @@ export class AnchorService {
     return this.flotAnchors;
   }
 
+  /**
+   * @description 获取所有一级锚点分组
+   *
+   * @returns 分组名称数组
+   */
   public getGroups(): string[] {
     return this.groups;
   }
 
+  /**
+   * @description 新增一级锚点分组
+   *
+   * @param group 分组名称
+   */
   public addGroup(group: string): void {
     if (!this.groups.includes(group)) {
       this.groups.push(group);
@@ -431,6 +458,11 @@ export class AnchorService {
     }
   }
 
+  /**
+   * @description 新增子分组名称记录
+   *
+   * @param group 子分组名称
+   */
   public addChild(group: string): void {
     if (!this.itemGroups.includes(group)) {
       this.itemGroups.push(group);
@@ -438,11 +470,21 @@ export class AnchorService {
     }
   }
 
+  /**
+   * @description 删除一级锚点分组
+   *
+   * @param group 分组名称
+   */
   public removeGroup(group: string): void {
     this.groups = this.groups.filter((item) => item !== group);
     this.save();
   }
 
+  /**
+   * @description 新增一级锚点
+   *
+   * @param anchor 新增锚点输入数据
+   */
   public addAnchor(anchor: AnchorCreateInput): void {
     const newAnchor: AnchorData = {
       ...anchor,
@@ -466,6 +508,12 @@ export class AnchorService {
     this.save();
   }
 
+  /**
+   * @description 为指定父锚点新增子锚点
+   *
+   * @param parentId 父锚点 ID
+   * @param anchor 子锚点输入数据
+   */
   public addChildAnchor(parentId: string, anchor: AnchorChildCreateInput): void {
     const parent = this.getAnchorById(parentId);
 
@@ -488,6 +536,13 @@ export class AnchorService {
     this.save();
   }
 
+  /**
+   * @description 在目标锚点前后插入锚点
+   *
+   * @param anchor 待插入的锚点数据
+   * @param targetId 目标锚点 ID
+   * @param position 插入位置
+   */
   public insertAnchor(anchor: AnchorCreateInput, targetId: string, position: AnchorInsertPosition): void {
     const container = this.findContainerArray(targetId, this.anchors);
 
@@ -532,6 +587,11 @@ export class AnchorService {
     this.save();
   }
 
+  /**
+   * @description 删除指定锚点
+   *
+   * @param id 锚点 ID
+   */
   public removeAnchor(id: string): void {
     const container = this.findContainerArray(id, this.anchors);
 
@@ -545,6 +605,12 @@ export class AnchorService {
     this.save();
   }
 
+  /**
+   * @description 更新指定锚点
+   *
+   * @param id 锚点 ID
+   * @param updates 更新字段
+   */
   public updateAnchor(id: string, updates: AnchorUpdateInput): void {
     const anchor = this.getAnchorById(id);
 
@@ -577,12 +643,24 @@ export class AnchorService {
     }
   }
 
+  /**
+   * @description 更新指定锚点的行号
+   *
+   * @param id 锚点 ID
+   * @param newLine 新的 UI 行号，从 1 开始
+   */
   public updateAnchorLine(id: string, newLine: number): void {
     this.updateAnchor(id, {
       line: newLine,
     });
   }
 
+  /**
+   * @description 上移或下移指定锚点
+   *
+   * @param id 锚点 ID
+   * @param direction 移动方向
+   */
   public moveAnchor(id: string, direction: AnchorMoveDirection): void {
     const container = this.findContainerArray(id, this.anchors);
 
@@ -611,6 +689,12 @@ export class AnchorService {
     this.save();
   }
 
+  /**
+   * @description 根据 ID 获取锚点
+   *
+   * @param id 锚点 ID
+   * @returns 匹配到的锚点，没有则返回 undefined
+   */
   public getAnchorById(id: string): AnchorData | undefined {
     let found = this.flotAnchors.find((anchor) => anchor.id === id);
 
@@ -622,6 +706,13 @@ export class AnchorService {
     return found;
   }
 
+  /**
+   * @description 获取同分组中的相邻锚点
+   *
+   * @param currentId 当前锚点 ID
+   * @param direction 相邻方向
+   * @returns 相邻锚点，没有则返回 undefined
+   */
   public getNeighborAnchor(currentId: string, direction: AnchorDirection): AnchorData | undefined {
     const currentAnchor = this.getAnchorById(currentId);
 
@@ -640,6 +731,11 @@ export class AnchorService {
     return index < groupAnchors.length - 1 ? groupAnchors[index + 1] : undefined;
   }
 
+  /**
+   * @description 获取思维导图树形数据
+   *
+   * @returns 思维导图根节点
+   */
   public getMindMapData(): AnchorMindMapNode {
     const root: AnchorMindMapNode = {
       name: 'Anchors',
@@ -700,12 +796,18 @@ export class AnchorService {
     }
   }
 
+  /**
+   * @description 保存锚点内存状态
+   */
   private save(): void {
     this.refreshFlotAnchors();
     this.changeEmitter.fire();
     this.debouncedSave();
   }
 
+  /**
+   * @description 将锚点数据持久化到 workspaceState
+   */
   private async persist(): Promise<void> {
     if (!this.context) return;
     const data: AnchorConfig = {
@@ -740,6 +842,13 @@ export class AnchorService {
     this.flotAnchors = Array.from(allAnchors);
   }
 
+  /**
+   * @description 查找指定锚点所在的同级容器数组
+   *
+   * @param targetId 目标锚点 ID
+   * @param currentList 当前递归查找的锚点数组
+   * @returns 目标锚点所在数组和索引，找不到则返回 null
+   */
   private findContainerArray(targetId: string, currentList: AnchorData[]): { list: AnchorData[]; index: number } | null {
     const index = currentList.findIndex((anchor) => anchor.id === targetId);
 
@@ -761,6 +870,12 @@ export class AnchorService {
     return null;
   }
 
+  /**
+   * @description 递归更新子锚点的 group 字段
+   *
+   * @param items 子锚点数组
+   * @param newGroupName 新的分组名称
+   */
   private updateChildrenGroup(items: AnchorData[], newGroupName: string): void {
     items.forEach((child) => {
       child.group = newGroupName;
@@ -771,6 +886,9 @@ export class AnchorService {
     });
   }
 
+  /**
+   * @description 打开或激活锚点思维导图面板
+   */
   private async openMindMapPanel(): Promise<void> {
     if (!this.context) return;
     const config = this.configurationService.config?.general || {};
@@ -799,6 +917,11 @@ export class AnchorService {
     });
   }
 
+  /**
+   * @description 处理思维导图 Webview 消息
+   *
+   * @param message Webview 消息
+   */
   private async handleMindMapMessage(message: AnchorWebviewMessage): Promise<void> {
     switch (message.command) {
       case 'ready':
@@ -827,6 +950,11 @@ export class AnchorService {
     }
   }
 
+  /**
+   * @description 处理思维导图中的锚点操作
+   *
+   * @param message Webview 锚点操作消息
+   */
   private async handleMindMapAnchorAction(message: AnchorWebviewMessage): Promise<void> {
     if (!message.anchorId) return;
 
@@ -891,6 +1019,11 @@ export class AnchorService {
     };
   }
 
+  /**
+   * @description 展示一级锚点分组列表
+   *
+   * @param isPreviewMode 是否为预览模式
+   */
   private showGroupList(isPreviewMode: boolean): void {
     const getGroupItems = (): vscode.QuickPickItem[] => {
       const groups = this.getGroups();
@@ -931,6 +1064,11 @@ export class AnchorService {
     quickPick.show();
   }
 
+  /**
+   * @description 删除或清空指定分组
+   *
+   * @param groupName 分组名称
+   */
   private async handleDeleteGroup(groupName: string): Promise<void> {
     const isDefault = this.defaultGroups.includes(groupName);
 
@@ -950,11 +1088,19 @@ export class AnchorService {
       this.removeGroup(groupName);
     }
 
-    this.updateDecorations();
-
     vscode.window.showInformationMessage(`已${isDefault ? '清空' : '删除'}分组 [${groupName}]`);
   }
 
+  /**
+   * @description 获取锚点 QuickPick 操作按钮
+   *
+   * @param anchor 锚点数据
+   * @param index 当前锚点索引
+   * @param total 当前列表总数
+   * @param isPreviewMode 是否为预览模式
+   * @param hasDefaultAnchorId 是否存在默认选中锚点
+   * @returns QuickPick 按钮列表
+   */
   private getAnchorButtons(anchor: AnchorData, index: number, total: number, isPreviewMode: boolean, hasDefaultAnchorId: boolean): vscode.QuickInputButton[] {
     const buttons: vscode.QuickInputButton[] = [];
 
@@ -1041,6 +1187,14 @@ export class AnchorService {
     ];
   }
 
+  /**
+   * @description 查看指定锚点的子分组
+   *
+   * @param anchorId 锚点 ID
+   * @param pinnedLineIndex 待插入行索引
+   * @param isPreviewMode 是否为预览模式
+   * @param defaultAnchorId 默认选中的锚点 ID
+   */
   private async handleViewChildren(anchorId: string, pinnedLineIndex?: number, isPreviewMode?: boolean, defaultAnchorId?: string): Promise<void> {
     const targetAnchor = this.getAnchorById(anchorId);
 
@@ -1070,6 +1224,12 @@ export class AnchorService {
     await this.showAnchorList(childGroupName, false, ctx.uiLineNumber);
   }
 
+  /**
+   * @description 为指定锚点创建子分组
+   *
+   * @param parentId 父锚点 ID
+   * @param pinnedLineIndex 待添加的行索引
+   */
   private async handleCreateSubGroup(parentId: string, pinnedLineIndex?: number): Promise<void> {
     const parentAnchor = this.getAnchorById(parentId);
 
@@ -1101,13 +1261,20 @@ export class AnchorService {
         group: targetGroupName,
       });
       vscode.window.showInformationMessage(`已创建子分组: ${targetGroupName}`);
-      this.updateDecorations();
       return;
     }
 
     vscode.window.showInformationMessage(`已为记录创建子分组结构: ${targetGroupName}`);
   }
 
+  /**
+   * @description 处理插入锚点操作
+   *
+   * @param targetId 目标锚点 ID
+   * @param position 插入位置
+   * @param groupName 分组名称
+   * @param pinnedLineIndex 待插入的行索引
+   */
   private async handleInsertAnchor(targetId: string, position: AnchorInsertPosition, groupName: string, pinnedLineIndex?: number): Promise<void> {
     const ctx = this.getEditorContext(pinnedLineIndex);
 
@@ -1124,8 +1291,6 @@ export class AnchorService {
       targetId,
       position,
     );
-
-    this.updateDecorations();
 
     vscode.window.showInformationMessage(`已插入第 ${ctx.uiLineNumber} 行`);
   }
@@ -1154,6 +1319,12 @@ export class AnchorService {
     }
   }
 
+  /**
+   * @description 根据文件扩展名获取 QuickPick 展示图标
+   *
+   * @param filePath 文件路径
+   * @returns VS Code codicon 字符串
+   */
   private getIconForFile(filePath: string): string {
     const ext = path.extname(filePath).toLowerCase();
 
@@ -1183,18 +1354,22 @@ export class AnchorService {
     }
   }
 
-  private disposeDecorations(): void {
-    this.decorationTypes.forEach((decoration) => {
-      decoration.dispose();
-    });
 
-    this.decorationTypes.clear();
-  }
-
+  /**
+   * @description 创建锚点 ID
+   *
+   * @returns 基于时间戳和随机字符串生成的 ID
+   */
   private createId(): string {
     return `${Date.now()}${Math.random().toString(36).slice(2, 7)}`;
   }
 
+  /**
+   * @description 将未知错误转换为可展示的错误文本
+   *
+   * @param error 未知错误对象
+   * @returns 错误消息字符串
+   */
   private toErrorMessage(error: unknown): string {
     if (error instanceof Error) {
       return error.message;
