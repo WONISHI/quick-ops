@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import { getReactWebviewHtml } from '../../../utils/WebviewHelper';
-import { ExtensionContextProvider } from '../../../common/providers/extension-context.provider';
+import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 
 export class DevToolsWebviewProvider implements vscode.WebviewViewProvider {
   public static inject = [ExtensionContextProvider];

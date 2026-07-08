@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import ColorLog from '../../utils/ColorLog';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { DevToolsWebviewProvider } from './providers/devtools-webview.provider';
+import ColorLog from '@utils/ColorLog';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { DevToolsWebviewProvider } from '@modules/devtools/providers/devtools-webview.provider';
 
 export class DevToolsController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, DevToolsWebviewProvider];

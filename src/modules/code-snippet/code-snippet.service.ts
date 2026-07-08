@@ -1,17 +1,10 @@
 import * as vscode from 'vscode';
 import { TextDecoder } from 'util';
-
-import { TemplateEngine } from '../../utils/TemplateEngine';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { WorkspaceContextService } from '../../common/services/workspace-context.service';
-
-import type { IWorkspaceContext } from '../../core/types/work-space';
-import type {
-  CodeSnippetDependencyScope,
-  CodeSnippetInputInfo,
-  CodeSnippetItem,
-  CodeSnippetLanguageScope,
-} from './code-snippet.type';
+import { TemplateEngine } from '@utils/TemplateEngine';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { WorkspaceContextService } from '@common/services/workspace-context.service';
+import type { IWorkspaceContext } from '@core/types/work-space';
+import type { CodeSnippetDependencyScope, CodeSnippetInputInfo, CodeSnippetItem, CodeSnippetLanguageScope } from '@modules/code-snippet/code-snippet.type';
 
 export class CodeSnippetService {
   public static inject = [ExtensionContextProvider, WorkspaceContextService];
@@ -30,10 +23,7 @@ export class CodeSnippetService {
     await this.loadWorkspaceSnippets();
   }
 
-  public provideSnippets(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-  ): vscode.CompletionItem[] {
+  public provideSnippets(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] {
     if (this.cachedSnippets.length === 0) return [];
 
     const inputInfo = this.getCurrentInputInfo(document, position);
@@ -49,11 +39,11 @@ export class CodeSnippetService {
     const currentLangId = document.languageId;
     const workspaceContext = this.workspaceContextService.context;
 
-    const validSnippets = this.cachedSnippets.filter(item => {
+    const validSnippets = this.cachedSnippets.filter((item) => {
       return this.isSnippetAvailable(item, inputInfo.wordBefore, currentLangId, workspaceContext);
     });
 
-    return validSnippets.map(item => {
+    return validSnippets.map((item) => {
       return this.createCompletionItem(item, inputInfo, position, currentLangId, workspaceContext);
     });
   }
@@ -100,7 +90,7 @@ export class CodeSnippetService {
 
       const results = await Promise.all(readTasks);
 
-      results.forEach(items => {
+      results.forEach((items) => {
         this.cachedSnippets.push(...items);
       });
     } catch (error) {
@@ -111,18 +101,13 @@ export class CodeSnippetService {
   private async loadWorkspaceSnippets(): Promise<void> {
     const context = this.extensionContextProvider.getContext();
 
-    const workspaceSnippets = context.workspaceState.get<CodeSnippetItem[]>(
-      'quickOps.workspaceSnippets',
-      [],
-    );
+    const workspaceSnippets = context.workspaceState.get<CodeSnippetItem[]>('quickOps.workspaceSnippets', []);
 
     if (!Array.isArray(workspaceSnippets) || workspaceSnippets.length === 0) {
       return;
     }
 
-    const normalizedSnippets = workspaceSnippets
-      .map(item => this.normalizeSnippetItem(item, item.origin || 'workspace'))
-      .filter(Boolean) as CodeSnippetItem[];
+    const normalizedSnippets = workspaceSnippets.map((item) => this.normalizeSnippetItem(item, item.origin || 'workspace')).filter(Boolean) as CodeSnippetItem[];
 
     this.cachedSnippets.push(...normalizedSnippets);
   }
@@ -143,12 +128,7 @@ export class CodeSnippetService {
     };
   }
 
-  private isSnippetAvailable(
-    item: CodeSnippetItem,
-    input: string,
-    currentLangId: string,
-    context: IWorkspaceContext,
-  ): boolean {
+  private isSnippetAvailable(item: CodeSnippetItem, input: string, currentLangId: string, context: IWorkspaceContext): boolean {
     if (!this.isPrefixMatched(item.prefix, input)) {
       return false;
     }
@@ -176,10 +156,7 @@ export class CodeSnippetService {
     return true;
   }
 
-  private isLanguageMatched(
-    languageScope: CodeSnippetLanguageScope,
-    currentLangId: string,
-  ): boolean {
+  private isLanguageMatched(languageScope: CodeSnippetLanguageScope, currentLangId: string): boolean {
     if (Array.isArray(languageScope)) {
       return languageScope.includes(currentLangId);
     }
@@ -187,10 +164,7 @@ export class CodeSnippetService {
     return languageScope === currentLangId;
   }
 
-  private isDependencyMatched(
-    dependencyScope: CodeSnippetDependencyScope,
-    context: IWorkspaceContext,
-  ): boolean {
+  private isDependencyMatched(dependencyScope: CodeSnippetDependencyScope, context: IWorkspaceContext): boolean {
     if (dependencyScope === 'vue') {
       return context.isVue3 || context.hasDependency('vue');
     }
@@ -238,20 +212,14 @@ export class CodeSnippetService {
     completion.sortText = '0';
     completion.insertText = new vscode.SnippetString(result);
 
-    completion.documentation = new vscode.MarkdownString().appendCodeblock(
-      result,
-      item.style || currentLangId,
-    );
+    completion.documentation = new vscode.MarkdownString().appendCodeblock(result, item.style || currentLangId);
 
     completion.range = new vscode.Range(inputInfo.startPosition, position);
 
     return completion;
   }
 
-  private getCurrentInputInfo(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-  ): CodeSnippetInputInfo {
+  private getCurrentInputInfo(document: vscode.TextDocument, position: vscode.Position): CodeSnippetInputInfo {
     const lineText = document.lineAt(position.line).text;
     const beforeText = lineText.slice(0, position.character);
     const afterText = lineText.slice(position.character);
@@ -262,10 +230,7 @@ export class CodeSnippetService {
     const wordBefore = beforeMatch ? beforeMatch[0] : '';
     const wordAfter = afterMatch ? afterMatch[0] : '';
 
-    const startPosition = new vscode.Position(
-      position.line,
-      position.character - wordBefore.length,
-    );
+    const startPosition = new vscode.Position(position.line, position.character - wordBefore.length);
 
     return {
       wordBefore,
@@ -278,7 +243,7 @@ export class CodeSnippetService {
     if (!input) return false;
 
     if (Array.isArray(prefix)) {
-      return prefix.some(item => item.startsWith(input));
+      return prefix.some((item) => item.startsWith(input));
     }
 
     return prefix.startsWith(input);

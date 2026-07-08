@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import ColorLog from '../../utils/ColorLog';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { ClipboardTransformService } from './clipboard-transform.service';
+import ColorLog from '@utils/ColorLog';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { ClipboardTransformService } from '@modules/clipboard-transform/clipboard-transform.service';
 
 export class ClipboardTransformController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, ClipboardTransformService];
