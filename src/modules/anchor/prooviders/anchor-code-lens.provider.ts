@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
 import { ExtensionContextProvider } from '@/common/providers/extension-context.provider';
 import { ColorUtils } from '@/utils/ColorUtils';
-import { AnchorService } from '../anchor.service';
-import type { AnchorData } from '../anchor.type';
+import { AnchorService } from '@modules/anchor/anchor.service';
+import type { AnchorData } from '@modules/anchor/anchor.type';
 
 export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
   private readonly changeEmitter = new vscode.EventEmitter<void>();
