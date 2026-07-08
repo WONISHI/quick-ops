@@ -1,12 +1,6 @@
 import * as vscode from 'vscode';
 import { camelCase, kebabCase, snakeCase, upperFirst } from 'lodash-es';
-
-export type ClipboardTransformType =
-  | 'lower'
-  | 'camel'
-  | 'pascal'
-  | 'kebab'
-  | 'constant';
+import type { ClipboardTransformType } from '@modules/clipboard-transform/clipboard-transform.type';
 
 export class ClipboardTransformService {
   public async transformSelection(type: ClipboardTransformType): Promise<void> {
@@ -26,7 +20,7 @@ export class ClipboardTransformService {
     const text = editor.document.getText(selection);
     const result = this.transformText(text, type);
 
-    await editor.edit(editBuilder => {
+    await editor.edit((editBuilder) => {
       editBuilder.replace(selection, result);
     });
   }
