@@ -1,26 +1,42 @@
 import styles from '@pages/anchor-app/components/anchor-app-inner/index.module.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Background, Controls, ReactFlow, useReactFlow } from '@xyflow/react';
+import { applyNodeChanges, Background, BezierEdge, Controls, ReactFlow, useReactFlow } from '@xyflow/react';
 import { vscode } from '@utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCompress, faExpand, faMinus, faPenToSquare, faPlus, faRotateRight, faTag, faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faCompress, faExpand, faPenToSquare, faRotateRight, faTag, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { faFileCode as faFileCodeReg, faFolderOpen as faFolderOpenReg } from '@fortawesome/free-regular-svg-icons';
 import AnchorNode from '@pages/anchor-app/components/anchor-node';
 import { createFlowData, getNodeRawData } from '@pages/anchor-app/src/flow';
-import type { MouseEvent } from 'react';
-import type { NodeTypes } from '@xyflow/react';
+import type { MouseEvent as ReactMouseEvent } from 'react';
+import type { NodeChange, NodeTypes, OnNodeDrag } from '@xyflow/react';
 import type { AnchorData, AnchorFlowEdge, AnchorFlowNode, TooltipState, TreeNodeData } from '@pages/anchor-app/src/type';
 
 const nodeTypes = {
   anchorNode: AnchorNode,
 } as NodeTypes;
 
+type NodePositionMap = Record<string, { x: number; y: number }>;
+
 export default function AnchorAppInner() {
-  const { fitView, zoomIn, zoomOut } = useReactFlow<AnchorFlowNode, AnchorFlowEdge>();
+  const { fitView } = useReactFlow<AnchorFlowNode, AnchorFlowEdge>();
 
   const [mindMapData, setMindMapData] = useState<TreeNodeData | null>(null);
   const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
+  const [nodePositionMap, setNodePositionMap] = useState<NodePositionMap>({});
+  const [nodes, setNodes] = useState<AnchorFlowNode[]>([]);
+  const [edges, setEdges] = useState<AnchorFlowEdge[]>([]);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  /**
+   * @description 首次加载 / 手动刷新时先隐藏画布
+   *
+   * 原因：
+   * ReactFlow 会先按默认 viewport 渲染一次，
+   * 然后 fitView 再把画布移动到中心。
+   * 如果不隐藏，就会看到“从顶部掉到中心”的效果。
+   */
+  const [isFlowReady, setIsFlowReady] = useState(false);
+
   const [tooltip, setTooltip] = useState<TooltipState>({
     visible: false,
     x: 0,
@@ -29,6 +45,25 @@ export default function AnchorAppInner() {
   });
 
   const tooltipTimerRef = useRef<number | undefined>(undefined);
+  const fitViewTimerRef = useRef<number | undefined>(undefined);
+  const syncFlowRafRef = useRef<number | undefined>(undefined);
+  const nodesChangeRafRef = useRef<number | undefined>(undefined);
+  const pendingNodeChangesRef = useRef<NodeChange<AnchorFlowNode>[]>([]);
+  const nodesRef = useRef<AnchorFlowNode[]>([]);
+  const isNodeDraggingRef = useRef(false);
+
+  /**
+   * @description 是否需要执行 fitView
+   *
+   * 只有首次加载 / 手动刷新数据时才需要。
+   * 展开 / 收起节点时不要 fitView，
+   * 否则会出现画布自动放大 / 缩小。
+   */
+  const shouldFitViewRef = useRef(true);
+
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
 
   const clearTooltipTimer = useCallback((): void => {
     if (tooltipTimerRef.current) {
@@ -37,6 +72,36 @@ export default function AnchorAppInner() {
     }
   }, []);
 
+  const clearFitViewTimer = useCallback((): void => {
+    if (fitViewTimerRef.current) {
+      window.clearTimeout(fitViewTimerRef.current);
+      fitViewTimerRef.current = undefined;
+    }
+  }, []);
+
+  const clearSyncFlowRaf = useCallback((): void => {
+    if (syncFlowRafRef.current) {
+      window.cancelAnimationFrame(syncFlowRafRef.current);
+      syncFlowRafRef.current = undefined;
+    }
+  }, []);
+
+  const clearNodesChangeRaf = useCallback((): void => {
+    if (nodesChangeRafRef.current) {
+      window.cancelAnimationFrame(nodesChangeRafRef.current);
+      nodesChangeRafRef.current = undefined;
+    }
+
+    pendingNodeChangesRef.current = [];
+  }, []);
+
+  /**
+   * @description 展开 / 收起节点
+   *
+   * 注意：
+   * 这里不要把 shouldFitViewRef.current 改成 true。
+   * 否则收起节点时会重新 fitView，画布会自动放大。
+   */
   const handleToggle = useCallback((nodeId: string): void => {
     setCollapsedMap((prev) => ({
       ...prev,
@@ -62,6 +127,11 @@ export default function AnchorAppInner() {
     }, 220);
   }, [clearTooltipTimer]);
 
+  /**
+   * @description 根据 VSCode 侧传入的数据生成 React Flow 数据
+   *
+   * createFlowData 内部会使用 dagre 自动布局。
+   */
   const flowData = useMemo(() => {
     return createFlowData(mindMapData, collapsedMap, {
       onToggle: handleToggle,
@@ -69,16 +139,91 @@ export default function AnchorAppInner() {
     });
   }, [mindMapData, collapsedMap, handleToggle, handleJump]);
 
+  /**
+   * @description 合并自动布局位置和用户拖拽位置
+   */
+  const mergedNodes = useMemo(() => {
+    return flowData.nodes.map((node) => {
+      const position = nodePositionMap[node.id];
+
+      if (!position) {
+        return node;
+      }
+
+      return {
+        ...node,
+        position,
+      };
+    });
+  }, [flowData.nodes, nodePositionMap]);
+
+  /**
+   * @description 同步 React Flow nodes / edges
+   *
+   * 不在 effect 主体里直接 setState，
+   * 而是放到 requestAnimationFrame 中，避免 React lint 提示：
+   * Calling setState synchronously within an effect can trigger cascading renders
+   */
+  useEffect(() => {
+    clearSyncFlowRaf();
+
+    syncFlowRafRef.current = window.requestAnimationFrame(() => {
+      setNodes(mergedNodes);
+      setEdges(flowData.edges);
+      nodesRef.current = mergedNodes;
+      syncFlowRafRef.current = undefined;
+
+      if (mergedNodes.length === 0) {
+        setIsFlowReady(true);
+        return;
+      }
+
+      /**
+       * 只有首次加载 / 手动刷新时执行 fitView。
+       * 展开 / 收起节点不会触发这里的 fitView。
+       */
+      if (shouldFitViewRef.current) {
+        clearFitViewTimer();
+
+        fitViewTimerRef.current = window.setTimeout(() => {
+          fitView({
+            padding: 0.18,
+            duration: 0,
+          });
+
+          shouldFitViewRef.current = false;
+          setIsFlowReady(true);
+        }, 0);
+
+        return;
+      }
+
+      setIsFlowReady(true);
+    });
+
+    return () => {
+      clearSyncFlowRaf();
+    };
+  }, [clearFitViewTimer, clearSyncFlowRaf, fitView, flowData.edges, mergedNodes]);
+
   useEffect(() => {
     const handleMessage = (event: MessageEvent): void => {
       const message = event.data;
-      console.log(event)
 
       if (message.command === 'refresh' && message.data) {
+        clearTooltipTimer();
+
         setTooltip((prev) => ({
           ...prev,
           visible: false,
         }));
+
+        /**
+         * VSCode 侧刷新数据时，重新隐藏画布，
+         * 等 fitView 完成后再显示，避免顶部闪一下。
+         */
+        shouldFitViewRef.current = true;
+        setIsFlowReady(false);
         setMindMapData(message.data);
       }
     };
@@ -92,23 +237,11 @@ export default function AnchorAppInner() {
     return () => {
       window.removeEventListener('message', handleMessage);
       clearTooltipTimer();
+      clearFitViewTimer();
+      clearSyncFlowRaf();
+      clearNodesChangeRaf();
     };
-  }, [clearTooltipTimer]);
-
-  useEffect(() => {
-    if (flowData.nodes.length === 0) return;
-
-    const timer = window.setTimeout(() => {
-      fitView({
-        padding: 0.18,
-        duration: 350,
-      });
-    }, 60);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [flowData.nodes.length, fitView]);
+  }, [clearFitViewTimer, clearNodesChangeRaf, clearSyncFlowRaf, clearTooltipTimer]);
 
   const handleRefresh = (): void => {
     vscode?.postMessage({
@@ -122,13 +255,6 @@ export default function AnchorAppInner() {
     });
 
     setIsFullscreen((prev) => !prev);
-  };
-
-  const handleFitView = (): void => {
-    fitView({
-      padding: 0.18,
-      duration: 350,
-    });
   };
 
   const handleAnchorAction = (action: 'edit' | 'delete'): void => {
@@ -146,8 +272,40 @@ export default function AnchorAppInner() {
     }));
   };
 
+  /**
+   * @description 节点变化
+   *
+   * 拖拽过程中实时更新 nodes，
+   * 但是用 requestAnimationFrame 合并高频变化，
+   * 避免 Webview 拖动时白屏。
+   */
+  const handleNodesChange = useCallback((changes: NodeChange<AnchorFlowNode>[]): void => {
+    pendingNodeChangesRef.current.push(...changes);
+
+    if (nodesChangeRafRef.current) return;
+
+    nodesChangeRafRef.current = window.requestAnimationFrame(() => {
+      const pendingChanges = pendingNodeChangesRef.current;
+
+      pendingNodeChangesRef.current = [];
+      nodesChangeRafRef.current = undefined;
+
+      if (pendingChanges.length === 0) return;
+
+      setNodes((currentNodes) => {
+        const nextNodes = applyNodeChanges(pendingChanges, currentNodes) as AnchorFlowNode[];
+
+        nodesRef.current = nextNodes;
+
+        return nextNodes;
+      });
+    });
+  }, []);
+
   const handleNodeMouseEnter = useCallback(
-    (event: MouseEvent, node: AnchorFlowNode): void => {
+    (event: ReactMouseEvent, node: AnchorFlowNode): void => {
+      if (isNodeDraggingRef.current) return;
+
       const raw = getNodeRawData(node.data.treeData);
 
       if (!raw) return;
@@ -165,7 +323,9 @@ export default function AnchorAppInner() {
   );
 
   const handleNodeMouseMove = useCallback(
-    (event: MouseEvent, node: AnchorFlowNode): void => {
+    (event: ReactMouseEvent, node: AnchorFlowNode): void => {
+      if (isNodeDraggingRef.current) return;
+
       const raw = getNodeRawData(node.data.treeData);
 
       if (!raw) return;
@@ -183,8 +343,51 @@ export default function AnchorAppInner() {
   );
 
   const handleNodeMouseLeave = useCallback((): void => {
+    if (isNodeDraggingRef.current) return;
+
     handleHideTooltip();
   }, [handleHideTooltip]);
+
+  const handleNodeDragStart = useCallback<OnNodeDrag<AnchorFlowNode>>((): void => {
+    isNodeDraggingRef.current = true;
+
+    clearTooltipTimer();
+
+    setTooltip((prev) => ({
+      ...prev,
+      visible: false,
+    }));
+  }, [clearTooltipTimer]);
+
+  /**
+   * @description 拖拽结束后保存最终位置
+   *
+   * 拖拽过程中只更新 nodes。
+   * 松手后才把最终位置保存到 nodePositionMap，
+   * 这样后续展开 / 收起 / 刷新布局时可以保留用户拖过的位置。
+   */
+  const handleNodeDragStop = useCallback<OnNodeDrag<AnchorFlowNode>>((_event, node): void => {
+    isNodeDraggingRef.current = false;
+
+    const latestNode = nodesRef.current.find((item) => item.id === node.id) || node;
+    const nextPosition = latestNode.position;
+
+    setNodePositionMap((prev) => {
+      const oldPosition = prev[node.id];
+
+      if (oldPosition?.x === nextPosition.x && oldPosition?.y === nextPosition.y) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [node.id]: {
+          x: nextPosition.x,
+          y: nextPosition.y,
+        },
+      };
+    });
+  }, []);
 
   const handleTooltipMouseEnter = (): void => {
     clearTooltipTimer();
@@ -208,43 +411,44 @@ export default function AnchorAppInner() {
         </button>
       </div>
 
-      <div className={styles.bottomControls}>
-        <button className={styles.iconBtn} onClick={() => zoomOut({ duration: 200 })} title="缩小">
-          <FontAwesomeIcon icon={faMinus} />
-        </button>
-
-        <button className={styles.iconBtn} onClick={handleFitView} title="适应视口">
-          <FontAwesomeIcon icon={faExpand} />
-        </button>
-
-        <button className={styles.iconBtn} onClick={() => zoomIn({ duration: 200 })} title="放大">
-          <FontAwesomeIcon icon={faPlus} />
-        </button>
-      </div>
-
-      <ReactFlow<AnchorFlowNode, AnchorFlowEdge>
-        className={styles.treeContainer}
-        nodes={flowData.nodes}
-        edges={flowData.edges}
-        nodeTypes={nodeTypes}
-        fitView
-        minZoom={0.1}
-        maxZoom={4}
-        nodesDraggable
-        nodesConnectable={false}
-        elementsSelectable
-        onNodeMouseEnter={handleNodeMouseEnter}
-        onNodeMouseMove={handleNodeMouseMove}
-        onNodeMouseLeave={handleNodeMouseLeave}
-        proOptions={{
-          hideAttribution: true,
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          opacity: isFlowReady ? 1 : 0,
+          transition: isFlowReady ? 'opacity 0.12s ease' : 'none',
         }}
       >
-        <Background gap={18} size={1} />
-        <Controls showInteractive={false} position="bottom-right" />
-      </ReactFlow>
+        <ReactFlow<AnchorFlowNode, AnchorFlowEdge>
+          className={styles.treeContainer}
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          minZoom={0.1}
+          maxZoom={4}
+          nodesDraggable
+          nodesConnectable={false}
+          elementsSelectable
+          zoomOnDoubleClick={false}
+          onNodesChange={handleNodesChange}
+          onNodeDragStart={handleNodeDragStart}
+          onNodeDragStop={handleNodeDragStop}
+          edgeTypes={{
+            default: BezierEdge,
+          }}
+          onNodeMouseEnter={handleNodeMouseEnter}
+          onNodeMouseMove={handleNodeMouseMove}
+          onNodeMouseLeave={handleNodeMouseLeave}
+          proOptions={{
+            hideAttribution: true,
+          }}
+        >
+          <Background gap={18} size={1} />
+          <Controls showInteractive={false} position="bottom-right" />
+        </ReactFlow>
+      </div>
 
-      {flowData.nodes.length === 0 && <div className={styles.empty}>暂无锚点数据</div>}
+      {isFlowReady && nodes.length === 0 && <div className={styles.empty}>暂无锚点数据</div>}
 
       {tooltip.visible && tooltip.data && (
         <div
