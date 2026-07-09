@@ -1,0 +1,133 @@
+.nodeCard {
+  width: 230px;
+  height: 48px;
+  box-sizing: border-box;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--node-color) 62%, var(--vscode-widget-border));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--node-color) 10%, transparent),
+      color-mix(in srgb, var(--vscode-editor-background) 92%, transparent)
+    );
+  color: var(--vscode-editor-foreground);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  transition:
+    transform 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+
+.nodeCard:hover {
+  transform: translateY(-1px);
+  border-color: var(--node-color);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+}
+
+.groupNode {
+  font-weight: 600;
+}
+
+.anchorNode {
+  font-weight: 500;
+}
+
+.nodeDot {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid var(--node-color);
+  background: var(--node-color);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vscode-editor-background);
+  font-size: 10px;
+}
+
+.expandableDot {
+  background: var(--vscode-editor-background);
+}
+
+.expandableDot:hover {
+  background: color-mix(in srgb, var(--node-color) 24%, var(--vscode-editor-background));
+}
+
+.nodeBadge {
+  color: var(--node-color);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.nodeLabel {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--vscode-editor-foreground);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.nodeLabel:hover {
+  color: var(--vscode-textLink-activeForeground);
+}
+
+.nodeText {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+}
+
+.linkIcon {
+  flex: none;
+  color: var(--vscode-textLink-foreground, #3794ff);
+  font-size: 11px;
+}
+
+.jumpBtn {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  color: var(--vscode-textLink-foreground, #3794ff);
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    opacity 0.16s ease,
+    background 0.16s ease;
+}
+
+.nodeCard:hover .jumpBtn {
+  opacity: 1;
+}
+
+.jumpBtn:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.nodeHandle {
+  opacity: 0;
+  pointer-events: none;
+}

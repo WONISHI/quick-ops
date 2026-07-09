@@ -1,3 +1,4 @@
+import styles from '@pages/anchor-app/ccomponents/anchor-app-inner/index.module.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Background, Controls, ReactFlow, useReactFlow } from '@xyflow/react';
 import { vscode } from '@utils/vscode';
@@ -6,7 +7,6 @@ import { faCompress, faExpand, faMinus, faPenToSquare, faPlus, faRotateRight, fa
 import { faFileCode as faFileCodeReg, faFolderOpen as faFolderOpenReg } from '@fortawesome/free-regular-svg-icons';
 import AnchorNode from '@pages/anchor-app/components/anchor-node';
 import { createFlowData, getNodeRawData } from '@pages/anchor-app/src/flow';
-import styles from '@pages/anchor-app/index.module.css';
 import type { MouseEvent } from 'react';
 import type { NodeTypes } from '@xyflow/react';
 import type { AnchorData, AnchorFlowEdge, AnchorFlowNode, TooltipState, TreeNodeData } from '@pages/anchor-app/src/type';

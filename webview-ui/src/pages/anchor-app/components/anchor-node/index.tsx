@@ -1,9 +1,9 @@
+import styles from '@pages/anchor-app/ccomponents/anchor-node/index.module.css';
 import { Handle, Position } from '@xyflow/react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faLink } from '@fortawesome/free-solid-svg-icons';
 import { colorList } from '@pages/anchor-app/src/constants';
 import { getNodeRawData } from '@pages/anchor-app/src/flow';
-import styles from '@pages/anchor-app/index.module.css';
 import type { CSSProperties, MouseEvent } from 'react';
 import type { NodeProps } from '@xyflow/react';
 import type { AnchorFlowNode } from '@pages/anchor-app/src/type';
