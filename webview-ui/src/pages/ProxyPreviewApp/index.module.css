@@ -202,3 +202,9 @@
   color: var(--vscode-foreground);
   font-size: 14px;
 }
+
+@media (max-width: 520px) {
+  .rule-inputs {
+    grid-template-columns: 1fr;
+  }
+}

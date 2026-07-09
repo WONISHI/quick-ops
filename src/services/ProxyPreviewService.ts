@@ -3,7 +3,8 @@ import * as https from 'https';
 import * as net from 'net';
 import * as tls from 'tls';
 import * as vscode from 'vscode';
-import type { IncomingMessage, ServerResponse } from 'http';
+import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from 'http';
+import type { Duplex } from 'stream';
 
 export interface ProxyRule {
   id: string;
@@ -67,6 +68,7 @@ const DEFAULT_DEV_SERVER_PATHS = [
 
 export default class ProxyPreviewService {
   private server?: http.Server;
+  private activeConfig: ProxyPreviewConfig | undefined;
 
   constructor(
     private readonly context: vscode.ExtensionContext,
@@ -90,7 +92,9 @@ export default class ProxyPreviewService {
   }
 
   public getConfig(): ProxyPreviewConfig {
-    return this.normalizeConfig(this.context.workspaceState.get<ProxyPreviewConfig>(this.stateKey) || this.getDefaultConfig());
+    return this.normalizeConfig(
+      this.context.workspaceState.get<ProxyPreviewConfig>(this.stateKey) || this.getDefaultConfig(),
+    );
   }
 
   public async saveConfig(config: ProxyPreviewConfig): Promise<ProxyPreviewConfig> {
@@ -98,15 +102,19 @@ export default class ProxyPreviewService {
 
     await this.context.workspaceState.update(this.stateKey, normalizedConfig);
 
+    if (this.server) {
+      this.activeConfig = normalizedConfig;
+    }
+
     return normalizedConfig;
   }
 
-  public getProxyUrl(config = this.getConfig()): string {
+  public getProxyUrl(config = this.activeConfig || this.getConfig()): string {
     return `http://127.0.0.1:${config.port}`;
   }
 
   public getStatus(): ProxyPreviewStatus {
-    const config = this.getConfig();
+    const config = this.activeConfig || this.getConfig();
 
     return {
       running: !!this.server,
@@ -121,6 +129,8 @@ export default class ProxyPreviewService {
     const nextConfig = config ? await this.saveConfig(config) : this.getConfig();
 
     await this.stop();
+
+    this.activeConfig = nextConfig;
 
     this.server = http.createServer((req, res) => {
       void this.handleRequest(req, res, nextConfig);
@@ -162,6 +172,7 @@ export default class ProxyPreviewService {
     const server = this.server;
 
     this.server = undefined;
+    this.activeConfig = undefined;
 
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
@@ -185,30 +196,36 @@ export default class ProxyPreviewService {
 
       res.statusCode = 502;
       res.setHeader('content-type', 'application/json; charset=utf-8');
-      res.end(JSON.stringify({
-        message: 'QuickOps 代理请求失败',
-        error: error?.message || String(error),
-        target,
-      }));
+      res.end(
+        JSON.stringify({
+          message: 'QuickOps 代理请求失败',
+          error: error?.message || String(error),
+          target,
+        }),
+      );
     }
   }
 
-  private handleUpgrade(req: IncomingMessage, socket: net.Socket, head: Buffer, config: ProxyPreviewConfig): void {
+  private handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer, config: ProxyPreviewConfig): void {
     const target = this.resolveTarget(req.url || '/', config);
 
     try {
       const targetUrl = new URL(target);
       const isHttps = targetUrl.protocol === 'https:';
       const port = Number(targetUrl.port || (isHttps ? 443 : 80));
-      const connect = isHttps ? tls.connect : net.connect;
-      const upstreamSocket = connect(port, targetUrl.hostname, () => {
+
+      let upstreamSocket: net.Socket | tls.TLSSocket;
+
+      const handleConnected = () => {
         const requestPath = this.getProxyRequestPath(req.url || '/', targetUrl);
         const headers = this.createProxyHeaders(req.headers, targetUrl, true);
 
         upstreamSocket.write(
           [
             `${req.method} ${requestPath} HTTP/${req.httpVersion}`,
-            ...Object.entries(headers).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`),
+            ...Object.entries(headers).map(([key, value]) => {
+              return `${key}: ${Array.isArray(value) ? value.join(', ') : value}`;
+            }),
             '',
             '',
           ].join('\r\n'),
@@ -220,10 +237,33 @@ export default class ProxyPreviewService {
 
         upstreamSocket.pipe(socket);
         socket.pipe(upstreamSocket);
-      });
+      };
+
+      if (isHttps) {
+        upstreamSocket = tls.connect(
+          {
+            host: targetUrl.hostname,
+            port,
+            servername: targetUrl.hostname,
+          },
+          handleConnected,
+        );
+      } else {
+        upstreamSocket = net.connect(
+          {
+            host: targetUrl.hostname,
+            port,
+          },
+          handleConnected,
+        );
+      }
 
       upstreamSocket.on('error', () => {
         socket.destroy();
+      });
+
+      socket.on('error', () => {
+        upstreamSocket.destroy();
       });
     } catch {
       socket.destroy();
@@ -234,26 +274,28 @@ export default class ProxyPreviewService {
     return new Promise((resolve, reject) => {
       const targetUrl = new URL(target);
       const isHttps = targetUrl.protocol === 'https:';
-      const client = isHttps ? https : http;
       const requestPath = this.getProxyRequestPath(req.url || '/', targetUrl);
       const headers = this.createProxyHeaders(req.headers, targetUrl);
 
-      const proxyReq = client.request(
-        {
-          protocol: targetUrl.protocol,
-          hostname: targetUrl.hostname,
-          port: targetUrl.port || (isHttps ? 443 : 80),
-          method: req.method,
-          path: requestPath,
-          headers,
-        },
-        (proxyRes) => {
-          res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
-          proxyRes.pipe(res);
-          proxyRes.on('end', resolve);
-          proxyRes.on('error', reject);
-        },
-      );
+      const handleProxyResponse = (proxyRes: IncomingMessage) => {
+        res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
+        proxyRes.pipe(res);
+        proxyRes.on('end', resolve);
+        proxyRes.on('error', reject);
+      };
+
+      const requestOptions: http.RequestOptions = {
+        protocol: targetUrl.protocol,
+        hostname: targetUrl.hostname,
+        port: targetUrl.port || (isHttps ? 443 : 80),
+        method: req.method,
+        path: requestPath,
+        headers,
+      };
+
+      const proxyReq = isHttps
+        ? https.request(requestOptions, handleProxyResponse)
+        : http.request(requestOptions, handleProxyResponse);
 
       proxyReq.on('error', reject);
       req.on('error', reject);
@@ -261,8 +303,8 @@ export default class ProxyPreviewService {
     });
   }
 
-  private createProxyHeaders(headers: IncomingMessage['headers'], targetUrl: URL, isUpgrade = false): IncomingMessage['headers'] {
-    const nextHeaders: IncomingMessage['headers'] = {
+  private createProxyHeaders(headers: IncomingHttpHeaders, targetUrl: URL, isUpgrade = false): IncomingHttpHeaders {
+    const nextHeaders: IncomingHttpHeaders = {
       ...headers,
       host: targetUrl.host,
     };
@@ -308,7 +350,9 @@ export default class ProxyPreviewService {
   }
 
   private isDevServerInternalPath(pathname: string): boolean {
-    return DEFAULT_DEV_SERVER_PATHS.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+    return DEFAULT_DEV_SERVER_PATHS.some((prefix) => {
+      return pathname === prefix || pathname.startsWith(`${prefix}/`);
+    });
   }
 
   private getPathname(rawUrl: string): string {

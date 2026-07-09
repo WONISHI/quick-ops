@@ -119,7 +119,7 @@ export default function ProxyPreviewApp() {
       <header className={styles['proxy-header']}>
         <div>
           <h2>代理预览</h2>
-          <p>不修改 Vite / Webpack 项目代码，通过 QuickOps 本地代理转发后端请求。</p>
+          <p>不修改 Vite / Webpack 项目代码，通过 QuickOps 本地代理转发接口请求。</p>
         </div>
 
         <div className={`${styles['status']} ${status?.running ? styles['running'] : styles['stopped']}`}>
@@ -150,8 +150,7 @@ export default function ProxyPreviewApp() {
         </div>
 
         <div className={styles['proxy-url']}>
-          访问地址：
-          <code>{status?.proxyUrl || `http://127.0.0.1:${config.port}`}</code>
+          访问地址：<code>{status?.proxyUrl || `http://127.0.0.1:${config.port}`}</code>
         </div>
       </section>
 
@@ -232,7 +231,7 @@ export default function ProxyPreviewApp() {
       <section className={styles['tips']}>
         <h3>转发规则</h3>
         <ul>
-          <li>资源文件：`.js`、`.css`、`.less`、`.png`、`.svg`、字体、`.map` 默认走前端服务。</li>
+          <li>资源文件：`.js`、`.css`、`.less`、图片、字体、`.map` 默认走前端服务。</li>
           <li>Vite / Webpack HMR：`/@vite`、`/@react-refresh`、`/sockjs-node`、`/ws` 默认走前端服务。</li>
           <li>接口请求：命中上方规则时转发到后端服务。</li>
           <li>其它请求：默认转发到前端 Dev Server。</li>
