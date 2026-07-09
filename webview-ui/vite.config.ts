@@ -29,7 +29,7 @@ export default defineConfig({
       '@pages': fileURLToPath(new URL('./src/pages', import.meta.url)),
       '@components': fileURLToPath(new URL('./src/components', import.meta.url)),
       '@utils': fileURLToPath(new URL('./src/utils', import.meta.url)),
-      '@app-types': fileURLToPath(new URL('./src/types', import.meta.url)),
+      '@types': fileURLToPath(new URL('./src/types', import.meta.url)),
     },
   },
 
@@ -44,16 +44,16 @@ export default defineConfig({
      */
     license: false,
 
-    terserOptions: {
-      compress: {
-        passes: 2,
-        drop_console: true,
-        drop_debugger: true,
-      },
-      mangle: true,
-      format: {
-        comments: false,
-      },
-    },
+    // terserOptions: {
+    //   compress: {
+    //     passes: 2,
+    //     drop_console: true,
+    //     drop_debugger: true,
+    //   },
+    //   mangle: true,
+    //   format: {
+    //     comments: false,
+    //   },
+    // },
   },
 });

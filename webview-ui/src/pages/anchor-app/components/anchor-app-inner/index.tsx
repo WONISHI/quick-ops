@@ -72,6 +72,7 @@ export default function AnchorAppInner() {
   useEffect(() => {
     const handleMessage = (event: MessageEvent): void => {
       const message = event.data;
+      console.log(event)
 
       if (message.command === 'refresh' && message.data) {
         setTooltip((prev) => ({

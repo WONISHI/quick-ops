@@ -87,7 +87,10 @@
 }
 
 .appWrapper :global(.react-flow__edge-path) {
-  stroke-opacity: 0.55;
+  stroke-opacity: 0.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  shape-rendering: geometricPrecision;
   transition:
     stroke-opacity 0.2s ease,
     stroke-width 0.2s ease;

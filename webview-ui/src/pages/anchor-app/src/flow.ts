@@ -106,15 +106,17 @@ export function createFlowData(
         id: `${parentId}->${nodeId}`,
         source: parentId,
         target: nodeId,
-        type: 'smoothstep',
+        type: 'default',
         markerEnd: {
           type: MarkerType.ArrowClosed,
           width: 14,
           height: 14,
         },
         style: {
-          strokeWidth: 1.5,
+          strokeWidth: 1.6,
           stroke: colorList[colorIndex],
+          strokeLinecap: 'round',
+          strokeLinejoin: 'round',
         },
       });
     }
