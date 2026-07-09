@@ -1,392 +1,561 @@
-import { useEffect, useRef } from 'react';
-import * as d3 from 'd3';
+import '@xyflow/react/dist/style.css';
+
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import dagre from 'dagre';
+import { Background, Controls, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useReactFlow, type NodeProps, type NodeTypes } from '@xyflow/react';
 import { vscode } from '../../utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faExpand, faCompress, faRotateRight, faMinus, faPlus, faTag, faPenToSquare, faTrash, faLink } from '@fortawesome/free-solid-svg-icons';
-import { faFolderOpen as faFolderOpenReg, faFileCode as faFileCodeReg } from '@fortawesome/free-regular-svg-icons';
-import type { TreeNodeData, TreeNode, IconTuple } from '../../types/AnchorApp';
+import { faCompress, faExpand, faMinus, faPenToSquare, faPlus, faRotateRight, faTag, faTrash, faLink } from '@fortawesome/free-solid-svg-icons';
+import { faFileCode as faFileCodeReg, faFolderOpen as faFolderOpenReg } from '@fortawesome/free-regular-svg-icons';
+import type { AnchorData, AnchorFlowEdge, AnchorFlowNode, AnchorFlowNodeData, TooltipState, TreeNodeData } from './src/type';
 import styles from './index.module.css';
-import { getIconSvg, escapeHtml } from "../../utils"
 
-export default function AnchorApp() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  const isFullscreen = useRef(false);
-  const hoverTimeout = useRef<number | undefined>(undefined);
+const NODE_WIDTH = 230;
+const NODE_HEIGHT = 48;
+
+const colorList = ['#4FC3F7', '#81C784', '#FFB74D', '#BA68C8', '#4DB6AC', '#E57373', '#7986CB', '#A1887F'];
+
+/**
+ * @description 获取节点绑定的锚点数据
+ */
+function getNodeRawData(node: TreeNodeData): AnchorData | undefined {
+  return node.data;
+}
+
+/**
+ * @description 生成 React Flow 节点 ID
+ */
+function getNodeId(node: TreeNodeData, path: string[]): string {
+  const raw = getNodeRawData(node);
+
+  if (raw?.id) {
+    return `anchor:${raw.id}`;
+  }
+
+  return `group:${path.join('/') || 'root'}`;
+}
+
+/**
+ * @description 获取节点显示名称
+ */
+function getNodeLabel(node: TreeNodeData): string {
+  const raw = getNodeRawData(node);
+
+  if (raw) {
+    return raw.description || node.name || 'Anchor';
+  }
+
+  return node.name || 'Group';
+}
+
+/**
+ * @description 根据一级分组生成颜色索引
+ */
+function getColorIndex(path: string[]): number {
+  if (path.length <= 1) return 0;
+
+  const key = path[1] || path[0] || 'root';
+  let hash = 0;
+
+  for (let index = 0; index < key.length; index++) {
+    hash = (hash << 5) - hash + key.charCodeAt(index);
+    hash |= 0;
+  }
+
+  return Math.abs(hash) % colorList.length;
+}
+
+/**
+ * @description 将树形锚点数据转换成 React Flow nodes / edges
+ */
+function createFlowData(
+  root: TreeNodeData | null,
+  collapsedMap: Record<string, boolean>,
+  handlers: Pick<AnchorFlowNodeData, 'onToggle' | 'onJump'>,
+): {
+  nodes: AnchorFlowNode[];
+  edges: AnchorFlowEdge[];
+} {
+  if (!root) {
+    return {
+      nodes: [],
+      edges: [],
+    };
+  }
+
+  const nodes: AnchorFlowNode[] = [];
+  const edges: AnchorFlowEdge[] = [];
+
+  const walk = (node: TreeNodeData, path: string[], parentId?: string): void => {
+    const nodeId = getNodeId(node, path);
+    const children = node.children || [];
+    const hasChildren = children.length > 0;
+    const collapsed = !!collapsedMap[nodeId];
+    const colorIndex = getColorIndex(path);
+
+    nodes.push({
+      id: nodeId,
+      type: 'anchorNode',
+      position: {
+        x: 0,
+        y: 0,
+      },
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
+      data: {
+        treeData: node,
+        label: getNodeLabel(node),
+        hasChildren,
+        childCount: children.length,
+        collapsed,
+        colorIndex,
+        ...handlers,
+      },
+    });
+
+    if (parentId) {
+      edges.push({
+        id: `${parentId}->${nodeId}`,
+        source: parentId,
+        target: nodeId,
+        type: 'smoothstep',
+        markerEnd: {
+          type: MarkerType.ArrowClosed,
+          width: 14,
+          height: 14,
+        },
+        style: {
+          strokeWidth: 1.5,
+          stroke: colorList[colorIndex],
+        },
+      });
+    }
+
+    if (!collapsed) {
+      children.forEach((child, index) => {
+        walk(child, [...path, `${child.name || 'node'}-${index}`], nodeId);
+      });
+    }
+  };
+
+  walk(root, [root.name || 'root']);
+
+  return layoutFlow(nodes, edges);
+}
+
+/**
+ * @description 使用 dagre 自动计算思维导图布局
+ */
+function layoutFlow(
+  nodes: AnchorFlowNode[],
+  edges: AnchorFlowEdge[],
+): {
+  nodes: AnchorFlowNode[];
+  edges: AnchorFlowEdge[];
+} {
+  const graph = new dagre.graphlib.Graph();
+
+  graph.setDefaultEdgeLabel(() => ({}));
+  graph.setGraph({
+    rankdir: 'LR',
+    nodesep: 34,
+    ranksep: 110,
+    marginx: 40,
+    marginy: 40,
+  });
+
+  nodes.forEach((node) => {
+    graph.setNode(node.id, {
+      width: NODE_WIDTH,
+      height: NODE_HEIGHT,
+    });
+  });
+
+  edges.forEach((edge) => {
+    graph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(graph);
+
+  return {
+    nodes: nodes.map((node) => {
+      const layoutNode = graph.node(node.id);
+
+      return {
+        ...node,
+        position: {
+          x: layoutNode.x - NODE_WIDTH / 2,
+          y: layoutNode.y - NODE_HEIGHT / 2,
+        },
+      };
+    }),
+    edges,
+  };
+}
+
+/**
+ * @description 自定义锚点节点
+ */
+const AnchorNode = ({ id, data }: NodeProps<AnchorFlowNode>) => {
+  const raw = getNodeRawData(data.treeData);
+  const color = colorList[data.colorIndex];
+  const isAnchor = !!raw;
+
+  const handleMainClick = (event: React.MouseEvent): void => {
+    event.stopPropagation();
+
+    if (isAnchor && raw) {
+      data.onJump(raw);
+      return;
+    }
+
+    if (data.hasChildren) {
+      data.onToggle(id);
+    }
+  };
+
+  const handleToggleClick = (event: React.MouseEvent): void => {
+    event.stopPropagation();
+
+    if (data.hasChildren) {
+      data.onToggle(id);
+    }
+  };
+
+  const handleLinkClick = (event: React.MouseEvent): void => {
+    event.stopPropagation();
+
+    if (raw) {
+      data.onJump(raw);
+    }
+  };
+
+  return (
+    <div
+      className={`${styles.nodeCard} ${isAnchor ? styles.anchorNode : styles.groupNode}`}
+      style={
+        {
+          '--node-color': color,
+        } as React.CSSProperties
+      }
+    >
+      <Handle type="target" position={Position.Left} className={styles.nodeHandle} />
+
+      <button
+        className={`${styles.nodeDot} ${data.hasChildren ? styles.expandableDot : ''}`}
+        onClick={handleToggleClick}
+        title={data.hasChildren ? (data.collapsed ? '展开' : '收起') : ''}
+      >
+        {data.hasChildren && <span className={styles.nodeBadge}>{data.collapsed ? data.childCount : ''}</span>}
+      </button>
+
+      <button className={styles.nodeLabel} onClick={handleMainClick} title={data.label}>
+        {isAnchor && (
+          <span className={styles.linkIcon}>
+            <FontAwesomeIcon icon={faLink} />
+          </span>
+        )}
+
+        <span className={styles.nodeText}>{data.label}</span>
+      </button>
+
+      {isAnchor && (
+        <button className={styles.jumpBtn} onClick={handleLinkClick} title="跳转到代码">
+          <FontAwesomeIcon icon={faLink} />
+        </button>
+      )}
+
+      <Handle type="source" position={Position.Right} className={styles.nodeHandle} />
+    </div>
+  );
+};
+
+const nodeTypes = {
+  anchorNode: AnchorNode,
+} as NodeTypes;
+
+function AnchorAppInner() {
+  const { fitView, zoomIn, zoomOut } = useReactFlow<AnchorFlowNode, AnchorFlowEdge>();
+
+  const [mindMapData, setMindMapData] = useState<TreeNodeData | null>(null);
+  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [tooltip, setTooltip] = useState<TooltipState>({
+    visible: false,
+    x: 0,
+    y: 0,
+    data: null,
+  });
+
+  const tooltipTimerRef = useRef<number | undefined>(undefined);
+
+  const clearTooltipTimer = useCallback((): void => {
+    if (tooltipTimerRef.current) {
+      window.clearTimeout(tooltipTimerRef.current);
+      tooltipTimerRef.current = undefined;
+    }
+  }, []);
+
+  const handleToggle = useCallback((nodeId: string): void => {
+    setCollapsedMap((prev) => ({
+      ...prev,
+      [nodeId]: !prev[nodeId],
+    }));
+  }, []);
+
+  const handleJump = useCallback((data: AnchorData): void => {
+    vscode?.postMessage({
+      command: 'jump',
+      data,
+    });
+  }, []);
+
+  const handleHideTooltip = useCallback((): void => {
+    clearTooltipTimer();
+
+    tooltipTimerRef.current = window.setTimeout(() => {
+      setTooltip((prev) => ({
+        ...prev,
+        visible: false,
+      }));
+    }, 220);
+  }, [clearTooltipTimer]);
+
+  const flowData = useMemo(() => {
+    return createFlowData(mindMapData, collapsedMap, {
+      onToggle: handleToggle,
+      onJump: handleJump,
+    });
+  }, [mindMapData, collapsedMap, handleToggle, handleJump]);
 
   useEffect(() => {
-    if (!containerRef.current) return;
-
-    let i = 0;
-    let root: TreeNode | null = null;
-
-    const colorScale = d3.scaleOrdinal(d3.schemeSet2);
-
-    function getNodeColor(d: TreeNode) {
-      if (d.depth === 0) return 'var(--vscode-editor-foreground, #ccc)';
-      let ancestor = d;
-      while (ancestor.depth > 1 && ancestor.parent) ancestor = ancestor.parent as TreeNode;
-      return colorScale((ancestor.id || ancestor.data.name).toString());
-    }
-
-    const zoom = d3
-      .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.1, 4])
-      .on('zoom', (e) => {
-        if (g) g.attr('transform', e.transform);
-      });
-
-    const svg = d3.select(containerRef.current).append('svg').attr('width', '100%').attr('height', '100%').call(zoom).on('dblclick.zoom', null);
-
-    const g = svg.append('g');
-    const tree = d3.tree<TreeNodeData>().nodeSize([35, 260]);
-    const diagonal = d3
-      .linkHorizontal<d3.HierarchyPointLink<TreeNodeData>, d3.HierarchyPointNode<TreeNodeData>>()
-      .x((d) => d.y)
-      .y((d) => d.x);
-
-    const handleTooltipClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const btn = target.closest('.tooltip-btn') as HTMLElement;
-      if (btn) {
-        const action = btn.dataset.action;
-        const anchorId = btn.dataset.id;
-        if (action && anchorId) {
-          vscode?.postMessage({ command: 'anchorAction', action, anchorId });
-          d3.select(tooltipRef.current).style('opacity', 0).style('pointer-events', 'none');
-        }
-      }
-      e.stopPropagation();
-    };
-
-    const tooltipEl = tooltipRef.current;
-    if (tooltipEl) {
-      tooltipEl.addEventListener('click', handleTooltipClick);
-      tooltipEl.addEventListener('mouseenter', () => window.clearTimeout(hoverTimeout.current));
-      tooltipEl.addEventListener('mouseleave', () => {
-        hoverTimeout.current = window.setTimeout(() => {
-          d3.select(tooltipEl).style('opacity', 0).style('pointer-events', 'none');
-        }, 300);
-      });
-    }
-
-    function centerView(animate = false) {
-      if (!svg || !root || !containerRef.current) return;
-      const w = containerRef.current.clientWidth;
-      const h = containerRef.current.clientHeight;
-
-      let minX = Infinity,
-        maxX = -Infinity,
-        minY = Infinity,
-        maxY = -Infinity;
-
-      root.descendants().forEach((d: TreeNode) => {
-        if (d.x < minX) minX = d.x;
-        if (d.x > maxX) maxX = d.x;
-        if (d.y < minY) minY = d.y;
-        if (d.y > maxY) maxY = d.y;
-      });
-
-      if (minX === Infinity) {
-        minX = 0;
-        maxX = 0;
-        minY = 0;
-        maxY = 0;
-      }
-
-      const graphCenterX = (minY + maxY) / 2;
-      const graphCenterY = (minX + maxX) / 2;
-
-      const tx = w / 2 - graphCenterX;
-      const ty = h / 2 - graphCenterY;
-
-      const transform = d3.zoomIdentity.translate(tx, ty).scale(1);
-
-      if (animate) {
-        (svg.transition().duration(750) as unknown as d3.Selection<SVGSVGElement, unknown, null, undefined>).call(zoom.transform, transform);
-      } else {
-        svg.call(zoom.transform, transform);
-      }
-    }
-
-    function update(source: TreeNode) {
-      if (!root) return;
-
-      const nodes = root.descendants() as TreeNode[];
-      const links = root.links();
-      tree(root);
-
-      const t = svg.transition().duration(400) as unknown as d3.Transition<d3.BaseType, unknown, null, undefined>;
-      const isGroup = (d: TreeNode) => d.data.children && d.data.children.length > 0;
-
-      const node = g.selectAll<SVGGElement, TreeNode>('g.node').data(nodes, (d) => d.id || (d.id = String(++i)));
-
-      const nodeEnter = node
-        .enter()
-        .append('g')
-        .attr('class', 'node')
-        .attr('transform', () => `translate(${source.y0 || source.y},${source.x0 || source.x})`);
-
-      nodeEnter
-        .append('circle')
-        .attr('class', 'outer')
-        .attr('r', 1e-6)
-        .style('stroke', (d) => getNodeColor(d))
-        .on('click', (e, d) => {
-          toggle(d);
-          update(d);
-          e.stopPropagation();
-        });
-
-      nodeEnter
-        .append('circle')
-        .attr('class', 'inner')
-        .attr('r', 1e-6)
-        .style('stroke', (d) => getNodeColor(d))
-        .on('click', (e, d) => {
-          toggle(d);
-          update(d);
-          e.stopPropagation();
-        });
-
-      const linkIconArray = faLink.icon as unknown as IconTuple;
-      nodeEnter
-        .append('path')
-        .attr('class', 'node-icon')
-        .attr('d', linkIconArray[4])
-        .attr('transform', 'translate(12, -7) scale(0.028)')
-        .attr('fill', 'var(--vscode-textLink-foreground)')
-        .style('display', (d) => (d.data.data ? 'block' : 'none'))
-        .on('click', (e, d) => {
-          if (d.data.data) vscode?.postMessage({ command: 'jump', data: d.data.data });
-          e.stopPropagation();
-        });
-
-      nodeEnter
-        .append('text')
-        .attr('class', 'label')
-        .attr('dy', 5)
-        .attr('x', (d) => (d.data.data ? 32 : 14))
-        .style('text-anchor', 'start')
-        .text((d) => (d.data.data ? d.data.data.description || d.data.name : d.data.name))
-        .on('click', (e, d) => {
-          if (d.data.data) vscode?.postMessage({ command: 'jump', data: d.data.data });
-          e.stopPropagation();
-        });
-
-      nodeEnter
-        .append('text')
-        .attr('class', 'badge')
-        .attr('dy', -8)
-        .attr('dx', 8)
-        .style('text-anchor', 'middle')
-        .text((d) => (d._children ? d._children.length : ''))
-        .style('opacity', 0);
-
-      const tooltip = d3.select(tooltipRef.current);
-      nodeEnter
-        .on('mouseenter', (e, d) => {
-          if (!d.data.data) return;
-          window.clearTimeout(hoverTimeout.current);
-
-          const raw = d.data.data;
-          const anchorId = raw.id;
-          const content = raw.content ? escapeHtml(raw.content.trim()) : '';
-          const group = escapeHtml(raw.group) || 'Default';
-          const file = raw.filePath ? escapeHtml(raw.filePath.split('/').pop() || '') : 'Unknown File';
-          const line = raw.line || '?';
-          const desc = escapeHtml(raw.description) || 'Anchor Point';
-
-          const htmlContent = `
-            <div class="tooltip-header">${getIconSvg(faTag)} <span>${desc}</span></div>
-            <div class="tooltip-body">
-               <div class="tooltip-row">${getIconSvg(faFolderOpenReg)} <span class="tooltip-val">${group}</span></div>
-               <div class="tooltip-row">${getIconSvg(faFileCodeReg)} <span class="tooltip-val">${file} : ${line}</span></div>
-               ${content ? `<div class="code-block">${content}</div>` : ''}
-            </div>
-            <div class="tooltip-actions">
-                <button class="tooltip-btn" data-action="edit" data-id="${anchorId}">
-                    ${getIconSvg(faPenToSquare)} 编辑
-                </button>
-                <button class="tooltip-btn danger" data-action="delete" data-id="${anchorId}">
-                    ${getIconSvg(faTrash)} 删除
-                </button>
-            </div>
-        `;
-
-          tooltip
-            .style('opacity', 1)
-            .style('pointer-events', 'auto')
-            .html(htmlContent)
-            .style('left', e.pageX + 20 + 'px')
-            .style('top', e.pageY + 10 + 'px');
-        })
-        .on('mouseleave', () => {
-          hoverTimeout.current = window.setTimeout(() => {
-            tooltip.style('opacity', 0).style('pointer-events', 'none');
-          }, 300);
-        });
-
-      const nodeUpdate = nodeEnter.merge(node);
-      nodeUpdate.transition(t).attr('transform', (d: TreeNode) => `translate(${d.y},${d.x})`);
-
-      nodeUpdate
-        .select('circle.outer')
-        .attr('r', (d) => (isGroup(d as TreeNode) ? 11 : 0))
-        .style('opacity', 0);
-
-      nodeUpdate
-        .select('circle.inner')
-        .attr('r', (d) => (isGroup(d as TreeNode) ? 6 : 4))
-        .style('fill', (d) => (isGroup(d as TreeNode) ? ((d as TreeNode)._children ? getNodeColor(d as TreeNode) : 'var(--vscode-editor-background)') : getNodeColor(d as TreeNode)));
-
-      nodeUpdate
-        .select('.badge')
-        .text((d) => ((d as TreeNode)._children ? (d as TreeNode)._children!.length : ''))
-        .transition(t)
-        .style('opacity', (d) => ((d as TreeNode)._children ? 1 : 0));
-
-      nodeUpdate.select('text.label').text((d) => ((d as TreeNode).data.data ? (d as TreeNode).data.data!.description || (d as TreeNode).data.name : (d as TreeNode).data.name));
-
-      const nodeExit = node
-        .exit()
-        .transition(t)
-        .attr('transform', () => `translate(${source.y},${source.x})`)
-        .remove();
-      nodeExit.selectAll('circle').attr('r', 1e-6);
-      nodeExit.select('text').style('fill-opacity', 1e-6);
-
-      const link = g.selectAll<SVGPathElement, d3.HierarchyLink<TreeNodeData>>('path.link').data(links, (d) => (d.target as TreeNode).id as string);
-
-      const linkEnter = link
-        .enter()
-        .insert('path', 'g')
-        .attr('class', 'link')
-        .attr('fill', 'none')
-        .style('stroke', (d) => getNodeColor(d.target as TreeNode))
-        .attr('d', () => {
-          const o = { x: source.x0 || source.x, y: source.y0 || source.y };
-          return diagonal({ source: o, target: o } as unknown as d3.HierarchyPointLink<TreeNodeData>);
-        });
-
-      link
-        .merge(linkEnter)
-        .transition(t)
-        .attr('d', diagonal as unknown as d3.ValueFn<SVGPathElement, d3.HierarchyLink<TreeNodeData>, string | null>)
-        .style('stroke', (d) => getNodeColor(d.target as TreeNode));
-
-      link
-        .exit()
-        .transition(t)
-        .remove()
-        .attr('d', () => {
-          const o = { x: source.x, y: source.y };
-          return diagonal({ source: o, target: o } as unknown as d3.HierarchyPointLink<TreeNodeData>);
-        });
-
-      nodes.forEach((d) => {
-        d.x0 = d.x;
-        d.y0 = d.y;
-      });
-    }
-
-    function toggle(d: TreeNode) {
-      if (d.children) {
-        d._children = d.children;
-        d.children = undefined;
-      } else {
-        d.children = d._children;
-        d._children = undefined;
-      }
-    }
-
-    const handleMessage = (event: MessageEvent) => {
+    const handleMessage = (event: MessageEvent): void => {
       const message = event.data;
+
       if (message.command === 'refresh' && message.data) {
-        d3.select(tooltipRef.current).style('opacity', 0).style('pointer-events', 'none');
-
-        root = d3.hierarchy<TreeNodeData>(message.data) as TreeNode;
-
-        let idx = 0;
-        root.descendants().forEach((d) => {
-          d.id = String(idx++);
-        });
-
-        tree(root);
-
-        root.x0 = root.x;
-        root.y0 = root.y;
-
-        centerView(false);
-        update(root);
+        setTooltip((prev) => ({
+          ...prev,
+          visible: false,
+        }));
+        setMindMapData(message.data);
       }
     };
 
     window.addEventListener('message', handleMessage);
-    const handleResize = () => {
-      centerView(false);
-    };
-    window.addEventListener('resize', handleResize);
 
-    vscode?.postMessage({ command: 'ready' });
+    vscode?.postMessage({
+      command: 'ready',
+    });
 
     return () => {
       window.removeEventListener('message', handleMessage);
-      window.removeEventListener('resize', handleResize);
-      if (tooltipEl) tooltipEl.removeEventListener('click', handleTooltipClick);
+      clearTooltipTimer();
     };
-  }, []);
+  }, [clearTooltipTimer]);
 
-  const handleZoomIn = () => {
-    const svgSel = d3.select(containerRef.current).select<SVGSVGElement>('svg');
-    (svgSel.transition() as unknown as d3.Selection<SVGSVGElement, unknown, null, undefined>).call(d3.zoom<SVGSVGElement, unknown>().scaleBy, 1.2);
+  useEffect(() => {
+    if (flowData.nodes.length === 0) return;
+
+    const timer = window.setTimeout(() => {
+      fitView({
+        padding: 0.18,
+        duration: 350,
+      });
+    }, 60);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [flowData.nodes.length, fitView]);
+
+  const handleRefresh = (): void => {
+    vscode?.postMessage({
+      command: 'refresh',
+    });
   };
 
-  const handleZoomOut = () => {
-    const svgSel = d3.select(containerRef.current).select<SVGSVGElement>('svg');
-    (svgSel.transition() as unknown as d3.Selection<SVGSVGElement, unknown, null, undefined>).call(d3.zoom<SVGSVGElement, unknown>().scaleBy, 0.8);
+  const handleFullscreen = (): void => {
+    vscode?.postMessage({
+      command: 'toggleFullscreen',
+    });
+
+    setIsFullscreen((prev) => !prev);
   };
 
-  const handleZoomReset = () => {
-    window.dispatchEvent(new Event('resize'));
+  const handleFitView = (): void => {
+    fitView({
+      padding: 0.18,
+      duration: 350,
+    });
   };
 
-  const handleRefresh = () => vscode?.postMessage({ command: 'refresh' });
+  const handleAnchorAction = (action: 'edit' | 'delete'): void => {
+    if (!tooltip.data?.id) return;
 
-  const handleFullscreen = () => {
-    vscode?.postMessage({ command: 'toggleFullscreen' });
-    isFullscreen.current = !isFullscreen.current;
+    vscode?.postMessage({
+      command: 'anchorAction',
+      action,
+      anchorId: tooltip.data.id,
+    });
+
+    setTooltip((prev) => ({
+      ...prev,
+      visible: false,
+    }));
   };
+
+  const handleNodeMouseEnter = useCallback(
+    (event: React.MouseEvent, node: AnchorFlowNode): void => {
+      const raw = getNodeRawData(node.data.treeData);
+
+      if (!raw) return;
+
+      clearTooltipTimer();
+
+      setTooltip({
+        visible: true,
+        x: event.clientX + 18,
+        y: event.clientY + 12,
+        data: raw,
+      });
+    },
+    [clearTooltipTimer],
+  );
+
+  const handleNodeMouseMove = useCallback(
+    (event: React.MouseEvent, node: AnchorFlowNode): void => {
+      const raw = getNodeRawData(node.data.treeData);
+
+      if (!raw) return;
+
+      clearTooltipTimer();
+
+      setTooltip({
+        visible: true,
+        x: event.clientX + 18,
+        y: event.clientY + 12,
+        data: raw,
+      });
+    },
+    [clearTooltipTimer],
+  );
+
+  const handleNodeMouseLeave = useCallback((): void => {
+    handleHideTooltip();
+  }, [handleHideTooltip]);
+
+  const handleTooltipMouseEnter = (): void => {
+    clearTooltipTimer();
+  };
+
+  const handleTooltipMouseLeave = (): void => {
+    handleHideTooltip();
+  };
+
+  const fileName = tooltip.data?.filePath ? tooltip.data.filePath.split(/[\\/]/).pop() || tooltip.data.filePath : 'Unknown File';
 
   return (
     <div className={styles.appWrapper}>
-      {/* 顶部控制栏 */}
       <div className={styles.topControls}>
-        <button className="icon-btn" onClick={handleFullscreen} title={isFullscreen.current ? '恢复默认布局' : '切换编辑器最大化'}>
-          <FontAwesomeIcon icon={isFullscreen.current ? faCompress : faExpand} />
+        <button className={styles.iconBtn} onClick={handleFullscreen} title={isFullscreen ? '恢复默认布局' : '切换编辑器最大化'}>
+          <FontAwesomeIcon icon={isFullscreen ? faCompress : faExpand} />
         </button>
-        <button className="icon-btn" onClick={handleRefresh} title="刷新导图">
+
+        <button className={styles.iconBtn} onClick={handleRefresh} title="刷新导图">
           <FontAwesomeIcon icon={faRotateRight} />
         </button>
       </div>
 
-      {/* 底部缩放栏 */}
       <div className={styles.bottomControls}>
-        <button className="icon-btn" onClick={handleZoomOut} title="缩小">
+        <button className={styles.iconBtn} onClick={() => zoomOut({ duration: 200 })} title="缩小">
           <FontAwesomeIcon icon={faMinus} />
         </button>
-        <button className="icon-btn" onClick={handleZoomReset} title="适应视口">
+
+        <button className={styles.iconBtn} onClick={handleFitView} title="适应视口">
           <FontAwesomeIcon icon={faExpand} />
         </button>
-        <button className="icon-btn" onClick={handleZoomIn} title="放大">
+
+        <button className={styles.iconBtn} onClick={() => zoomIn({ duration: 200 })} title="放大">
           <FontAwesomeIcon icon={faPlus} />
         </button>
       </div>
 
-      {/* D3 SVG 容器 */}
-      <div className={styles.treeContainer} ref={containerRef}></div>
+      <ReactFlow<AnchorFlowNode, AnchorFlowEdge>
+        className={styles.treeContainer}
+        nodes={flowData.nodes}
+        edges={flowData.edges}
+        nodeTypes={nodeTypes}
+        fitView
+        minZoom={0.1}
+        maxZoom={4}
+        nodesDraggable
+        nodesConnectable={false}
+        elementsSelectable
+        onNodeMouseEnter={handleNodeMouseEnter}
+        onNodeMouseMove={handleNodeMouseMove}
+        onNodeMouseLeave={handleNodeMouseLeave}
+        proOptions={{
+          hideAttribution: true,
+        }}
+      >
+        <Background gap={18} size={1} />
+        <Controls showInteractive={false} position="bottom-right" />
+      </ReactFlow>
 
-      <div ref={tooltipRef} className="tooltip"></div>
+      {flowData.nodes.length === 0 && <div className={styles.empty}>暂无锚点数据</div>}
+
+      {tooltip.visible && tooltip.data && (
+        <div
+          className={styles.tooltip}
+          style={{
+            left: tooltip.x,
+            top: tooltip.y,
+          }}
+          onMouseEnter={handleTooltipMouseEnter}
+          onMouseLeave={handleTooltipMouseLeave}
+        >
+          <div className={styles.tooltipHeader}>
+            <FontAwesomeIcon icon={faTag} />
+            <span>{tooltip.data.description || 'Anchor Point'}</span>
+          </div>
+
+          <div className={styles.tooltipBody}>
+            <div className={styles.tooltipRow}>
+              <FontAwesomeIcon icon={faFolderOpenReg} />
+              <span className={styles.tooltipVal}>{tooltip.data.group || 'Default'}</span>
+            </div>
+
+            <div className={styles.tooltipRow}>
+              <FontAwesomeIcon icon={faFileCodeReg} />
+              <span className={styles.tooltipVal}>
+                {fileName} : {tooltip.data.line || '?'}
+              </span>
+            </div>
+
+            {tooltip.data.content && <pre className={styles.codeBlock}>{tooltip.data.content.trim()}</pre>}
+          </div>
+
+          <div className={styles.tooltipActions}>
+            <button className={styles.tooltipBtn} onClick={() => handleAnchorAction('edit')}>
+              <FontAwesomeIcon icon={faPenToSquare} />
+              编辑
+            </button>
+
+            <button className={`${styles.tooltipBtn} ${styles.danger}`} onClick={() => handleAnchorAction('delete')}>
+              <FontAwesomeIcon icon={faTrash} />
+              删除
+            </button>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function AnchorApp() {
+  return (
+    <ReactFlowProvider>
+      <AnchorAppInner />
+    </ReactFlowProvider>
   );
 }
