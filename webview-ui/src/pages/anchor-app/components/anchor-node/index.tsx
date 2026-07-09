@@ -1,4 +1,4 @@
-import styles from '@pages/anchor-app/ccomponents/anchor-node/index.module.css';
+import styles from '@pages/anchor-app/components/anchor-node/index.module.css';
 import { Handle, Position } from '@xyflow/react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faLink } from '@fortawesome/free-solid-svg-icons';

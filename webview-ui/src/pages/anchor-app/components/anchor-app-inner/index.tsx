@@ -1,4 +1,4 @@
-import styles from '@pages/anchor-app/ccomponents/anchor-app-inner/index.module.css';
+import styles from '@pages/anchor-app/components/anchor-app-inner/index.module.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Background, Controls, ReactFlow, useReactFlow } from '@xyflow/react';
 import { vscode } from '@utils/vscode';
