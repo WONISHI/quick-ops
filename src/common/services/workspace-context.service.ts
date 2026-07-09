@@ -3,13 +3,7 @@ import * as path from 'path';
 import * as os from 'os';
 import { exec } from 'child_process';
 import { TextDecoder } from 'util';
-import {
-  camelCase,
-  debounce,
-  kebabCase,
-  snakeCase,
-  upperFirst,
-} from 'lodash-es';
+import { camelCase, debounce, kebabCase, snakeCase, upperFirst } from 'lodash-es';
 
 import type { IWorkspaceContext } from '@core/types/work-space';
 
@@ -101,11 +95,7 @@ export class WorkspaceContextService {
   }
 
   public getCurrentProjectRoot(): string {
-    return (
-      this.currentProjectRoot ||
-      vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ||
-      ''
-    );
+    return this.currentProjectRoot || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
   }
 
   public async refresh(): Promise<void> {
@@ -179,10 +169,7 @@ export class WorkspaceContextService {
 
     if (!workspaceFolder) return;
 
-    const pattern = new vscode.RelativePattern(
-      workspaceFolder,
-      '.git/{HEAD,config,refs/**}',
-    );
+    const pattern = new vscode.RelativePattern(workspaceFolder, '.git/{HEAD,config,refs/**}');
 
     const watcher = vscode.workspace.createFileSystemWatcher(pattern);
 
@@ -211,10 +198,7 @@ export class WorkspaceContextService {
     const relativePath = vscode.workspace.asRelativePath(uri);
     const dirName = path.basename(parsedPath.dir);
 
-    const rawModuleName =
-      parsedPath.name.toLowerCase() === 'index' && dirName
-        ? dirName
-        : parsedPath.name;
+    const rawModuleName = parsedPath.name.toLowerCase() === 'index' && dirName ? dirName : parsedPath.name;
 
     this.contextValue.fileName = parsedPath.base;
     this.contextValue.fileNameBase = parsedPath.name;
@@ -264,8 +248,7 @@ export class WorkspaceContextService {
         ...(packageJson.devDependencies || {}),
       };
 
-      const dependenciesChanged =
-        JSON.stringify(this.dependencies) !== JSON.stringify(nextDependencies);
+      const dependenciesChanged = JSON.stringify(this.dependencies) !== JSON.stringify(nextDependencies);
 
       this.dependencies = nextDependencies;
 
@@ -283,32 +266,28 @@ export class WorkspaceContextService {
   }
 
   private async updateGitContext(): Promise<void> {
-    const cwd =
-      this.currentProjectRoot ||
-      vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ||
-      '';
+    const cwd = this.currentProjectRoot || vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
 
     if (!cwd) return;
 
-    const [gitBranch, gitRemote, gitLocalBranch, gitRemoteBranch, userName] =
-      await Promise.all([
-        this.execGit(['branch', '--show-current'], cwd),
-        this.execGit(['rev-parse', '--abbrev-ref', '@{u}'], cwd),
-        this.execGit(['branch', '--format=%(refname:short)'], cwd),
-        this.execGit(['branch', '-r', '--format=%(refname:short)'], cwd),
-        this.execGit(['config', 'user.name'], cwd),
-      ]);
+    const [gitBranch, gitRemote, gitLocalBranch, gitRemoteBranch, userName] = await Promise.all([
+      this.execGit(['branch', '--show-current'], cwd),
+      this.execGit(['rev-parse', '--abbrev-ref', '@{u}'], cwd),
+      this.execGit(['branch', '--format=%(refname:short)'], cwd),
+      this.execGit(['branch', '-r', '--format=%(refname:short)'], cwd),
+      this.execGit(['config', 'user.name'], cwd),
+    ]);
 
     this.contextValue.gitBranch = gitBranch.trim();
     this.contextValue.gitRemote = gitRemote.trim();
     this.contextValue.gitLocalBranch = gitLocalBranch
       .split(/\r?\n/)
-      .map(item => item.trim())
+      .map((item) => item.trim())
       .filter(Boolean);
 
     this.contextValue.gitRemoteBranch = gitRemoteBranch
       .split(/\r?\n/)
-      .map(item => item.trim())
+      .map((item) => item.trim())
       .filter(Boolean);
 
     this.contextValue.userName = userName.trim() || os.userInfo().username;
@@ -319,12 +298,8 @@ export class WorkspaceContextService {
     const pad = (num: number) => String(num).padStart(2, '0');
 
     const dateYear = String(now.getFullYear());
-    const dateDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(
-      now.getDate(),
-    )}`;
-    const dateTime = `${dateDate} ${pad(now.getHours())}:${pad(
-      now.getMinutes(),
-    )}:${pad(now.getSeconds())}`;
+    const dateDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const dateTime = `${dateDate} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
     this.contextValue.dateYear = dateYear;
     this.contextValue.dateDate = dateDate;
@@ -341,9 +316,7 @@ export class WorkspaceContextService {
     return vscode.workspace.workspaceFolders?.[0]?.uri;
   }
 
-  private async findNearestPackageJson(
-    startUri: vscode.Uri,
-  ): Promise<vscode.Uri | undefined> {
+  private async findNearestPackageJson(startUri: vscode.Uri): Promise<vscode.Uri | undefined> {
     let currentUri = startUri;
 
     while (true) {
@@ -367,7 +340,7 @@ export class WorkspaceContextService {
   }
 
   private execGit(args: string[], cwd: string): Promise<string> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       exec(`git ${args.join(' ')}`, { cwd }, (error, stdout) => {
         if (error) {
           resolve('');
@@ -379,9 +352,7 @@ export class WorkspaceContextService {
     });
   }
 
-  private resolveCssLang(
-    dependencies: Record<string, any>,
-  ): 'css' | 'less' | 'scss' {
+  private resolveCssLang(dependencies: Record<string, any>): 'css' | 'less' | 'scss' {
     if (dependencies.less) return 'less';
     if (dependencies.sass || dependencies.scss) return 'scss';
     return 'css';
