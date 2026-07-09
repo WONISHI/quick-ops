@@ -6,7 +6,7 @@ import TextCompareApp from './pages/TextCompareApp';
 import MockServerApp from './pages/MockApp/MockSidebarApp';
 import RecentProjectsApp from './pages/RecentProjectsApp';
 import LivePreviewApp from './pages/LivePreviewApp';
-import AnchorApp from "./pages/AnchorApp"
+import AnchorApp from "./pages/anchor-app"
 import MockSidebarApp from './pages/MockApp/MockSidebarApp'
 import MockProxyPanelApp from "./pages/MockApp/MockProxyPanelApp"
 import MockRulePanelApp from './pages/MockApp/MockRulePanelApp'

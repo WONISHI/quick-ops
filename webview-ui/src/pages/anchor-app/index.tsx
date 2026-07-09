@@ -1,14 +1,15 @@
 import '@xyflow/react/dist/style.css';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dagre from 'dagre';
-import { Background, Controls, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useReactFlow, type NodeProps, type NodeTypes } from '@xyflow/react';
-import { vscode } from '../../utils/vscode';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import styles from '@pages/anchor-app/index.module.css';
+import { Background, Controls, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useReactFlow } from '@xyflow/react';
+import { vscode } from '@utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faCompress, faExpand, faMinus, faPenToSquare, faPlus, faRotateRight, faTag, faTrash, faLink } from '@fortawesome/free-solid-svg-icons';
 import { faFileCode as faFileCodeReg, faFolderOpen as faFolderOpenReg } from '@fortawesome/free-regular-svg-icons';
-import type { AnchorData, AnchorFlowEdge, AnchorFlowNode, AnchorFlowNodeData, TooltipState, TreeNodeData } from './src/type';
-import styles from './index.module.css';
+import type { NodeProps, NodeTypes } from '@xyflow/react';
+import type { AnchorData, AnchorFlowEdge, AnchorFlowNode, AnchorFlowNodeData, TooltipState, TreeNodeData } from '@pages/anchor-app/src/type';
 
 const NODE_WIDTH = 230;
 const NODE_HEIGHT = 48;
@@ -53,15 +54,12 @@ function getNodeLabel(node: TreeNodeData): string {
  */
 function getColorIndex(path: string[]): number {
   if (path.length <= 1) return 0;
-
   const key = path[1] || path[0] || 'root';
   let hash = 0;
-
   for (let index = 0; index < key.length; index++) {
     hash = (hash << 5) - hash + key.charCodeAt(index);
     hash |= 0;
   }
-
   return Math.abs(hash) % colorList.length;
 }
 
@@ -203,25 +201,20 @@ const AnchorNode = ({ id, data }: NodeProps<AnchorFlowNode>) => {
 
   const handleMainClick = (event: React.MouseEvent): void => {
     event.stopPropagation();
-
     if (isAnchor && raw) {
       data.onJump(raw);
       return;
     }
-
     if (data.hasChildren) {
       data.onToggle(id);
     }
   };
-
   const handleToggleClick = (event: React.MouseEvent): void => {
     event.stopPropagation();
-
     if (data.hasChildren) {
       data.onToggle(id);
     }
   };
-
   const handleLinkClick = (event: React.MouseEvent): void => {
     event.stopPropagation();
 
