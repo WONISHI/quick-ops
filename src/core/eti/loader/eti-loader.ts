@@ -53,7 +53,6 @@ export class ETILoader {
   public async load(_rootPath?: string): Promise<void> {
     this.plugins = await this.loadPlugins();
     this.cores = await this.loadCores();
-    console.log(this, '---');
   }
 
   /**
@@ -66,6 +65,8 @@ export class ETILoader {
    */
   private async loadPlugins(): Promise<ETIPlugin[]> {
     const context = require.context('../../../plugins', true, /(?:index|.*\.plugin)\.(ts|js)$/);
+
+    console.log('context', context);
 
     return this.loadModulesByContext<ETIPlugin>(context, 'plugins');
   }
@@ -86,6 +87,8 @@ export class ETILoader {
    */
   private async loadCores(): Promise<ETICore[]> {
     const context = require.context('../../../workflow', true, /(?:index|.*\.(core|workflow))\.(ts|js)$/);
+
+    console.log('core', context);
 
     return this.loadModulesByContext<ETICore>(context, 'cores');
   }
@@ -155,6 +158,7 @@ export class ETILoader {
    * 2. export class Xxx
    */
   private getModuleTarget(module: any): any {
+    console.log('module', module);
     if (module.default) {
       return module.default;
     }

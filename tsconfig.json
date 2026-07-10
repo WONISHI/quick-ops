@@ -17,7 +17,8 @@
       "@common/*": ["src/common/*"],
       "@modules/*": ["src/modules/*"],
       "@utils/*": ["src/utils/*"],
-      "@workflow/*": ["src/workflow/*"]
+      "@workflow/*": ["src/workflow/*"],
+      "@plugins/*": ["src/plugins/*"]
     }
   },
   "include": ["src"]

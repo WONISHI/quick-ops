@@ -113,6 +113,7 @@ const extensionConfig = {
       '@modules': path.resolve(__dirname, 'src/modules'),
       '@utils': path.resolve(__dirname, 'src/utils'),
       '@workflow': path.resolve(__dirname, './src/workflow'),
+      '@plugins': path.resolve(__dirname, './src/plugins'),
       lodash: 'lodash-es',
     },
   },
