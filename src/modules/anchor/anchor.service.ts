@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import WebviewWorkflow from '@/workflow/webview';
 import { debounce, isFunction, isNumber } from 'lodash-es';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { AnchorCodeLensProvider } from '@modules/anchor/prooviders/anchor-code-lens.provider';
@@ -31,6 +32,7 @@ export class AnchorService {
 
   private context?: vscode.ExtensionContext;
   private currentPanel?: vscode.WebviewPanel;
+  private readonly webviewWorkflow = new WebviewWorkflow();
 
   private anchors: AnchorData[] = [];
   private flotAnchors: AnchorData[] = [];
@@ -43,7 +45,6 @@ export class AnchorService {
   private readonly debouncedSave = debounce(() => {
     void this.persist();
   }, 500);
-
 
   /**
    * @description 创建 AnchorService 实例
@@ -891,29 +892,42 @@ export class AnchorService {
    */
   private async openMindMapPanel(): Promise<void> {
     if (!this.context) return;
+
     const config = this.configurationService.config?.general || {};
     const mode = config.mindMapPosition || 'right';
+
     if (this.currentPanel) {
       const revealColumn = mode === 'left' ? vscode.ViewColumn.One : vscode.ViewColumn.Beside;
       this.currentPanel.reveal(revealColumn);
       return;
     }
+
     let targetColumn = vscode.ViewColumn.Beside;
+
     if (mode === 'left') {
       await vscode.commands.executeCommand('workbench.action.splitEditorLeft');
       targetColumn = vscode.ViewColumn.Active;
     }
-    this.currentPanel = vscode.window.createWebviewPanel('anchorMindMap', 'Anchors Mind Map', targetColumn, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      localResourceRoots: [this.context.extensionUri],
-    });
-    this.currentPanel.webview.html = getReactWebviewHtml(this.context.extensionUri, this.currentPanel.webview, '/anchor');
-    this.currentPanel.webview.onDidReceiveMessage(async (message: AnchorWebviewMessage) => {
-      await this.handleMindMapMessage(message);
-    });
-    this.currentPanel.onDidDispose(() => {
-      this.currentPanel = undefined;
+
+    this.currentPanel = await this.webviewWorkflow.createWebview<AnchorWebviewMessage>({
+      key: 'anchorMindMap',
+      viewType: 'anchorMindMap',
+      title: 'Anchors Mind Map',
+      column: targetColumn,
+      options: {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [this.context.extensionUri],
+      },
+      htmlFactory: (webview) => {
+        return getReactWebviewHtml(this.context!.extensionUri, webview, '/anchor');
+      },
+      onDidReceiveMessage: async (message) => {
+        await this.handleMindMapMessage(message);
+      },
+      onDidDispose: () => {
+        this.currentPanel = undefined;
+      },
     });
   }
 
@@ -1353,7 +1367,6 @@ export class AnchorService {
         return '$(file)';
     }
   }
-
 
   /**
    * @description 创建锚点 ID
