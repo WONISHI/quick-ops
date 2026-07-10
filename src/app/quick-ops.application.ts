@@ -23,9 +23,16 @@ export class QuickOpsApplication {
       useValue: context,
     });
 
-    this.moduleRunner = new ModuleRunner(this.container, context);
-
+    /**
+     * 注意：
+     *
+     * ETI 必须先创建
+     *
+     * 因为 ModuleRunner 生命周期需要依赖 ETI
+     */
     this.eti = new ETI();
+
+    this.moduleRunner = new ModuleRunner(this.container, context, this.eti);
   }
 
   public async start(): Promise<void> {
@@ -36,12 +43,28 @@ export class QuickOpsApplication {
     try {
       ColorLog.black('[QuickOps]', 'Application Starting...');
 
+      /**
+       * 初始化 ETI
+       *
+       * 加载 Plugin
+       * 加载 Core
+       * Core inject
+       */
       await this.eti.init();
 
+      /**
+       * Plugin 创建前
+       */
       await this.eti.lifecycle.ready();
 
+      /**
+       * 初始化业务模块
+       */
       await this.moduleRunner.bootstrap(AppModule);
 
+      /**
+       * Plugin 创建后
+       */
       await this.eti.lifecycle.readied();
 
       this.setupGlobalDisposables();
@@ -61,6 +84,11 @@ export class QuickOpsApplication {
 
     try {
       await this.moduleRunner.dispose();
+
+      /**
+       * Plugin销毁后
+       */
+      await this.eti.lifecycle.disposed();
 
       this.started = false;
 
