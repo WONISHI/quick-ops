@@ -219,6 +219,7 @@ export class ModuleRunner {
     this.initializedInstances.add(instance);
 
     const moduleName = instance.constructor.name;
+    let result;
 
     /**
      * 模块创建前
@@ -237,14 +238,14 @@ export class ModuleRunner {
     }
 
     if (typeof instance.onModuleInit === 'function') {
-      const result = await instance.onModuleInit(this.context);
+      result = await instance.onModuleInit(this.context);
 
       /**
        * 模块创建后
        *
        * Plugin生命周期
        */
-      await this.eti.lifecycle.moduleInitReadied(moduleName, result);
+      await this.eti.lifecycle.moduleInitReadied(moduleName, result ?? instance);
     }
   }
 
