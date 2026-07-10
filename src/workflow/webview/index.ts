@@ -33,6 +33,11 @@ export default class WebviewCore implements ETICore {
 
   private readonly panels = new Map<string, vscode.WebviewPanel>();
 
+  /**
+   * @description 存储每个 Webview 调用 createWebview 时传入的参数
+   */
+  private readonly createOptionsMap = new Map<string, WebviewCreateOptions<any>>();
+
   private events: Record<string, Function[]> = {};
 
   /**
@@ -98,6 +103,15 @@ export default class WebviewCore implements ETICore {
     const key = options.key || options.viewType;
     const revealIfExists = options.revealIfExists !== false;
 
+    /**
+     * @description 保存本次 createWebview 调用参数
+     *
+     * 放在 existingPanel 判断前面：
+     * - 即使 Webview 已存在，只 reveal
+     * - 也能记录本次调用参数
+     */
+    this.createOptionsMap.set(key, options);
+
     const existingPanel = this.panels.get(key);
 
     if (existingPanel && revealIfExists) {
@@ -110,6 +124,7 @@ export default class WebviewCore implements ETICore {
       viewType: options.viewType,
       title: options.title,
       options,
+      createOptionsMap: this.createOptionsMap,
     });
 
     const panel = vscode.window.createWebviewPanel(options.viewType, options.title, options.column || vscode.ViewColumn.Beside, {
@@ -138,6 +153,7 @@ export default class WebviewCore implements ETICore {
         panel,
         message,
         options,
+        createOptionsMap: this.createOptionsMap,
       });
 
       await options.onDidReceiveMessage?.(message, panel);
@@ -150,9 +166,15 @@ export default class WebviewCore implements ETICore {
         title: options.title,
         panel,
         options,
+        createOptionsMap: this.createOptionsMap,
       });
 
       this.panels.delete(key);
+
+      /**
+       * @description Webview 销毁时，同步移除创建参数缓存
+       */
+      this.createOptionsMap.delete(key);
 
       await options.onDidDispose?.(panel);
 
@@ -162,6 +184,7 @@ export default class WebviewCore implements ETICore {
         title: options.title,
         panel,
         options,
+        createOptionsMap: this.createOptionsMap,
       });
     });
 
@@ -171,6 +194,7 @@ export default class WebviewCore implements ETICore {
       title: options.title,
       panel,
       options,
+      createOptionsMap: this.createOptionsMap,
     });
 
     return panel;
@@ -181,6 +205,20 @@ export default class WebviewCore implements ETICore {
    */
   public getPanel(key: string): vscode.WebviewPanel | undefined {
     return this.panels.get(key);
+  }
+
+  /**
+   * @description 获取指定 Webview 最近一次 createWebview 的参数
+   */
+  public getCreateOptions<TMessage = any>(key: string): WebviewCreateOptions<TMessage> | undefined {
+    return this.createOptionsMap.get(key) as WebviewCreateOptions<TMessage> | undefined;
+  }
+
+  /**
+   * @description 获取所有 Webview 的 createWebview 参数
+   */
+  public getAllCreateOptions(): Map<string, WebviewCreateOptions<any>> {
+    return this.createOptionsMap;
   }
 
   /**
@@ -210,6 +248,7 @@ export default class WebviewCore implements ETICore {
     }
 
     this.panels.clear();
+    this.createOptionsMap.clear();
   }
 
   private async emitBeforeCreate(context: WebviewCoreEventContext): Promise<void> {
