@@ -1,7 +1,7 @@
-import { ETILoader } from './loader/eti-loader';
-import { PluginContainer } from './plugin/plugin-container';
-import { CoreContainer } from './core/core-container';
-import { LifecycleManager } from './lifecycle/lifecycle-manager';
+import { ETILoader } from '@core/eti/loader/eti-loader';
+import { PluginContainer } from '@core/eti/plugin/plugin-container';
+import { CoreContainer } from '@core/eti/core/core-container';
+import { LifecycleManager } from '@core/eti/lifecycle/lifecycle-manager';
 
 export class ETI {
   private readonly loader = new ETILoader();
