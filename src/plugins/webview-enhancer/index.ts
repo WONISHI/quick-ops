@@ -15,6 +15,10 @@ export class WebviewAppearancePlugin {
           name: 'webview:created',
           callback: this.handleWebviewCreated.bind(this),
         },
+        {
+          name: 'webview:beforeCreate',
+          callback: () => console.log(1111),
+        },
       ],
     };
   }
@@ -23,6 +27,7 @@ export class WebviewAppearancePlugin {
    * @description Webview 创建完成后，给 WebviewPanel 添加图标
    */
   private handleWebviewCreated(payload: WebviewCreatedPayload): void {
+    console.log('init', payload);
     const { panel, options, context } = payload;
 
     if (!panel) return;

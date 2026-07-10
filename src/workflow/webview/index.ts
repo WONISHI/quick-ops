@@ -19,11 +19,37 @@ import type { WebviewCreateOptions, WebviewCoreEventContext } from '@/workflow/w
  * - webview:message
  */
 export default class WebviewCore implements ETICore {
+  /**
+   * @description WebviewCore 单例实例
+   *
+   * 解决问题：
+   * - ETI 注入 events 的 WebviewCore 实例
+   * - 业务调用 createWebview 的 WebviewCore 实例
+   * 不是同一个，导致 this.events 为空
+   */
+  private static instance: WebviewCore | null = null;
+
   public readonly coreId = 'webview';
 
   private readonly panels = new Map<string, vscode.WebviewPanel>();
 
   private events: Record<string, Function[]> = {};
+
+  /**
+   * @description 单例构造
+   *
+   * 注意：
+   * - 不改成 private constructor
+   * - 兼容你原来外部 new WebviewCore() 的写法
+   * - 多次 new WebviewCore() 时，都会返回同一个实例
+   */
+  constructor() {
+    if (WebviewCore.instance) {
+      return WebviewCore.instance;
+    }
+
+    WebviewCore.instance = this;
+  }
 
   /**
    * @description 注册 Webview 工作流事件
