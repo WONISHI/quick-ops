@@ -40,5 +40,7 @@ export class ETI {
      * 5.plugin ready
      */
     await this.lifecycle.ready();
+
+    console.log('this', this);
   }
 }
