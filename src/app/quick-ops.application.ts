@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import ColorLog from '../utils/ColorLog';
+import { ETI } from '@core/eti/eti';
 import { AppModule } from './app.module';
 import { Container } from '../core/container/container';
 import { TOKENS } from '../core/container/token';
@@ -12,6 +13,8 @@ export class QuickOpsApplication {
   private started = false;
   private disposing = false;
 
+  private readonly eti: ETI;
+
   constructor(private readonly context: vscode.ExtensionContext) {
     this.container = new Container();
 
@@ -21,6 +24,8 @@ export class QuickOpsApplication {
     });
 
     this.moduleRunner = new ModuleRunner(this.container, context);
+
+    this.eti = new ETI();
   }
 
   public async start(): Promise<void> {
@@ -31,7 +36,13 @@ export class QuickOpsApplication {
     try {
       ColorLog.black('[QuickOps]', 'Application Starting...');
 
+      await this.eti.init();
+
+      await this.eti.lifecycle.ready();
+
       await this.moduleRunner.bootstrap(AppModule);
+
+      await this.eti.lifecycle.readied();
 
       this.setupGlobalDisposables();
 

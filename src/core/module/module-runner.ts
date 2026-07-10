@@ -1,7 +1,8 @@
 import type * as vscode from 'vscode';
-import { Container } from '../container/container';
-import type { InjectableConstructor, InjectionToken, Provider } from '../container/container.type';
-import type { QuickOpsModule } from './quick-ops-module.interface';
+import { ETI } from '@core/eti/eti';
+import { Container } from '@core/container/container';
+import type { InjectableConstructor, InjectionToken, Provider } from '@core/container/container.type';
+import type { QuickOpsModule } from '@core/module/quick-ops-module.interface';
 
 export class ModuleRunner {
   private readonly loadedModules = new Set<QuickOpsModule>();
@@ -12,6 +13,7 @@ export class ModuleRunner {
   constructor(
     private readonly container: Container,
     private readonly context: vscode.ExtensionContext,
+    private readonly eti: ETI,
   ) {}
 
   public async bootstrap(rootModule: QuickOpsModule): Promise<void> {
@@ -21,6 +23,24 @@ export class ModuleRunner {
     await this.initControllers();
   }
 
+  /**
+   * @description
+   * 销毁所有模块
+   *
+   * 顺序：
+   *
+   * controller
+   *      |
+   * moduleDispose
+   *      |
+   * dispose
+   *      |
+   * moduleDisposed
+   *
+   * provider
+   *      |
+   * onModuleDestroy
+   */
   public async dispose(): Promise<void> {
     await this.destroyControllers();
     await this.destroyProviders();
@@ -120,14 +140,44 @@ export class ModuleRunner {
     }
   }
 
+  /**
+   * @description
+   * controller销毁
+   *
+   * 倒序销毁
+   */
   private async destroyControllers(): Promise<void> {
     for (let i = this.controllerTypes.length - 1; i >= 0; i--) {
       const controller = this.controllerTypes[i];
 
       try {
         const instance = this.container.resolve(controller);
+
+        const moduleName = instance.constructor.name;
+
+        /**
+         * 模块销毁前
+         *
+         * Plugin生命周期
+         */
+        await this.eti.lifecycle.moduleDispose(moduleName);
+
+        /**
+         * Nest生命周期
+         */
         await instance.onModuleDestroy?.();
-        await instance.dispose?.();
+
+        /**
+         * 模块自身销毁
+         */
+        const result = await instance.dispose?.();
+
+        /**
+         * 模块销毁后
+         *
+         * Plugin生命周期
+         */
+        await this.eti.lifecycle.moduleDisposed(moduleName, result);
       } catch (error) {
         console.error('[ModuleRunner] controller destroy failed:', error);
       }
@@ -147,17 +197,54 @@ export class ModuleRunner {
     }
   }
 
+  /**
+   * @description
+   * 初始化实例
+   *
+   * 生命周期：
+   *
+   * moduleInitReady
+   *          |
+   * instance.init
+   *          |
+   * instance.onModuleInit
+   *          |
+   * moduleInitReadied
+   */
   private async initInstance(instance: any): Promise<void> {
-    if (!instance || this.initializedInstances.has(instance)) return;
+    if (!instance || this.initializedInstances.has(instance)) {
+      return;
+    }
 
     this.initializedInstances.add(instance);
 
+    const moduleName = instance.constructor.name;
+
+    /**
+     * 模块创建前
+     *
+     * Plugin生命周期
+     */
+    if (typeof instance.onModuleInit === 'function') {
+      await this.eti.lifecycle.moduleInitReady(moduleName);
+    }
+
+    /**
+     * 普通初始化
+     */
     if (typeof instance.init === 'function') {
       await instance.init(this.context);
     }
 
     if (typeof instance.onModuleInit === 'function') {
-      await instance.onModuleInit(this.context);
+      const result = await instance.onModuleInit(this.context);
+
+      /**
+       * 模块创建后
+       *
+       * Plugin生命周期
+       */
+      await this.eti.lifecycle.moduleInitReadied(moduleName, result);
     }
   }
 
