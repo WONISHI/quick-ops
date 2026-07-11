@@ -1,18 +1,10 @@
-<svg width="256" height="256" viewBox="58 58 140 150" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- VSCode 小尺寸图标清晰版：去掉阴影、glow、复杂渐变，避免缩小后发糊 -->
-  <path d="M94 93C123 93 140 109 162 111" stroke="#2EAADC" stroke-width="13" stroke-linecap="round"/>
-  <path d="M94 96C113 122 119 150 126 174" stroke="#2EAADC" stroke-width="13" stroke-linecap="round"/>
-  <path d="M118 174C139 161 154 140 164 115" stroke="#35C7A3" stroke-width="10" stroke-linecap="round"/>
-
-  <circle cx="91" cy="92" r="31" fill="#35A7E0"/>
-  <circle cx="164" cy="112" r="30" fill="#35C7A3"/>
-  <circle cx="126" cy="176" r="32" fill="#F4B64A"/>
-
-  <circle cx="91" cy="92" r="14" fill="#FFFFFF"/>
-  <circle cx="164" cy="112" r="14" fill="#FFFFFF"/>
-  <circle cx="126" cy="176" r="15" fill="#FFFFFF"/>
-
-  <path d="M83 92H99" stroke="#0B1A20" stroke-width="6" stroke-linecap="round"/>
-  <path d="M156 112H172" stroke="#0B1A20" stroke-width="6" stroke-linecap="round"/>
-  <path d="M117 176H135" stroke="#0B1A20" stroke-width="6" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="28" height="28" x="2" y="2" rx="4" fill="#263238"/>
+  <path fill="none" stroke="#4DD0E1" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" d="M10 11.5h5.3c2.4 0 4.2 1.2 5.7 3.5M10 12c2.7 2 4.4 4.5 5.5 8M16 20c2.7-1.4 4.5-3.5 5.3-5"/>
+  <circle cx="9" cy="11.5" r="3.6" fill="#80DEEA"/>
+  <circle cx="22.5" cy="15" r="3.6" fill="#4DB6AC"/>
+  <circle cx="16" cy="21.5" r="3.8" fill="#FFB74D"/>
+  <circle cx="9" cy="11.5" r="1.25" fill="#263238"/>
+  <circle cx="22.5" cy="15" r="1.25" fill="#263238"/>
+  <circle cx="16" cy="21.5" r="1.35" fill="#263238"/>
 </svg>
