@@ -914,6 +914,7 @@ export class AnchorService {
       viewType: 'anchorMindMap',
       title: 'Anchors Mind Map',
       column: targetColumn,
+      iconPath: vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'anchor-mindmap.svg'),
       options: {
         enableScripts: true,
         retainContextWhenHidden: true,
