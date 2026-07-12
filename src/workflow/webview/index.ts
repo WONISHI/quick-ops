@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { WEBVIEW_CORE_EVENTS } from '@/workflow/webview/type';
 import type { ETIRuntime, ETIRuntimeProvide } from '@core/eti/eti.type';
-import type { WebviewCreateOptions, WebviewCoreEventContext } from '@/workflow/webview/type';
+import type { WebviewCreateOptions, WebviewWorkflowEventContext } from '@/workflow/webview/type';
 
 /**
  * @description Webview 工作流 Core
@@ -18,16 +18,16 @@ import type { WebviewCreateOptions, WebviewCoreEventContext } from '@/workflow/w
  * - webview:disposed
  * - webview:message
  */
-export default class WebviewCore implements ETIRuntime {
+export default class WebviewWorkflow implements ETIRuntime {
   /**
-   * @description WebviewCore 单例实例
+   * @description WebviewWorkflow 单例实例
    *
    * 解决问题：
-   * - ETI 注入 events 的 WebviewCore 实例
-   * - 业务调用 createWebview 的 WebviewCore 实例
+   * - ETI 注入 events 的 WebviewWorkflow 实例
+   * - 业务调用 createWebview 的 WebviewWorkflow 实例
    * 不是同一个，导致 this.events 为空
    */
-  private static instance: WebviewCore | null = null;
+  private static instance: WebviewWorkflow | null = null;
 
   public readonly runtimeId = 'webview';
 
@@ -45,15 +45,15 @@ export default class WebviewCore implements ETIRuntime {
    *
    * 注意：
    * - 不改成 private constructor
-   * - 兼容你原来外部 new WebviewCore() 的写法
-   * - 多次 new WebviewCore() 时，都会返回同一个实例
+   * - 兼容你原来外部 new WebviewWorkflow() 的写法
+   * - 多次 new WebviewWorkflow() 时，都会返回同一个实例
    */
   constructor() {
-    if (WebviewCore.instance) {
-      return WebviewCore.instance;
+    if (WebviewWorkflow.instance) {
+      return WebviewWorkflow.instance;
     }
 
-    WebviewCore.instance = this;
+    WebviewWorkflow.instance = this;
   }
 
   /**
@@ -251,27 +251,27 @@ export default class WebviewCore implements ETIRuntime {
     this.createOptionsMap.clear();
   }
 
-  private async emitBeforeCreate(context: WebviewCoreEventContext): Promise<void> {
+  private async emitBeforeCreate(context: WebviewWorkflowEventContext): Promise<void> {
     await this.emit(WEBVIEW_CORE_EVENTS.BEFORE_CREATE, context);
   }
 
-  private async emitCreated(context: WebviewCoreEventContext): Promise<void> {
+  private async emitCreated(context: WebviewWorkflowEventContext): Promise<void> {
     await this.emit(WEBVIEW_CORE_EVENTS.CREATED, context);
   }
 
-  private async emitBeforeDispose(context: WebviewCoreEventContext): Promise<void> {
+  private async emitBeforeDispose(context: WebviewWorkflowEventContext): Promise<void> {
     await this.emit(WEBVIEW_CORE_EVENTS.BEFORE_DISPOSE, context);
   }
 
-  private async emitDisposed(context: WebviewCoreEventContext): Promise<void> {
+  private async emitDisposed(context: WebviewWorkflowEventContext): Promise<void> {
     await this.emit(WEBVIEW_CORE_EVENTS.DISPOSED, context);
   }
 
-  private async emitMessage(context: WebviewCoreEventContext): Promise<void> {
+  private async emitMessage(context: WebviewWorkflowEventContext): Promise<void> {
     await this.emit(WEBVIEW_CORE_EVENTS.MESSAGE, context);
   }
 
-  private async emit(name: string, context: WebviewCoreEventContext): Promise<void> {
+  private async emit(name: string, context: WebviewWorkflowEventContext): Promise<void> {
     const callbacks = this.events[name] || [];
 
     for (const callback of callbacks) {

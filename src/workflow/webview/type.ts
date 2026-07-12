@@ -105,7 +105,7 @@ export interface WebviewCreateOptions<TMessage = any> {
   revealIfExists?: boolean;
 }
 
-export interface WebviewCoreEventContext<TMessage = any> {
+export interface WebviewWorkflowEventContext<TMessage = any> {
   /**
    * @description Webview 缓存 key
    */
