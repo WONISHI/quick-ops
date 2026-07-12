@@ -12,7 +12,7 @@ ETI 是运行在 NestJS 风格 VSCode 插件架构上的内部扩展运行时。
 - 生命周期管理
 - 状态管理
 
-这些能力不属于业务模块，也不适合放入 utils，因此通过 Plugin + Core + Loader 的方式管理。
+这些能力不属于业务模块，也不适合放入 utils，因此通过 Plugin + Runtime + Loader 的方式管理。
 
 ---
 
@@ -32,7 +32,7 @@ extension.activate()
         |
  -------------------
  |                 |
-Plugin            Core
+Plugin            Runtime
 ```
 
 ---
@@ -60,11 +60,11 @@ loader.export()
 
         |
 
-加载 core
+加载 runtime
 
         |
 
-core.provide()
+runtime.provide()
 
         |
 
@@ -72,7 +72,7 @@ core.provide()
 
         |
 
-core.inject()
+runtime.inject()
 
         |
 
@@ -118,16 +118,15 @@ Plugin返回：
 Loader完成后：
 
 ```ts
-this.plugins
+this.plugins;
 ```
 
 保存完整插件信息。
 
-
 同时生成：
 
 ```ts
-this.on
+this.on;
 ```
 
 结构：
@@ -149,24 +148,23 @@ this.on
 
 ---
 
-# 6. Core
+# 6. Runtime
 
-Core负责定义工作流。
+Runtime负责定义工作流。
 
-Core通过：
+Runtime通过：
 
 ```ts
-provide()
+provide();
 ```
 
 提供能力。
-
 
 返回：
 
 ```ts
 {
- coreId:'xxx',
+ runtimeId:'xxx',
 
  register:[
    {
@@ -179,7 +177,7 @@ provide()
 
 ---
 
-# 7. Core inject
+# 7. Runtime inject
 
 ETI匹配：
 
@@ -188,10 +186,10 @@ plugin.on.name
 
         ==
 
-core.register.name
+runtime.register.name
 ```
 
-匹配成功后，将 Plugin 能力注入 Core。
+匹配成功后，将 Plugin 能力注入 Runtime。
 
 ---
 
@@ -344,11 +342,11 @@ Plugin加载
 
  |
  |
-Core加载
+Runtime加载
 
  |
  |
-core.inject()
+runtime.inject()
 
  |
  |
@@ -404,13 +402,12 @@ Plugin disposed
 ETI负责：
 
 1. Plugin动态加载
-2. Core动态加载
+2. Runtime动态加载
 3. Plugin事件管理
-4. Core能力注册
-5. Plugin与Core绑定
+4. Runtime能力注册
+5. Plugin与Runtime绑定
 6. Module生命周期代理
 7. 全局生命周期调度
-
 
 ---
 
@@ -419,10 +416,9 @@ ETI负责：
 ETI：
 
 - Plugin 提供扩展能力
-- Core 提供业务流程
+- Runtime 提供业务流程
 - Loader 负责发现和加载
 - ETI 负责连接和调度
-
 
 结构：
 
@@ -435,7 +431,7 @@ ETI：
 
        |                    |
 
-    Plugin                Core
+    Plugin                Runtime
 
        |                    |
 
