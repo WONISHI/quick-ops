@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { WEBVIEW_CORE_EVENTS } from '@/workflow/webview/type';
-import type { ETICore, ETICoreProvide } from '@core/eti/eti.type';
+import type { ETIRuntime, ETIRuntimeProvide } from '@core/eti/eti.type';
 import type { WebviewCreateOptions, WebviewCoreEventContext } from '@/workflow/webview/type';
 
 /**
@@ -18,7 +18,7 @@ import type { WebviewCreateOptions, WebviewCoreEventContext } from '@/workflow/w
  * - webview:disposed
  * - webview:message
  */
-export default class WebviewCore implements ETICore {
+export default class WebviewCore implements ETIRuntime {
   /**
    * @description WebviewCore 单例实例
    *
@@ -29,7 +29,7 @@ export default class WebviewCore implements ETICore {
    */
   private static instance: WebviewCore | null = null;
 
-  public readonly coreId = 'webview';
+  public readonly runtimeId = 'webview';
 
   private readonly panels = new Map<string, vscode.WebviewPanel>();
 
@@ -61,9 +61,9 @@ export default class WebviewCore implements ETICore {
    *
    * 这些 name 可以被 Plugin 的 on 监听。
    */
-  public provide(): ETICoreProvide {
+  public provide(): ETIRuntimeProvide {
     return {
-      coreId: this.coreId,
+      runtimeId: this.runtimeId,
       register: [
         {
           name: WEBVIEW_CORE_EVENTS.BEFORE_CREATE,
