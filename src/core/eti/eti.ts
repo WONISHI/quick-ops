@@ -1,12 +1,12 @@
 import { ETILoader } from '@core/eti/loader/eti-loader';
 import { PluginContainer } from '@core/eti/plugin/plugin-container';
-import { CoreContainer } from '@core/eti/core/core-container';
+import { RuntimeContainer } from '@/core/eti/runtime/runtime-container';
 import { LifecycleManager } from '@core/eti/lifecycle/lifecycle-manager';
 
 export class ETI {
   private readonly loader = new ETILoader();
   private readonly plugins = new PluginContainer();
-  private readonly cores = new CoreContainer();
+  private readonly runtimes = new RuntimeContainer();
   public readonly lifecycle = new LifecycleManager(this.plugins);
 
   async init() {
@@ -25,16 +25,16 @@ export class ETI {
     }
 
     /**
-     * 3.加载core
+     * 3.加载runtime
      */
-    for (const core of result.cores) {
-      this.cores.register(core);
+    for (const runtime of result.runtimes) {
+      this.runtimes.register(runtime);
     }
 
     /**
-     * 4.core注入plugin事件
+     * 4.runtime注入plugin事件
      */
-    this.cores.inject(this.plugins.getEvents());
+    this.runtimes.inject(this.plugins.getEvents());
 
     /**
      * 5.plugin ready

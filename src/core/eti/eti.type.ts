@@ -3,23 +3,18 @@ export interface ETIPlugin {
   on?: ETIEvent[];
 }
 
-
 export interface ETIEvent {
   name: string;
-  callback: (...args:any[])=>any;
+  callback: (...args: any[]) => any;
 }
 
-
-
-export interface ETICore {
-  coreId:string;
-  provide():ETICoreProvide;
-  inject?(events:Record<string,Function[]>):void;
+export interface ETIRuntime {
+  runtimeId: string;
+  provide(): ETIRuntimeProvide;
+  inject?(events: Record<string, Function[]>): void;
 }
 
-
-
-export interface ETICoreProvide {
-  coreId:string;
-  register:ETIEvent[];
+export interface ETIRuntimeProvide {
+  runtimeId: string;
+  register: ETIEvent[];
 }

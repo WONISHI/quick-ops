@@ -1,11 +1,11 @@
-import type { ETICore, ETIPlugin } from '../eti.type';
+import type { ETIRuntime, ETIPlugin } from '../eti.type';
 
-type LoaderType = 'plugins' | 'cores';
+type LoaderType = 'plugins' | 'runtimes';
 
 interface LoaderExportResult {
   type: 'eti';
   plugins: ETIPlugin[];
-  cores: ETICore[];
+  runtimes: ETIRuntime[];
 }
 
 interface WebpackRequireContext {
@@ -42,7 +42,7 @@ declare const require: WebpackRequire;
  */
 export class ETILoader {
   private plugins: ETIPlugin[] = [];
-  private cores: ETICore[] = [];
+  private runtimes: ETIRuntime[] = [];
 
   /**
    * @description 加载 ETI 扩展
@@ -52,7 +52,7 @@ export class ETILoader {
    */
   public async load(_rootPath?: string): Promise<void> {
     this.plugins = await this.loadPlugins();
-    this.cores = await this.loadCores();
+    this.runtimes = await this.loadRuntimes();
   }
 
   /**
@@ -83,10 +83,10 @@ export class ETILoader {
    * - type.ts
    * - types.ts
    */
-  private async loadCores(): Promise<ETICore[]> {
-    const context = require.context('../../../workflow', true, /(?:index|.*\.(core|workflow))\.(ts|js)$/);
+  private async loadRuntimes(): Promise<ETIRuntime[]> {
+    const context = require.context('../../../workflow', true, /(?:index|.*\.(runtime|workflow))\.(ts|js)$/);
 
-    return this.loadModulesByContext<ETICore>(context, 'cores');
+    return this.loadModulesByContext<ETIRuntime>(context, 'runtimes');
   }
 
   /**
@@ -119,16 +119,16 @@ export class ETILoader {
   }
 
   /**
-   * @description 执行 plugin / core 初始化
+   * @description 执行 plugin / runtime 初始化
    *
    * plugins:
    * - 执行 plugin.init()
    * - 收集 plugin.init() 返回的 { pluginId, on }
    *
-   * cores:
+   * runtimes:
    * - 不在 loader 里执行 provide()
-   * - 直接返回 core 实例
-   * - 交给 CoreContainer 调用 core.provide()
+   * - 直接返回 runtime 实例
+   * - 交给 runtimeContainer 调用 runtime.provide()
    */
   private async initialize(instance: any, type: LoaderType): Promise<any> {
     if (type === 'plugins') {
@@ -139,7 +139,7 @@ export class ETILoader {
       return await instance.init();
     }
 
-    if (type === 'cores') {
+    if (type === 'runtimes') {
       return instance;
     }
 
@@ -169,7 +169,7 @@ export class ETILoader {
     return {
       type: 'eti',
       plugins: this.plugins,
-      cores: this.cores,
+      runtimes: this.runtimes,
     };
   }
 }
