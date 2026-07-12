@@ -138,7 +138,7 @@ export default class WebviewWorkflow implements ETIRuntime {
     }
 
     if (options.htmlFactory) {
-      panel.webview.html = options.htmlFactory(panel.webview, panel);
+      panel.webview.html = await options.htmlFactory(panel.webview, panel);
     } else if (options.html) {
       panel.webview.html = options.html;
     }

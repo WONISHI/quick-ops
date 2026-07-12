@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import WebviewWorkflow from '@/workflow/webview';
+import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { debounce, isFunction, isNumber } from 'lodash-es';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { AnchorCodeLensProvider } from '@modules/anchor/prooviders/anchor-code-lens.provider';
@@ -33,6 +34,7 @@ export class AnchorService {
   private context?: vscode.ExtensionContext;
   private currentPanel?: vscode.WebviewPanel;
   private readonly webviewWorkflow = new WebviewWorkflow();
+  private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
 
   private anchors: AnchorData[] = [];
   private flotAnchors: AnchorData[] = [];
@@ -920,8 +922,12 @@ export class AnchorService {
         retainContextWhenHidden: true,
         localResourceRoots: [this.context.extensionUri],
       },
-      htmlFactory: (webview) => {
-        return getReactWebviewHtml(this.context!.extensionUri, webview, '/anchor');
+      htmlFactory: async (webview) => {
+        return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+          extensionUri: this.context!.extensionUri,
+          webview,
+          routeName: '/anchor',
+        });
       },
       onDidReceiveMessage: async (message) => {
         await this.handleMindMapMessage(message);

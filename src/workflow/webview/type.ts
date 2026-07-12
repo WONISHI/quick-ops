@@ -58,7 +58,7 @@ export interface WebviewCreateOptions<TMessage = any> {
   /**
    * @description 动态生成 html
    */
-  htmlFactory?: (webview: vscode.Webview, panel: vscode.WebviewPanel) => string;
+  htmlFactory?: (webview: vscode.Webview, panel: vscode.WebviewPanel) => string | Promise<string>;
 
   /**
    * @description 图标配置，给 WebviewAppearancePlugin 使用
