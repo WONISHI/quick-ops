@@ -1,23 +1,9 @@
 import * as vscode from 'vscode';
 import type { WebviewCreatedPayload, WebviewIcon } from '@plugins/webview-enhancer/type';
 import { WORKSPACE_EVENTS } from '@workflow/workspace-events/type';
-import type {
-  WorkspaceDocumentFilterOptions,
-  WorkspaceEventHandler,
-  WorkspaceEventName,
-} from '@workflow/workspace-events/type';
+import type { WorkspaceOn, WebviewAppearancePluginInitOptions } from '@plugins/webview-enhancer/type';
 
 const ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT = 'quickOps.activeWebview.fullscreen';
-
-type WorkspaceOn = <T extends WorkspaceEventName>(
-  eventName: T,
-  handler: WorkspaceEventHandler<T>,
-  options?: WorkspaceDocumentFilterOptions,
-) => vscode.Disposable;
-
-interface WebviewAppearancePluginInitOptions {
-  on?: WorkspaceOn;
-}
 
 export class WebviewAppearancePlugin {
   /**
@@ -162,7 +148,7 @@ export class WebviewAppearancePlugin {
     this.globalListenersRegistered = true;
 
     this.disposables.push(
-      this.workspaceOn(WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TEXT_EDITOR, () => {
+      this.workspaceOn(WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TEXT_EDITOR, (event) => {
         this.refreshFullscreenContext();
       }),
 
@@ -184,11 +170,7 @@ export class WebviewAppearancePlugin {
       return panel.active && panel.visible;
     });
 
-    void vscode.commands.executeCommand(
-      'setContext',
-      ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT,
-      isActiveFullscreenWebview,
-    );
+    void vscode.commands.executeCommand('setContext', ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT, isActiveFullscreenWebview);
   }
 
   /**
@@ -215,11 +197,7 @@ export class WebviewAppearancePlugin {
     this.globalListenersRegistered = false;
     this.workspaceOn = undefined;
 
-    void vscode.commands.executeCommand(
-      'setContext',
-      ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT,
-      false,
-    );
+    void vscode.commands.executeCommand('setContext', ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT, false);
   }
 }
 

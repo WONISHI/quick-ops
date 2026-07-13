@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import type { WorkspaceDocumentFilterOptions, WorkspaceEventHandler, WorkspaceEventName } from '@workflow/workspace-events/type';
 
 export type WebviewIcon =
   | string
@@ -26,4 +27,10 @@ export interface WebviewEnhancerOptions {
 export interface WebviewCreatedPayload {
   panel: vscode.WebviewPanel;
   options?: WebviewEnhancerOptions;
+}
+
+export type WorkspaceOn = <T extends WorkspaceEventName>(eventName: T, handler: WorkspaceEventHandler<T>, options?: WorkspaceDocumentFilterOptions) => vscode.Disposable;
+
+export interface WebviewAppearancePluginInitOptions {
+  on?: WorkspaceOn;
 }
