@@ -8,17 +8,16 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "sourceMap": true,
-    "baseUrl": ".",
     "types": ["node", "vscode"],
     "paths": {
-      "@/*": ["src/*"],
-      "@app/*": ["src/app/*"],
-      "@core/*": ["src/core/*"],
-      "@common/*": ["src/common/*"],
-      "@modules/*": ["src/modules/*"],
-      "@utils/*": ["src/utils/*"],
-      "@workflow/*": ["src/workflow/*"],
-      "@plugins/*": ["src/plugins/*"]
+      "@/*": ["./src/*"],
+      "@app/*": ["./src/app/*"],
+      "@core/*": ["./src/core/*"],
+      "@common/*": ["./src/common/*"],
+      "@modules/*": ["./src/modules/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@workflow/*": ["./src/workflow/*"],
+      "@plugins/*": ["./src/plugins/*"]
     }
   },
   "include": ["src"]
