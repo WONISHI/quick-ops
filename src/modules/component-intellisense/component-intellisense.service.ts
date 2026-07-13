@@ -1,11 +1,7 @@
 import * as vscode from 'vscode';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { WorkspaceContextService } from '../../common/services/workspace-context.service';
-import type {
-  UIAttribute,
-  UIComponent,
-  UILibraryGroup,
-} from './component-intellisense.type';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { WorkspaceContextService } from '@common/services/workspace-context.service';
+import type { UIAttribute, UIComponent, UILibraryGroup } from '@modules/component-intellisense/component-intellisense.type';
 
 export class ComponentIntellisenseService {
   public static inject = [ExtensionContextProvider, WorkspaceContextService];
@@ -50,10 +46,8 @@ export class ComponentIntellisenseService {
     if (attr.options && attr.options.length > 0) {
       md += `**可选值说明**:\n\n`;
 
-      attr.options.forEach(option => {
-        md += `- \`${option.value}\` ${
-          option.description ? `— ${option.description}` : ''
-        }\n`;
+      attr.options.forEach((option) => {
+        md += `- \`${option.value}\` ${option.description ? `— ${option.description}` : ''}\n`;
       });
     }
 
@@ -64,10 +58,7 @@ export class ComponentIntellisenseService {
     return markdown;
   }
 
-  public buildFullComponentMarkdown(
-    comp: UIComponent,
-    tag: string,
-  ): vscode.MarkdownString {
+  public buildFullComponentMarkdown(comp: UIComponent, tag: string): vscode.MarkdownString {
     let doc = `## ${tag}\n${comp.description}\n\n`;
 
     if (comp.link) {
@@ -79,11 +70,8 @@ export class ComponentIntellisenseService {
       doc += `| 参数 | 说明 | 类型 | 可选值 | 默认值 |\n`;
       doc += `| :---: | :---: | :---: | :---: | :---: |\n`;
 
-      comp.attributes.forEach(attr => {
-        const optStr =
-          attr.options
-            ?.map(option => `\`${this.escapeMarkdownTablePipe(option.value)}\``)
-            .join(', ') || '—';
+      comp.attributes.forEach((attr) => {
+        const optStr = attr.options?.map((option) => `\`${this.escapeMarkdownTablePipe(option.value)}\``).join(', ') || '—';
 
         const typeStr = this.escapeMarkdownTablePipe(String(attr.type));
         const defaultStr = this.escapeMarkdownTablePipe(attr.default || '—');
@@ -98,7 +86,7 @@ export class ComponentIntellisenseService {
       doc += `| 事件名 | 说明 | 回调参数 |\n`;
       doc += `| :---: | :---: | :---: |\n`;
 
-      comp.events.forEach(event => {
+      comp.events.forEach((event) => {
         const descStr = this.escapeMarkdownTablePipe(event.description);
         const paramStr = this.escapeMarkdownTablePipe(event.parameters || '—');
 
@@ -111,7 +99,7 @@ export class ComponentIntellisenseService {
       doc += `| 插槽名 | 说明 |\n`;
       doc += `| :---: | :---: |\n`;
 
-      comp.slots.forEach(slot => {
+      comp.slots.forEach((slot) => {
         const descStr = this.escapeMarkdownTablePipe(slot.description);
 
         doc += `| **${slot.name}** | ${descStr} |\n`;
@@ -123,7 +111,7 @@ export class ComponentIntellisenseService {
       doc += `| 方法名 | 说明 | 参数 |\n`;
       doc += `| :---: | :---: | :---: |\n`;
 
-      comp.methods.forEach(method => {
+      comp.methods.forEach((method) => {
         const descStr = this.escapeMarkdownTablePipe(method.description);
         const paramStr = this.escapeMarkdownTablePipe(method.parameters || '—');
 
@@ -138,10 +126,7 @@ export class ComponentIntellisenseService {
     return markdown;
   }
 
-  public getCurrentTagForHover(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-  ): string | null {
+  public getCurrentTagForHover(document: vscode.TextDocument, position: vscode.Position): string | null {
     const lineNumber = position.line;
     const charNumber = position.character;
 
@@ -160,10 +145,7 @@ export class ComponentIntellisenseService {
           const tagName = tagMatch[1];
 
           if (tagName.toLowerCase() === 'template') {
-            return this.getNearestTag(
-              document,
-              new vscode.Position(lineIndex, lastOpenIndex),
-            );
+            return this.getNearestTag(document, new vscode.Position(lineIndex, lastOpenIndex));
           }
 
           return tagName;
@@ -174,15 +156,10 @@ export class ComponentIntellisenseService {
     return this.getNearestTag(document, position);
   }
 
-  public getNearestTag(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-  ): string | null {
+  public getNearestTag(document: vscode.TextDocument, position: vscode.Position): string | null {
     const startLine = Math.max(0, position.line - 30);
 
-    const text = document.getText(
-      new vscode.Range(new vscode.Position(startLine, 0), position),
-    );
+    const text = document.getText(new vscode.Range(new vscode.Position(startLine, 0), position));
 
     const tagRegex = /<\/?([\w-]+)/g;
     const tags: string[] = [];
@@ -231,10 +208,7 @@ export class ComponentIntellisenseService {
     try {
       const vscodeDirUri = vscode.Uri.joinPath(workspaceFolders[0].uri, '.vscode');
 
-      const targetFileUri = vscode.Uri.joinPath(
-        vscodeDirUri,
-        'quick-ops-ui.code-snippets',
-      );
+      const targetFileUri = vscode.Uri.joinPath(vscodeDirUri, 'quick-ops-ui.code-snippets');
 
       const vsCodeNativeSnippets: Record<
         string,
@@ -257,10 +231,7 @@ export class ComponentIntellisenseService {
 
       await vscode.workspace.fs.createDirectory(vscodeDirUri);
 
-      await vscode.workspace.fs.writeFile(
-        targetFileUri,
-        Buffer.from(JSON.stringify(vsCodeNativeSnippets, null, 2), 'utf8'),
-      );
+      await vscode.workspace.fs.writeFile(targetFileUri, Buffer.from(JSON.stringify(vsCodeNativeSnippets, null, 2), 'utf8'));
 
       const doc = await vscode.workspace.openTextDocument(targetFileUri);
 
@@ -280,11 +251,7 @@ export class ComponentIntellisenseService {
   private async loadSnippetsFromResources(): Promise<void> {
     const context = this.extensionContextProvider.getContext();
 
-    const snippetsDirUri = vscode.Uri.joinPath(
-      context.extensionUri,
-      'resources',
-      'ui-snippets',
-    );
+    const snippetsDirUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'ui-snippets');
 
     let files: [string, vscode.FileType][];
 
@@ -325,9 +292,7 @@ export class ComponentIntellisenseService {
     for (const [baseName, group] of Object.entries(libraryGroups)) {
       const configKey = this.toUseConfigKey(baseName);
 
-      const isEnabled = vscode.workspace
-        .getConfiguration('quick-ops.general.use')
-        .get<boolean>(configKey, true);
+      const isEnabled = vscode.workspace.getConfiguration('quick-ops.general.use').get<boolean>(configKey, true);
 
       if (!isEnabled) {
         continue;
@@ -339,16 +304,11 @@ export class ComponentIntellisenseService {
         continue;
       }
 
-      const installedMajorVersion = this.getMajorVersion(
-        String(dependencyVersionString),
-      );
+      const installedMajorVersion = this.getMajorVersion(String(dependencyVersionString));
 
       let targetFileToLoad: string | undefined;
 
-      if (
-        installedMajorVersion &&
-        group.versions[installedMajorVersion]
-      ) {
+      if (installedMajorVersion && group.versions[installedMajorVersion]) {
         targetFileToLoad = group.versions[installedMajorVersion];
       } else if (group.unversioned) {
         targetFileToLoad = group.unversioned;
@@ -358,10 +318,7 @@ export class ComponentIntellisenseService {
         continue;
       }
 
-      const targetFileUri = vscode.Uri.joinPath(
-        snippetsDirUri,
-        targetFileToLoad,
-      );
+      const targetFileUri = vscode.Uri.joinPath(snippetsDirUri, targetFileToLoad);
 
       try {
         const fileData = await vscode.workspace.fs.readFile(targetFileUri);
@@ -372,8 +329,8 @@ export class ComponentIntellisenseService {
 
         this.components.push(...parsed);
 
-        parsed.forEach(component => {
-          component.tags.forEach(tag => {
+        parsed.forEach((component) => {
+          component.tags.forEach((tag) => {
             this.tagToComponentMap.set(tag, component);
           });
         });
@@ -386,7 +343,7 @@ export class ComponentIntellisenseService {
   private toUseConfigKey(baseName: string): string {
     return baseName
       .split('-')
-      .map(word => {
+      .map((word) => {
         return word.charAt(0).toUpperCase() + word.slice(1);
       })
       .join('');

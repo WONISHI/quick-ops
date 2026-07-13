@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
-import ColorLog from '../../utils/ColorLog';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { WorkspaceContextService } from '../../common/services/workspace-context.service';
-import { ComponentIntellisenseService } from './component-intellisense.service';
-import { ComponentCompletionProvider } from './providers/component-completion.provider';
+import ColorLog from '@utils/ColorLog';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { WorkspaceContextService } from '@common/services/workspace-context.service';
+import { ComponentIntellisenseService } from '@modules/component-intellisense/component-intellisense.service';
+import { ComponentCompletionProvider } from '@modules/component-intellisense/providers/component-completion.provider';
 
 export class ComponentIntellisenseController implements OnModuleInit {
   public static inject = [

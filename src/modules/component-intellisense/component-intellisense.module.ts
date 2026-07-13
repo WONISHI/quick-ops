@@ -1,8 +1,8 @@
-import type { QuickOpsModule } from '../../core/module/quick-ops-module.interface';
-import { CommonModule } from '../../common/common.module';
-import { ComponentIntellisenseController } from './component-intellisense.controller';
-import { ComponentIntellisenseService } from './component-intellisense.service';
-import { ComponentCompletionProvider } from './providers/component-completion.provider';
+import type { QuickOpsModule } from '@core/module/quick-ops-module.interface';
+import { CommonModule } from '@common/common.module';
+import { ComponentIntellisenseController } from '@modules/component-intellisense/component-intellisense.controller';
+import { ComponentIntellisenseService } from '@modules/component-intellisense/component-intellisense.service';
+import { ComponentCompletionProvider } from '@modules/component-intellisense/providers/component-completion.provider';
 
 export const ComponentIntellisenseModule: QuickOpsModule = {
   imports: [CommonModule],
