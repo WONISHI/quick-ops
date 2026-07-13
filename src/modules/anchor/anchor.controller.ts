@@ -1,15 +1,20 @@
 import * as vscode from 'vscode';
 import ColorLog from '@utils/ColorLog';
-import 
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { AnchorService } from '@modules/anchor/anchor.service';
 import type { AnchorDirection } from '@modules/anchor/anchor.type';
 import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
+import WorkspaceEventsWorkflow from '@workflow/workspace-events';
+import { WORKSPACE_EVENTS } from '@workflow/workspace-events/type';
 
 export class AnchorController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, AnchorService];
 
   private readonly id = 'AnchorModule';
+
+  private readonly workspaceEventsWorkflow = new WorkspaceEventsWorkflow();
+
+  private readonly supportedDocumentExts = ['.vue', '.jsx', '.tsx', '.css', '.less', '.scss', '.html', '.js', '.ts'];
 
   constructor(
     private readonly extensionContextProvider: ExtensionContextProvider,
@@ -53,9 +58,10 @@ export class AnchorController implements OnModuleInit {
    */
   public dispose(): void {
     this.anchorService.dispose();
+    this.workspaceEventsWorkflow.dispose();
   }
 
-  /**
+    /**
    * @description 注册 Anchor CodeLensProvider
    *
    * CodeLensProvider 负责在编辑器中显示锚点行内提示。
@@ -98,15 +104,29 @@ export class AnchorController implements OnModuleInit {
    * decoration 相关能力已经删除，所以这里不再监听 activeTextEditor 变化。
    */
   private registerListeners(): void {
+    const context = this.extensionContextProvider.getContext();
+
+    this.workspaceEventsWorkflow.init(context);
+
     this.extensionContextProvider.register(
       this.anchorService.onDidChangeAnchors(() => {
         this.anchorService.checkContainsAnchor();
         this.anchorService.refreshMindMapPanel();
       }),
 
-      vscode.workspace.onDidSaveTextDocument((doc) => {
-        void this.anchorService.syncAnchorsWithContent(doc);
-      }),
+      this.workspaceEventsWorkflow.on(
+        WORKSPACE_EVENTS.DID_SAVE_TEXT_DOCUMENT,
+        (event) => {
+          const doc = event.document;
+
+          if (!doc) return;
+
+          void this.anchorService.syncAnchorsWithContent(doc);
+        },
+        {
+          extensions: this.supportedDocumentExts,
+        },
+      ),
     );
   }
 
