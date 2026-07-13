@@ -1,24 +1,71 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import WebviewWorkflow from '@/workflow/webview';
+import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { LivePreviewService } from '@modules/live-preview/live-preview.service';
 import { EmbeddedBrowserService } from '@modules/live-preview/services/embedded-browser.service';
-import type {PendingLocalFile} from "@modules/live-preview/live-preview.type";
+import type { PendingLocalFile } from '@modules/live-preview/live-preview.type';
+import type { WebviewEnhancerOptions } from '@plugins/webview-enhancer/type';
 
+/**
+ * @description Live Preview Webview Provider
+ *
+ * 负责：
+ * 1. 打开 / 关闭网页预览 Webview
+ * 2. 通过 WebviewWorkflow 统一创建 WebviewPanel
+ * 3. 同步收藏数据到 Webview
+ * 4. 处理 Webview 发回来的消息
+ * 5. 支持本地 markdown / pdf / excel / html 文件预览
+ */
 export class LivePreviewProvider {
   public static inject = [ExtensionContextProvider, LivePreviewService, EmbeddedBrowserService];
 
+  /**
+   * @description 主预览面板
+   */
   private panel?: vscode.WebviewPanel;
+
+  /**
+   * @description 待加载的本地文件
+   *
+   * Webview 未 ready 前，先缓存本地文件信息。
+   * Webview ready 后再真正读取并发送文件内容。
+   */
   private pendingLocalFile: PendingLocalFile | null = null;
 
+  /**
+   * @description Webview 工作流
+   *
+   * 统一负责：
+   * - 创建 WebviewPanel
+   * - 复用相同 key 的 Webview
+   * - 派发 webview:created / webview:disposed 等事件
+   * - 配合 WebviewAppearancePlugin 处理 icon / fullscreen
+   */
+  private readonly webviewWorkflow = new WebviewWorkflow();
+  private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
+
+  /**
+   * @description 创建 LivePreviewProvider
+   *
+   * @param extensionContextProvider VSCode ExtensionContext 提供器
+   * @param livePreviewService Live Preview 业务服务
+   * @param embeddedBrowserService 内嵌浏览器代理服务
+   */
   constructor(
     private readonly extensionContextProvider: ExtensionContextProvider,
     private readonly livePreviewService: LivePreviewService,
     private readonly embeddedBrowserService: EmbeddedBrowserService,
   ) {}
 
+  /**
+   * @description 切换预览面板
+   *
+   * 如果当前面板可见，则关闭；
+   * 否则打开或激活预览面板。
+   */
   public async togglePreviewPanel(): Promise<void> {
     if (this.panel?.visible) {
       this.panel.dispose();
@@ -28,6 +75,15 @@ export class LivePreviewProvider {
     await this.openPreviewPanel();
   }
 
+  /**
+   * @description 打开主预览面板
+   *
+   * - 如果面板已存在，则 reveal 并同步收藏
+   * - 如果传入 initialUrl，则通知 Webview 跳转
+   * - 如果面板不存在，则通过 WebviewWorkflow 创建
+   *
+   * @param initialUrl 初始预览地址
+   */
   public async openPreviewPanel(initialUrl = ''): Promise<void> {
     const context = this.extensionContextProvider.getContext();
 
@@ -46,20 +102,42 @@ export class LivePreviewProvider {
       return;
     }
 
-    this.panel = vscode.window.createWebviewPanel('quickOpsLivePreview', '网页预览 (Preview)', vscode.ViewColumn.Beside, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      enableFindWidget: true,
-      localResourceRoots: this.livePreviewService.getLocalResourceRoots(context),
-    });
+    this.panel = await this.webviewWorkflow.createWebview<any, WebviewEnhancerOptions>({
+      key: 'quickOpsLivePreview',
+      viewType: 'quickOpsLivePreview',
+      title: '网页预览 (Preview)',
+      column: vscode.ViewColumn.Beside,
 
-    this.panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'livepreview.svg');
+      /**
+       * @description 给 WebviewAppearancePlugin 使用
+       */
+      extensionUri: context.extensionUri,
+      icon: 'resources/icons/livepreview.svg',
+      fullscreen: true,
 
-    this.panel.webview.html = getReactWebviewHtml(context.extensionUri, this.panel.webview, '/preview');
+      options: {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        enableFindWidget: true,
+        localResourceRoots: this.livePreviewService.getLocalResourceRoots(context),
+      },
 
-    this.panel.onDidDispose(() => {
-      this.panel = undefined;
-      this.pendingLocalFile = null;
+      htmlFactory: async (webview) => {
+        return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+          extensionUri: context!.extensionUri,
+          webview,
+          routeName: '/preview',
+        });
+      },
+
+      onDidReceiveMessage: async (message) => {
+        await this.handleMessage(message);
+      },
+
+      onDidDispose: () => {
+        this.panel = undefined;
+        this.pendingLocalFile = null;
+      },
     });
 
     this.panel.onDidChangeViewState((event) => {
@@ -68,12 +146,7 @@ export class LivePreviewProvider {
       }
     });
 
-    this.panel.webview.onDidReceiveMessage(async (message) => {
-      await this.handleMessage(message);
-    });
-
     const lastUrl = initialUrl || String(context.workspaceState.get('quickOps.lastPreviewUrl') || '');
-
     const lastDevice = String(context.workspaceState.get('quickOps.lastPreviewDevice') || 'device-responsive');
 
     setTimeout(() => {
@@ -87,6 +160,13 @@ export class LivePreviewProvider {
     }, 100);
   }
 
+  /**
+   * @description 预览本地文件
+   *
+   * 支持类型由 LivePreviewService.getLocalFileType 控制。
+   *
+   * @param uri 待预览的文件 Uri，不传时使用当前激活编辑器文档
+   */
   public async previewLocalFile(uri?: vscode.Uri): Promise<void> {
     const targetUri = uri || vscode.window.activeTextEditor?.document.uri;
 
@@ -119,6 +199,9 @@ export class LivePreviewProvider {
     await this.loadPendingLocalFile();
   }
 
+  /**
+   * @description 同步收藏列表到主预览面板
+   */
   public async syncFavoritesToPanel(): Promise<void> {
     if (!this.panel) return;
 
@@ -131,12 +214,20 @@ export class LivePreviewProvider {
     });
   }
 
+  /**
+   * @description 释放资源
+   */
   public dispose(): void {
     this.panel?.dispose();
     this.panel = undefined;
     this.pendingLocalFile = null;
   }
 
+  /**
+   * @description 处理 Webview 发来的消息
+   *
+   * @param message Webview 消息体
+   */
   private async handleMessage(message: any): Promise<void> {
     const context = this.extensionContextProvider.getContext();
 
@@ -208,6 +299,7 @@ export class LivePreviewProvider {
       case 'showError':
         vscode.window.showErrorMessage(message.message || '');
         break;
+
       case 'navigateWithProxy': {
         const result = await this.embeddedBrowserService.navigate({
           url: message.url,
@@ -246,11 +338,19 @@ export class LivePreviewProvider {
     }
   }
 
+  /**
+   * @description Webview ready 后的初始化处理
+   */
   private async handleWebviewReady(): Promise<void> {
     await this.loadPendingLocalFile();
     await this.syncFavoritesToPanel();
   }
 
+  /**
+   * @description 收藏 / 取消收藏当前地址
+   *
+   * @param message Webview 消息体
+   */
   private async toggleFavorite(message: any): Promise<void> {
     const context = this.extensionContextProvider.getContext();
 
@@ -274,50 +374,88 @@ export class LivePreviewProvider {
     });
   }
 
+  /**
+   * @description 创建新的预览标签页
+   *
+   * 新标签页不复用主预览面板，因此使用唯一 key 并设置 revealIfExists: false。
+   *
+   * @param initialUrl 初始地址
+   * @param initialDevice 初始设备类型
+   */
   private async createNewPreviewTab(initialUrl = '', initialDevice = ''): Promise<void> {
     const context = this.extensionContextProvider.getContext();
 
-    const panel = vscode.window.createWebviewPanel('quickOpsLivePreview', '网页预览 (Preview)', this.panel?.viewColumn || vscode.ViewColumn.Active, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      enableFindWidget: true,
-      localResourceRoots: this.livePreviewService.getLocalResourceRoots(context),
-    });
+    let panel: vscode.WebviewPanel | undefined;
 
-    panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'livepreview.svg');
+    panel = await this.webviewWorkflow.createWebview<any, WebviewEnhancerOptions>({
+      key: `quickOpsLivePreview:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+      viewType: 'quickOpsLivePreview',
+      title: '网页预览 (Preview)',
+      column: this.panel?.viewColumn || vscode.ViewColumn.Active,
 
-    panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/preview');
+      /**
+       * @description 给 WebviewAppearancePlugin 使用
+       */
+      extensionUri: context.extensionUri,
+      icon: 'resources/icons/livepreview.svg',
+      fullscreen: true,
 
-    panel.webview.onDidReceiveMessage(async (message) => {
-      if (message.type === 'ready') {
-        panel.webview.postMessage({
-          type: 'init',
-          url: initialUrl,
-          device: initialDevice || 'device-responsive',
+      /**
+       * @description 新预览页不复用已有 Webview
+       */
+      revealIfExists: false,
+
+      options: {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        enableFindWidget: true,
+        localResourceRoots: this.livePreviewService.getLocalResourceRoots(context),
+      },
+
+      htmlFactory: async (webview) => {
+        return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+          extensionUri: context!.extensionUri,
+          webview,
+          routeName: '/preview',
         });
+      },
 
-        const favorites = await this.livePreviewService.getMergedFavorites(context);
+      onDidReceiveMessage: async (message) => {
+        if (!panel) return;
 
-        panel.webview.postMessage({
-          type: 'syncFavorites',
-          favorites,
-        });
-      }
+        if (message.type === 'ready') {
+          panel.webview.postMessage({
+            type: 'init',
+            url: initialUrl,
+            device: initialDevice || 'device-responsive',
+          });
 
-      if (message.type === 'saveUrl') {
-        await context.workspaceState.update('quickOps.lastPreviewUrl', message.url || '');
-      }
+          const favorites = await this.livePreviewService.getMergedFavorites(context);
 
-      if (message.type === 'saveDevice') {
-        await context.workspaceState.update('quickOps.lastPreviewDevice', message.device || 'device-responsive');
-      }
+          panel.webview.postMessage({
+            type: 'syncFavorites',
+            favorites,
+          });
+        }
 
-      if (message.type === 'openExternalBrowser' && message.url) {
-        await vscode.env.openExternal(this.livePreviewService.parseExternalUri(message.url));
-      }
+        if (message.type === 'saveUrl') {
+          await context.workspaceState.update('quickOps.lastPreviewUrl', message.url || '');
+        }
+
+        if (message.type === 'saveDevice') {
+          await context.workspaceState.update('quickOps.lastPreviewDevice', message.device || 'device-responsive');
+        }
+
+        if (message.type === 'openExternalBrowser' && message.url) {
+          await vscode.env.openExternal(this.livePreviewService.parseExternalUri(message.url));
+        }
+      },
     });
   }
 
+  /**
+   * @description 加载等待中的本地文件
+   */
   private async loadPendingLocalFile(): Promise<void> {
     if (!this.panel || !this.pendingLocalFile) return;
 
@@ -382,6 +520,13 @@ export class LivePreviewProvider {
     }
   }
 
+  /**
+   * @description 加载本地 HTML 文件
+   *
+   * 会将 HTML 内的 src / href / poster 等本地资源地址转换成 Webview 可访问地址。
+   *
+   * @param fsPath HTML 文件路径
+   */
   private async loadLocalHtmlFile(fsPath: string): Promise<void> {
     if (!this.panel) return;
 
@@ -412,6 +557,11 @@ export class LivePreviewProvider {
     }
   }
 
+  /**
+   * @description 更新当前 Webview 可访问的本地资源根路径
+   *
+   * @param fileUri 当前要预览的本地文件 Uri
+   */
   private updateWebviewLocalRoots(fileUri?: vscode.Uri): void {
     if (!this.panel) return;
 
@@ -423,6 +573,11 @@ export class LivePreviewProvider {
     };
   }
 
+  /**
+   * @description 判断 URL 是否不需要重写
+   *
+   * @param rawUrl 原始 URL
+   */
   private isSkipRewriteUrl(rawUrl: string): boolean {
     const url = rawUrl.trim();
 
@@ -431,6 +586,11 @@ export class LivePreviewProvider {
     return url.startsWith('#') || url.startsWith('//') || /^(https?:|data:|blob:|mailto:|tel:|javascript:|vscode-webview-resource:|vscode-resource:|vscode-webview:)/i.test(url);
   }
 
+  /**
+   * @description 拆分 URL 的路径和 query/hash 后缀
+   *
+   * @param rawUrl 原始 URL
+   */
   private splitUrlSuffix(rawUrl: string): {
     pathname: string;
     suffix: string;
@@ -443,6 +603,11 @@ export class LivePreviewProvider {
     };
   }
 
+  /**
+   * @description 判断 Uri 是否存在
+   *
+   * @param uri 待检查 Uri
+   */
   private async uriExists(uri: vscode.Uri): Promise<boolean> {
     try {
       await vscode.workspace.fs.stat(uri);
@@ -452,6 +617,12 @@ export class LivePreviewProvider {
     }
   }
 
+  /**
+   * @description 解析 HTML 资源地址对应的本地 Uri
+   *
+   * @param rawUrl 原始资源地址
+   * @param htmlFileUri 当前 HTML 文件 Uri
+   */
   private async resolveHtmlAssetUri(rawUrl: string, htmlFileUri: vscode.Uri): Promise<vscode.Uri | null> {
     const { pathname } = this.splitUrlSuffix(rawUrl);
 
@@ -502,10 +673,22 @@ export class LivePreviewProvider {
     }
   }
 
+  /**
+   * @description 转义 HTML 属性值
+   *
+   * @param value 属性值
+   */
   private escapeHtmlAttribute(value: string): string {
     return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
+  /**
+   * @description 将普通本地资源地址转换为 Webview 可访问地址
+   *
+   * @param rawUrl 原始资源地址
+   * @param htmlFileUri 当前 HTML 文件 Uri
+   * @param webview 目标 Webview
+   */
   private async toWebviewAssetUrl(rawUrl: string, htmlFileUri: vscode.Uri, webview: vscode.Webview): Promise<string> {
     const trimmed = String(rawUrl || '').trim();
 
@@ -523,6 +706,13 @@ export class LivePreviewProvider {
     return `${webview.asWebviewUri(assetUri).toString()}${suffix}`;
   }
 
+  /**
+   * @description 重写指定标签上的 href / src / poster 属性
+   *
+   * @param tag HTML 标签字符串
+   * @param htmlFileUri 当前 HTML 文件 Uri
+   * @param webview 目标 Webview
+   */
   private async rewriteTagAttr(tag: string, htmlFileUri: vscode.Uri, webview: vscode.Webview): Promise<string> {
     const attrReg = /\s(href|src|poster)=("([^"]*)"|'([^']*)'|([^\s>]+))/gi;
 
@@ -567,6 +757,22 @@ export class LivePreviewProvider {
     return result;
   }
 
+  /**
+   * @description 重写 HTML 中的本地资源引用
+   *
+   * 处理范围：
+   * - link[href]
+   * - script[src]
+   * - img[src]
+   * - source[src]
+   * - video[src/poster]
+   * - audio[src]
+   * - iframe[src]
+   *
+   * @param html 原始 HTML
+   * @param htmlFileUri 当前 HTML 文件 Uri
+   * @param webview 目标 Webview
+   */
   private async rewriteLocalHtmlAssets(html: string, htmlFileUri: vscode.Uri, webview: vscode.Webview): Promise<string> {
     if (!html) return html;
 
