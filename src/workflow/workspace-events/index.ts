@@ -1,22 +1,16 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { ETIRuntime, ETIRuntimeProvide } from '@core/eti/eti.type';
-import {
-  WORKSPACE_EVENTS,
-  type WorkspaceDocumentFilterOptions,
-  type WorkspaceEventContext,
-  type WorkspaceEventHandler,
-  type WorkspaceEventMap,
-  type WorkspaceEventName,
+import { WORKSPACE_EVENTS } from './type';
+import type {
+  WorkspaceDocumentFilterOptions,
+  WorkspaceEventContext,
+  WorkspaceEventHandler,
+  WorkspaceEventMap,
+  WorkspaceEventName,
+  AnyWorkspaceEventHandler,
+  LocalHandlerItem,
 } from './type';
-
-type AnyWorkspaceEventHandler = (context: WorkspaceEventContext) => void | Promise<void>;
-
-interface LocalHandlerItem {
-  eventName: WorkspaceEventName;
-  handler: AnyWorkspaceEventHandler;
-  options?: WorkspaceDocumentFilterOptions;
-}
 
 /**
  * @description Workspace Events 工作流 Core
@@ -163,11 +157,7 @@ export default class WorkspaceEventsWorkflow implements ETIRuntime, vscode.Dispo
    * 这个不是 ETI plugin 监听。
    * 这是给普通模块直接使用的。
    */
-  public on<T extends WorkspaceEventName>(
-    eventName: T,
-    handler: WorkspaceEventHandler<T>,
-    options?: WorkspaceDocumentFilterOptions,
-  ): vscode.Disposable {
+  public on<T extends WorkspaceEventName>(eventName: T, handler: WorkspaceEventHandler<T>, options?: WorkspaceDocumentFilterOptions): vscode.Disposable {
     const item: LocalHandlerItem = {
       eventName,
       handler: handler as AnyWorkspaceEventHandler,
@@ -357,12 +347,3 @@ export default class WorkspaceEventsWorkflow implements ETIRuntime, vscode.Dispo
   }
 }
 
-export { WORKSPACE_EVENTS };
-
-export type {
-  WorkspaceDocumentFilterOptions,
-  WorkspaceEventContext,
-  WorkspaceEventHandler,
-  WorkspaceEventMap,
-  WorkspaceEventName,
-};

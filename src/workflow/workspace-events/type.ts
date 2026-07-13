@@ -64,3 +64,11 @@ export interface WorkspaceDocumentFilterOptions {
 }
 
 export type WorkspaceEventHandler<T extends WorkspaceEventName> = (context: WorkspaceEventContext<T>) => void | Promise<void>;
+
+export type AnyWorkspaceEventHandler = (context: WorkspaceEventContext) => void | Promise<void>;
+
+export interface LocalHandlerItem {
+  eventName: WorkspaceEventName;
+  handler: AnyWorkspaceEventHandler;
+  options?: WorkspaceDocumentFilterOptions;
+}
