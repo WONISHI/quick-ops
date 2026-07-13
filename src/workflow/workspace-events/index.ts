@@ -3,20 +3,20 @@ import * as vscode from 'vscode';
 import type { ETIRuntime, ETIRuntimeProvide } from '@core/eti/eti.type';
 import { WORKSPACE_EVENTS } from './type';
 import type {
+  AnyWorkspaceEventHandler,
+  LocalHandlerItem,
   WorkspaceDocumentFilterOptions,
   WorkspaceEventContext,
   WorkspaceEventHandler,
   WorkspaceEventMap,
   WorkspaceEventName,
-  AnyWorkspaceEventHandler,
-  LocalHandlerItem,
 } from './type';
 
 /**
- * @description Workspace Events 工作流 Core
+ * @description Workspace Events 工作流 Runtime
  *
  * 作用：
- * 1. 统一注册 VSCode workspace / window 原生事件
+ * 1. 统一注册 VSCode workspace / window / debug / tasks 原生事件
  * 2. 通过 provide() 向 ETI 暴露可监听事件
  * 3. 通过 inject() 接收 plugin.on 注册的监听回调
  * 4. 原生事件触发后，统一 emit 给 plugin 和本地业务监听
@@ -47,55 +47,19 @@ export default class WorkspaceEventsWorkflow implements ETIRuntime, vscode.Dispo
   private readonly localHandlers = new Map<WorkspaceEventName, Set<LocalHandlerItem>>();
 
   /**
-   * @description 向 ETI 暴露当前 Core 支持的事件
-   *
-   * Plugin 可以监听这些事件：
-   *
-   * plugin.init() {
-   *   return {
-   *     pluginId: 'xxx',
-   *     on: [
-   *       {
-   *         name: WORKSPACE_EVENTS.DID_SAVE_TEXT_DOCUMENT,
-   *         callback: async (context) => {}
-   *       }
-   *     ]
-   *   }
-   * }
+   * @description 向 ETI 暴露当前 Runtime 支持的事件
    */
   public provide(): ETIRuntimeProvide {
     return {
       runtimeId: this.runtimeId,
-      register: [
-        {
-          name: WORKSPACE_EVENTS.DID_SAVE_TEXT_DOCUMENT,
-          callback: this.emitDidSaveTextDocument.bind(this),
-        },
-        {
-          name: WORKSPACE_EVENTS.DID_CHANGE_TEXT_DOCUMENT,
-          callback: this.emitDidChangeTextDocument.bind(this),
-        },
-        {
-          name: WORKSPACE_EVENTS.DID_OPEN_TEXT_DOCUMENT,
-          callback: this.emitDidOpenTextDocument.bind(this),
-        },
-        {
-          name: WORKSPACE_EVENTS.DID_CLOSE_TEXT_DOCUMENT,
-          callback: this.emitDidCloseTextDocument.bind(this),
-        },
-        {
-          name: WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TEXT_EDITOR,
-          callback: this.emitDidChangeActiveTextEditor.bind(this),
-        },
-        {
-          name: WORKSPACE_EVENTS.DID_CHANGE_CONFIGURATION,
-          callback: this.emitDidChangeConfiguration.bind(this),
-        },
-        {
-          name: WORKSPACE_EVENTS.DID_CHANGE_WORKSPACE_FOLDERS,
-          callback: this.emitDidChangeWorkspaceFolders.bind(this),
-        },
-      ],
+      register: this.getRegisterEvents().map((eventName) => {
+        return {
+          name: eventName,
+          callback: (payload: any) => {
+            return this.emit(eventName, payload);
+          },
+        };
+      }),
     };
   }
 
@@ -117,32 +81,164 @@ export default class WorkspaceEventsWorkflow implements ETIRuntime, vscode.Dispo
     this.initialized = true;
 
     this.disposables.push(
+      /**
+       * TextDocument
+       */
       vscode.workspace.onDidSaveTextDocument((doc) => {
-        void this.emitDidSaveTextDocument(doc);
+        void this.emit(WORKSPACE_EVENTS.DID_SAVE_TEXT_DOCUMENT, doc);
+      }),
+
+      vscode.workspace.onWillSaveTextDocument((event) => {
+        void this.emit(WORKSPACE_EVENTS.WILL_SAVE_TEXT_DOCUMENT, event);
       }),
 
       vscode.workspace.onDidChangeTextDocument((event) => {
-        void this.emitDidChangeTextDocument(event);
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_TEXT_DOCUMENT, event);
       }),
 
       vscode.workspace.onDidOpenTextDocument((doc) => {
-        void this.emitDidOpenTextDocument(doc);
+        void this.emit(WORKSPACE_EVENTS.DID_OPEN_TEXT_DOCUMENT, doc);
       }),
 
       vscode.workspace.onDidCloseTextDocument((doc) => {
-        void this.emitDidCloseTextDocument(doc);
+        void this.emit(WORKSPACE_EVENTS.DID_CLOSE_TEXT_DOCUMENT, doc);
       }),
 
+      /**
+       * Window / Editor
+       */
       vscode.window.onDidChangeActiveTextEditor((editor) => {
-        void this.emitDidChangeActiveTextEditor(editor);
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TEXT_EDITOR, editor);
       }),
 
+      vscode.window.onDidChangeVisibleTextEditors((editors) => {
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_VISIBLE_TEXT_EDITORS, editors);
+      }),
+
+      vscode.window.onDidChangeTextEditorSelection((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_TEXT_EDITOR_SELECTION, event);
+      }),
+
+      vscode.window.onDidChangeTextEditorVisibleRanges((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_TEXT_EDITOR_VISIBLE_RANGES, event);
+      }),
+
+      vscode.window.onDidChangeTextEditorOptions((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_TEXT_EDITOR_OPTIONS, event);
+      }),
+
+      vscode.window.onDidChangeWindowState((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_WINDOW_STATE, event);
+      }),
+
+      /**
+       * Tabs
+       */
+      vscode.window.tabGroups.onDidChangeTabs((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_TABS, event);
+      }),
+
+      vscode.window.tabGroups.onDidChangeTabGroups((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_TAB_GROUPS, event);
+      }),
+
+      /**
+       * Workspace
+       */
       vscode.workspace.onDidChangeConfiguration((event) => {
-        void this.emitDidChangeConfiguration(event);
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_CONFIGURATION, event);
       }),
 
       vscode.workspace.onDidChangeWorkspaceFolders((event) => {
-        void this.emitDidChangeWorkspaceFolders(event);
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_WORKSPACE_FOLDERS, event);
+      }),
+
+      /**
+       * File operations
+       */
+      vscode.workspace.onDidCreateFiles((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_CREATE_FILES, event);
+      }),
+
+      vscode.workspace.onDidDeleteFiles((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_DELETE_FILES, event);
+      }),
+
+      vscode.workspace.onDidRenameFiles((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_RENAME_FILES, event);
+      }),
+
+      vscode.workspace.onWillCreateFiles((event) => {
+        void this.emit(WORKSPACE_EVENTS.WILL_CREATE_FILES, event);
+      }),
+
+      vscode.workspace.onWillDeleteFiles((event) => {
+        void this.emit(WORKSPACE_EVENTS.WILL_DELETE_FILES, event);
+      }),
+
+      vscode.workspace.onWillRenameFiles((event) => {
+        void this.emit(WORKSPACE_EVENTS.WILL_RENAME_FILES, event);
+      }),
+
+      /**
+       * Terminal
+       */
+      vscode.window.onDidOpenTerminal((terminal) => {
+        void this.emit(WORKSPACE_EVENTS.DID_OPEN_TERMINAL, terminal);
+      }),
+
+      vscode.window.onDidCloseTerminal((terminal) => {
+        void this.emit(WORKSPACE_EVENTS.DID_CLOSE_TERMINAL, terminal);
+      }),
+
+      vscode.window.onDidChangeActiveTerminal((terminal) => {
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TERMINAL, terminal);
+      }),
+
+      vscode.window.onDidChangeTerminalState((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_TERMINAL_STATE, event);
+      }),
+
+      /**
+       * Debug
+       */
+      vscode.debug.onDidStartDebugSession((session) => {
+        void this.emit(WORKSPACE_EVENTS.DID_START_DEBUG_SESSION, session);
+      }),
+
+      vscode.debug.onDidTerminateDebugSession((session) => {
+        void this.emit(WORKSPACE_EVENTS.DID_TERMINATE_DEBUG_SESSION, session);
+      }),
+
+      vscode.debug.onDidChangeActiveDebugSession((session) => {
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_DEBUG_SESSION, session);
+      }),
+
+      vscode.debug.onDidReceiveDebugSessionCustomEvent((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_RECEIVE_DEBUG_SESSION_CUSTOM_EVENT, event);
+      }),
+
+      vscode.debug.onDidChangeBreakpoints((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_CHANGE_BREAKPOINTS, event);
+      }),
+
+      /**
+       * Tasks
+       */
+      vscode.tasks.onDidStartTask((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_START_TASK, event);
+      }),
+
+      vscode.tasks.onDidEndTask((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_END_TASK, event);
+      }),
+
+      vscode.tasks.onDidStartTaskProcess((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_START_TASK_PROCESS, event);
+      }),
+
+      vscode.tasks.onDidEndTaskProcess((event) => {
+        void this.emit(WORKSPACE_EVENTS.DID_END_TASK_PROCESS, event);
       }),
     );
 
@@ -175,46 +271,21 @@ export default class WorkspaceEventsWorkflow implements ETIRuntime, vscode.Dispo
     };
   }
 
-  private async emitDidSaveTextDocument(payload: WorkspaceEventMap[typeof WORKSPACE_EVENTS.DID_SAVE_TEXT_DOCUMENT]): Promise<void> {
-    await this.emit(WORKSPACE_EVENTS.DID_SAVE_TEXT_DOCUMENT, payload);
-  }
-
-  private async emitDidChangeTextDocument(payload: WorkspaceEventMap[typeof WORKSPACE_EVENTS.DID_CHANGE_TEXT_DOCUMENT]): Promise<void> {
-    await this.emit(WORKSPACE_EVENTS.DID_CHANGE_TEXT_DOCUMENT, payload);
-  }
-
-  private async emitDidOpenTextDocument(payload: WorkspaceEventMap[typeof WORKSPACE_EVENTS.DID_OPEN_TEXT_DOCUMENT]): Promise<void> {
-    await this.emit(WORKSPACE_EVENTS.DID_OPEN_TEXT_DOCUMENT, payload);
-  }
-
-  private async emitDidCloseTextDocument(payload: WorkspaceEventMap[typeof WORKSPACE_EVENTS.DID_CLOSE_TEXT_DOCUMENT]): Promise<void> {
-    await this.emit(WORKSPACE_EVENTS.DID_CLOSE_TEXT_DOCUMENT, payload);
-  }
-
-  private async emitDidChangeActiveTextEditor(payload: WorkspaceEventMap[typeof WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TEXT_EDITOR]): Promise<void> {
-    await this.emit(WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TEXT_EDITOR, payload);
-  }
-
-  private async emitDidChangeConfiguration(payload: WorkspaceEventMap[typeof WORKSPACE_EVENTS.DID_CHANGE_CONFIGURATION]): Promise<void> {
-    await this.emit(WORKSPACE_EVENTS.DID_CHANGE_CONFIGURATION, payload);
-  }
-
-  private async emitDidChangeWorkspaceFolders(payload: WorkspaceEventMap[typeof WORKSPACE_EVENTS.DID_CHANGE_WORKSPACE_FOLDERS]): Promise<void> {
-    await this.emit(WORKSPACE_EVENTS.DID_CHANGE_WORKSPACE_FOLDERS, payload);
-  }
-
   /**
-   * @description 统一触发 workspace 事件
+   * @description 统一触发 workspace/window/debug/tasks 事件
    *
    * 触发顺序：
    * 1. injectedEvents：ETI plugin 的 on 监听
    * 2. localHandlers：业务模块 workflow.on 监听
    */
   private async emit<T extends WorkspaceEventName>(eventName: T, payload: WorkspaceEventMap[T]): Promise<void> {
+    const documents = this.getDocumentsFromPayload(eventName, payload);
+
     const context: WorkspaceEventContext<T> = {
       eventName,
       payload,
-      document: this.getDocumentFromPayload(eventName, payload),
+      document: documents[0],
+      documents,
     };
 
     await this.emitInjectedHandlers(eventName, context);
@@ -268,6 +339,10 @@ export default class WorkspaceEventsWorkflow implements ETIRuntime, vscode.Dispo
     return handlers;
   }
 
+  private getRegisterEvents(): WorkspaceEventName[] {
+    return Object.values(WORKSPACE_EVENTS) as WorkspaceEventName[];
+  }
+
   /**
    * @description 判断本地监听是否命中文档过滤条件
    *
@@ -280,28 +355,50 @@ export default class WorkspaceEventsWorkflow implements ETIRuntime, vscode.Dispo
       return true;
     }
 
-    if (!context.document) {
+    if (!context.documents?.length) {
       return false;
     }
 
-    return this.matchDocument(context.document, options);
+    return context.documents.some((doc) => {
+      return this.matchDocument(doc, options);
+    });
   }
 
-  private getDocumentFromPayload<T extends WorkspaceEventName>(eventName: T, payload: WorkspaceEventMap[T]): vscode.TextDocument | undefined {
+  /**
+   * @description 从不同事件 payload 中提取关联文档
+   */
+  private getDocumentsFromPayload<T extends WorkspaceEventName>(eventName: T, payload: WorkspaceEventMap[T]): vscode.TextDocument[] {
     switch (eventName) {
       case WORKSPACE_EVENTS.DID_SAVE_TEXT_DOCUMENT:
       case WORKSPACE_EVENTS.DID_OPEN_TEXT_DOCUMENT:
       case WORKSPACE_EVENTS.DID_CLOSE_TEXT_DOCUMENT:
-        return payload as vscode.TextDocument;
+        return [payload as vscode.TextDocument];
+
+      case WORKSPACE_EVENTS.WILL_SAVE_TEXT_DOCUMENT:
+        return [(payload as vscode.TextDocumentWillSaveEvent).document];
 
       case WORKSPACE_EVENTS.DID_CHANGE_TEXT_DOCUMENT:
-        return (payload as vscode.TextDocumentChangeEvent).document;
+        return [(payload as vscode.TextDocumentChangeEvent).document];
 
-      case WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TEXT_EDITOR:
-        return (payload as vscode.TextEditor | undefined)?.document;
+      case WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TEXT_EDITOR: {
+        const editor = payload as vscode.TextEditor | undefined;
+        return editor ? [editor.document] : [];
+      }
+
+      case WORKSPACE_EVENTS.DID_CHANGE_VISIBLE_TEXT_EDITORS:
+        return Array.from(payload as readonly vscode.TextEditor[]).map((editor) => editor.document);
+
+      case WORKSPACE_EVENTS.DID_CHANGE_TEXT_EDITOR_SELECTION:
+        return [(payload as vscode.TextEditorSelectionChangeEvent).textEditor.document];
+
+      case WORKSPACE_EVENTS.DID_CHANGE_TEXT_EDITOR_VISIBLE_RANGES:
+        return [(payload as vscode.TextEditorVisibleRangesChangeEvent).textEditor.document];
+
+      case WORKSPACE_EVENTS.DID_CHANGE_TEXT_EDITOR_OPTIONS:
+        return [(payload as vscode.TextEditorOptionsChangeEvent).textEditor.document];
 
       default:
-        return undefined;
+        return [];
     }
   }
 
@@ -314,14 +411,7 @@ export default class WorkspaceEventsWorkflow implements ETIRuntime, vscode.Dispo
 
     if (options?.extensions?.length) {
       const ext = path.extname(doc.uri.fsPath).toLowerCase();
-
-      const extensions = options.extensions.map((item) => {
-        if (item.startsWith('.')) {
-          return item.toLowerCase();
-        }
-
-        return `.${item.toLowerCase()}`;
-      });
+      const extensions = this.normalizeExtensions(options.extensions);
 
       if (!extensions.includes(ext)) {
         return false;
@@ -333,6 +423,22 @@ export default class WorkspaceEventsWorkflow implements ETIRuntime, vscode.Dispo
     }
 
     return true;
+  }
+
+  private normalizeExtensions(extensions: string[]): string[] {
+    return extensions.map((item) => {
+      const ext = item.trim().toLowerCase();
+
+      if (!ext) {
+        return ext;
+      }
+
+      if (ext.startsWith('.')) {
+        return ext;
+      }
+
+      return `.${ext}`;
+    });
   }
 
   public dispose(): void {
@@ -347,3 +453,12 @@ export default class WorkspaceEventsWorkflow implements ETIRuntime, vscode.Dispo
   }
 }
 
+export { WORKSPACE_EVENTS };
+
+export type {
+  WorkspaceDocumentFilterOptions,
+  WorkspaceEventContext,
+  WorkspaceEventHandler,
+  WorkspaceEventMap,
+  WorkspaceEventName,
+};
