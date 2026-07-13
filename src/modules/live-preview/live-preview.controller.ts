@@ -1,16 +1,12 @@
 import * as vscode from 'vscode';
-import ColorLog from '../../utils/ColorLog';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { LivePreviewService } from './live-preview.service';
-import { LivePreviewProvider } from './providers/live-preview.provider';
+import ColorLog from '@utils/ColorLog';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { LivePreviewService } from '@modules/live-preview/live-preview.service';
+import { LivePreviewProvider } from '@modules/live-preview/providers/live-preview.provider';
 
 export class LivePreviewController implements OnModuleInit {
-  public static inject = [
-    ExtensionContextProvider,
-    LivePreviewService,
-    LivePreviewProvider,
-  ];
+  public static inject = [ExtensionContextProvider, LivePreviewService, LivePreviewProvider];
 
   private readonly id = 'LivePreviewModule';
 
@@ -18,15 +14,12 @@ export class LivePreviewController implements OnModuleInit {
     private readonly extensionContextProvider: ExtensionContextProvider,
     private readonly livePreviewService: LivePreviewService,
     private readonly livePreviewProvider: LivePreviewProvider,
-    
   ) {}
 
   public onModuleInit(): void {
     const context = this.extensionContextProvider.getContext();
 
-    context.globalState.setKeysForSync([
-      this.livePreviewService.globalFavoritesKey,
-    ]);
+    context.globalState.setKeysForSync([this.livePreviewService.globalFavoritesKey]);
 
     this.registerCommands();
     this.registerListeners();
@@ -45,25 +38,19 @@ export class LivePreviewController implements OnModuleInit {
         await this.livePreviewProvider.togglePreviewPanel();
       }),
 
-      vscode.commands.registerCommand(
-        'quick-ops.openLivePreviewUrl',
-        async (url?: string) => {
-          await this.livePreviewProvider.openPreviewPanel(url || '');
-        },
-      ),
+      vscode.commands.registerCommand('quick-ops.openLivePreviewUrl', async (url?: string) => {
+        await this.livePreviewProvider.openPreviewPanel(url || '');
+      }),
 
-      vscode.commands.registerCommand(
-        'quick-ops.previewLocalFile',
-        async (uri?: vscode.Uri) => {
-          await this.livePreviewProvider.previewLocalFile(uri);
-        },
-      ),
+      vscode.commands.registerCommand('quick-ops.previewLocalFile', async (uri?: vscode.Uri) => {
+        await this.livePreviewProvider.previewLocalFile(uri);
+      }),
     );
   }
 
   private registerListeners(): void {
     this.extensionContextProvider.register(
-      vscode.window.onDidChangeWindowState(state => {
+      vscode.window.onDidChangeWindowState((state) => {
         if (state.focused) {
           void this.livePreviewProvider.syncFavoritesToPanel();
         }

@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-import { getReactWebviewHtml } from '../../../utils/WebviewHelper';
-import { ExtensionContextProvider } from '../../../common/providers/extension-context.provider';
-import { LivePreviewService, PendingLocalFile } from '../live-preview.service';
-import { EmbeddedBrowserService } from '../services/embedded-browser.service';
+import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { LivePreviewService } from '@modules/live-preview/live-preview.service';
+import { EmbeddedBrowserService } from '@modules/live-preview/services/embedded-browser.service';
+import type {PendingLocalFile} from "@modules/live-preview/live-preview.type";
 
 export class LivePreviewProvider {
   public static inject = [ExtensionContextProvider, LivePreviewService, EmbeddedBrowserService];
@@ -54,7 +55,7 @@ export class LivePreviewProvider {
 
     this.panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'livepreview.svg');
 
-    this.panel.webview.html = getReactWebviewHtml(context.extensionUri, this.panel.webview, '/live-preview');
+    this.panel.webview.html = getReactWebviewHtml(context.extensionUri, this.panel.webview, '/preview');
 
     this.panel.onDidDispose(() => {
       this.panel = undefined;
@@ -285,7 +286,7 @@ export class LivePreviewProvider {
 
     panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'livepreview.svg');
 
-    panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/live-preview');
+    panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/preview');
 
     panel.webview.onDidReceiveMessage(async (message) => {
       if (message.type === 'ready') {

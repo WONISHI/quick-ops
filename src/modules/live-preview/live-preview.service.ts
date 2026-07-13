@@ -1,29 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-
-export interface BuiltinBookmark {
-  name: string;
-  url: string;
-  description?: string;
-  logo?: string;
-}
-
-export interface FavoriteItem {
-  url: string;
-  title: string;
-  timestamp: number;
-  description?: string;
-  logo?: string;
-  isDefault?: boolean;
-  source?: 'builtin' | 'user';
-}
-
-export type LocalPreviewFileType = 'md' | 'pdf' | 'excel' | 'html';
-
-export interface PendingLocalFile {
-  fsPath: string;
-  fileType: LocalPreviewFileType;
-}
+import type { BuiltinBookmark,FavoriteItem,LocalPreviewFileType } from '@modules/live-preview/live-preview.type';
 
 export class LivePreviewService {
   public readonly globalFavoritesKey = 'quickOps.globalFavorites';
@@ -36,22 +13,15 @@ export class LivePreviewService {
       .replace(/\/+$/, '');
   }
 
-  public async getMergedFavorites(
-    context: vscode.ExtensionContext,
-  ): Promise<FavoriteItem[]> {
+  public async getMergedFavorites(context: vscode.ExtensionContext): Promise<FavoriteItem[]> {
     const defaultFavorites = await this.loadDefaultFavorites(context);
 
-    const userFavorites = this.normalizeUserFavorites(
-      context.globalState.get<FavoriteItem[]>(this.globalFavoritesKey, []),
-    );
+    const userFavorites = this.normalizeUserFavorites(context.globalState.get<FavoriteItem[]>(this.globalFavoritesKey, []));
 
     return this.mergeFavorites(defaultFavorites, userFavorites);
   }
 
-  public async saveUserFavorites(
-    context: vscode.ExtensionContext,
-    favorites: FavoriteItem[],
-  ): Promise<FavoriteItem[]> {
+  public async saveUserFavorites(context: vscode.ExtensionContext, favorites: FavoriteItem[]): Promise<FavoriteItem[]> {
     const userFavorites = this.normalizeUserFavorites(favorites);
 
     await context.globalState.update(this.globalFavoritesKey, userFavorites);
@@ -70,7 +40,7 @@ export class LivePreviewService {
     const defaultFavorites = await this.loadDefaultFavorites(context);
     const targetUrlKey = this.normalizeFavoriteUrl(favorite.url);
 
-    const isDefaultFavorite = defaultFavorites.some(item => {
+    const isDefaultFavorite = defaultFavorites.some((item) => {
       return this.normalizeFavoriteUrl(item.url) === targetUrlKey;
     });
 
@@ -82,11 +52,9 @@ export class LivePreviewService {
       };
     }
 
-    const userFavorites = this.normalizeUserFavorites(
-      context.globalState.get<FavoriteItem[]>(this.globalFavoritesKey, []),
-    );
+    const userFavorites = this.normalizeUserFavorites(context.globalState.get<FavoriteItem[]>(this.globalFavoritesKey, []));
 
-    const index = userFavorites.findIndex(item => {
+    const index = userFavorites.findIndex((item) => {
       return this.normalizeFavoriteUrl(item.url) === targetUrlKey;
     });
 
@@ -123,11 +91,7 @@ export class LivePreviewService {
       return 'pdf';
     }
 
-    if (
-      lowerPath.endsWith('.xlsx') ||
-      lowerPath.endsWith('.xls') ||
-      lowerPath.endsWith('.csv')
-    ) {
+    if (lowerPath.endsWith('.xlsx') || lowerPath.endsWith('.xls') || lowerPath.endsWith('.csv')) {
       return 'excel';
     }
 
@@ -166,10 +130,7 @@ export class LivePreviewService {
     return vscode.Uri.file(value);
   }
 
-  public getLocalResourceRoots(
-    context: vscode.ExtensionContext,
-    fileUri?: vscode.Uri,
-  ): vscode.Uri[] {
+  public getLocalResourceRoots(context: vscode.ExtensionContext, fileUri?: vscode.Uri): vscode.Uri[] {
     const roots: vscode.Uri[] = [context.extensionUri];
 
     const workspaceFolders = vscode.workspace.workspaceFolders || [];
@@ -203,18 +164,12 @@ export class LivePreviewService {
     this.defaultFavoritesCache = null;
   }
 
-  private async loadDefaultFavorites(
-    context: vscode.ExtensionContext,
-  ): Promise<FavoriteItem[]> {
+  private async loadDefaultFavorites(context: vscode.ExtensionContext): Promise<FavoriteItem[]> {
     if (this.defaultFavoritesCache) {
       return this.defaultFavoritesCache;
     }
 
-    const bookmarksDirUri = vscode.Uri.joinPath(
-      context.extensionUri,
-      'resources',
-      'bookmarks',
-    );
+    const bookmarksDirUri = vscode.Uri.joinPath(context.extensionUri, 'resources', 'bookmarks');
 
     const result: FavoriteItem[] = [];
     const usedUrls = new Set<string>();
@@ -224,10 +179,7 @@ export class LivePreviewService {
 
       const jsonFiles = entries
         .filter(([fileName, fileType]) => {
-          return (
-            fileType === vscode.FileType.File &&
-            fileName.toLowerCase().endsWith('.json')
-          );
+          return fileType === vscode.FileType.File && fileName.toLowerCase().endsWith('.json');
         })
         .map(([fileName]) => fileName);
 
@@ -239,10 +191,7 @@ export class LivePreviewService {
         const list = this.extractFavoriteArray(jsonData);
 
         list.forEach((item, index) => {
-          const normalized = this.normalizeDefaultFavorite(
-            item,
-            result.length + index,
-          );
+          const normalized = this.normalizeDefaultFavorite(item, result.length + index);
 
           if (!normalized) return;
 
@@ -269,10 +218,7 @@ export class LivePreviewService {
     return jsonData as BuiltinBookmark[];
   }
 
-  private normalizeDefaultFavorite(
-    raw: BuiltinBookmark,
-    index: number,
-  ): FavoriteItem | null {
+  private normalizeDefaultFavorite(raw: BuiltinBookmark, index: number): FavoriteItem | null {
     const title = String(raw.name || '').trim();
     const url = String(raw.url || '').trim();
     const description = String(raw.description || '').trim();
@@ -314,11 +260,9 @@ export class LivePreviewService {
       result.push({
         url,
         title,
-        description:
-          typeof item.description === 'string' ? item.description : '',
+        description: typeof item.description === 'string' ? item.description : '',
         logo: typeof item.logo === 'string' ? item.logo : '',
-        timestamp:
-          typeof item.timestamp === 'number' ? item.timestamp : Date.now(),
+        timestamp: typeof item.timestamp === 'number' ? item.timestamp : Date.now(),
         isDefault: false,
         source: 'user',
       });
@@ -327,15 +271,10 @@ export class LivePreviewService {
     return result;
   }
 
-  private mergeFavorites(
-    defaultFavorites: FavoriteItem[],
-    userFavorites: FavoriteItem[],
-  ): FavoriteItem[] {
-    const defaultUrlSet = new Set(
-      defaultFavorites.map(item => this.normalizeFavoriteUrl(item.url)),
-    );
+  private mergeFavorites(defaultFavorites: FavoriteItem[], userFavorites: FavoriteItem[]): FavoriteItem[] {
+    const defaultUrlSet = new Set(defaultFavorites.map((item) => this.normalizeFavoriteUrl(item.url)));
 
-    const filteredUserFavorites = userFavorites.filter(item => {
+    const filteredUserFavorites = userFavorites.filter((item) => {
       return !defaultUrlSet.has(this.normalizeFavoriteUrl(item.url));
     });
 
