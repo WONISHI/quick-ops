@@ -8,6 +8,7 @@ import { AnchorCodeLensProvider } from '@modules/anchor/prooviders/anchor-code-l
 import { ColorUtils } from '@utils/ColorUtils';
 import { ConfigurationService } from '@common/services/configuration.service';
 import { ANCHOR_TOOLTIPS } from '@modules/anchor/constants/anchor.constant';
+import type { WebviewEnhancerOptions } from '@plugins/webview-enhancer/type';
 import type {
   AnchorChildCreateInput,
   AnchorConfig,
@@ -895,32 +896,37 @@ export class AnchorService {
     if (!this.context) return;
 
     const config = this.configurationService.config?.general || {};
-    const mode = config.mindMapPosition || 'right';
-
-    if (this.currentPanel) {
-      const revealColumn = mode === 'left' ? vscode.ViewColumn.One : vscode.ViewColumn.Beside;
-      this.currentPanel.reveal(revealColumn);
-      return;
-    }
 
     let targetColumn = vscode.ViewColumn.Beside;
 
-    if (mode === 'left') {
-      await vscode.commands.executeCommand('workbench.action.splitEditorLeft');
-      targetColumn = vscode.ViewColumn.Active;
-    }
-
-    this.currentPanel = await this.webviewWorkflow.createWebview<AnchorWebviewMessage>({
+    this.currentPanel = await this.webviewWorkflow.createWebview<AnchorWebviewMessage, WebviewEnhancerOptions>({
       key: 'anchorMindMap',
       viewType: 'anchorMindMap',
       title: 'Anchors Mind Map',
       column: targetColumn,
-      iconPath: vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'icons', 'anchor-mindmap.svg'),
+      extensionUri: this.context.extensionUri,
+
+      /**
+       * @description 给 Webview 外观增强插件使用
+       *
+       * 当前激活 tab 是 fullscreen: true 的 Webview 时，
+       * quickOps.activeWebview.fullscreen 会被设置为 true，
+       * editor/title 里的放大按钮才会显示。
+       */
+      fullscreen: true,
+
+      /**
+       * 如果你的 WebviewAppearancePlugin 使用的是 icon 字段，就用 icon。
+       * 如果你的 WebviewWorkflow 仍然使用 iconPath，也可以保留 iconPath。
+       */
+      icon: 'resources/icons/anchor-mindmap.svg',
+
       options: {
         enableScripts: true,
         retainContextWhenHidden: true,
         localResourceRoots: [this.context.extensionUri],
       },
+
       htmlFactory: async (webview) => {
         return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
           extensionUri: this.context!.extensionUri,
@@ -928,9 +934,11 @@ export class AnchorService {
           routeName: '/anchor',
         });
       },
+
       onDidReceiveMessage: async (message) => {
         await this.handleMindMapMessage(message);
       },
+
       onDidDispose: () => {
         this.currentPanel = undefined;
       },

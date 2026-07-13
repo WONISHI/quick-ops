@@ -123,19 +123,6 @@
           "default": "mindmap",
           "description": "锚点视图的展示模式 (思维导图或列表菜单)"
         },
-        "quick-ops.general.mindMapPosition": {
-          "type": "string",
-          "enum": [
-            "left",
-            "right"
-          ],
-          "enumDescriptions": [
-            "以思维导图形式可视化展示 (Visual Mind Map)",
-            "以快速选择列表形式展示 (Quick Pick Menu)"
-          ],
-          "default": "right",
-          "description": "思维导图视图在编辑器中打开的位置"
-        },
         "quick-ops.logger.template": {
           "type": "string",
           "default": "[icon]-[~/^/^/name]-[line]-[$0]",
@@ -504,6 +491,12 @@
         "title": "从外部条件打开...",
         "category": "QuickOps",
         "icon": "$(preview)"
+      },
+      {
+        "command": "quickOps.webview.toggleFullscreen",
+        "title": "放大 Webview",
+        "category": "Quick Ops",
+        "icon": "$(screen-full)"
       }
     ],
     "keybindings": [
@@ -539,49 +532,54 @@
           "group": "navigation@2"
         },
         {
+          "command": "quickOps.webview.toggleFullscreen",
+          "when": "quickOps.activeWebview.fullscreen == true",
+          "group": "navigation@3"
+        },
+        {
           "command": "quickOps.syncBranches",
           "when": "view == quickOps.recentProjectsView",
-          "group": "navigation@3"
+          "group": "navigation@4"
         },
         {
           "command": "quickOps.refreshRecentProjects",
           "when": "view == quickOps.recentProjectsView",
-          "group": "navigation@4"
+          "group": "navigation@5"
         },
         {
           "command": "quickOps.clearRecentProjects",
           "when": "view == quickOps.recentProjectsView",
-          "group": "navigation@5"
+          "group": "navigation@6"
         },
         {
           "command": "quickOps.returnToWorkspace",
           "when": "view == quickOps.gitView",
-          "group": "navigation@1"
+          "group": "navigation@7"
         },
         {
           "command": "quickOps.cloneGitProject",
           "when": "view == quickOps.gitView",
-          "group": "navigation@2"
+          "group": "navigation@8"
         },
         {
           "command": "quickOps.openProject",
           "when": "view == quickOps.gitView && quickOps.isPreviewingOther",
-          "group": "navigation@3"
+          "group": "navigation@9"
         },
         {
           "command": "quickOps.editRemoteUrl",
           "when": "view == quickOps.gitView && quickOps.hasGitRemote",
-          "group": "navigation@4"
+          "group": "navigation@10"
         },
         {
           "command": "quickOps.openGitDetail",
           "when": "view == quickOps.gitView",
-          "group": "navigation@5"
+          "group": "navigation@11"
         },
         {
           "command": "quickOps.switchGitProject",
           "when": "view == quickOps.gitView",
-          "group": "navigation@6"
+          "group": "navigation@12"
         }
       ],
       "editor/title": [

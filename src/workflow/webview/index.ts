@@ -99,7 +99,7 @@ export default class WebviewWorkflow implements ETIRuntime {
   /**
    * @description 创建 WebviewPanel
    */
-  public async createWebview<TMessage = any>(options: WebviewCreateOptions<TMessage>): Promise<vscode.WebviewPanel> {
+  public async createWebview<TMessage = any, Extra extends object = {}>(options: WebviewCreateOptions<TMessage, Extra>): Promise<vscode.WebviewPanel> {
     const key = options.key || options.viewType;
     const revealIfExists = options.revealIfExists !== false;
 

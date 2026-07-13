@@ -22,11 +22,9 @@ export interface WebviewIconOptions {
 
 export type WebviewIcon = string | WebviewIconOptions;
 
-export interface WebviewCreateOptions<TMessage = any> {
+export interface WebviewBaseCreateOptions<TMessage = any> {
   /**
    * @description Webview 唯一缓存 key
-   *
-   * 如果传了 key，同一个 key 的 Webview 会复用。
    */
   key?: string;
 
@@ -62,15 +60,6 @@ export interface WebviewCreateOptions<TMessage = any> {
 
   /**
    * @description 图标配置，给 WebviewAppearancePlugin 使用
-   *
-   * 示例一：不区分主题
-   * icon: 'resources/icons/preview.svg'
-   *
-   * 示例二：区分浅色 / 深色主题
-   * icon: {
-   *   light: 'resources/icons/preview-light.svg',
-   *   dark: 'resources/icons/preview-dark.svg'
-   * }
    */
   icon?: WebviewIcon;
 
@@ -104,6 +93,16 @@ export interface WebviewCreateOptions<TMessage = any> {
    */
   revealIfExists?: boolean;
 }
+
+/**
+ * @description Webview 创建参数
+ *
+ * Extra 用于插件扩展字段。
+ *
+ * 例如：
+ * WebviewCreateOptions<AnchorWebviewMessage, { fullscreen?: boolean }>
+ */
+export type WebviewCreateOptions<TMessage = any, Extra extends object = {}> = WebviewBaseCreateOptions<TMessage> & Extra;
 
 export interface WebviewWorkflowEventContext<TMessage = any> {
   /**
