@@ -4,41 +4,25 @@ import { WORKSPACE_EVENTS } from '@workflow/workspace-events/type';
 import type { WorkspaceOn, WebviewAppearancePluginInitOptions } from '@plugins/webview-enhancer/type';
 
 const ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT = 'quickOps.activeWebview.fullscreen';
+const TOGGLE_WEBVIEW_FULLSCREEN_COMMAND = 'quickOps.webview.toggleFullscreen';
 
 export class WebviewAppearancePlugin {
-  /**
-   * @description 声明需要 loader 从 runtime.global 注入的变量
-   *
-   * WorkspaceEventsWorkflow.provide() 里需要暴露：
-   * global: {
-   *   on: this.on.bind(this),
-   *   events: WORKSPACE_EVENTS,
-   * }
-   */
   public readonly use = ['on'] as const;
 
-  /**
-   * @description workspace-events runtime 暴露出来的监听方法
-   */
   private workspaceOn?: WorkspaceOn;
 
-  /**
-   * @description 记录配置了 fullscreen 的 WebviewPanel
-   */
   private readonly fullscreenPanels = new Set<vscode.WebviewPanel>();
 
-  /**
-   * @description 插件内部创建的 disposable
-   */
   private readonly disposables: vscode.Disposable[] = [];
 
-  /**
-   * @description 防止全局监听重复注册
-   */
   private globalListenersRegistered = false;
+
+  private commandRegistered = false;
 
   public init({ on }: WebviewAppearancePluginInitOptions = {}) {
     this.workspaceOn = on;
+
+    this.registerCommandsOnce();
 
     return {
       pluginId: 'webview-appearance-plugin',
@@ -56,29 +40,45 @@ export class WebviewAppearancePlugin {
   }
 
   /**
-   * @description Webview 创建完成后处理外观增强
+   * @description 注册 editor/title 按钮点击命令
    */
+  private registerCommandsOnce(): void {
+    if (this.commandRegistered) return;
+
+    this.commandRegistered = true;
+
+    this.disposables.push(
+      vscode.commands.registerCommand(TOGGLE_WEBVIEW_FULLSCREEN_COMMAND, async () => {
+        await this.toggleFullscreen();
+      }),
+    );
+  }
+
+  /**
+   * @description 执行 Webview 放大 / 还原
+   */
+  private async toggleFullscreen(): Promise<void> {
+    try {
+      await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
+    } catch (error) {
+      console.warn('[WebviewAppearancePlugin] toggle maximize failed, trying fallback.', error);
+
+      await vscode.commands.executeCommand('workbench.action.minimizeOtherEditors');
+    }
+  }
+
   private handleWebviewCreated(payload: WebviewCreatedPayload): void {
     const { panel } = payload;
 
     if (!panel) return;
 
-    /**
-     * 保留原来的图标逻辑
-     */
     this.applyWebviewIcon(payload);
 
-    /**
-     * 新增 fullscreen 逻辑
-     */
     this.registerGlobalListenersOnce();
     this.registerFullscreenPanel(payload);
     this.refreshFullscreenContext();
   }
 
-  /**
-   * @description Webview 销毁后清理 fullscreen 状态
-   */
   private handleWebviewDisposed(payload: WebviewCreatedPayload): void {
     const { panel } = payload;
 
@@ -88,9 +88,6 @@ export class WebviewAppearancePlugin {
     this.refreshFullscreenContext();
   }
 
-  /**
-   * @description 保留原来的 Webview 图标逻辑
-   */
   private applyWebviewIcon(payload: WebviewCreatedPayload): void {
     const { panel, options } = payload;
 
@@ -101,17 +98,11 @@ export class WebviewAppearancePlugin {
     panel.iconPath = this.resolveIconPath(options.extensionUri, options.icon);
   }
 
-  /**
-   * @description 如果当前 Webview 配置了 fullscreen，则记录并监听它的激活状态
-   */
   private registerFullscreenPanel(payload: WebviewCreatedPayload): void {
     const { panel, options } = payload;
 
     if (!panel) return;
 
-    /**
-     * 没配置 fullscreen 的 Webview 不参与 editor/title 按钮显示判断
-     */
     if (!options?.fullscreen) {
       return;
     }
@@ -130,13 +121,6 @@ export class WebviewAppearancePlugin {
     );
   }
 
-  /**
-   * @description 注册全局监听，保证切换 tab / editor 时也能刷新 when context
-   *
-   * 注意：
-   * 这里不再直接用 vscode.window.xxx。
-   * 统一使用 WorkspaceEventsWorkflow 暴露出来的 on。
-   */
   private registerGlobalListenersOnce(): void {
     if (this.globalListenersRegistered) return;
 
@@ -148,8 +132,7 @@ export class WebviewAppearancePlugin {
     this.globalListenersRegistered = true;
 
     this.disposables.push(
-      this.workspaceOn(WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TEXT_EDITOR, (event) => {
-        console.log('event', event);
+      this.workspaceOn(WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TEXT_EDITOR, () => {
         this.refreshFullscreenContext();
       }),
 
@@ -163,9 +146,6 @@ export class WebviewAppearancePlugin {
     );
   }
 
-  /**
-   * @description 刷新当前激活 tab 是否是 fullscreen Webview
-   */
   private refreshFullscreenContext(): void {
     const isActiveFullscreenWebview = Array.from(this.fullscreenPanels).some((panel) => {
       return panel.active && panel.visible;
@@ -174,9 +154,6 @@ export class WebviewAppearancePlugin {
     void vscode.commands.executeCommand('setContext', ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT, isActiveFullscreenWebview);
   }
 
-  /**
-   * @description 解析 Webview 图标路径
-   */
   private resolveIconPath(extensionUri: vscode.Uri, icon: WebviewIcon): vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } {
     if (typeof icon === 'string') {
       return vscode.Uri.joinPath(extensionUri, icon);
@@ -196,6 +173,7 @@ export class WebviewAppearancePlugin {
     this.disposables.length = 0;
     this.fullscreenPanels.clear();
     this.globalListenersRegistered = false;
+    this.commandRegistered = false;
     this.workspaceOn = undefined;
 
     void vscode.commands.executeCommand('setContext', ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT, false);
