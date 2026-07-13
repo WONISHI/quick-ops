@@ -532,54 +532,49 @@
           "group": "navigation@2"
         },
         {
-          "command": "quickOps.webview.toggleFullscreen",
-          "when": "quickOps.activeWebview.fullscreen == true",
-          "group": "navigation@3"
-        },
-        {
           "command": "quickOps.syncBranches",
           "when": "view == quickOps.recentProjectsView",
-          "group": "navigation@4"
+          "group": "navigation@3"
         },
         {
           "command": "quickOps.refreshRecentProjects",
           "when": "view == quickOps.recentProjectsView",
-          "group": "navigation@5"
+          "group": "navigation@4"
         },
         {
           "command": "quickOps.clearRecentProjects",
           "when": "view == quickOps.recentProjectsView",
-          "group": "navigation@6"
+          "group": "navigation@5"
         },
         {
           "command": "quickOps.returnToWorkspace",
           "when": "view == quickOps.gitView",
-          "group": "navigation@7"
+          "group": "navigation@6"
         },
         {
           "command": "quickOps.cloneGitProject",
           "when": "view == quickOps.gitView",
-          "group": "navigation@8"
+          "group": "navigation@7"
         },
         {
           "command": "quickOps.openProject",
           "when": "view == quickOps.gitView && quickOps.isPreviewingOther",
-          "group": "navigation@9"
+          "group": "navigation@8"
         },
         {
           "command": "quickOps.editRemoteUrl",
           "when": "view == quickOps.gitView && quickOps.hasGitRemote",
-          "group": "navigation@10"
+          "group": "navigation@9"
         },
         {
           "command": "quickOps.openGitDetail",
           "when": "view == quickOps.gitView",
-          "group": "navigation@11"
+          "group": "navigation@10"
         },
         {
           "command": "quickOps.switchGitProject",
           "when": "view == quickOps.gitView",
-          "group": "navigation@12"
+          "group": "navigation@11"
         }
       ],
       "editor/title": [
@@ -592,23 +587,28 @@
           "group": "navigation@2"
         },
         {
+          "command": "quickOps.webview.toggleFullscreen",
+          "when": "quickOps.activeWebview.fullscreen",
+          "group": "navigation@4"
+        },
+        {
           "command": "quick-ops.anchor.showMenu",
-          "group": "navigation@3",
+          "group": "navigation@5",
           "when": "quickOps.hasAnchorsInProject && resourceScheme == file"
         },
         {
           "command": "quick-ops.revealInExplorer",
           "when": "resourceScheme == file",
-          "group": "navigation@4"
+          "group": "navigation@6"
         },
         {
           "command": "quick-ops.scrollToTop",
-          "group": "navigation@5",
+          "group": "navigation@7",
           "when": "editorTextFocus"
         },
         {
           "command": "quick-ops.scrollToBottom",
-          "group": "navigation@6",
+          "group": "navigation@8",
           "when": "editorTextFocus"
         }
       ],

@@ -149,6 +149,7 @@ export class WebviewAppearancePlugin {
 
     this.disposables.push(
       this.workspaceOn(WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TEXT_EDITOR, (event) => {
+        console.log('event', event);
         this.refreshFullscreenContext();
       }),
 
