@@ -4,9 +4,10 @@ import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { LivePreviewService } from '@modules/live-preview/live-preview.service';
 import { LivePreviewProvider } from '@modules/live-preview/providers/live-preview.provider';
+import { DevToolsWebviewProvider } from '@modules/live-preview/providers/dev-tools-webview.provider';
 
 export class LivePreviewController implements OnModuleInit {
-  public static inject = [ExtensionContextProvider, LivePreviewService, LivePreviewProvider];
+  public static inject = [ExtensionContextProvider, LivePreviewService, LivePreviewProvider, DevToolsWebviewProvider];
 
   private readonly id = 'LivePreviewModule';
 
@@ -14,13 +15,15 @@ export class LivePreviewController implements OnModuleInit {
     private readonly extensionContextProvider: ExtensionContextProvider,
     private readonly livePreviewService: LivePreviewService,
     private readonly livePreviewProvider: LivePreviewProvider,
+    private readonly devToolsWebviewProvider: DevToolsWebviewProvider,
   ) {}
 
   public onModuleInit(): void {
     const context = this.extensionContextProvider.getContext();
 
-    context.globalState.setKeysForSync([this.livePreviewService.globalFavoritesKey]);
+    context.globalState.setKeysForSync([this.livePreviewService.globalFavoritesKey, this.livePreviewService.globalFavoriteFoldersKey]);
 
+    this.registerProviders();
     this.registerCommands();
     this.registerListeners();
 
@@ -29,7 +32,18 @@ export class LivePreviewController implements OnModuleInit {
 
   public dispose(): void {
     this.livePreviewProvider.dispose();
+    this.devToolsWebviewProvider.dispose();
     this.livePreviewService.dispose();
+  }
+
+  private registerProviders(): void {
+    this.extensionContextProvider.register(
+      vscode.window.registerWebviewViewProvider(DevToolsWebviewProvider.viewType, this.devToolsWebviewProvider, {
+        webviewOptions: {
+          retainContextWhenHidden: true,
+        },
+      }),
+    );
   }
 
   private registerCommands(): void {

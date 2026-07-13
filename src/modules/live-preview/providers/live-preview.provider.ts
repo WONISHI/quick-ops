@@ -6,6 +6,7 @@ import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { LivePreviewService } from '@modules/live-preview/live-preview.service';
 import { EmbeddedBrowserService } from '@modules/live-preview/services/embedded-browser.service';
+import { DevToolsWebviewProvider } from '@modules/live-preview/providers/dev-tools-webview.provider';
 import type { PendingLocalFile } from '@modules/live-preview/live-preview.type';
 import type { WebviewEnhancerOptions } from '@plugins/webview-enhancer/type';
 
@@ -15,57 +16,31 @@ import type { WebviewEnhancerOptions } from '@plugins/webview-enhancer/type';
  * 负责：
  * 1. 打开 / 关闭网页预览 Webview
  * 2. 通过 WebviewWorkflow 统一创建 WebviewPanel
- * 3. 同步收藏数据到 Webview
+ * 3. 同步收藏、收藏夹及导入导出能力
  * 4. 处理 Webview 发回来的消息
  * 5. 支持本地 markdown / pdf / excel / html 文件预览
+ * 6. 连接 Puppeteer 内嵌浏览器并转发截图、输入和导航事件
+ * 7. 打开 Live Preview DevTools 侧边栏
  */
 export class LivePreviewProvider {
-  public static inject = [ExtensionContextProvider, LivePreviewService, EmbeddedBrowserService];
+  public static inject = [ExtensionContextProvider, LivePreviewService, EmbeddedBrowserService, DevToolsWebviewProvider];
 
-  /**
-   * @description 主预览面板
-   */
   private panel?: vscode.WebviewPanel;
-
-  /**
-   * @description 待加载的本地文件
-   *
-   * Webview 未 ready 前，先缓存本地文件信息。
-   * Webview ready 后再真正读取并发送文件内容。
-   */
   private pendingLocalFile: PendingLocalFile | null = null;
+  private browserEventsBound = false;
+  private pendingInitialUrl = '';
+  private pendingInitialDevice = 'device-responsive';
 
-  /**
-   * @description Webview 工作流
-   *
-   * 统一负责：
-   * - 创建 WebviewPanel
-   * - 复用相同 key 的 Webview
-   * - 派发 webview:created / webview:disposed 等事件
-   * - 配合 WebviewAppearancePlugin 处理 icon / fullscreen
-   */
   private readonly webviewWorkflow = new WebviewWorkflow();
   private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
 
-  /**
-   * @description 创建 LivePreviewProvider
-   *
-   * @param extensionContextProvider VSCode ExtensionContext 提供器
-   * @param livePreviewService Live Preview 业务服务
-   * @param embeddedBrowserService 内嵌浏览器代理服务
-   */
   constructor(
     private readonly extensionContextProvider: ExtensionContextProvider,
     private readonly livePreviewService: LivePreviewService,
     private readonly embeddedBrowserService: EmbeddedBrowserService,
+    private readonly devToolsWebviewProvider: DevToolsWebviewProvider,
   ) {}
 
-  /**
-   * @description 切换预览面板
-   *
-   * 如果当前面板可见，则关闭；
-   * 否则打开或激活预览面板。
-   */
   public async togglePreviewPanel(): Promise<void> {
     if (this.panel?.visible) {
       this.panel.dispose();
@@ -75,98 +50,75 @@ export class LivePreviewProvider {
     await this.openPreviewPanel();
   }
 
-  /**
-   * @description 打开主预览面板
-   *
-   * - 如果面板已存在，则 reveal 并同步收藏
-   * - 如果传入 initialUrl，则通知 Webview 跳转
-   * - 如果面板不存在，则通过 WebviewWorkflow 创建
-   *
-   * @param initialUrl 初始预览地址
-   */
   public async openPreviewPanel(initialUrl = ''): Promise<void> {
     const context = this.extensionContextProvider.getContext();
 
+    this.pendingInitialUrl = String(initialUrl || '').trim() || String(context.workspaceState.get('quickOps.lastPreviewUrl') || '');
+    this.pendingInitialDevice = String(context.workspaceState.get('quickOps.lastPreviewDevice') || 'device-responsive');
+
+    this.bindMainBrowserEvents();
+
     if (this.panel) {
       this.panel.reveal(vscode.ViewColumn.Beside);
-
       await this.syncFavoritesToPanel();
 
       if (initialUrl) {
         this.panel.webview.postMessage({
-          type: 'navigate',
+          type: 'init',
           url: initialUrl,
+          device: this.pendingInitialDevice,
         });
       }
 
       return;
     }
 
-    this.panel = await this.webviewWorkflow.createWebview<any, WebviewEnhancerOptions>({
+    const panel = await this.webviewWorkflow.createWebview<any, WebviewEnhancerOptions>({
       key: 'quickOpsLivePreview',
       viewType: 'quickOpsLivePreview',
       title: '网页预览 (Preview)',
       column: vscode.ViewColumn.Beside,
-
-      /**
-       * @description 给 WebviewAppearancePlugin 使用
-       */
       extensionUri: context.extensionUri,
       icon: 'resources/icons/livepreview.svg',
       fullscreen: true,
-
       options: {
         enableScripts: true,
         retainContextWhenHidden: true,
         enableFindWidget: true,
         localResourceRoots: this.livePreviewService.getLocalResourceRoots(context),
       },
-
       htmlFactory: async (webview) => {
         return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
-          extensionUri: context!.extensionUri,
+          extensionUri: context.extensionUri,
           webview,
           routeName: '/preview',
         });
       },
-
       onDidReceiveMessage: async (message) => {
         await this.handleMessage(message);
       },
-
       onDidDispose: () => {
-        this.panel = undefined;
+        if (this.panel === panel) {
+          this.panel = undefined;
+        }
         this.pendingLocalFile = null;
+
+        /**
+         * 不关闭 EmbeddedBrowserService。
+         * 再次打开 Live Preview 时恢复上一张截图、URL 和登录态。
+         */
       },
     });
 
-    this.panel.onDidChangeViewState((event) => {
+    this.panel = panel;
+
+    panel.onDidChangeViewState((event) => {
       if (event.webviewPanel.visible) {
         void this.syncFavoritesToPanel();
       }
     });
-
-    const lastUrl = initialUrl || String(context.workspaceState.get('quickOps.lastPreviewUrl') || '');
-    const lastDevice = String(context.workspaceState.get('quickOps.lastPreviewDevice') || 'device-responsive');
-
-    setTimeout(() => {
-      this.panel?.webview.postMessage({
-        type: 'init',
-        url: lastUrl,
-        device: lastDevice,
-      });
-
-      void this.syncFavoritesToPanel();
-    }, 100);
   }
 
-  /**
-   * @description 预览本地文件
-   *
-   * 支持类型由 LivePreviewService.getLocalFileType 控制。
-   *
-   * @param uri 待预览的文件 Uri，不传时使用当前激活编辑器文档
-   */
   public async previewLocalFile(uri?: vscode.Uri): Promise<void> {
     const targetUri = uri || vscode.window.activeTextEditor?.document.uri;
 
@@ -199,35 +151,20 @@ export class LivePreviewProvider {
     await this.loadPendingLocalFile();
   }
 
-  /**
-   * @description 同步收藏列表到主预览面板
-   */
   public async syncFavoritesToPanel(): Promise<void> {
     if (!this.panel) return;
 
-    const context = this.extensionContextProvider.getContext();
-    const favorites = await this.livePreviewService.getMergedFavorites(context);
-
-    this.panel.webview.postMessage({
-      type: 'syncFavorites',
-      favorites,
-    });
+    await this.postFavoritesToPanel(this.panel);
   }
 
-  /**
-   * @description 释放资源
-   */
   public dispose(): void {
     this.panel?.dispose();
     this.panel = undefined;
     this.pendingLocalFile = null;
+    this.devToolsWebviewProvider.clear();
+    void this.embeddedBrowserService.dispose();
   }
 
-  /**
-   * @description 处理 Webview 发来的消息
-   *
-   * @param message Webview 消息体
-   */
   private async handleMessage(message: any): Promise<void> {
     const context = this.extensionContextProvider.getContext();
 
@@ -249,23 +186,121 @@ export class LivePreviewProvider {
         await this.syncFavoritesToPanel();
         break;
 
+      case 'resolveFavoriteMeta':
+        if (this.panel) {
+          await this.postFavoriteMetaResolved(this.panel, message);
+        }
+        break;
+
       case 'saveAllFavorites':
+        if (Array.isArray(message.folders)) {
+          await this.livePreviewService.saveFavoriteFolders(context, message.folders);
+        }
+
         await this.livePreviewService.saveUserFavorites(context, message.favorites || []);
         await this.syncFavoritesToPanel();
         break;
 
+      case 'exportFavorites': {
+        const folders = message.folders || (await this.livePreviewService.getFavoriteFolders(context));
+
+        await this.livePreviewService.exportFavoritesToFile(message.favorites || [], folders);
+        break;
+      }
+
+      case 'importFavorites':
+        await this.livePreviewService.importFavoritesFromFile(context);
+        await this.syncFavoritesToPanel();
+        break;
+
       case 'toggleFavorite':
-        await this.toggleFavorite(message);
+        await this.toggleFavorite(message, this.panel);
+        break;
+
+      case 'openNewPreviewTab':
+        await this.createNewPreviewTab(message.url || '', message.device || '');
+        break;
+
+      case 'browserNavigate':
+        await this.runMainBrowserAction(() => this.embeddedBrowserService.navigate(message.url || 'about:blank'));
+        break;
+
+      case 'browserRefresh':
+        await this.runMainBrowserAction(() => this.embeddedBrowserService.reload(message.url || undefined));
+        break;
+
+      case 'browserStopLoading':
+        await this.runMainBrowserAction(() => this.embeddedBrowserService.stopLoading());
+        break;
+
+      case 'browserCopySelection':
+        await this.runMainBrowserAction(() => this.embeddedBrowserService.copySelectedText());
+        break;
+
+      case 'browserSelectTextRange':
+        await this.runMainBrowserAction(() =>
+          this.embeddedBrowserService.selectTextRange(Number(message.startX) || 0, Number(message.startY) || 0, Number(message.endX) || 0, Number(message.endY) || 0),
+        );
+        break;
+
+      case 'browserSearch':
+        await this.runMainBrowserAction(async () => {
+          const result = await this.embeddedBrowserService.searchInPage(message.keyword || '', message.direction === 'previous' ? 'previous' : 'next');
+
+          this.panel?.webview.postMessage({
+            type: 'browserSearchResult',
+            ...result,
+          });
+        });
+        break;
+
+      case 'browserBack':
+        await this.runMainBrowserAction(() => this.embeddedBrowserService.goBack());
+        break;
+
+      case 'browserForward':
+        await this.runMainBrowserAction(() => this.embeddedBrowserService.goForward());
+        break;
+
+      case 'browserSetViewport':
+        await this.runMainBrowserAction(() =>
+          this.embeddedBrowserService.setViewport({
+            width: message.width,
+            height: message.height,
+            deviceScaleFactor: message.deviceScaleFactor,
+          }),
+        );
+        break;
+
+      case 'browserInput':
+        await this.runMainBrowserAction(() => this.embeddedBrowserService.dispatchInput(message));
+        break;
+
+      case 'browserClearCache':
+        await this.runMainBrowserAction(() => this.embeddedBrowserService.clearCache());
+        break;
+
+      case 'openDevTools':
+        await this.runMainBrowserAction(async () => {
+          const devToolsUrl = await this.embeddedBrowserService.getDevToolsUrl();
+
+          if (!devToolsUrl) {
+            await this.embeddedBrowserService.openDevTools();
+            return;
+          }
+
+          await this.devToolsWebviewProvider.open(devToolsUrl);
+        });
+        break;
+
+      case 'browserStop':
+        await this.runMainBrowserAction(() => this.embeddedBrowserService.stop());
         break;
 
       case 'openExternalBrowser':
         if (message.url) {
           await vscode.env.openExternal(this.livePreviewService.parseExternalUri(message.url));
         }
-        break;
-
-      case 'openNewPreviewTab':
-        await this.createNewPreviewTab(message.url || '', message.device || '');
         break;
 
       case 'loadLocalHtmlFile':
@@ -280,12 +315,10 @@ export class LivePreviewProvider {
 
         try {
           const fileUri = this.livePreviewService.parseLocalFileUri(message.fsPath);
-
           this.updateWebviewLocalRoots(fileUri);
         } catch {
           this.updateWebviewLocalRoots();
         }
-
         break;
 
       case 'showInfo':
@@ -300,6 +333,9 @@ export class LivePreviewProvider {
         vscode.window.showErrorMessage(message.message || '');
         break;
 
+      /**
+       * 保留 Nest 版已经提供的 HTTP 代理能力。
+       */
       case 'navigateWithProxy': {
         const result = await this.embeddedBrowserService.navigate({
           url: message.url,
@@ -310,7 +346,6 @@ export class LivePreviewProvider {
           type: 'proxyNavigateResult',
           ...result,
         });
-
         break;
       }
 
@@ -323,42 +358,43 @@ export class LivePreviewProvider {
             ...result,
           });
         }
-
         break;
       }
 
       case 'stopProxy':
         this.embeddedBrowserService.stopProxy();
-
         this.panel?.webview.postMessage({
           type: 'proxyStopped',
         });
-
         break;
     }
   }
 
-  /**
-   * @description Webview ready 后的初始化处理
-   */
   private async handleWebviewReady(): Promise<void> {
+    const restored = await this.postBrowserSnapshot();
+
+    this.panel?.webview.postMessage({
+      type: 'init',
+      device: this.pendingInitialDevice,
+      url: restored ? '' : this.pendingInitialUrl,
+    });
+
+    if (restored) {
+      await this.postBrowserSnapshot();
+    }
+
     await this.loadPendingLocalFile();
     await this.syncFavoritesToPanel();
   }
 
-  /**
-   * @description 收藏 / 取消收藏当前地址
-   *
-   * @param message Webview 消息体
-   */
-  private async toggleFavorite(message: any): Promise<void> {
+  private async toggleFavorite(message: any, panel?: vscode.WebviewPanel): Promise<void> {
     const context = this.extensionContextProvider.getContext();
-
     const result = await this.livePreviewService.toggleFavorite(context, {
       url: message.url,
       title: message.title || message.url,
       logo: typeof message.logo === 'string' ? message.logo : '',
       description: typeof message.description === 'string' ? message.description : '',
+      folderId: typeof message.folderId === 'string' ? message.folderId : undefined,
       timestamp: Date.now(),
       isDefault: false,
       source: 'user',
@@ -368,22 +404,134 @@ export class LivePreviewProvider {
       vscode.window.showInformationMessage(result.message);
     }
 
-    this.panel?.webview.postMessage({
+    panel?.webview.postMessage({
       type: 'syncFavorites',
       favorites: result.favorites,
+      folders: result.folders,
     });
   }
 
-  /**
-   * @description 创建新的预览标签页
-   *
-   * 新标签页不复用主预览面板，因此使用唯一 key 并设置 revealIfExists: false。
-   *
-   * @param initialUrl 初始地址
-   * @param initialDevice 初始设备类型
-   */
+  private async postFavoriteMetaResolved(panel: vscode.WebviewPanel, message: any): Promise<void> {
+    try {
+      const meta = await this.livePreviewService.resolveFavoriteMeta(message.url || '');
+
+      panel.webview.postMessage({
+        type: 'favoriteMetaResolved',
+        requestId: message.requestId,
+        ok: true,
+        ...meta,
+      });
+    } catch (error) {
+      panel.webview.postMessage({
+        type: 'favoriteMetaResolved',
+        requestId: message.requestId,
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  private async postFavoritesToPanel(panel: vscode.WebviewPanel): Promise<void> {
+    const context = this.extensionContextProvider.getContext();
+    const favorites = await this.livePreviewService.getMergedFavorites(context);
+    const folders = await this.livePreviewService.getFavoriteFolders(context);
+
+    panel.webview.postMessage({
+      type: 'syncFavorites',
+      favorites,
+      folders,
+    });
+  }
+
+  private bindMainBrowserEvents(): void {
+    if (this.browserEventsBound) return;
+
+    this.browserEventsBound = true;
+    this.bindBrowserEvents(this.embeddedBrowserService, () => this.panel);
+  }
+
+  private bindBrowserEvents(browserService: EmbeddedBrowserService, getPanel: () => vscode.WebviewPanel | undefined): void {
+    browserService.on('frame', (frame) => {
+      getPanel()?.webview.postMessage({
+        type: 'browserFrame',
+        ...frame,
+      });
+    });
+
+    browserService.on('pageLoaded', (payload) => {
+      getPanel()?.webview.postMessage({
+        type: 'browserPageLoaded',
+        ...payload,
+      });
+    });
+
+    browserService.on('urlChanged', (payload) => {
+      getPanel()?.webview.postMessage({
+        type: 'browserUrlChanged',
+        ...payload,
+      });
+    });
+
+    browserService.on('titleChanged', (payload) => {
+      getPanel()?.webview.postMessage({
+        type: 'browserTitleChanged',
+        ...payload,
+      });
+    });
+
+    browserService.on('pageError', (payload) => {
+      getPanel()?.webview.postMessage({
+        type: 'browserPageError',
+        ...payload,
+      });
+    });
+  }
+
+  private async postBrowserSnapshot(): Promise<boolean> {
+    if (!this.panel) return false;
+
+    const snapshot = await this.embeddedBrowserService.getSnapshot();
+
+    if (!snapshot.hasPage && !snapshot.frame) return false;
+
+    if (snapshot.frame) {
+      this.panel.webview.postMessage({
+        type: 'browserFrame',
+        ...snapshot.frame,
+      });
+    }
+
+    if (snapshot.url) {
+      this.panel.webview.postMessage({
+        type: 'browserUrlChanged',
+        url: snapshot.url,
+      });
+
+      this.panel.webview.postMessage({
+        type: 'browserPageLoaded',
+        url: snapshot.url,
+        title: snapshot.title || snapshot.url,
+      });
+    }
+
+    return true;
+  }
+
+  private async runMainBrowserAction(action: () => Promise<void>): Promise<void> {
+    try {
+      await action();
+    } catch (error) {
+      this.panel?.webview.postMessage({
+        type: 'browserPageError',
+        url: this.pendingInitialUrl,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   private async createNewPreviewTab(initialUrl = '', initialDevice = ''): Promise<void> {
     const context = this.extensionContextProvider.getContext();
+    const browserService = this.embeddedBrowserService.createDetached('BrowserUserData-Detached');
 
     let panel: vscode.WebviewPanel | undefined;
 
@@ -392,70 +540,194 @@ export class LivePreviewProvider {
       viewType: 'quickOpsLivePreview',
       title: '网页预览 (Preview)',
       column: this.panel?.viewColumn || vscode.ViewColumn.Active,
-
-      /**
-       * @description 给 WebviewAppearancePlugin 使用
-       */
       extensionUri: context.extensionUri,
       icon: 'resources/icons/livepreview.svg',
       fullscreen: true,
-
-      /**
-       * @description 新预览页不复用已有 Webview
-       */
       revealIfExists: false,
-
       options: {
         enableScripts: true,
         retainContextWhenHidden: true,
         enableFindWidget: true,
         localResourceRoots: this.livePreviewService.getLocalResourceRoots(context),
       },
-
       htmlFactory: async (webview) => {
         return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
-          extensionUri: context!.extensionUri,
+          extensionUri: context.extensionUri,
           webview,
           routeName: '/preview',
         });
       },
-
       onDidReceiveMessage: async (message) => {
         if (!panel) return;
 
-        if (message.type === 'ready') {
-          panel.webview.postMessage({
-            type: 'init',
-            url: initialUrl,
-            device: initialDevice || 'device-responsive',
-          });
-
-          const favorites = await this.livePreviewService.getMergedFavorites(context);
-
-          panel.webview.postMessage({
-            type: 'syncFavorites',
-            favorites,
-          });
-        }
-
-        if (message.type === 'saveUrl') {
-          await context.workspaceState.update('quickOps.lastPreviewUrl', message.url || '');
-        }
-
-        if (message.type === 'saveDevice') {
-          await context.workspaceState.update('quickOps.lastPreviewDevice', message.device || 'device-responsive');
-        }
-
-        if (message.type === 'openExternalBrowser' && message.url) {
-          await vscode.env.openExternal(this.livePreviewService.parseExternalUri(message.url));
-        }
+        await this.handleDetachedMessage(panel, browserService, message, initialUrl, initialDevice);
+      },
+      onDidDispose: () => {
+        void browserService.dispose();
       },
     });
+
+    this.bindBrowserEvents(browserService, () => panel);
   }
 
-  /**
-   * @description 加载等待中的本地文件
-   */
+  private async handleDetachedMessage(panel: vscode.WebviewPanel, browserService: EmbeddedBrowserService, message: any, initialUrl: string, initialDevice: string): Promise<void> {
+    const context = this.extensionContextProvider.getContext();
+
+    const run = async (action: () => Promise<void>) => {
+      try {
+        await action();
+      } catch (error) {
+        panel.webview.postMessage({
+          type: 'browserPageError',
+          url: initialUrl,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    };
+
+    switch (message.type || message.command) {
+      case 'ready':
+        panel.webview.postMessage({
+          type: 'init',
+          url: initialUrl,
+          device: initialDevice || String(context.workspaceState.get('quickOps.lastPreviewDevice') || 'device-responsive'),
+        });
+        await this.postFavoritesToPanel(panel);
+        break;
+
+      case 'saveUrl':
+        await context.workspaceState.update('quickOps.lastPreviewUrl', message.url || '');
+        break;
+
+      case 'saveDevice':
+        await context.workspaceState.update('quickOps.lastPreviewDevice', message.device || 'device-responsive');
+        break;
+
+      case 'reqSyncFavorites':
+        await this.postFavoritesToPanel(panel);
+        break;
+
+      case 'resolveFavoriteMeta':
+        await this.postFavoriteMetaResolved(panel, message);
+        break;
+
+      case 'saveAllFavorites':
+        if (Array.isArray(message.folders)) {
+          await this.livePreviewService.saveFavoriteFolders(context, message.folders);
+        }
+        await this.livePreviewService.saveUserFavorites(context, message.favorites || []);
+        await this.postFavoritesToPanel(panel);
+        break;
+
+      case 'exportFavorites':
+        await this.livePreviewService.exportFavoritesToFile(message.favorites || [], message.folders || (await this.livePreviewService.getFavoriteFolders(context)));
+        break;
+
+      case 'importFavorites':
+        await this.livePreviewService.importFavoritesFromFile(context);
+        await this.postFavoritesToPanel(panel);
+        break;
+
+      case 'toggleFavorite':
+        await this.toggleFavorite(message, panel);
+        break;
+
+      case 'openNewPreviewTab':
+        await this.createNewPreviewTab('', message.device || '');
+        break;
+
+      case 'browserNavigate':
+        await run(() => browserService.navigate(message.url || 'about:blank'));
+        break;
+
+      case 'browserRefresh':
+        await run(() => browserService.reload(message.url || undefined));
+        break;
+
+      case 'browserStopLoading':
+        await run(() => browserService.stopLoading());
+        break;
+
+      case 'browserCopySelection':
+        await run(() => browserService.copySelectedText());
+        break;
+
+      case 'browserSelectTextRange':
+        await run(() => browserService.selectTextRange(Number(message.startX) || 0, Number(message.startY) || 0, Number(message.endX) || 0, Number(message.endY) || 0));
+        break;
+
+      case 'browserSearch':
+        await run(async () => {
+          const result = await browserService.searchInPage(message.keyword || '', message.direction === 'previous' ? 'previous' : 'next');
+          panel.webview.postMessage({
+            type: 'browserSearchResult',
+            ...result,
+          });
+        });
+        break;
+
+      case 'browserBack':
+        await run(() => browserService.goBack());
+        break;
+
+      case 'browserForward':
+        await run(() => browserService.goForward());
+        break;
+
+      case 'browserSetViewport':
+        await run(() =>
+          browserService.setViewport({
+            width: message.width,
+            height: message.height,
+            deviceScaleFactor: message.deviceScaleFactor,
+          }),
+        );
+        break;
+
+      case 'browserInput':
+        await run(() => browserService.dispatchInput(message));
+        break;
+
+      case 'browserClearCache':
+        await run(() => browserService.clearCache());
+        break;
+
+      case 'openDevTools':
+        await run(async () => {
+          const devToolsUrl = await browserService.getDevToolsUrl();
+
+          if (!devToolsUrl) {
+            await browserService.openDevTools();
+            return;
+          }
+
+          await this.devToolsWebviewProvider.open(devToolsUrl);
+        });
+        break;
+
+      case 'browserStop':
+        await run(() => browserService.stop());
+        break;
+
+      case 'openExternalBrowser':
+        if (message.url) {
+          await vscode.env.openExternal(this.livePreviewService.parseExternalUri(message.url));
+        }
+        break;
+
+      case 'showInfo':
+        vscode.window.showInformationMessage(message.message || '');
+        break;
+
+      case 'showWarning':
+        vscode.window.showWarningMessage(message.message || '');
+        break;
+
+      case 'showError':
+        vscode.window.showErrorMessage(message.message || '');
+        break;
+    }
+  }
   private async loadPendingLocalFile(): Promise<void> {
     if (!this.panel || !this.pendingLocalFile) return;
 
@@ -470,11 +742,24 @@ export class LivePreviewProvider {
       if (fileType === 'md') {
         const content = Buffer.from(contentBytes).toString('utf8');
 
+        const fileName = path.basename(fileUri.fsPath || fsPath);
+
         this.panel.webview.postMessage({
           type: 'initMarkdownData',
           content,
           fsPath,
-          fileName: path.basename(fileUri.fsPath || fsPath),
+          fileName,
+        });
+
+        /**
+         * 兼容 master Webview 使用的 Vditor 初始化消息。
+         */
+        this.panel.webview.postMessage({
+          type: 'initVditorData',
+          content,
+          mode: 'read',
+          fsPath,
+          fileName,
         });
 
         return;

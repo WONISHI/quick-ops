@@ -127,6 +127,10 @@ const extensionConfig = {
       module: /@vue[\\/]compiler-sfc/,
       message: /Critical dependency/,
     },
+    {
+      module: /[\\/]node_modules[\\/](@puppeteer|puppeteer-core|@puppeteer\/browsers)[\\/]/,
+      message: /Critical dependency: require function is used in a way/,
+    },
   ],
 
   module: {

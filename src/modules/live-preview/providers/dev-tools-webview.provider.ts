@@ -1,7 +1,15 @@
 import * as vscode from 'vscode';
-import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 
+/**
+ * @description Live Preview DevTools WebviewView Provider
+ *
+ * 负责：
+ * - 在侧边栏承载 Chrome DevTools 页面
+ * - 接收 EmbeddedBrowserService 生成的 DevTools URL
+ * - 支持重新加载和外部浏览器打开
+ */
 export class DevToolsWebviewProvider implements vscode.WebviewViewProvider {
   public static inject = [ExtensionContextProvider];
 
@@ -11,29 +19,27 @@ export class DevToolsWebviewProvider implements vscode.WebviewViewProvider {
   private view?: vscode.WebviewView;
   private devToolsUrl = '';
 
+  private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
+
   constructor(private readonly extensionContextProvider: ExtensionContextProvider) {}
 
-  public resolveWebviewView(
-    webviewView: vscode.WebviewView,
-    _context: vscode.WebviewViewResolveContext,
-    _token: vscode.CancellationToken,
-  ): void {
-    this.view = webviewView;
-
+  public async resolveWebviewView(webviewView: vscode.WebviewView, _context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken): Promise<void> {
     const context = this.extensionContextProvider.getContext();
+
+    this.view = webviewView;
 
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [context.extensionUri],
     };
 
-    webviewView.webview.html = getReactWebviewHtml(
-      context.extensionUri,
-      webviewView.webview,
-      '/devtools',
-    );
+    webviewView.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+      extensionUri: context.extensionUri,
+      webview: webviewView.webview,
+      routeName: '/devtools',
+    });
 
-    webviewView.webview.onDidReceiveMessage(async message => {
+    webviewView.webview.onDidReceiveMessage(async (message) => {
       if (message.type === 'ready') {
         this.postInit();
         return;
@@ -77,34 +83,28 @@ export class DevToolsWebviewProvider implements vscode.WebviewViewProvider {
   }
 
   public dispose(): void {
+    this.clear();
     this.view = undefined;
-    this.devToolsUrl = '';
   }
 
   private postInit(): void {
     if (!this.view) return;
 
-    this.view.webview.postMessage({
+    void this.view.webview.postMessage({
       type: 'init',
       devToolsUrl: this.devToolsUrl,
     });
   }
 
   private async focusPanel(): Promise<void> {
-    await vscode.commands
-      .executeCommand(
-        `workbench.view.extension.${DevToolsWebviewProvider.viewContainerId}`,
-      )
-      .then(
-        () => undefined,
-        async () => {
-          await vscode.commands
-            .executeCommand(`${DevToolsWebviewProvider.viewType}.focus`)
-            .then(
-              () => undefined,
-              () => undefined,
-            );
-        },
-      );
+    await vscode.commands.executeCommand(`workbench.view.extension.${DevToolsWebviewProvider.viewContainerId}`).then(
+      () => undefined,
+      async () => {
+        await vscode.commands.executeCommand(`${DevToolsWebviewProvider.viewType}.focus`).then(
+          () => undefined,
+          () => undefined,
+        );
+      },
+    );
   }
 }
