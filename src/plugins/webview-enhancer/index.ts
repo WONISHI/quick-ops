@@ -1,9 +1,41 @@
 import * as vscode from 'vscode';
 import type { WebviewCreatedPayload, WebviewIcon } from '@plugins/webview-enhancer/type';
+import { WORKSPACE_EVENTS } from '@workflow/workspace-events/type';
+import type {
+  WorkspaceDocumentFilterOptions,
+  WorkspaceEventHandler,
+  WorkspaceEventName,
+} from '@workflow/workspace-events/type';
 
 const ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT = 'quickOps.activeWebview.fullscreen';
 
+type WorkspaceOn = <T extends WorkspaceEventName>(
+  eventName: T,
+  handler: WorkspaceEventHandler<T>,
+  options?: WorkspaceDocumentFilterOptions,
+) => vscode.Disposable;
+
+interface WebviewAppearancePluginInitOptions {
+  on?: WorkspaceOn;
+}
+
 export class WebviewAppearancePlugin {
+  /**
+   * @description 声明需要 loader 从 runtime.global 注入的变量
+   *
+   * WorkspaceEventsWorkflow.provide() 里需要暴露：
+   * global: {
+   *   on: this.on.bind(this),
+   *   events: WORKSPACE_EVENTS,
+   * }
+   */
+  public readonly use = ['on'] as const;
+
+  /**
+   * @description workspace-events runtime 暴露出来的监听方法
+   */
+  private workspaceOn?: WorkspaceOn;
+
   /**
    * @description 记录配置了 fullscreen 的 WebviewPanel
    */
@@ -19,10 +51,11 @@ export class WebviewAppearancePlugin {
    */
   private globalListenersRegistered = false;
 
-  public init() {
+  public init({ on }: WebviewAppearancePluginInitOptions = {}) {
+    this.workspaceOn = on;
+
     return {
       pluginId: 'webview-appearance-plugin',
-
       on: [
         {
           name: 'webview:created',
@@ -113,22 +146,31 @@ export class WebviewAppearancePlugin {
 
   /**
    * @description 注册全局监听，保证切换 tab / editor 时也能刷新 when context
+   *
+   * 注意：
+   * 这里不再直接用 vscode.window.xxx。
+   * 统一使用 WorkspaceEventsWorkflow 暴露出来的 on。
    */
   private registerGlobalListenersOnce(): void {
     if (this.globalListenersRegistered) return;
 
+    if (!this.workspaceOn) {
+      console.warn('[WebviewAppearancePlugin] workspace-events on is not injected.');
+      return;
+    }
+
     this.globalListenersRegistered = true;
 
     this.disposables.push(
-      vscode.window.onDidChangeActiveTextEditor(() => {
+      this.workspaceOn(WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TEXT_EDITOR, () => {
         this.refreshFullscreenContext();
       }),
 
-      vscode.window.tabGroups.onDidChangeTabs(() => {
+      this.workspaceOn(WORKSPACE_EVENTS.DID_CHANGE_TABS, () => {
         this.refreshFullscreenContext();
       }),
 
-      vscode.window.tabGroups.onDidChangeTabGroups(() => {
+      this.workspaceOn(WORKSPACE_EVENTS.DID_CHANGE_TAB_GROUPS, () => {
         this.refreshFullscreenContext();
       }),
     );
@@ -142,7 +184,11 @@ export class WebviewAppearancePlugin {
       return panel.active && panel.visible;
     });
 
-    void vscode.commands.executeCommand(ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT, isActiveFullscreenWebview);
+    void vscode.commands.executeCommand(
+      'setContext',
+      ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT,
+      isActiveFullscreenWebview,
+    );
   }
 
   /**
@@ -167,8 +213,13 @@ export class WebviewAppearancePlugin {
     this.disposables.length = 0;
     this.fullscreenPanels.clear();
     this.globalListenersRegistered = false;
+    this.workspaceOn = undefined;
 
-    void vscode.commands.executeCommand(ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT, false);
+    void vscode.commands.executeCommand(
+      'setContext',
+      ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT,
+      false,
+    );
   }
 }
 

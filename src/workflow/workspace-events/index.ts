@@ -60,6 +60,10 @@ export default class WorkspaceEventsWorkflow implements ETIRuntime, vscode.Dispo
           },
         };
       }),
+      global: {
+        on: this.on.bind(this),
+        events: WORKSPACE_EVENTS,
+      },
     };
   }
 
@@ -455,10 +459,4 @@ export default class WorkspaceEventsWorkflow implements ETIRuntime, vscode.Dispo
 
 export { WORKSPACE_EVENTS };
 
-export type {
-  WorkspaceDocumentFilterOptions,
-  WorkspaceEventContext,
-  WorkspaceEventHandler,
-  WorkspaceEventMap,
-  WorkspaceEventName,
-};
+export type { WorkspaceDocumentFilterOptions, WorkspaceEventContext, WorkspaceEventHandler, WorkspaceEventMap, WorkspaceEventName };

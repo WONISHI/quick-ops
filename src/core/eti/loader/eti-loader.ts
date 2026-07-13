@@ -1,4 +1,4 @@
-import type { ETIRuntime, ETIPlugin } from '../eti.type';
+import type { ETIGlobal, ETIPlugin, ETIPluginUse, ETIRuntime } from '../eti.type';
 
 type LoaderType = 'plugins' | 'runtimes';
 
@@ -45,14 +45,24 @@ export class ETILoader {
   private runtimes: ETIRuntime[] = [];
 
   /**
+   * @description runtime 暴露给 plugin 使用的全局变量
+   */
+  private globals: ETIGlobal = {};
+
+  /**
    * @description 加载 ETI 扩展
    *
-   * rootPath 参数暂时保留，方便以后扩展，
-   * 但 webpack 场景下不需要使用它。
+   * 注意顺序：
+   * 1. 先加载 runtimes
+   * 2. 收集 runtimes.provide().global
+   * 3. 再加载 plugins，并把 use 需要的变量注入 plugin.init(params)
    */
   public async load(_rootPath?: string): Promise<void> {
-    this.plugins = await this.loadPlugins();
     this.runtimes = await this.loadRuntimes();
+
+    this.globals = this.collectRuntimeGlobals(this.runtimes);
+
+    this.plugins = await this.loadPlugins();
   }
 
   /**
@@ -136,7 +146,9 @@ export class ETILoader {
         return undefined;
       }
 
-      return await instance.init();
+      const params = this.resolvePluginInitParams(instance);
+
+      return await instance.init(params);
     }
 
     if (type === 'runtimes') {
@@ -144,6 +156,130 @@ export class ETILoader {
     }
 
     return undefined;
+  }
+
+  /**
+   * @description 收集 runtime.provide().global
+   */
+  private collectRuntimeGlobals(runtimes: ETIRuntime[]): ETIGlobal {
+    const globals: ETIGlobal = {};
+
+    for (const runtime of runtimes) {
+      const provideResult = runtime.provide();
+      const runtimeGlobals = provideResult.global || {};
+
+      for (const [key, value] of Object.entries(runtimeGlobals)) {
+        if (Object.prototype.hasOwnProperty.call(globals, key)) {
+          console.warn(`[ETILoader] global "${key}" from runtime "${runtime.runtimeId}" is overwritten.`);
+        }
+
+        globals[key] = value;
+      }
+    }
+
+    return globals;
+  }
+
+  /**
+   * @description 根据 plugin.use 生成 plugin.init(params)
+   */
+  private resolvePluginInitParams(instance: any): ETIGlobal {
+    const use = this.getPluginUse(instance);
+
+    if (!use) {
+      return {};
+    }
+
+    if (this.isPluginUseArray(use)) {
+      return this.pickGlobalsByArray(use);
+    }
+
+    if (this.isPluginUseAlias(use)) {
+      return this.pickGlobalsByAlias(use);
+    }
+
+    return {};
+  }
+
+  /**
+   * @description 判断 plugin.use 是否是数组写法
+   *
+   * 示例：
+   * public readonly use = ['workspaceOn', 'workspaceEvents'] as const;
+   */
+  private isPluginUseArray(use: ETIPluginUse): use is readonly string[] {
+    return Array.isArray(use);
+  }
+
+  /**
+   * @description 判断 plugin.use 是否是别名对象写法
+   *
+   * 示例：
+   * public readonly use = {
+   *   on: 'workspaceOn',
+   *   events: 'workspaceEvents',
+   * } as const;
+   */
+  private isPluginUseAlias(use: ETIPluginUse): use is { readonly [key: string]: string } {
+    return !Array.isArray(use) && typeof use === 'object' && use !== null;
+  }
+
+  /**
+   * @description 获取插件声明的 use
+   *
+   * 支持：
+   * public readonly use = ['workspaceOn'] as const;
+   * public static use = ['workspaceOn'] as const;
+   */
+  private getPluginUse(instance: any): ETIPluginUse | undefined {
+    return instance.use || instance.constructor?.use;
+  }
+
+  /**
+   * @description 数组方式注入
+   *
+   * public readonly use = ['workspaceOn', 'workspaceEvents'] as const;
+   *
+   * init({ workspaceOn, workspaceEvents }) {}
+   */
+  private pickGlobalsByArray(use: readonly string[]): ETIGlobal {
+    const params: ETIGlobal = {};
+
+    for (const key of use) {
+      if (!Object.prototype.hasOwnProperty.call(this.globals, key)) {
+        console.warn(`[ETILoader] plugin use "${key}" not found in runtime globals.`);
+        continue;
+      }
+
+      params[key] = this.globals[key];
+    }
+
+    return params;
+  }
+
+  /**
+   * @description 别名方式注入
+   *
+   * public readonly use = {
+   *   on: 'workspaceOn',
+   *   events: 'workspaceEvents'
+   * } as const;
+   *
+   * init({ on, events }) {}
+   */
+  private pickGlobalsByAlias(use: Record<string, string>): ETIGlobal {
+    const params: ETIGlobal = {};
+
+    for (const [alias, globalKey] of Object.entries(use)) {
+      if (!Object.prototype.hasOwnProperty.call(this.globals, globalKey)) {
+        console.warn(`[ETILoader] plugin use "${globalKey}" not found in runtime globals.`);
+        continue;
+      }
+
+      params[alias] = this.globals[globalKey];
+    }
+
+    return params;
   }
 
   /**

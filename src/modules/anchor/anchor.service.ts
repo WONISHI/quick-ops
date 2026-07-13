@@ -895,8 +895,6 @@ export class AnchorService {
   private async openMindMapPanel(): Promise<void> {
     if (!this.context) return;
 
-    const config = this.configurationService.config?.general || {};
-
     let targetColumn = vscode.ViewColumn.Beside;
 
     this.currentPanel = await this.webviewWorkflow.createWebview<AnchorWebviewMessage, WebviewEnhancerOptions>({
