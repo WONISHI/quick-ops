@@ -65,18 +65,12 @@ export class DirectoryService {
     return vscode.Uri.file(value);
   }
 
-  public async readDirectory(
-    target: string | vscode.Uri,
-  ): Promise<DirectoryEntryItem[]> {
+  public async readDirectory(target: string | vscode.Uri): Promise<DirectoryEntryItem[]> {
     const uri = this.toUri(target);
     const nativePath = uri.fsPath || uri.path;
-    const statusMap = uri.scheme === 'file'
-      ? await this.getGitStatusMap(nativePath)
-      : new Map<string, GitFileStatus>();
+    const statusMap = uri.scheme === 'file' ? await this.getGitStatusMap(nativePath) : new Map<string, GitFileStatus>();
 
-    const gitRoot = uri.scheme === 'file'
-      ? await this.getGitRoot(nativePath)
-      : '';
+    const gitRoot = uri.scheme === 'file' ? await this.getGitRoot(nativePath) : '';
 
     const entries = await vscode.workspace.fs.readDirectory(uri);
 
@@ -85,9 +79,7 @@ export class DirectoryService {
       .map(([name, type]) => {
         const childUri = vscode.Uri.joinPath(uri, name);
         const isFolder = (type & vscode.FileType.Directory) !== 0;
-        const relativePath = gitRoot
-          ? this.normalizeRelativePath(path.relative(gitRoot, childUri.fsPath))
-          : name;
+        const relativePath = gitRoot ? this.normalizeRelativePath(path.relative(gitRoot, childUri.fsPath)) : name;
 
         return {
           path: childUri.toString(),
@@ -106,10 +98,7 @@ export class DirectoryService {
       });
   }
 
-  public async createFile(
-    parent: string | vscode.Uri,
-    fileName: string,
-  ): Promise<vscode.Uri | undefined> {
+  public async createFile(parent: string | vscode.Uri, fileName: string): Promise<vscode.Uri | undefined> {
     const parentUri = this.toUri(parent);
 
     if (parentUri.scheme !== 'file') {
@@ -121,10 +110,7 @@ export class DirectoryService {
 
     if (!normalizedName) return undefined;
 
-    const fileUri = vscode.Uri.joinPath(
-      parentUri,
-      ...this.toPathParts(normalizedName),
-    );
+    const fileUri = vscode.Uri.joinPath(parentUri, ...this.toPathParts(normalizedName));
 
     await this.ensureParentDirectory(fileUri);
     await vscode.workspace.fs.writeFile(fileUri, new Uint8Array());
@@ -132,10 +118,7 @@ export class DirectoryService {
     return fileUri;
   }
 
-  public async createFolder(
-    parent: string | vscode.Uri,
-    folderName: string,
-  ): Promise<vscode.Uri | undefined> {
+  public async createFolder(parent: string | vscode.Uri, folderName: string): Promise<vscode.Uri | undefined> {
     const parentUri = this.toUri(parent);
 
     if (parentUri.scheme !== 'file') {
@@ -147,10 +130,7 @@ export class DirectoryService {
 
     if (!normalizedName) return undefined;
 
-    const folderUri = vscode.Uri.joinPath(
-      parentUri,
-      ...this.toPathParts(normalizedName),
-    );
+    const folderUri = vscode.Uri.joinPath(parentUri, ...this.toPathParts(normalizedName));
 
     await vscode.workspace.fs.createDirectory(folderUri);
 
@@ -171,9 +151,7 @@ export class DirectoryService {
       return undefined;
     }
 
-    const newUri = newNameOrPath.includes('://')
-      ? this.toUri(newNameOrPath)
-      : vscode.Uri.joinPath(vscode.Uri.joinPath(oldUri, '..'), newNameOrPath);
+    const newUri = newNameOrPath.includes('://') ? this.toUri(newNameOrPath) : vscode.Uri.joinPath(vscode.Uri.joinPath(oldUri, '..'), newNameOrPath);
 
     await vscode.workspace.fs.rename(oldUri, newUri, {
       overwrite: Boolean(options.overwrite),
@@ -225,13 +203,9 @@ export class DirectoryService {
 
     if (!keyword) return results;
 
-    const gitRoot = rootUri.scheme === 'file'
-      ? await this.getGitRoot(rootUri.fsPath)
-      : '';
+    const gitRoot = rootUri.scheme === 'file' ? await this.getGitRoot(rootUri.fsPath) : '';
 
-    const statusMap = gitRoot
-      ? await this.getGitStatusMap(gitRoot)
-      : new Map<string, GitFileStatus>();
+    const statusMap = gitRoot ? await this.getGitStatusMap(gitRoot) : new Map<string, GitFileStatus>();
 
     const walk = async (dirUri: vscode.Uri): Promise<void> => {
       if (results.length >= maxResults) return;
@@ -250,28 +224,17 @@ export class DirectoryService {
 
         const childUri = vscode.Uri.joinPath(dirUri, name);
         const isFolder = (type & vscode.FileType.Directory) !== 0;
-        const relativePath = this.normalizeRelativePath(
-          path.posix.relative(rootUri.path, childUri.path),
-        );
+        const relativePath = this.normalizeRelativePath(path.posix.relative(rootUri.path, childUri.path));
 
-        if (
-          name.toLowerCase().includes(keyword) ||
-          relativePath.toLowerCase().includes(keyword)
-        ) {
-          const gitRelativePath = gitRoot && childUri.scheme === 'file'
-            ? this.normalizeRelativePath(path.relative(gitRoot, childUri.fsPath))
-            : relativePath;
+        if (name.toLowerCase().includes(keyword) || relativePath.toLowerCase().includes(keyword)) {
+          const gitRelativePath = gitRoot && childUri.scheme === 'file' ? this.normalizeRelativePath(path.relative(gitRoot, childUri.fsPath)) : relativePath;
 
           results.push({
             path: childUri.toString(),
             name,
             relativePath,
             isFolder,
-            status: this.getChildGitStatus(
-              gitRelativePath,
-              isFolder,
-              statusMap,
-            ),
+            status: this.getChildGitStatus(gitRelativePath, isFolder, statusMap),
             diagnostics: this.getDiagnostics(childUri),
           });
         }
@@ -354,9 +317,7 @@ export class DirectoryService {
 
           if (matches.length > 0) {
             results.push({
-              file: this.normalizeRelativePath(
-                path.posix.relative(rootUri.path, childUri.path),
-              ),
+              file: this.normalizeRelativePath(path.posix.relative(rootUri.path, childUri.path)),
               fullPath: childUri.toString(),
               matches,
               diagnostics: this.getDiagnostics(childUri),
@@ -374,7 +335,7 @@ export class DirectoryService {
   }
 
   public execGit(args: string[], cwd: string): Promise<string> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       execFile('git', args, { cwd }, (error, stdout) => {
         if (error) {
           resolve('');
@@ -389,10 +350,7 @@ export class DirectoryService {
   public async getGitRoot(nativePath: string): Promise<string> {
     if (!nativePath) return '';
 
-    const result = await this.execGit(
-      ['rev-parse', '--show-toplevel'],
-      nativePath,
-    );
+    const result = await this.execGit(['rev-parse', '--show-toplevel'], nativePath);
 
     return result.trim();
   }
@@ -415,9 +373,7 @@ export class DirectoryService {
     return value.replace(/\\/g, '/').replace(/^\/+/, '');
   }
 
-  public async getGitStatusMap(
-    nativePath: string,
-  ): Promise<Map<string, GitFileStatus>> {
+  public async getGitStatusMap(nativePath: string): Promise<Map<string, GitFileStatus>> {
     const map = new Map<string, GitFileStatus>();
 
     try {
@@ -425,10 +381,7 @@ export class DirectoryService {
 
       if (!gitRoot) return map;
 
-      const output = await this.execGit(
-        ['status', '--porcelain=v1', '-z', '-uall'],
-        gitRoot,
-      );
+      const output = await this.execGit(['status', '--porcelain=v1', '-z', '-uall'], gitRoot);
 
       if (!output) return map;
 
@@ -479,15 +432,9 @@ export class DirectoryService {
     }
   }
 
-  public getChildGitStatus(
-    childRelativePath: string,
-    isFolder: boolean,
-    statusMap: Map<string, GitFileStatus>,
-  ): GitFileStatus | undefined {
+  public getChildGitStatus(childRelativePath: string, isFolder: boolean, statusMap: Map<string, GitFileStatus>): GitFileStatus | undefined {
     const normalizedChildPath = this.normalizeRelativePath(childRelativePath);
-    const normalizedChildPathWithSlash = normalizedChildPath.endsWith('/')
-      ? normalizedChildPath
-      : `${normalizedChildPath}/`;
+    const normalizedChildPathWithSlash = normalizedChildPath.endsWith('/') ? normalizedChildPath : `${normalizedChildPath}/`;
 
     if (!isFolder) {
       const exactStatus = statusMap.get(normalizedChildPath);
@@ -500,10 +447,7 @@ export class DirectoryService {
       for (const [changedPath, status] of statusMap.entries()) {
         if (!changedPath.endsWith('/')) continue;
 
-        if (
-          normalizedChildPath.startsWith(changedPath) &&
-          changedPath.length > finalMatchedLength
-        ) {
+        if (normalizedChildPath.startsWith(changedPath) && changedPath.length > finalMatchedLength) {
           finalStatus = status;
           finalMatchedLength = changedPath.length;
         }
@@ -512,9 +456,7 @@ export class DirectoryService {
       return finalStatus;
     }
 
-    const exactFolderStatus =
-      statusMap.get(normalizedChildPath) ||
-      statusMap.get(normalizedChildPathWithSlash);
+    const exactFolderStatus = statusMap.get(normalizedChildPath) || statusMap.get(normalizedChildPathWithSlash);
 
     let finalStatus = exactFolderStatus;
     let finalPriority = this.getGitStatusPriority(exactFolderStatus);
@@ -540,12 +482,8 @@ export class DirectoryService {
     const diagnostics = vscode.languages.getDiagnostics(uri);
 
     return {
-      errors: diagnostics.filter(
-        item => item.severity === vscode.DiagnosticSeverity.Error,
-      ).length,
-      warnings: diagnostics.filter(
-        item => item.severity === vscode.DiagnosticSeverity.Warning,
-      ).length,
+      errors: diagnostics.filter((item) => item.severity === vscode.DiagnosticSeverity.Error).length,
+      warnings: diagnostics.filter((item) => item.severity === vscode.DiagnosticSeverity.Warning).length,
     };
   }
 
@@ -554,17 +492,7 @@ export class DirectoryService {
   }
 
   public shouldIgnoreName(name: string): boolean {
-    return [
-      'node_modules',
-      'dist',
-      'build',
-      'out',
-      '.git',
-      '.svn',
-      '.hg',
-      '.DS_Store',
-      'Thumbs.db',
-    ].includes(name);
+    return ['node_modules', 'dist', 'build', 'out', '.git', '.svn', '.hg', '.DS_Store', 'Thumbs.db'].includes(name);
   }
 
   public isBinaryLikeFile(name: string): boolean {
@@ -620,14 +548,14 @@ export class DirectoryService {
       return '';
     }
 
-    const parts = value.split('/').map(item => item.trim());
+    const parts = value.split('/').map((item) => item.trim());
 
-    if (parts.some(item => !item || item === '.' || item === '..')) {
+    if (parts.some((item) => !item || item === '.' || item === '..')) {
       vscode.window.showWarningMessage('名称中不能包含空路径、. 或 ..');
       return '';
     }
 
-    const invalidPart = parts.find(item => /[<>:"|?*]/.test(item));
+    const invalidPart = parts.find((item) => /[<>:"|?*]/.test(item));
 
     if (invalidPart) {
       vscode.window.showWarningMessage(`名称包含非法字符: ${invalidPart}`);

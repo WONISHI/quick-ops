@@ -1,8 +1,5 @@
 import * as vscode from 'vscode';
-import {
-  InlineConstantHintEntry,
-  InlineConstantHintService,
-} from '../inline-constant-hint.service';
+import { InlineConstantHintEntry, InlineConstantHintService } from '../inline-constant-hint.service';
 
 export class InlineConstantHintProvider implements vscode.InlayHintsProvider {
   public static inject = [InlineConstantHintService];
@@ -11,15 +8,9 @@ export class InlineConstantHintProvider implements vscode.InlayHintsProvider {
 
   public readonly onDidChangeInlayHints = this.changeEmitter.event;
 
-  constructor(
-    private readonly inlineConstantHintService: InlineConstantHintService,
-  ) {}
+  constructor(private readonly inlineConstantHintService: InlineConstantHintService) {}
 
-  public provideInlayHints(
-    document: vscode.TextDocument,
-    range: vscode.Range,
-    _token: vscode.CancellationToken,
-  ): vscode.InlayHint[] {
+  public provideInlayHints(document: vscode.TextDocument, range: vscode.Range, _token: vscode.CancellationToken): vscode.InlayHint[] {
     if (!this.inlineConstantHintService.shouldHandleDocument(document)) {
       return [];
     }
@@ -67,10 +58,7 @@ export class InlineConstantHintProvider implements vscode.InlayHintsProvider {
      *   Status.Success
      *   STATUS_MAP.SUCCESS
      */
-    const reg =
-      entry.name.includes('.')
-        ? new RegExp(`(?<![\\w$])${escapedName}(?![\\w$])`, 'g')
-        : new RegExp(`(?<![\\w$])${escapedName}(?![\\w$])`, 'g');
+    const reg = entry.name.includes('.') ? new RegExp(`(?<![\\w$])${escapedName}(?![\\w$])`, 'g') : new RegExp(`(?<![\\w$])${escapedName}(?![\\w$])`, 'g');
 
     let match: RegExpExecArray | null;
 
@@ -85,11 +73,7 @@ export class InlineConstantHintProvider implements vscode.InlayHintsProvider {
         continue;
       }
 
-      const hint = new vscode.InlayHint(
-        position,
-        ` = ${entry.value}`,
-        vscode.InlayHintKind.Type,
-      );
+      const hint = new vscode.InlayHint(position, ` = ${entry.value}`, vscode.InlayHintKind.Type);
 
       hint.paddingLeft = true;
       hint.paddingRight = true;
@@ -99,11 +83,7 @@ export class InlineConstantHintProvider implements vscode.InlayHintsProvider {
     }
   }
 
-  private shouldSkipMatch(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-    entry: InlineConstantHintEntry,
-  ): boolean {
+  private shouldSkipMatch(document: vscode.TextDocument, position: vscode.Position, entry: InlineConstantHintEntry): boolean {
     const lineText = document.lineAt(position.line).text;
 
     /**
