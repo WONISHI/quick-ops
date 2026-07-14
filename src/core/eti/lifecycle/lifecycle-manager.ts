@@ -1,4 +1,4 @@
-import { PluginContainer } from '../plugin/plugin-container';
+import { PluginContainer } from '@core/eti/plugin/plugin-container';
 
 export class LifecycleManager {
   constructor(private readonly pluginContainer: PluginContainer) {}

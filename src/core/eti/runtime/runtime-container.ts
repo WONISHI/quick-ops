@@ -1,4 +1,4 @@
-import type { ETIRuntime, ETIRuntimeProvide } from '../eti.type';
+import type { ETIRuntime, ETIRuntimeProvide } from '@core/eti/eti.type';
 
 export class RuntimeContainer {
   private runtimes: ETIRuntime[] = [];

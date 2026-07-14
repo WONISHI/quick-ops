@@ -1,240 +1,901 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import { execFile } from 'child_process';
 import { getReactWebviewHtml } from '../../../utils/WebviewHelper';
 import { ExtensionContextProvider } from '../../../common/providers/extension-context.provider';
 import { GitService } from '../git.service';
 import { GIT_WEBVIEW_ROUTES } from '../git.constant';
-import type { GitPostMessage, GitWebviewMessage } from '../git.type';
+
+interface GitGraphLikeCommit {
+  hash: string;
+  parents?: string[];
+  author: string;
+  email?: string;
+  message: string;
+  timestamp?: number;
+  refs?: string;
+  type?: 'commit' | 'uncommitted' | 'stash';
+}
+
+interface GitGraphLikeData {
+  graphCommits: GitGraphLikeCommit[];
+  graphFilter: string;
+  totalCommits: number;
+}
+
+interface RefreshOptions {
+  silent?: boolean;
+  fetchRemote?: boolean;
+}
 
 export class GitDetailWebviewProvider {
   public static inject = [ExtensionContextProvider, GitService];
+  private _panel?: vscode.WebviewPanel;
 
-  private panel?: vscode.WebviewPanel;
-  private currentWorkingDir: string | undefined;
+  private readonly _extensionUri: vscode.Uri;
+
+  private _currentGraphFilter = '全部分支';
+  private _lastGraphState = '';
+  private _refreshTimer: NodeJS.Timeout | null = null;
+  private _disposables: vscode.Disposable[] = [];
+  private _isRefreshing = false;
+  private _pendingRefresh: {
+    cwd: string;
+    graphFilter: string;
+    silent: boolean;
+    fetchRemote: boolean;
+  } | null = null;
 
   constructor(
-    private readonly extensionContextProvider: ExtensionContextProvider,
+    extensionContextProvider: ExtensionContextProvider,
     private readonly gitService: GitService,
-  ) {}
+  ) {
+    this._extensionUri = extensionContextProvider.getContext().extensionUri;
+  }
 
-  public async open(workingDir?: string): Promise<void> {
-    const context = this.extensionContextProvider.getContext();
+  private getWorkspaceRoot(): string | undefined {
+    return this.gitService.getCurrentWorkingDir() || undefined;
+  }
 
-    this.currentWorkingDir = workingDir || this.gitService.getCurrentWorkingDir();
+  public open(_workingDir?: string): void {
+    if (this._panel) {
+      this._panel.reveal(vscode.ViewColumn.Active);
 
-    if (this.panel) {
-      this.panel.reveal(vscode.ViewColumn.Beside);
-      await this.refresh(this.currentWorkingDir, {
-        silent: true,
-        fetchRemote: false,
+      const cwd = this.getWorkspaceRoot();
+
+      if (cwd) {
+        void this.postGraphData(cwd, this._currentGraphFilter, false, false);
+      }
+
+      return;
+    }
+
+    this._panel = vscode.window.createWebviewPanel(
+      'quickOps.gitDetail',
+      'Git 提交详情',
+      vscode.ViewColumn.Active,
+      {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [this._extensionUri],
+      },
+    );
+
+    this._panel.onDidDispose(() => {
+      this.disposeListeners();
+      this._panel = undefined;
+      this._lastGraphState = '';
+      this._currentGraphFilter = '全部分支';
+    });
+
+    this._panel.webview.onDidReceiveMessage(async (msg) => {
+      try {
+        const command = msg.command || msg.type;
+
+        if (command === 'openExternal') {
+          vscode.env.openExternal(vscode.Uri.parse(msg.url));
+          return;
+        }
+
+        const cwd = this.getWorkspaceRoot();
+
+        if (!cwd) {
+          this._panel?.webview.postMessage({
+            type: 'gitDetailNoWorkspace',
+          });
+          return;
+        }
+
+        switch (command) {
+          case 'gitDetailLoaded':
+          case 'refreshGitDetail': {
+            await this.postGraphData(cwd, msg.graphFilter || this._currentGraphFilter, false, false);
+            break;
+          }
+
+          case 'changeGitDetailFilter': {
+            await this.changeGraphFilter(cwd, msg.current || this._currentGraphFilter);
+            break;
+          }
+
+          case 'openCommitMultiDiff': {
+            await this.openCommitMultiDiff(cwd, msg.hash);
+            break;
+          }
+
+          case 'getGitDetailCommitFiles': {
+            await this.postCommitFiles(cwd, msg.hash);
+            break;
+          }
+
+          case 'openGitDetailCommitFileDiff': {
+            await this.openCommitFileDiff(cwd, msg.hash, msg.parentHash, msg.file, msg.status);
+            break;
+          }
+
+          case 'copy': {
+            vscode.env.clipboard.writeText(msg.text || '');
+            vscode.window.showInformationMessage(`已复制: ${msg.text}`);
+            break;
+          }
+        }
+      } catch (error: any) {
+        vscode.window.showErrorMessage(`Git 详情错误: ${error?.message ?? String(error)}`);
+
+        this._panel?.webview.postMessage({
+          type: 'gitDetailError',
+          message: error?.message ?? String(error),
+        });
+      }
+    });
+
+    this._panel.webview.html = getReactWebviewHtml(this._extensionUri, this._panel.webview, GIT_WEBVIEW_ROUTES.detail);
+    this._panel.iconPath = vscode.Uri.joinPath(this._extensionUri, 'resources', 'icons', 'git.svg');
+
+    void this.setupGitWatcher();
+
+    const cwd = this.getWorkspaceRoot();
+
+    if (cwd) {
+      setTimeout(() => {
+        void this.postGraphData(cwd, this._currentGraphFilter, false, false);
+      }, 300);
+    } else {
+      setTimeout(() => {
+        this._panel?.webview.postMessage({
+          type: 'gitDetailNoWorkspace',
+        });
+      }, 300);
+    }
+  }
+
+  public refresh(graphFilter = this._currentGraphFilter, options: RefreshOptions = {}): void {
+    const cwd = this.getWorkspaceRoot();
+
+    if (!cwd) return;
+
+    void this.postGraphData(
+      cwd,
+      graphFilter || this._currentGraphFilter,
+      options.silent ?? true,
+      options.fetchRemote ?? false,
+    );
+  }
+
+  public dispose(): void {
+    this.disposeListeners();
+    this._panel?.dispose();
+    this._panel = undefined;
+    this._lastGraphState = '';
+    this._currentGraphFilter = '全部分支';
+    this._pendingRefresh = null;
+    this._isRefreshing = false;
+  }
+
+  private disposeListeners() {
+    this._disposables.forEach((item) => item.dispose());
+    this._disposables = [];
+
+    if (this._refreshTimer) {
+      clearTimeout(this._refreshTimer);
+      this._refreshTimer = null;
+    }
+  }
+
+  private scheduleRefresh(cwd: string, fetchRemote = false) {
+    if (!this._panel) return;
+
+    if (this._refreshTimer) {
+      clearTimeout(this._refreshTimer);
+    }
+
+    this._refreshTimer = setTimeout(() => {
+      this._refreshTimer = null;
+      void this.refreshIfGraphChanged(cwd, true, fetchRemote);
+    }, 600);
+  }
+
+  private async setupGitWatcher() {
+    const gitExtension = vscode.extensions.getExtension('vscode.git');
+
+    if (!gitExtension) return;
+
+    try {
+      if (!gitExtension.isActive) {
+        await gitExtension.activate();
+      }
+    } catch {
+      return;
+    }
+
+    const gitApi = gitExtension.exports?.getAPI?.(1);
+
+    if (!gitApi) return;
+
+    const handleGitStateChange = () => {
+      const cwd = this.getWorkspaceRoot();
+
+      if (!cwd) return;
+
+      this.scheduleRefresh(cwd, false);
+    };
+
+    const openRepoDisposable = gitApi.onDidOpenRepository((repo: any) => {
+      const stateDisposable = repo.state.onDidChange(handleGitStateChange);
+      this._disposables.push(stateDisposable);
+    });
+
+    this._disposables.push(openRepoDisposable);
+
+    if (gitApi.repositories && gitApi.repositories.length > 0) {
+      gitApi.repositories.forEach((repo: any) => {
+        const stateDisposable = repo.state.onDidChange(handleGitStateChange);
+        this._disposables.push(stateDisposable);
+      });
+    }
+
+    const focusDisposable = vscode.window.onDidChangeWindowState((state) => {
+      if (!state.focused) return;
+
+      const cwd = this.getWorkspaceRoot();
+
+      if (!cwd) return;
+
+      this.scheduleRefresh(cwd, false);
+    });
+
+    this._disposables.push(focusDisposable);
+  }
+
+  private runGit(cwd: string, args: string[]): Promise<string> {
+    return new Promise((resolve, reject) => {
+      execFile(
+        'git',
+        ['-C', cwd, ...args],
+        {
+          encoding: 'utf8',
+          maxBuffer: 1024 * 1024 * 30,
+        },
+        (error, stdout, stderr) => {
+          if (error) {
+            reject(new Error(String(stderr || error.message || error)));
+            return;
+          }
+
+          resolve(String(stdout || ''));
+        },
+      );
+    });
+  }
+
+  private async runGitSafe(cwd: string, args: string[]) {
+    try {
+      return await this.runGit(cwd, args);
+    } catch {
+      return '';
+    }
+  }
+
+  private normalizeRefName(ref: string) {
+    return ref
+      .replace(/^refs\/heads\//, '')
+      .replace(/^refs\/remotes\//, '')
+      .replace(/^remotes\//, '')
+      .replace(/^refs\/tags\//, '')
+      .trim();
+  }
+
+  private normalizeGraphFilterName(graphFilter: string) {
+    const value = (graphFilter || '全部分支').trim();
+
+    if (!value || value === '全部分支') {
+      return '全部分支';
+    }
+
+    if (value === '当前分支') {
+      return '当前分支';
+    }
+
+    return this.normalizeRefName(value);
+  }
+
+  private normalizeBranchOptionName(branchName: string) {
+    return this.normalizeRefName(branchName);
+  }
+
+  private cleanDecorateRef(ref: string) {
+    return ref
+      .replace(/^tag:\s*/i, '')
+      .replace(/^HEAD\s*->\s*/i, 'HEAD -> ')
+      .trim();
+  }
+
+  private normalizeDecorateRefs(refsText: string) {
+    if (!refsText) return '';
+
+    return refsText
+      .split(',')
+      .map((item) => this.cleanDecorateRef(item.trim()))
+      .filter(Boolean)
+      .filter((item) => item !== 'refs/stash')
+      .filter((item) => item !== 'stash')
+      .map((item) => {
+        if (item.startsWith('HEAD -> ')) {
+          const branch = item.replace(/^HEAD\s*->\s*/, '').trim();
+
+          return `HEAD -> ${this.normalizeRefName(branch)}`;
+        }
+
+        return this.normalizeRefName(item);
+      })
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  private parseLogLine(line: string): GitGraphLikeCommit | null {
+    const parts = line.split('\x1f');
+
+    if (parts.length < 7) return null;
+
+    const hash = parts[0];
+    const parentsText = parts[1] || '';
+    const timestampText = parts[2] || '';
+    const author = parts[3] || '';
+    const email = parts[4] || '';
+    const refsText = parts[5] || '';
+    const message = parts.slice(6).join('\x1f') || '';
+
+    if (!hash) return null;
+
+    return {
+      type: 'commit',
+      hash,
+      parents: parentsText
+        .split(' ')
+        .map((item) => item.trim())
+        .filter(Boolean),
+      author,
+      email,
+      timestamp: Number(timestampText) * 1000,
+      refs: this.normalizeDecorateRefs(refsText),
+      message,
+    };
+  }
+
+  private async getHeadHash(cwd: string) {
+    return (await this.runGitSafe(cwd, ['rev-parse', 'HEAD'])).trim();
+  }
+
+  private async getWorkingTreeChangeCount(cwd: string) {
+    const output = await this.runGitSafe(cwd, ['status', '--porcelain=v1', '-uall']);
+
+    return output
+      .split(/\r?\n/)
+      .filter((line) => line.trim()).length;
+  }
+
+  private async getStashRows(cwd: string): Promise<GitGraphLikeCommit[]> {
+    const stashListOutput = await this.runGitSafe(cwd, [
+      'stash',
+      'list',
+      '--format=%gd%x1f%H%x1f%ct%x1f%gs',
+    ]);
+
+    const stashLines = stashListOutput
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    const rows: GitGraphLikeCommit[] = [];
+
+    for (const line of stashLines) {
+      const [stashName, stashHash, timestampText, ...messageParts] = line.split('\x1f');
+
+      if (!stashName || !stashHash) continue;
+
+      const parentsOutput = await this.runGitSafe(cwd, ['show', '-s', '--format=%P', stashHash]);
+
+      /**
+       * Git stash commit usually has multiple parents:
+       * 1. base commit
+       * 2. index commit
+       * 3. optional untracked commit
+       *
+       * Git Graph only uses the base commit to connect the visible stash row.
+       * If all stash parents are used here, the index/untracked parent creates the long extra
+       * vertical lines seen in the graph.
+       */
+      const baseParent = parentsOutput
+        .split(/\s+/)
+        .map((item) => item.trim())
+        .filter(Boolean)[0];
+
+      const message = messageParts.join('\x1f') || stashName;
+
+      rows.push({
+        type: 'stash',
+        hash: stashHash,
+        parents: baseParent ? [baseParent] : [],
+        author: '',
+        email: '',
+        timestamp: Number(timestampText) * 1000,
+        refs: stashName,
+        message,
+      });
+    }
+
+    return rows;
+  }
+
+  private getStashBaseParentHashes(stashRows: GitGraphLikeCommit[]) {
+    return Array.from(
+      new Set(
+        stashRows
+          .map((stashRow) => stashRow.parents?.[0])
+          .filter(Boolean) as string[],
+      ),
+    );
+  }
+
+  private async getUncommittedRow(cwd: string): Promise<GitGraphLikeCommit | null> {
+    const changeCount = await this.getWorkingTreeChangeCount(cwd);
+
+    if (changeCount <= 0) return null;
+
+    const headHash = await this.getHeadHash(cwd);
+
+    if (!headHash) return null;
+
+    return {
+      type: 'uncommitted',
+      hash: '__WORKING_TREE__',
+      parents: [headHash],
+      author: '*',
+      email: '',
+      timestamp: Date.now(),
+      refs: '',
+      message: `Uncommitted Changes (${changeCount})`,
+    };
+  }
+
+  private getGraphArgs(graphFilter: string, extraRefs: string[] = []) {
+    const pretty = '%H%x1f%P%x1f%ct%x1f%an%x1f%ae%x1f%D%x1f%s';
+
+    const commonArgs = [
+      'log',
+      '--date-order',
+      '--decorate=full',
+      '--parents',
+      `--pretty=${pretty}`,
+    ];
+
+    const normalizedGraphFilter = this.normalizeGraphFilterName(graphFilter);
+
+    if (normalizedGraphFilter === '全部分支') {
+      return [
+        ...commonArgs,
+        '--branches',
+        '--remotes',
+        '--tags',
+        ...extraRefs,
+      ];
+    }
+
+    if (!normalizedGraphFilter || normalizedGraphFilter === '当前分支') {
+      return [
+        ...commonArgs,
+        'HEAD',
+        ...extraRefs,
+      ];
+    }
+
+    return [
+      ...commonArgs,
+      normalizedGraphFilter,
+      ...extraRefs,
+    ];
+  }
+
+  private insertSpecialRows(
+    commits: GitGraphLikeCommit[],
+    stashRows: GitGraphLikeCommit[],
+    uncommittedRow: GitGraphLikeCommit | null,
+  ) {
+    const result: GitGraphLikeCommit[] = [];
+    const insertedStashIndexes = new Set<number>();
+
+    if (uncommittedRow) {
+      result.push(uncommittedRow);
+    }
+
+    commits.forEach((commit) => {
+      stashRows.forEach((stashRow, stashIndex) => {
+        if (insertedStashIndexes.has(stashIndex)) return;
+
+        const stashBaseParent = stashRow.parents?.[0];
+
+        if (stashBaseParent && stashBaseParent === commit.hash) {
+          result.push(stashRow);
+          insertedStashIndexes.add(stashIndex);
+        }
+      });
+
+      result.push(commit);
+    });
+
+    stashRows.forEach((stashRow, stashIndex) => {
+      if (insertedStashIndexes.has(stashIndex)) return;
+
+      result.splice(uncommittedRow ? 1 : 0, 0, stashRow);
+      insertedStashIndexes.add(stashIndex);
+    });
+
+    return result;
+  }
+
+  private async getGitGraphLikeData(cwd: string, graphFilter: string): Promise<GitGraphLikeData> {
+    const normalizedGraphFilter = this.normalizeGraphFilterName(graphFilter);
+    const allStashRows = await this.getStashRows(cwd);
+
+    const extraRefs =
+      normalizedGraphFilter === '全部分支'
+        ? this.getStashBaseParentHashes(allStashRows)
+        : [];
+
+    const output = await this.runGit(
+      cwd,
+      this.getGraphArgs(normalizedGraphFilter, extraRefs),
+    );
+
+    const commits = output
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => this.parseLogLine(line))
+      .filter(Boolean) as GitGraphLikeCommit[];
+
+    const commitHashSet = new Set(commits.map((commit) => commit.hash));
+
+    const visibleStashRows =
+      normalizedGraphFilter === '全部分支'
+        ? allStashRows
+        : allStashRows.filter((stashRow) => {
+            const stashBaseParent = stashRow.parents?.[0];
+
+            return !!stashBaseParent && commitHashSet.has(stashBaseParent);
+          });
+
+    const uncommittedRow = await this.getUncommittedRow(cwd);
+    const rows = this.insertSpecialRows(commits, visibleStashRows, uncommittedRow);
+
+    const uniqueRows: GitGraphLikeCommit[] = [];
+    const seenKey = new Set<string>();
+
+    rows.forEach((row) => {
+      const uniqueKey =
+        row.type === 'uncommitted'
+          ? row.hash
+          : `${row.type || 'commit'}:${row.hash}`;
+
+      if (seenKey.has(uniqueKey)) return;
+
+      seenKey.add(uniqueKey);
+      uniqueRows.push(row);
+    });
+
+    return {
+      graphCommits: uniqueRows,
+      graphFilter: normalizedGraphFilter,
+      totalCommits: uniqueRows.length,
+    };
+  }
+
+  private async getGraphState(cwd: string) {
+    try {
+      const stateOutput = await this.runGitSafe(cwd, [
+        'show-ref',
+        '--head',
+        '--dereference',
+      ]);
+
+      const statusOutput = await this.runGitSafe(cwd, [
+        'status',
+        '--porcelain=v1',
+      ]);
+
+      const stashOutput = await this.runGitSafe(cwd, [
+        'stash',
+        'list',
+        '--format=%gd %H',
+      ]);
+
+      return `${stateOutput}\n---STATUS---\n${statusOutput}\n---STASH---\n${stashOutput}`;
+    } catch {
+      return '';
+    }
+  }
+
+  private async refreshIfGraphChanged(cwd: string, silent = true, fetchRemote = false) {
+    if (!this._panel) return;
+
+    if (fetchRemote) {
+      try {
+        await this.gitService.fetchAllPrune(cwd);
+      } catch {
+        // fetch 失败不阻塞本地刷新判断
+      }
+    }
+
+    const nextGraphState = await this.getGraphState(cwd);
+
+    if (!nextGraphState) return;
+
+    if (this._lastGraphState && nextGraphState === this._lastGraphState) {
+      return;
+    }
+
+    this._lastGraphState = nextGraphState;
+
+    await this.postGraphData(cwd, this._currentGraphFilter, silent, false);
+  }
+
+  private async postGraphData(cwd: string, graphFilter: string, silent = false, fetchRemote = false) {
+    if (!this._panel) return;
+
+    if (this._isRefreshing) {
+      this._pendingRefresh = {
+        cwd,
+        graphFilter,
+        silent: silent || this._isRefreshing,
+        fetchRemote,
+      };
+
+      return;
+    }
+
+    this._isRefreshing = true;
+    this._currentGraphFilter = this.normalizeGraphFilterName(graphFilter || this._currentGraphFilter);
+
+    if (!silent) {
+      this._panel.webview.postMessage({
+        type: 'gitDetailLoading',
+      });
+    }
+
+    try {
+      const isRepo = await this.gitService.checkIsRepo(cwd);
+
+      if (!isRepo) {
+        this._panel?.webview.postMessage({
+          type: 'gitDetailNotRepo',
+        });
+        return;
+      }
+
+      if (fetchRemote) {
+        try {
+          await this.gitService.fetchAllPrune(cwd);
+        } catch {
+          // 远程拉取失败不影响本地记录显示
+        }
+      }
+
+      const repoStatus = await this.gitService.getRepoStatus(cwd);
+      const graphData = await this.getGitGraphLikeData(cwd, this._currentGraphFilter);
+      const graphState = await this.getGraphState(cwd);
+
+      if (graphState) {
+        this._lastGraphState = graphState;
+      }
+
+      this._panel?.webview.postMessage({
+        type: 'gitDetailGraphData',
+        graphCommits: graphData.graphCommits,
+        graphFilter: graphData.graphFilter,
+        totalCommits: graphData.totalCommits,
+        folderName: path.basename(cwd),
+        branch: repoStatus.branch,
+        remoteUrl: repoStatus.remoteUrl,
+      });
+    } catch (error: any) {
+      this._panel?.webview.postMessage({
+        type: 'gitDetailError',
+        message: error?.message ?? String(error),
+      });
+    } finally {
+      this._isRefreshing = false;
+
+      const pending = this._pendingRefresh;
+      this._pendingRefresh = null;
+
+      if (pending) {
+        setTimeout(() => {
+          void this.postGraphData(
+            pending.cwd,
+            pending.graphFilter,
+            pending.silent,
+            pending.fetchRemote,
+          );
+        }, 0);
+      }
+    }
+  }
+
+  private async changeGraphFilter(cwd: string, current: string) {
+    const allOption = '全部分支';
+
+    const quickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { branchName: string }>();
+
+    quickPick.placeholder = '选择要查看的分支记录 (支持搜索)';
+    quickPick.matchOnDescription = true;
+
+    const updateQuickPickItems = async () => {
+      const branchNames = await this.gitService.getAllBranches(cwd);
+      const normalizedCurrent = this.normalizeGraphFilterName(current);
+
+      const normalizedBranchNames = Array.from(
+        new Set(branchNames.map((branchName) => this.normalizeBranchOptionName(branchName))),
+      );
+
+      const items = [allOption, ...normalizedBranchNames].map((branchName) => ({
+        label: branchName === normalizedCurrent ? `$(check) ${branchName}` : branchName,
+        description: branchName === normalizedCurrent ? '当前选择' : undefined,
+        branchName,
+      }));
+
+      quickPick.items = items;
+
+      const currentItem = items.find((item) => item.branchName === normalizedCurrent);
+
+      if (currentItem) {
+        quickPick.activeItems = [currentItem];
+      }
+    };
+
+    await updateQuickPickItems();
+    quickPick.show();
+
+    quickPick.busy = true;
+
+    this.gitService
+      .fetchAllPrune(cwd)
+      .then(updateQuickPickItems)
+      .catch(() => {})
+      .finally(() => {
+        quickPick.busy = false;
+      });
+
+    const selectedBranch = await new Promise<string | undefined>((resolve) => {
+      quickPick.onDidAccept(() => {
+        const selection = quickPick.selectedItems[0];
+        resolve(selection ? selection.branchName : undefined);
+        quickPick.hide();
+      });
+
+      quickPick.onDidHide(() => {
+        quickPick.dispose();
+        resolve(undefined);
+      });
+    });
+
+    if (!selectedBranch) return;
+
+    await this.postGraphData(cwd, selectedBranch, false, false);
+  }
+
+  private createGitContentUri(cwd: string, ref: string, file: string): vscode.Uri {
+    const query = encodeURIComponent(JSON.stringify({ cwd, ref }));
+    return vscode.Uri.parse(`quickops-git:///${file}?${query}`);
+  }
+
+  private async postCommitFiles(cwd: string, hash: string) {
+    if (!hash) return;
+
+    if (hash === '__WORKING_TREE__') {
+      this._panel?.webview.postMessage({
+        type: 'gitDetailCommitFilesData',
+        hash,
+        parentHash: 'HEAD',
+        files: [],
       });
       return;
     }
 
-    this.panel = vscode.window.createWebviewPanel(
-      'quickOpsGitDetail',
-      'Git 详情',
-      vscode.ViewColumn.Beside,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [context.extensionUri],
-      },
-    );
+    const result = await this.gitService.getCommitFiles(cwd, hash);
 
-    this.panel.iconPath = vscode.Uri.joinPath(
-      context.extensionUri,
-      'resources',
-      'icons',
-      'git.svg',
-    );
+    this._panel?.webview.postMessage({
+      type: 'gitDetailCommitFilesData',
+      hash: result.hash || hash,
+      parentHash: result.parentHash,
+      files: result.files || [],
+    });
+  }
 
-    this.panel.webview.html = getReactWebviewHtml(
-      context.extensionUri,
-      this.panel.webview,
-      GIT_WEBVIEW_ROUTES.detail,
-    );
+  private async openCommitFileDiff(
+    cwd: string,
+    hash: string,
+    parentHash: string | undefined,
+    file: string,
+    status: string,
+  ) {
+    if (!hash || !file) return;
 
-    this.panel.webview.onDidReceiveMessage(async message => {
-      await this.handleMessage(message);
+    if (hash === '__WORKING_TREE__') {
+      const leftUri = this.createGitContentUri(cwd, parentHash || 'HEAD', file);
+      const rightUri = vscode.Uri.file(path.join(cwd, file));
+      const title = `${path.basename(file)} (Working Tree)`;
+
+      await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+      return;
+    }
+
+    let leftRef = parentHash || 'empty';
+    let rightRef = hash;
+
+    if (status === 'A') {
+      leftRef = 'empty';
+    }
+
+    if (status === 'D') {
+      rightRef = 'empty';
+    }
+
+    const leftUri = this.createGitContentUri(cwd, leftRef, file);
+    const rightUri = this.createGitContentUri(cwd, rightRef, file);
+    const title = `${path.basename(file)} (${hash.substring(0, 7)})`;
+
+    await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+  }
+
+  private async openCommitMultiDiff(cwd: string, hash: string) {
+    if (!hash) return;
+
+    if (hash === '__WORKING_TREE__') {
+      vscode.window.showInformationMessage('未提交更改请在 Git 管理器的“更改”区域打开。');
+      return;
+    }
+
+    const result = await this.gitService.getCommitFiles(cwd, hash);
+    const parentHash = result.parentHash;
+
+    if (result.files.length === 0) return;
+
+    const changesArgs = result.files.map((f) => {
+      let leftRef = parentHash || 'empty';
+      let rightRef = hash;
+
+      if (f.status === 'A') leftRef = 'empty';
+      if (f.status === 'D') rightRef = 'empty';
+
+      const leftUri = this.createGitContentUri(cwd, leftRef, f.file);
+      const rightUri = this.createGitContentUri(cwd, rightRef, f.file);
+      const fileUri = vscode.Uri.file(path.join(cwd, f.file));
+
+      return [fileUri, leftUri, rightUri];
     });
 
-    this.panel.onDidDispose(() => {
-      this.panel = undefined;
-      this.currentWorkingDir = undefined;
-    });
+    const title = `Commit: ${hash.substring(0, 7)}`;
 
-    setTimeout(() => {
-      void this.refresh(this.currentWorkingDir, {
-        silent: true,
-        fetchRemote: false,
-      });
-    }, 100);
-  }
-
-  public async refresh(
-    workingDir?: string,
-    options: {
-      silent?: boolean;
-      fetchRemote?: boolean;
-    } = {},
-  ): Promise<void> {
-    if (!this.panel) return;
-
-    const finalWorkingDir =
-      workingDir || this.currentWorkingDir || this.gitService.getCurrentWorkingDir();
-
-    this.currentWorkingDir = finalWorkingDir;
-
-    try {
-      if (options.fetchRemote) {
-        await this.gitService.fetch(finalWorkingDir);
-      }
-
-      const detail = await this.gitService.getDetailSummary(finalWorkingDir);
-
-      this.postMessage({
-        type: 'gitDetail',
-        detail,
-        payload: {
-          previewState: this.gitService.getWorkspacePreviewState(),
-        },
-      });
-    } catch (error) {
-      if (!options.silent) {
-        vscode.window.showErrorMessage(`刷新 Git 详情失败：${this.toErrorMessage(error)}`);
-      }
-
-      this.postMessage({
-        type: 'gitDetailError',
-        error: this.toErrorMessage(error),
-      });
-    }
-  }
-
-  public dispose(): void {
-    this.panel?.dispose();
-    this.panel = undefined;
-    this.currentWorkingDir = undefined;
-  }
-
-  private async handleMessage(message: GitWebviewMessage): Promise<void> {
-    try {
-      switch (message.type || message.command) {
-        case 'ready':
-        case 'webviewLoaded':
-        case 'refresh':
-          await this.refresh(message.workingDir, {
-            silent: true,
-            fetchRemote: false,
-          });
-          break;
-
-        case 'fetch':
-          await this.refresh(this.getWorkingDir(), {
-            silent: false,
-            fetchRemote: true,
-          });
-          break;
-
-        case 'stageFile':
-          if (message.filePath) {
-            await this.gitService.stageFile(message.filePath, this.getWorkingDir());
-            await this.refresh();
-          }
-          break;
-
-        case 'unstageFile':
-          if (message.filePath) {
-            await this.gitService.unstageFile(message.filePath, this.getWorkingDir());
-            await this.refresh();
-          }
-          break;
-
-        case 'discardFile':
-          if (message.filePath) {
-            await this.gitService.discardFile(message.filePath, this.getWorkingDir());
-            await this.refresh();
-          }
-          break;
-
-        case 'commit':
-          await this.gitService.commit(
-            message.commitMessage || message.message || '',
-            this.getWorkingDir(),
-          );
-          await this.refresh();
-          break;
-
-        case 'push':
-          await this.gitService.push(this.getWorkingDir());
-          await this.refresh();
-          break;
-
-        case 'pull':
-          await this.gitService.pull(this.getWorkingDir());
-          await this.refresh();
-          break;
-
-        case 'checkoutBranch':
-          if (message.branch) {
-            await this.gitService.checkoutBranch(message.branch, this.getWorkingDir());
-            await this.refresh();
-          }
-          break;
-
-        case 'openFile':
-          if (message.filePath) {
-            await this.gitService.openFile({
-              filePath: message.filePath,
-              workingDir: this.getWorkingDir(),
-              preview: false,
-            });
-          }
-          break;
-
-        case 'openDiff':
-          if (message.filePath) {
-            await this.gitService.openFileDiff({
-              filePath: message.filePath,
-              workingDir: this.getWorkingDir(),
-            });
-          }
-          break;
-
-        case 'openExternalRemote':
-          await vscode.commands.executeCommand('quickOps.editRemoteUrl');
-          await this.refresh();
-          break;
-      }
-    } catch (error) {
-      const messageText = this.toErrorMessage(error);
-
-      this.postMessage({
-        type: 'gitDetailError',
-        requestId: message.requestId,
-        error: messageText,
-      });
-
-      vscode.window.showErrorMessage(`Git 详情操作失败：${messageText}`);
-    }
-  }
-
-  private getWorkingDir(): string {
-    return this.currentWorkingDir || this.gitService.getCurrentWorkingDir();
-  }
-
-  private postMessage(message: GitPostMessage): void {
-    this.panel?.webview.postMessage(message);
-  }
-
-  private toErrorMessage(error: unknown): string {
-    if (error instanceof Error) return error.message;
-    if (typeof error === 'string') return error;
-
-    try {
-      return JSON.stringify(error);
-    } catch {
-      return String(error);
-    }
+    await vscode.commands.executeCommand('vscode.changes', title, changesArgs);
   }
 }

@@ -1,11 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import { execFile } from 'child_process';
-import simpleGit, { CheckRepoActions, SimpleGit, StatusResult } from 'simple-git';
+import simpleGit, { SimpleGit, StatusResult } from 'simple-git';
 import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
 import { GIT_STATE_KEYS } from './git.constant';
 import { createGitVirtualContentUri } from './git-uri.util';
 import type {
+  BranchUnpushedInfo,
   GitBranchInfo,
   GitCloneOptions,
   GitCommitItem,
@@ -74,6 +76,26 @@ export class GitService {
     };
   }
 
+  /**
+   * @description 判断当前目录自身是否包含 Git 元数据
+   *
+   * simple-git 默认会向父级查找 .git。这里先检查 cwd/.git，
+   * 避免普通子目录被误判为一个独立 Git 项目。
+   */
+  public hasLocalGitMetadata(cwd: string): boolean {
+    if (!cwd) return false;
+
+    const gitMetadataPath = path.join(cwd, '.git');
+
+    try {
+      const stat = fs.statSync(gitMetadataPath);
+
+      return stat.isDirectory() || stat.isFile();
+    } catch {
+      return false;
+    }
+  }
+
   public checkGitInstalled(): Promise<boolean> {
     return new Promise((resolve) => {
       execFile('git', ['--version'], (error) => {
@@ -109,6 +131,10 @@ export class GitService {
   }
 
   public async checkIsRepo(cwd: string): Promise<boolean> {
+    if (!this.hasLocalGitMetadata(cwd)) {
+      return false;
+    }
+
     try {
       return await this.createGit(cwd).checkIsRepo();
     } catch {
@@ -164,7 +190,7 @@ export class GitService {
     const git = this.createGit(cwd);
 
     try {
-      const isRepo = await git.checkIsRepo();
+      const isRepo = await this.checkIsRepo(cwd);
 
       if (!isRepo) return this.createEmptyRemoteSync();
 
@@ -204,7 +230,7 @@ export class GitService {
 
   public async getRepoStatus(cwd: string): Promise<GitRepoStatus> {
     const git = this.createGit(cwd);
-    const isRepo = await git.checkIsRepo().catch(() => false);
+    const isRepo = await this.checkIsRepo(cwd);
 
     if (!isRepo) {
       return {
@@ -241,7 +267,7 @@ export class GitService {
     status.files.forEach((file) => {
       if (status.conflicted.includes(file.path)) {
         conflictedFiles.push({
-          status: 'conflicted',
+          status: 'C',
           path: file.path,
           file: file.path,
           absolutePath: path.join(cwd, file.path),
@@ -253,7 +279,7 @@ export class GitService {
 
       if (file.index !== ' ' && file.index !== '?') {
         stagedFiles.push({
-          status: this.resolveFileStatus(file.index, ' '),
+          status: file.index,
           path: file.path,
           file: file.path,
           absolutePath: path.join(cwd, file.path),
@@ -263,26 +289,35 @@ export class GitService {
       }
 
       if (file.working_dir !== ' ') {
-        const workingStatus = file.working_dir === '?' ? 'U' : file.working_dir;
+        const workingStatus =
+          file.working_dir === '?' ? 'U' : file.working_dir;
 
         unstagedFiles.push({
-          status: this.resolveFileStatus(' ', workingStatus),
+          status: workingStatus,
           path: file.path,
           file: file.path,
           absolutePath: path.join(cwd, file.path),
           workingDir: cwd,
+          indexStatus: file.index,
           workingTreeStatus: workingStatus,
-          baseRef: file.index !== ' ' && file.index !== '?' ? 'index' : undefined,
+          baseRef:
+            file.index !== ' ' && file.index !== '?'
+              ? 'index'
+              : undefined,
         });
       }
     });
 
-    const stashes: GitStashItem[] = stashRaw.all.map((stash: any, index: number) => ({
-      index,
-      message: stash.message,
-    }));
+    const stashes: GitStashItem[] = stashRaw.all.map(
+      (stash: any, index: number) => ({
+        index,
+        message: stash.message,
+      }),
+    );
 
-    const remoteSync = remoteUrl ? this.createRemoteSync(status, branch, remoteUrl) : this.createEmptyRemoteSync(branch);
+    const remoteSync = remoteUrl
+      ? this.createRemoteSync(status, branch, remoteUrl)
+      : this.createEmptyRemoteSync(branch);
 
     return {
       isRepo: true,
@@ -303,22 +338,7 @@ export class GitService {
     }
 
     const git = this.createGit(workingDir);
-
-    let isRepo = false;
-
-    try {
-      isRepo = await git.checkIsRepo(CheckRepoActions.IS_REPO_ROOT);
-    } catch {
-      isRepo = false;
-    }
-
-    if (!isRepo) {
-      try {
-        isRepo = await git.checkIsRepo();
-      } catch {
-        isRepo = false;
-      }
-    }
+    const isRepo = await this.checkIsRepo(workingDir);
 
     if (!isRepo) {
       return this.createEmptyStatus(workingDir);
@@ -623,7 +643,16 @@ export class GitService {
   public async getStagedChangeFiles(cwd: string): Promise<GitFileItem[]> {
     const status = await this.createGit(cwd).status();
 
-    return status.files.filter((file) => file.index !== ' ' && file.index !== '?').map((file) => this.createFileItem(cwd, file.path, file.index, file.index, ' '));
+    return status.files
+      .filter((file) => file.index !== ' ' && file.index !== '?')
+      .map((file) => ({
+        status: file.index,
+        path: file.path,
+        file: file.path,
+        absolutePath: path.join(cwd, file.path),
+        workingDir: cwd,
+        indexStatus: file.index,
+      }));
   }
 
   public async getWorkingTreeChangeFiles(cwd: string): Promise<GitFileItem[]> {
@@ -633,10 +662,21 @@ export class GitService {
       .filter((file) => file.working_dir !== ' ')
       .filter((file) => !status.conflicted.includes(file.path))
       .map((file) => {
-        const workingStatus = file.working_dir === '?' ? 'U' : file.working_dir;
-        const hasIndexVersion = file.index !== ' ' && file.index !== '?';
+        const workingStatus =
+          file.working_dir === '?' ? 'U' : file.working_dir;
+        const hasIndexVersion =
+          file.index !== ' ' && file.index !== '?';
 
-        return this.createFileItem(cwd, file.path, workingStatus, file.index, workingStatus, hasIndexVersion ? 'index' : undefined);
+        return {
+          status: workingStatus,
+          path: file.path,
+          file: file.path,
+          absolutePath: path.join(cwd, file.path),
+          workingDir: cwd,
+          indexStatus: file.index,
+          workingTreeStatus: workingStatus,
+          baseRef: hasIndexVersion ? 'index' : undefined,
+        };
       });
   }
 
@@ -687,7 +727,7 @@ export class GitService {
   }
 
   public async undoLastCommit(cwd: string): Promise<void> {
-    await this.createGit(cwd).reset(['--mixed', 'HEAD~1']);
+    await this.createGit(cwd).reset(['--soft', 'HEAD~1']);
   }
 
   public async getFileHistory(cwd: string, file: string): Promise<GitGraphCommit[]> {
@@ -752,18 +792,31 @@ export class GitService {
     if (hash === '__WORKING_TREE__') {
       const status = await git.status();
 
-      const files = status.files
+      const files: GitFileItem[] = status.files
         .filter((file) => !status.conflicted.includes(file.path))
         .map((file) => {
-          let fileStatus = file.working_dir !== ' ' ? file.working_dir : file.index;
+          let fileStatus =
+            file.working_dir !== ' ' ? file.working_dir : file.index;
 
           if (fileStatus === '?') {
             fileStatus = 'U';
           }
 
-          return this.createFileItem(cwd, file.path, fileStatus, file.index, file.working_dir, file.index !== ' ' && file.index !== '?' ? 'index' : 'HEAD');
+          return {
+            status: fileStatus,
+            path: file.path,
+            file: file.path,
+            absolutePath: path.join(cwd, file.path),
+            workingDir: cwd,
+            indexStatus: file.index,
+            workingTreeStatus: file.working_dir,
+            baseRef:
+              file.index !== ' ' && file.index !== '?'
+                ? 'index'
+                : 'HEAD',
+          };
         })
-        .filter((file) => file.status && file.status !== 'unknown');
+        .filter((file) => file.status && file.status !== ' ');
 
       return {
         hash,
@@ -781,8 +834,25 @@ export class GitService {
     }
 
     const diffArgs = parentHash
-      ? ['-c', 'core.quotepath=false', 'diff', '--name-status', '--find-renames', parentHash, hash]
-      : ['-c', 'core.quotepath=false', 'diff-tree', '--no-commit-id', '--name-status', '-r', '--root', hash];
+      ? [
+          '-c',
+          'core.quotepath=false',
+          'diff',
+          '--name-status',
+          '--find-renames',
+          parentHash,
+          hash,
+        ]
+      : [
+          '-c',
+          'core.quotepath=false',
+          'diff-tree',
+          '--no-commit-id',
+          '--name-status',
+          '-r',
+          '--root',
+          hash,
+        ];
 
     const diffRaw = await git.raw(diffArgs);
     const files = this.parseNameStatus(cwd, diffRaw);
@@ -999,6 +1069,48 @@ export class GitService {
     return {
       currentBranch: branchSummary.current,
       hasUpstream: Boolean(status.tracking),
+    };
+  }
+
+  public async getCurrentBranchUnpushedInfo(
+    cwd: string,
+  ): Promise<BranchUnpushedInfo> {
+    const git = this.createGit(cwd);
+    const status = await git.status();
+    const branchSummary = await git.branchLocal();
+    const currentBranch = branchSummary.current || '';
+    const upstream = status.tracking || '';
+    const ahead = Number(status.ahead || 0);
+    const remoteUrl = await this.getRemoteUrl(cwd);
+
+    let unpushedCommitCount = 0;
+
+    if (upstream) {
+      unpushedCommitCount = ahead;
+    } else if (remoteUrl && currentBranch && currentBranch !== 'HEAD') {
+      try {
+        const rawCount = await git.raw([
+          'rev-list',
+          '--count',
+          currentBranch,
+          '--not',
+          '--remotes',
+        ]);
+
+        unpushedCommitCount = Number(rawCount.trim()) || 0;
+      } catch {
+        unpushedCommitCount = 0;
+      }
+    }
+
+    return {
+      currentBranch,
+      hasRemote: Boolean(remoteUrl),
+      hasUpstream: Boolean(upstream),
+      upstream,
+      ahead,
+      unpushedCommitCount,
+      hasUnpushedCommits: unpushedCommitCount > 0,
     };
   }
 
@@ -1607,7 +1719,14 @@ export class GitService {
         const rawStatus = parts[0].charAt(0);
         const file = parts[parts.length - 1];
 
-        return this.createFileItem(cwd, file, rawStatus, rawStatus, ' ');
+        return {
+          status: rawStatus,
+          path: file,
+          file,
+          absolutePath: path.join(cwd, file),
+          workingDir: cwd,
+          indexStatus: rawStatus,
+        };
       });
   }
 

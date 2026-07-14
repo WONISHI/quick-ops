@@ -1,4 +1,4 @@
-import type { ETIGlobal, ETIPlugin, ETIPluginUse, ETIRuntime } from '../eti.type';
+import type { ETIGlobal, ETIPlugin, ETIPluginUse, ETIRuntime } from '@core/eti/eti.type';
 
 type LoaderType = 'plugins' | 'runtimes';
 

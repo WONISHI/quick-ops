@@ -13,10 +13,10 @@ export type GitFileStatusType =
 
 export interface GitFileItem {
   path: string;
-  file?: string;
+  file: string;
   absolutePath: string;
   workingDir: string;
-  status: GitFileStatusType;
+  status: string;
   indexStatus?: string;
   workingTreeStatus?: string;
   from?: string;
@@ -61,12 +61,41 @@ export interface GitGraphCommit {
   message: string;
   refs?: string;
   timestamp: number;
+  type?: 'commit' | 'uncommitted' | 'stash';
 }
 
 export interface GitGraphResult {
   graphCommits: GitGraphCommit[];
   graphFilter: string;
   totalCommits: number;
+}
+
+export interface CommitFilesResult {
+  hash: string;
+  parentHash?: string;
+  files: GitFileItem[];
+}
+
+export interface StashFilesResult {
+  index: number;
+  hash: string;
+  parentHash: string;
+  files: GitFileItem[];
+}
+
+export interface PushInfo {
+  currentBranch: string;
+  hasUpstream: boolean;
+}
+
+export interface BranchUnpushedInfo {
+  currentBranch: string;
+  hasRemote: boolean;
+  hasUpstream: boolean;
+  upstream: string;
+  ahead: number;
+  unpushedCommitCount: number;
+  hasUnpushedCommits: boolean;
 }
 
 export interface GitBranchInfo {

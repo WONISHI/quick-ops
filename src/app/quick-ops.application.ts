@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
-import ColorLog from '../utils/ColorLog';
+import ColorLog from '@utils/ColorLog';
 import { ETI } from '@core/eti/eti';
-import { AppModule } from './app.module';
-import { Container } from '../core/container/container';
-import { TOKENS } from '../core/container/token';
-import { ModuleRunner } from '../core/module/module-runner';
+import { AppModule } from '@app/app.module';
+import { Container } from '@core/container/container';
+import { TOKENS } from '@core/container/token';
+import { ModuleRunner } from '@core/module/module-runner';
 
 export class QuickOpsApplication {
   private readonly container: Container;

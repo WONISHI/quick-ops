@@ -1,13 +1,13 @@
-import type { QuickOpsModule } from '../core/module/quick-ops-module.interface';
+import type { QuickOpsModule } from '@core/module/quick-ops-module.interface';
 
-import { ExtensionContextProvider } from './providers/extension-context.provider';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 
-import { ConfigurationService } from './services/configuration.service';
-import { WorkspaceStateService } from './services/workspace-state.service';
-import { EditorContextService } from './services/editor-context.service';
-import { TerminalExecutor } from './services/terminal-executor.service';
-import { WorkspaceContextService } from './services/workspace-context.service';
-import { DirectoryService } from './services/directory.service';
+import { ConfigurationService } from '@common/services/configuration.service';
+import { WorkspaceStateService } from '@common/services/workspace-state.service';
+import { EditorContextService } from '@common/services/editor-context.service';
+import { TerminalExecutor } from '@common/services/terminal-executor.service';
+import { WorkspaceContextService } from '@common/services/workspace-context.service';
+import { DirectoryService } from '@common/services/directory.service';
 
 export const CommonModule: QuickOpsModule = {
   global: true,

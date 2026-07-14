@@ -1,4 +1,4 @@
-import type { ETIPlugin } from '../eti.type';
+import type { ETIPlugin } from '@core/eti/eti.type';
 
 export class PluginContainer {
   private plugins: ETIPlugin[] = [];
