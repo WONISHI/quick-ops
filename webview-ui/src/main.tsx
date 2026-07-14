@@ -6,18 +6,19 @@ import TextCompareApp from './pages/TextCompareApp';
 import MockServerApp from './pages/MockApp/MockSidebarApp';
 import RecentProjectsApp from './pages/RecentProjectsApp';
 import LivePreviewApp from './pages/LivePreviewApp';
-import AnchorApp from "@pages/anchor-app"
-import MockSidebarApp from './pages/MockApp/MockSidebarApp'
-import MockProxyPanelApp from "./pages/MockApp/MockProxyPanelApp"
-import MockRulePanelApp from './pages/MockApp/MockRulePanelApp'
+import AnchorApp from '@pages/anchor-app';
+import MockSidebarApp from './pages/MockApp/MockSidebarApp';
+import MockProxyPanelApp from './pages/MockApp/MockProxyPanelApp';
+import MockRulePanelApp from './pages/MockApp/MockRulePanelApp';
 import VditorApp from './pages/VditorApp';
 import GitApp from './pages/GitApp';
 import ExcelPreviewApp from './pages/ExcelPreviewApp';
 import PdfPreviewApp from './pages/PdfPreviewApp';
 import GitDetailApp from './pages/GitDetailApp';
 import HtmlPreviewApp from './pages/HtmlPreviewApp';
-import DocPreviewApp from './pages/DocPreviewApp'
+import DocPreviewApp from './pages/DocPreviewApp';
 import DevToolsApp from './pages/DevToolsApp';
+import ApiDevToolsApp from './pages/ApiDevToolsApp';
 import './index.css';
 import '@vscode/codicons/dist/codicon.css';
 
@@ -32,17 +33,18 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         <Route path="/projects" element={<RecentProjectsApp />} />
         <Route path="/preview" element={<LivePreviewApp />} />
         <Route path="/anchor" element={<AnchorApp />} />
-        <Route path='/git' element={<GitApp />} />
+        <Route path="/git" element={<GitApp />} />
         <Route path="/html-preview" element={<HtmlPreviewApp />} />
         <Route path="/devtools" element={<DevToolsApp />} />
+        <Route path="/api-fox" element={<ApiDevToolsApp />} />
         <Route path="/git-detail" element={<GitDetailApp />} />
         <Route path="/mock" element={<MockSidebarApp />} />
         <Route path="/mock/proxy" element={<MockProxyPanelApp />} />
         <Route path="/mock/rule" element={<MockRulePanelApp />} />
-        <Route path='/vditor' element={<VditorApp pageMode />} />
-        <Route path='/pdf' element={<PdfPreviewApp />} />
-        <Route path='/xls' element={<ExcelPreviewApp />} />
-        <Route path='/doc' element={<DocPreviewApp />} />
+        <Route path="/vditor" element={<VditorApp pageMode />} />
+        <Route path="/pdf" element={<PdfPreviewApp />} />
+        <Route path="/xls" element={<ExcelPreviewApp />} />
+        <Route path="/doc" element={<DocPreviewApp />} />
         <Route path="/" element={<div>Welcome to Quick Ops Dashboard!</div>} />
       </Routes>
     </MemoryRouter>
