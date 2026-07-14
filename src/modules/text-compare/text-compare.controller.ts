@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import ColorLog from '../../utils/ColorLog';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { TextCompareService } from './text-compare.service';
+import ColorLog from '@utils/ColorLog';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { TextCompareService } from '@modules/text-compare/text-compare.service';
 
 export class TextCompareController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, TextCompareService];

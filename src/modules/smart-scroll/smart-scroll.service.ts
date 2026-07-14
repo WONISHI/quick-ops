@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { EditorContextService } from '../../common/services/editor-context.service';
+import { EditorContextService } from '@common/services/editor-context.service';
 
 export class SmartScrollService {
   public static inject = [EditorContextService];

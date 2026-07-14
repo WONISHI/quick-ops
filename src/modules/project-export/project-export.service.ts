@@ -2,11 +2,11 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { TextDecoder } from 'util';
 
-import { ConfigurationService } from '../../common/services/configuration.service';
-import { EditorContextService } from '../../common/services/editor-context.service';
-import { AstParser } from '../../utils/AstParser';
+import { ConfigurationService } from '@common/services/configuration.service';
+import { EditorContextService } from '@common/services/editor-context.service';
+import { AstParser } from '@utils/AstParser';
 
-import type { ExportState, ParseResult } from '../../core/types/export';
+import type { ExportState, ParseResult } from '@core/types/export';
 
 export class ProjectExportService {
   public static inject = [ConfigurationService, EditorContextService];

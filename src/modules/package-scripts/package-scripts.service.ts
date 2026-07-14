@@ -6,19 +6,12 @@ import { spawn, ChildProcessWithoutNullStreams, execFile } from 'child_process';
 import { promisify } from 'util';
 import { camelCase, kebabCase, snakeCase, upperFirst } from 'lodash-es';
 
-import { TemplateEngine } from '../../utils/TemplateEngine';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { ConfigurationService } from '../../common/services/configuration.service';
+import { TemplateEngine } from '@utils/TemplateEngine';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { ConfigurationService } from '@common/services/configuration.service';
 
-import type { IWorkspaceContext } from '../../core/types/work-space';
-import type {
-  PackageJsonInfo,
-  PackageManager,
-  PackageScriptsStatus,
-  RunningCommandInfo,
-  ScriptItem,
-  ShellConfigItem,
-} from './package-scripts.type';
+import type { IWorkspaceContext } from '@core/types/work-space';
+import type { PackageJsonInfo, PackageManager, PackageScriptsStatus, RunningCommandInfo, ScriptItem, ShellConfigItem } from '@modules/package-scripts/package-scripts.type';
 
 const execFileAsync = promisify(execFile);
 
@@ -103,10 +96,7 @@ export class PackageScriptsService {
       }
     }
 
-    const extensionScripts = await this.loadExtensionShellScripts(
-      activeContext,
-      projectRoot || this.extensionContextProvider.extensionPath,
-    );
+    const extensionScripts = await this.loadExtensionShellScripts(activeContext, projectRoot || this.extensionContextProvider.extensionPath);
 
     if (extensionScripts.length > 0) {
       items.push(...extensionScripts);
@@ -124,7 +114,7 @@ export class PackageScriptsService {
     quickPick.matchOnDescription = true;
     quickPick.ignoreFocusOut = true;
 
-    quickPick.onDidTriggerItemButton(async event => {
+    quickPick.onDidTriggerItemButton(async (event) => {
       if (!this.isScriptItem(event.item)) return;
 
       if (!event.item.keepOpen) {
@@ -159,10 +149,7 @@ export class PackageScriptsService {
     quickPick.show();
   }
 
-  public async runScript(
-    item: ScriptItem,
-    mode: 'terminal' | 'background' = 'terminal',
-  ): Promise<void> {
+  public async runScript(item: ScriptItem, mode: 'terminal' | 'background' = 'terminal'): Promise<void> {
     if (mode === 'background') {
       await this.runScriptInBackground(item);
       return;
@@ -247,11 +234,7 @@ export class PackageScriptsService {
 
   private async runScriptInBackground(item: ScriptItem): Promise<void> {
     if (this.runningProcess) {
-      const action = await vscode.window.showWarningMessage(
-        '已有脚本正在后台执行，是否停止后继续？',
-        '停止并继续',
-        '取消',
-      );
+      const action = await vscode.window.showWarningMessage('已有脚本正在后台执行，是否停止后继续？', '停止并继续', '取消');
 
       if (action !== '停止并继续') return;
 
@@ -265,15 +248,9 @@ export class PackageScriptsService {
     const displayName = this.getScriptDisplayName(item);
     const commandId = ++this.commandSeq;
 
-    const shell =
-      process.platform === 'win32'
-        ? process.env.ComSpec || 'cmd.exe'
-        : process.env.SHELL || '/bin/sh';
+    const shell = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : process.env.SHELL || '/bin/sh';
 
-    const shellArgs =
-      process.platform === 'win32'
-        ? ['/d', '/s', '/c', command]
-        : ['-lc', command];
+    const shellArgs = process.platform === 'win32' ? ['/d', '/s', '/c', command] : ['-lc', command];
 
     const child = spawn(shell, shellArgs, {
       cwd: item.cwd,
@@ -301,15 +278,15 @@ export class PackageScriptsService {
     this.ensureStatusTicker();
     this.updateScriptStatusBar();
 
-    child.stdout.on('data', chunk => {
+    child.stdout.on('data', (chunk) => {
       this.appendCommandOutput(chunk);
     });
 
-    child.stderr.on('data', chunk => {
+    child.stderr.on('data', (chunk) => {
       this.appendCommandOutput(chunk);
     });
 
-    child.on('error', error => {
+    child.on('error', (error) => {
       if (!this.runningCommand || this.runningCommand.id !== commandId) return;
 
       this.runningCommand.state = 'failed';
@@ -329,7 +306,7 @@ export class PackageScriptsService {
       this.scheduleHideStatus();
     });
 
-    child.on('close', code => {
+    child.on('close', (code) => {
       if (!this.runningCommand || this.runningCommand.id !== commandId) return;
 
       this.runningCommand.exitCode = code;
@@ -419,7 +396,7 @@ export class PackageScriptsService {
 
     const detected = (
       await Promise.all(
-        managers.map(async manager => {
+        managers.map(async (manager) => {
           try {
             await vscode.workspace.fs.stat(vscode.Uri.joinPath(cwdUri, manager.lock));
             return manager;
@@ -452,7 +429,7 @@ export class PackageScriptsService {
       kind: vscode.QuickPickItemKind.Separator,
     });
 
-    const detectedNames = detected.map(item => item.name);
+    const detectedNames = detected.map((item) => item.name);
 
     for (const name of ['npm', 'pnpm', 'yarn', 'bun'] as PackageManager[]) {
       if (!detectedNames.includes(name)) {
@@ -537,16 +514,9 @@ export class PackageScriptsService {
     return this.processShellItems(shells, ctx, rootPath, 'workspace-config');
   }
 
-  private async loadExtensionShellScripts(
-    ctx: IWorkspaceContext,
-    cwd: string,
-  ): Promise<Array<ScriptItem | vscode.QuickPickItem>> {
+  private async loadExtensionShellScripts(ctx: IWorkspaceContext, cwd: string): Promise<Array<ScriptItem | vscode.QuickPickItem>> {
     const result: Array<ScriptItem | vscode.QuickPickItem> = [];
-    const shellResourceUri = vscode.Uri.joinPath(
-      this.extensionContextProvider.extensionUri,
-      'resources',
-      'shell',
-    );
+    const shellResourceUri = vscode.Uri.joinPath(this.extensionContextProvider.extensionUri, 'resources', 'shell');
 
     try {
       const entries = await vscode.workspace.fs.readDirectory(shellResourceUri);
@@ -566,12 +536,7 @@ export class PackageScriptsService {
             continue;
           }
 
-          const validShellItems = this.processShellItems(
-            jsonItems,
-            ctx,
-            cwd,
-            'extension-shell',
-          );
+          const validShellItems = this.processShellItems(jsonItems, ctx, cwd, 'extension-shell');
 
           if (validShellItems.length > 0) {
             result.push({
@@ -592,12 +557,7 @@ export class PackageScriptsService {
     return result;
   }
 
-  private processShellItems(
-    jsonItems: ShellConfigItem[],
-    ctx: IWorkspaceContext,
-    cwd: string,
-    source: ScriptItem['source'],
-  ): ScriptItem[] {
+  private processShellItems(jsonItems: ShellConfigItem[], ctx: IWorkspaceContext, cwd: string, source: ScriptItem['source']): ScriptItem[] {
     const validItems: ScriptItem[] = [];
 
     for (const item of jsonItems) {
@@ -681,13 +641,9 @@ export class PackageScriptsService {
     };
   }
 
-  private async getTemplateContext(
-    packageJsonInfo?: PackageJsonInfo,
-  ): Promise<IWorkspaceContext> {
+  private async getTemplateContext(packageJsonInfo?: PackageJsonInfo): Promise<IWorkspaceContext> {
     const activeEditor = vscode.window.activeTextEditor;
-    const workspaceFolder = activeEditor
-      ? vscode.workspace.getWorkspaceFolder(activeEditor.document.uri)
-      : vscode.workspace.workspaceFolders?.[0];
+    const workspaceFolder = activeEditor ? vscode.workspace.getWorkspaceFolder(activeEditor.document.uri) : vscode.workspace.workspaceFolders?.[0];
 
     const fileUri = activeEditor?.document.uri;
     const filePath = fileUri?.fsPath || '';
@@ -700,8 +656,7 @@ export class PackageScriptsService {
 
     const relativePath = fileUri ? vscode.workspace.asRelativePath(fileUri) : '';
 
-    const rawModuleName =
-      fileNameBase.toLowerCase() === 'index' && dirName ? dirName : fileNameBase;
+    const rawModuleName = fileNameBase.toLowerCase() === 'index' && dirName ? dirName : fileNameBase;
 
     const moduleName = rawModuleName || '';
     const packageJson = await this.readPackageJson(packageJsonInfo?.uri);
@@ -718,9 +673,7 @@ export class PackageScriptsService {
 
     const dateYear = String(now.getFullYear());
     const dateDate = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-    const dateTime = `${dateDate} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(
-      now.getSeconds(),
-    )}`;
+    const dateTime = `${dateDate} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
 
     return {
       fileName,
@@ -854,25 +807,24 @@ export class PackageScriptsService {
       };
     }
 
-    const [gitBranch, gitRemote, gitLocalBranch, gitRemoteBranch, userName] =
-      await Promise.all([
-        this.safeGit(['branch', '--show-current'], finalCwd),
-        this.safeGit(['rev-parse', '--abbrev-ref', '@{u}'], finalCwd),
-        this.safeGit(['branch', '--format=%(refname:short)'], finalCwd),
-        this.safeGit(['branch', '-r', '--format=%(refname:short)'], finalCwd),
-        this.safeGit(['config', 'user.name'], finalCwd),
-      ]);
+    const [gitBranch, gitRemote, gitLocalBranch, gitRemoteBranch, userName] = await Promise.all([
+      this.safeGit(['branch', '--show-current'], finalCwd),
+      this.safeGit(['rev-parse', '--abbrev-ref', '@{u}'], finalCwd),
+      this.safeGit(['branch', '--format=%(refname:short)'], finalCwd),
+      this.safeGit(['branch', '-r', '--format=%(refname:short)'], finalCwd),
+      this.safeGit(['config', 'user.name'], finalCwd),
+    ]);
 
     return {
       gitBranch: gitBranch.trim(),
       gitRemote: gitRemote.trim(),
       gitLocalBranch: gitLocalBranch
         .split(/\r?\n/)
-        .map(item => item.trim())
+        .map((item) => item.trim())
         .filter(Boolean),
       gitRemoteBranch: gitRemoteBranch
         .split(/\r?\n/)
-        .map(item => item.trim())
+        .map((item) => item.trim())
         .filter(Boolean),
       userName: userName.trim() || os.userInfo().username,
     };
@@ -909,10 +861,7 @@ export class PackageScriptsService {
   private initStatusBar(): void {
     if (this.statusBarItem) return;
 
-    this.statusBarItem = vscode.window.createStatusBarItem(
-      vscode.StatusBarAlignment.Left,
-      100,
-    );
+    this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
 
     this.statusBarItem.name = 'Quick Ops Scripts';
     this.statusBarItem.command = 'quickOps.showPackageScripts';
@@ -933,9 +882,7 @@ export class PackageScriptsService {
     }
 
     if (status.type === 'running') {
-      const elapsed = this.runningCommand
-        ? this.formatElapsed(Date.now() - this.runningCommand.startedAt)
-        : '00:00';
+      const elapsed = this.runningCommand ? this.formatElapsed(Date.now() - this.runningCommand.startedAt) : '00:00';
 
       this.statusBarItem.text = `$(sync~spin) ${status.displayName || 'Script'} ${elapsed}`;
       this.statusBarItem.tooltip = this.createRunningTooltip();
@@ -970,16 +917,12 @@ export class PackageScriptsService {
     markdown.isTrusted = true;
     markdown.supportThemeIcons = true;
 
-    markdown.appendMarkdown(
-      `### $(terminal) ${this.runningCommand?.displayName || 'Script'}\n\n`,
-    );
+    markdown.appendMarkdown(`### $(terminal) ${this.runningCommand?.displayName || 'Script'}\n\n`);
 
     markdown.appendMarkdown(`命令：\`${this.runningCommand?.command || ''}\`\n\n`);
     markdown.appendMarkdown(`目录：\`${this.runningCommand?.cwd || ''}\`\n\n`);
 
-    markdown.appendMarkdown(
-      `[停止脚本](command:quick-ops.packageScripts.stopRunning)\n\n`,
-    );
+    markdown.appendMarkdown(`[停止脚本](command:quick-ops.packageScripts.stopRunning)\n\n`);
 
     const output = this.runningCommand?.output.join('').trim();
 
@@ -1000,10 +943,7 @@ export class PackageScriptsService {
     this.runningCommand.output.push(value);
 
     const maxLength = 8000;
-    let totalLength = this.runningCommand.output.reduce(
-      (total, item) => total + item.length,
-      0,
-    );
+    let totalLength = this.runningCommand.output.reduce((total, item) => total + item.length, 0);
 
     while (totalLength > maxLength && this.runningCommand.output.length > 1) {
       const removed = this.runningCommand.output.shift() || '';
@@ -1050,29 +990,18 @@ export class PackageScriptsService {
     return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   }
 
-  private getCommandErrorMessage(
-    code: number | null,
-    output: string,
-    command: string,
-  ): string {
+  private getCommandErrorMessage(code: number | null, output: string, command: string): string {
     const firstLines = output
       .split(/\r?\n/)
-      .map(line => line.trim())
+      .map((line) => line.trim())
       .filter(Boolean)
       .slice(-6)
       .join('\n');
 
-    return `命令执行失败：${command}\n退出码：${code ?? 'unknown'}${
-      firstLines ? `\n\n${firstLines}` : ''
-    }`;
+    return `命令执行失败：${command}\n退出码：${code ?? 'unknown'}${firstLines ? `\n\n${firstLines}` : ''}`;
   }
 
   private isScriptItem(item: unknown): item is ScriptItem {
-    return Boolean(
-      item &&
-        typeof item === 'object' &&
-        'commandToExecute' in item &&
-        'cwd' in item,
-    );
+    return Boolean(item && typeof item === 'object' && 'commandToExecute' in item && 'cwd' in item);
   }
 }

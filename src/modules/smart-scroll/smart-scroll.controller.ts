@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import ColorLog from '../../utils/ColorLog';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { SmartScrollService } from './smart-scroll.service';
+import ColorLog from '@utils/ColorLog';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { SmartScrollService } from '@modules/smart-scroll/smart-scroll.service';
 
 export class SmartScrollController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, SmartScrollService];
