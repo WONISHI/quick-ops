@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { getReactWebviewHtml } from '@utils/WebviewHelper';
+
+import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { setupMarkdown } from '@plugins/markdown/setupMarkdown';
 import markdownImagePlugin, { restoreMarkdownImagePaths } from '@plugins/markdown/markdownImagePlugin';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
@@ -11,6 +12,16 @@ export class FileNavigationService {
 
   private readonly activePanels = new Map<string, vscode.WebviewPanel>();
   private readonly markdownImageAssets = new Map<string, MarkdownImageAssets>();
+
+  /**
+   * @description React Webview HTML 工作流
+   *
+   * 统一负责：
+   * - 读取 webview-ui/index.html
+   * - 替换 Webview 静态资源路径
+   * - 注入 Webview 路由
+   */
+  private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
 
   constructor(private readonly extensionContextProvider: ExtensionContextProvider) {}
 
@@ -217,7 +228,11 @@ export class FileNavigationService {
 
       panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'markdown.svg');
 
-      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/Vditor?type=edit');
+      panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+        extensionUri: context.extensionUri,
+        webview: panel.webview,
+        routeName: '/Vditor?type=edit',
+      });
     } catch (error) {
       vscode.window.showErrorMessage(`Markdown 预览打开失败: ${this.toErrorMessage(error)}`);
     }
@@ -266,7 +281,11 @@ export class FileNavigationService {
 
       panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'pdf.svg');
 
-      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/pdf?type=read');
+      panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+        extensionUri: context.extensionUri,
+        webview: panel.webview,
+        routeName: '/pdf?type=read',
+      });
     } catch (error) {
       vscode.window.showErrorMessage(`PDF 预览打开失败: ${this.toErrorMessage(error)}`);
     }
@@ -309,7 +328,11 @@ export class FileNavigationService {
 
       panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'table.svg');
 
-      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/xls?type=read');
+      panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+        extensionUri: context.extensionUri,
+        webview: panel.webview,
+        routeName: '/xls?type=read',
+      });
     } catch (error) {
       vscode.window.showErrorMessage(`Excel 预览打开失败: ${this.toErrorMessage(error)}`);
     }
@@ -373,7 +396,11 @@ export class FileNavigationService {
 
       panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'word.svg');
 
-      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/doc?type=read');
+      panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+        extensionUri: context.extensionUri,
+        webview: panel.webview,
+        routeName: '/doc?type=read',
+      });
     } catch (error) {
       vscode.window.showErrorMessage(`Word 预览打开失败: ${this.toErrorMessage(error)}`);
     }

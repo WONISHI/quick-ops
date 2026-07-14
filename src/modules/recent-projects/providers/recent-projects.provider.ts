@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { setupMarkdown } from '@plugins/markdown/setupMarkdown';
 import markdownImagePlugin, { restoreMarkdownImagePaths } from '@plugins/markdown/markdownImagePlugin';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
@@ -18,7 +18,7 @@ import type {
   RecentProjectItem,
   RecentProjectsWebviewMessage,
   WebviewRequestId,
-} from '../recent-projects.type';
+} from '@modules/recent-projects/recent-projects.type';
 
 const execFileAsync = promisify(execFile);
 
@@ -33,6 +33,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   private readonly activePanels = new Map<string, vscode.WebviewPanel>();
   private readonly markdownImageAssets = new Map<string, Record<string, string>>();
+  private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
 
   private readonly loadedDirChildren = new Map<string, RecentProjectFileItem[]>();
   private readonly directoryCache = new Map<
@@ -62,7 +63,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     private readonly gitVirtualContentProvider: GitVirtualContentProvider,
   ) {}
 
-  public resolveWebviewView(webviewView: vscode.WebviewView, _context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken): void {
+  public async resolveWebviewView(webviewView: vscode.WebviewView, _context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken): Promise<void> {
     this.view = webviewView;
 
     const context = this.extensionContextProvider.getContext();
@@ -72,7 +73,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [context.extensionUri],
     };
 
-    webviewView.webview.html = getReactWebviewHtml(context.extensionUri, webviewView.webview, '/projects');
+    webviewView.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+      extensionUri: context.extensionUri,
+      webview: webviewView.webview,
+      routeName: '/projects',
+    });
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
       try {
@@ -2608,7 +2613,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'markdown.svg');
-      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, `/Vditor?type=${type}`);
+      panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+        extensionUri: context.extensionUri,
+        webview: panel.webview,
+        routeName: `/Vditor?type=${type}`,
+      });
     } catch (error) {
       vscode.window.showErrorMessage(`无法读取文件进行 Vditor 预览：${this.toErrorMessage(error)}`);
     }
@@ -2649,7 +2658,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'table.svg');
-      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/xls?type=read');
+      panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+        extensionUri: context.extensionUri,
+        webview: panel.webview,
+        routeName: '/xls?type=read',
+      });
     } catch (error) {
       vscode.window.showErrorMessage(`无法读取文件进行 Excel 预览：${this.toErrorMessage(error)}`);
     }
@@ -2687,7 +2700,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'pdf.svg');
-      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/pdf?type=read');
+      panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+        extensionUri: context.extensionUri,
+        webview: panel.webview,
+        routeName: '/pdf?type=read',
+      });
     } catch (error) {
       vscode.window.showErrorMessage(`无法读取文件进行 PDF 预览：${this.toErrorMessage(error)}`);
     }
@@ -2745,7 +2762,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'word.svg');
-      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/doc?type=read');
+      panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+        extensionUri: context.extensionUri,
+        webview: panel.webview,
+        routeName: '/doc?type=read',
+      });
     } catch (error) {
       vscode.window.showErrorMessage(`无法读取文件进行 Word 预览：${this.toErrorMessage(error)}`);
     }
@@ -2812,7 +2833,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'html.svg');
-      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/html-preview');
+      panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+        extensionUri: context.extensionUri,
+        webview: panel.webview,
+        routeName: '/html-preview',
+      });
     } catch (error) {
       vscode.window.showErrorMessage(`无法打开 HTML 预览：${this.toErrorMessage(error)}`);
     }

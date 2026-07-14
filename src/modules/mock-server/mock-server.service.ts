@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as YAML from 'yaml';
 import { nanoid } from 'nanoid';
-import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { ConfigurationService } from '@common/services/configuration.service';
 import type {
@@ -21,6 +21,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
   private readonly servers = new Map<string, MockHttpServer>();
   private readonly yamlStore: MockYamlStore;
+  private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
 
   private view?: vscode.WebviewView;
   private proxyPanel?: vscode.WebviewPanel;
@@ -34,7 +35,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
     this.yamlStore = new MockYamlStore(configurationService);
   }
 
-  public resolveWebviewView(webviewView: vscode.WebviewView, _context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken): void {
+  public async resolveWebviewView(webviewView: vscode.WebviewView, _context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken): Promise<void> {
     this.view = webviewView;
 
     const extensionUri = this.extensionContextProvider.extensionUri;
@@ -44,7 +45,11 @@ export class MockServerService implements vscode.WebviewViewProvider {
       localResourceRoots: [extensionUri],
     };
 
-    webviewView.webview.html = getReactWebviewHtml(extensionUri, webviewView.webview, '/mock');
+    webviewView.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+      extensionUri,
+      webview: webviewView.webview,
+      routeName: '/mock',
+    });
 
     webviewView.webview.onDidReceiveMessage(async (data) => {
       await this.handleMessage(data, webviewView.webview);
@@ -405,7 +410,11 @@ export class MockServerService implements vscode.WebviewViewProvider {
       this.proxyPanel = undefined;
     });
 
-    this.proxyPanel.webview.html = getReactWebviewHtml(extensionUri, this.proxyPanel.webview, '/mock/proxy');
+    this.proxyPanel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+      extensionUri,
+      webview: this.proxyPanel.webview,
+      routeName: '/mock/proxy',
+    });
 
     this.proxyPanel.webview.onDidReceiveMessage(async (data) => {
       await this.handleProxyPanelMessage(data, proxyId);
@@ -516,7 +525,11 @@ export class MockServerService implements vscode.WebviewViewProvider {
       this.rulePanel = undefined;
     });
 
-    this.rulePanel.webview.html = getReactWebviewHtml(extensionUri, this.rulePanel.webview, '/mock/rule');
+    this.rulePanel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+      extensionUri,
+      webview: this.rulePanel.webview,
+      routeName: '/mock/rule',
+    });
 
     this.rulePanel.webview.onDidReceiveMessage(async (data) => {
       await this.handleRulePanelMessage(data, proxyId, ruleId);
