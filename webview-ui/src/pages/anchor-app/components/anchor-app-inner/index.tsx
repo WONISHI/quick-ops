@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { applyNodeChanges, Background, BezierEdge, Controls, ReactFlow, useReactFlow } from '@xyflow/react';
 import { vscode } from '@utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faCompress, faExpand, faPenToSquare, faRotateRight, faTag, faTrash } from '@fortawesome/free-solid-svg-icons';
+import { faPenToSquare, faRotateRight, faTag, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { faFileCode as faFileCodeReg, faFolderOpen as faFolderOpenReg } from '@fortawesome/free-regular-svg-icons';
 import AnchorNode from '@pages/anchor-app/components/anchor-node';
 import { createFlowData, getNodeRawData } from '@pages/anchor-app/src/flow';
@@ -25,7 +25,6 @@ export default function AnchorAppInner() {
   const [nodePositionMap, setNodePositionMap] = useState<NodePositionMap>({});
   const [nodes, setNodes] = useState<AnchorFlowNode[]>([]);
   const [edges, setEdges] = useState<AnchorFlowEdge[]>([]);
-  const [isFullscreen, setIsFullscreen] = useState(false);
 
   /**
    * @description 首次加载 / 手动刷新时先隐藏画布
@@ -249,14 +248,6 @@ export default function AnchorAppInner() {
     });
   };
 
-  const handleFullscreen = (): void => {
-    vscode?.postMessage({
-      command: 'toggleFullscreen',
-    });
-
-    setIsFullscreen((prev) => !prev);
-  };
-
   const handleAnchorAction = (action: 'edit' | 'delete'): void => {
     if (!tooltip.data?.id) return;
 
@@ -402,10 +393,6 @@ export default function AnchorAppInner() {
   return (
     <div className={styles.appWrapper}>
       <div className={styles.topControls}>
-        <button className={styles.iconBtn} onClick={handleFullscreen} title={isFullscreen ? '恢复默认布局' : '切换编辑器最大化'}>
-          <FontAwesomeIcon icon={isFullscreen ? faCompress : faExpand} />
-        </button>
-
         <button className={styles.iconBtn} onClick={handleRefresh} title="刷新导图">
           <FontAwesomeIcon icon={faRotateRight} />
         </button>

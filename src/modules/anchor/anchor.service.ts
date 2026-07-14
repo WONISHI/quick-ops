@@ -961,15 +961,6 @@ export class AnchorService {
         }
         break;
 
-      case 'toggleFullscreen':
-        try {
-          await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
-        } catch (error) {
-          console.warn('Failed to toggle maximize, trying fallback...', error);
-          await vscode.commands.executeCommand('workbench.action.minimizeOtherEditors');
-        }
-        break;
-
       case 'anchorAction':
         await this.handleMindMapAnchorAction(message);
         break;
