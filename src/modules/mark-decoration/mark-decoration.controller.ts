@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import ColorLog from '../../utils/ColorLog';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { ConfigurationService } from '../../common/services/configuration.service';
-import { MarkDecorationService } from './mark-decoration.service';
+import ColorLog from '@utils/ColorLog';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { ConfigurationService } from '@common/services/configuration.service';
+import { MarkDecorationService } from '@modules/mark-decoration/mark-decoration.service';
 
 export class MarkDecorationController implements OnModuleInit {
   public static inject = [

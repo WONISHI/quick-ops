@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as YAML from 'yaml';
 import { nanoid } from 'nanoid';
-import { getReactWebviewHtml } from '../../utils/WebviewHelper';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { ConfigurationService } from '../../common/services/configuration.service';
+import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { ConfigurationService } from '@common/services/configuration.service';
 import type {
   MockFullConfig,
   MockHttpServer,
@@ -14,7 +14,7 @@ import type {
   MockSaveRulePayload,
   MockWebviewMessage,
   MockYamlDocument,
-} from './mock-server.type';
+} from '@modules/mock-server/mock-server.type';
 
 export class MockServerService implements vscode.WebviewViewProvider {
   public static inject = [ExtensionContextProvider, ConfigurationService];
@@ -34,11 +34,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
     this.yamlStore = new MockYamlStore(configurationService);
   }
 
-  public resolveWebviewView(
-    webviewView: vscode.WebviewView,
-    _context: vscode.WebviewViewResolveContext,
-    _token: vscode.CancellationToken,
-  ): void {
+  public resolveWebviewView(webviewView: vscode.WebviewView, _context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken): void {
     this.view = webviewView;
 
     const extensionUri = this.extensionContextProvider.extensionUri;
@@ -48,13 +44,9 @@ export class MockServerService implements vscode.WebviewViewProvider {
       localResourceRoots: [extensionUri],
     };
 
-    webviewView.webview.html = getReactWebviewHtml(
-      extensionUri,
-      webviewView.webview,
-      '/mock',
-    );
+    webviewView.webview.html = getReactWebviewHtml(extensionUri, webviewView.webview, '/mock');
 
-    webviewView.webview.onDidReceiveMessage(async data => {
+    webviewView.webview.onDidReceiveMessage(async (data) => {
       await this.handleMessage(data, webviewView.webview);
     });
   }
@@ -68,7 +60,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
       return;
     }
 
-    const hasEnabled = services.some(item => item.enabled);
+    const hasEnabled = services.some((item) => item.enabled);
 
     if (!hasEnabled) {
       await this.yamlStore.patchService(services[0].id, {
@@ -96,16 +88,12 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
   public async syncServers(): Promise<void> {
     const services = await this.yamlStore.readAllServices();
-    const enabledServices = services.filter(item => item.enabled);
+    const enabledServices = services.filter((item) => item.enabled);
 
     for (const [proxyId, server] of this.servers.entries()) {
-      const conf = enabledServices.find(item => item.id === proxyId);
+      const conf = enabledServices.find((item) => item.id === proxyId);
 
-      if (
-        !conf ||
-        server._port !== Number(conf.port) ||
-        server._domain !== this.getListenHost(conf.domain)
-      ) {
+      if (!conf || server._port !== Number(conf.port) || server._domain !== this.getListenHost(conf.domain)) {
         server.close();
         this.servers.delete(proxyId);
 
@@ -156,10 +144,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
     this.draftProxies = [];
   }
 
-  private async handleMessage(
-    data: MockWebviewMessage,
-    webview: vscode.Webview,
-  ): Promise<void> {
+  private async handleMessage(data: MockWebviewMessage, webview: vscode.Webview): Promise<void> {
     const { proxyList, mockList: fullMockList } = await this.getFullConfig();
 
     switch (data.type) {
@@ -224,10 +209,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
     void webview;
   }
 
-  private async handleToggleServer(
-    data: MockWebviewMessage,
-    proxyList: MockProxyConfig[],
-  ): Promise<void> {
+  private async handleToggleServer(data: MockWebviewMessage, proxyList: MockProxyConfig[]): Promise<void> {
     if (proxyList.length === 0) {
       vscode.window.showWarningMessage('操作失败：请先添加 Mock 服务！');
       return;
@@ -235,7 +217,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
     await this.yamlStore.setAllEnabled(Boolean(data.value));
 
-    this.draftProxies = this.draftProxies.map(item => ({
+    this.draftProxies = this.draftProxies.map((item) => ({
       ...item,
       enabled: Boolean(data.value),
     }));
@@ -244,11 +226,8 @@ export class MockServerService implements vscode.WebviewViewProvider {
     await this.refreshSidebar();
   }
 
-  private async handleToggleProxy(
-    data: MockWebviewMessage,
-    proxyList: MockProxyConfig[],
-  ): Promise<void> {
-    const target = proxyList.find(item => item.id === data.id);
+  private async handleToggleProxy(data: MockWebviewMessage, proxyList: MockProxyConfig[]): Promise<void> {
+    const target = proxyList.find((item) => item.id === data.id);
 
     if (!target || !data.id) return;
 
@@ -256,7 +235,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
       enabled: Boolean(data.enabled),
     });
 
-    this.draftProxies = this.draftProxies.map(item =>
+    this.draftProxies = this.draftProxies.map((item) =>
       item.id === data.id
         ? {
             ...item,
@@ -284,7 +263,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
     await this.yamlStore.deleteService(data.id);
 
-    this.draftProxies = this.draftProxies.filter(item => item.id !== data.id);
+    this.draftProxies = this.draftProxies.filter((item) => item.id !== data.id);
 
     await this.syncServers();
     await this.refreshSidebar();
@@ -309,11 +288,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
     await this.refreshSidebar();
   }
 
-  private async handleSelectGlobalMockDir(
-    data: MockWebviewMessage,
-    proxyList: MockProxyConfig[],
-    fullMockList: Array<Omit<MockRuleConfig, '_yamlUri'>>,
-  ): Promise<void> {
+  private async handleSelectGlobalMockDir(data: MockWebviewMessage, proxyList: MockProxyConfig[], fullMockList: Array<Omit<MockRuleConfig, '_yamlUri'>>): Promise<void> {
     const defaultUri = this.getDefaultUri(data.currentPath);
 
     const uris = await vscode.window.showOpenDialog({
@@ -361,7 +336,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
     if (!uris?.length) return;
 
-    const paths = uris.map(uri => this.yamlStore.pathForConfig(uri));
+    const paths = uris.map((uri) => this.yamlStore.pathForConfig(uri));
 
     this.rulePanel?.webview.postMessage({
       type: 'fileReturnPathSelected',
@@ -384,7 +359,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
       }
     }
 
-    const mockList = endpoints.map(item => {
+    const mockList = endpoints.map((item) => {
       const { _yamlUri, ...rest } = item;
       return rest;
     });
@@ -420,42 +395,30 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
     const extensionUri = this.extensionContextProvider.extensionUri;
 
-    this.proxyPanel = vscode.window.createWebviewPanel(
-      'quickOps.mockProxyPanel',
-      proxyId ? '编辑 Mock 服务' : '新增 Mock 服务',
-      vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: false,
-        localResourceRoots: [extensionUri],
-      },
-    );
+    this.proxyPanel = vscode.window.createWebviewPanel('quickOps.mockProxyPanel', proxyId ? '编辑 Mock 服务' : '新增 Mock 服务', vscode.ViewColumn.One, {
+      enableScripts: true,
+      retainContextWhenHidden: false,
+      localResourceRoots: [extensionUri],
+    });
 
     this.proxyPanel.onDidDispose(() => {
       this.proxyPanel = undefined;
     });
 
-    this.proxyPanel.webview.html = getReactWebviewHtml(
-      extensionUri,
-      this.proxyPanel.webview,
-      '/mock/proxy',
-    );
+    this.proxyPanel.webview.html = getReactWebviewHtml(extensionUri, this.proxyPanel.webview, '/mock/proxy');
 
-    this.proxyPanel.webview.onDidReceiveMessage(async data => {
+    this.proxyPanel.webview.onDidReceiveMessage(async (data) => {
       await this.handleProxyPanelMessage(data, proxyId);
     });
   }
 
-  private async handleProxyPanelMessage(
-    data: MockWebviewMessage,
-    proxyId?: string,
-  ): Promise<void> {
+  private async handleProxyPanelMessage(data: MockWebviewMessage, proxyId?: string): Promise<void> {
     if (data.type === 'webviewLoaded') {
       const { proxyList } = await this.getFullConfig();
 
       this.proxyPanel?.webview.postMessage({
         type: 'init',
-        proxy: proxyList.find(item => item.id === proxyId),
+        proxy: proxyList.find((item) => item.id === proxyId),
       });
 
       return;
@@ -491,9 +454,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
     }
 
     if (newProxy.id) {
-      const existedDraftIndex = this.draftProxies.findIndex(
-        item => item.id === newProxy.id,
-      );
+      const existedDraftIndex = this.draftProxies.findIndex((item) => item.id === newProxy.id);
 
       if (existedDraftIndex > -1) {
         this.draftProxies[existedDraftIndex] = {
@@ -510,7 +471,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
         });
       }
     } else {
-      const existedDraftIndex = this.draftProxies.findIndex(item => item.id === nextId);
+      const existedDraftIndex = this.draftProxies.findIndex((item) => item.id === nextId);
 
       if (existedDraftIndex > -1) {
         this.draftProxies[existedDraftIndex] = {
@@ -545,40 +506,27 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
     const extensionUri = this.extensionContextProvider.extensionUri;
 
-    this.rulePanel = vscode.window.createWebviewPanel(
-      'quickOps.mockRulePanel',
-      ruleId ? '编辑规则' : '新增规则',
-      vscode.ViewColumn.One,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: false,
-        localResourceRoots: [extensionUri],
-      },
-    );
+    this.rulePanel = vscode.window.createWebviewPanel('quickOps.mockRulePanel', ruleId ? '编辑规则' : '新增规则', vscode.ViewColumn.One, {
+      enableScripts: true,
+      retainContextWhenHidden: false,
+      localResourceRoots: [extensionUri],
+    });
 
     this.rulePanel.onDidDispose(() => {
       this.rulePanel = undefined;
     });
 
-    this.rulePanel.webview.html = getReactWebviewHtml(
-      extensionUri,
-      this.rulePanel.webview,
-      '/mock/rule',
-    );
+    this.rulePanel.webview.html = getReactWebviewHtml(extensionUri, this.rulePanel.webview, '/mock/rule');
 
-    this.rulePanel.webview.onDidReceiveMessage(async data => {
+    this.rulePanel.webview.onDidReceiveMessage(async (data) => {
       await this.handleRulePanelMessage(data, proxyId, ruleId);
     });
   }
 
-  private async handleRulePanelMessage(
-    data: MockWebviewMessage,
-    proxyId: string,
-    ruleId?: string,
-  ): Promise<void> {
+  private async handleRulePanelMessage(data: MockWebviewMessage, proxyId: string, ruleId?: string): Promise<void> {
     if (data.type === 'webviewLoaded') {
       const { mockList } = await this.getFullConfig();
-      const fullRule = ruleId ? mockList.find(item => item.id === ruleId) || null : null;
+      const fullRule = ruleId ? mockList.find((item) => item.id === ruleId) || null : null;
 
       this.rulePanel?.webview.postMessage({
         type: 'init',
@@ -618,8 +566,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
   private handleSimulate(data: MockWebviewMessage): void {
     try {
       const Mock = require('mockjs');
-      const parsedTemplate =
-        typeof data.template === 'string' ? JSON.parse(data.template) : data.template;
+      const parsedTemplate = typeof data.template === 'string' ? JSON.parse(data.template) : data.template;
 
       const result = data.mode === 'mock' ? Mock.mock(parsedTemplate) : parsedTemplate;
 
@@ -652,19 +599,16 @@ export class MockServerService implements vscode.WebviewViewProvider {
     }
 
     const { proxyList, mockList } = await this.getFullConfig();
-    const proxy = proxyList.find(item => item.id === newRuleData.proxyId);
+    const proxy = proxyList.find((item) => item.id === newRuleData.proxyId);
 
     if (!proxy) {
       vscode.window.showErrorMessage('保存失败：未找到对应 Mock 服务！');
       return;
     }
 
-    const oldRule = mockList.find(item => item.id === newRuleData.id);
+    const oldRule = mockList.find((item) => item.id === newRuleData.id);
 
-    const ruleDataPath = this.yamlStore.ensureYamlFilePath(
-      oldRule?.yamlPath || oldRule?.dataPath || mockDir,
-      newRuleData.id,
-    );
+    const ruleDataPath = this.yamlStore.ensureYamlFilePath(oldRule?.yamlPath || oldRule?.dataPath || mockDir, newRuleData.id);
 
     const ruleToSaveConfig: MockRuleConfig = {
       id: newRuleData.id,
@@ -694,7 +638,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
     await this.yamlStore.saveEndpoint(ruleToSaveConfig, ruleDataPath);
 
-    this.draftProxies = this.draftProxies.filter(item => item.id !== proxy.id);
+    this.draftProxies = this.draftProxies.filter((item) => item.id !== proxy.id);
 
     await this.syncServers();
 
@@ -725,17 +669,14 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
     app.use(async (req: any, res: any, next: any) => {
       const allMocks = await this.yamlStore.readAllEndpoints();
-      const rules = allMocks.filter(item => item.proxyId === serverConfig.id);
+      const rules = allMocks.filter((item) => item.proxyId === serverConfig.id);
 
-      const matchedRule = rules.find(rule => {
+      const matchedRule = rules.find((rule) => {
         if (!rule.enabled) return false;
 
         const rulePath = (rule.url || '').split('?')[0];
 
-        return (
-          req.method.toUpperCase() === rule.method.toUpperCase() &&
-          req.path === rulePath
-        );
+        return req.method.toUpperCase() === rule.method.toUpperCase() && req.path === rulePath;
       });
 
       if (!matchedRule) {
@@ -749,7 +690,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
       }
 
       if (matchedRule.delay && matchedRule.delay > 0) {
-        await new Promise(resolve => {
+        await new Promise((resolve) => {
           setTimeout(resolve, matchedRule.delay);
         });
       }
@@ -823,12 +764,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
     }
   }
 
-  private async sendMockFile(
-    req: any,
-    res: any,
-    matchedRule: MockRuleConfig,
-    statusCode: number,
-  ): Promise<any> {
+  private async sendMockFile(req: any, res: any, matchedRule: MockRuleConfig, statusCode: number): Promise<any> {
     if (!matchedRule.filePath) {
       return res.status(400).json({
         error: '文件路径未配置',
@@ -837,7 +773,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
     const filePaths = matchedRule.filePath
       .split('\n')
-      .map(item => item.trim())
+      .map((item) => item.trim())
       .filter(Boolean);
 
     if (filePaths.length === 0) {
@@ -881,10 +817,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
       const rootUri = this.getWorkspaceRootUri();
 
       if (rootUri) {
-        targetUri = vscode.Uri.joinPath(
-          rootUri,
-          ...targetFile.replace(/\\/g, '/').split('/').filter(Boolean),
-        );
+        targetUri = vscode.Uri.joinPath(rootUri, ...targetFile.replace(/\\/g, '/').split('/').filter(Boolean));
       } else {
         targetUri = vscode.Uri.file(targetFile);
       }
@@ -895,16 +828,12 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
       const fileData = await vscode.workspace.fs.readFile(targetUri);
       const buffer = Buffer.from(fileData);
-      const disposition =
-        matchedRule.fileDisposition === 'attachment' ? 'attachment' : 'inline';
+      const disposition = matchedRule.fileDisposition === 'attachment' ? 'attachment' : 'inline';
 
       const fileName = targetUri.path.split('/').pop() || 'download_file';
       const encodedFileName = encodeURIComponent(fileName);
 
-      res.set(
-        'Content-Disposition',
-        `${disposition}; filename*=UTF-8''${encodedFileName}`,
-      );
+      res.set('Content-Disposition', `${disposition}; filename*=UTF-8''${encodedFileName}`);
 
       if (matchedRule.contentType && matchedRule.contentType !== 'application/json') {
         res.set('Content-Type', matchedRule.contentType);
@@ -975,14 +904,9 @@ class MockYamlStore {
   constructor(private readonly configurationService: ConfigurationService) {}
 
   public getMockDir(): string {
-    const general = vscode.workspace
-      .getConfiguration('quick-ops')
-      .get<{ mockDir?: string }>('general');
+    const general = vscode.workspace.getConfiguration('quick-ops').get<{ mockDir?: string }>('general');
 
-    const serviceGeneral = this.configurationService.get<Record<string, any>>(
-      'general',
-      {},
-    );
+    const serviceGeneral = this.configurationService.get<Record<string, any>>('general', {});
 
     return general?.mockDir || serviceGeneral?.mockDir || '';
   }
@@ -1016,7 +940,7 @@ class MockYamlStore {
       const parts = value
         .replace(/\\/g, '/')
         .split('/')
-        .filter(item => item && item !== '.');
+        .filter((item) => item && item !== '.');
 
       return parts.length > 0 ? vscode.Uri.joinPath(rootUri, ...parts) : rootUri;
     }
@@ -1027,11 +951,7 @@ class MockYamlStore {
   public pathForConfig(uri: vscode.Uri): string {
     const rootUri = this.getWorkspaceRootUri();
 
-    if (
-      rootUri &&
-      uri.scheme === rootUri.scheme &&
-      uri.authority === rootUri.authority
-    ) {
+    if (rootUri && uri.scheme === rootUri.scheme && uri.authority === rootUri.authority) {
       const rootPath = rootUri.path.replace(/\/+$/, '');
       const targetPath = uri.path;
 
@@ -1102,21 +1022,13 @@ class MockYamlStore {
   public async readAllEndpoints(): Promise<MockRuleConfig[]> {
     const docs = await this.readAllYamlDocuments();
 
-    return docs
-      .map(doc => this.readEndpointFromRaw(doc.raw, doc.uri))
-      .filter(Boolean) as MockRuleConfig[];
+    return docs.map((doc) => this.readEndpointFromRaw(doc.raw, doc.uri)).filter(Boolean) as MockRuleConfig[];
   }
 
-  public async saveEndpoint(
-    endpoint: MockRuleConfig,
-    yamlPath?: string,
-  ): Promise<MockRuleConfig> {
+  public async saveEndpoint(endpoint: MockRuleConfig, yamlPath?: string): Promise<MockRuleConfig> {
     const id = endpoint.id;
 
-    const finalYamlPath = this.ensureYamlFilePath(
-      yamlPath || endpoint.dataPath || endpoint.yamlPath || this.getMockDir(),
-      id,
-    );
+    const finalYamlPath = this.ensureYamlFilePath(yamlPath || endpoint.dataPath || endpoint.yamlPath || this.getMockDir(), id);
 
     const yamlUri = this.resolvePathToUri(finalYamlPath);
 
@@ -1139,12 +1051,9 @@ class MockYamlStore {
     };
   }
 
-  public async patchEndpoint(
-    ruleId: string,
-    patch: Partial<MockRuleConfig>,
-  ): Promise<void> {
+  public async patchEndpoint(ruleId: string, patch: Partial<MockRuleConfig>): Promise<void> {
     const endpoints = await this.readAllEndpoints();
-    const target = endpoints.find(item => item.id === ruleId);
+    const target = endpoints.find((item) => item.id === ruleId);
 
     if (!target) return;
 
@@ -1157,12 +1066,9 @@ class MockYamlStore {
     );
   }
 
-  public async patchService(
-    serviceId: string,
-    patch: Partial<MockProxyConfig>,
-  ): Promise<void> {
+  public async patchService(serviceId: string, patch: Partial<MockProxyConfig>): Promise<void> {
     const endpoints = await this.readAllEndpoints();
-    const targets = endpoints.filter(item => item.proxyId === serviceId);
+    const targets = endpoints.filter((item) => item.proxyId === serviceId);
 
     for (const item of targets) {
       const nextDomain = patch.domain === undefined ? item.domain : patch.domain;
@@ -1197,7 +1103,7 @@ class MockYamlStore {
 
   public async deleteEndpoint(ruleId: string): Promise<void> {
     const endpoints = await this.readAllEndpoints();
-    const target = endpoints.find(item => item.id === ruleId);
+    const target = endpoints.find((item) => item.id === ruleId);
 
     if (!target?._yamlUri) return;
 
@@ -1212,7 +1118,7 @@ class MockYamlStore {
 
   public async deleteService(serviceId: string): Promise<void> {
     const endpoints = await this.readAllEndpoints();
-    const targets = endpoints.filter(item => item.proxyId === serviceId);
+    const targets = endpoints.filter((item) => item.proxyId === serviceId);
 
     for (const item of targets) {
       if (!item._yamlUri) continue;
@@ -1250,7 +1156,7 @@ class MockYamlStore {
       const yamlUris = await this.readYamlFilesRecursive(dirUri);
 
       const docs = await Promise.all(
-        yamlUris.map(async uri => {
+        yamlUris.map(async (uri) => {
           const raw = await this.readYamlRaw(uri);
 
           return raw
@@ -1302,21 +1208,12 @@ class MockYamlStore {
     return result;
   }
 
-  private readEndpointFromRaw(
-    raw: any,
-    uri: vscode.Uri,
-  ): MockRuleConfig | undefined {
+  private readEndpointFromRaw(raw: any, uri: vscode.Uri): MockRuleConfig | undefined {
     const request = raw.request || {};
     const response = raw.response || {};
     const service = raw.service || {};
 
-    const hasEndpointShape =
-      raw.type === 'quickops-mock-endpoint' ||
-      request.path ||
-      raw.url ||
-      raw.path ||
-      response.mode ||
-      raw.mode;
+    const hasEndpointShape = raw.type === 'quickops-mock-endpoint' || request.path || raw.url || raw.path || response.mode || raw.mode;
 
     if (!hasEndpointShape) return undefined;
 
@@ -1329,11 +1226,7 @@ class MockYamlStore {
     const id = String(raw.id || this.getFileNameWithoutExt(uri));
 
     const method = String(
-      request.method ||
-        raw.method ||
-        (Array.isArray(request.methods) ? request.methods[0] : undefined) ||
-        (Array.isArray(raw.methods) ? raw.methods[0] : undefined) ||
-        'GET',
+      request.method || raw.method || (Array.isArray(request.methods) ? request.methods[0] : undefined) || (Array.isArray(raw.methods) ? raw.methods[0] : undefined) || 'GET',
     ).toUpperCase();
 
     const url = this.normalizeUrl(String(request.path || raw.url || raw.path || '/'));
@@ -1352,8 +1245,7 @@ class MockYamlStore {
     }
 
     const data = response.data ?? response.content ?? raw.data ?? raw.content;
-    const template =
-      response.template ?? raw.template ?? (mode === 'mock' ? response.content : undefined);
+    const template = response.template ?? raw.template ?? (mode === 'mock' ? response.content : undefined);
 
     const yamlPath = this.pathForConfig(uri);
 

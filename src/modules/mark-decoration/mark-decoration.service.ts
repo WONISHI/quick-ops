@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { debounce } from 'lodash-es';
-import { ConfigurationService } from '../../common/services/configuration.service';
+import { ConfigurationService } from '@common/services/configuration.service';
 
 export interface MarkStyle {
   backgroundColor: string;

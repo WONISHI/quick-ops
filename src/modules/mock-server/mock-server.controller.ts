@@ -1,16 +1,12 @@
 import * as vscode from 'vscode';
-import ColorLog from '../../utils/ColorLog';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { ConfigurationService } from '../../common/services/configuration.service';
-import { MockServerService } from './mock-server.service';
+import ColorLog from '@utils/ColorLog';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { ConfigurationService } from '@common/services/configuration.service';
+import { MockServerService } from '@modules/mock-server/mock-server.service';
 
 export class MockServerController implements OnModuleInit {
-  public static inject = [
-    ExtensionContextProvider,
-    ConfigurationService,
-    MockServerService,
-  ];
+  public static inject = [ExtensionContextProvider, ConfigurationService, MockServerService];
 
   private readonly id = 'MockServerModule';
 
@@ -36,15 +32,11 @@ export class MockServerController implements OnModuleInit {
 
   private registerWebviewProvider(): void {
     this.extensionContextProvider.register(
-      vscode.window.registerWebviewViewProvider(
-        'quick-ops.mockView',
-        this.mockServerService,
-        {
-          webviewOptions: {
-            retainContextWhenHidden: true,
-          },
+      vscode.window.registerWebviewViewProvider('quick-ops.mockView', this.mockServerService, {
+        webviewOptions: {
+          retainContextWhenHidden: true,
         },
-      ),
+      }),
     );
   }
 

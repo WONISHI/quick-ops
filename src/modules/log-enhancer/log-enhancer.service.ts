@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import { LogHelper } from '../../utils/LogHelper';
-import { ConfigurationService } from '../../common/services/configuration.service';
-import { WorkspaceStateService } from '../../common/services/workspace-state.service';
+import { LogHelper } from '@utils/LogHelper';
+import { ConfigurationService } from '@common/services/configuration.service';
+import { WorkspaceStateService } from '@common/services/workspace-state.service';
 
 export class LogEnhancerService {
   public static inject = [ConfigurationService, WorkspaceStateService];
