@@ -52,11 +52,27 @@ interface PendingCreateEntity {
   isActiveProject: boolean;
 }
 
+interface PendingRenameEntity {
+  path: string;
+  name: string;
+  isFolder: boolean;
+  projectName: string;
+  isActiveProject: boolean;
+}
+
 interface DraggingEntity {
   path: string;
   name: string;
   isFolder: boolean;
   projectName: string;
+}
+
+interface SearchReturnState {
+  isFocusMode: boolean;
+  isFocusLocked: boolean;
+  focusRootPath: string;
+  focusRootName: string;
+  searchTargetProject: ContextMenuPayload | null;
 }
 
 export default function RecentProjectsApp() {
@@ -94,6 +110,7 @@ export default function RecentProjectsApp() {
   }, [dirChildren]);
 
   const expandedPathsRef = useRef<Set<string>>(new Set());
+  const collapseRevealGuardUntilRef = useRef(0);
 
   useEffect(() => {
     expandedPathsRef.current = expandedPaths;
@@ -135,8 +152,11 @@ export default function RecentProjectsApp() {
   const [folderSearchQuery, setFolderSearchQuery] = useState('');
   const folderSearchQueryRef = useRef('');
   const [folderSearchType, setFolderSearchType] = useState<'content' | 'name'>('content');
+  const folderSearchTypeRef = useRef<'content' | 'name'>('content');
   const [fileNameSearchResults, setFileNameSearchResults] = useState<DirChild[]>([]);
   const [folderSearchResults, setFolderSearchResults] = useState<SearchResult[]>([]);
+  const folderSearchResultsRef = useRef<SearchResult[]>([]);
+  const [folderSearchTotalMatches, setFolderSearchTotalMatches] = useState(0);
   const [isSearchingFolder, setIsSearchingFolder] = useState(false);
   const [folderSearchError, setFolderSearchError] = useState('');
   const [currentActiveMatch, setCurrentActiveMatch] = useState(0);
@@ -147,15 +167,30 @@ export default function RecentProjectsApp() {
   const latestSearchRequestIdRef = useRef(0);
   const activeSearchRequestIdRef = useRef(0);
   const [isFocusMode, setIsFocusMode] = useState(false);
+  const [isFocusLocked, setIsFocusLocked] = useState(false);
   const [focusRootPath, setFocusRootPath] = useState('');
   const [focusRootName, setFocusRootName] = useState('');
   const isFocusModeRef = useRef(false);
+  const isFocusLockedRef = useRef(false);
   const focusRootPathRef = useRef('');
   const focusRootNameRef = useRef('');
+
+  /**
+   * 右键“查找文件内容”是临时搜索页。
+   *
+   * 从普通列表进入：返回普通列表；
+   * 从专注模式进入：返回专注模式；
+   * 从专注模式 + 锁定模式进入：返回专注模式 + 锁定模式。
+   */
+  const searchReturnStateRef = useRef<SearchReturnState | null>(null);
 
   const [pendingCreateEntity, setPendingCreateEntity] = useState<PendingCreateEntity | null>(null);
   const [pendingCreateName, setPendingCreateName] = useState('');
   const pendingCreateInputRef = useRef<HTMLInputElement>(null);
+
+  const [pendingRenameEntity, setPendingRenameEntity] = useState<PendingRenameEntity | null>(null);
+  const [pendingRenameName, setPendingRenameName] = useState('');
+  const pendingRenameInputRef = useRef<HTMLInputElement>(null);
 
   const [draggingEntity, setDraggingEntity] = useState<DraggingEntity | null>(null);
   const [dragOverPath, setDragOverPath] = useState('');
@@ -173,10 +208,21 @@ export default function RecentProjectsApp() {
     folderSearchQueryRef.current = folderSearchQuery;
   }, [folderSearchQuery]);
 
+  useEffect(() => {
+    folderSearchTypeRef.current = folderSearchType;
+  }, [folderSearchType]);
+
+  useEffect(() => {
+    folderSearchResultsRef.current = folderSearchResults;
+  }, [folderSearchResults]);
 
   useEffect(() => {
     isFocusModeRef.current = isFocusMode;
   }, [isFocusMode]);
+
+  useEffect(() => {
+    isFocusLockedRef.current = isFocusLocked;
+  }, [isFocusLocked]);
 
   useEffect(() => {
     focusRootPathRef.current = focusRootPath;
@@ -194,6 +240,22 @@ export default function RecentProjectsApp() {
       pendingCreateInputRef.current?.select();
     }, 0);
   }, [pendingCreateEntity]);
+
+  useEffect(() => {
+    if (!pendingRenameEntity) return;
+
+    window.setTimeout(() => {
+      pendingRenameInputRef.current?.focus();
+      pendingRenameInputRef.current?.select();
+    }, 0);
+  }, [pendingRenameEntity]);
+
+  const normalizeFallbackPath = (pathValue: string) => {
+    return decodeURIComponent(pathValue.split('?')[0])
+      .replace(/^file:\/\//, '')
+      .replace(/\\/g, '/')
+      .replace(/\/+$/, '');
+  };
 
   const normalizePatchPath = (pathValue: string) => {
     if (!pathValue) return '';
@@ -214,9 +276,11 @@ export default function RecentProjectsApp() {
 
         return decodeURIComponent(url.pathname || pathValue).replace(/\\/g, '/').replace(/\/+$/, '');
       }
-    } catch { }
+    } catch {
+      return normalizeFallbackPath(pathValue);
+    }
 
-    return decodeURIComponent(pathValue.split('?')[0]).replace(/^file:\/\//, '').replace(/\\/g, '/').replace(/\/+$/, '');
+    return normalizeFallbackPath(pathValue);
   };
 
   const applyMetadataPatchToItem = <T extends Record<string, any>>(item: T, patchMap: Map<string, MetadataPatchItem>): T => {
@@ -296,7 +360,7 @@ export default function RecentProjectsApp() {
     };
 
     const cleanStatus = rawStatus
-      .replace(/[\[\]]/g, '')
+      .replace(/\[|\]/g, '')
       .replace(/^\s*[·•-]?\s*/, '')
       .trim();
 
@@ -325,7 +389,7 @@ export default function RecentProjectsApp() {
     }
 
     const fallbackText = getGitStatusTitle('', cleanStatus || rawStatus)
-      .replace(/[\[\]]/g, '')
+      .replace(/\[|\]/g, '')
       .replace(/^\s*[·•-]?\s*/, '')
       .trim();
 
@@ -625,6 +689,160 @@ export default function RecentProjectsApp() {
     return project?.customName || project?.name || getFallbackProjectName(pathValue);
   };
 
+  const collapseAllFolders = (options?: { clearChildren?: boolean }) => {
+    /**
+     * 收起所有文件夹后，短时间内忽略自动 revealPath。
+     *
+     * 原因：
+     * - 退出专注模式 / 切换分支刷新时，会主动收起所有目录；
+     * - VS Code 当前激活编辑器或“在项目中定位”的自动同步，可能马上再发 revealPath；
+     * - revealPath 会把父级目录重新展开，导致外面的当前项目又被打开。
+     */
+    collapseRevealGuardUntilRef.current = Date.now() + 800;
+
+    const emptyExpandedPaths = new Set<string>();
+    const emptyLoadingPaths = new Set<string>();
+
+    expandedPathsRef.current = emptyExpandedPaths;
+    autoScrollTarget.current = null;
+
+    setExpandedPaths(emptyExpandedPaths);
+    setLoadingPaths(emptyLoadingPaths);
+
+    if (options?.clearChildren !== false) {
+      const emptyChildren: Record<string, DirChild[]> = {};
+
+      dirChildrenRef.current = emptyChildren;
+      normalDirChildrenBeforeFocusRef.current = {};
+      setDirChildren(emptyChildren);
+    }
+  };
+
+  const enterFocusMode = (
+    payload: ContextMenuPayload,
+    options?: {
+      targetPath?: string;
+      title?: string;
+      locked?: boolean;
+    },
+  ) => {
+    const currentWorkspaceValue = currentWorkspaceRef.current;
+    const targetPath = options?.targetPath || currentWorkspaceValue?.fsPath || payload.path;
+    const title =
+      options?.title ||
+      currentWorkspaceValue?.customName ||
+      currentWorkspaceValue?.name ||
+      payload.customName ||
+      payload.originalName ||
+      payload.name ||
+      '当前项目';
+
+    if (!targetPath) {
+      return;
+    }
+
+    cacheNormalDirChildrenBeforeFocus(targetPath);
+
+    const focusRefreshPaths = Array.from(new Set([
+      targetPath,
+      ...Array.from(expandedPathsRef.current).filter((itemPath) =>
+        !!itemPath && isPathInside(itemPath, targetPath)
+      ),
+    ]));
+
+    const nextSearchTargetProject: ContextMenuPayload = {
+      ...payload,
+      path: targetPath,
+      name: title,
+      projectName: title,
+      isActiveProject: true,
+    };
+
+    isSearchModeRef.current = true;
+    isFocusModeRef.current = true;
+    isFocusLockedRef.current = !!options?.locked;
+    focusRootPathRef.current = targetPath;
+    focusRootNameRef.current = title;
+    searchTargetProjectRef.current = nextSearchTargetProject;
+
+    setSearchTargetProject(nextSearchTargetProject);
+    setIsSearchMode(true);
+    setIsFocusMode(true);
+    setIsFocusLocked(!!options?.locked);
+    setFocusRootPath(targetPath);
+    setFocusRootName(title);
+    setFolderSearchQuery('');
+    setFolderSearchResults([]);
+    setFolderSearchTotalMatches(0);
+    setFileNameSearchResults([]);
+    setFolderSearchError('');
+    setCurrentActiveMatch(0);
+
+    setExpandedPaths((prev) => {
+      const next = new Set(prev);
+      next.add(targetPath);
+      return next;
+    });
+
+    setLoadingPaths((prev) => {
+      const next = new Set(prev);
+
+      focusRefreshPaths.forEach((itemPath) => {
+        if (!dirChildrenRef.current[itemPath]) {
+          next.add(itemPath);
+        }
+      });
+
+      return next;
+    });
+
+    focusRefreshPaths.forEach((itemPath) => {
+      vscode.postMessage({
+        type: 'readDir',
+        fsPath: itemPath,
+        projectName: title,
+        forceRefresh: true,
+      });
+    });
+  };
+
+  const lockCurrentFocusMode = () => {
+    if (!isFocusModeRef.current || isFocusLockedRef.current) {
+      return;
+    }
+
+    const targetPath = focusRootPathRef.current;
+    const title = focusRootNameRef.current || getProjectNameByPath(targetPath) || '当前项目';
+
+    if (!targetPath) {
+      return;
+    }
+
+    isFocusLockedRef.current = true;
+    setIsFocusLocked(true);
+
+    vscode.postMessage({
+      type: 'setFocusLock',
+      fsPath: targetPath,
+      name: title,
+    });
+  };
+
+  const exitLockedFocusMode = () => {
+    if (!isFocusLockedRef.current) {
+      exitSearchOrFocusMode();
+      return;
+    }
+
+    /**
+     * 锁定模式退出确认必须用 VS Code 原生二次确认弹窗。
+     * Webview 里的 window.confirm 在 VS Code 中表现不稳定，也不是 VS Code 风格。
+     */
+    vscode.postMessage({
+      type: 'confirmExitFocusLock',
+    });
+  };
+
   const { lineStartIndexMap, totalMatches, flatMatchesList } = useMemo(() => {
     const map = new Map<string, number>();
     const list: {
@@ -649,20 +867,33 @@ export default function RecentProjectsApp() {
     const regex = new RegExp(`(${safeQuery})`, 'gi');
 
     folderSearchResults.forEach((res, fileIndex) => {
+      const fileMatchCount = Number((res as any).matchCount || (res as any).totalMatches) || 0;
+      let fileLineCount = 0;
+      let fileOccurrenceCount = 0;
+
       res.matches.forEach((m: SearchMatch, matchIndex: number) => {
         const startIdx = idx;
         map.set(`${fileIndex}-${matchIndex}`, startIdx);
 
+        const responseMatchCount = Number((m as any).count) || 0;
         let occurrencesCount = 0;
-        const parts = m.text.split(regex);
 
-        parts.forEach((part: string) => {
-          if (part.toLowerCase() === folderSearchQuery.toLowerCase()) {
-            occurrencesCount++;
-          }
-        });
+        if (responseMatchCount > 0) {
+          occurrencesCount = responseMatchCount;
+        } else {
+          const parts = m.text.split(regex);
+
+          parts.forEach((part: string) => {
+            if (part.toLowerCase() === folderSearchQuery.toLowerCase()) {
+              occurrencesCount++;
+            }
+          });
+        }
 
         const count = Math.max(1, occurrencesCount);
+
+        fileLineCount++;
+        fileOccurrenceCount += count;
 
         for (let k = 0; k < count; k++) {
           list.push({
@@ -676,14 +907,37 @@ export default function RecentProjectsApp() {
 
         idx += count;
       });
+
+      /**
+       * 兜底：
+       * 如果后端返回了文件级总匹配数，但 matches[].count 没有被旧前端/旧数据带上，
+       * 这里把差额补到最后一行，避免顶部总数仍然停留在“命中行数”。
+       */
+      const missingCount = fileMatchCount > fileOccurrenceCount ? fileMatchCount - fileOccurrenceCount : 0;
+      const lastMatchIndex = Math.max(0, fileLineCount - 1);
+
+      for (let k = 0; k < missingCount; k++) {
+        list.push({
+          fileIndex,
+          matchIndex: lastMatchIndex,
+          lineGlobalIndex: idx,
+          fullPath: res.fullPath,
+          lineNum: res.matches[lastMatchIndex]?.line || 1,
+        });
+
+        idx++;
+      }
     });
+
+    const responseTotalMatches = Number(folderSearchTotalMatches) || 0;
+    const safeTotalMatches = Math.max(idx, responseTotalMatches);
 
     return {
       lineStartIndexMap: map,
-      totalMatches: idx,
+      totalMatches: safeTotalMatches,
       flatMatchesList: list,
     };
-  }, [folderSearchResults, folderSearchQuery, folderSearchType]);
+  }, [folderSearchResults, folderSearchQuery, folderSearchType, folderSearchTotalMatches]);
 
   const requestSilentFolderSearchRefresh = () => {
     if (!isSearchModeRef.current) return;
@@ -694,21 +948,86 @@ export default function RecentProjectsApp() {
     setSearchRefreshVersion((prev) => prev + 1);
   };
 
+  const isChangedPathRelatedToCurrentSearch = (changedPaths: string[]) => {
+    const searchTarget = searchTargetProjectRef.current;
+
+    if (!searchTarget?.path) {
+      return false;
+    }
+
+    const normalizedTarget = normalizePatchPath(searchTarget.path);
+
+    return changedPaths.some((itemPath) => {
+      const normalizedChangedPath = normalizePatchPath(itemPath);
+
+      if (!normalizedChangedPath) {
+        return false;
+      }
+
+      if (
+        normalizedTarget &&
+        (normalizedChangedPath === normalizedTarget || normalizedChangedPath.startsWith(`${normalizedTarget}/`))
+      ) {
+        return true;
+      }
+
+      return folderSearchResultsRef.current.some((item) => {
+        const resultPath = normalizePatchPath(item.fullPath || item.file || '');
+
+        return !!resultPath && resultPath === normalizedChangedPath;
+      });
+    });
+  };
+
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       const msg = e.data as Record<string, unknown>;
 
       if (msg.type === 'updateProjects') {
         const data = (msg.data as Project[]) || [];
+        const currentWorkspaceValue = (msg.currentWorkspace as Project) || null;
+        const focusLock = (msg.focusLock as {
+          enabled?: boolean;
+          active?: boolean;
+          fsPath?: string;
+          name?: string;
+        }) || null;
+
+        projectsRef.current = data;
+        currentWorkspaceRef.current = currentWorkspaceValue;
 
         setProjects(data);
         setCurrentUri((msg.currentUriStr as string) || '');
         setLastOpenedPath((msg.lastOpenedPath as string) || '');
-        setCurrentWorkspace((msg.currentWorkspace as Project) || null);
+        setCurrentWorkspace(currentWorkspaceValue);
         setIsInitLoading(false);
 
         if (msg.activeFilePath) {
           setSelectedPath(msg.activeFilePath as string);
+        }
+
+        if (focusLock?.enabled && focusLock.active && currentWorkspaceValue?.fsPath) {
+          setIsFocusLocked(true);
+          isFocusLockedRef.current = true;
+
+          if (!isFocusModeRef.current && !searchReturnStateRef.current) {
+            enterFocusMode({
+              path: currentWorkspaceValue.fsPath,
+              name: focusLock.name || currentWorkspaceValue.name,
+              projectName: focusLock.name || currentWorkspaceValue.name,
+              originalName: currentWorkspaceValue.name,
+              customName: currentWorkspaceValue.customName,
+              isActiveProject: true,
+              isRemote: currentWorkspaceValue.fsPath.startsWith('vscode-vfs://') || currentWorkspaceValue.fsPath.startsWith('http'),
+            }, {
+              targetPath: currentWorkspaceValue.fsPath,
+              title: focusLock.name || currentWorkspaceValue.customName || currentWorkspaceValue.name || '当前项目',
+              locked: true,
+            });
+          }
+        } else if (!isFocusModeRef.current) {
+          setIsFocusLocked(false);
+          isFocusLockedRef.current = false;
         }
 
         setBranchMap((prev) => {
@@ -760,8 +1079,26 @@ export default function RecentProjectsApp() {
 
           return next;
         });
+      } else if (msg.type === 'focusLockExitConfirmed') {
+        isFocusLockedRef.current = false;
+        setIsFocusLocked(false);
+        exitSearchOrFocusMode();
+      } else if (msg.type === 'collapseAllDirs') {
+        collapseAllFolders({
+          clearChildren: (msg as any).clearChildren !== false,
+        });
       } else if (msg.type === 'activeEditorChanged') {
         setSelectedPath(msg.fsPath as string);
+      } else if (msg.type === 'searchContentChanged') {
+        const changedPaths = ((msg.paths as string[]) || []).filter(Boolean);
+
+        if (
+          changedPaths.length > 0 &&
+          folderSearchTypeRef.current === 'content' &&
+          isChangedPathRelatedToCurrentSearch(changedPaths)
+        ) {
+          requestSilentFolderSearchRefresh();
+        }
       } else if (msg.type === 'updateBranchTag') {
         setBranchMap((prev) => ({
           ...prev,
@@ -856,6 +1193,69 @@ export default function RecentProjectsApp() {
         setExpandedPaths((prev) => new Set(prev).add(parentPath));
         setLoadingPaths((prev) => new Set(prev).add(parentPath));
 
+        vscode.postMessage({
+          type: 'readDir',
+          fsPath: parentPath,
+          projectName: getProjectNameByPath(parentPath),
+          forceRefresh: true,
+        });
+      } else if (msg.type === 'renameFileEntityResult') {
+        const sourcePath = msg.sourcePath as string;
+        const targetPath = msg.targetPath as string;
+        const parentPath = msg.parentPath as string;
+        const targetName = msg.name as string;
+
+        setPendingRenameEntity(null);
+        setPendingRenameName('');
+        setSelectedPath(targetPath);
+
+        setExpandedPaths((prev) => {
+          const next = new Set<string>();
+
+          prev.forEach((itemPath) => {
+            if (isSameTreePath(itemPath, sourcePath)) {
+              next.add(targetPath);
+              return;
+            }
+
+            if (isPathInside(itemPath, sourcePath)) {
+              return;
+            }
+
+            next.add(itemPath);
+          });
+
+          next.add(parentPath);
+          return next;
+        });
+
+        setDirChildren((prev) => {
+          const next = { ...prev };
+
+          Object.keys(next).forEach((key) => {
+            if (isPathInside(key, sourcePath)) {
+              delete next[key];
+            }
+          });
+
+          if (next[parentPath]) {
+            next[parentPath] = next[parentPath].map((item) => {
+              if (item.path !== sourcePath) {
+                return item;
+              }
+
+              return {
+                ...item,
+                path: targetPath,
+                name: targetName || item.name,
+              };
+            });
+          }
+
+          return next;
+        });
+
+        setLoadingPaths((prev) => new Set(prev).add(parentPath));
         vscode.postMessage({
           type: 'readDir',
           fsPath: parentPath,
@@ -967,9 +1367,11 @@ export default function RecentProjectsApp() {
         if (msg.error) {
           setFolderSearchError(msg.error as string);
           setFolderSearchResults([]);
+          setFolderSearchTotalMatches(0);
         } else {
           setFolderSearchError('');
           setFolderSearchResults((msg.results as SearchResult[]) || []);
+          setFolderSearchTotalMatches(Number((msg as any).totalMatches) || 0);
 
           if (responseMode !== 'silent') {
             setCurrentActiveMatch(0);
@@ -987,18 +1389,33 @@ export default function RecentProjectsApp() {
           setFolderSearchError(msg.error as string);
           setFileNameSearchResults([]);
         } else {
+          setFolderSearchTotalMatches(0);
           setFolderSearchError('');
           setFileNameSearchResults((msg.results as DirChild[]) || []);
         }
       } else if (msg.type === 'revealPath') {
+        /**
+         * 刚刚执行过“收起所有文件夹”时，不允许自动 revealPath 重新展开外层项目。
+         * 这样退出专注模式后，会保持截图 2 那种所有项目都收起的状态。
+         */
+        if (!isSearchModeRef.current && Date.now() < collapseRevealGuardUntilRef.current) {
+          return;
+        }
+
         const { targetPath, parentPaths, projectName } = msg as any;
 
         setSelectedPath(targetPath);
         autoScrollTarget.current = targetPath;
 
-        window.setTimeout(() => {
-          scrollTreeNodeIntoView(targetPath);
-        }, 0);
+        /**
+         * “在项目中定位”：
+         * - 普通搜索模式下，主项目树 DOM 不在当前视图，需要先退出搜索视图。
+         * - 专注模式下，目标文件就在专注树里，不能退出专注模式，只滚动当前专注树。
+         */
+        if (isSearchModeRef.current && !isFocusModeRef.current) {
+          isSearchModeRef.current = false;
+          exitSearchOrFocusMode();
+        }
 
         setExpandedPaths((prev) => {
           const next = new Set(prev);
@@ -1015,6 +1432,12 @@ export default function RecentProjectsApp() {
               projectName,
             });
           }
+        });
+
+        [0, 80, 180, 360, 700].forEach((delay) => {
+          window.setTimeout(() => {
+            scrollTreeNodeIntoView(targetPath);
+          }, delay);
         });
       }
     };
@@ -1037,18 +1460,105 @@ export default function RecentProjectsApp() {
       window.removeEventListener('click', handleClickOutside);
       window.removeEventListener('blur', handleClickOutside);
     };
+    // 这个监听只需要在 Webview 初始化时注册一次，内部读取最新值用 ref 保持同步。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const findTreeNodeElement = (targetPath: string): HTMLElement | null => {
+    const safeId = `tree-node-${encodeURIComponent(targetPath)}`;
+    const exactElement = document.getElementById(safeId);
+
+    if (exactElement) {
+      return exactElement;
+    }
+
+    const targetKey = normalizePatchPath(targetPath);
+
+    if (!targetKey) {
+      return null;
+    }
+
+    const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-tree-path]'));
+
+    return (
+      nodes.find((node) => {
+        return normalizePatchPath(node.dataset.treePath || '') === targetKey;
+      }) || null
+    );
+  };
+
+  const getNearestScrollableElement = (element: HTMLElement): HTMLElement | null => {
+    let current = element.parentElement;
+
+    while (current) {
+      const style = window.getComputedStyle(current);
+      const overflowY = style.overflowY;
+      const canScroll = /(auto|scroll|overlay)/.test(overflowY);
+
+      if (canScroll && current.scrollHeight > current.clientHeight) {
+        return current;
+      }
+
+      current = current.parentElement;
+    }
+
+    return null;
+  };
+
+  const scrollElementIntoVisibleArea = (element: HTMLElement, retryCount: number) => {
+    const behavior: ScrollBehavior = retryCount > 0 ? 'auto' : 'smooth';
+
+    element.scrollIntoView({
+      behavior,
+      block: 'center',
+      inline: 'nearest',
+    });
+
+    window.requestAnimationFrame(() => {
+      const scrollableElement = getNearestScrollableElement(element);
+
+      if (!scrollableElement) {
+        return;
+      }
+
+      const containerRect = scrollableElement.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const isVisible =
+        elementRect.top >= containerRect.top &&
+        elementRect.bottom <= containerRect.bottom;
+
+      if (isVisible) {
+        return;
+      }
+
+      const nextScrollTop = Math.max(
+        0,
+        scrollableElement.scrollTop +
+          elementRect.top -
+          containerRect.top -
+          (scrollableElement.clientHeight - elementRect.height) / 2,
+      );
+
+      scrollableElement.scrollTo({
+        top: nextScrollTop,
+        behavior,
+      });
+    });
+  };
 
   const scrollTreeNodeIntoView = (targetPath: string, retryCount: number = 0) => {
     if (!targetPath) return;
 
-    if (isSearchModeRef.current) {
-      autoScrollTarget.current = null;
+    if (isSearchModeRef.current && !isFocusModeRef.current) {
+      if (retryCount >= 30) return;
+
+      window.setTimeout(() => {
+        scrollTreeNodeIntoView(targetPath, retryCount + 1);
+      }, 80);
       return;
     }
 
-    const safeId = `tree-node-${encodeURIComponent(targetPath)}`;
-    const el = document.getElementById(safeId);
+    const el = findTreeNodeElement(targetPath);
 
     if (!el) {
       if (retryCount >= 30) return;
@@ -1060,49 +1570,29 @@ export default function RecentProjectsApp() {
     }
 
     window.requestAnimationFrame(() => {
-      const scrollbar = listScrollbarRef.current;
-      const wrap = scrollbar?.wrapRef;
-
-      if (wrap && wrap.contains(el)) {
-        const wrapRect = wrap.getBoundingClientRect();
-        const elRect = el.getBoundingClientRect();
-        const nextScrollTop = Math.max(
-          0,
-          wrap.scrollTop + elRect.top - wrapRect.top - (wrap.clientHeight - elRect.height) / 2,
-        );
-
-        scrollbar.scrollTo({
-          top: nextScrollTop,
-          behavior: retryCount > 0 ? 'auto' : 'smooth',
-        });
-      } else {
-        el.scrollIntoView({
-          behavior: retryCount > 0 ? 'auto' : 'smooth',
-          block: 'center',
-          inline: 'nearest',
-        });
-      }
-
+      scrollElementIntoVisibleArea(el, retryCount);
       autoScrollTarget.current = null;
     });
   };
 
   useEffect(() => {
-    if (isSearchMode) {
-      autoScrollTarget.current = null;
+    if (isSearchMode && !isFocusMode) {
       return;
     }
 
     if (!autoScrollTarget.current) return;
 
     scrollTreeNodeIntoView(autoScrollTarget.current);
-  }, [expandedPaths, isSearchMode, dirChildren]);
+    // 这里只响应树展开、搜索/专注视图切换和目录数据变化，scrollTreeNodeIntoView 本身依赖内部 ref。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandedPaths, isSearchMode, isFocusMode, dirChildren]);
 
   useEffect(() => {
     if (!isSearchMode || !searchTargetProject) return;
 
     if (!folderSearchQuery.trim()) {
       setFolderSearchResults([]);
+      setFolderSearchTotalMatches(0);
       setFileNameSearchResults([]);
       setFolderSearchError('');
       setIsSearchingFolder(false);
@@ -1175,14 +1665,20 @@ export default function RecentProjectsApp() {
   const projectInHistory = projects.find((p) => p.fsPath.split('?')[0] === currentBaseUri);
   const inHistory = !!projectInHistory;
 
-  const activeProjectToRender =
-    projectInHistory ||
-    (currentWorkspace
-      ? ({
-        ...currentWorkspace,
-        timestamp: Date.now(),
-      } as Project)
-      : null);
+  const activeProjectToRender = useMemo(() => {
+    if (projectInHistory) {
+      return projectInHistory;
+    }
+
+    if (!currentWorkspace) {
+      return null;
+    }
+
+    return {
+      ...currentWorkspace,
+      timestamp: Date.now(),
+    } as Project;
+  }, [currentWorkspace, projectInHistory]);
 
   const otherProjects = projects.filter((p) => p.fsPath.split('?')[0] !== currentBaseUri);
 
@@ -1228,7 +1724,7 @@ export default function RecentProjectsApp() {
       type: 'updateRevealVisibility',
       visibleProjectPaths: revealVisibleProjectPaths,
     });
-  }, [revealVisibleProjectPathKey]);
+  }, [revealVisibleProjectPathKey, revealVisibleProjectPaths]);
 
   const clickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1302,6 +1798,11 @@ export default function RecentProjectsApp() {
     return isPathInside(normalizePatchPath(pathValue), normalizePatchPath(workspacePath));
   };
 
+  const getFallbackParentUriString = (pathValue: string) => {
+    const normalized = pathValue.replace(/\\/g, '/').replace(/\/[^/]*$/, '');
+    return normalized || pathValue;
+  };
+
   const getParentUriString = (pathValue: string) => {
     if (!pathValue) return '';
 
@@ -1314,10 +1815,11 @@ export default function RecentProjectsApp() {
         url.hash = '';
         return url.toString().replace(/\/$/, '');
       }
-    } catch { }
+    } catch {
+      return getFallbackParentUriString(pathValue);
+    }
 
-    const normalized = pathValue.replace(/\\/g, '/').replace(/\/[^/]*$/, '');
-    return normalized || pathValue;
+    return getFallbackParentUriString(pathValue);
   };
 
   const getCreateParentPath = (payload: ContextMenuPayload) => {
@@ -1385,6 +1887,65 @@ export default function RecentProjectsApp() {
 
     setPendingCreateEntity(null);
     setPendingCreateName('');
+  };
+
+  const canRenameEntity = (payload: ContextMenuPayload) => {
+    const workspacePath = getCurrentWorkspacePath();
+
+    return (
+      !!payload.isActiveProject &&
+      !!workspacePath &&
+      !!payload.path &&
+      !payload.isRemote &&
+      !isRemoteTreePath(payload.path) &&
+      isInsideCurrentWorkspacePath(payload.path) &&
+      !isSameTreePath(payload.path, workspacePath)
+    );
+  };
+
+  const beginRenameEntity = (payload: ContextMenuPayload) => {
+    if (!canRenameEntity(payload)) {
+      return;
+    }
+
+    setPendingCreateEntity(null);
+    setPendingCreateName('');
+
+    setPendingRenameEntity({
+      path: payload.path,
+      name: payload.name || '',
+      isFolder: !!payload.isFolder,
+      projectName: payload.projectName || getProjectNameByPath(payload.path) || '当前项目',
+      isActiveProject: true,
+    });
+    setPendingRenameName(payload.name || '');
+    setSelectedPath(payload.path);
+  };
+
+  const cancelPendingRenameEntity = () => {
+    setPendingRenameEntity(null);
+    setPendingRenameName('');
+  };
+
+  const commitPendingRenameEntity = () => {
+    if (!pendingRenameEntity) return;
+
+    const name = pendingRenameName.trim();
+
+    if (!name || name === pendingRenameEntity.name) {
+      cancelPendingRenameEntity();
+      return;
+    }
+
+    vscode.postMessage({
+      type: 'renameFileEntity',
+      fsPath: pendingRenameEntity.path,
+      newName: name,
+      isFolder: pendingRenameEntity.isFolder,
+    });
+
+    setPendingRenameEntity(null);
+    setPendingRenameName('');
   };
 
   const canDragEntity = (pathValue: string, isActiveProject: boolean) => {
@@ -1516,6 +2077,36 @@ export default function RecentProjectsApp() {
     }
 
     return '';
+  };
+
+  const renderRenameInput = (entityPath: string) => {
+    if (!pendingRenameEntity || !isSameTreePath(pendingRenameEntity.path, entityPath)) {
+      return null;
+    }
+
+    return (
+      <input
+        ref={pendingRenameInputRef}
+        className={`${styles['sub-name']} ${styles['rename-entity-input']}`}
+        value={pendingRenameName}
+        autoComplete="off"
+        spellCheck={false}
+        onChange={(e) => setPendingRenameName(e.target.value)}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => e.stopPropagation()}
+        onBlur={commitPendingRenameEntity}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commitPendingRenameEntity();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            cancelPendingRenameEntity();
+          }
+        }}
+      />
+    );
   };
 
   const renderPendingCreateRow = (parentPath: string, _projectName: string, isActiveProject: boolean) => {
@@ -1790,6 +2381,10 @@ export default function RecentProjectsApp() {
       case 'createFolder':
         beginCreateEntity('folder', payload);
         break;
+      case 'renameFileEntity':
+        beginRenameEntity(payload);
+        break;
+
       case 'deleteFileEntity':
         vscode.postMessage({
           type: 'deleteFileEntity',
@@ -1948,6 +2543,30 @@ export default function RecentProjectsApp() {
       }
 
       case 'searchInFolder':
+        /**
+         * 右键“查找文件内容”只是进入临时搜索页，不应该破坏上一层状态。
+         *
+         * 例如：
+         * - 普通列表 -> 搜索 -> 返回普通列表；
+         * - 专注模式 -> 搜索 -> 返回专注模式；
+         * - 专注模式 + 锁定模式 -> 搜索 -> 返回专注模式 + 锁定模式。
+         */
+        if (!searchReturnStateRef.current) {
+          searchReturnStateRef.current = {
+            isFocusMode: isFocusModeRef.current,
+            isFocusLocked: isFocusLockedRef.current,
+            focusRootPath: focusRootPathRef.current,
+            focusRootName: focusRootNameRef.current,
+            searchTargetProject: searchTargetProjectRef.current,
+          };
+        }
+
+        isSearchModeRef.current = true;
+        isFocusModeRef.current = false;
+        focusRootPathRef.current = '';
+        focusRootNameRef.current = '';
+        searchTargetProjectRef.current = payload;
+
         setSearchTargetProject(payload);
         setIsSearchMode(true);
         setIsFocusMode(false);
@@ -1955,80 +2574,17 @@ export default function RecentProjectsApp() {
         setFocusRootName('');
         setFolderSearchQuery('');
         setFolderSearchResults([]);
-        setFileNameSearchResults([]);
-        setFolderSearchError('');
-        break;
-
-      case 'focusMode': {
-        const currentWorkspaceValue = currentWorkspaceRef.current;
-        const targetPath = currentWorkspaceValue?.fsPath || payload.path;
-        const title =
-          currentWorkspaceValue?.customName ||
-          currentWorkspaceValue?.name ||
-          payload.customName ||
-          payload.originalName ||
-          payload.name ||
-          '当前项目';
-
-        if (!targetPath) {
-          break;
-        }
-
-        cacheNormalDirChildrenBeforeFocus(targetPath);
-
-        const focusRefreshPaths = Array.from(new Set([
-          targetPath,
-          ...Array.from(expandedPathsRef.current).filter((itemPath) =>
-            !!itemPath && isPathInside(itemPath, targetPath)
-          ),
-        ]));
-
-        setSearchTargetProject({
-          ...payload,
-          path: targetPath,
-          name: title,
-          projectName: title,
-          isActiveProject: true,
-        });
-        setIsSearchMode(true);
-        setIsFocusMode(true);
-        setFocusRootPath(targetPath);
-        setFocusRootName(title);
-        setFolderSearchQuery('');
-        setFolderSearchResults([]);
+        setFolderSearchTotalMatches(0);
         setFileNameSearchResults([]);
         setFolderSearchError('');
         setCurrentActiveMatch(0);
-
-        setExpandedPaths((prev) => {
-          const next = new Set(prev);
-          next.add(targetPath);
-          return next;
-        });
-
-        setLoadingPaths((prev) => {
-          const next = new Set(prev);
-
-          focusRefreshPaths.forEach((itemPath) => {
-            if (!dirChildrenRef.current[itemPath]) {
-              next.add(itemPath);
-            }
-          });
-
-          return next;
-        });
-
-        focusRefreshPaths.forEach((itemPath) => {
-          vscode.postMessage({
-            type: 'readDir',
-            fsPath: itemPath,
-            projectName: title,
-            forceRefresh: true,
-          });
-        });
-
         break;
-      }
+
+      case 'focusMode':
+        enterFocusMode(payload, {
+          locked: false,
+        });
+        break;
 
       default:
         break;
@@ -2064,13 +2620,44 @@ export default function RecentProjectsApp() {
   }, [currentActiveMatch, totalMatches, isSearchMode, flatMatchesList]);
 
   const exitSearchOrFocusMode = () => {
+    const searchReturnState = searchReturnStateRef.current;
+
+    if (searchReturnState) {
+      searchReturnStateRef.current = null;
+
+      isSearchModeRef.current = searchReturnState.isFocusMode;
+      isFocusModeRef.current = searchReturnState.isFocusMode;
+      isFocusLockedRef.current = searchReturnState.isFocusLocked;
+      focusRootPathRef.current = searchReturnState.focusRootPath;
+      focusRootNameRef.current = searchReturnState.focusRootName;
+      searchTargetProjectRef.current = searchReturnState.searchTargetProject;
+
+      setIsSearchMode(searchReturnState.isFocusMode);
+      setIsFocusMode(searchReturnState.isFocusMode);
+      setIsFocusLocked(searchReturnState.isFocusLocked);
+      setFocusRootPath(searchReturnState.focusRootPath);
+      setFocusRootName(searchReturnState.focusRootName);
+      setSearchTargetProject(searchReturnState.searchTargetProject);
+      setFolderSearchQuery('');
+      setFolderSearchResults([]);
+      setFolderSearchTotalMatches(0);
+      setFileNameSearchResults([]);
+      setFolderSearchError('');
+      setIsSearchingFolder(false);
+      setCurrentActiveMatch(0);
+      return;
+    }
+
     const exitingFocusMode = isFocusModeRef.current;
     const exitingFocusRootPath = focusRootPathRef.current;
-    const exitingFocusRootName = focusRootNameRef.current || getProjectNameByPath(exitingFocusRootPath);
-    const normalSnapshot = normalDirChildrenBeforeFocusRef.current;
+    isSearchModeRef.current = false;
+    isFocusModeRef.current = false;
+    isFocusLockedRef.current = false;
+    searchTargetProjectRef.current = null;
 
     setIsSearchMode(false);
     setIsFocusMode(false);
+    setIsFocusLocked(false);
     setSearchTargetProject(null);
     setFocusRootPath('');
     setFocusRootName('');
@@ -2086,47 +2673,13 @@ export default function RecentProjectsApp() {
       return;
     }
 
-    setDirChildren((prev) => {
-      const next = { ...prev };
-
-      Object.keys(next).forEach((key) => {
-        if (isPathInside(key, exitingFocusRootPath)) {
-          delete next[key];
-        }
-      });
-
-      Object.keys(normalSnapshot).forEach((key) => {
-        next[key] = normalSnapshot[key];
-      });
-
-      return next;
-    });
-
-    const expandedList = Array.from(expandedPathsRef.current).filter((itemPath) =>
-      isPathInside(itemPath, exitingFocusRootPath)
-    );
-
-    const refreshList = expandedList.length > 0 ? expandedList : [exitingFocusRootPath];
-
-    setLoadingPaths((prev) => {
-      const next = new Set(prev);
-
-      refreshList.forEach((itemPath) => {
-        if (!normalSnapshot[itemPath] && !dirChildrenRef.current[itemPath]) {
-          next.add(itemPath);
-        }
-      });
-
-      return next;
-    });
-
-    refreshList.forEach((itemPath) => {
-      vscode.postMessage({
-        type: 'readDir',
-        fsPath: itemPath,
-        projectName: getProjectNameByPath(itemPath) || exitingFocusRootName || '当前项目',
-        forceRefresh: true,
-      });
+    /**
+     * 退出专注模式后，资源管理器回到普通模式。
+     * 这里不再恢复 / 重新读取之前展开的文件夹，统一收起所有文件夹，
+     * 避免专注模式里的展开状态污染普通项目树。
+     */
+    collapseAllFolders({
+      clearChildren: true,
     });
 
     normalDirChildrenBeforeFocusRef.current = {};
@@ -2137,10 +2690,7 @@ export default function RecentProjectsApp() {
     parentPath: string,
     projectName: string,
     isActiveProject: boolean = false,
-    highlightQuery: string = '',
-    options: {
-      filterByHighlightQuery?: boolean;
-    } = {}
+    highlightQuery: string = ''
   ) => {
     const children = dirChildren[parentPath];
     const isLoading = loadingPaths.has(parentPath);
@@ -2168,10 +2718,7 @@ export default function RecentProjectsApp() {
       return <div className={styles['empty-node']}>（空文件夹/无读取权限）</div>;
     }
 
-    const shouldFilterByHighlightQuery =
-      !!highlightQuery && options.filterByHighlightQuery !== false;
-
-    const visibleChildren = shouldFilterByHighlightQuery
+    const visibleChildren = highlightQuery
       ? children.filter((child) => isSearchNameTextMatched(child.name, highlightQuery))
       : children;
 
@@ -2188,12 +2735,14 @@ export default function RecentProjectsApp() {
           const childLoading = loadingPaths.has(childPath) && !dirChildren[childPath];
           const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
           const elementId = `tree-node-${encodeURIComponent(childPath)}`;
+          const renameInput = renderRenameInput(childPath);
 
           if (child.isFolder) {
             return (
               <div key={childPath}>
                 <div
                   id={elementId}
+                  data-tree-path={childPath}
                   className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''
                     } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
                   draggable={canDragEntity(childPath, isActiveProject)}
@@ -2243,16 +2792,18 @@ export default function RecentProjectsApp() {
                     align="start"
                     delay={2000}
                   >
-                    <span
-                      className={styles['sub-name']}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        pointerEvents: 'auto',
-                      }}
-                    >
-                      {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
-                    </span>
+                    {renameInput || (
+                      <span
+                        className={styles['sub-name']}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          pointerEvents: 'auto',
+                        }}
+                      >
+                        {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
+                      </span>
+                    )}
                   </Tooltip>
 
                   <FolderGitStatusDot status={child.status} />
@@ -2265,7 +2816,7 @@ export default function RecentProjectsApp() {
                       styles['search-name-tree-children']
                     )}
                   >
-                    {renderTreeChildren(childPath, projectName, isActiveProject, highlightQuery, options)}
+                    {renderTreeChildren(childPath, projectName, isActiveProject, highlightQuery)}
                   </div>
                 )}
               </div>
@@ -2276,6 +2827,7 @@ export default function RecentProjectsApp() {
             <div key={childPath}>
               <div
                 id={elementId}
+                data-tree-path={childPath}
                 className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''
                   } ${styles['search-name-sub-item-clickable']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''}`}
                 draggable={canDragEntity(childPath, isActiveProject)}
@@ -2308,15 +2860,17 @@ export default function RecentProjectsApp() {
                   align="start"
                   delay={2000}
                 >
-                  <span className={styles['sub-name']}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      pointerEvents: 'auto',
-                    }}
-                  >
-                    {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
-                  </span>
+                  {renameInput || (
+                    <span className={styles['sub-name']}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        pointerEvents: 'auto',
+                      }}
+                    >
+                      {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
+                    </span>
+                  )}
                 </Tooltip>
 
                 <FileGitStatusBadge status={child.status} />
@@ -2349,6 +2903,9 @@ export default function RecentProjectsApp() {
         <SearchViewWrapper
           searchTargetProject={searchTargetProject}
           focusMode={isFocusMode}
+          focusLocked={isFocusLocked}
+          onLockFocusMode={lockCurrentFocusMode}
+          onExitLockedFocusMode={exitLockedFocusMode}
           focusTree={
             isFocusMode && focusRootPath ? (
               <div className={styles['focus-tree-wrapper']}>
@@ -2462,6 +3019,7 @@ export default function RecentProjectsApp() {
                       <div key={rootPath}>
                         <div
                           id={elementId}
+                          data-tree-path={rootPath}
                           className={`${styles['active-top-project']} ${selectedPath === rootPath ? styles['selected'] : ''
                             } ${inHistory ? styles['in-history'] : styles['not-in-history']} ${getDropClassName(rootPath)}`}
                           onDragOver={(e) => handleDragOverFolder(e, rootPath, true)}
@@ -2583,6 +3141,7 @@ export default function RecentProjectsApp() {
                       <li key={rootPath}>
                         <div
                           id={elementId}
+                          data-tree-path={rootPath}
                           className={`${styles['project-item']} ${isJustOpened ? styles['just-opened'] : ''
                             } ${selectedPath === rootPath ? styles['selected'] : ''}`}
                           onDoubleClick={() => handleOpenProject(p.fsPath)}

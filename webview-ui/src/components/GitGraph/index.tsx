@@ -886,14 +886,17 @@ const GitGraph: React.FC<GitGraphProps> = ({
                     style={{ overflow: 'hidden' }}
                     onScroll={handleGraphScroll}
                 >
-                <canvas
-                    ref={canvasRef}
-                    className={styles['graph-canvas']}
-                    style={{ '--graph-canvas-height': `${renderedHeight}px` } as React.CSSProperties}
-                />
+                    <div
+                        className={styles['graph-scroll-inner']}
+                        style={{ '--graph-canvas-height': `${renderedHeight}px` } as React.CSSProperties}
+                    >
+                        <canvas
+                            ref={canvasRef}
+                            className={styles['graph-canvas']}
+                        />
 
-                <ul className={styles['commit-timeline']}>
-                    {graphData.vertices.slice(0, displayCount).map((v, idx) => {
+                        <ul className={styles['commit-timeline']}>
+                            {graphData.vertices.slice(0, displayCount).map((v, idx) => {
                         const c = graphCommits[idx];
                         const paddingWidth = (v.getNextPoint().x + 1) * LANE_WIDTH + 14;
                         const isMatched = matchedIndices.includes(idx);
@@ -1013,8 +1016,9 @@ const GitGraph: React.FC<GitGraphProps> = ({
                                 )}
                             </li>
                         );
-                    })}
-                </ul>
+                            })}
+                        </ul>
+                    </div>
                 </Scrollbar>
             </div>
         </>

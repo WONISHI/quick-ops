@@ -120,6 +120,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
       type: 'file',
       file: item,
       listType: listType as any,
+      historyHash,
     });
   };
 
@@ -129,12 +130,14 @@ const GitFileList: React.FC<GitFileListProps> = ({
         <Tooltip content="打开文件">
           <button
             className={styles['action-btn']}
-            onClick={() =>
+            onClick={() => {
+              setActiveFile(item.file);
+
               vscode.postMessage({
                 command: 'open',
                 file: item.file,
-              })
-            }
+              });
+            }}
           >
             <i className="codicon codicon-go-to-file" />
           </button>
@@ -144,13 +147,15 @@ const GitFileList: React.FC<GitFileListProps> = ({
           <Tooltip content="放弃更改">
             <button
               className={styles['action-btn']}
-              onClick={() =>
+              onClick={() => {
+                setActiveFile(item.file);
+
                 vscode.postMessage({
                   command: 'discard',
                   file: item.file,
                   status: item.status,
-                })
-              }
+                });
+              }}
             >
               <i className="codicon codicon-discard" />
             </button>
@@ -163,12 +168,14 @@ const GitFileList: React.FC<GitFileListProps> = ({
               <Tooltip content="取消暂存更改">
                 <button
                   className={styles['action-btn']}
-                  onClick={() =>
+                  onClick={() => {
+                    setActiveFile(item.file);
+
                     vscode.postMessage({
                       command: 'unstage',
                       file: item.file,
-                    })
-                  }
+                    });
+                  }}
                 >
                   <i className="codicon codicon-remove" />
                 </button>
@@ -177,13 +184,15 @@ const GitFileList: React.FC<GitFileListProps> = ({
               <Tooltip content="暂存更改">
                 <button
                   className={styles['action-btn']}
-                  onClick={() =>
+                  onClick={() => {
+                    setActiveFile(item.file);
+
                     vscode.postMessage({
                       command: 'stage',
                       file: item.file,
                       status: item.status,
-                    })
-                  }
+                    });
+                  }}
                 >
                   <i className="codicon codicon-plus" />
                 </button>

@@ -25,9 +25,20 @@ interface FavoriteItem {
   timestamp: number;
   description?: string;
   logo?: string;
+  folderId?: string;
   isDefault?: boolean;
   source?: 'builtin' | 'user';
 }
+
+interface FavoriteFolder {
+  id: string;
+  name: string;
+  timestamp: number;
+  isDefault?: boolean;
+  source?: 'builtin' | 'user';
+}
+
+const ROOT_FAVORITE_FOLDER_ID = 'root';
 
 interface HistoryItem {
   url: string;
@@ -46,6 +57,7 @@ interface BrowserFrameState {
   data: string;
   width: number;
   height: number;
+  format?: 'jpeg' | 'png';
 }
 
 type BrowserEngineKey = 'baidu' | 'bing' | 'quark';
@@ -94,13 +106,12 @@ const getBrowserEngineOption = (key: BrowserEngineKey) => {
 };
 
 interface BrowserSurfaceProps {
-  frame: BrowserFrameState | null;
   loading: boolean;
   onViewportChange: (width: number, height: number) => void;
   onFindShortcut: () => void;
 }
 
-function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: BrowserSurfaceProps) {
+function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSurfaceProps) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const lastViewportRef = useRef({ width: 0, height: 0 });
   const resizeRafRef = useRef<number | null>(null);
@@ -126,6 +137,81 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
   const lastCommittedCompositionTextRef = useRef('');
   const lastCommittedCompositionAtRef = useRef(0);
   const [isMiddleDragging, setIsMiddleDragging] = useState(false);
+  const [hasBrowserFrame, setHasBrowserFrame] = useState(false);
+  const hasBrowserFrameRef = useRef(false);
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const frameInfoRef = useRef({ width: 0, height: 0 });
+  const pendingFrameRef = useRef<BrowserFrameState | null>(null);
+  const frameRafRef = useRef<number | null>(null);
+
+  const commitBrowserFrame = useCallback((frame: BrowserFrameState) => {
+    const img = imgRef.current;
+
+    if (!img || !frame.data) return;
+
+    const format = frame.format === 'png' ? 'png' : 'jpeg';
+
+    frameInfoRef.current = {
+      width: Math.max(0, Number(frame.width) || 0),
+      height: Math.max(0, Number(frame.height) || 0),
+    };
+
+    img.src = `data:image/${format};base64,${frame.data}`;
+
+    if (!hasBrowserFrameRef.current) {
+      hasBrowserFrameRef.current = true;
+      setHasBrowserFrame(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleBrowserFrame = (event: Event) => {
+      const frame = (event as CustomEvent<BrowserFrameState>).detail;
+
+      if (!frame?.data) return;
+
+      pendingFrameRef.current = frame;
+
+      if (frameRafRef.current) return;
+
+      frameRafRef.current = window.requestAnimationFrame(() => {
+        frameRafRef.current = null;
+
+        const nextFrame = pendingFrameRef.current;
+        pendingFrameRef.current = null;
+
+        if (nextFrame) {
+          commitBrowserFrame(nextFrame);
+        }
+      });
+    };
+
+    const handleBrowserFrameClear = () => {
+      pendingFrameRef.current = null;
+      frameInfoRef.current = { width: 0, height: 0 };
+      hasBrowserFrameRef.current = false;
+      setHasBrowserFrame(false);
+
+      if (imgRef.current) {
+        imgRef.current.removeAttribute('src');
+      }
+    };
+
+    window.addEventListener('quickops-browser-frame', handleBrowserFrame as EventListener);
+    window.addEventListener('quickops-browser-frame-clear', handleBrowserFrameClear);
+
+    return () => {
+      window.removeEventListener('quickops-browser-frame', handleBrowserFrame as EventListener);
+      window.removeEventListener('quickops-browser-frame-clear', handleBrowserFrameClear);
+
+      if (frameRafRef.current) {
+        window.cancelAnimationFrame(frameRafRef.current);
+        frameRafRef.current = null;
+      }
+
+      pendingFrameRef.current = null;
+    };
+  }, [commitBrowserFrame]);
 
 
   const notifyViewportSize = useCallback(() => {
@@ -232,8 +318,8 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
     const rect = event.currentTarget.getBoundingClientRect();
     const rawX = event.clientX - rect.left;
     const rawY = event.clientY - rect.top;
-    const viewportWidth = frame?.width || lastViewportRef.current.width || rect.width;
-    const viewportHeight = frame?.height || lastViewportRef.current.height || rect.height;
+    const viewportWidth = frameInfoRef.current.width || lastViewportRef.current.width || rect.width;
+    const viewportHeight = frameInfoRef.current.height || lastViewportRef.current.height || rect.height;
     const scaleX = rect.width > 0 ? viewportWidth / rect.width : 1;
     const scaleY = rect.height > 0 ? viewportHeight / rect.height : 1;
 
@@ -256,8 +342,8 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
     const rect = target.getBoundingClientRect();
     const rawX = clientX - rect.left;
     const rawY = clientY - rect.top;
-    const viewportWidth = frame?.width || lastViewportRef.current.width || rect.width;
-    const viewportHeight = frame?.height || lastViewportRef.current.height || rect.height;
+    const viewportWidth = frameInfoRef.current.width || lastViewportRef.current.width || rect.width;
+    const viewportHeight = frameInfoRef.current.height || lastViewportRef.current.height || rect.height;
     const scaleX = rect.width > 0 ? viewportWidth / rect.width : 1;
     const scaleY = rect.height > 0 ? viewportHeight / rect.height : 1;
 
@@ -265,7 +351,7 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
       x: Math.max(0, Math.min(viewportWidth, Math.round(rawX * scaleX))),
       y: Math.max(0, Math.min(viewportHeight, Math.round(rawY * scaleY))),
     };
-  }, [frame?.height, frame?.width]);
+  }, []);
 
   const sendPanWheel = useCallback((clientX: number, clientY: number, deltaX: number, deltaY: number) => {
     const point = getBrowserPointByClient(clientX, clientY);
@@ -432,8 +518,8 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
     event.preventDefault();
 
     const rect = event.currentTarget.getBoundingClientRect();
-    const viewportWidth = frame?.width || lastViewportRef.current.width || rect.width;
-    const viewportHeight = frame?.height || lastViewportRef.current.height || rect.height;
+    const viewportWidth = frameInfoRef.current.width || lastViewportRef.current.width || rect.width;
+    const viewportHeight = frameInfoRef.current.height || lastViewportRef.current.height || rect.height;
     const scaleX = rect.width > 0 ? viewportWidth / rect.width : 1;
     const scaleY = rect.height > 0 ? viewportHeight / rect.height : 1;
 
@@ -862,23 +948,25 @@ function BrowserSurface({ frame, loading, onViewportChange, onFindShortcut }: Br
         }}
       />
 
-      {frame ? (
-        <img
-          className={styles['browser-lite-frame']}
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'fill',
-            display: 'block',
-            imageRendering: 'auto',
-            transform: 'translateZ(0)',
-            backfaceVisibility: 'hidden',
-          }}
-          src={`data:image/jpeg;base64,${frame.data}`}
-          draggable={false}
-          alt="网页预览"
-        />
-      ) : (
+      <img
+        ref={imgRef}
+        className={styles['browser-lite-frame']}
+        style={{
+          width: '100%',
+          height: '100%',
+          objectFit: 'fill',
+          display: hasBrowserFrame ? 'block' : 'none',
+          imageRendering: 'crisp-edges',
+          transform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          maxWidth: 'unset',
+          maxHeight: 'unset',
+        }}
+        draggable={false}
+        alt="网页预览"
+      />
+
+      {!hasBrowserFrame && (
         <div className={styles['browser-lite-empty']}>
           {loading ? '正在加载网页...' : '暂无网页内容'}
         </div>
@@ -892,10 +980,6 @@ type PreviewType = 'web' | 'md' | 'pdf' | 'excel' | 'html';
 export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
-  const [browserFrame, setBrowserFrame] = useState<BrowserFrameState | null>(null);
-  const browserFrameRafRef = useRef<number | null>(null);
-  const pendingBrowserFrameRef = useRef<BrowserFrameState | null>(null);
-
   const [previewType, setPreviewType] = useState<PreviewType>('web');
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<PreviewErrorState | null>(null);
@@ -918,6 +1002,8 @@ export default function LivePreviewApp() {
   const [browserSwitcherOpen, setBrowserSwitcherOpen] = useState(false);
 
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
+  const [favoriteFolders, setFavoriteFolders] = useState<FavoriteFolder[]>([]);
+  const [selectedFavoriteFolderId, setSelectedFavoriteFolderId] = useState('all');
   const [historyStack, setHistoryStack] = useState<HistoryItem[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
   const historyStackRef = useRef<HistoryItem[]>([]);
@@ -945,6 +1031,7 @@ export default function LivePreviewApp() {
     description: '',
     logo: '',
     editingOriginalUrl: '',
+    folderId: ROOT_FAVORITE_FOLDER_ID,
   });
   const [showSuggest, setShowSuggest] = useState(false);
   const [suggestIndex, setSuggestIndex] = useState(-1);
@@ -962,17 +1049,8 @@ export default function LivePreviewApp() {
   const pageLoadedRef = useRef(false);
   const faviconResolvedRef = useRef(false);
   const faviconRequestIdRef = useRef(0);
-
-  useEffect(() => {
-    return () => {
-      if (browserFrameRafRef.current) {
-        window.cancelAnimationFrame(browserFrameRafRef.current);
-        browserFrameRafRef.current = null;
-      }
-
-      pendingBrowserFrameRef.current = null;
-    };
-  }, []);
+  const favoriteMetaRequestIdRef = useRef(0);
+  const favoriteMetaResolversRef = useRef(new Map<number, (value: any) => void>());
 
   useEffect(() => {
     const handleWindowPointerDown = (event: MouseEvent) => {
@@ -1050,6 +1128,17 @@ export default function LivePreviewApp() {
 
   const normalizeFavoriteUrl = (url: string) => {
     return (url || '').trim().replace(/\/+$/, '');
+  };
+
+  const createFavoriteFolderId = (name: string) => {
+    const safeName = name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9\u4e00-\u9fa5_-]+/gi, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40);
+
+    return `folder-${safeName || 'custom'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   };
 
 
@@ -1475,23 +1564,24 @@ export default function LivePreviewApp() {
         vscode?.postMessage({ type: 'reqSyncFavorites' });
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
-      } else if (message.type === 'browserFrame') {
-        pendingBrowserFrameRef.current = {
-          data: message.data || '',
-          width: message.width || 0,
-          height: message.height || 0,
-        };
+        setFavoriteFolders(message.folders || []);
+      } else if (message.type === 'favoriteMetaResolved') {
+        const requestId = Number(message.requestId) || 0;
+        const resolver = favoriteMetaResolversRef.current.get(requestId);
 
-        if (!browserFrameRafRef.current) {
-          browserFrameRafRef.current = window.requestAnimationFrame(() => {
-            browserFrameRafRef.current = null;
-
-            if (!pendingBrowserFrameRef.current) return;
-
-            setBrowserFrame(pendingBrowserFrameRef.current);
-            pendingBrowserFrameRef.current = null;
-          });
+        if (resolver) {
+          favoriteMetaResolversRef.current.delete(requestId);
+          resolver(message.ok ? message : null);
         }
+      } else if (message.type === 'browserFrame') {
+        window.dispatchEvent(new CustomEvent<BrowserFrameState>('quickops-browser-frame', {
+          detail: {
+            data: message.data || '',
+            width: message.width || 0,
+            height: message.height || 0,
+            format: message.format === 'png' ? 'png' : 'jpeg',
+          },
+        }));
       } else if (message.type === 'browserPageLoaded') {
         pageLoadedRef.current = true;
         faviconResolvedRef.current = true;
@@ -1606,6 +1696,26 @@ export default function LivePreviewApp() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  useEffect(() => {
+    if (activeModal !== 'fav') return;
+
+    /**
+     * VS Code globalState 是全局存储，但不是跨窗口实时事件总线。
+     * 收藏夹打开时主动拉取最新收藏 / 分组，避免不同工作区窗口不同步。
+     */
+    const syncFavoriteData = () => {
+      vscode?.postMessage({ type: 'reqSyncFavorites' });
+    };
+
+    syncFavoriteData();
+
+    const timer = window.setInterval(syncFavoriteData, 1500);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [activeModal]);
+
 
   const navigateToHistory = (index: number) => {
     const stack = historyStackRef.current;
@@ -1711,6 +1821,7 @@ export default function LivePreviewApp() {
       setIsPageLoaded(false);
 
       updateFavicon('');
+      window.dispatchEvent(new CustomEvent('quickops-browser-frame-clear'));
       vscode?.postMessage({ type: 'browserStopLoading' });
       vscode?.postMessage({ type: 'browserStop' });
       vscode?.postMessage({ type: 'saveUrl', url: '' });
@@ -1783,6 +1894,7 @@ export default function LivePreviewApp() {
     setIsPageLoaded(false);
 
     updateFavicon('');
+    window.dispatchEvent(new CustomEvent('quickops-browser-frame-clear'));
     vscode?.postMessage({ type: 'browserStopLoading' });
     vscode?.postMessage({ type: 'browserStop' });
     vscode?.postMessage({ type: 'saveUrl', url: '' });
@@ -1920,7 +2032,13 @@ export default function LivePreviewApp() {
     const title = currentHistory?.title || urlInput || favoriteTargetUrl;
     const logo = activeAddressFavorite?.logo || faviconUrl || '';
 
-    vscode?.postMessage({ type: 'toggleFavorite', url: favoriteTargetUrl, title, logo });
+    vscode?.postMessage({
+      type: 'toggleFavorite',
+      url: favoriteTargetUrl,
+      title,
+      logo,
+      folderId: ROOT_FAVORITE_FOLDER_ID,
+    });
   };
 
   const openContextMenu = () => {
@@ -1993,20 +2111,68 @@ export default function LivePreviewApp() {
     window.setTimeout(() => setCopiedUrl(''), 1500);
   };
 
-  const saveFavorite = () => {
-    const t = favForm.title.trim();
-    const u = UrlParser.parse(favForm.url);
-    const description = favForm.description.trim();
-    const logo = favForm.logo.trim();
+  const resolveFavoriteMeta = (url: string) => {
+    const requestId = favoriteMetaRequestIdRef.current + 1;
 
-    if (!t || !u) {
-      return vscode?.postMessage({ type: 'showError', message: '标题和链接不能为空' });
+    favoriteMetaRequestIdRef.current = requestId;
+
+    return new Promise<any | null>((resolve) => {
+      favoriteMetaResolversRef.current.set(requestId, resolve);
+
+      vscode?.postMessage({
+        type: 'resolveFavoriteMeta',
+        requestId,
+        url,
+      });
+
+      window.setTimeout(() => {
+        const resolver = favoriteMetaResolversRef.current.get(requestId);
+
+        if (!resolver) return;
+
+        favoriteMetaResolversRef.current.delete(requestId);
+        resolver(null);
+      }, 12000);
+    });
+  };
+
+  const getFallbackFavoriteTitle = (url: string) => {
+    try {
+      return new URL(url).hostname || url;
+    } catch {
+      return url;
+    }
+  };
+
+  const saveFavorite = async () => {
+    const u = UrlParser.parse(favForm.url);
+    let t = favForm.title.trim();
+    let description = favForm.description.trim();
+    let logo = favForm.logo.trim();
+    const folderId = favForm.folderId || ROOT_FAVORITE_FOLDER_ID;
+
+    if (!u) {
+      return vscode?.postMessage({ type: 'showError', message: '链接不能为空' });
     }
 
     const editingTarget = favorites.find((f) => f.url === favForm.editingOriginalUrl);
 
     if (editingTarget?.isDefault) {
       return vscode?.postMessage({ type: 'showInfo', message: '默认收藏不能编辑。' });
+    }
+
+    if (!t || !description || !logo) {
+      const meta = await resolveFavoriteMeta(u);
+
+      if (meta) {
+        t = t || String(meta.title || '').trim();
+        description = description || String(meta.description || '').trim();
+        logo = logo || String(meta.logo || '').trim();
+      }
+    }
+
+    if (!t) {
+      t = getFallbackFavoriteTitle(u);
     }
 
     const newFavs = [...favorites];
@@ -2025,6 +2191,7 @@ export default function LivePreviewApp() {
           url: u,
           description,
           logo,
+          folderId,
           isDefault: false,
           source: 'user',
         };
@@ -2039,6 +2206,7 @@ export default function LivePreviewApp() {
         title: t,
         description,
         logo,
+        folderId,
         timestamp: Date.now(),
         isDefault: false,
         source: 'user',
@@ -2057,6 +2225,7 @@ export default function LivePreviewApp() {
       description: '',
       logo: '',
       editingOriginalUrl: '',
+      folderId: ROOT_FAVORITE_FOLDER_ID,
     });
   };
 
@@ -2067,7 +2236,141 @@ export default function LivePreviewApp() {
     }
 
     const newFavs = favorites.filter((f) => f.url !== favorite.url || f.isDefault);
-    vscode?.postMessage({ type: 'saveAllFavorites', favorites: newFavs });
+
+    vscode?.postMessage({
+      type: 'saveAllFavorites',
+      favorites: newFavs.filter((item) => !item.isDefault),
+    });
+  };
+
+  const saveFavoriteData = (nextFavorites: FavoriteItem[], nextFolders?: FavoriteFolder[]) => {
+    const payload: {
+      type: 'saveAllFavorites';
+      favorites: FavoriteItem[];
+      folders?: FavoriteFolder[];
+    } = {
+      type: 'saveAllFavorites',
+      favorites: nextFavorites.filter((item) => !item.isDefault),
+    };
+
+    if (nextFolders) {
+      payload.folders = nextFolders.filter((item) => !item.isDefault);
+    }
+
+    vscode?.postMessage(payload);
+  };
+
+  const createFavoriteFolder = (name: string) => {
+    const folderName = name.trim();
+
+    if (!folderName) {
+      vscode?.postMessage({ type: 'showError', message: '文件夹名称不能为空' });
+      return;
+    }
+
+    if (favoriteFolders.some((folder) => folder.name === folderName)) {
+      vscode?.postMessage({ type: 'showError', message: '文件夹名称已存在' });
+      return;
+    }
+
+    const newFolder: FavoriteFolder = {
+      id: createFavoriteFolderId(folderName),
+      name: folderName,
+      timestamp: Date.now(),
+      isDefault: false,
+      source: 'user' as const,
+    };
+
+    const nextFolders = [...favoriteFolders, newFolder];
+
+    setFavoriteFolders(nextFolders);
+    setSelectedFavoriteFolderId(newFolder.id);
+    saveFavoriteData(favorites, nextFolders);
+
+    return newFolder.id;
+  };
+
+  const renameFavoriteFolder = (folder: FavoriteFolder, nextName: string) => {
+    if (folder.isDefault) {
+      vscode?.postMessage({ type: 'showInfo', message: '默认文件夹不能重命名。' });
+      return;
+    }
+
+    const folderName = nextName.trim();
+
+    if (!folderName) {
+      vscode?.postMessage({ type: 'showError', message: '文件夹名称不能为空' });
+      return;
+    }
+
+    if (favoriteFolders.some((item) => item.id !== folder.id && item.name === folderName)) {
+      vscode?.postMessage({ type: 'showError', message: '文件夹名称已存在' });
+      return;
+    }
+
+    const nextFolders = favoriteFolders.map((item) => {
+      return item.id === folder.id ? { ...item, name: folderName } : item;
+    });
+
+    setFavoriteFolders(nextFolders);
+    saveFavoriteData(favorites, nextFolders);
+  };
+
+  const deleteFavoriteFolder = (folder: FavoriteFolder) => {
+    if (folder.isDefault) {
+      vscode?.postMessage({ type: 'showInfo', message: '默认文件夹不能删除。' });
+      return;
+    }
+
+    const nextFolders = favoriteFolders.filter((item) => item.id !== folder.id);
+    const nextFavorites = favorites.map((item) => {
+      if (item.folderId !== folder.id) return item;
+
+      return {
+        ...item,
+        folderId: ROOT_FAVORITE_FOLDER_ID,
+      };
+    });
+
+    setFavoriteFolders(nextFolders);
+    setFavorites(nextFavorites);
+
+    if (selectedFavoriteFolderId === folder.id) {
+      setSelectedFavoriteFolderId('all');
+    }
+
+    saveFavoriteData(nextFavorites, nextFolders);
+  };
+
+  const moveFavoriteToFolder = (favorite: FavoriteItem, folderId: string) => {
+    if (favorite.isDefault) {
+      vscode?.postMessage({ type: 'showInfo', message: '默认收藏不能移动。' });
+      return;
+    }
+
+    const nextFavorites = favorites.map((item) => {
+      if (item.url !== favorite.url || item.isDefault) return item;
+
+      return {
+        ...item,
+        folderId: folderId || ROOT_FAVORITE_FOLDER_ID,
+      };
+    });
+
+    setFavorites(nextFavorites);
+    saveFavoriteData(nextFavorites);
+  };
+
+  const importFavorites = () => {
+    vscode?.postMessage({ type: 'importFavorites' });
+  };
+
+  const exportFavorites = () => {
+    vscode?.postMessage({
+      type: 'exportFavorites',
+      favorites: sortedFavorites,
+      folders: favoriteFolders,
+    });
   };
 
   const sortedFavorites = useMemo(() => {
@@ -2097,9 +2400,12 @@ export default function LivePreviewApp() {
   };
 
   const handleBrowserViewportChange = useCallback((width: number, height: number) => {
-    const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || '');
-    const maxDeviceScaleFactor = isMac ? 1.1 : 1.35;
-    const deviceScaleFactor = Math.min(maxDeviceScaleFactor, Math.max(1, window.devicePixelRatio || 1));
+    /**
+     * vscode-browse-lite 这里直接使用 window.devicePixelRatio。
+     * Retina / 高缩放屏如果被压到 1.1 / 1.5，截图会被低清放大，所以这里不要前端限死。
+     * 后端仍然保留 quickOps.browser.maxDeviceScaleFactor 兜底上限，默认 2。
+     */
+    const deviceScaleFactor = Math.max(1, window.devicePixelRatio || 1);
 
     vscode?.postMessage({
       type: 'browserSetViewport',
@@ -2489,7 +2795,6 @@ export default function LivePreviewApp() {
             }
           >
             <BrowserSurface
-              frame={browserFrame}
               loading={previewLoading}
               onViewportChange={handleBrowserViewportChange}
               onFindShortcut={openSearchBar}
@@ -2501,9 +2806,12 @@ export default function LivePreviewApp() {
       <FavoriteModal
         visible={activeModal === 'fav'}
         sortedFavorites={sortedFavorites}
+        favoriteFolders={favoriteFolders}
+        selectedFolderId={selectedFavoriteFolderId}
         favSort={favSort}
         favForm={favForm}
         copiedUrl={copiedUrl}
+        setSelectedFolderId={setSelectedFavoriteFolderId}
         setFavSort={setFavSort}
         setFavForm={setFavForm}
         onClose={() => setActiveModal('none')}
@@ -2514,6 +2822,12 @@ export default function LivePreviewApp() {
         onCopy={handleCopy}
         onSaveFavorite={saveFavorite}
         onDeleteFavorite={deleteFavorite}
+        onCreateFolder={createFavoriteFolder}
+        onRenameFolder={renameFavoriteFolder}
+        onDeleteFolder={deleteFavoriteFolder}
+        onMoveFavoriteToFolder={moveFavoriteToFolder}
+        onImportFavorites={importFavorites}
+        onExportFavorites={exportFavorites}
       />
 
       <HistoryModal

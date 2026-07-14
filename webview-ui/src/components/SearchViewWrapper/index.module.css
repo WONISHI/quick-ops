@@ -109,6 +109,44 @@
   justify-content: center;
 }
 
+.search-back-btn-locked {
+  color: var(--vscode-textLink-foreground);
+}
+
+.search-target-title-focus {
+  cursor: default;
+  user-select: none;
+  background: transparent !important;
+}
+
+.search-target-title-focus:not(.search-target-title-locked) {
+  cursor: pointer;
+}
+
+.search-target-title-focus:hover,
+.search-target-title-focus:active,
+.search-target-title-focus:focus {
+  background: transparent !important;
+  outline: none !important;
+}
+
+.search-target-title-locked {
+  color: var(--vscode-textLink-foreground);
+  background: transparent !important;
+}
+
+.search-target-title-locked:hover,
+.search-target-title-locked:active,
+.search-target-title-locked:focus {
+  background: transparent !important;
+  outline: none !important;
+}
+
+.search-target-title-focus *,
+.search-target-title-locked * {
+  user-select: none;
+}
+
 .search-target-title {
   min-width: 0;
   height: 18px;
@@ -219,6 +257,9 @@
 .search-input-compact::placeholder {
   color: var(--vscode-input-placeholderForeground);
   opacity: 0.86;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .search-clear-btn {
@@ -382,25 +423,104 @@
 
 .search-file-list-item {
   margin-bottom: 8px;
+  width: 100%;
+}
+
+.search-file-title-row {
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .search-file-title {
+  min-width: 0;
+  flex: 1 1 auto;
   font-size: 12px;
   font-weight: bold;
   color: var(--vscode-textLink-foreground);
-  margin-bottom: 2px;
-  word-break: break-all;
   overflow: hidden;
-  display: inline-block;
+  display: inline-flex;
   white-space: nowrap;
-  text-overflow: ellipsis;
   align-items: center;
-  width: 100%;
 }
 
 .search-file-icon {
   margin-right: 6px;
   flex-shrink: 0;
+}
+
+.search-file-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+  color: var(--vscode-textLink-foreground);
+}
+
+.search-file-folder {
+  min-width: 0;
+  margin-left: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  color: var(--vscode-descriptionForeground);
+  opacity: 0.82;
+  font-weight: 400;
+}
+
+.search-file-match-count {
+  min-width: 18px;
+  height: 18px;
+  margin-left: auto;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: var(--vscode-badge-foreground);
+  background: var(--vscode-badge-background);
+  font-size: 11px;
+  line-height: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.search-file-remove-btn {
+  width: 18px;
+  height: 18px;
+  min-width: 18px;
+  min-height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  opacity: 0;
+  color: var(--vscode-icon-foreground);
+  background: transparent;
+}
+
+.search-file-title-row:hover .search-file-remove-btn {
+  opacity: 0.8;
+}
+
+.search-file-remove-btn:hover {
+  opacity: 1 !important;
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.search-file-remove-btn :global(.codicon),
+.search-file-remove-btn .codicon {
+  font-size: 12px;
 }
 
 .search-matches-list {
@@ -409,13 +529,15 @@
 }
 
 .search-match-item {
+  display: flex;
+  align-items: center;
+  min-width: 0;
   font-size: 12px;
   padding: 2px 8px;
   cursor: pointer;
-  white-space: pre-wrap;
-  word-break: break-all;
+  white-space: nowrap;
   transition: background 0.1s;
-  line-height: 1.4;
+  line-height: 22px;
   background-color: transparent;
   color: inherit;
 }
@@ -436,6 +558,16 @@
   display: inline-block;
   min-width: 24px;
   text-align: right;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.search-match-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .search-match-item.active .search-match-line-num {
