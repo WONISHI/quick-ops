@@ -1,16 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { getReactWebviewHtml } from '../../utils/WebviewHelper';
-import { setupMarkdown } from '../../plugins/markdown/setupMarkdown';
-import markdownImagePlugin, {
-  restoreMarkdownImagePaths,
-} from '../../plugins/markdown/markdownImagePlugin';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import type {
-  ExternalPreviewType,
-  MarkdownImageAssets,
-  WebviewMessage,
-} from './file-navigation.type';
+import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import { setupMarkdown } from '@plugins/markdown/setupMarkdown';
+import markdownImagePlugin, { restoreMarkdownImagePaths } from '@plugins/markdown/markdownImagePlugin';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import type { ExternalPreviewType, MarkdownImageAssets, WebviewMessage } from '@modules/file-navigation/file-navigation.type';
 
 export class FileNavigationService {
   public static inject = [ExtensionContextProvider];
@@ -154,20 +148,11 @@ export class FileNavigationService {
       const mdDir = path.dirname(uri.fsPath);
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
 
-      const panel = vscode.window.createWebviewPanel(
-        'vditorPreviewReact',
-        `${projectName}: ${fileName}`,
-        vscode.ViewColumn.Active,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [
-            context.extensionUri,
-            vscode.Uri.file(mdDir),
-            ...(workspaceRoot ? [vscode.Uri.file(workspaceRoot)] : []),
-          ],
-        },
-      );
+      const panel = vscode.window.createWebviewPanel('vditorPreviewReact', `${projectName}: ${fileName}`, vscode.ViewColumn.Active, {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [context.extensionUri, vscode.Uri.file(mdDir), ...(workspaceRoot ? [vscode.Uri.file(workspaceRoot)] : [])],
+      });
 
       this.activePanels.set(uri.toString(), panel);
 
@@ -230,18 +215,9 @@ export class FileNavigationService {
         }
       });
 
-      panel.iconPath = vscode.Uri.joinPath(
-        context.extensionUri,
-        'resources',
-        'icons',
-        'markdown.svg',
-      );
+      panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'markdown.svg');
 
-      panel.webview.html = getReactWebviewHtml(
-        context.extensionUri,
-        panel.webview,
-        '/Vditor?type=edit',
-      );
+      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/Vditor?type=edit');
     } catch (error) {
       vscode.window.showErrorMessage(`Markdown 预览打开失败: ${this.toErrorMessage(error)}`);
     }
@@ -255,16 +231,11 @@ export class FileNavigationService {
       const fileName = path.basename(uri.path);
       const projectName = this.getProjectName(uri);
 
-      const panel = vscode.window.createWebviewPanel(
-        'pdfPreviewReact',
-        `${projectName}: ${fileName}`,
-        vscode.ViewColumn.Active,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [context.extensionUri],
-        },
-      );
+      const panel = vscode.window.createWebviewPanel('pdfPreviewReact', `${projectName}: ${fileName}`, vscode.ViewColumn.Active, {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [context.extensionUri],
+      });
 
       this.activePanels.set(uri.toString(), panel);
 
@@ -293,18 +264,9 @@ export class FileNavigationService {
         }
       });
 
-      panel.iconPath = vscode.Uri.joinPath(
-        context.extensionUri,
-        'resources',
-        'icons',
-        'pdf.svg',
-      );
+      panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'pdf.svg');
 
-      panel.webview.html = getReactWebviewHtml(
-        context.extensionUri,
-        panel.webview,
-        '/pdf?type=read',
-      );
+      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/pdf?type=read');
     } catch (error) {
       vscode.window.showErrorMessage(`PDF 预览打开失败: ${this.toErrorMessage(error)}`);
     }
@@ -320,16 +282,11 @@ export class FileNavigationService {
       const contentBytes = await vscode.workspace.fs.readFile(uri);
       const fileBase64 = Buffer.from(contentBytes).toString('base64');
 
-      const panel = vscode.window.createWebviewPanel(
-        'excelPreviewReact',
-        `${projectName}: ${fileName}`,
-        vscode.ViewColumn.Active,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [context.extensionUri],
-        },
-      );
+      const panel = vscode.window.createWebviewPanel('excelPreviewReact', `${projectName}: ${fileName}`, vscode.ViewColumn.Active, {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [context.extensionUri],
+      });
 
       this.activePanels.set(uri.toString(), panel);
 
@@ -350,18 +307,9 @@ export class FileNavigationService {
         });
       });
 
-      panel.iconPath = vscode.Uri.joinPath(
-        context.extensionUri,
-        'resources',
-        'icons',
-        'table.svg',
-      );
+      panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'table.svg');
 
-      panel.webview.html = getReactWebviewHtml(
-        context.extensionUri,
-        panel.webview,
-        '/xls?type=read',
-      );
+      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/xls?type=read');
     } catch (error) {
       vscode.window.showErrorMessage(`Excel 预览打开失败: ${this.toErrorMessage(error)}`);
     }
@@ -376,16 +324,11 @@ export class FileNavigationService {
       const projectName = this.getProjectName(uri);
       const ext = path.extname(uri.fsPath || uri.path).toLowerCase();
 
-      const panel = vscode.window.createWebviewPanel(
-        'docPreviewReact',
-        `${projectName}: ${fileName}`,
-        vscode.ViewColumn.Active,
-        {
-          enableScripts: true,
-          retainContextWhenHidden: true,
-          localResourceRoots: [context.extensionUri],
-        },
-      );
+      const panel = vscode.window.createWebviewPanel('docPreviewReact', `${projectName}: ${fileName}`, vscode.ViewColumn.Active, {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [context.extensionUri],
+      });
 
       this.activePanels.set(uri.toString(), panel);
 
@@ -428,18 +371,9 @@ export class FileNavigationService {
         }
       });
 
-      panel.iconPath = vscode.Uri.joinPath(
-        context.extensionUri,
-        'resources',
-        'icons',
-        'word.svg',
-      );
+      panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'word.svg');
 
-      panel.webview.html = getReactWebviewHtml(
-        context.extensionUri,
-        panel.webview,
-        '/doc?type=read',
-      );
+      panel.webview.html = getReactWebviewHtml(context.extensionUri, panel.webview, '/doc?type=read');
     } catch (error) {
       vscode.window.showErrorMessage(`Word 预览打开失败: ${this.toErrorMessage(error)}`);
     }

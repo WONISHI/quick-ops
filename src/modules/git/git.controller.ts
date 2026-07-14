@@ -1,13 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import ColorLog from '../../utils/ColorLog';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { GitService } from './git.service';
-import { GitWebviewProvider } from './providers/git-webview.provider';
-import { GitDetailWebviewProvider } from './providers/git-detail-webview.provider';
-import { GitVirtualContentProvider } from './providers/git-virtual-content.provider';
-import { GIT_COMMANDS, GIT_STATE_KEYS, GIT_VIEW_IDS } from './git.constant';
+import ColorLog from '@utils/ColorLog';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { GitService } from '@modules/git/git.service';
+import { GitWebviewProvider } from '@modules/git/providers/git-webview.provider';
+import { GitDetailWebviewProvider } from '@modules/git/providers/git-detail-webview.provider';
+import { GitVirtualContentProvider } from '@modules/git/providers/git-virtual-content.provider';
+import { GIT_COMMANDS, GIT_STATE_KEYS, GIT_VIEW_IDS } from '@modules/git/git.constant';
 
 export class GitController implements OnModuleInit {
   public static inject = [

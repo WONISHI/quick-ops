@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import ColorLog from '../../utils/ColorLog';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { EditorHistoryService } from './editor-history.service';
+import ColorLog from '@utils/ColorLog';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { EditorHistoryService } from '@modules/editor-history/editor-history.service';
 
 export class EditorHistoryController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, EditorHistoryService];

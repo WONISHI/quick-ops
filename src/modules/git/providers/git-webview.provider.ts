@@ -1,11 +1,11 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { execFile } from 'child_process';
-import { getReactWebviewHtml } from '../../../utils/WebviewHelper';
-import { ExtensionContextProvider } from '../../../common/providers/extension-context.provider';
-import { GitService } from '../git.service';
-import { GIT_VIEW_IDS, GIT_WEBVIEW_ROUTES } from '../git.constant';
-import type { GitFileItem } from '../git.type';
+import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { GitService } from '@modules/git/git.service';
+import { GIT_VIEW_IDS, GIT_WEBVIEW_ROUTES } from '@modules/git/git.constant';
+import type { GitFileItem } from '@modules/git/git.type';
 
 const GLOBAL_STATE_COMMIT_TYPE_ENABLED = 'quickOps.git.commitTypeEnabled';
 

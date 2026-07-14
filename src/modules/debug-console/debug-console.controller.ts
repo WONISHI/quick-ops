@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import ColorLog from '../../utils/ColorLog';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import { ConfigurationService } from '../../common/services/configuration.service';
-import { DebugConsoleService } from './debug-console.service';
+import ColorLog from '@utils/ColorLog';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { ConfigurationService } from '@common/services/configuration.service';
+import { DebugConsoleService } from '@modules/debug-console/debug-console.service';
 
 export class DebugConsoleController implements OnModuleInit {
   public static inject = [

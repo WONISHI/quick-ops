@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ConfigurationService } from '../../common/services/configuration.service';
+import { ConfigurationService } from '@common/services/configuration.service';
 
 interface CommonCommandItem {
   label: string;

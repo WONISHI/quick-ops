@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import type { GitService } from '../git.service';
+import type { GitService } from '@modules/git/git.service';
 
 interface GitVirtualContentQuery {
   cwd: string;

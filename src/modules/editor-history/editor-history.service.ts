@@ -1,10 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import type {
-  EditorHistoryOptions,
-  EditorHistoryRecord,
-  SwitchPreviousEditorOptions,
-} from './editor-history.type';
+import type { EditorHistoryOptions, EditorHistoryRecord, SwitchPreviousEditorOptions } from '@modules/editor-history/editor-history.type';
 
 export class EditorHistoryService {
   private readonly options: EditorHistoryOptions = {
@@ -25,7 +21,7 @@ export class EditorHistoryService {
 
     const record = this.createRecord(editor);
 
-    this.historyStack = this.historyStack.filter(item => item.uri !== uriString);
+    this.historyStack = this.historyStack.filter((item) => item.uri !== uriString);
     this.historyStack.unshift(record);
 
     if (this.historyStack.length > this.options.maxSize) {
@@ -33,9 +29,7 @@ export class EditorHistoryService {
     }
   }
 
-  public async switchToPreviousEditor(
-    options: SwitchPreviousEditorOptions = {},
-  ): Promise<void> {
+  public async switchToPreviousEditor(options: SwitchPreviousEditorOptions = {}): Promise<void> {
     if (this.historyStack.length < 2) {
       return;
     }
@@ -65,7 +59,7 @@ export class EditorHistoryService {
   }
 
   public remove(uri: string): void {
-    this.historyStack = this.historyStack.filter(item => item.uri !== uri);
+    this.historyStack = this.historyStack.filter((item) => item.uri !== uri);
   }
 
   public dispose(): void {

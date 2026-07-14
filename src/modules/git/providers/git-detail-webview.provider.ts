@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { execFile } from 'child_process';
-import { getReactWebviewHtml } from '../../../utils/WebviewHelper';
-import { ExtensionContextProvider } from '../../../common/providers/extension-context.provider';
-import { GitService } from '../git.service';
-import { GIT_WEBVIEW_ROUTES } from '../git.constant';
+import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import { GitService } from '@modules/git/git.service';
+import { GIT_WEBVIEW_ROUTES } from '@modules/git/git.constant';
 
 interface GitGraphLikeCommit {
   hash: string;

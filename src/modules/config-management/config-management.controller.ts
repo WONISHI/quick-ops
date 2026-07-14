@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import type { OnModuleInit } from '../../core/lifecycle/lifecycle.interface';
-import { ConfigurationService } from '../../common/services/configuration.service';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
+import { ConfigurationService } from '@common/services/configuration.service';
 
 export class ConfigManagementController implements OnModuleInit {
   public static inject = [ConfigurationService];
