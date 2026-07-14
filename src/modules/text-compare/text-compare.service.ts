@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 
 class CompareContentProvider implements vscode.TextDocumentContentProvider {
@@ -33,6 +33,7 @@ export class TextCompareService {
   public static inject = [ExtensionContextProvider];
 
   private readonly contentProvider = new CompareContentProvider();
+  private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
   private currentPanel: vscode.WebviewPanel | undefined;
 
   constructor(private readonly extensionContextProvider: ExtensionContextProvider) {}
@@ -61,37 +62,27 @@ export class TextCompareService {
       return;
     }
 
-    this.currentPanel = vscode.window.createWebviewPanel(
-      'quickOpsTextCompare',
-      '文本差异对比',
-      vscode.ViewColumn.Beside,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [context.extensionUri],
-      },
-    );
+    this.currentPanel = vscode.window.createWebviewPanel('quickOpsTextCompare', '文本差异对比', vscode.ViewColumn.Beside, {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [context.extensionUri],
+    });
 
-    this.currentPanel.iconPath = vscode.Uri.joinPath(
-      context.extensionUri,
-      'resources',
-      'icons',
-      'compare.svg',
-    );
+    this.currentPanel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'compare.svg');
 
     this.currentPanel.onDidDispose(() => {
       this.currentPanel = undefined;
     });
 
-    this.currentPanel.webview.onDidReceiveMessage(async message => {
+    this.currentPanel.webview.onDidReceiveMessage(async (message) => {
       await this.handleWebviewMessage(message, initialText);
     });
 
-    this.currentPanel.webview.html = getReactWebviewHtml(
-      context.extensionUri,
-      this.currentPanel.webview,
-      '/compare',
-    );
+    this.currentPanel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+      extensionUri: context.extensionUri,
+      webview: this.currentPanel.webview,
+      routeName: '/compare',
+    });
 
     if (initialText) {
       setTimeout(() => {
@@ -103,10 +94,7 @@ export class TextCompareService {
     }
   }
 
-  public async triggerNativeDiff(
-    original: string,
-    modified: string,
-  ): Promise<void> {
+  public async triggerNativeDiff(original: string, modified: string): Promise<void> {
     const timestamp = Date.now();
     const originalId = `original_${timestamp}`;
     const modifiedId = `modified_${timestamp}`;
@@ -126,16 +114,10 @@ export class TextCompareService {
       query: modifiedId,
     });
 
-    await vscode.commands.executeCommand(
-      'vscode.diff',
-      originalUri,
-      modifiedUri,
-      '差异对比 (左: 原文本 ↔ 右: 修改后)',
-      {
-        preview: true,
-        viewColumn: vscode.ViewColumn.Active,
-      },
-    );
+    await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, '差异对比 (左: 原文本 ↔ 右: 修改后)', {
+      preview: true,
+      viewColumn: vscode.ViewColumn.Active,
+    });
   }
 
   public dispose(): void {
@@ -144,10 +126,7 @@ export class TextCompareService {
     this.contentProvider.clear();
   }
 
-  private async handleWebviewMessage(
-    message: any,
-    initialText: string,
-  ): Promise<void> {
+  private async handleWebviewMessage(message: any, initialText: string): Promise<void> {
     if (!message) return;
 
     if (message.type === 'ready') {
@@ -167,9 +146,7 @@ export class TextCompareService {
     }
 
     if (message.type === 'toggleFullScreen') {
-      await vscode.commands.executeCommand(
-        'workbench.action.toggleMaximizeEditorGroup',
-      );
+      await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
     }
   }
 

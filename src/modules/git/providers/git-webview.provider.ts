@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { execFile } from 'child_process';
-import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { GitService } from '@modules/git/git.service';
 import { GIT_VIEW_IDS, GIT_WEBVIEW_ROUTES } from '@modules/git/git.constant';
@@ -61,6 +61,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
   private readonly _context: vscode.ExtensionContext;
   private readonly _extensionUri: vscode.Uri;
+  private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
 
   constructor(
     extensionContextProvider: ExtensionContextProvider,
@@ -334,13 +335,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         return true;
       }
 
-      const countText = unpushedInfo.unpushedCommitCount > 0
-        ? `当前分支还有 ${unpushedInfo.unpushedCommitCount} 个本地提交没有 push。`
-        : '当前分支存在本地提交没有 push。';
+      const countText = unpushedInfo.unpushedCommitCount > 0 ? `当前分支还有 ${unpushedInfo.unpushedCommitCount} 个本地提交没有 push。` : '当前分支存在本地提交没有 push。';
 
-      const upstreamText = unpushedInfo.hasUpstream
-        ? `远程跟踪分支：${unpushedInfo.upstream}`
-        : '当前分支尚未建立远程跟踪分支。';
+      const upstreamText = unpushedInfo.hasUpstream ? `远程跟踪分支：${unpushedInfo.upstream}` : '当前分支尚未建立远程跟踪分支。';
 
       const confirm = await vscode.window.showWarningMessage(
         `当前分支 [ ${unpushedInfo.currentBranch} ] 还有提交没有 push，确定要切换到 [ ${targetBranch} ] 吗？\n\n${countText}\n${upstreamText}\n\n建议先 push，避免切换后忘记当前分支还有未推送提交。`,
@@ -504,7 +501,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  public resolveWebviewView(webviewView: vscode.WebviewView, _context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken) {
+  public async resolveWebviewView(webviewView: vscode.WebviewView, _context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken): Promise<void> {
     this._view = webviewView;
 
     webviewView.webview.options = {
@@ -512,7 +509,11 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       localResourceRoots: [this._extensionUri],
     };
 
-    webviewView.webview.html = getReactWebviewHtml(this._extensionUri, webviewView.webview, GIT_WEBVIEW_ROUTES.main);
+    webviewView.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+      extensionUri: this._extensionUri,
+      webview: webviewView.webview,
+      routeName: GIT_WEBVIEW_ROUTES.main,
+    });
 
     void this.setupGitWatcher();
 
@@ -919,7 +920,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   const confirm = await vscode.window.showWarningMessage(
                     `确定要切换到远程分支 [ ${selected.remoteBranchName} ] 吗？\n\n此操作可能会改变当前工作区文件状态，请确认当前更改已保存或已处理。`,
                     { modal: true },
-                    '确认切换'
+                    '确认切换',
                   );
 
                   if (confirm !== '确认切换') {
@@ -1070,7 +1071,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   const confirm = await vscode.window.showWarningMessage(
                     `确定要从当前分支 [ ${currentBranch} ] 切换到 [ ${selected.branchName} ] 吗？\n\n此操作可能会改变当前工作区文件状态，请确认当前更改已保存或已处理。`,
                     { modal: true },
-                    '确认切换'
+                    '确认切换',
                   );
 
                   if (confirm !== '确认切换') {
@@ -1170,9 +1171,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               quickPick.items = items;
 
               const lastCheckoutSourceBranch = this._lastCheckoutSourceBranchByCwd.get(cwd);
-              const lastCheckoutSourceItem = lastCheckoutSourceBranch
-                ? items.find((item) => item.branchName === lastCheckoutSourceBranch)
-                : undefined;
+              const lastCheckoutSourceItem = lastCheckoutSourceBranch ? items.find((item) => item.branchName === lastCheckoutSourceBranch) : undefined;
 
               /**
                * 如果上一次切换来源分支已经被删除，就清掉缓存。
@@ -1214,7 +1213,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               const confirm = await vscode.window.showWarningMessage(
                 `确定要将分支 [ ${selected.branchName} ] 合并到当前分支 [ ${current} ] 吗？\n\n合并可能产生冲突，请确认当前工作区更改已保存或已处理。`,
                 { modal: true },
-                '确认合并'
+                '确认合并',
               );
 
               if (confirm !== '确认合并') {
@@ -1318,26 +1317,19 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               ): GraphFilterQuickPickItem => {
                 const isCurrentBranch = branchType === 'local' && branchName === options.currentBranch;
                 const isCurrentFilter =
-                  options.currentFilter === this.gitService.CURRENT_BRANCH_FILTER ||
-                  options.currentFilter === '当前分支'
+                  options.currentFilter === this.gitService.CURRENT_BRANCH_FILTER || options.currentFilter === '当前分支'
                     ? isCurrentBranch
                     : this.normalizeBranchOptionName(branchName) === options.currentFilter;
 
                 const meta = options.metaMap.get(branchName);
-                const localName = branchType === 'remote'
-                  ? this.gitService.getLocalNameFromRemoteBranch(branchName)
-                  : '';
-                const remoteDescription = branchType === 'remote' && options.localBranchSet.has(localName)
-                  ? `本地已存在：${localName}`
-                  : undefined;
+                const localName = branchType === 'remote' ? this.gitService.getLocalNameFromRemoteBranch(branchName) : '';
+                const remoteDescription = branchType === 'remote' && options.localBranchSet.has(localName) ? `本地已存在：${localName}` : undefined;
 
                 return {
                   iconPath: new vscode.ThemeIcon(branchType === 'remote' ? 'cloud' : 'git-branch'),
                   label: branchName,
                   description: meta?.relativeTime || (isCurrentBranch ? '当前分支' : remoteDescription),
-                  detail: meta
-                    ? `${meta.author} • ${meta.shortHash} • ${meta.subject || '无提交信息'}`
-                    : remoteDescription,
+                  detail: meta ? `${meta.author} • ${meta.shortHash} • ${meta.subject || '无提交信息'}` : remoteDescription,
                   branchName,
                   branchType,
                 };
@@ -1675,13 +1667,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   return metaMap;
                 };
 
-                const pickBranch = async (options: {
-                  title: string;
-                  placeholder: string;
-                  excludeBranch?: string;
-                  defaultBranch?: string;
-                  fetchRemote?: boolean;
-                }) => {
+                const pickBranch = async (options: { title: string; placeholder: string; excludeBranch?: string; defaultBranch?: string; fetchRemote?: boolean }) => {
                   const quickPick = vscode.window.createQuickPick<CompareBranchQuickPickItem>();
 
                   quickPick.title = options.title;
@@ -1706,31 +1692,21 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                         }
 
                         const meta = metaMap.get(branchName);
-                        const localName = branchType === 'remote'
-                          ? this.gitService.getLocalNameFromRemoteBranch(branchName)
-                          : '';
-                        const remoteDescription = branchType === 'remote' && localBranchSet.has(localName)
-                          ? `本地已存在：${localName}`
-                          : undefined;
+                        const localName = branchType === 'remote' ? this.gitService.getLocalNameFromRemoteBranch(branchName) : '';
+                        const remoteDescription = branchType === 'remote' && localBranchSet.has(localName) ? `本地已存在：${localName}` : undefined;
 
                         return {
                           iconPath: new vscode.ThemeIcon(branchType === 'remote' ? 'cloud' : 'git-branch'),
                           label: branchName,
                           description: meta?.relativeTime || (branchName === currentBranch ? '当前分支' : remoteDescription),
-                          detail: meta
-                            ? `${meta.author} • ${meta.shortHash} • ${meta.subject || '无提交信息'}`
-                            : remoteDescription,
+                          detail: meta ? `${meta.author} • ${meta.shortHash} • ${meta.subject || '无提交信息'}` : remoteDescription,
                           branchName,
                           branchType,
                         };
                       };
 
-                      const localItems = localBranches
-                        .map((branchName) => createItem(branchName, 'local'))
-                        .filter(Boolean) as CompareBranchQuickPickItem[];
-                      const remoteItems = remoteBranches
-                        .map((branchName) => createItem(branchName, 'remote'))
-                        .filter(Boolean) as CompareBranchQuickPickItem[];
+                      const localItems = localBranches.map((branchName) => createItem(branchName, 'local')).filter(Boolean) as CompareBranchQuickPickItem[];
+                      const remoteItems = remoteBranches.map((branchName) => createItem(branchName, 'remote')).filter(Boolean) as CompareBranchQuickPickItem[];
 
                       const items: CompareBranchQuickPickItem[] = [
                         {

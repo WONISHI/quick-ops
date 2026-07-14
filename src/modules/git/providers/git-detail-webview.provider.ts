@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { execFile } from 'child_process';
-import { getReactWebviewHtml } from '@utils/WebviewHelper';
+import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { GitService } from '@modules/git/git.service';
 import { GIT_WEBVIEW_ROUTES } from '@modules/git/git.constant';
@@ -33,6 +33,7 @@ export class GitDetailWebviewProvider {
   private _panel?: vscode.WebviewPanel;
 
   private readonly _extensionUri: vscode.Uri;
+  private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
 
   private _currentGraphFilter = '全部分支';
   private _lastGraphState = '';
@@ -57,7 +58,7 @@ export class GitDetailWebviewProvider {
     return this.gitService.getCurrentWorkingDir() || undefined;
   }
 
-  public open(_workingDir?: string): void {
+  public async open(_workingDir?: string): Promise<void> {
     if (this._panel) {
       this._panel.reveal(vscode.ViewColumn.Active);
 
@@ -70,16 +71,11 @@ export class GitDetailWebviewProvider {
       return;
     }
 
-    this._panel = vscode.window.createWebviewPanel(
-      'quickOps.gitDetail',
-      'Git 提交详情',
-      vscode.ViewColumn.Active,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [this._extensionUri],
-      },
-    );
+    this._panel = vscode.window.createWebviewPanel('quickOps.gitDetail', 'Git 提交详情', vscode.ViewColumn.Active, {
+      enableScripts: true,
+      retainContextWhenHidden: true,
+      localResourceRoots: [this._extensionUri],
+    });
 
     this._panel.onDidDispose(() => {
       this.disposeListeners();
@@ -149,7 +145,11 @@ export class GitDetailWebviewProvider {
       }
     });
 
-    this._panel.webview.html = getReactWebviewHtml(this._extensionUri, this._panel.webview, GIT_WEBVIEW_ROUTES.detail);
+    this._panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+      extensionUri: this._extensionUri,
+      webview: this._panel.webview,
+      routeName: GIT_WEBVIEW_ROUTES.detail,
+    });
     this._panel.iconPath = vscode.Uri.joinPath(this._extensionUri, 'resources', 'icons', 'git.svg');
 
     void this.setupGitWatcher();
@@ -174,12 +174,7 @@ export class GitDetailWebviewProvider {
 
     if (!cwd) return;
 
-    void this.postGraphData(
-      cwd,
-      graphFilter || this._currentGraphFilter,
-      options.silent ?? true,
-      options.fetchRemote ?? false,
-    );
+    void this.postGraphData(cwd, graphFilter || this._currentGraphFilter, options.silent ?? true, options.fetchRemote ?? false);
   }
 
   public dispose(): void {
@@ -389,17 +384,11 @@ export class GitDetailWebviewProvider {
   private async getWorkingTreeChangeCount(cwd: string) {
     const output = await this.runGitSafe(cwd, ['status', '--porcelain=v1', '-uall']);
 
-    return output
-      .split(/\r?\n/)
-      .filter((line) => line.trim()).length;
+    return output.split(/\r?\n/).filter((line) => line.trim()).length;
   }
 
   private async getStashRows(cwd: string): Promise<GitGraphLikeCommit[]> {
-    const stashListOutput = await this.runGitSafe(cwd, [
-      'stash',
-      'list',
-      '--format=%gd%x1f%H%x1f%ct%x1f%gs',
-    ]);
+    const stashListOutput = await this.runGitSafe(cwd, ['stash', 'list', '--format=%gd%x1f%H%x1f%ct%x1f%gs']);
 
     const stashLines = stashListOutput
       .split(/\r?\n/)
@@ -448,13 +437,7 @@ export class GitDetailWebviewProvider {
   }
 
   private getStashBaseParentHashes(stashRows: GitGraphLikeCommit[]) {
-    return Array.from(
-      new Set(
-        stashRows
-          .map((stashRow) => stashRow.parents?.[0])
-          .filter(Boolean) as string[],
-      ),
-    );
+    return Array.from(new Set(stashRows.map((stashRow) => stashRow.parents?.[0]).filter(Boolean) as string[]));
   }
 
   private async getUncommittedRow(cwd: string): Promise<GitGraphLikeCommit | null> {
@@ -481,46 +464,22 @@ export class GitDetailWebviewProvider {
   private getGraphArgs(graphFilter: string, extraRefs: string[] = []) {
     const pretty = '%H%x1f%P%x1f%ct%x1f%an%x1f%ae%x1f%D%x1f%s';
 
-    const commonArgs = [
-      'log',
-      '--date-order',
-      '--decorate=full',
-      '--parents',
-      `--pretty=${pretty}`,
-    ];
+    const commonArgs = ['log', '--date-order', '--decorate=full', '--parents', `--pretty=${pretty}`];
 
     const normalizedGraphFilter = this.normalizeGraphFilterName(graphFilter);
 
     if (normalizedGraphFilter === '全部分支') {
-      return [
-        ...commonArgs,
-        '--branches',
-        '--remotes',
-        '--tags',
-        ...extraRefs,
-      ];
+      return [...commonArgs, '--branches', '--remotes', '--tags', ...extraRefs];
     }
 
     if (!normalizedGraphFilter || normalizedGraphFilter === '当前分支') {
-      return [
-        ...commonArgs,
-        'HEAD',
-        ...extraRefs,
-      ];
+      return [...commonArgs, 'HEAD', ...extraRefs];
     }
 
-    return [
-      ...commonArgs,
-      normalizedGraphFilter,
-      ...extraRefs,
-    ];
+    return [...commonArgs, normalizedGraphFilter, ...extraRefs];
   }
 
-  private insertSpecialRows(
-    commits: GitGraphLikeCommit[],
-    stashRows: GitGraphLikeCommit[],
-    uncommittedRow: GitGraphLikeCommit | null,
-  ) {
+  private insertSpecialRows(commits: GitGraphLikeCommit[], stashRows: GitGraphLikeCommit[], uncommittedRow: GitGraphLikeCommit | null) {
     const result: GitGraphLikeCommit[] = [];
     const insertedStashIndexes = new Set<number>();
 
@@ -557,15 +516,9 @@ export class GitDetailWebviewProvider {
     const normalizedGraphFilter = this.normalizeGraphFilterName(graphFilter);
     const allStashRows = await this.getStashRows(cwd);
 
-    const extraRefs =
-      normalizedGraphFilter === '全部分支'
-        ? this.getStashBaseParentHashes(allStashRows)
-        : [];
+    const extraRefs = normalizedGraphFilter === '全部分支' ? this.getStashBaseParentHashes(allStashRows) : [];
 
-    const output = await this.runGit(
-      cwd,
-      this.getGraphArgs(normalizedGraphFilter, extraRefs),
-    );
+    const output = await this.runGit(cwd, this.getGraphArgs(normalizedGraphFilter, extraRefs));
 
     const commits = output
       .split(/\r?\n/)
@@ -592,10 +545,7 @@ export class GitDetailWebviewProvider {
     const seenKey = new Set<string>();
 
     rows.forEach((row) => {
-      const uniqueKey =
-        row.type === 'uncommitted'
-          ? row.hash
-          : `${row.type || 'commit'}:${row.hash}`;
+      const uniqueKey = row.type === 'uncommitted' ? row.hash : `${row.type || 'commit'}:${row.hash}`;
 
       if (seenKey.has(uniqueKey)) return;
 
@@ -612,22 +562,11 @@ export class GitDetailWebviewProvider {
 
   private async getGraphState(cwd: string) {
     try {
-      const stateOutput = await this.runGitSafe(cwd, [
-        'show-ref',
-        '--head',
-        '--dereference',
-      ]);
+      const stateOutput = await this.runGitSafe(cwd, ['show-ref', '--head', '--dereference']);
 
-      const statusOutput = await this.runGitSafe(cwd, [
-        'status',
-        '--porcelain=v1',
-      ]);
+      const statusOutput = await this.runGitSafe(cwd, ['status', '--porcelain=v1']);
 
-      const stashOutput = await this.runGitSafe(cwd, [
-        'stash',
-        'list',
-        '--format=%gd %H',
-      ]);
+      const stashOutput = await this.runGitSafe(cwd, ['stash', 'list', '--format=%gd %H']);
 
       return `${stateOutput}\n---STATUS---\n${statusOutput}\n---STASH---\n${stashOutput}`;
     } catch {
@@ -730,12 +669,7 @@ export class GitDetailWebviewProvider {
 
       if (pending) {
         setTimeout(() => {
-          void this.postGraphData(
-            pending.cwd,
-            pending.graphFilter,
-            pending.silent,
-            pending.fetchRemote,
-          );
+          void this.postGraphData(pending.cwd, pending.graphFilter, pending.silent, pending.fetchRemote);
         }, 0);
       }
     }
@@ -753,9 +687,7 @@ export class GitDetailWebviewProvider {
       const branchNames = await this.gitService.getAllBranches(cwd);
       const normalizedCurrent = this.normalizeGraphFilterName(current);
 
-      const normalizedBranchNames = Array.from(
-        new Set(branchNames.map((branchName) => this.normalizeBranchOptionName(branchName))),
-      );
+      const normalizedBranchNames = Array.from(new Set(branchNames.map((branchName) => this.normalizeBranchOptionName(branchName))));
 
       const items = [allOption, ...normalizedBranchNames].map((branchName) => ({
         label: branchName === normalizedCurrent ? `$(check) ${branchName}` : branchName,
@@ -831,13 +763,7 @@ export class GitDetailWebviewProvider {
     });
   }
 
-  private async openCommitFileDiff(
-    cwd: string,
-    hash: string,
-    parentHash: string | undefined,
-    file: string,
-    status: string,
-  ) {
+  private async openCommitFileDiff(cwd: string, hash: string, parentHash: string | undefined, file: string, status: string) {
     if (!hash || !file) return;
 
     if (hash === '__WORKING_TREE__') {

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import type { WebviewCreatedPayload, WebviewIcon } from '@plugins/webview-enhancer/type';
 import { WORKSPACE_EVENTS } from '@workflow/workspace-events/type';
+import type { WebviewCreatedPayload, WebviewIcon } from '@plugins/webview-enhancer/type';
 import type { WorkspaceOn, WebviewAppearancePluginInitOptions } from '@plugins/webview-enhancer/type';
 
 const ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT = 'quickOps.activeWebview.fullscreen';
