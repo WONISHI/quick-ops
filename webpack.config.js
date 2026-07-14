@@ -12,16 +12,21 @@ const npm_lifecycle_script = process.env.npm_lifecycle_script || '';
 /**
  * 注意：
  * 调试时不要因为 script 名称里有 build 就强制 production。
- * 你可以通过 NODE_ENV=production 或 npm run package / production 来启用生产压缩。
+ * 可以通过 NODE_ENV=production 或 npm run package / production
+ * 来启用生产压缩。
  */
 const isProduction = process.env.NODE_ENV === 'production' || npm_lifecycle_script.includes('production') || npm_lifecycle_script.includes('package');
 
 const isAnalyze = process.env.ANALYZE === 'true';
 
-// @ts-ignore
+/**
+ * 去除 JSON / JSONC 文件中的注释。
+ *
+ * @param {string} jsonString
+ * @returns {string}
+ */
 function stripJsonComments(jsonString) {
-  // @ts-ignore
-  return jsonString.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (m, g) => (g ? '' : m));
+  return jsonString.replace(/\\"|"(?:\\"|[^"])*"|(\/\/.*|\/\*[\s\S]*?\*\/)/g, (match, comment) => (comment ? '' : match));
 }
 
 /** @type {any[]} */
@@ -29,6 +34,22 @@ const plugins = [
   new webpack.IgnorePlugin({
     resourceRegExp:
       /^(atpl|bracket-template|dot|dust|eco|ect|haml|hamlet|haml-coffee|hogan\.js|htmling|jade|jazz|jqtpl|just|liquor|marko|mote|mustache|nunjucks|plates|pug|qejs|ractive|razor-tmpl|react|react-dom|react-dom\/server|slm|squirrelly|swig|swig-templates|teacup|teacup\/lib\/express|templayed|then-jade|then-pug|toffee|twig|twing|tinyliquid|liquid-node|dustjs-helpers|dustjs-linkedin|ejs|hamljs|handlebars|babel-core|coffee-script|underscore|vash|velocityjs|walrus|whiskers|arc-templates\/dist\/es5|kerberos|proxy-agent)$/,
+  }),
+
+  /**
+   * 将所有异步 Chunk 合并到入口 Chunk。
+   *
+   * 最终 dist 中只生成：
+   * dist/extension.js
+   *
+   * 不再生成：
+   * dist/353.js
+   * dist/461.js
+   * dist/vendors-xxx.js
+   * dist/node_modules_xxx.js
+   */
+  new webpack.optimize.LimitChunkCountPlugin({
+    maxChunks: 1,
   }),
 
   new CopyPlugin({
@@ -84,6 +105,15 @@ const extensionConfig = {
     path: path.resolve(__dirname, 'dist'),
     filename: '[name].js',
     libraryTarget: 'commonjs',
+
+    /**
+     * 每次构建前清理 dist。
+     *
+     * 这是必须增加的，否则旧的 353.js、vendors-xxx.js 等文件
+     * 即使本次不再生成，也可能继续残留在 dist 中并被 vsce 打包。
+     */
+    clean: true,
+
     devtoolModuleFilenameTemplate: (info) => {
       return `webpack://quick-ops/${info.resourcePath.replace(/\\/g, '/')}`;
     },
@@ -101,6 +131,13 @@ const extensionConfig = {
 
   cache: {
     type: 'filesystem',
+
+    /**
+     * webpack.config.js 变化后让文件缓存正确失效。
+     */
+    buildDependencies: {
+      config: [__filename],
+    },
   },
 
   resolve: {
@@ -112,8 +149,8 @@ const extensionConfig = {
       '@common': path.resolve(__dirname, 'src/common'),
       '@modules': path.resolve(__dirname, 'src/modules'),
       '@utils': path.resolve(__dirname, 'src/utils'),
-      '@workflow': path.resolve(__dirname, './src/workflow'),
-      '@plugins': path.resolve(__dirname, './src/plugins'),
+      '@workflow': path.resolve(__dirname, 'src/workflow'),
+      '@plugins': path.resolve(__dirname, 'src/plugins'),
       lodash: 'lodash-es',
     },
   },
@@ -153,16 +190,13 @@ const extensionConfig = {
   devtool: isProduction ? false : 'source-map',
 
   optimization: {
-    /**
-     * 调试时必须关掉，不然类名会变成 l / n / r 这种。
-     */
+    splitChunks: false,
+    runtimeChunk: false,
+
     concatenateModules: isProduction,
     minimize: isProduction,
     usedExports: isProduction,
 
-    /**
-     * 调试时让模块名更清楚。
-     */
     moduleIds: isProduction ? 'deterministic' : 'named',
     chunkIds: isProduction ? 'deterministic' : 'named',
 
@@ -183,6 +217,12 @@ const extensionConfig = {
           },
           compress: {
             keep_fnames: true,
+            passes: 2,
+          },
+
+          format: {
+            comments: false,
+            beautify: false,
           },
         },
       }),

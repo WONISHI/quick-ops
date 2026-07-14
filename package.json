@@ -715,7 +715,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run build:all",
-    "compile": "webpack --mode development",
+    "compile": "npm run compile:ext",
     "compile:ext": "webpack --mode development",
     "compile:ui": "cd webview-ui && npm run build",
     "compile:all": "concurrently -c \"cyan.bold,green.bold\" -n \"EXT,UI\" \"npm run compile:ext\" \"npm run compile:ui\"",
