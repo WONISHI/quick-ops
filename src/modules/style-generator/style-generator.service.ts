@@ -14,16 +14,12 @@ export class StyleGeneratorService {
     const langId = document.languageId;
 
     try {
-      const { StyleStructureParser } = await import(
-        '../../utils/StyleStructureParser'
-      );
+      const { StyleStructureParser } = await import('../../utils/StyleStructureParser');
 
       const scssString = await StyleStructureParser.parse(text, langId);
 
       if (!scssString) {
-        vscode.window.showInformationMessage(
-          '未找到有效的 HTML/JSX 结构 (需要包含 class 或 id)',
-        );
+        vscode.window.showInformationMessage('未找到有效的 HTML/JSX 结构 (需要包含 class 或 id)');
         return;
       }
 
