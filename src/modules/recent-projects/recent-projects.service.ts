@@ -1,16 +1,18 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as https from 'https';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { ExtensionContextProvider } from '../../common/providers/extension-context.provider';
-import type {
-  CompareSelection,
-  RecentProjectItem,
-  RecentProjectPlatform,
-  RemoteProjectParseResult,
-} from './recent-projects.type';
+import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import type { CompareSelection, RecentProjectItem, RecentProjectPlatform, RemoteProjectParseResult } from '@modules/recent-projects/recent-projects.type';
 
 const execFileAsync = promisify(execFile);
+
+interface RemoteProjectInfo {
+  platform: RecentProjectPlatform;
+  domain: string;
+  repoFullName: string;
+}
 
 export class RecentProjectsService {
   public static inject = [ExtensionContextProvider];
@@ -18,12 +20,10 @@ export class RecentProjectsService {
   private readonly storageKey = 'quickOps.recentProjects';
 
   /**
-   * @description 兼容重构前可能使用过的历史 key。
-   *
-   * 如果新 key 读取不到数据，会尝试从旧 key 中恢复，
-   * 并自动迁移到 quickOps.recentProjects。
+   * @description 兼容重构前使用过的历史 key。
    */
   private readonly legacyStorageKeys = [
+    'quickOps.recentProjectsHistory',
     'recentProjects',
     'quickOps.recentProjectList',
     'quickOps.recent-projects',
@@ -32,37 +32,30 @@ export class RecentProjectsService {
 
   private compareSelection: CompareSelection | undefined;
 
-  constructor(
-    private readonly extensionContextProvider: ExtensionContextProvider,
-  ) {}
+  constructor(private readonly extensionContextProvider: ExtensionContextProvider) {}
 
   public getRecentProjects(): RecentProjectItem[] {
     const context = this.extensionContextProvider.getContext();
-
-    const currentProjects = context.globalState.get<RecentProjectItem[]>(
-      this.storageKey,
-      [],
-    );
+    const currentProjects = context.globalState.get<RecentProjectItem[]>(this.storageKey, []);
 
     if (Array.isArray(currentProjects) && currentProjects.length > 0) {
-      return this.sortProjects(currentProjects);
+      return this.sortProjects(currentProjects.map((project) => this.normalizeProject(project)));
     }
 
     for (const legacyKey of this.legacyStorageKeys) {
-      const legacyProjects = context.globalState.get<RecentProjectItem[]>(
-        legacyKey,
-        [],
-      );
+      const legacyProjects = context.globalState.get<RecentProjectItem[]>(legacyKey, []);
 
-      if (Array.isArray(legacyProjects) && legacyProjects.length > 0) {
-        const normalizedProjects = legacyProjects.map(project => {
-          return this.normalizeProject(project);
-        });
-
-        void context.globalState.update(this.storageKey, normalizedProjects);
-
-        return this.sortProjects(normalizedProjects);
+      if (!Array.isArray(legacyProjects) || legacyProjects.length === 0) {
+        continue;
       }
+
+      const normalizedProjects = legacyProjects.map((project) => {
+        return this.normalizeProject(project);
+      });
+
+      void context.globalState.update(this.storageKey, normalizedProjects);
+
+      return this.sortProjects(normalizedProjects);
     }
 
     return [];
@@ -70,47 +63,36 @@ export class RecentProjectsService {
 
   public async saveRecentProjects(projects: RecentProjectItem[]): Promise<void> {
     const context = this.extensionContextProvider.getContext();
-
-    const normalizedProjects = projects.map(project => {
+    const normalizedProjects = projects.map((project) => {
       return this.normalizeProject(project);
     });
 
-    await context.globalState.update(
-      this.storageKey,
-      this.sortProjects(normalizedProjects),
-    );
+    await context.globalState.update(this.storageKey, this.sortProjects(normalizedProjects));
   }
 
-  public async insertProjectToHistory(
-    name: string,
-    fsPath: string,
-    platform: RecentProjectPlatform = 'local',
-    customDomain?: string,
-  ): Promise<RecentProjectItem> {
+  public async insertProjectToHistory(name: string, fsPath: string, platform: RecentProjectPlatform = 'local', customDomain?: string): Promise<RecentProjectItem> {
     const projects = this.getRecentProjects();
     const normalizedPath = this.normalizeProjectPath(fsPath);
     const now = Date.now();
 
-    const existed = projects.find(project => {
+    const existed = projects.find((project) => {
       return this.normalizeProjectPath(project.fsPath) === normalizedPath;
     });
 
     if (existed) {
-      const updatedProject: RecentProjectItem = {
+      const updatedProject: RecentProjectItem = this.normalizeProject({
         ...existed,
         name: name || existed.name,
         fsPath,
         platform,
         customDomain,
+        updatedAt: now,
         lastOpenedAt: now,
-      };
+        timestamp: now,
+      });
 
-      const nextProjects = projects.map(project => {
-        if (this.normalizeProjectPath(project.fsPath) !== normalizedPath) {
-          return project;
-        }
-
-        return updatedProject;
+      const nextProjects = projects.map((project) => {
+        return this.normalizeProjectPath(project.fsPath) === normalizedPath ? updatedProject : project;
       });
 
       await this.saveRecentProjects(nextProjects);
@@ -124,6 +106,7 @@ export class RecentProjectsService {
       fsPath,
       platform,
       customDomain,
+      timestamp: now,
       createdAt: now,
       lastOpenedAt: now,
     };
@@ -133,24 +116,25 @@ export class RecentProjectsService {
     return project;
   }
 
-  public async updateProject(
-    fsPath: string,
-    patch: Partial<RecentProjectItem>,
-  ): Promise<RecentProjectItem | undefined> {
+  public async updateProject(fsPath: string, patch: Partial<RecentProjectItem>): Promise<RecentProjectItem | undefined> {
     const normalizedPath = this.normalizeProjectPath(fsPath);
     let updatedProject: RecentProjectItem | undefined;
 
-    const projects = this.getRecentProjects().map(project => {
+    const projects = this.getRecentProjects().map((project) => {
       if (this.normalizeProjectPath(project.fsPath) !== normalizedPath) {
         return project;
       }
+
+      const now = Date.now();
 
       updatedProject = this.normalizeProject({
         ...project,
         ...patch,
         id: patch.id || project.id,
         createdAt: patch.createdAt || project.createdAt,
-        lastOpenedAt: patch.lastOpenedAt || Date.now(),
+        updatedAt: patch.updatedAt || now,
+        lastOpenedAt: patch.lastOpenedAt || project.lastOpenedAt || now,
+        timestamp: patch.timestamp || project.timestamp || now,
       });
 
       return updatedProject;
@@ -163,8 +147,7 @@ export class RecentProjectsService {
 
   public async removeProject(fsPath: string): Promise<void> {
     const normalizedPath = this.normalizeProjectPath(fsPath);
-
-    const projects = this.getRecentProjects().filter(project => {
+    const projects = this.getRecentProjects().filter((project) => {
       return this.normalizeProjectPath(project.fsPath) !== normalizedPath;
     });
 
@@ -172,8 +155,11 @@ export class RecentProjectsService {
   }
 
   public async touchProject(fsPath: string): Promise<void> {
+    const now = Date.now();
+
     await this.updateProject(fsPath, {
-      lastOpenedAt: Date.now(),
+      timestamp: now,
+      lastOpenedAt: now,
     });
   }
 
@@ -191,12 +177,8 @@ export class RecentProjectsService {
     if (!uri) return undefined;
 
     const uriStr = uri.toString();
-
-    const existed = this.getRecentProjects().some(project => {
-      return (
-        this.normalizeProjectPath(project.fsPath) ===
-        this.normalizeProjectPath(uriStr)
-      );
+    const existed = this.getRecentProjects().some((project) => {
+      return this.normalizeProjectPath(project.fsPath) === this.normalizeProjectPath(uriStr);
     });
 
     if (existed) {
@@ -205,12 +187,7 @@ export class RecentProjectsService {
     }
 
     const folderName = path.basename(uri.fsPath) || '本地项目';
-
-    const project = await this.insertProjectToHistory(
-      folderName,
-      uriStr,
-      'local',
-    );
+    const project = await this.insertProjectToHistory(folderName, uriStr, 'local');
 
     vscode.window.showInformationMessage(`✅ 已添加本地项目: ${folderName}`);
 
@@ -220,11 +197,10 @@ export class RecentProjectsService {
   public async addRemoteProject(): Promise<RecentProjectItem | undefined> {
     const input = await vscode.window.showInputBox({
       title: '添加远程仓库',
-      placeHolder:
-        'GitHub/GitLab/Gitee 地址，例如 owner/repo 或 https://github.com/owner/repo',
+      placeHolder: 'GitHub/GitLab/Gitee 地址，例如 owner/repo 或 https://github.com/owner/repo',
       prompt: '输入远程仓库地址',
       ignoreFocusOut: true,
-      validateInput: value => {
+      validateInput: (value) => {
         return value.trim() ? null : '远程仓库地址不能为空';
       },
     });
@@ -238,11 +214,8 @@ export class RecentProjectsService {
       return undefined;
     }
 
-    const existed = this.getRecentProjects().some(project => {
-      return (
-        this.normalizeProjectPath(project.fsPath) ===
-        this.normalizeProjectPath(parsed.targetUriStr)
-      );
+    const existed = this.getRecentProjects().some((project) => {
+      return this.normalizeProjectPath(project.fsPath) === this.normalizeProjectPath(parsed.targetUriStr);
     });
 
     if (existed) {
@@ -254,19 +227,14 @@ export class RecentProjectsService {
       title: '确认远程项目名称',
       value: parsed.repoFullName.split('/').pop() || parsed.repoFullName,
       ignoreFocusOut: true,
-      validateInput: value => {
+      validateInput: (value) => {
         return value.trim() ? null : '项目名称不能为空';
       },
     });
 
     if (!projectName) return undefined;
 
-    const project = await this.insertProjectToHistory(
-      projectName.trim(),
-      parsed.targetUriStr,
-      parsed.platform,
-      parsed.customDomain,
-    );
+    const project = await this.insertProjectToHistory(projectName.trim(), parsed.targetUriStr, parsed.platform, parsed.customDomain);
 
     vscode.window.showInformationMessage(`✅ 已添加远程项目: ${projectName}`);
 
@@ -285,7 +253,6 @@ export class RecentProjectsService {
     if (answer !== '清空') return;
 
     await this.saveRecentProjects([]);
-
     vscode.window.showInformationMessage('最近项目列表已清空');
   }
 
@@ -303,6 +270,7 @@ export class RecentProjectsService {
     if (simpleRepoMatch) {
       repoFullName = simpleRepoMatch[1];
       platform = 'github';
+      customDomain = 'github';
     } else if (/^git@/i.test(value)) {
       const match = value.match(/^git@([^:]+):(.+?)(?:\.git)?$/i);
 
@@ -348,41 +316,101 @@ export class RecentProjectsService {
 
   public async syncAllBranches(): Promise<void> {
     const projects = this.getRecentProjects();
+    const nextProjects: RecentProjectItem[] = [];
 
-    const nextProjects = await Promise.all(
-      projects.map(async project => {
-        if (this.isRemoteProject(project)) {
-          return project;
-        }
+    for (const project of projects) {
+      const branch = await this.resolveProjectBranch(project);
 
-        const uri = this.toUri(project.fsPath);
-
-        if (!uri || uri.scheme !== 'file') {
-          return project;
-        }
-
-        const branch = await this.getGitBranch(uri.fsPath);
-
-        return {
-          ...project,
-          branch: branch || project.branch,
-        };
-      }),
-    );
+      nextProjects.push({
+        ...project,
+        branch: branch || project.branch,
+      });
+    }
 
     await this.saveRecentProjects(nextProjects);
   }
 
-  public selectForCompare(uri: string): void {
+  public async updateSingleBranch(fsPath: string): Promise<string | undefined> {
+    const project = this.getRecentProjects().find((item) => {
+      return this.normalizeProjectPath(item.fsPath) === this.normalizeProjectPath(fsPath);
+    });
+
+    if (!project) return undefined;
+
+    const branch = await this.resolveProjectBranch(project);
+
+    await this.updateProject(fsPath, {
+      branch,
+    });
+
+    return branch;
+  }
+
+  public async getRemoteBranches(project: RecentProjectItem): Promise<string[]> {
+    const info = this.parseRemoteProject(project);
+
+    if (!info) return [];
+
+    const token = vscode.workspace.getConfiguration('quickOps.git').get<string>('githubToken');
+
+    const headers: Record<string, string> = {
+      'User-Agent': 'VSCode-QuickOps-Extension',
+    };
+
+    if (token && info.platform !== 'gitlab') {
+      headers.Authorization = `token ${token}`;
+    }
+
+    if (info.platform === 'gitlab') {
+      const hostname = this.resolveGitLabApiHostname(info.domain);
+      const projectPath = encodeURIComponent(info.repoFullName);
+      const result = await this.requestJson<any[]>({
+        hostname,
+        path: `/api/v4/projects/${projectPath}/repository/branches?per_page=100`,
+        headers,
+      });
+
+      return Array.isArray(result) ? result.map((item) => String(item?.name || '')).filter(Boolean) : [];
+    }
+
+    if (info.platform === 'github') {
+      const hostname = this.resolveGitHubApiHostname(info.domain);
+      const result = await this.requestJson<any[]>({
+        hostname,
+        path: `/repos/${info.repoFullName}/branches?per_page=100`,
+        headers,
+      });
+
+      return Array.isArray(result) ? result.map((item) => String(item?.name || '')).filter(Boolean) : [];
+    }
+
+    return [];
+  }
+
+  public withRemoteBranch(fsPath: string, branch: string): string {
+    try {
+      const uri = vscode.Uri.parse(fsPath);
+      const params = new URLSearchParams(uri.query);
+
+      params.set('ref', branch);
+
+      return uri.with({ query: params.toString() }).toString();
+    } catch {
+      return fsPath;
+    }
+  }
+
+  public selectForCompare(uri: string, displayName?: string): void {
     this.compareSelection = {
       uri,
+      displayName,
       selectedAt: Date.now(),
     };
 
-    vscode.window.showInformationMessage('已选择比较源，请再选择一个文件进行比较');
+    vscode.window.showInformationMessage(displayName ? `已选择 “${displayName}” 进行比较` : '已选择比较源，请再选择一个文件进行比较');
   }
 
-  public async compareWithSelected(targetUri: string): Promise<void> {
+  public async compareWithSelected(targetUri: string, targetDisplayName?: string): Promise<void> {
     if (!this.compareSelection) {
       vscode.window.showWarningMessage('请先选择一个文件作为比较源');
       return;
@@ -396,21 +424,17 @@ export class RecentProjectsService {
       return;
     }
 
-    await vscode.commands.executeCommand(
-      'vscode.diff',
-      sourceUri,
-      target,
-      `${path.basename(sourceUri.path)} ↔ ${path.basename(target.path)}`,
-    );
+    const sourceName = this.compareSelection.displayName || path.basename(sourceUri.path);
+    const targetName = targetDisplayName || path.basename(target.path);
 
-    this.compareSelection = undefined;
+    await vscode.commands.executeCommand('vscode.diff', sourceUri, target, `${sourceName} ↔ ${targetName}`);
   }
 
   public toUri(value: string): vscode.Uri | undefined {
     if (!value) return undefined;
 
     try {
-      if (value.includes('://')) {
+      if (/^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(value)) {
         return vscode.Uri.parse(value);
       }
 
@@ -421,7 +445,7 @@ export class RecentProjectsService {
   }
 
   public normalizeProjectPath(value: string): string {
-    return value.trim().replace(/\\/g, '/').replace(/\/+$/, '');
+    return value.trim().split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
   }
 
   public isRemoteProject(project: RecentProjectItem): boolean {
@@ -430,8 +454,144 @@ export class RecentProjectsService {
     return !project.fsPath.startsWith('file:') && project.fsPath.includes('://');
   }
 
+  private async resolveProjectBranch(project: RecentProjectItem): Promise<string | undefined> {
+    if (this.isRemoteProject(project)) {
+      const refMatch = project.fsPath.match(/[?&]ref=([^&]+)/);
+
+      if (refMatch) {
+        return decodeURIComponent(refMatch[1]);
+      }
+
+      return this.fetchDefaultBranch(project);
+    }
+
+    const uri = this.toUri(project.fsPath);
+
+    if (!uri || uri.scheme !== 'file') return undefined;
+
+    return this.getGitBranch(uri.fsPath);
+  }
+
+  private async fetchDefaultBranch(project: RecentProjectItem): Promise<string | undefined> {
+    const info = this.parseRemoteProject(project);
+
+    if (!info) return undefined;
+
+    const token = vscode.workspace.getConfiguration('quickOps.git').get<string>('githubToken');
+
+    const headers: Record<string, string> = {
+      'User-Agent': 'VSCode-QuickOps-Extension',
+    };
+
+    if (token && info.platform !== 'gitlab') {
+      headers.Authorization = `token ${token}`;
+    }
+
+    if (info.platform === 'gitlab') {
+      const hostname = this.resolveGitLabApiHostname(info.domain);
+      const projectPath = encodeURIComponent(info.repoFullName);
+      const result = await this.requestJson<any>({
+        hostname,
+        path: `/api/v4/projects/${projectPath}`,
+        headers,
+      });
+
+      return String(result?.default_branch || '') || undefined;
+    }
+
+    if (info.platform === 'github') {
+      const hostname = this.resolveGitHubApiHostname(info.domain);
+      const result = await this.requestJson<any>({
+        hostname,
+        path: `/repos/${info.repoFullName}`,
+        headers,
+      });
+
+      return String(result?.default_branch || '') || undefined;
+    }
+
+    return undefined;
+  }
+
+  private parseRemoteProject(project: RecentProjectItem): RemoteProjectInfo | undefined {
+    const fsPath = String(project.fsPath || '').trim();
+
+    if (!fsPath) return undefined;
+
+    try {
+      const uri = vscode.Uri.parse(fsPath);
+      const platform = project.platform || this.detectRemotePlatform(uri.authority);
+      const domain = project.customDomain || uri.authority;
+      const repoFullName = uri.path.replace(/^\/+/, '').replace(/\.git$/i, '');
+
+      if (!repoFullName || !repoFullName.includes('/')) return undefined;
+
+      return {
+        platform,
+        domain,
+        repoFullName,
+      };
+    } catch {
+      return undefined;
+    }
+  }
+
+  private resolveGitHubApiHostname(domain: string): string {
+    const value = String(domain || '').toLowerCase();
+
+    if (!value || value === 'github' || value === 'github.com') {
+      return 'api.github.com';
+    }
+
+    return domain;
+  }
+
+  private resolveGitLabApiHostname(domain: string): string {
+    const value = String(domain || '').toLowerCase();
+
+    if (!value || value === 'gitlab' || value === 'gitlab.com') {
+      return 'gitlab.com';
+    }
+
+    return domain;
+  }
+
+  private requestJson<T>(options: https.RequestOptions): Promise<T | undefined> {
+    return new Promise((resolve) => {
+      const request = https.get(options, (response) => {
+        let data = '';
+
+        response.on('data', (chunk) => {
+          data += chunk;
+        });
+
+        response.on('end', () => {
+          if (!response.statusCode || response.statusCode < 200 || response.statusCode >= 300) {
+            resolve(undefined);
+            return;
+          }
+
+          try {
+            resolve(JSON.parse(data) as T);
+          } catch {
+            resolve(undefined);
+          }
+        });
+      });
+
+      request.on('error', () => resolve(undefined));
+      request.setTimeout(10_000, () => {
+        request.destroy();
+        resolve(undefined);
+      });
+    });
+  }
+
   private normalizeProject(project: RecentProjectItem): RecentProjectItem {
     const now = Date.now();
+    const legacyTimestamp = Number(project.timestamp || 0);
+    const createdAt = Number(project.createdAt || legacyTimestamp || now);
+    const lastOpenedAt = Number(project.lastOpenedAt || project.updatedAt || legacyTimestamp || createdAt);
 
     return {
       ...project,
@@ -439,8 +599,9 @@ export class RecentProjectsService {
       name: project.name || this.getNameFromPath(project.fsPath),
       fsPath: project.fsPath,
       platform: project.platform || this.resolvePlatformByPath(project.fsPath),
-      createdAt: project.createdAt || now,
-      lastOpenedAt: project.lastOpenedAt || now,
+      timestamp: legacyTimestamp || lastOpenedAt,
+      createdAt,
+      lastOpenedAt,
     };
   }
 
@@ -449,9 +610,11 @@ export class RecentProjectsService {
       return 'local';
     }
 
-    if (fsPath.includes('github.com')) return 'github';
-    if (fsPath.includes('gitlab.com')) return 'gitlab';
-    if (fsPath.includes('gitee.com')) return 'gitee';
+    const value = fsPath.toLowerCase();
+
+    if (value.includes('github')) return 'github';
+    if (value.includes('gitlab')) return 'gitlab';
+    if (value.includes('gitee')) return 'gitee';
 
     return 'remote';
   }
@@ -473,32 +636,36 @@ export class RecentProjectsService {
   }
 
   private detectRemotePlatform(domain: string): RecentProjectPlatform {
-    const lower = domain.toLowerCase();
+    const lower = String(domain || '').toLowerCase();
 
-    if (lower.includes('github.com')) return 'github';
-    if (lower.includes('gitlab.com')) return 'gitlab';
-    if (lower.includes('gitee.com')) return 'gitee';
+    if (lower === 'github' || lower.includes('github.com')) return 'github';
+    if (lower === 'gitlab' || lower.includes('gitlab.com')) return 'gitlab';
+    if (lower === 'gitee' || lower.includes('gitee.com')) return 'gitee';
 
     return 'remote';
   }
 
   private sortProjects(projects: RecentProjectItem[]): RecentProjectItem[] {
     return [...projects].sort((a, b) => {
-      return (b.lastOpenedAt || 0) - (a.lastOpenedAt || 0);
+      return (b.lastOpenedAt || b.timestamp || 0) - (a.lastOpenedAt || a.timestamp || 0);
     });
   }
 
   private async getGitBranch(cwd: string): Promise<string> {
     try {
-      const { stdout } = await execFileAsync(
-        'git',
-        ['branch', '--show-current'],
-        {
-          cwd,
-        },
-      );
+      const { stdout } = await execFileAsync('git', ['branch', '--show-current'], {
+        cwd,
+      });
 
-      return stdout.trim();
+      const branch = String(stdout).trim();
+
+      if (branch) return branch;
+
+      const { stdout: commit } = await execFileAsync('git', ['rev-parse', '--short', 'HEAD'], {
+        cwd,
+      });
+
+      return String(commit).trim();
     } catch {
       return '';
     }

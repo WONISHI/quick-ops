@@ -10,6 +10,11 @@ export type RecentProjectPlatform =
 
 export type GitFileStatus = 'M' | 'U' | 'A' | 'D' | 'R' | 'C';
 
+export interface DiagnosticSummary {
+  errors: number;
+  warnings: number;
+}
+
 export interface RecentProjectItem {
   id: string;
   name: string;
@@ -18,6 +23,10 @@ export interface RecentProjectItem {
   platform?: RecentProjectPlatform;
   customDomain?: string;
   branch?: string;
+  status?: GitFileStatus | string;
+  diagnostics?: DiagnosticSummary;
+  /** 兼容 master 历史数据。 */
+  timestamp?: number;
   createdAt: number;
   updatedAt?: number;
   lastOpenedAt: number;
@@ -29,10 +38,7 @@ export interface RecentProjectFileItem {
   isFolder: boolean;
   relativePath?: string;
   status?: GitFileStatus | string;
-  diagnostics?: {
-    errors: number;
-    warnings: number;
-  };
+  diagnostics?: DiagnosticSummary;
 }
 
 export interface RemoteProjectParseResult {
@@ -44,6 +50,7 @@ export interface RemoteProjectParseResult {
 
 export interface CompareSelection {
   uri: string;
+  displayName?: string;
   selectedAt: number;
 }
 
@@ -52,6 +59,18 @@ export interface PendingOpenFile {
   line: number;
   char: number;
   targetWorkspace?: string;
+}
+
+export interface FocusLockState {
+  enabled: boolean;
+  fsPath?: string;
+  name?: string;
+}
+
+export interface MetadataPatchItem {
+  path: string;
+  status?: GitFileStatus | string;
+  diagnostics: DiagnosticSummary;
 }
 
 export interface RecentProjectsWebviewMessage {
@@ -66,6 +85,7 @@ export interface RecentProjectsWebviewMessage {
 
   oldPath?: string;
   newPath?: string;
+  newName?: string;
 
   sourceFsPath?: string;
   sourcePath?: string;
@@ -83,8 +103,13 @@ export interface RecentProjectsWebviewMessage {
   branch?: string;
 
   refreshExpandedTree?: boolean;
+  forceRefresh?: boolean;
   focusOnly?: boolean;
   isFolder?: boolean;
+  isRemote?: boolean;
+  isActiveProject?: boolean;
+  visible?: boolean;
+  line?: number;
 
   visibleProjectPaths?: string[];
 
