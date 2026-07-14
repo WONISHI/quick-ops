@@ -1,6 +1,6 @@
 import type * as vscode from 'vscode';
 
-export type EditorHistoryCommand = 'quick-ops.switchPreviousEditor';
+export type EditorHistoryCommand = 'quickOps.switchPreviousEditor';
 
 export interface EditorHistoryRecord {
   uri: string;

@@ -22,7 +22,7 @@ export class StyleGeneratorController implements OnModuleInit {
 
   private registerCommands(): void {
     this.extensionContextProvider.register(
-      vscode.commands.registerCommand('quick-ops.generateStyleStructure', async () => {
+      vscode.commands.registerCommand('quickOps.generateStyleStructure', async () => {
         await this.styleGeneratorService.generateStyleStructure();
       }),
     );

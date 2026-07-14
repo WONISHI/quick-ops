@@ -1009,7 +1009,7 @@ modules/text-compare
 ### 12.2 实现流程
 
 ```txt
-用户执行 quick-ops.openTextCompare
+用户执行 quickOps.openTextCompare
   ↓
 TextCompareService 创建 WebviewPanel
   ↓

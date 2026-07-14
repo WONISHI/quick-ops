@@ -39,7 +39,7 @@ export class FocusHistoryController implements OnModuleInit {
 
   private registerCommands(): void {
     this.extensionContextProvider.register(
-      vscode.commands.registerCommand('quick-ops.focusBack', async () => {
+      vscode.commands.registerCommand('quickOps.focusBack', async () => {
         await this.focusHistoryService.navigateBack();
       }),
 

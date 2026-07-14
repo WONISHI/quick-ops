@@ -22,16 +22,16 @@ export class FileNavigationController implements OnModuleInit {
 
   private registerCommands(): void {
     this.extensionContextProvider.register(
-      vscode.commands.registerCommand('quick-ops.revealInExplorer', async () => {
+      vscode.commands.registerCommand('quickOps.revealInExplorer', async () => {
         await this.fileNavigationService.revealActiveFileInExplorer();
       }),
 
-      vscode.commands.registerCommand('quick-ops.openInNewTab', async (uri?: vscode.Uri) => {
+      vscode.commands.registerCommand('quickOps.openInNewTab', async (uri?: vscode.Uri) => {
         await this.fileNavigationService.openInNewTab(uri);
       }),
 
       vscode.commands.registerCommand(
-        'quick-ops.openExternalPreview',
+        'quickOps.openExternalPreview',
         async (uri?: vscode.Uri) => {
           await this.fileNavigationService.openExternalPreview(uri);
         },

@@ -22,11 +22,11 @@ export class SmartScrollController implements OnModuleInit {
 
   private registerCommands(): void {
     this.extensionContextProvider.register(
-      vscode.commands.registerCommand('quick-ops.scrollToTop', () => {
+      vscode.commands.registerCommand('quickOps.scrollToTop', () => {
         this.smartScrollService.scrollToTop();
       }),
 
-      vscode.commands.registerCommand('quick-ops.scrollToBottom', () => {
+      vscode.commands.registerCommand('quickOps.scrollToBottom', () => {
         this.smartScrollService.scrollToBottom();
       }),
     );

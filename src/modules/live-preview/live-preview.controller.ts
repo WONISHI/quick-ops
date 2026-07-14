@@ -48,11 +48,11 @@ export class LivePreviewController implements OnModuleInit {
 
   private registerCommands(): void {
     this.extensionContextProvider.register(
-      vscode.commands.registerCommand('quick-ops.openLivePreview', async () => {
+      vscode.commands.registerCommand('quickOps.openLivePreview', async () => {
         await this.livePreviewProvider.togglePreviewPanel();
       }),
 
-      vscode.commands.registerCommand('quick-ops.openLivePreviewUrl', async (url?: string) => {
+      vscode.commands.registerCommand('quickOps.openLivePreviewUrl', async (url?: string) => {
         await this.livePreviewProvider.openPreviewPanel(url || '');
       }),
 

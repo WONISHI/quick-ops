@@ -22,23 +22,23 @@ export class ClipboardTransformController implements OnModuleInit {
 
   private registerCommands(): void {
     this.extensionContextProvider.register(
-      vscode.commands.registerCommand('quick-ops.transformToLower', async () => {
+      vscode.commands.registerCommand('quickOps.transformToLower', async () => {
         await this.clipboardTransformService.transformSelection('lower');
       }),
 
-      vscode.commands.registerCommand('quick-ops.transformToCamel', async () => {
+      vscode.commands.registerCommand('quickOps.transformToCamel', async () => {
         await this.clipboardTransformService.transformSelection('camel');
       }),
 
-      vscode.commands.registerCommand('quick-ops.transformToPascal', async () => {
+      vscode.commands.registerCommand('quickOps.transformToPascal', async () => {
         await this.clipboardTransformService.transformSelection('pascal');
       }),
 
-      vscode.commands.registerCommand('quick-ops.transformToKebab', async () => {
+      vscode.commands.registerCommand('quickOps.transformToKebab', async () => {
         await this.clipboardTransformService.transformSelection('kebab');
       }),
 
-      vscode.commands.registerCommand('quick-ops.transformToConstant', async () => {
+      vscode.commands.registerCommand('quickOps.transformToConstant', async () => {
         await this.clipboardTransformService.transformSelection('constant');
       }),
     );

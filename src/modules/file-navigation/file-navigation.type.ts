@@ -3,9 +3,9 @@ import type * as vscode from 'vscode';
 export type ExternalPreviewType = 'markdown' | 'pdf' | 'excel' | 'word';
 
 export type FileNavigationCommand =
-  | 'quick-ops.revealInExplorer'
-  | 'quick-ops.openInNewTab'
-  | 'quick-ops.openExternalPreview';
+  | 'quickOps.revealInExplorer'
+  | 'quickOps.openInNewTab'
+  | 'quickOps.openExternalPreview';
 
 export interface FileNavigationCommandItem {
   command: FileNavigationCommand;

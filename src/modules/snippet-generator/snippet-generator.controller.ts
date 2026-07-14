@@ -23,7 +23,7 @@ export class SnippetGeneratorController implements OnModuleInit {
   private registerCommands(): void {
     this.extensionContextProvider.register(
       vscode.commands.registerTextEditorCommand(
-        'quick-ops.addToSnippets',
+        'quickOps.addToSnippets',
         async textEditor => {
           await this.snippetGeneratorService.generateAndSaveSnippet(textEditor);
         },

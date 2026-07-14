@@ -42,7 +42,7 @@ export class EditorHistoryController implements OnModuleInit {
 
   private registerCommands(): void {
     this.extensionContextProvider.register(
-      vscode.commands.registerCommand('quick-ops.switchPreviousEditor', async () => {
+      vscode.commands.registerCommand('quickOps.switchPreviousEditor', async () => {
         await this.editorHistoryService.switchToPreviousEditor();
       }),
     );

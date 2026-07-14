@@ -378,19 +378,19 @@ controller 负责注册命令，但命令内部不写复杂业务，只转发给
 命令示例：
 
 ```txt
-quick-ops.anchor.add
+quickOps.anchor.add
   -> anchorService.executeAddAnchorCommand(...args)
 
-quick-ops.anchor.showMenu
+quickOps.anchor.showMenu
   -> anchorService.executeShowAnchorMenuCommand()
 
-quick-ops.anchor.listByGroup
+quickOps.anchor.listByGroup
   -> anchorService.showAnchorList(groupName, true, undefined, anchorId)
 
-quick-ops.anchor.navigate
+quickOps.anchor.navigate
   -> anchorService.navigateAnchor(currentId, direction)
 
-quick-ops.anchor.delete
+quickOps.anchor.delete
   -> anchorService.removeAnchor(id)
 ```
 
@@ -544,7 +544,7 @@ controller.registerCodeLensProvider()
 
 ```mermaid
 flowchart TD
-  A[触发 quick-ops.anchor.add] --> B[AnchorController.registerCommands]
+  A[触发 quickOps.anchor.add] --> B[AnchorController.registerCommands]
   B --> C[anchorService.executeAddAnchorCommand]
   C --> D[getEditorContext<br/>获取当前编辑器上下文]
   D --> E[读取 groups]
@@ -568,7 +568,7 @@ flowchart TD
 查看锚点命令：
 
 ```txt
-quick-ops.anchor.showMenu
+quickOps.anchor.showMenu
 ```
 
 流程：

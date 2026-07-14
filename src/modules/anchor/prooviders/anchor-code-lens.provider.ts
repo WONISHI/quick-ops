@@ -129,7 +129,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
    * - 📁 上级分组:2 >
    *
    * 点击后：
-   * - 执行 quick-ops.anchor.listByGroup
+   * - 执行 quickOps.anchor.listByGroup
    * - 打开父级所在分组列表
    * - 并定位到父级锚点
    *
@@ -153,7 +153,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
         new vscode.CodeLens(range, {
           title: `${emoji} ${parent.group}:${parent.sort} >`,
           tooltip: `跳转到父分组: ${parent.description || parent.group}`,
-          command: 'quick-ops.anchor.listByGroup',
+          command: 'quickOps.anchor.listByGroup',
           arguments: [parent.group, parent.id],
         }),
       );
@@ -172,7 +172,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
    * - 🔥 Feature:1
    *
    * 点击后：
-   * - 执行 quick-ops.anchor.listByGroup
+   * - 执行 quickOps.anchor.listByGroup
    * - 打开当前锚点所在分组列表
    * - 并定位到当前锚点
    *
@@ -186,7 +186,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
       new vscode.CodeLens(range, {
         title: `${emoji} ${anchor.group}:${anchor.sort}`,
         tooltip: anchor.description || '查看该组所有锚点',
-        command: 'quick-ops.anchor.listByGroup',
+        command: 'quickOps.anchor.listByGroup',
         arguments: [anchor.group, anchor.id],
       }),
     );
@@ -205,9 +205,9 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
    * - $(trash)           删除
    *
    * 点击后：
-   * - 上一个：执行 quick-ops.anchor.navigate，跳转到同组上一个锚点
-   * - 下一个：执行 quick-ops.anchor.navigate，跳转到同组下一个锚点
-   * - 删除：执行 quick-ops.anchor.delete，删除当前锚点
+   * - 上一个：执行 quickOps.anchor.navigate，跳转到同组上一个锚点
+   * - 下一个：执行 quickOps.anchor.navigate，跳转到同组下一个锚点
+   * - 删除：执行 quickOps.anchor.delete，删除当前锚点
    *
    * @param lenses CodeLens 收集数组，生成的 CodeLens 会 push 到这里
    * @param range CodeLens 显示的位置，一般是锚点所在行的行首
@@ -218,7 +218,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
       new vscode.CodeLens(range, {
         title: '$(debug-step-out)',
         tooltip: '上一个',
-        command: 'quick-ops.anchor.navigate',
+        command: 'quickOps.anchor.navigate',
         arguments: [anchor.id, 'prev'],
       }),
     );
@@ -227,7 +227,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
       new vscode.CodeLens(range, {
         title: '$(debug-step-into)',
         tooltip: '下一个',
-        command: 'quick-ops.anchor.navigate',
+        command: 'quickOps.anchor.navigate',
         arguments: [anchor.id, 'next'],
       }),
     );
@@ -236,7 +236,7 @@ export class AnchorCodeLensProvider implements vscode.CodeLensProvider {
       new vscode.CodeLens(range, {
         title: '$(trash)',
         tooltip: '删除',
-        command: 'quick-ops.anchor.delete',
+        command: 'quickOps.anchor.delete',
         arguments: [anchor.id],
       }),
     );

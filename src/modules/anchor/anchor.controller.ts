@@ -138,35 +138,35 @@ export class AnchorController implements OnModuleInit {
       /**
        * @description 新增锚点
        */
-      vscode.commands.registerCommand('quick-ops.anchor.add', async (...args: any[]) => {
+      vscode.commands.registerCommand('quickOps.anchor.add', async (...args: any[]) => {
         await this.anchorService.executeAddAnchorCommand(...args);
       }),
 
       /**
        * @description 打开锚点菜单
        */
-      vscode.commands.registerCommand('quick-ops.anchor.showMenu', async () => {
+      vscode.commands.registerCommand('quickOps.anchor.showMenu', async () => {
         await this.anchorService.executeShowAnchorMenuCommand();
       }),
 
       /**
        * @description 查看指定分组下的锚点列表
        */
-      vscode.commands.registerCommand('quick-ops.anchor.listByGroup', async (groupName: string, anchorId: string) => {
+      vscode.commands.registerCommand('quickOps.anchor.listByGroup', async (groupName: string, anchorId: string) => {
         await this.anchorService.showAnchorList(groupName, true, undefined, anchorId);
       }),
 
       /**
        * @description 跳转到上一个或下一个锚点
        */
-      vscode.commands.registerCommand('quick-ops.anchor.navigate', async (currentId: string, direction: AnchorDirection) => {
+      vscode.commands.registerCommand('quickOps.anchor.navigate', async (currentId: string, direction: AnchorDirection) => {
         await this.anchorService.navigateAnchor(currentId, direction);
       }),
 
       /**
        * @description 删除锚点
        */
-      vscode.commands.registerCommand('quick-ops.anchor.delete', async (id: string) => {
+      vscode.commands.registerCommand('quickOps.anchor.delete', async (id: string) => {
         this.anchorService.removeAnchor(id);
       }),
     );

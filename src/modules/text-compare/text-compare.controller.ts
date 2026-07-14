@@ -36,7 +36,7 @@ export class TextCompareController implements OnModuleInit {
 
   private registerCommands(): void {
     this.extensionContextProvider.register(
-      vscode.commands.registerCommand('quick-ops.openTextCompare', async () => {
+      vscode.commands.registerCommand('quickOps.openTextCompare', async () => {
         await this.textCompareService.openCompareWebview();
       }),
     );

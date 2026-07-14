@@ -227,7 +227,7 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "quick-ops-view-container",
+          "id": "quickOps-view-container",
           "title": "Quick Ops",
           "icon": "$(server)"
         }
@@ -241,9 +241,9 @@
       ]
     },
     "views": {
-      "quick-ops-view-container": [
+      "quickOps-view-container": [
         {
-          "id": "quick-ops.mockView",
+          "id": "quickOps.mockView",
           "name": "Mock服务管理器",
           "icon": "$(server)",
           "type": "webview"
@@ -272,12 +272,12 @@
     },
     "submenus": [
       {
-        "id": "quick-ops.explorerSubmenu",
+        "id": "quickOps.explorerSubmenu",
         "label": "Quick Ops",
         "icon": "$(zap)"
       },
       {
-        "id": "quick-ops.transformSubmenu",
+        "id": "quickOps.transformSubmenu",
         "label": "转换文本格式 (Transform Text)"
       }
     ],
@@ -326,7 +326,7 @@
         }
       },
       {
-        "command": "quick-ops.openLivePreview",
+        "command": "quickOps.openLivePreview",
         "title": "网页预览台 (Live Preview)",
         "category": "Quick Ops",
         "icon": {
@@ -335,13 +335,13 @@
         }
       },
       {
-        "command": "quick-ops.anchor.showMenu",
+        "command": "quickOps.anchor.showMenu",
         "title": "显示冒点 (Show Anchors)",
         "category": "Quick Ops",
         "icon": "$(bookmark)"
       },
       {
-        "command": "quick-ops.revealInExplorer",
+        "command": "quickOps.revealInExplorer",
         "title": "定位当前文件 (Reveal File)",
         "category": "Quick Ops",
         "icon": {
@@ -350,7 +350,7 @@
         }
       },
       {
-        "command": "quick-ops.scrollToTop",
+        "command": "quickOps.scrollToTop",
         "title": "回到顶部 (Scroll to Top)",
         "icon": {
           "light": "resources/icons/light/scroll-top.svg",
@@ -358,7 +358,7 @@
         }
       },
       {
-        "command": "quick-ops.scrollToBottom",
+        "command": "quickOps.scrollToBottom",
         "title": "回到底部 (Scroll to Bottom)",
         "category": "Quick Ops",
         "icon": {
@@ -367,28 +367,28 @@
         }
       },
       {
-        "command": "quick-ops.createConfigFile",
+        "command": "quickOps.createConfigFile",
         "title": "打开设置面板 (Open Settings)",
         "category": "Quick Ops",
         "icon": "$(settings-gear)"
       },
       {
-        "command": "quick-ops.toggleIgnore",
+        "command": "quickOps.toggleIgnore",
         "title": "添加/移除 QuickOps 忽略 (Toggle Ignore)",
         "category": "Quick Ops"
       },
       {
-        "command": "quick-ops.generateStyleStructure",
+        "command": "quickOps.generateStyleStructure",
         "title": "生成样式结构 (Generate SCSS)",
         "category": "Quick Ops"
       },
       {
-        "command": "quick-ops.anchor.add",
+        "command": "quickOps.anchor.add",
         "title": "添加锚点",
         "icon": "$(bookmark)"
       },
       {
-        "command": "quick-ops.anchor.showMenu",
+        "command": "quickOps.anchor.showMenu",
         "title": "显示锚点菜单 (Show Anchors)",
         "icon": {
           "light": "resources/icons/light/tag.svg",
@@ -396,43 +396,43 @@
         }
       },
       {
-        "command": "quick-ops.anchor.listByGroup",
+        "command": "quickOps.anchor.listByGroup",
         "title": "按分组列出锚点 (List Anchors)"
       },
       {
-        "command": "quick-ops.anchor.navigate",
+        "command": "quickOps.anchor.navigate",
         "title": "跳转到锚点 (Navigate Anchor)"
       },
       {
-        "command": "quick-ops.anchor.delete",
+        "command": "quickOps.anchor.delete",
         "title": "删除锚点 (Delete Anchor)"
       },
       {
-        "command": "quick-ops.addToSnippets",
+        "command": "quickOps.addToSnippets",
         "title": "添加选中内容到代码片段 (Add to Quick Ops Snippets)"
       },
       {
-        "command": "quick-ops.transformToLower",
+        "command": "quickOps.transformToLower",
         "title": "转为全小写 (lowercase)"
       },
       {
-        "command": "quick-ops.transformToCamel",
+        "command": "quickOps.transformToCamel",
         "title": "转为小驼峰 (camelCase)"
       },
       {
-        "command": "quick-ops.transformToPascal",
+        "command": "quickOps.transformToPascal",
         "title": "转为大驼峰 (PascalCase)"
       },
       {
-        "command": "quick-ops.transformToConstant",
+        "command": "quickOps.transformToConstant",
         "title": "转为全大写常量 (CONSTANT_CASE)"
       },
       {
-        "command": "quick-ops.transformToKebab",
+        "command": "quickOps.transformToKebab",
         "title": "转为短横线 (kebab-case)"
       },
       {
-        "command": "quick-ops.openTextCompare",
+        "command": "quickOps.openTextCompare",
         "title": "文本差异对比 (Text Diff Compare)",
         "category": "Quick Ops"
       },
@@ -447,7 +447,7 @@
         "icon": "$(diff)"
       },
       {
-        "command": "quick-ops.openInNewTab",
+        "command": "quickOps.openInNewTab",
         "title": "在新标签页打开",
         "category": "QuickOps"
       },
@@ -487,7 +487,7 @@
         "icon": "$(terminal-git-bash)"
       },
       {
-        "command": "quick-ops.openExternalPreview",
+        "command": "quickOps.openExternalPreview",
         "title": "从外部条件打开...",
         "category": "QuickOps",
         "icon": "$(preview)"
@@ -501,19 +501,19 @@
     ],
     "keybindings": [
       {
-        "command": "quick-ops.switchPreviousEditor",
+        "command": "quickOps.switchPreviousEditor",
         "key": "alt+b",
         "mac": "opt+b",
         "when": "editorTextFocus"
       },
       {
-        "command": "quick-ops.transformText",
+        "command": "quickOps.transformText",
         "key": "ctrl+alt+t",
         "mac": "cmd+alt+t",
         "when": "editorHasSelection"
       },
       {
-        "command": "quick-ops.focusBack",
+        "command": "quickOps.focusBack",
         "key": "ctrl+n",
         "mac": "cmd+n",
         "when": "editorTextFocus"
@@ -583,7 +583,7 @@
           "group": "navigation@1"
         },
         {
-          "command": "quick-ops.openLivePreview",
+          "command": "quickOps.openLivePreview",
           "group": "navigation@2"
         },
         {
@@ -592,92 +592,92 @@
           "group": "navigation@4"
         },
         {
-          "command": "quick-ops.anchor.showMenu",
+          "command": "quickOps.anchor.showMenu",
           "group": "navigation@5",
           "when": "quickOps.hasAnchorsInProject && resourceScheme == file"
         },
         {
-          "command": "quick-ops.revealInExplorer",
+          "command": "quickOps.revealInExplorer",
           "when": "resourceScheme == file",
           "group": "navigation@6"
         },
         {
-          "command": "quick-ops.scrollToTop",
+          "command": "quickOps.scrollToTop",
           "group": "navigation@7",
           "when": "editorTextFocus"
         },
         {
-          "command": "quick-ops.scrollToBottom",
+          "command": "quickOps.scrollToBottom",
           "group": "navigation@8",
           "when": "editorTextFocus"
         }
       ],
       "explorer/context": [
         {
-          "command": "quick-ops.openExternalPreview",
+          "command": "quickOps.openExternalPreview",
           "group": "navigation@2",
           "when": "resourceScheme == file && !explorerResourceIsFolder && (resourceExtname == .md || resourceExtname == .markdown || resourceExtname == .pdf || resourceExtname == .xlsx || resourceExtname == .xls || resourceExtname == .docx || resourceExtname == .doc)"
         },
         {
-          "command": "quick-ops.openInNewTab",
+          "command": "quickOps.openInNewTab",
           "group": "navigation",
           "when": "resourceScheme == 'file'"
         },
         {
-          "submenu": "quick-ops.explorerSubmenu",
+          "submenu": "quickOps.explorerSubmenu",
           "group": "7_modification"
         }
       ],
       "editor/context": [
         {
-          "command": "quick-ops.addToSnippets",
+          "command": "quickOps.addToSnippets",
           "group": "1_modification@1",
           "when": "editorHasSelection"
         },
         {
-          "submenu": "quick-ops.transformSubmenu",
+          "submenu": "quickOps.transformSubmenu",
           "group": "1_modification@2",
           "when": "editorHasSelection"
         },
         {
-          "command": "quick-ops.openTextCompare",
+          "command": "quickOps.openTextCompare",
           "group": "1_modification@3"
         }
       ],
-      "quick-ops.transformSubmenu": [
+      "quickOps.transformSubmenu": [
         {
-          "command": "quick-ops.transformToLower",
+          "command": "quickOps.transformToLower",
           "group": "1"
         },
         {
-          "command": "quick-ops.transformToCamel",
+          "command": "quickOps.transformToCamel",
           "group": "2"
         },
         {
-          "command": "quick-ops.transformToPascal",
+          "command": "quickOps.transformToPascal",
           "group": "3"
         },
         {
-          "command": "quick-ops.transformToKebab",
+          "command": "quickOps.transformToKebab",
           "group": "4"
         },
         {
-          "command": "quick-ops.transformToConstant",
+          "command": "quickOps.transformToConstant",
           "group": "5"
         }
       ],
-      "quick-ops.explorerSubmenu": [
+      "quickOps.explorerSubmenu": [
         {
-          "command": "quick-ops.createConfigFile",
+          "command": "quickOps.createConfigFile",
           "group": "quickOps@1"
         },
         {
-          "command": "quick-ops.toggleIgnore",
+          "command": "quickOps.toggleIgnore",
           "group": "quickOps@2",
           "when": "resourceScheme == file"
         },
         {
-          "command": "quick-ops.generateStyleStructure",
+          "command": "quickOps.generateStyleStructure",
           "group": "quickOps@3",
           "when": "resourceLangId == vue || resourceLangId == html || resourceLangId == javascriptreact || resourceLangId == typescriptreact"
         },
@@ -694,7 +694,7 @@
       ],
       "editor/lineNumber/context": [
         {
-          "command": "quick-ops.anchor.add",
+          "command": "quickOps.anchor.add",
           "group": "1_modification"
         }
       ]

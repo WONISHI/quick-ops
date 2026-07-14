@@ -32,7 +32,7 @@ export class MockServerController implements OnModuleInit {
 
   private registerWebviewProvider(): void {
     this.extensionContextProvider.register(
-      vscode.window.registerWebviewViewProvider('quick-ops.mockView', this.mockServerService, {
+      vscode.window.registerWebviewViewProvider('quickOps.mockView', this.mockServerService, {
         webviewOptions: {
           retainContextWhenHidden: true,
         },
