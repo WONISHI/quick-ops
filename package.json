@@ -760,7 +760,6 @@
     "body-parser": "^2.2.2",
     "cheerio": "^1.1.2",
     "concurrently": "^9.2.1",
-    "copy-webpack-plugin": "^13.0.1",
     "cors": "^2.8.6",
     "dayjs": "^1.11.13",
     "eslint": "^9.32.0",
