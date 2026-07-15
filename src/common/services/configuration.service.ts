@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import ColorLog from '@/utils/ColorLog';
 import { EventEmitter } from 'events';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
