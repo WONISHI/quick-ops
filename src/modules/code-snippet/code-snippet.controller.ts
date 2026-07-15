@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import ColorLog from '@utils/ColorLog';
+
 import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { ConfigurationService } from '@common/services/configuration.service';
@@ -26,8 +26,6 @@ export class CodeSnippetController implements OnModuleInit {
     this.registerCompletionProvider();
     this.registerCommands();
     this.registerListeners();
-
-    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   private registerCompletionProvider(): void {

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import ColorLog from '@utils/ColorLog';
+
 import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { FocusHistoryService } from '@modules/focus-history/focus-history.service';
@@ -17,8 +17,6 @@ export class FocusHistoryController implements OnModuleInit {
   public onModuleInit(): void {
     this.registerListeners();
     this.registerCommands();
-
-    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   public dispose(): void {

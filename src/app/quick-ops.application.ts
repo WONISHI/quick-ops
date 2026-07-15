@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import ColorLog from '@utils/ColorLog';
+
 import { ETI } from '@core/eti/eti';
 import { AppModule } from '@app/app.module';
 import { Container } from '@core/container/container';
@@ -41,8 +41,6 @@ export class QuickOpsApplication {
     this.started = true;
 
     try {
-      ColorLog.black('[QuickOps]', 'Application Starting...');
-
       /**
        * 初始化 ETI
        *
@@ -62,14 +60,12 @@ export class QuickOpsApplication {
        */
       await this.moduleRunner.bootstrap(AppModule);
 
+      this.setupGlobalDisposables();
+
       /**
        * Plugin 创建后
        */
       await this.eti.lifecycle.readied();
-
-      this.setupGlobalDisposables();
-
-      ColorLog.black('[QuickOps]', 'Application started successfully.');
     } catch (error) {
       this.started = false;
       console.error('[QuickOps] Application start failed:', error);
@@ -85,14 +81,13 @@ export class QuickOpsApplication {
     try {
       await this.moduleRunner.dispose();
 
+      this.started = false;
+
       /**
        * Plugin销毁后
        */
       await this.eti.lifecycle.disposed();
 
-      this.started = false;
-
-      ColorLog.red('[QuickOps]', 'Application Disposed.');
     } catch (error) {
       console.error('[QuickOps] Application dispose failed:', error);
     } finally {

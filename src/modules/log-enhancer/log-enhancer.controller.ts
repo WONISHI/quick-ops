@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import ColorLog from '@utils/ColorLog';
+
 import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { LogEnhancerService } from '@modules/log-enhancer/log-enhancer.service';
@@ -19,7 +19,6 @@ export class LogEnhancerController implements OnModuleInit {
     this.registerCompletionProvider();
     this.registerTextChangeTrigger();
 
-    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   public dispose(): void {

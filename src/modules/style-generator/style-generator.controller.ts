@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import ColorLog from '@utils/ColorLog';
+
 import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { StyleGeneratorService } from '@modules/style-generator/style-generator.service';
@@ -17,7 +17,6 @@ export class StyleGeneratorController implements OnModuleInit {
   public onModuleInit(): void {
     this.registerCommands();
 
-    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   private registerCommands(): void {

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import ColorLog from '@utils/ColorLog';
+
 import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { GitService } from '@modules/git/git.service';
@@ -48,7 +48,6 @@ export class GitController implements OnModuleInit {
 
     await this.applyPreviewPath(defaultWorkspace);
 
-    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   public dispose(): void {

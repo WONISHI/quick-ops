@@ -95,8 +95,6 @@ export class ConfigurationService extends EventEmitter {
 
     await vscode.commands.executeCommand('setContext', 'quickOps.context.configMissing', false);
     await vscode.commands.executeCommand('setContext', 'quickOps.context.configState', 'exists');
-
-    ColorLog.orange(`[${this.serviceId}]`, 'Initialized.');
   }
 
   public get<T = unknown>(section: string, defaultValue?: T): T {

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import ColorLog from '@utils/ColorLog';
+
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { AnchorService } from '@modules/anchor/anchor.service';
 import type { AnchorDirection } from '@modules/anchor/anchor.type';
@@ -49,8 +49,6 @@ export class AnchorController implements OnModuleInit {
      * @description 初始检查整个项目是否有锚点
      */
     this.anchorService.checkContainsAnchor();
-
-    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   /**

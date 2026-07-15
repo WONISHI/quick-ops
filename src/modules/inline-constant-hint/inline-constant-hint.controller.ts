@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import ColorLog from '@utils/ColorLog';
+
 import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { InlineConstantHintService } from '@modules/inline-constant-hint/inline-constant-hint.service';
@@ -25,7 +25,6 @@ export class InlineConstantHintController implements OnModuleInit {
     this.registerCommands();
     this.registerListeners();
 
-    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   public dispose(): void {

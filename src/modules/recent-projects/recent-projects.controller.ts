@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import ColorLog from '@utils/ColorLog';
+
 import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { RecentProjectsProvider } from '@modules/recent-projects/providers/recent-projects.provider';
@@ -30,7 +30,6 @@ export class RecentProjectsController implements OnModuleInit {
     this.registerGitStateWatcher();
     this.updateRevealContext();
 
-    ColorLog.black(`[${this.id}]`, 'Activated.');
   }
 
   public dispose(): void {
