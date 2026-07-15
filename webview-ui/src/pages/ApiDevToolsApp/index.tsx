@@ -141,15 +141,24 @@ const WORKSPACE_PANE_MIN_WIDTH = 0;
 const WORKSPACE_PANE_MAX_WIDTH = 380;
 const WORKSPACE_RESIZER_SIZE = 6;
 
+/**
+ * @description 将数值限制在指定的最小值和最大值之间
+ */
 function clampNumber(value: number, min: number, max: number) {
   const safeMax = Math.max(min, max);
   return Math.min(Math.max(value, min), safeMax);
 }
 
+/**
+ * @description 创建带指定前缀的唯一标识
+ */
 function createId(prefix = 'id') {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+/**
+ * @description 创建键值配置项
+ */
 function createKeyValue(key = '', value = '', enabled = true): KeyValueItem {
   return {
     id: createId('kv'),
@@ -159,6 +168,9 @@ function createKeyValue(key = '', value = '', enabled = true): KeyValueItem {
   };
 }
 
+/**
+ * @description 创建默认接口请求配置
+ */
 function createDefaultRequest(): ApiRequestConfig {
   return {
     id: createId('req'),
@@ -183,6 +195,9 @@ function createDefaultRequest(): ApiRequestConfig {
   };
 }
 
+/**
+ * @description 创建默认全局变量列表
+ */
 function createDefaultGlobals(): GlobalVariable[] {
   return [
     createKeyValue('baseUrl', 'http://localhost:3000', true),
@@ -190,6 +205,9 @@ function createDefaultGlobals(): GlobalVariable[] {
   ];
 }
 
+/**
+ * @description 创建接口项目
+ */
 function createProject(name = '默认项目'): ApiProject {
   const now = Date.now();
 
@@ -203,6 +221,9 @@ function createProject(name = '默认项目'): ApiProject {
   };
 }
 
+/**
+ * @description 根据请求配置创建接口记录
+ */
 function createInterfaceFromRequest(request: ApiRequestConfig, name?: string): ApiInterfaceItem {
   const now = Date.now();
   const snapshot = cloneRequest({
@@ -222,6 +243,9 @@ function createInterfaceFromRequest(request: ApiRequestConfig, name?: string): A
   };
 }
 
+/**
+ * @description 规范化键值配置列表
+ */
 function normalizeKeyValueList(list: unknown): KeyValueItem[] {
   if (!Array.isArray(list)) return [createKeyValue()];
 
@@ -236,6 +260,9 @@ function normalizeKeyValueList(list: unknown): KeyValueItem[] {
   return normalized.length > 0 ? normalized : [createKeyValue()];
 }
 
+/**
+ * @description 规范化接口请求配置
+ */
 function normalizeRequest(raw: unknown): ApiRequestConfig {
   const def = createDefaultRequest();
   const item = raw as Partial<ApiRequestConfig> | undefined;
@@ -270,6 +297,9 @@ function normalizeRequest(raw: unknown): ApiRequestConfig {
   };
 }
 
+/**
+ * @description 规范化接口记录
+ */
 function normalizeInterface(raw: unknown): ApiInterfaceItem | null {
   const item = raw as Partial<ApiInterfaceItem> | undefined;
 
@@ -290,6 +320,9 @@ function normalizeInterface(raw: unknown): ApiInterfaceItem | null {
   };
 }
 
+/**
+ * @description 规范化接口项目
+ */
 function normalizeProject(raw: unknown): ApiProject | null {
   const item = raw as Partial<ApiProject> | undefined;
 
@@ -310,6 +343,9 @@ function normalizeProject(raw: unknown): ApiProject | null {
   };
 }
 
+/**
+ * @description 规范化持久化状态
+ */
 function normalizePersistedState(raw: unknown): PersistedState {
   const state = raw as Partial<PersistedState> | undefined;
   const projects = Array.isArray(state?.projects)
@@ -326,12 +362,18 @@ function normalizePersistedState(raw: unknown): PersistedState {
   };
 }
 
+/**
+ * @description 替换文本中的全局变量占位符
+ */
 function interpolateVariables(value: string, variables: Record<string, string>) {
   return String(value || '').replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_, key) => {
     return Object.prototype.hasOwnProperty.call(variables, key) ? variables[key] : '';
   });
 }
 
+/**
+ * @description 将启用的键值项转换为对象
+ */
 function getEnabledObject(list: KeyValueItem[], variables: Record<string, string>) {
   const result: Record<string, string> = {};
 
@@ -346,6 +388,9 @@ function getEnabledObject(list: KeyValueItem[], variables: Record<string, string
   return result;
 }
 
+/**
+ * @description 尝试格式化 JSON 文本
+ */
 function tryFormatJson(text: string) {
   const value = String(text || '').trim();
 
@@ -358,6 +403,9 @@ function tryFormatJson(text: string) {
   }
 }
 
+/**
+ * @description 获取响应内容类型
+ */
 function getResponseContentType(response: ApiResponsePayload | null) {
   if (!response) return '';
 
@@ -366,18 +414,24 @@ function getResponseContentType(response: ApiResponsePayload | null) {
   return key ? response.headers[key] : '';
 }
 
+/**
+ * @description 获取用于展示的响应内容
+ */
 function getDisplayResponseBody(response: ApiResponsePayload | null) {
   if (!response) return '';
 
   const contentType = getResponseContentType(response).toLowerCase();
 
-  if (contentType.includes('application/json') || /^[\[{]/.test(response.body.trim())) {
+  if (contentType.includes('application/json') || /^[{[]/.test(response.body.trim())) {
     return tryFormatJson(response.body);
   }
 
   return response.body || '';
 }
 
+/**
+ * @description 格式化字节大小
+ */
 function formatSize(size: number) {
   if (!size) return '0 B';
   if (size < 1024) return `${size} B`;
@@ -385,6 +439,9 @@ function formatSize(size: number) {
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
+/**
+ * @description 将文本安全转换为 Base64
+ */
 function safeBase64(value: string) {
   try {
     return btoa(unescape(encodeURIComponent(value)));
@@ -393,10 +450,16 @@ function safeBase64(value: string) {
   }
 }
 
+/**
+ * @description 深拷贝接口请求配置
+ */
 function cloneRequest(request: ApiRequestConfig): ApiRequestConfig {
   return JSON.parse(JSON.stringify(request));
 }
 
+/**
+ * @description 获取用于比较的键值列表
+ */
 function getComparableKeyValueList(list: KeyValueItem[]) {
   return (list || []).map((item) => ({
     enabled: item.enabled !== false,
@@ -406,6 +469,9 @@ function getComparableKeyValueList(list: KeyValueItem[]) {
   }));
 }
 
+/**
+ * @description 获取用于比较的请求快照
+ */
 function getComparableRequest(request: ApiRequestConfig) {
   return {
     name: String(request.name || ''),
@@ -429,14 +495,23 @@ function getComparableRequest(request: ApiRequestConfig) {
   };
 }
 
+/**
+ * @description 判断两个请求配置是否一致
+ */
 function isSameRequest(left: ApiRequestConfig, right: ApiRequestConfig) {
   return JSON.stringify(getComparableRequest(left)) === JSON.stringify(getComparableRequest(right));
 }
 
+/**
+ * @description 判断请求是否为默认配置
+ */
 function isDefaultRequestSnapshot(request: ApiRequestConfig) {
   return isSameRequest(request, createDefaultRequest());
 }
 
+/**
+ * @description 格式化时间戳
+ */
 function formatTime(timestamp: number) {
   if (!timestamp) return '-';
 
@@ -447,6 +522,9 @@ function formatTime(timestamp: number) {
   }
 }
 
+/**
+ * @description 转义 HTML 特殊字符
+ */
 function escapeHtml(value: unknown) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -456,6 +534,9 @@ function escapeHtml(value: unknown) {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * @description 转义注入脚本中的 JSON 内容
+ */
 function escapeScriptJson(value: unknown) {
   return JSON.stringify(value)
     .replace(/</g, '\\u003c')
@@ -465,6 +546,9 @@ function escapeScriptJson(value: unknown) {
     .replace(/\u2029/g, '\\u2029');
 }
 
+/**
+ * @description 获取用于生成接口文档的项目数据
+ */
 function getDocsProjects(
   projects: ApiProject[],
   currentRequest: ApiRequestConfig,
@@ -515,6 +599,9 @@ function getDocsProjects(
   return validProjects;
 }
 
+/**
+ * @description 收集文本中使用的文档变量名
+ */
 function collectDocVariableNamesFromText(value: unknown, result: Set<string>) {
   const text = String(value ?? '');
   const variableRegExp = /\{\{\s*([\w.-]+)\s*\}\}/g;
@@ -532,6 +619,9 @@ function collectDocVariableNamesFromText(value: unknown, result: Set<string>) {
   }
 }
 
+/**
+ * @description 收集键值列表中使用的文档变量名
+ */
 function collectDocVariableNamesFromList(list: KeyValueItem[], result: Set<string>) {
   (list || []).forEach((item) => {
     collectDocVariableNamesFromText(item.key, result);
@@ -539,6 +629,9 @@ function collectDocVariableNamesFromList(list: KeyValueItem[], result: Set<strin
   });
 }
 
+/**
+ * @description 判断地址是否为完整 HTTP URL
+ */
 function isAbsoluteHttpUrl(value: string) {
   return /^https?:\/\//i.test(String(value || '').trim());
 }
@@ -596,6 +689,9 @@ function getUsedDocGlobals(projects: ApiProject[], globals: GlobalVariable[], cu
   });
 }
 
+/**
+ * @description 构建接口文档变量映射
+ */
 function getDocVariableMap(globals: GlobalVariable[]) {
   const variables: Record<string, string> = {};
 
@@ -610,6 +706,9 @@ function getDocVariableMap(globals: GlobalVariable[]) {
   return variables;
 }
 
+/**
+ * @description 解析文档键值列表中的变量
+ */
 function resolveKeyValueListForDocs(list: KeyValueItem[], variables: Record<string, string>) {
   return list.map((item) => ({
     ...item,
@@ -618,6 +717,9 @@ function resolveKeyValueListForDocs(list: KeyValueItem[], variables: Record<stri
   }));
 }
 
+/**
+ * @description 解析文档请求配置中的变量
+ */
 function resolveRequestForDocs(request: ApiRequestConfig, variables: Record<string, string>): ApiRequestConfig {
   const next = cloneRequest(request);
 
@@ -637,6 +739,9 @@ function resolveRequestForDocs(request: ApiRequestConfig, variables: Record<stri
   return next;
 }
 
+/**
+ * @description 生成接口文档 HTML
+ */
 function buildApiDocsHtml(
   projects: ApiProject[],
   globals: GlobalVariable[],
@@ -680,6 +785,9 @@ function buildApiDocsHtml(
     })),
   };
 
+  /**
+   * @description 渲染只读键值列表
+   */
   const renderDocKeyValueReadonly = (title: string, list: KeyValueItem[]) => {
     const items = list.filter((item) => item.enabled && item.key.trim());
 
@@ -708,6 +816,9 @@ function buildApiDocsHtml(
       </div>`;
   };
 
+  /**
+   * @description 渲染只读请求体
+   */
   const renderDocBodyReadonly = (request: ApiRequestConfig) => {
     if (request.bodyType === 'form-urlencoded') {
       return renderDocKeyValueReadonly('Body - form-urlencoded', request.bodyForm);
@@ -724,6 +835,9 @@ function buildApiDocsHtml(
       </div>`;
   };
 
+  /**
+   * @description 渲染只读认证信息
+   */
   const renderAuthReadonly = (auth: AuthConfig) => {
     if (auth.type === 'none') {
       return '<pre>{\n  "type": "none"\n}</pre>';
@@ -890,6 +1004,9 @@ function buildApiDocsHtml(
         });
       });
 
+      /**
+       * @description 转义接口文档脚本中的 HTML 内容
+       */
       function html(value) {
         return String(value == null ? '' : value)
           .replace(/&/g, '&amp;')
@@ -899,12 +1016,18 @@ function buildApiDocsHtml(
           .replace(/'/g, '&#39;');
       }
 
+      /**
+       * @description 格式化接口文档响应 JSON
+       */
       function formatJson(text) {
         var value = String(text || '').trim();
         if (!value) return '';
         try { return JSON.stringify(JSON.parse(value), null, 2); } catch (error) { return text; }
       }
 
+      /**
+       * @description 格式化字节大小
+       */
       function formatSize(size) {
         if (!size) return '0 B';
         if (size < 1024) return size + ' B';
@@ -912,10 +1035,16 @@ function buildApiDocsHtml(
         return (size / 1024 / 1024).toFixed(1) + ' MB';
       }
 
+      /**
+       * @description 将文本安全转换为 Base64
+       */
       function safeBase64(value) {
         try { return btoa(unescape(encodeURIComponent(value))); } catch (error) { return btoa(value); }
       }
 
+      /**
+       * @description 获取接口文档全局变量
+       */
       function getGlobals() {
         var result = {};
         (docs.globals || []).forEach(function (item) {
@@ -925,12 +1054,18 @@ function buildApiDocsHtml(
         return result;
       }
 
+      /**
+       * @description 替换接口文档中的变量占位符
+       */
       function interpolate(value, variables) {
         return String(value || '').replace(/\\{\\{\\s*([\\w.-]+)\\s*\\}\\}/g, function (_, key) {
           return Object.prototype.hasOwnProperty.call(variables, key) ? variables[key] : '';
         });
       }
 
+      /**
+       * @description 将启用的文档键值项转换为对象
+       */
       function enabledRowsToObject(list, variables) {
         var result = {};
         (list || []).forEach(function (item) {
@@ -941,6 +1076,9 @@ function buildApiDocsHtml(
         return result;
       }
 
+      /**
+       * @description 将启用的文档参数写入 URL
+       */
       function enabledRowsToSearchParams(list, variables, urlObject) {
         (list || []).forEach(function (item) {
           var key = interpolate(item && item.key, variables).trim();
@@ -949,6 +1087,9 @@ function buildApiDocsHtml(
         });
       }
 
+      /**
+       * @description 构建接口文档请求参数
+       */
       function buildPayload(article) {
         var apiId = article.getAttribute('data-api-id');
         var api = apiMap[apiId];
@@ -1014,6 +1155,9 @@ function buildApiDocsHtml(
         };
       }
 
+      /**
+       * @description 直接发送接口文档请求
+       */
       async function directFetch(payload) {
         var controller = new AbortController();
         var timer = payload.timeout > 0 ? setTimeout(function () { controller.abort(); }, payload.timeout) : null;
@@ -1057,6 +1201,9 @@ function buildApiDocsHtml(
         }
       }
 
+      /**
+       * @description 发送接口文档请求参数
+       */
       async function sendPayload(payload) {
         if (location.protocol === 'http:' || location.protocol === 'https:') {
           var response = await fetch('/__api_send', {
@@ -1086,6 +1233,9 @@ function buildApiDocsHtml(
         return await directFetch(payload);
       }
 
+      /**
+       * @description 渲染接口文档请求响应
+       */
       function renderResponse(article, result) {
         var box = article.querySelector('[data-doc-response]');
         if (!box) return;
@@ -1093,7 +1243,7 @@ function buildApiDocsHtml(
         var body = result.error || result.body || '';
         var contentTypeKey = Object.keys(result.headers || {}).find(function (key) { return key.toLowerCase() === 'content-type'; });
         var contentType = contentTypeKey ? String(result.headers[contentTypeKey]).toLowerCase() : '';
-        if (!result.error && (contentType.indexOf('application/json') >= 0 || /^[\[{]/.test(String(body).trim()))) {
+        if (!result.error && (contentType.indexOf('application/json') >= 0 || /^[{[]/.test(String(body).trim()))) {
           body = formatJson(body);
         }
 
@@ -1110,6 +1260,9 @@ function buildApiDocsHtml(
           + '</div>';
       }
 
+      /**
+       * @description 发送接口文档中的接口请求
+       */
       async function sendDocApiRequest(button) {
         if (!button || button.getAttribute('data-sending') === 'true') return;
 
@@ -1164,6 +1317,9 @@ function buildApiDocsHtml(
 </html>`;
 }
 
+/**
+ * @description 渲染键值编辑器
+ */
 function KeyValueEditor(props: {
   items: KeyValueItem[];
   onChange: (items: KeyValueItem[]) => void;
@@ -1172,15 +1328,24 @@ function KeyValueEditor(props: {
 }) {
   const { items, onChange, keyPlaceholder = '名称', valuePlaceholder = '值' } = props;
 
+  /**
+   * @description 更新键值配置项
+   */
   const updateItem = (id: string, patch: Partial<KeyValueItem>) => {
     onChange(items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
   };
 
+  /**
+   * @description 删除键值配置项
+   */
   const removeItem = (id: string) => {
     const next = items.filter((item) => item.id !== id);
     onChange(next.length > 0 ? next : [createKeyValue()]);
   };
 
+  /**
+   * @description 添加键值配置项
+   */
   const addItem = () => {
     onChange([...items, createKeyValue()]);
   };
@@ -1224,6 +1389,9 @@ function KeyValueEditor(props: {
   );
 }
 
+/**
+ * @description 渲染 API 调试工具主页面
+ */
 export default function ApiDevToolsApp() {
   const [globals, setGlobals] = useState<GlobalVariable[]>(createDefaultGlobals);
   const [request, setRequest] = useState<ApiRequestConfig>(createDefaultRequest);
@@ -1299,6 +1467,9 @@ export default function ApiDevToolsApp() {
   const workspaceResizerPointerIdRef = useRef<number | null>(null);
   const loadedStateRef = useRef(false);
 
+  /**
+   * @description 计算已启用的全局变量映射
+   */
   const globalVariables = useMemo(() => {
     const result: Record<string, string> = {};
 
@@ -1310,16 +1481,25 @@ export default function ApiDevToolsApp() {
     return result;
   }, [globals]);
 
+  /**
+   * @description 计算当前选中的项目
+   */
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeProjectId) || null,
     [projects, activeProjectId]
   );
 
+  /**
+   * @description 计算当前选中的接口
+   */
   const activeInterface = useMemo(() => {
     if (!activeProject) return null;
     return activeProject.interfaces.find((item) => item.id === activeInterfaceId) || null;
   }, [activeProject, activeInterfaceId]);
 
+  /**
+   * @description 计算当前请求的项目绑定提示
+   */
   const requestBindText = useMemo(() => {
     if (activeProject && activeInterface) {
       return `绑定项目：${activeProject.name}`;
@@ -1332,50 +1512,86 @@ export default function ApiDevToolsApp() {
     return '未绑定项目';
   }, [activeProject, activeInterface]);
 
+  /**
+   * @description 同步全局变量引用
+   */
   useEffect(() => {
     globalsRef.current = globals;
   }, [globals]);
 
+  /**
+   * @description 同步响应搜索框偏移引用
+   */
   useEffect(() => {
     responseSearchBarOffsetRef.current = responseSearchBarOffset;
   }, [responseSearchBarOffset]);
 
+  /**
+   * @description 同步当前请求引用
+   */
   useEffect(() => {
     requestRef.current = request;
   }, [request]);
 
+  /**
+   * @description 同步请求历史引用
+   */
   useEffect(() => {
     historyRef.current = history;
   }, [history]);
 
+  /**
+   * @description 同步项目列表引用
+   */
   useEffect(() => {
     projectsRef.current = projects;
   }, [projects]);
 
+  /**
+   * @description 同步当前项目标识引用
+   */
   useEffect(() => {
     activeProjectIdRef.current = activeProjectId;
   }, [activeProjectId]);
 
+  /**
+   * @description 同步当前接口标识引用
+   */
   useEffect(() => {
     activeInterfaceIdRef.current = activeInterfaceId;
   }, [activeInterfaceId]);
 
+  /**
+   * @description 同步文档分享接口选择引用
+   */
   useEffect(() => {
     shareSelectedInterfaceIdsRef.current = shareSelectedInterfaceIds;
   }, [shareSelectedInterfaceIds]);
 
+  /**
+   * @description 同步全局变量映射引用
+   */
   useEffect(() => {
     globalVariablesRef.current = globalVariables;
   }, [globalVariables]);
 
+  /**
+   * @description 同步底部面板高度引用
+   */
   useEffect(() => {
     bottomPanelSizeRef.current = bottomPanelSize;
   }, [bottomPanelSize]);
 
+  /**
+   * @description 同步底部面板高度引用
+   */
   useEffect(() => {
     workspacePaneWidthRef.current = workspacePaneWidth;
   }, [workspacePaneWidth]);
 
+  /**
+   * @description 获取底部面板允许的最大高度
+   */
   const getBottomPanelMaxSize = useCallback(() => {
     const pane = rightPaneRef.current;
 
@@ -1399,6 +1615,9 @@ export default function ApiDevToolsApp() {
     return Math.min(BOTTOM_PANEL_MAX_SIZE, Math.max(BOTTOM_PANEL_COLLAPSED_SIZE, available));
   }, []);
 
+  /**
+   * @description 安全设置底部面板高度
+   */
   const setSafeBottomPanelSize = useCallback(
     (size: number) => {
       const nextSize = clampNumber(size, BOTTOM_PANEL_COLLAPSED_SIZE, getBottomPanelMaxSize());
@@ -1409,6 +1628,9 @@ export default function ApiDevToolsApp() {
     [getBottomPanelMaxSize]
   );
 
+  /**
+   * @description 停止调整底部面板高度
+   */
   const stopBottomResize = useCallback(() => {
     isDraggingBottomPanelRef.current = false;
     setIsResizingBottomPanel(false);
@@ -1433,6 +1655,9 @@ export default function ApiDevToolsApp() {
     document.body.style.userSelect = bodyUserSelectRef.current;
   }, []);
 
+  /**
+   * @description 处理底部面板拖拽开始事件
+   */
   const handleBottomResizerPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1459,9 +1684,15 @@ export default function ApiDevToolsApp() {
     setIsResizingBottomPanel(true);
   }, []);
 
+  /**
+   * @description 监听底部面板拖拽事件
+   */
   useEffect(() => {
     if (!isResizingBottomPanel) return;
 
+    /**
+     * @description 处理PointerMove
+     */
     const handlePointerMove = (event: PointerEvent) => {
       if (!isDraggingBottomPanelRef.current) return;
 
@@ -1473,16 +1704,25 @@ export default function ApiDevToolsApp() {
       setSafeBottomPanelSize(nextSize);
     };
 
+    /**
+     * @description 处理PointerEnd
+     */
     const handlePointerEnd = () => {
       stopBottomResize();
     };
 
+    /**
+     * @description 处理VisibilityChange
+     */
     const handleVisibilityChange = () => {
       if (document.hidden) {
         stopBottomResize();
       }
     };
 
+    /**
+     * @description 处理MouseLeaveWebview
+     */
     const handleMouseLeaveWebview = () => {
       stopBottomResize();
     };
@@ -1510,6 +1750,9 @@ export default function ApiDevToolsApp() {
     };
   }, [isResizingBottomPanel, setSafeBottomPanelSize, stopBottomResize]);
 
+  /**
+   * @description 安全设置项目面板宽度
+   */
   const setSafeWorkspacePaneWidth = useCallback((width: number) => {
     const nextWidth = clampNumber(width, WORKSPACE_PANE_MIN_WIDTH, WORKSPACE_PANE_MAX_WIDTH);
 
@@ -1517,6 +1760,9 @@ export default function ApiDevToolsApp() {
     setWorkspacePaneWidth(nextWidth);
   }, []);
 
+  /**
+   * @description 停止调整项目面板宽度
+   */
   const stopWorkspaceResize = useCallback(() => {
     isDraggingWorkspacePaneRef.current = false;
     setIsResizingWorkspacePane(false);
@@ -1541,6 +1787,9 @@ export default function ApiDevToolsApp() {
     document.body.style.userSelect = bodyUserSelectRef.current;
   }, []);
 
+  /**
+   * @description 处理项目面板拖拽开始事件
+   */
   const handleWorkspaceResizerPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -1567,9 +1816,15 @@ export default function ApiDevToolsApp() {
     setIsResizingWorkspacePane(true);
   }, []);
 
+  /**
+   * @description 监听项目面板拖拽事件
+   */
   useEffect(() => {
     if (!isResizingWorkspacePane) return;
 
+    /**
+     * @description 处理PointerMove
+     */
     const handlePointerMove = (event: PointerEvent) => {
       if (!isDraggingWorkspacePaneRef.current) return;
 
@@ -1581,16 +1836,25 @@ export default function ApiDevToolsApp() {
       setSafeWorkspacePaneWidth(nextWidth);
     };
 
+    /**
+     * @description 处理PointerEnd
+     */
     const handlePointerEnd = () => {
       stopWorkspaceResize();
     };
 
+    /**
+     * @description 处理VisibilityChange
+     */
     const handleVisibilityChange = () => {
       if (document.hidden) {
         stopWorkspaceResize();
       }
     };
 
+    /**
+     * @description 处理MouseLeaveWebview
+     */
     const handleMouseLeaveWebview = () => {
       stopWorkspaceResize();
     };
@@ -1618,6 +1882,9 @@ export default function ApiDevToolsApp() {
     };
   }, [isResizingWorkspacePane, setSafeWorkspacePaneWidth, stopWorkspaceResize]);
 
+  /**
+   * @description 同步当前项目标识引用
+   */
   useEffect(() => {
     const target = rightPaneRef.current;
 
@@ -1634,6 +1901,9 @@ export default function ApiDevToolsApp() {
     };
   }, [setSafeBottomPanelSize]);
 
+  /**
+   * @description 保存 API 调试工具状态
+   */
   const saveState = useCallback((nextState?: Partial<PersistedState>) => {
     if (!loadedStateRef.current) return;
 
@@ -1653,10 +1923,16 @@ export default function ApiDevToolsApp() {
     });
   }, []);
 
+  /**
+   * @description 追加运行日志
+   */
   const setLog = useCallback((message: string) => {
     setLogs((prev) => [`${new Date().toLocaleTimeString()} ${message}`, ...prev].slice(0, 20));
   }, []);
 
+  /**
+   * @description 执行请求前置脚本
+   */
   const runPreScript = useCallback(
     (script: string, draft: ApiRequestConfig) => {
       const code = String(script || '').trim();
@@ -1681,6 +1957,9 @@ export default function ApiDevToolsApp() {
     [setLog]
   );
 
+  /**
+   * @description 执行响应后置脚本
+   */
   const runPostScript = useCallback(
     (script: string, payload: ApiResponsePayload) => {
       const code = String(script || '').trim();
@@ -1700,9 +1979,15 @@ export default function ApiDevToolsApp() {
     [setLog]
   );
 
+  /**
+   * @description 注册 VS Code 消息监听并请求初始化状态
+   */
   useEffect(() => {
     vscode?.postMessage({ type: 'apiDevToolsReady' });
 
+    /**
+     * @description 处理 Extension 发送的消息
+     */
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
 
@@ -1778,8 +2063,11 @@ export default function ApiDevToolsApp() {
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [runPostScript, saveState]);
+  }, [runPostScript, saveState, setLog]);
 
+  /**
+   * @description 延迟持久化 API 调试工具状态
+   */
   useEffect(() => {
     const timer = window.setTimeout(() => {
       saveState();
@@ -1788,6 +2076,9 @@ export default function ApiDevToolsApp() {
     return () => window.clearTimeout(timer);
   }, [globals, request, history, projects, activeProjectId, activeInterfaceId, saveState]);
 
+  /**
+   * @description 局部更新当前请求配置
+   */
   const patchRequest = (patch: Partial<ApiRequestConfig>) => {
     setRequest((prev) => {
       const next = { ...prev, ...patch };
@@ -1798,6 +2089,9 @@ export default function ApiDevToolsApp() {
     });
   };
 
+  /**
+   * @description 构建待发送的请求参数
+   */
   const buildRequestPayload = () => {
     const finalRequest = runPreScript(request.preScript, request);
     const variables = { ...globalVariables };
@@ -1882,6 +2176,9 @@ export default function ApiDevToolsApp() {
     };
   };
 
+  /**
+   * @description 发送当前接口请求
+   */
   const sendRequest = () => {
     try {
       const { payload } = buildRequestPayload();
@@ -1912,6 +2209,9 @@ export default function ApiDevToolsApp() {
     }
   };
 
+  /**
+   * @description 清空 API 调试工具全部数据
+   */
   const clearAllData = () => {
     const nextRequest = createDefaultRequest();
     const nextGlobals = createDefaultGlobals();
@@ -1930,6 +2230,9 @@ export default function ApiDevToolsApp() {
     vscode?.postMessage({ type: 'clearApiDevToolsState' });
   };
 
+  /**
+   * @description 打开清空全部数据确认框
+   */
   const clearAll = () => {
     setManageDialog({
       kind: 'clear-all',
@@ -1938,6 +2241,9 @@ export default function ApiDevToolsApp() {
     });
   };
 
+  /**
+   * @description 加载历史请求
+   */
   const loadHistory = async (item: HistoryItem) => {
     if (!(await confirmSaveBeforeLeave())) return;
 
@@ -1952,20 +2258,32 @@ export default function ApiDevToolsApp() {
     setResponse(null);
   };
 
+  /**
+   * @description 关闭项目或接口管理弹窗
+   */
   const closeManageDialog = () => {
     setManageDialog(null);
     setManageDialogValue('');
   };
 
+  /**
+   * @description 根据标识获取项目
+   */
   const getProjectById = (projectId: string) => {
     return projectsRef.current.find((project) => project.id === projectId) || null;
   };
 
+  /**
+   * @description 根据标识获取接口
+   */
   const getInterfaceById = (projectId: string, interfaceId: string) => {
     const project = getProjectById(projectId);
     return project?.interfaces.find((item) => item.id === interfaceId) || null;
   };
 
+  /**
+   * @description 判断当前请求是否存在未保存变更
+   */
   const hasUnsavedRequest = () => {
     const currentRequest = requestRef.current;
     const currentProjectId = activeProjectIdRef.current;
@@ -1984,6 +2302,9 @@ export default function ApiDevToolsApp() {
     return !isDefaultRequestSnapshot(currentRequest);
   };
 
+  /**
+   * @description 重置指定项目的请求编辑器
+   */
   const resetEditorForProject = (projectId: string) => {
     const nextRequest = createDefaultRequest();
 
@@ -1999,6 +2320,9 @@ export default function ApiDevToolsApp() {
     setResponseTab('body');
   };
 
+  /**
+   * @description 将当前请求保存到项目
+   */
   const saveCurrentRequestToProject = (options?: { silent?: boolean }) => {
     const now = Date.now();
     const snapshot = cloneRequest(requestRef.current);
@@ -2186,6 +2510,9 @@ export default function ApiDevToolsApp() {
     return false;
   };
 
+  /**
+   * @description 切换当前项目
+   */
   const switchProject = async (project: ApiProject) => {
     const firstInterface = project.interfaces[0] || null;
     const targetInterfaceId = firstInterface?.id || '';
@@ -2218,6 +2545,9 @@ export default function ApiDevToolsApp() {
     setLog(`已切换项目：${project.name}`);
   };
 
+  /**
+   * @description 打开新增项目弹窗
+   */
   const addProject = () => {
     const value = `项目 ${projectsRef.current.length + 1}`;
 
@@ -2230,6 +2560,9 @@ export default function ApiDevToolsApp() {
     setManageDialogValue(value);
   };
 
+  /**
+   * @description 打开项目重命名弹窗
+   */
   const renameProject = (project: ApiProject) => {
     setManageDialog({
       kind: 'project-rename',
@@ -2241,6 +2574,9 @@ export default function ApiDevToolsApp() {
     setManageDialogValue(project.name);
   };
 
+  /**
+   * @description 打开删除项目确认框
+   */
   const removeProject = (project: ApiProject) => {
     setManageDialog({
       kind: 'project-delete',
@@ -2252,6 +2588,9 @@ export default function ApiDevToolsApp() {
     setManageDialogValue('');
   };
 
+  /**
+   * @description 打开新增接口弹窗
+   */
   const addInterface = () => {
     const value = requestRef.current.name || requestRef.current.url || '未命名接口';
 
@@ -2264,10 +2603,16 @@ export default function ApiDevToolsApp() {
     setManageDialogValue(value);
   };
 
+  /**
+   * @description 保存当前接口
+   */
   const saveInterface = () => {
     saveCurrentRequestToProject();
   };
 
+  /**
+   * @description 加载指定接口
+   */
   const loadInterface = async (project: ApiProject, api: ApiInterfaceItem) => {
     if (activeProjectIdRef.current === project.id && activeInterfaceIdRef.current === api.id) {
       return;
@@ -2290,6 +2635,9 @@ export default function ApiDevToolsApp() {
     setLog(`已打开接口：${api.name}`);
   };
 
+  /**
+   * @description 打开删除接口确认框
+   */
   const removeInterface = (project: ApiProject, api: ApiInterfaceItem) => {
     setManageDialog({
       kind: 'interface-delete',
@@ -2302,6 +2650,9 @@ export default function ApiDevToolsApp() {
     setManageDialogValue('');
   };
 
+  /**
+   * @description 确认项目或接口管理操作
+   */
   const confirmManageDialog = async () => {
     if (!manageDialog) return;
 
@@ -2457,9 +2808,15 @@ export default function ApiDevToolsApp() {
     }
   };
 
+  /**
+   * @description 获取全部接口标识
+   */
   const getAllInterfaceIds = () =>
     projectsRef.current.flatMap((project) => project.interfaces.map((api) => api.id));
 
+  /**
+   * @description 获取选中用于分享的项目数据
+   */
   const getShareProjects = (selectedIds = shareSelectedInterfaceIdsRef.current) => {
     const selectedIdSet = new Set(selectedIds);
     const activeProjectIdValue = activeProjectIdRef.current;
@@ -2498,6 +2855,9 @@ export default function ApiDevToolsApp() {
       .filter((project) => project.interfaces.length > 0);
   };
 
+  /**
+   * @description 创建接口文档 HTML
+   */
   const createDocsHtml = (docsProjects = projectsRef.current) =>
     buildApiDocsHtml(
       docsProjects,
@@ -2507,6 +2867,9 @@ export default function ApiDevToolsApp() {
       activeInterfaceIdRef.current
     );
 
+  /**
+   * @description 进入接口文档分享选择状态
+   */
   const shareDocs = () => {
     const allInterfaceIds = getAllInterfaceIds();
 
@@ -2525,6 +2888,9 @@ export default function ApiDevToolsApp() {
     setLog('请选择需要分享的接口');
   };
 
+  /**
+   * @description 确认分享选中的接口文档
+   */
   const confirmShareDocs = () => {
     const shareProjects = getShareProjects();
 
@@ -2543,10 +2909,16 @@ export default function ApiDevToolsApp() {
     setIsShareSelecting(false);
   };
 
+  /**
+   * @description 取消接口文档分享选择
+   */
   const cancelShareSelect = () => {
     setIsShareSelecting(false);
   };
 
+  /**
+   * @description 切换接口文档分享选择状态
+   */
   const toggleShareInterface = (interfaceId: string) => {
     setShareSelectedInterfaceIds((current) =>
       current.includes(interfaceId)
@@ -2555,10 +2927,16 @@ export default function ApiDevToolsApp() {
     );
   };
 
+  /**
+   * @description 导出接口文档
+   */
   const exportDocs = () => {
     vscode?.postMessage({ type: 'exportApiDocsHtml', payload: { html: createDocsHtml(), fileName: 'q-ops-api-docs.html' } });
   };
 
+  /**
+   * @description 处理组件副作用
+   */
   useEffect(() => {
     if (!sharedDocUrl || !loadedStateRef.current) return;
 
@@ -2576,16 +2954,25 @@ export default function ApiDevToolsApp() {
     return () => window.clearTimeout(timer);
   }, [globals, request, projects, activeProjectId, activeInterfaceId, sharedDocUrl, shareSelectedInterfaceIds]);
 
+  /**
+   * @description 停止接口文档分享
+   */
   const stopShareDocs = () => {
     vscode?.postMessage({ type: 'stopApiDocsShare' });
   };
 
+  /**
+   * @description 复制接口文档分享地址
+   */
   const copySharedUrl = () => {
     if (!sharedDocUrl) return;
     navigator.clipboard?.writeText(sharedDocUrl);
     setLog('已复制分享地址');
   };
 
+  /**
+   * @description 打开接口文档分享地址
+   */
   const openSharedUrl = () => {
     if (!sharedDocUrl) return;
 
@@ -2598,6 +2985,9 @@ export default function ApiDevToolsApp() {
   };
 
   const responseBody = getDisplayResponseBody(response);
+  /**
+   * @description 计算响应搜索文本
+   */
   const responseSearchText = useMemo(() => {
     if (!response) return '';
 
@@ -2614,6 +3004,9 @@ export default function ApiDevToolsApp() {
     return responseBody;
   }, [response, responseBody, responseTab]);
 
+  /**
+   * @description 计算响应内容中的搜索结果
+   */
   const responseSearchMatches = useMemo(() => {
     const query = responseSearchQuery.trim().toLowerCase();
 
@@ -2640,10 +3033,16 @@ export default function ApiDevToolsApp() {
     ? Math.min(responseSearchIndex, responseSearchTotal - 1)
     : 0;
 
+  /**
+   * @description 同步响应搜索结果索引
+   */
   useEffect(() => {
     setResponseSearchIndex(0);
   }, [responseSearchQuery, responseSearchText]);
 
+  /**
+   * @description 同步响应搜索结果索引
+   */
   useEffect(() => {
     if (!isResponseSearchOpen) return;
 
@@ -2653,6 +3052,9 @@ export default function ApiDevToolsApp() {
     }, 0);
   }, [isResponseSearchOpen]);
 
+  /**
+   * @description 同步响应搜索结果索引
+   */
   useEffect(() => {
     if (!isResponseSearchOpen || responseSearchTotal === 0) return;
 
@@ -2668,18 +3070,27 @@ export default function ApiDevToolsApp() {
     }, 0);
   }, [activeResponseSearchIndex, isResponseSearchOpen, responseSearchTotal]);
 
+  /**
+   * @description 打开响应内容搜索框
+   */
   const openResponseSearch = () => {
     if (!response) return;
 
     setIsResponseSearchOpen(true);
   };
 
+  /**
+   * @description 关闭响应内容搜索框
+   */
   const closeResponseSearch = () => {
     setIsResponseSearchOpen(false);
     setResponseSearchQuery('');
     setResponseSearchIndex(0);
   };
 
+  /**
+   * @description 跳转到上一个或下一个响应搜索结果
+   */
   const jumpResponseSearchMatch = (direction: 'prev' | 'next') => {
     if (responseSearchTotal === 0) return;
 
@@ -2692,6 +3103,9 @@ export default function ApiDevToolsApp() {
     });
   };
 
+  /**
+   * @description 处理响应搜索框拖拽开始事件
+   */
   const handleResponseSearchBarPointerDown = (event: React.PointerEvent<HTMLElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -2722,9 +3136,15 @@ export default function ApiDevToolsApp() {
     setIsDraggingResponseSearchBar(true);
   };
 
+  /**
+   * @description 监听响应搜索框拖拽事件
+   */
   useEffect(() => {
     if (!isDraggingResponseSearchBar) return;
 
+    /**
+     * @description 处理PointerMove
+     */
     const handlePointerMove = (event: PointerEvent) => {
       event.preventDefault();
 
@@ -2742,6 +3162,9 @@ export default function ApiDevToolsApp() {
       });
     };
 
+    /**
+     * @description 处理PointerUp
+     */
     const handlePointerUp = () => {
       setIsDraggingResponseSearchBar(false);
     };
@@ -2757,6 +3180,9 @@ export default function ApiDevToolsApp() {
     };
   }, [isDraggingResponseSearchBar]);
 
+  /**
+   * @description 渲染带搜索高亮的响应内容
+   */
   const renderResponseCode = (text: string) => {
     const query = responseSearchQuery.trim();
 
