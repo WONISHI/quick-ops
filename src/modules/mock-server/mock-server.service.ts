@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as YAML from 'yaml';
 import { nanoid } from 'nanoid';
+import WebviewWorkflow from '@/workflow/webview';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { ConfigurationService } from '@common/services/configuration.service';
@@ -15,12 +16,14 @@ import type {
   MockWebviewMessage,
   MockYamlDocument,
 } from '@modules/mock-server/mock-server.type';
+import type { WebviewEnhancerOptions } from '@plugins/webview-enhancer/type';
 
 export class MockServerService implements vscode.WebviewViewProvider {
   public static inject = [ExtensionContextProvider, ConfigurationService];
 
   private readonly servers = new Map<string, MockHttpServer>();
   private readonly yamlStore: MockYamlStore;
+  private readonly webviewWorkflow = new WebviewWorkflow();
   private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
 
   private view?: vscode.WebviewView;
@@ -400,24 +403,30 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
     const extensionUri = this.extensionContextProvider.extensionUri;
 
-    this.proxyPanel = vscode.window.createWebviewPanel('quickOps.mockProxyPanel', proxyId ? '编辑 Mock 服务' : '新增 Mock 服务', vscode.ViewColumn.One, {
-      enableScripts: true,
-      retainContextWhenHidden: false,
-      localResourceRoots: [extensionUri],
-    });
-
-    this.proxyPanel.onDidDispose(() => {
-      this.proxyPanel = undefined;
-    });
-
-    this.proxyPanel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+    this.proxyPanel = await this.webviewWorkflow.createWebview<MockWebviewMessage, WebviewEnhancerOptions>({
+      key: 'quickOps.mockProxyPanel',
+      viewType: 'quickOps.mockProxyPanel',
+      title: proxyId ? '编辑 Mock 服务' : '新增 Mock 服务',
+      column: vscode.ViewColumn.One,
       extensionUri,
-      webview: this.proxyPanel.webview,
-      routeName: '/mock/proxy',
-    });
-
-    this.proxyPanel.webview.onDidReceiveMessage(async (data) => {
-      await this.handleProxyPanelMessage(data, proxyId);
+      options: {
+        enableScripts: true,
+        retainContextWhenHidden: false,
+        localResourceRoots: [extensionUri],
+      },
+      htmlFactory: async (webview) => {
+        return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+          extensionUri,
+          webview,
+          routeName: '/mock/proxy',
+        });
+      },
+      onDidReceiveMessage: async (data) => {
+        await this.handleProxyPanelMessage(data, proxyId);
+      },
+      onDidDispose: () => {
+        this.proxyPanel = undefined;
+      },
     });
   }
 
@@ -515,24 +524,30 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
     const extensionUri = this.extensionContextProvider.extensionUri;
 
-    this.rulePanel = vscode.window.createWebviewPanel('quickOps.mockRulePanel', ruleId ? '编辑规则' : '新增规则', vscode.ViewColumn.One, {
-      enableScripts: true,
-      retainContextWhenHidden: false,
-      localResourceRoots: [extensionUri],
-    });
-
-    this.rulePanel.onDidDispose(() => {
-      this.rulePanel = undefined;
-    });
-
-    this.rulePanel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+    this.rulePanel = await this.webviewWorkflow.createWebview<MockWebviewMessage, WebviewEnhancerOptions>({
+      key: 'quickOps.mockRulePanel',
+      viewType: 'quickOps.mockRulePanel',
+      title: ruleId ? '编辑规则' : '新增规则',
+      column: vscode.ViewColumn.One,
       extensionUri,
-      webview: this.rulePanel.webview,
-      routeName: '/mock/rule',
-    });
-
-    this.rulePanel.webview.onDidReceiveMessage(async (data) => {
-      await this.handleRulePanelMessage(data, proxyId, ruleId);
+      options: {
+        enableScripts: true,
+        retainContextWhenHidden: false,
+        localResourceRoots: [extensionUri],
+      },
+      htmlFactory: async (webview) => {
+        return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+          extensionUri,
+          webview,
+          routeName: '/mock/rule',
+        });
+      },
+      onDidReceiveMessage: async (data) => {
+        await this.handleRulePanelMessage(data, proxyId, ruleId);
+      },
+      onDidDispose: () => {
+        this.rulePanel = undefined;
+      },
     });
   }
 

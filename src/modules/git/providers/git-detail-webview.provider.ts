@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { execFile } from 'child_process';
+import WebviewWorkflow from '@/workflow/webview';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { GitService } from '@modules/git/git.service';
 import { GIT_WEBVIEW_ROUTES } from '@/modules/git/constants/git.constant';
+import type { WebviewEnhancerOptions } from '@plugins/webview-enhancer/type';
 
 interface GitGraphLikeCommit {
   hash: string;
@@ -33,6 +35,7 @@ export class GitDetailWebviewProvider {
   private _panel?: vscode.WebviewPanel;
 
   private readonly _extensionUri: vscode.Uri;
+  private readonly webviewWorkflow = new WebviewWorkflow();
   private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
 
   private _currentGraphFilter = '全部分支';
@@ -71,86 +74,92 @@ export class GitDetailWebviewProvider {
       return;
     }
 
-    this._panel = vscode.window.createWebviewPanel('quickOps.gitDetail', 'Git 提交详情', vscode.ViewColumn.Active, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      localResourceRoots: [this._extensionUri],
-    });
-
-    this._panel.onDidDispose(() => {
-      this.disposeListeners();
-      this._panel = undefined;
-      this._lastGraphState = '';
-      this._currentGraphFilter = '全部分支';
-    });
-
-    this._panel.webview.onDidReceiveMessage(async (msg) => {
-      try {
-        const command = msg.command || msg.type;
-
-        if (command === 'openExternal') {
-          vscode.env.openExternal(vscode.Uri.parse(msg.url));
-          return;
-        }
-
-        const cwd = this.getWorkspaceRoot();
-
-        if (!cwd) {
-          this._panel?.webview.postMessage({
-            type: 'gitDetailNoWorkspace',
-          });
-          return;
-        }
-
-        switch (command) {
-          case 'gitDetailLoaded':
-          case 'refreshGitDetail': {
-            await this.postGraphData(cwd, msg.graphFilter || this._currentGraphFilter, false, false);
-            break;
-          }
-
-          case 'changeGitDetailFilter': {
-            await this.changeGraphFilter(cwd, msg.current || this._currentGraphFilter);
-            break;
-          }
-
-          case 'openCommitMultiDiff': {
-            await this.openCommitMultiDiff(cwd, msg.hash);
-            break;
-          }
-
-          case 'getGitDetailCommitFiles': {
-            await this.postCommitFiles(cwd, msg.hash);
-            break;
-          }
-
-          case 'openGitDetailCommitFileDiff': {
-            await this.openCommitFileDiff(cwd, msg.hash, msg.parentHash, msg.file, msg.status);
-            break;
-          }
-
-          case 'copy': {
-            vscode.env.clipboard.writeText(msg.text || '');
-            vscode.window.showInformationMessage(`已复制: ${msg.text}`);
-            break;
-          }
-        }
-      } catch (error: any) {
-        vscode.window.showErrorMessage(`Git 详情错误: ${error?.message ?? String(error)}`);
-
-        this._panel?.webview.postMessage({
-          type: 'gitDetailError',
-          message: error?.message ?? String(error),
-        });
-      }
-    });
-
-    this._panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+    this._panel = await this.webviewWorkflow.createWebview<any, WebviewEnhancerOptions>({
+      key: 'quickOps.gitDetail',
+      viewType: 'quickOps.gitDetail',
+      title: 'Git 提交详情',
+      column: vscode.ViewColumn.Active,
       extensionUri: this._extensionUri,
-      webview: this._panel.webview,
-      routeName: GIT_WEBVIEW_ROUTES.detail,
+      icon: 'resources/icons/git.svg',
+      options: {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [this._extensionUri],
+      },
+      htmlFactory: async (webview) => {
+        return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+          extensionUri: this._extensionUri,
+          webview,
+          routeName: GIT_WEBVIEW_ROUTES.detail,
+        });
+      },
+      onDidReceiveMessage: async (msg) => {
+        try {
+          const command = msg.command || msg.type;
+
+          if (command === 'openExternal') {
+            vscode.env.openExternal(vscode.Uri.parse(msg.url));
+            return;
+          }
+
+          const cwd = this.getWorkspaceRoot();
+
+          if (!cwd) {
+            this._panel?.webview.postMessage({
+              type: 'gitDetailNoWorkspace',
+            });
+            return;
+          }
+
+          switch (command) {
+            case 'gitDetailLoaded':
+            case 'refreshGitDetail': {
+              await this.postGraphData(cwd, msg.graphFilter || this._currentGraphFilter, false, false);
+              break;
+            }
+
+            case 'changeGitDetailFilter': {
+              await this.changeGraphFilter(cwd, msg.current || this._currentGraphFilter);
+              break;
+            }
+
+            case 'openCommitMultiDiff': {
+              await this.openCommitMultiDiff(cwd, msg.hash);
+              break;
+            }
+
+            case 'getGitDetailCommitFiles': {
+              await this.postCommitFiles(cwd, msg.hash);
+              break;
+            }
+
+            case 'openGitDetailCommitFileDiff': {
+              await this.openCommitFileDiff(cwd, msg.hash, msg.parentHash, msg.file, msg.status);
+              break;
+            }
+
+            case 'copy': {
+              vscode.env.clipboard.writeText(msg.text || '');
+              vscode.window.showInformationMessage(`已复制: ${msg.text}`);
+              break;
+            }
+          }
+        } catch (error: any) {
+          vscode.window.showErrorMessage(`Git 详情错误: ${error?.message ?? String(error)}`);
+
+          this._panel?.webview.postMessage({
+            type: 'gitDetailError',
+            message: error?.message ?? String(error),
+          });
+        }
+      },
+      onDidDispose: () => {
+        this.disposeListeners();
+        this._panel = undefined;
+        this._lastGraphState = '';
+        this._currentGraphFilter = '全部分支';
+      },
     });
-    this._panel.iconPath = vscode.Uri.joinPath(this._extensionUri, 'resources', 'icons', 'git.svg');
 
     void this.setupGitWatcher();
 

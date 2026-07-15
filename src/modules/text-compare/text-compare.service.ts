@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
+import WebviewWorkflow from '@/workflow/webview';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import type { WebviewEnhancerOptions } from '@plugins/webview-enhancer/type';
 
 class CompareContentProvider implements vscode.TextDocumentContentProvider {
   private readonly contentMap = new Map<string, string>();
@@ -33,6 +35,7 @@ export class TextCompareService {
   public static inject = [ExtensionContextProvider];
 
   private readonly contentProvider = new CompareContentProvider();
+  private readonly webviewWorkflow = new WebviewWorkflow();
   private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
   private currentPanel: vscode.WebviewPanel | undefined;
 
@@ -62,26 +65,31 @@ export class TextCompareService {
       return;
     }
 
-    this.currentPanel = vscode.window.createWebviewPanel('quickOpsTextCompare', '文本差异对比', vscode.ViewColumn.Beside, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      localResourceRoots: [context.extensionUri],
-    });
-
-    this.currentPanel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'compare.svg');
-
-    this.currentPanel.onDidDispose(() => {
-      this.currentPanel = undefined;
-    });
-
-    this.currentPanel.webview.onDidReceiveMessage(async (message) => {
-      await this.handleWebviewMessage(message, initialText);
-    });
-
-    this.currentPanel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+    this.currentPanel = await this.webviewWorkflow.createWebview<any, WebviewEnhancerOptions>({
+      key: 'quickOpsTextCompare',
+      viewType: 'quickOpsTextCompare',
+      title: '文本差异对比',
+      column: vscode.ViewColumn.Beside,
       extensionUri: context.extensionUri,
-      webview: this.currentPanel.webview,
-      routeName: '/compare',
+      icon: 'resources/icons/compare.svg',
+      options: {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [context.extensionUri],
+      },
+      htmlFactory: async (webview) => {
+        return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+          extensionUri: context.extensionUri,
+          webview,
+          routeName: '/compare',
+        });
+      },
+      onDidReceiveMessage: async (message) => {
+        await this.handleWebviewMessage(message, initialText);
+      },
+      onDidDispose: () => {
+        this.currentPanel = undefined;
+      },
     });
 
     if (initialText) {
