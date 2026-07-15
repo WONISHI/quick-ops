@@ -1,10 +1,12 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { MARKDOWN_WORKFLOW_EVENTS } from '@/workflow/markdown/type';
-import type { MarkdownProcessResult, MarkdownWorkflowEventContext } from '@/workflow/markdown/type';
+import type { MarkdownProcessEventContext, MarkdownProcessResult, MarkdownRestoreEventContext } from '@/workflow/markdown/type';
 
 const WEB_URL_RE = /^(https?:\/\/|data:|blob:|vscode-webview-resource:|vscode-resource:|mailto:|#)/i;
+
 const IMAGE_DIR_NAMES = ['img', 'images', 'assets'];
+
 const imageDirCache = new Map<string, Map<string, string>>();
 const statCache = new Map<string, boolean>();
 
@@ -94,10 +96,13 @@ async function exists(filePath: string) {
 
   try {
     await vscode.workspace.fs.stat(vscode.Uri.file(filePath));
+
     statCache.set(filePath, true);
+
     return true;
   } catch {
     statCache.set(filePath, false);
+
     return false;
   }
 }
@@ -105,6 +110,7 @@ async function exists(filePath: string) {
 async function isDirectory(filePath: string) {
   try {
     const stat = await vscode.workspace.fs.stat(vscode.Uri.file(filePath));
+
     return (stat.type & vscode.FileType.Directory) !== 0;
   } catch {
     return false;
@@ -153,6 +159,7 @@ async function resolveSecondLevelImagePath(src: string, context: MarkdownProcess
   }
 
   const parts = cleanSrc.split('/').filter(Boolean);
+
   const firstDirName = parts[0];
   const fileName = parts[parts.length - 1];
 
@@ -161,6 +168,7 @@ async function resolveSecondLevelImagePath(src: string, context: MarkdownProcess
   }
 
   let currentDir = context.mdDir;
+
   const stopDir = context.workspaceRoot || path.parse(currentDir).root;
 
   while (true) {
@@ -240,13 +248,16 @@ async function findImagePathByFileName(fileName: string, context: MarkdownProces
   }
 
   let currentDir = context.mdDir;
+
   const stopDir = context.workspaceRoot || path.parse(currentDir).root;
 
   while (true) {
     for (const dirName of IMAGE_DIR_NAMES) {
       const imageDir = path.join(currentDir, dirName);
 
-      if (!(await isDirectory(imageDir))) continue;
+      if (!(await isDirectory(imageDir))) {
+        continue;
+      }
 
       const directFilePath = path.join(imageDir, fileName);
 
@@ -270,9 +281,12 @@ async function findImagePathByFileName(fileName: string, context: MarkdownProces
     for (const dirName of IMAGE_DIR_NAMES) {
       const imageDir = path.join(currentDir, dirName);
 
-      if (!(await isDirectory(imageDir))) continue;
+      if (!(await isDirectory(imageDir))) {
+        continue;
+      }
 
       const fileMap = await buildImageFileMap(imageDir);
+
       const foundFilePath = fileMap.get(fileName) || fileMap.get(fileName.toLowerCase());
 
       if (foundFilePath) {
@@ -358,14 +372,19 @@ async function toWebviewImageSrc(src: string, context: MarkdownProcessResult) {
 
 async function replaceWikiImages(content: string, context: MarkdownProcessResult) {
   const imageReg = /!\[\[([^\]]+)\]\]/g;
+
   const matches = Array.from(content.matchAll(imageReg));
 
-  if (matches.length === 0) return content;
+  if (matches.length === 0) {
+    return content;
+  }
 
   const replacements = await Promise.all(
     matches.map(async (match) => {
       const [full, rawTarget] = match;
+
       const { fileName, width } = splitWikiImageTarget(rawTarget);
+
       const filePath = await findImagePathByFileName(fileName, context);
 
       if (!filePath) {
@@ -402,14 +421,19 @@ async function replaceWikiImages(content: string, context: MarkdownProcessResult
 
 async function replaceMarkdownImages(content: string, context: MarkdownProcessResult) {
   const imageReg = /!\[([^\]]*)\]\(([^)\n]+)\)/g;
+
   const matches = Array.from(content.matchAll(imageReg));
 
-  if (matches.length === 0) return content;
+  if (matches.length === 0) {
+    return content;
+  }
 
   const replacements = await Promise.all(
     matches.map(async (match) => {
       const [full, alt, target] = match;
+
       const { src, title } = splitMarkdownImageTarget(target);
+
       const webviewSrc = await toWebviewImageSrc(src, context);
 
       return {
@@ -430,18 +454,22 @@ async function replaceMarkdownImages(content: string, context: MarkdownProcessRe
 
 async function replaceHtmlImages(content: string, context: MarkdownProcessResult) {
   const imageReg = /<img\b([^>]*?)\bsrc=(["'])(.*?)\2([^>]*?)>/gi;
+
   const matches = Array.from(content.matchAll(imageReg));
 
-  if (matches.length === 0) return content;
+  if (matches.length === 0) {
+    return content;
+  }
 
   const replacements = await Promise.all(
     matches.map(async (match) => {
       const [full, before, quote, src, after] = match;
+
       const webviewSrc = await toWebviewImageSrc(src, context);
 
       return {
         full,
-        replacement: `<img${before}src=${quote}${webviewSrc}${quote}${after}>`,
+        replacement: `<img${before}src=${quote}` + `${webviewSrc}${quote}${after}>`,
       };
     }),
   );
@@ -455,7 +483,12 @@ async function replaceHtmlImages(content: string, context: MarkdownProcessResult
   return result;
 }
 
-export function restoreMarkdownImagePaths(content: string, assets: Record<string, string>) {
+/**
+ * @description 将 Webview 图片 URI 恢复为 Markdown 原始图片路径
+ *
+ * 保留具名导出，兼容尚未迁移到 MarkdownWorkflow 的旧调用。
+ */
+export function restoreMarkdownImagePaths(content: string, assets: Record<string, string>): string {
   let result = content;
 
   Object.entries(assets).forEach(([webviewSrc, originalSrc]) => {
@@ -470,6 +503,7 @@ export function restoreMarkdownImagePaths(content: string, assets: Record<string
  *
  * 监听：
  * - markdown:process
+ * - markdown:restore
  *
  * 作用：
  * - 解析 Wiki 图片语法
@@ -477,6 +511,7 @@ export function restoreMarkdownImagePaths(content: string, assets: Record<string
  * - 解析 HTML img 标签
  * - 将本地图片路径转换为 Webview URI
  * - 记录 Webview URI 与原始路径映射
+ * - 保存 Markdown 时恢复原始图片路径
  */
 export default class MarkdownImagePlugin {
   public readonly pluginId = 'markdown-image';
@@ -492,14 +527,18 @@ export default class MarkdownImagePlugin {
           name: MARKDOWN_WORKFLOW_EVENTS.PROCESS,
           callback: this.process.bind(this),
         },
+        {
+          name: MARKDOWN_WORKFLOW_EVENTS.RESTORE,
+          callback: this.restore.bind(this),
+        },
       ],
     };
   }
 
   /**
-   * @description 处理 Markdown 图片
+   * @description 将 Markdown 图片路径转换为 Webview URI
    */
-  private async process(eventContext: MarkdownWorkflowEventContext): Promise<void> {
+  private async process(eventContext: MarkdownProcessEventContext): Promise<void> {
     const context = eventContext.result;
 
     context.content = await replaceWikiImages(context.content, context);
@@ -507,5 +546,12 @@ export default class MarkdownImagePlugin {
     context.content = await replaceMarkdownImages(context.content, context);
 
     context.content = await replaceHtmlImages(context.content, context);
+  }
+
+  /**
+   * @description 将 Webview URI 恢复为 Markdown 原始图片路径
+   */
+  private restore(eventContext: MarkdownRestoreEventContext): void {
+    eventContext.result.content = restoreMarkdownImagePaths(eventContext.result.content, eventContext.result.assets);
   }
 }
