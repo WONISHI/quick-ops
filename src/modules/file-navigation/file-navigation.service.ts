@@ -4,7 +4,6 @@ import * as path from 'path';
 import WebviewWorkflow from '@/workflow/webview';
 import MarkdownWorkflow from '@/workflow/markdown';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
-import { restoreMarkdownImagePaths } from '@plugins/markdown/markdownImagePlugin';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import type { ExternalPreviewType, MarkdownImageAssets, WebviewMessage } from '@modules/file-navigation/file-navigation.type';
 
@@ -218,7 +217,10 @@ export class FileNavigationService {
           if (msg.command === 'saveMarkdown') {
             const assets = this.markdownImageAssets.get(uri.fsPath) || {};
 
-            const saveContent = restoreMarkdownImagePaths(msg.content || '', assets);
+            const saveContent = await this.markdownWorkflow.restoreMarkdown({
+              content: msg.content || '',
+              assets,
+            });
 
             await vscode.workspace.fs.writeFile(uri, Buffer.from(saveContent, 'utf8'));
 

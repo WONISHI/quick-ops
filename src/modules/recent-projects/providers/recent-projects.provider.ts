@@ -5,7 +5,6 @@ import { promisify } from 'util';
 import WebviewWorkflow from '@/workflow/webview';
 import MarkdownWorkflow from '@/workflow/markdown';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
-import { restoreMarkdownImagePaths } from '@plugins/markdown/markdownImagePlugin';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { RecentProjectsService } from '@modules/recent-projects/recent-projects.service';
 import { GitVirtualContentProvider } from '@modules/git/providers/git-virtual-content.provider';
@@ -2626,7 +2625,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           if (message.command === 'saveMarkdown' && type === 'edit') {
             const assets = this.markdownImageAssets.get(panelKey) || {};
 
-            const saveContent = restoreMarkdownImagePaths(message.content || '', assets);
+            const saveContent = await this.markdownWorkflow.restoreMarkdown({
+              content: message.content || '',
+              assets,
+            });
 
             await vscode.workspace.fs.writeFile(uri, Buffer.from(saveContent, 'utf8'));
 
