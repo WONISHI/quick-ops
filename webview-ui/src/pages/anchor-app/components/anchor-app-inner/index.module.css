@@ -1,13 +1,8 @@
 .appWrapper {
+  position: relative;
   width: 100vw;
   height: 100vh;
-  position: relative;
   overflow: hidden;
-
-  --tooltip-bg: var(--vscode-editorHoverWidget-background, #252526);
-  --tooltip-border: var(--vscode-editorHoverWidget-border, #454545);
-  --code-bg: var(--vscode-textBlockQuote-background, rgba(128, 128, 128, 0.1));
-  --accent-color: var(--vscode-textLink-foreground, #3794ff);
 }
 
 .topControls {
@@ -15,18 +10,9 @@
   top: 20px;
   right: 20px;
   z-index: 20;
+
   display: flex;
   gap: 10px;
-}
-
-.bottomControls {
-  position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
-  display: flex;
-  gap: 12px;
 }
 
 .treeContainer {
@@ -41,33 +27,43 @@
 }
 
 .iconBtn {
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
-  border-radius: 6px;
-  color: var(--vscode-button-foreground);
-  background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background));
   display: inline-flex;
   align-items: center;
   justify-content: center;
+
+  width: 30px;
+  height: 30px;
+
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-secondaryBackground, var(--vscode-editorWidget-background));
+
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border));
+
+  border-radius: 6px;
   cursor: pointer;
-  transition: all 0.16s ease;
+
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease;
 }
 
 .iconBtn:hover {
   background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+
   border-color: var(--vscode-focusBorder);
 }
 
 .empty {
   position: absolute;
-  left: 50%;
   top: 50%;
+  left: 50%;
   z-index: 10;
-  transform: translate(-50%, -50%);
+
   color: var(--vscode-descriptionForeground);
   font-size: 13px;
+
   pointer-events: none;
+  transform: translate(-50%, -50%);
 }
 
 /* =========================================================
@@ -83,22 +79,24 @@
 }
 
 .appWrapper :global(.react-flow__node) {
-  font-family: var(--vscode-font-family, "Segoe UI", sans-serif);
+  font-family: var(--vscode-font-family, 'Segoe UI', sans-serif);
 }
 
 .appWrapper :global(.react-flow__edge-path) {
-  stroke-opacity: 0.65;
   stroke-linecap: round;
   stroke-linejoin: round;
+  stroke-opacity: 0.65;
+
   shape-rendering: geometricPrecision;
+
   transition:
     stroke-opacity 0.2s ease,
     stroke-width 0.2s ease;
 }
 
 .appWrapper :global(.react-flow__edge:hover .react-flow__edge-path) {
-  stroke-opacity: 1;
   stroke-width: 2.5;
+  stroke-opacity: 1;
 }
 
 .appWrapper :global(.react-flow__controls) {
@@ -107,9 +105,10 @@
 }
 
 .appWrapper :global(.react-flow__controls-button) {
-  background: var(--vscode-editorWidget-background);
-  border-bottom: 1px solid var(--vscode-widget-border);
   color: var(--vscode-foreground);
+  background: var(--vscode-editorWidget-background);
+
+  border-bottom: 1px solid var(--vscode-widget-border);
 }
 
 .appWrapper :global(.react-flow__controls-button:hover) {
@@ -126,117 +125,73 @@
 }
 
 /* =========================================================
-   Tooltip
+   锚点详情业务内容
    ========================================================= */
 
-.tooltip {
-  position: absolute;
-  min-width: 250px;
-  max-width: 500px;
-  z-index: 9999;
-  background: var(--tooltip-bg);
-  border: 1px solid var(--tooltip-border);
-  color: var(--vscode-editorHoverWidget-foreground);
-  border-radius: 6px;
-  font-size: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  pointer-events: auto;
-}
-
-.tooltip::before {
-  content: "";
-  position: absolute;
-  top: -10px;
-  left: -10px;
-  right: -10px;
-  bottom: -10px;
-  z-index: -1;
-}
-
-.tooltipHeader {
-  background: var(--vscode-sideBarSectionHeader-background);
-  padding: 8px 12px;
-  font-weight: 600;
-  border-bottom: 1px solid var(--vscode-panel-border);
+.anchorDetailRow {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
-  border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
-}
 
-.tooltipHeader svg {
-  color: var(--accent-color);
-  font-size: 14px;
-}
-
-.tooltipBody {
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.tooltipRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   color: var(--vscode-descriptionForeground);
 }
 
-.tooltipVal {
+.anchorDetailValue {
+  min-width: 0;
+
   color: var(--vscode-editor-foreground);
   word-break: break-all;
 }
 
 .codeBlock {
-  background: var(--code-bg);
+  max-height: 300px;
   padding: 10px;
+  margin: 4px 0 0;
+  overflow-y: auto;
+
+  color: var(--vscode-editor-foreground);
+  background: var(--vscode-textBlockQuote-background, rgba(128, 128, 128, 0.1));
+
+  border-left: 3px solid var(--vscode-textLink-foreground, #3794ff);
+
   border-radius: 4px;
-  font-family: var(--vscode-editor-font-family, "Courier New", monospace);
-  border-left: 3px solid var(--accent-color);
+
+  font-family: var(--vscode-editor-font-family, 'Courier New', monospace);
+
+  font-size: 11px;
+  line-height: 1.4;
+
   white-space: pre-wrap;
   word-break: break-all;
-  font-size: 11px;
-  margin: 4px 0 0;
-  color: var(--vscode-editor-foreground);
-  line-height: 1.4;
-  max-height: 300px;
-  overflow-y: auto;
 }
 
-.tooltipActions {
-  display: flex;
-  gap: 8px;
-  padding: 8px 12px;
-  border-top: 1px dashed var(--vscode-panel-border);
-  background: var(--vscode-editorHoverWidget-background);
-  border-bottom-left-radius: 6px;
-  border-bottom-right-radius: 6px;
-  justify-content: flex-end;
-}
-
-.tooltipBtn {
-  background: transparent;
-  border: 1px solid var(--vscode-panel-border);
-  color: var(--vscode-editor-foreground);
-  border-radius: 4px;
-  padding: 4px 8px;
-  cursor: pointer;
-  font-size: 11px;
-  display: flex;
+.anchorActionButton {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: all 0.2s;
+
+  padding: 4px 8px;
+
+  color: var(--vscode-editor-foreground);
+  background: transparent;
+
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+
+  font-size: 11px;
+  cursor: pointer;
+
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    border-color 0.2s ease;
 }
 
-.tooltipBtn:hover {
+.anchorActionButton:hover {
   background: var(--vscode-list-inactiveSelectionBackground);
 }
 
-.tooltipBtn.danger:hover,
-.danger:hover {
+.anchorActionButton.danger:hover {
   color: var(--vscode-errorForeground);
   border-color: var(--vscode-errorForeground);
 }

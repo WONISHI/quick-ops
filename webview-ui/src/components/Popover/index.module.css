@@ -1,0 +1,195 @@
+.popover {
+  position: fixed;
+  visibility: hidden;
+  z-index: var(--popover-z-index, 9999);
+
+  min-width: 250px;
+  max-width: min(500px, calc(100vw - 16px));
+
+  color: var(--popover-foreground, var(--vscode-editorHoverWidget-foreground, #cccccc));
+
+  background: var(--popover-background, var(--vscode-editorHoverWidget-background, #252526));
+
+  border: 1px solid var(--popover-border, var(--vscode-editorHoverWidget-border, #454545));
+
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+
+  box-sizing: border-box;
+  font-size: 12px;
+  pointer-events: auto;
+}
+
+/**
+ * 扩大鼠标交互区域。
+ *
+ * hover 模式下，允许鼠标从参考元素跨过 offset 间距，
+ * 移动到 Popover 上。
+ */
+.popover::before {
+  position: absolute;
+  inset: -10px;
+  z-index: -1;
+  content: '';
+}
+
+/* =========================================================
+   箭头
+   ========================================================= */
+
+.arrow {
+  position: absolute;
+  z-index: 0;
+
+  width: 8px;
+  height: 8px;
+
+  background: var(--popover-background, var(--vscode-editorHoverWidget-background, #252526));
+
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+/**
+ * Popover 位于参考元素上方，
+ * 箭头显示在 Popover 底部。
+ */
+.popover[data-placement='top'] .arrow {
+  left: 50%;
+  bottom: -5px;
+
+  border-right: 1px solid var(--popover-border, var(--vscode-editorHoverWidget-border, #454545));
+
+  border-bottom: 1px solid var(--popover-border, var(--vscode-editorHoverWidget-border, #454545));
+
+  transform: translateX(-50%) rotate(45deg);
+}
+
+/**
+ * Popover 位于参考元素下方，
+ * 箭头显示在 Popover 顶部。
+ */
+.popover[data-placement='bottom'] .arrow {
+  left: 50%;
+  top: -5px;
+
+  border-top: 1px solid var(--popover-border, var(--vscode-editorHoverWidget-border, #454545));
+
+  border-left: 1px solid var(--popover-border, var(--vscode-editorHoverWidget-border, #454545));
+
+  transform: translateX(-50%) rotate(45deg);
+}
+
+/**
+ * Popover 位于参考元素左侧，
+ * 箭头显示在 Popover 右侧。
+ */
+.popover[data-placement='left'] .arrow {
+  top: 50%;
+  right: -5px;
+
+  border-top: 1px solid var(--popover-border, var(--vscode-editorHoverWidget-border, #454545));
+
+  border-right: 1px solid var(--popover-border, var(--vscode-editorHoverWidget-border, #454545));
+
+  transform: translateY(-50%) rotate(45deg);
+}
+
+/**
+ * Popover 位于参考元素右侧，
+ * 箭头显示在 Popover 左侧。
+ */
+.popover[data-placement='right'] .arrow {
+  top: 50%;
+  left: -5px;
+
+  border-bottom: 1px solid var(--popover-border, var(--vscode-editorHoverWidget-border, #454545));
+
+  border-left: 1px solid var(--popover-border, var(--vscode-editorHoverWidget-border, #454545));
+
+  transform: translateY(-50%) rotate(45deg);
+}
+
+/* =========================================================
+   标题区域
+   ========================================================= */
+
+.header {
+  position: relative;
+  z-index: 1;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  padding: 8px 12px;
+
+  color: var(--vscode-editorHoverWidget-foreground, #cccccc);
+
+  background: var(--vscode-sideBarSectionHeader-background, rgba(128, 128, 128, 0.08));
+
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+
+  border-top-left-radius: 6px;
+  border-top-right-radius: 6px;
+
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.headerIcon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+
+  color: var(--popover-accent-color, var(--vscode-textLink-foreground, #3794ff));
+
+  font-size: 14px;
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =========================================================
+   内容区域
+   ========================================================= */
+
+.body {
+  position: relative;
+  z-index: 1;
+
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  padding: 10px 12px;
+}
+
+/* =========================================================
+   底部区域
+   ========================================================= */
+
+.footer {
+  position: relative;
+  z-index: 1;
+
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+
+  padding: 8px 12px;
+
+  background: var(--vscode-editorHoverWidget-background, #252526);
+
+  border-top: 1px dashed var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+
+  border-bottom-right-radius: 6px;
+  border-bottom-left-radius: 6px;
+}

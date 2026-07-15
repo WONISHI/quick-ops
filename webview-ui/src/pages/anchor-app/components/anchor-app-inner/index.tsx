@@ -6,6 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPenToSquare, faRotateRight, faTag, faTrash } from '@fortawesome/free-solid-svg-icons';
 import { faFileCode as faFileCodeReg, faFolderOpen as faFolderOpenReg } from '@fortawesome/free-regular-svg-icons';
 import AnchorNode from '@pages/anchor-app/components/anchor-node';
+import Popover from '@components/Popover';
 import { createFlowData, getNodeRawData } from '@pages/anchor-app/src/flow';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import type { NodeChange, NodeTypes, OnNodeDrag } from '@xyflow/react';
@@ -15,40 +16,66 @@ const nodeTypes = {
   anchorNode: AnchorNode,
 } as NodeTypes;
 
-type NodePositionMap = Record<string, { x: number; y: number }>;
+type NodePositionMap = Record<
+  string,
+  {
+    x: number;
+    y: number;
+  }
+>;
+
+type AnchorDetailState = Pick<TooltipState, 'visible' | 'data'>;
 
 export default function AnchorAppInner() {
   const { fitView } = useReactFlow<AnchorFlowNode, AnchorFlowEdge>();
 
   const [mindMapData, setMindMapData] = useState<TreeNodeData | null>(null);
+
   const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>({});
+
   const [nodePositionMap, setNodePositionMap] = useState<NodePositionMap>({});
+
   const [nodes, setNodes] = useState<AnchorFlowNode[]>([]);
+
   const [edges, setEdges] = useState<AnchorFlowEdge[]>([]);
 
   /**
    * @description 首次加载 / 手动刷新时先隐藏画布
    *
-   * 原因：
    * ReactFlow 会先按默认 viewport 渲染一次，
    * 然后 fitView 再把画布移动到中心。
-   * 如果不隐藏，就会看到“从顶部掉到中心”的效果。
+   * 如果不隐藏，就会看到从顶部移动到中心的效果。
    */
   const [isFlowReady, setIsFlowReady] = useState(false);
 
-  const [tooltip, setTooltip] = useState<TooltipState>({
+  /**
+   * @description 锚点详情弹层状态
+   *
+   * Popover 已经根据 anchorEl 自动定位，
+   * 因此不再保存 x、y 坐标。
+   */
+  const [tooltip, setTooltip] = useState<AnchorDetailState>({
     visible: false,
-    x: 0,
-    y: 0,
     data: null,
   });
 
+  /**
+   * @description 当前 Popover 的定位参考元素
+   */
+  const [tooltipAnchor, setTooltipAnchor] = useState<HTMLElement | null>(null);
+
   const tooltipTimerRef = useRef<number | undefined>(undefined);
+
   const fitViewTimerRef = useRef<number | undefined>(undefined);
+
   const syncFlowRafRef = useRef<number | undefined>(undefined);
+
   const nodesChangeRafRef = useRef<number | undefined>(undefined);
+
   const pendingNodeChangesRef = useRef<NodeChange<AnchorFlowNode>[]>([]);
+
   const nodesRef = useRef<AnchorFlowNode[]>([]);
+
   const isNodeDraggingRef = useRef(false);
 
   /**
@@ -64,30 +91,46 @@ export default function AnchorAppInner() {
     nodesRef.current = nodes;
   }, [nodes]);
 
+  /**
+   * @description 清理锚点详情隐藏定时器
+   */
   const clearTooltipTimer = useCallback((): void => {
-    if (tooltipTimerRef.current) {
+    if (tooltipTimerRef.current !== undefined) {
       window.clearTimeout(tooltipTimerRef.current);
+
       tooltipTimerRef.current = undefined;
     }
   }, []);
 
+  /**
+   * @description 清理 fitView 定时器
+   */
   const clearFitViewTimer = useCallback((): void => {
-    if (fitViewTimerRef.current) {
+    if (fitViewTimerRef.current !== undefined) {
       window.clearTimeout(fitViewTimerRef.current);
+
       fitViewTimerRef.current = undefined;
     }
   }, []);
 
+  /**
+   * @description 清理同步 Flow 数据的动画帧
+   */
   const clearSyncFlowRaf = useCallback((): void => {
-    if (syncFlowRafRef.current) {
+    if (syncFlowRafRef.current !== undefined) {
       window.cancelAnimationFrame(syncFlowRafRef.current);
+
       syncFlowRafRef.current = undefined;
     }
   }, []);
 
+  /**
+   * @description 清理节点变化动画帧
+   */
   const clearNodesChangeRaf = useCallback((): void => {
-    if (nodesChangeRafRef.current) {
+    if (nodesChangeRafRef.current !== undefined) {
       window.cancelAnimationFrame(nodesChangeRafRef.current);
+
       nodesChangeRafRef.current = undefined;
     }
 
@@ -97,7 +140,6 @@ export default function AnchorAppInner() {
   /**
    * @description 展开 / 收起节点
    *
-   * 注意：
    * 这里不要把 shouldFitViewRef.current 改成 true。
    * 否则收起节点时会重新 fitView，画布会自动放大。
    */
@@ -108,6 +150,9 @@ export default function AnchorAppInner() {
     }));
   }, []);
 
+  /**
+   * @description 跳转到锚点所在文件
+   */
   const handleJump = useCallback((data: AnchorData): void => {
     vscode?.postMessage({
       command: 'jump',
@@ -115,6 +160,11 @@ export default function AnchorAppInner() {
     });
   }, []);
 
+  /**
+   * @description 延迟隐藏锚点详情
+   *
+   * 保留少量延迟，让鼠标可以从节点移动到 Popover。
+   */
   const handleHideTooltip = useCallback((): void => {
     clearTooltipTimer();
 
@@ -123,6 +173,8 @@ export default function AnchorAppInner() {
         ...prev,
         visible: false,
       }));
+
+      setTooltipAnchor(null);
     }, 220);
   }, [clearTooltipTimer]);
 
@@ -136,7 +188,7 @@ export default function AnchorAppInner() {
       onToggle: handleToggle,
       onJump: handleJump,
     });
-  }, [mindMapData, collapsedMap, handleToggle, handleJump]);
+  }, [collapsedMap, handleJump, handleToggle, mindMapData]);
 
   /**
    * @description 合并自动布局位置和用户拖拽位置
@@ -159,9 +211,9 @@ export default function AnchorAppInner() {
   /**
    * @description 同步 React Flow nodes / edges
    *
-   * 不在 effect 主体里直接 setState，
-   * 而是放到 requestAnimationFrame 中，避免 React lint 提示：
-   * Calling setState synchronously within an effect can trigger cascading renders
+   * 不在 Effect 主体里直接 setState，
+   * 而是放到 requestAnimationFrame 中，避免：
+   * Calling setState synchronously within an effect
    */
   useEffect(() => {
     clearSyncFlowRaf();
@@ -169,6 +221,7 @@ export default function AnchorAppInner() {
     syncFlowRafRef.current = window.requestAnimationFrame(() => {
       setNodes(mergedNodes);
       setEdges(flowData.edges);
+
       nodesRef.current = mergedNodes;
       syncFlowRafRef.current = undefined;
 
@@ -191,6 +244,7 @@ export default function AnchorAppInner() {
           });
 
           shouldFitViewRef.current = false;
+
           setIsFlowReady(true);
         }, 0);
 
@@ -205,6 +259,9 @@ export default function AnchorAppInner() {
     };
   }, [clearFitViewTimer, clearSyncFlowRaf, fitView, flowData.edges, mergedNodes]);
 
+  /**
+   * @description 监听 VSCode Webview 消息
+   */
   useEffect(() => {
     const handleMessage = (event: MessageEvent): void => {
       const message = event.data;
@@ -217,11 +274,14 @@ export default function AnchorAppInner() {
           visible: false,
         }));
 
+        setTooltipAnchor(null);
+
         /**
          * VSCode 侧刷新数据时，重新隐藏画布，
          * 等 fitView 完成后再显示，避免顶部闪一下。
          */
         shouldFitViewRef.current = true;
+
         setIsFlowReady(false);
         setMindMapData(message.data);
       }
@@ -235,6 +295,7 @@ export default function AnchorAppInner() {
 
     return () => {
       window.removeEventListener('message', handleMessage);
+
       clearTooltipTimer();
       clearFitViewTimer();
       clearSyncFlowRaf();
@@ -242,12 +303,18 @@ export default function AnchorAppInner() {
     };
   }, [clearFitViewTimer, clearNodesChangeRaf, clearSyncFlowRaf, clearTooltipTimer]);
 
+  /**
+   * @description 手动刷新导图
+   */
   const handleRefresh = (): void => {
     vscode?.postMessage({
       command: 'refresh',
     });
   };
 
+  /**
+   * @description 锚点详情操作
+   */
   const handleAnchorAction = (action: 'edit' | 'delete'): void => {
     if (!tooltip.data?.id) return;
 
@@ -261,19 +328,23 @@ export default function AnchorAppInner() {
       ...prev,
       visible: false,
     }));
+
+    setTooltipAnchor(null);
   };
 
   /**
    * @description 节点变化
    *
    * 拖拽过程中实时更新 nodes，
-   * 但是用 requestAnimationFrame 合并高频变化，
+   * 但是使用 requestAnimationFrame 合并高频变化，
    * 避免 Webview 拖动时白屏。
    */
   const handleNodesChange = useCallback((changes: NodeChange<AnchorFlowNode>[]): void => {
     pendingNodeChangesRef.current.push(...changes);
 
-    if (nodesChangeRafRef.current) return;
+    if (nodesChangeRafRef.current !== undefined) {
+      return;
+    }
 
     nodesChangeRafRef.current = window.requestAnimationFrame(() => {
       const pendingChanges = pendingNodeChangesRef.current;
@@ -281,7 +352,9 @@ export default function AnchorAppInner() {
       pendingNodeChangesRef.current = [];
       nodesChangeRafRef.current = undefined;
 
-      if (pendingChanges.length === 0) return;
+      if (pendingChanges.length === 0) {
+        return;
+      }
 
       setNodes((currentNodes) => {
         const nextNodes = applyNodeChanges(pendingChanges, currentNodes) as AnchorFlowNode[];
@@ -293,9 +366,14 @@ export default function AnchorAppInner() {
     });
   }, []);
 
+  /**
+   * @description 鼠标进入节点
+   */
   const handleNodeMouseEnter = useCallback(
     (event: ReactMouseEvent, node: AnchorFlowNode): void => {
-      if (isNodeDraggingRef.current) return;
+      if (isNodeDraggingRef.current) {
+        return;
+      }
 
       const raw = getNodeRawData(node.data.treeData);
 
@@ -303,19 +381,28 @@ export default function AnchorAppInner() {
 
       clearTooltipTimer();
 
-      setTooltip({
+      setTooltipAnchor(event.currentTarget as HTMLElement);
+
+      setTooltip((prev) => ({
+        ...prev,
         visible: true,
-        x: event.clientX + 18,
-        y: event.clientY + 12,
         data: raw,
-      });
+      }));
     },
     [clearTooltipTimer],
   );
 
+  /**
+   * @description 鼠标在节点上移动
+   *
+   * 仅当节点发生变化或 Popover 尚未显示时更新状态，
+   * 避免 mousemove 高频触发重复渲染。
+   */
   const handleNodeMouseMove = useCallback(
     (event: ReactMouseEvent, node: AnchorFlowNode): void => {
-      if (isNodeDraggingRef.current) return;
+      if (isNodeDraggingRef.current) {
+        return;
+      }
 
       const raw = getNodeRawData(node.data.treeData);
 
@@ -323,22 +410,37 @@ export default function AnchorAppInner() {
 
       clearTooltipTimer();
 
-      setTooltip({
-        visible: true,
-        x: event.clientX + 18,
-        y: event.clientY + 12,
-        data: raw,
+      setTooltipAnchor(event.currentTarget as HTMLElement);
+
+      setTooltip((prev) => {
+        if (prev.visible && prev.data?.id === raw.id) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          visible: true,
+          data: raw,
+        };
       });
     },
     [clearTooltipTimer],
   );
 
+  /**
+   * @description 鼠标离开节点
+   */
   const handleNodeMouseLeave = useCallback((): void => {
-    if (isNodeDraggingRef.current) return;
+    if (isNodeDraggingRef.current) {
+      return;
+    }
 
     handleHideTooltip();
   }, [handleHideTooltip]);
 
+  /**
+   * @description 开始拖拽节点
+   */
   const handleNodeDragStart = useCallback<OnNodeDrag<AnchorFlowNode>>((): void => {
     isNodeDraggingRef.current = true;
 
@@ -348,6 +450,8 @@ export default function AnchorAppInner() {
       ...prev,
       visible: false,
     }));
+
+    setTooltipAnchor(null);
   }, [clearTooltipTimer]);
 
   /**
@@ -355,12 +459,13 @@ export default function AnchorAppInner() {
    *
    * 拖拽过程中只更新 nodes。
    * 松手后才把最终位置保存到 nodePositionMap，
-   * 这样后续展开 / 收起 / 刷新布局时可以保留用户拖过的位置。
+   * 这样后续展开 / 收起 /刷新布局时可以保留用户拖过的位置。
    */
   const handleNodeDragStop = useCallback<OnNodeDrag<AnchorFlowNode>>((_event, node): void => {
     isNodeDraggingRef.current = false;
 
     const latestNode = nodesRef.current.find((item) => item.id === node.id) || node;
+
     const nextPosition = latestNode.position;
 
     setNodePositionMap((prev) => {
@@ -380,10 +485,16 @@ export default function AnchorAppInner() {
     });
   }, []);
 
+  /**
+   * @description 鼠标进入 Popover
+   */
   const handleTooltipMouseEnter = (): void => {
     clearTooltipTimer();
   };
 
+  /**
+   * @description 鼠标离开 Popover
+   */
   const handleTooltipMouseLeave = (): void => {
     handleHideTooltip();
   };
@@ -431,56 +542,57 @@ export default function AnchorAppInner() {
           }}
         >
           <Background gap={18} size={1} />
+
           <Controls showInteractive={false} position="bottom-right" />
         </ReactFlow>
       </div>
 
       {isFlowReady && nodes.length === 0 && <div className={styles.empty}>暂无锚点数据</div>}
 
-      {tooltip.visible && tooltip.data && (
-        <div
-          className={styles.tooltip}
-          style={{
-            left: tooltip.x,
-            top: tooltip.y,
-          }}
-          onMouseEnter={handleTooltipMouseEnter}
-          onMouseLeave={handleTooltipMouseLeave}
-        >
-          <div className={styles.tooltipHeader}>
-            <FontAwesomeIcon icon={faTag} />
-            <span>{tooltip.data.description || 'Anchor Point'}</span>
-          </div>
+      <Popover
+        open={tooltip.visible && !!tooltip.data}
+        anchorEl={tooltipAnchor}
+        placement="bottom"
+        followAnchor
+        showArrow
+        title={tooltip.data?.description || 'Anchor Point'}
+        titleIcon={<FontAwesomeIcon icon={faTag} />}
+        onMouseEnter={handleTooltipMouseEnter}
+        onMouseLeave={handleTooltipMouseLeave}
+        footer={
+          <>
+            <button className={styles.anchorActionButton} onClick={() => handleAnchorAction('edit')}>
+              <FontAwesomeIcon icon={faPenToSquare} />
+              编辑
+            </button>
 
-          <div className={styles.tooltipBody}>
-            <div className={styles.tooltipRow}>
+            <button className={`${styles.anchorActionButton} ${styles.danger}`} onClick={() => handleAnchorAction('delete')}>
+              <FontAwesomeIcon icon={faTrash} />
+              删除
+            </button>
+          </>
+        }
+      >
+        {tooltip.data && (
+          <>
+            <div className={styles.anchorDetailRow}>
               <FontAwesomeIcon icon={faFolderOpenReg} />
-              <span className={styles.tooltipVal}>{tooltip.data.group || 'Default'}</span>
+
+              <span className={styles.anchorDetailValue}>{tooltip.data.group || 'Default'}</span>
             </div>
 
-            <div className={styles.tooltipRow}>
+            <div className={styles.anchorDetailRow}>
               <FontAwesomeIcon icon={faFileCodeReg} />
-              <span className={styles.tooltipVal}>
+
+              <span className={styles.anchorDetailValue}>
                 {fileName} : {tooltip.data.line || '?'}
               </span>
             </div>
 
             {tooltip.data.content && <pre className={styles.codeBlock}>{tooltip.data.content.trim()}</pre>}
-          </div>
-
-          <div className={styles.tooltipActions}>
-            <button className={styles.tooltipBtn} onClick={() => handleAnchorAction('edit')}>
-              <FontAwesomeIcon icon={faPenToSquare} />
-              编辑
-            </button>
-
-            <button className={`${styles.tooltipBtn} ${styles.danger}`} onClick={() => handleAnchorAction('delete')}>
-              <FontAwesomeIcon icon={faTrash} />
-              删除
-            </button>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </Popover>
     </div>
   );
 }
