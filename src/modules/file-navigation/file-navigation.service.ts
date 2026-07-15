@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
+import WebviewWorkflow from '@/workflow/webview';
+import MarkdownWorkflow from '@/workflow/markdown';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
-import { setupMarkdown } from '@plugins/markdown/setupMarkdown';
-import markdownImagePlugin, { restoreMarkdownImagePaths } from '@plugins/markdown/markdownImagePlugin';
+import { restoreMarkdownImagePaths } from '@plugins/markdown/markdownImagePlugin';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import type { ExternalPreviewType, MarkdownImageAssets, WebviewMessage } from '@modules/file-navigation/file-navigation.type';
 
@@ -12,6 +13,16 @@ export class FileNavigationService {
 
   private readonly activePanels = new Map<string, vscode.WebviewPanel>();
   private readonly markdownImageAssets = new Map<string, MarkdownImageAssets>();
+
+  /**
+   * @description WebviewPanel 工作流
+   */
+  private readonly webviewWorkflow = new WebviewWorkflow();
+
+  /**
+   * @description Markdown 内容处理工作流
+   */
+  private readonly markdownWorkflow = new MarkdownWorkflow();
 
   /**
    * @description React Webview HTML 工作流
@@ -133,13 +144,14 @@ export class FileNavigationService {
     return workspaceFolder?.name || 'Quick Ops';
   }
 
+  private getPreviewKey(uri: vscode.Uri): string {
+    return `file-navigation:${uri.toString()}`;
+  }
+
   private async closeExistingPreview(uri: vscode.Uri): Promise<void> {
-    const key = uri.toString();
-    const panel = this.activePanels.get(key);
+    const key = this.getPreviewKey(uri);
 
-    if (!panel) return;
-
-    panel.dispose();
+    await this.webviewWorkflow.disposePanel(key);
     this.activePanels.delete(key);
   }
 
@@ -152,6 +164,7 @@ export class FileNavigationService {
       await this.closeExistingPreview(uri);
 
       const context = this.getContext();
+      const key = this.getPreviewKey(uri);
       const fileName = path.basename(uri.path);
       const projectName = this.getProjectName(uri);
       const contentBytes = await vscode.workspace.fs.readFile(uri);
@@ -159,80 +172,88 @@ export class FileNavigationService {
       const mdDir = path.dirname(uri.fsPath);
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '';
 
-      const panel = vscode.window.createWebviewPanel('vditorPreviewReact', `${projectName}: ${fileName}`, vscode.ViewColumn.Active, {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [context.extensionUri, vscode.Uri.file(mdDir), ...(workspaceRoot ? [vscode.Uri.file(workspaceRoot)] : [])],
-      });
+      let markdownResult: Awaited<ReturnType<MarkdownWorkflow['setupMarkdown']>> | undefined;
 
-      this.activePanels.set(uri.toString(), panel);
-
-      const markdownResult = await setupMarkdown({
-        content,
-        fsPath: uri.fsPath,
-        workspaceRoot,
-        webview: panel.webview,
-      })
-        .use(markdownImagePlugin)
-        .end();
-
-      this.markdownImageAssets.set(uri.fsPath, markdownResult.assets);
-
-      panel.onDidDispose(() => {
-        if (this.activePanels.get(uri.toString()) === panel) {
-          this.activePanels.delete(uri.toString());
-        }
-
-        this.markdownImageAssets.delete(uri.fsPath);
-      });
-
-      panel.webview.onDidReceiveMessage(async (msg: WebviewMessage) => {
-        if (msg.command === 'webviewLoaded') {
-          await panel.webview.postMessage({
-            type: 'initVditorData',
-            content: markdownResult.content,
-            mode: 'edit',
-            fsPath: uri.toString(),
+      const panel = await this.webviewWorkflow.createWebview<WebviewMessage>({
+        key,
+        viewType: 'vditorPreviewReact',
+        title: `${projectName}: ${fileName}`,
+        column: vscode.ViewColumn.Active,
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'markdown.svg'),
+        options: {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: [context.extensionUri, vscode.Uri.file(mdDir), ...(workspaceRoot ? [vscode.Uri.file(workspaceRoot)] : [])],
+        },
+        htmlFactory: async (webview) => {
+          markdownResult = await this.markdownWorkflow.setupMarkdown({
+            content,
+            fsPath: uri.fsPath,
+            workspaceRoot,
+            webview,
           });
 
-          return;
-        }
+          this.markdownImageAssets.set(uri.fsPath, markdownResult.assets);
 
-        if (msg.command === 'saveMarkdown') {
-          const assets = this.markdownImageAssets.get(uri.fsPath) || {};
-          const saveContent = restoreMarkdownImagePaths(msg.content || '', assets);
+          return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+            extensionUri: context.extensionUri,
+            webview,
+            routeName: '/Vditor?type=edit',
+          });
+        },
+        onDidReceiveMessage: async (msg, currentPanel) => {
+          if (msg.command === 'webviewLoaded') {
+            if (!markdownResult) return;
 
-          await vscode.workspace.fs.writeFile(uri, Buffer.from(saveContent, 'utf8'));
-          return;
-        }
+            await currentPanel.webview.postMessage({
+              type: 'initVditorData',
+              content: markdownResult.content,
+              mode: 'edit',
+              fsPath: uri.toString(),
+            });
 
-        if (msg.command === 'openExternal') {
-          try {
-            if (!msg.url) return;
-
-            await vscode.env.openExternal(vscode.Uri.parse(msg.url));
-          } catch {
-            vscode.window.showErrorMessage('无法打开该外部链接。');
+            return;
           }
 
-          return;
-        }
+          if (msg.command === 'saveMarkdown') {
+            const assets = this.markdownImageAssets.get(uri.fsPath) || {};
 
-        if (msg.command === 'copyToClipboard') {
-          const text = msg.text || '';
+            const saveContent = restoreMarkdownImagePaths(msg.content || '', assets);
 
-          await vscode.env.clipboard.writeText(text);
-          vscode.window.showInformationMessage(` 链接已复制: ${text}`);
-        }
+            await vscode.workspace.fs.writeFile(uri, Buffer.from(saveContent, 'utf8'));
+
+            return;
+          }
+
+          if (msg.command === 'openExternal') {
+            try {
+              if (!msg.url) return;
+
+              await vscode.env.openExternal(vscode.Uri.parse(msg.url));
+            } catch {
+              vscode.window.showErrorMessage('无法打开该外部链接。');
+            }
+
+            return;
+          }
+
+          if (msg.command === 'copyToClipboard') {
+            const text = msg.text || '';
+
+            await vscode.env.clipboard.writeText(text);
+            vscode.window.showInformationMessage(` 链接已复制: ${text}`);
+          }
+        },
+        onDidDispose: () => {
+          if (this.activePanels.get(key) === panel) {
+            this.activePanels.delete(key);
+          }
+
+          this.markdownImageAssets.delete(uri.fsPath);
+        },
       });
 
-      panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'markdown.svg');
-
-      panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
-        extensionUri: context.extensionUri,
-        webview: panel.webview,
-        routeName: '/Vditor?type=edit',
-      });
+      this.activePanels.set(key, panel);
     } catch (error) {
       vscode.window.showErrorMessage(`Markdown 预览打开失败: ${this.toErrorMessage(error)}`);
     }
@@ -243,49 +264,55 @@ export class FileNavigationService {
       await this.closeExistingPreview(uri);
 
       const context = this.getContext();
+      const key = this.getPreviewKey(uri);
       const fileName = path.basename(uri.path);
       const projectName = this.getProjectName(uri);
 
-      const panel = vscode.window.createWebviewPanel('pdfPreviewReact', `${projectName}: ${fileName}`, vscode.ViewColumn.Active, {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [context.extensionUri],
-      });
-
-      this.activePanels.set(uri.toString(), panel);
-
-      panel.onDidDispose(() => {
-        if (this.activePanels.get(uri.toString()) === panel) {
-          this.activePanels.delete(uri.toString());
-        }
-      });
-
-      panel.webview.onDidReceiveMessage(async (msg: WebviewMessage) => {
-        if (msg.command !== 'webviewLoaded') return;
-
-        try {
-          const contentBytes = await vscode.workspace.fs.readFile(uri);
-          const fileBase64 = Buffer.from(contentBytes).toString('base64');
-
-          await panel.webview.postMessage({
-            type: 'initPdfData',
-            contentBase64: fileBase64,
+      const panel = await this.webviewWorkflow.createWebview<WebviewMessage>({
+        key,
+        viewType: 'pdfPreviewReact',
+        title: `${projectName}: ${fileName}`,
+        column: vscode.ViewColumn.Active,
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'pdf.svg'),
+        options: {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: [context.extensionUri],
+        },
+        htmlFactory: (webview) => {
+          return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+            extensionUri: context.extensionUri,
+            webview,
+            routeName: '/pdf?type=read',
           });
-        } catch (error) {
-          await panel.webview.postMessage({
-            type: 'initLocalFileError',
-            message: this.toErrorMessage(error) || 'PDF 文件读取失败',
-          });
-        }
+        },
+        onDidReceiveMessage: async (msg, currentPanel) => {
+          if (msg.command !== 'webviewLoaded') return;
+
+          try {
+            const contentBytes = await vscode.workspace.fs.readFile(uri);
+
+            const fileBase64 = Buffer.from(contentBytes).toString('base64');
+
+            await currentPanel.webview.postMessage({
+              type: 'initPdfData',
+              contentBase64: fileBase64,
+            });
+          } catch (error) {
+            await currentPanel.webview.postMessage({
+              type: 'initLocalFileError',
+              message: this.toErrorMessage(error) || 'PDF 文件读取失败',
+            });
+          }
+        },
+        onDidDispose: () => {
+          if (this.activePanels.get(key) === panel) {
+            this.activePanels.delete(key);
+          }
+        },
       });
 
-      panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'pdf.svg');
-
-      panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
-        extensionUri: context.extensionUri,
-        webview: panel.webview,
-        routeName: '/pdf?type=read',
-      });
+      this.activePanels.set(key, panel);
     } catch (error) {
       vscode.window.showErrorMessage(`PDF 预览打开失败: ${this.toErrorMessage(error)}`);
     }
@@ -296,43 +323,48 @@ export class FileNavigationService {
       await this.closeExistingPreview(uri);
 
       const context = this.getContext();
+      const key = this.getPreviewKey(uri);
       const fileName = path.basename(uri.path);
       const projectName = this.getProjectName(uri);
       const contentBytes = await vscode.workspace.fs.readFile(uri);
       const fileBase64 = Buffer.from(contentBytes).toString('base64');
 
-      const panel = vscode.window.createWebviewPanel('excelPreviewReact', `${projectName}: ${fileName}`, vscode.ViewColumn.Active, {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [context.extensionUri],
+      const panel = await this.webviewWorkflow.createWebview<WebviewMessage>({
+        key,
+        viewType: 'excelPreviewReact',
+        title: `${projectName}: ${fileName}`,
+        column: vscode.ViewColumn.Active,
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'table.svg'),
+        options: {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: [context.extensionUri],
+        },
+        htmlFactory: (webview) => {
+          return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+            extensionUri: context.extensionUri,
+            webview,
+            routeName: '/xls?type=read',
+          });
+        },
+        onDidReceiveMessage: async (msg, currentPanel) => {
+          if (msg.command !== 'webviewLoaded') return;
+
+          await currentPanel.webview.postMessage({
+            type: 'initExcelData',
+            fsPath: uri.toString(),
+            fileName,
+            contentBase64: fileBase64,
+          });
+        },
+        onDidDispose: () => {
+          if (this.activePanels.get(key) === panel) {
+            this.activePanels.delete(key);
+          }
+        },
       });
 
-      this.activePanels.set(uri.toString(), panel);
-
-      panel.onDidDispose(() => {
-        if (this.activePanels.get(uri.toString()) === panel) {
-          this.activePanels.delete(uri.toString());
-        }
-      });
-
-      panel.webview.onDidReceiveMessage(async (msg: WebviewMessage) => {
-        if (msg.command !== 'webviewLoaded') return;
-
-        await panel.webview.postMessage({
-          type: 'initExcelData',
-          fsPath: uri.toString(),
-          fileName,
-          contentBase64: fileBase64,
-        });
-      });
-
-      panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'table.svg');
-
-      panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
-        extensionUri: context.extensionUri,
-        webview: panel.webview,
-        routeName: '/xls?type=read',
-      });
+      this.activePanels.set(key, panel);
     } catch (error) {
       vscode.window.showErrorMessage(`Excel 预览打开失败: ${this.toErrorMessage(error)}`);
     }
@@ -343,64 +375,70 @@ export class FileNavigationService {
       await this.closeExistingPreview(uri);
 
       const context = this.getContext();
+      const key = this.getPreviewKey(uri);
       const fileName = path.basename(uri.path);
       const projectName = this.getProjectName(uri);
       const ext = path.extname(uri.fsPath || uri.path).toLowerCase();
 
-      const panel = vscode.window.createWebviewPanel('docPreviewReact', `${projectName}: ${fileName}`, vscode.ViewColumn.Active, {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [context.extensionUri],
-      });
+      const panel = await this.webviewWorkflow.createWebview<WebviewMessage>({
+        key,
+        viewType: 'docPreviewReact',
+        title: `${projectName}: ${fileName}`,
+        column: vscode.ViewColumn.Active,
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'word.svg'),
+        options: {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: [context.extensionUri],
+        },
+        htmlFactory: (webview) => {
+          return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+            extensionUri: context.extensionUri,
+            webview,
+            routeName: '/doc?type=read',
+          });
+        },
+        onDidReceiveMessage: async (msg, currentPanel) => {
+          if (msg.command !== 'webviewLoaded') return;
 
-      this.activePanels.set(uri.toString(), panel);
+          try {
+            if (ext === '.doc') {
+              await currentPanel.webview.postMessage({
+                type: 'initDocError',
+                fileName,
+                message: '当前预览器暂不支持旧版 .doc 格式，请转换为 .docx 后再预览。',
+              });
 
-      panel.onDidDispose(() => {
-        if (this.activePanels.get(uri.toString()) === panel) {
-          this.activePanels.delete(uri.toString());
-        }
-      });
+              return;
+            }
 
-      panel.webview.onDidReceiveMessage(async (msg: WebviewMessage) => {
-        if (msg.command !== 'webviewLoaded') return;
+            const contentBytes = await vscode.workspace.fs.readFile(uri);
 
-        try {
-          if (ext === '.doc') {
-            await panel.webview.postMessage({
+            const fileBase64 = Buffer.from(contentBytes).toString('base64');
+
+            await currentPanel.webview.postMessage({
+              type: 'initDocData',
+              fsPath: uri.toString(),
+              fileName,
+              extension: ext,
+              contentBase64: fileBase64,
+            });
+          } catch (error) {
+            await currentPanel.webview.postMessage({
               type: 'initDocError',
               fileName,
-              message: '当前预览器暂不支持旧版 .doc 格式，请转换为 .docx 后再预览。',
+              message: this.toErrorMessage(error) || 'Word 文件读取失败',
             });
-
-            return;
           }
-
-          const contentBytes = await vscode.workspace.fs.readFile(uri);
-          const fileBase64 = Buffer.from(contentBytes).toString('base64');
-
-          await panel.webview.postMessage({
-            type: 'initDocData',
-            fsPath: uri.toString(),
-            fileName,
-            extension: ext,
-            contentBase64: fileBase64,
-          });
-        } catch (error) {
-          await panel.webview.postMessage({
-            type: 'initDocError',
-            fileName,
-            message: this.toErrorMessage(error) || 'Word 文件读取失败',
-          });
-        }
+        },
+        onDidDispose: () => {
+          if (this.activePanels.get(key) === panel) {
+            this.activePanels.delete(key);
+          }
+        },
       });
 
-      panel.iconPath = vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'word.svg');
-
-      panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
-        extensionUri: context.extensionUri,
-        webview: panel.webview,
-        routeName: '/doc?type=read',
-      });
+      this.activePanels.set(key, panel);
     } catch (error) {
       vscode.window.showErrorMessage(`Word 预览打开失败: ${this.toErrorMessage(error)}`);
     }

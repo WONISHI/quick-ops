@@ -4,7 +4,7 @@ import type { ETIRuntime, ETIRuntimeProvide } from '@core/eti/eti.type';
 import type { WebviewCreateOptions, WebviewWorkflowEventContext } from '@/workflow/webview/type';
 
 /**
- * @description Webview 工作流 Core
+ * @description Webview 工作函数 Core
  *
  * 用途：
  * - 统一创建 WebviewPanel
@@ -57,7 +57,7 @@ export default class WebviewWorkflow implements ETIRuntime {
   }
 
   /**
-   * @description 注册 Webview 工作流事件
+   * @description 注册 Webview 工作函数
    *
    * 这些 name 可以被 Plugin 的 on 监听。
    */
