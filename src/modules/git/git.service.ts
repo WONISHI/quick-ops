@@ -4,8 +4,8 @@ import * as fs from 'fs';
 import { execFile } from 'child_process';
 import simpleGit, { SimpleGit, StatusResult } from 'simple-git';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
-import { GIT_STATE_KEYS } from '@modules/git/git.constant';
-import { createGitVirtualContentUri } from '@modules/git/git-uri.util';
+import { GIT_STATE_KEYS } from '@/modules/git/constants/git.constant';
+import { createGitVirtualContentUri } from '@/modules/git/utils/git-uri.util';
 import type {
   BranchUnpushedInfo,
   GitBranchInfo,

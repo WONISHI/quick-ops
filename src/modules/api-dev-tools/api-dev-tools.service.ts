@@ -3,7 +3,7 @@ import * as os from 'os';
 import type { AddressInfo } from 'net';
 import * as vscode from 'vscode';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
-import { API_DEV_TOOLS_STATE_KEY } from '@modules/api-dev-tools/api-dev-tools.constant';
+import { API_DEV_TOOLS_STATE_KEY } from '@/modules/api-dev-tools/constants/api-dev-tools.constant';
 import type { ApiDevToolsRequestPayload, ApiDevToolsResponsePayload, ApiDocsExportPayload, ApiDocsPayload, ApiDocsSharePayload } from '@modules/api-dev-tools/api-dev-tools.type';
 
 export class ApiDevToolsService {

@@ -8,7 +8,7 @@ import markdownImagePlugin, { restoreMarkdownImagePaths } from '@plugins/markdow
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { RecentProjectsService } from '@modules/recent-projects/recent-projects.service';
 import { GitVirtualContentProvider } from '@modules/git/providers/git-virtual-content.provider';
-import { RECENT_PROJECTS_CONTEXT_KEYS, RECENT_PROJECTS_STORAGE_KEYS } from '@modules/recent-projects/recent-projects.constant';
+import { RECENT_PROJECTS_CONTEXT_KEYS, RECENT_PROJECTS_STORAGE_KEYS } from '@/modules/recent-projects/constants/recent-projects.constant';
 import type {
   DiagnosticSummary,
   FocusLockState,

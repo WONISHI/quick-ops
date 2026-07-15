@@ -7,7 +7,7 @@ import { GitService } from '@modules/git/git.service';
 import { GitWebviewProvider } from '@modules/git/providers/git-webview.provider';
 import { GitDetailWebviewProvider } from '@modules/git/providers/git-detail-webview.provider';
 import { GitVirtualContentProvider } from '@modules/git/providers/git-virtual-content.provider';
-import { GIT_COMMANDS, GIT_STATE_KEYS, GIT_VIEW_IDS } from '@modules/git/git.constant';
+import { GIT_COMMANDS, GIT_STATE_KEYS, GIT_VIEW_IDS } from '@/modules/git/constants/git.constant';
 
 export class GitController implements OnModuleInit {
   public static inject = [

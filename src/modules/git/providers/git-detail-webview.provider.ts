@@ -4,7 +4,7 @@ import { execFile } from 'child_process';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { GitService } from '@modules/git/git.service';
-import { GIT_WEBVIEW_ROUTES } from '@modules/git/git.constant';
+import { GIT_WEBVIEW_ROUTES } from '@/modules/git/constants/git.constant';
 
 interface GitGraphLikeCommit {
   hash: string;

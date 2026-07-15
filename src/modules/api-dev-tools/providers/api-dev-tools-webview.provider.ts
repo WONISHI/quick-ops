@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
-import { API_DEV_TOOLS_VIEW_TYPE, API_DEV_TOOLS_WEBVIEW_ROUTE } from '@modules/api-dev-tools/api-dev-tools.constant';
+import { API_DEV_TOOLS_VIEW_TYPE, API_DEV_TOOLS_WEBVIEW_ROUTE } from '@/modules/api-dev-tools/constants/api-dev-tools.constant';
 import { ApiDevToolsService } from '@modules/api-dev-tools/api-dev-tools.service';
 import type { ApiDevToolsRequestPayload, ApiDevToolsWebviewMessage, ApiDocsPayload } from '@modules/api-dev-tools/api-dev-tools.type';
 

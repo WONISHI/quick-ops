@@ -6,9 +6,7 @@ export interface GitVirtualContentQuery {
   file: string;
 }
 
-export function createGitVirtualContentUri(
-  query: GitVirtualContentQuery,
-): vscode.Uri {
+export function createGitVirtualContentUri(query: GitVirtualContentQuery): vscode.Uri {
   return vscode.Uri.from({
     scheme: 'quickops-git',
     path: `/${query.file}`,

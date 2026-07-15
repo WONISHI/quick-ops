@@ -5,7 +5,7 @@ import { ExtensionContextProvider } from '@common/providers/extension-context.pr
 import { RecentProjectsProvider } from '@modules/recent-projects/providers/recent-projects.provider';
 import { ReadOnlyFileSystemProvider } from '@modules/recent-projects/providers/read-only-file-system.provider';
 import { GitVirtualContentProvider } from '@modules/git/providers/git-virtual-content.provider';
-import { RECENT_PROJECTS_COMMANDS, RECENT_PROJECTS_CONTEXT_KEYS, RECENT_PROJECTS_VIEW_ID } from '@modules/recent-projects/recent-projects.constant';
+import { RECENT_PROJECTS_COMMANDS, RECENT_PROJECTS_CONTEXT_KEYS, RECENT_PROJECTS_VIEW_ID } from '@/modules/recent-projects/constants/recent-projects.constant';
 
 export class RecentProjectsController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, RecentProjectsProvider, ReadOnlyFileSystemProvider, GitVirtualContentProvider];

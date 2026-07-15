@@ -4,7 +4,7 @@ import { execFile } from 'child_process';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { GitService } from '@modules/git/git.service';
-import { GIT_VIEW_IDS, GIT_WEBVIEW_ROUTES } from '@modules/git/git.constant';
+import { GIT_VIEW_IDS, GIT_WEBVIEW_ROUTES } from '@/modules/git/constants/git.constant';
 import type { GitFileItem } from '@modules/git/git.type';
 
 const GLOBAL_STATE_COMMIT_TYPE_ENABLED = 'quickOps.git.commitTypeEnabled';
