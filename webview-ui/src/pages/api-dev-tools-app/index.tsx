@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { vscode } from '@utils/vscode';
 import styles from '@pages/api-dev-tools-app/index.module.css';
 import BaseDialog from '@components/BaseDialog';
+import BaseSearch from '@components/BaseSearch';
 import { buildApiDocsHtml } from '@/pages/api-dev-tools-app/src/api-docs-builder';
 import type {
   HttpMethod,
@@ -465,10 +466,6 @@ export default function ApiDevToolsApp() {
   const [requestTab, setRequestTab] = useState<RequestTab>('params');
   const [responseTab, setResponseTab] = useState<ResponseTab>('body');
   const [isResponseSearchOpen, setIsResponseSearchOpen] = useState(false);
-  const [responseSearchQuery, setResponseSearchQuery] = useState('');
-  const [responseSearchIndex, setResponseSearchIndex] = useState(0);
-  const [responseSearchBarOffset, setResponseSearchBarOffset] = useState({ x: 0, y: 0 });
-  const [isDraggingResponseSearchBar, setIsDraggingResponseSearchBar] = useState(false);
   const [response, setResponse] = useState<ApiResponsePayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [showGlobals, setShowGlobals] = useState(false);
@@ -494,25 +491,6 @@ export default function ApiDevToolsApp() {
   const shareSelectedInterfaceIdsRef = useRef(shareSelectedInterfaceIds);
   const globalVariablesRef = useRef<Record<string, string>>({});
   const rightPaneRef = useRef<HTMLElement | null>(null);
-  const responsePanelRef = useRef<HTMLDivElement | null>(null);
-  const responseCodeRef = useRef<HTMLPreElement | null>(null);
-  const responseSearchInputRef = useRef<HTMLInputElement | null>(null);
-  const responseSearchBarRef = useRef<HTMLDivElement | null>(null);
-  const responseSearchBarOffsetRef = useRef(responseSearchBarOffset);
-  const responseSearchDragStartRef = useRef({
-    x: 0,
-    y: 0,
-    offsetX: 0,
-    offsetY: 0,
-    panelLeft: 0,
-    panelTop: 0,
-    panelRight: 0,
-    panelBottom: 0,
-    barLeft: 0,
-    barTop: 0,
-    barWidth: 0,
-    barHeight: 0,
-  });
   const bottomPanelSizeRef = useRef(BOTTOM_PANEL_DEFAULT_SIZE);
   const workspacePaneWidthRef = useRef(WORKSPACE_PANE_DEFAULT_WIDTH);
   const dragStartYRef = useRef(0);
@@ -583,10 +561,6 @@ export default function ApiDevToolsApp() {
   /**
    * @description 同步响应搜索框偏移引用
    */
-  useEffect(() => {
-    responseSearchBarOffsetRef.current = responseSearchBarOffset;
-  }, [responseSearchBarOffset]);
-
   /**
    * @description 同步当前请求引用
    */
@@ -2031,12 +2005,14 @@ export default function ApiDevToolsApp() {
 
   const responseBody = getDisplayResponseBody(response);
   /**
-   * @description 计算响应搜索文本
+   * @description 计算当前响应页签的可搜索文本
    */
   const responseSearchText = useMemo(() => {
     if (!response) return '';
 
-    if (response.error) return response.error;
+    if (response.error) {
+      return response.error;
+    }
 
     if (responseTab === 'headers') {
       return JSON.stringify(response.headers, null, 2);
@@ -2050,216 +2026,12 @@ export default function ApiDevToolsApp() {
   }, [response, responseBody, responseTab]);
 
   /**
-   * @description 计算响应内容中的搜索结果
-   */
-  const responseSearchMatches = useMemo(() => {
-    const query = responseSearchQuery.trim().toLowerCase();
-
-    if (!query || !responseSearchText) return [];
-
-    const text = responseSearchText.toLowerCase();
-    const result: number[] = [];
-    let startIndex = 0;
-
-    while (startIndex <= text.length) {
-      const index = text.indexOf(query, startIndex);
-
-      if (index === -1) break;
-
-      result.push(index);
-      startIndex = index + Math.max(query.length, 1);
-    }
-
-    return result;
-  }, [responseSearchQuery, responseSearchText]);
-
-  const responseSearchTotal = responseSearchMatches.length;
-  const activeResponseSearchIndex = responseSearchTotal ? Math.min(responseSearchIndex, responseSearchTotal - 1) : 0;
-
-  /**
-   * @description 同步响应搜索结果索引
-   */
-  useEffect(() => {
-    setResponseSearchIndex(0);
-  }, [responseSearchQuery, responseSearchText]);
-
-  /**
-   * @description 同步响应搜索结果索引
-   */
-  useEffect(() => {
-    if (!isResponseSearchOpen) return;
-
-    window.setTimeout(() => {
-      responseSearchInputRef.current?.focus();
-      responseSearchInputRef.current?.select();
-    }, 0);
-  }, [isResponseSearchOpen]);
-
-  /**
-   * @description 同步响应搜索结果索引
-   */
-  useEffect(() => {
-    if (!isResponseSearchOpen || responseSearchTotal === 0) return;
-
-    window.setTimeout(() => {
-      const activeElement = responseCodeRef.current?.querySelector('[data-response-search-active="true"]') as HTMLElement | null;
-
-      activeElement?.scrollIntoView({
-        block: 'center',
-        inline: 'nearest',
-      });
-    }, 0);
-  }, [activeResponseSearchIndex, isResponseSearchOpen, responseSearchTotal]);
-
-  /**
    * @description 打开响应内容搜索框
    */
   const openResponseSearch = () => {
     if (!response) return;
 
     setIsResponseSearchOpen(true);
-  };
-
-  /**
-   * @description 关闭响应内容搜索框
-   */
-  const closeResponseSearch = () => {
-    setIsResponseSearchOpen(false);
-    setResponseSearchQuery('');
-    setResponseSearchIndex(0);
-  };
-
-  /**
-   * @description 跳转到上一个或下一个响应搜索结果
-   */
-  const jumpResponseSearchMatch = (direction: 'prev' | 'next') => {
-    if (responseSearchTotal === 0) return;
-
-    setResponseSearchIndex((current) => {
-      if (direction === 'prev') {
-        return current <= 0 ? responseSearchTotal - 1 : current - 1;
-      }
-
-      return current >= responseSearchTotal - 1 ? 0 : current + 1;
-    });
-  };
-
-  /**
-   * @description 处理响应搜索框拖拽开始事件
-   */
-  const handleResponseSearchBarPointerDown = (event: React.PointerEvent<HTMLElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    const panelElement = responsePanelRef.current;
-    const barElement = responseSearchBarRef.current;
-
-    if (!panelElement || !barElement) return;
-
-    const panelRect = panelElement.getBoundingClientRect();
-    const barRect = barElement.getBoundingClientRect();
-
-    responseSearchDragStartRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-      offsetX: responseSearchBarOffsetRef.current.x,
-      offsetY: responseSearchBarOffsetRef.current.y,
-      panelLeft: panelRect.left,
-      panelTop: panelRect.top,
-      panelRight: panelRect.right,
-      panelBottom: panelRect.bottom,
-      barLeft: barRect.left,
-      barTop: barRect.top,
-      barWidth: barRect.width,
-      barHeight: barRect.height,
-    };
-
-    setIsDraggingResponseSearchBar(true);
-  };
-
-  /**
-   * @description 监听响应搜索框拖拽事件
-   */
-  useEffect(() => {
-    if (!isDraggingResponseSearchBar) return;
-
-    /**
-     * @description 处理PointerMove
-     */
-    const handlePointerMove = (event: PointerEvent) => {
-      event.preventDefault();
-
-      const start = responseSearchDragStartRef.current;
-      const nextLeft = start.barLeft + event.clientX - start.x;
-      const nextTop = start.barTop + event.clientY - start.y;
-      const maxLeft = start.panelRight - start.barWidth;
-      const maxTop = start.panelBottom - start.barHeight;
-      const safeLeft = clampNumber(nextLeft, start.panelLeft, maxLeft);
-      const safeTop = clampNumber(nextTop, start.panelTop, maxTop);
-
-      setResponseSearchBarOffset({
-        x: start.offsetX + safeLeft - start.barLeft,
-        y: start.offsetY + safeTop - start.barTop,
-      });
-    };
-
-    /**
-     * @description 处理PointerUp
-     */
-    const handlePointerUp = () => {
-      setIsDraggingResponseSearchBar(false);
-    };
-
-    window.addEventListener('pointermove', handlePointerMove, { passive: false });
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerUp);
-
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerUp);
-    };
-  }, [isDraggingResponseSearchBar]);
-
-  /**
-   * @description 渲染带搜索高亮的响应内容
-   */
-  const renderResponseCode = (text: string) => {
-    const query = responseSearchQuery.trim();
-
-    if (!isResponseSearchOpen || !query || responseSearchTotal === 0) {
-      return text;
-    }
-
-    const nodes: React.ReactNode[] = [];
-    const queryLength = query.length;
-    let lastIndex = 0;
-
-    responseSearchMatches.forEach((matchIndex, index) => {
-      if (matchIndex > lastIndex) {
-        nodes.push(text.slice(lastIndex, matchIndex));
-      }
-
-      const isActive = index === activeResponseSearchIndex;
-
-      nodes.push(
-        <mark
-          key={`${matchIndex}-${index}`}
-          className={[styles['response-search-mark'], isActive ? styles['response-search-mark-active'] : ''].filter(Boolean).join(' ')}
-          data-response-search-active={isActive ? 'true' : undefined}
-        >
-          {text.slice(matchIndex, matchIndex + queryLength)}
-        </mark>,
-      );
-
-      lastIndex = matchIndex + queryLength;
-    });
-
-    if (lastIndex < text.length) {
-      nodes.push(text.slice(lastIndex));
-    }
-
-    return nodes;
   };
 
   /**
@@ -2615,86 +2387,40 @@ export default function ApiDevToolsApp() {
             ))}
           </div>
 
-          <div ref={responsePanelRef} className={styles['response-panel']}>
-            {isResponseSearchOpen && (
-              <div
-                ref={responseSearchBarRef}
-                className={[styles['response-search-bar'], isDraggingResponseSearchBar ? styles['response-search-bar-dragging'] : ''].filter(Boolean).join(' ')}
-                style={{
-                  transform: `translate(${responseSearchBarOffset.x}px, ${responseSearchBarOffset.y}px)`,
-                }}
-              >
-                <i className={`codicon codicon-gripper ${styles['response-search-grip']}`} title="拖拽搜索框" onPointerDown={handleResponseSearchBarPointerDown} />
+          <BaseSearch
+            open={isResponseSearchOpen}
+            text={responseSearchText}
+            className={styles['response-panel']}
+            placeholder="搜索响应..."
+            maxWidth={560}
+            onClose={() => {
+              setIsResponseSearchOpen(false);
+            }}
+          >
+            {({ renderHighlightedText }) => (
+              <>
+                {loading && <div className={styles['empty-state']}>正在请求...</div>}
 
-                <input
-                  ref={responseSearchInputRef}
-                  value={responseSearchQuery}
-                  placeholder="搜索响应..."
-                  onChange={(event) => setResponseSearchQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      jumpResponseSearchMatch(event.shiftKey ? 'prev' : 'next');
-                    }
+                {!loading && !response && (
+                  <div className={styles['empty-state']}>
+                    <div className={styles.rocket}>🚀</div>
 
-                    if (event.key === 'Escape') {
-                      event.preventDefault();
-                      closeResponseSearch();
-                    }
-                  }}
-                />
+                    <div>点击“发送”按钮获取返回结果</div>
+                  </div>
+                )}
 
-                <span className={styles['response-search-count']}>
-                  {responseSearchQuery.trim() ? `${responseSearchTotal === 0 ? 0 : activeResponseSearchIndex + 1}/${responseSearchTotal}` : '0/0'}
-                </span>
+                {!loading && response?.error && <pre className={styles['error-box']}>{renderHighlightedText(response.error)}</pre>}
 
-                <button className={styles['response-search-btn']} title="上一个" disabled={responseSearchTotal === 0} onClick={() => jumpResponseSearchMatch('prev')}>
-                  <i className="codicon codicon-arrow-up" />
-                </button>
+                {!loading && response && !response.error && responseTab === 'body' && <pre className={styles['response-code']}>{renderHighlightedText(responseBody)}</pre>}
 
-                <button className={styles['response-search-btn']} title="下一个" disabled={responseSearchTotal === 0} onClick={() => jumpResponseSearchMatch('next')}>
-                  <i className="codicon codicon-arrow-down" />
-                </button>
+                {!loading && response && !response.error && responseTab === 'headers' && (
+                  <pre className={styles['response-code']}>{renderHighlightedText(JSON.stringify(response.headers, null, 2))}</pre>
+                )}
 
-                <button className={styles['response-search-btn']} title="关闭搜索" onClick={closeResponseSearch}>
-                  <i className="codicon codicon-close" />
-                </button>
-              </div>
+                {!loading && response && !response.error && responseTab === 'raw' && <pre className={styles['response-code']}>{renderHighlightedText(response.body)}</pre>}
+              </>
             )}
-
-            {loading && <div className={styles['empty-state']}>正在请求...</div>}
-
-            {!loading && !response && (
-              <div className={styles['empty-state']}>
-                <div className={styles['rocket']}>🚀</div>
-                <div>点击“发送”按钮获取返回结果</div>
-              </div>
-            )}
-
-            {!loading && response?.error && (
-              <pre ref={responseCodeRef} className={styles['error-box']}>
-                {renderResponseCode(response.error)}
-              </pre>
-            )}
-
-            {!loading && response && !response.error && responseTab === 'body' && (
-              <pre ref={responseCodeRef} className={styles['response-code']}>
-                {renderResponseCode(responseBody)}
-              </pre>
-            )}
-
-            {!loading && response && !response.error && responseTab === 'headers' && (
-              <pre ref={responseCodeRef} className={styles['response-code']}>
-                {renderResponseCode(JSON.stringify(response.headers, null, 2))}
-              </pre>
-            )}
-
-            {!loading && response && !response.error && responseTab === 'raw' && (
-              <pre ref={responseCodeRef} className={styles['response-code']}>
-                {renderResponseCode(response.body)}
-              </pre>
-            )}
-          </div>
+          </BaseSearch>
 
           <div
             className={[styles['bottom-resizer'], isResizingBottomPanel ? styles['bottom-resizer-active'] : ''].filter(Boolean).join(' ')}
