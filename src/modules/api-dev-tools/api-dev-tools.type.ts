@@ -40,3 +40,8 @@ export interface ApiDevToolsWebviewMessage {
   state?: unknown;
   payload?: unknown;
 }
+
+/**
+ * @description API DevTools 原生 View 标题栏操作
+ */
+export type ApiDevToolsViewTitleAction = 'add-project' | 'add-interface' | 'save-interface' | 'share-docs' | 'export-docs' | 'show-globals' | 'clear-all' | 'send-request';

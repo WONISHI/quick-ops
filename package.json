@@ -510,6 +510,46 @@
         "title": "放大 Webview",
         "category": "Quick Ops",
         "icon": "$(screen-full)"
+      },
+      {
+        "command": "quickOps.apiDevTools.addProject",
+        "title": "Q-ops Api: 添加项目",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "quickOps.apiDevTools.addInterface",
+        "title": "Q-ops Api: 添加接口",
+        "icon": "$(group-by-ref-type)"
+      },
+      {
+        "command": "quickOps.apiDevTools.saveInterface",
+        "title": "Q-ops Api: 保存接口",
+        "icon": "$(save)"
+      },
+      {
+        "command": "quickOps.apiDevTools.shareDocs",
+        "title": "Q-ops Api: 分享文档",
+        "icon": "$(share)"
+      },
+      {
+        "command": "quickOps.apiDevTools.exportDocs",
+        "title": "Q-ops Api: 导出 HTML",
+        "icon": "$(export)"
+      },
+      {
+        "command": "quickOps.apiDevTools.showGlobals",
+        "title": "Q-ops Api: 变量",
+        "icon": "$(symbol-variable)"
+      },
+      {
+        "command": "quickOps.apiDevTools.clearAll",
+        "title": "Q-ops Api: 清空",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "quickOps.apiDevTools.sendRequest",
+        "title": "Q-ops Api: 发送请求",
+        "icon": "$(send)"
       }
     ],
     "keybindings": [
@@ -588,6 +628,46 @@
           "command": "quickOps.switchGitProject",
           "when": "view == quickOps.gitView",
           "group": "navigation@11"
+        },
+        {
+          "command": "quickOps.apiDevTools.addProject",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@1"
+        },
+        {
+          "command": "quickOps.apiDevTools.addInterface",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@2"
+        },
+        {
+          "command": "quickOps.apiDevTools.saveInterface",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@3"
+        },
+        {
+          "command": "quickOps.apiDevTools.shareDocs",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@4"
+        },
+        {
+          "command": "quickOps.apiDevTools.exportDocs",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@5"
+        },
+        {
+          "command": "quickOps.apiDevTools.showGlobals",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@6"
+        },
+        {
+          "command": "quickOps.apiDevTools.clearAll",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@7"
+        },
+        {
+          "command": "quickOps.apiDevTools.sendRequest",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@8"
         }
       ],
       "editor/title": [

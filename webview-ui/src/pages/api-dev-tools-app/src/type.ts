@@ -106,3 +106,8 @@ export type LeaveConfirmDialog = {
   title: string;
   message: string;
 } | null;
+
+/**
+ * @description API DevTools 原生 View 标题栏操作
+ */
+export type ApiDevToolsViewTitleAction = 'add-project' | 'add-interface' | 'save-interface' | 'share-docs' | 'export-docs' | 'show-globals' | 'clear-all' | 'send-request';

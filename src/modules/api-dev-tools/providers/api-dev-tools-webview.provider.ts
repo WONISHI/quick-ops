@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
-import { API_DEV_TOOLS_VIEW_TYPE, API_DEV_TOOLS_WEBVIEW_ROUTE } from '@/modules/api-dev-tools/constants/api-dev-tools.constant';
+import { API_DEV_TOOLS_VIEW_TYPE, API_DEV_TOOLS_WEBVIEW_ROUTE, API_DEV_TOOLS_VIEW_TITLE_ACTION_MESSAGE } from '@/modules/api-dev-tools/constants/api-dev-tools.constant';
 import { ApiDevToolsService } from '@modules/api-dev-tools/api-dev-tools.service';
-import type { ApiDevToolsRequestPayload, ApiDevToolsWebviewMessage, ApiDocsPayload } from '@modules/api-dev-tools/api-dev-tools.type';
+import type { ApiDevToolsRequestPayload, ApiDevToolsViewTitleAction, ApiDevToolsWebviewMessage, ApiDocsPayload } from '@modules/api-dev-tools/api-dev-tools.type';
 
 export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
   public static inject = [ExtensionContextProvider, ApiDevToolsService];
@@ -54,6 +54,22 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
   public dispose(): void {
     this.view = undefined;
     this.apiDevToolsService.dispose();
+  }
+
+  /**
+   * @description 执行 API DevTools 原生 View 标题栏操作
+   */
+  public async executeViewTitleAction(action: ApiDevToolsViewTitleAction): Promise<void> {
+    if (!this.view) {
+      await vscode.commands.executeCommand(`${ApiDevToolsWebviewProvider.viewType}.focus`);
+    }
+
+    this.view?.show(true);
+
+    this.postMessage({
+      type: API_DEV_TOOLS_VIEW_TITLE_ACTION_MESSAGE,
+      action,
+    });
   }
 
   private async handleMessage(message: ApiDevToolsWebviewMessage): Promise<void> {

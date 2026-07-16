@@ -19,7 +19,8 @@ import type {
   ManageDialog,
   LeaveConfirmAction,
   LeaveConfirmDialog,
-} from '@pages/ApiDevToolsApp/src/type';
+  ApiDevToolsViewTitleAction,
+} from '@/pages/api-dev-tools-app/src/type';
 
 import {
   HTTP_METHODS,
@@ -35,8 +36,8 @@ import {
   WORKSPACE_PANE_DEFAULT_WIDTH,
   WORKSPACE_PANE_MIN_WIDTH,
   WORKSPACE_PANE_MAX_WIDTH,
-  WORKSPACE_RESIZER_SIZE
-} from '@pages/ApiDevToolsApp/src/constants';
+  WORKSPACE_RESIZER_SIZE,
+} from '@/pages/api-dev-tools-app/src/constants';
 
 /**
  * @description 将数值限制在指定的最小值和最大值之间
@@ -1329,6 +1330,7 @@ export default function ApiDevToolsApp() {
   const workspaceResizerRef = useRef<HTMLDivElement | null>(null);
   const workspaceResizerPointerIdRef = useRef<number | null>(null);
   const loadedStateRef = useRef(false);
+  const viewTitleActionRef = useRef<(action: ApiDevToolsViewTitleAction) => void>(() => undefined);
 
   /**
    * @description 计算已启用的全局变量映射
@@ -1849,6 +1851,11 @@ export default function ApiDevToolsApp() {
      */
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
+
+      if (message?.type === 'apiDevToolsViewTitleAction') {
+        viewTitleActionRef.current(message.action as ApiDevToolsViewTitleAction);
+        return;
+      }
 
       if (message?.type === 'apiDevToolsState') {
         const state = normalizePersistedState(message.state);
@@ -3049,45 +3056,55 @@ export default function ApiDevToolsApp() {
     return nodes;
   };
 
+  /**
+   * @description 将 VS Code 原生 View 标题栏操作分发给页面现有业务函数
+   */
+  viewTitleActionRef.current = (action: ApiDevToolsViewTitleAction) => {
+    switch (action) {
+      case 'add-project':
+        addProject();
+        break;
+
+      case 'add-interface':
+        addInterface();
+        break;
+
+      case 'save-interface':
+        saveInterface();
+        break;
+
+      case 'share-docs':
+        shareDocs();
+        break;
+
+      case 'export-docs':
+        exportDocs();
+        break;
+
+      case 'show-globals':
+        setShowGlobals(true);
+        break;
+
+      case 'clear-all':
+        clearAll();
+        break;
+
+      case 'send-request':
+        if (!loading) {
+          sendRequest();
+        }
+        break;
+
+      default:
+        break;
+    }
+  };
+
   const bottomPanelMaxSize = getBottomPanelMaxSize();
   const interfaceCount = projects.reduce((sum, project) => sum + project.interfaces.length, 0);
 
   return (
     <div className={styles['api-devtools']}>
-      <header className={styles['topbar']}>
-        <div className={styles['brand']}>
-          <span className={styles['brand-dot']} />
-          <span>Q-ops Api</span>
-        </div>
-
-        <div className={styles['top-actions']}>
-          <button className={styles['ghost-btn']} onClick={addProject}>
-            + 项目
-          </button>
-          <button className={styles['ghost-btn']} onClick={addInterface}>
-            + 接口
-          </button>
-          <button className={styles['ghost-btn']} onClick={saveInterface}>
-            保存接口
-          </button>
-          <button className={styles['ghost-btn']} onClick={shareDocs}>
-            {isShareSelecting ? '选择中...' : '分享文档'}
-          </button>
-          <button className={styles['ghost-btn']} onClick={exportDocs}>
-            导出 HTML
-          </button>
-          <button className={styles['ghost-btn']} onClick={() => setShowGlobals(true)}>
-            变量
-          </button>
-          <button className={styles['ghost-btn']} onClick={clearAll}>
-            清空
-          </button>
-          <button className={styles['primary-btn']} disabled={loading} onClick={sendRequest}>
-            {loading ? '发送中...' : '发送'}
-          </button>
-        </div>
-      </header>
-
       <main
         className={styles['main']}
         style={
