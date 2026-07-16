@@ -87,7 +87,6 @@ export class QuickOpsApplication {
        * Plugin销毁后
        */
       await this.eti.lifecycle.disposed();
-
     } catch (error) {
       console.error('[QuickOps] Application dispose failed:', error);
     } finally {

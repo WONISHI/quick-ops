@@ -35,10 +35,5 @@ export class ETI {
      * 4.runtime注入plugin事件
      */
     this.runtimes.inject(this.plugins.getEvents());
-
-    /**
-     * 5.plugin ready
-     */
-    await this.lifecycle.ready();
   }
 }
