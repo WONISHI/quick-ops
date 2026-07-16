@@ -5,7 +5,7 @@ import styles from './index.module.css';
 
 export type BaseDialogPlacement = 'center' | 'right';
 
-export type BaseDialogActionVariant = 'default' | 'primary' | 'danger';
+export type BaseDialogActionType = 'default' | 'primary' | 'danger';
 
 export interface BaseDialogAction {
   /**
@@ -19,9 +19,9 @@ export interface BaseDialogAction {
   label: ReactNode;
 
   /**
-   * @description 按钮样式
+   * @description 按钮类型
    */
-  variant?: BaseDialogActionVariant;
+  type?: BaseDialogActionType;
 
   /**
    * @description 是否禁用按钮
@@ -51,7 +51,7 @@ export interface BaseDialogProps {
   title: ReactNode;
 
   /**
-   * @description 弹窗内容，相当于 Vue 默认 slot
+   * @description 弹窗主体内容，相当于默认 slot
    */
   children?: ReactNode;
 
@@ -61,7 +61,7 @@ export interface BaseDialogProps {
   headerExtra?: ReactNode;
 
   /**
-   * @description 自定义底部内容，相当于 Vue footer slot
+   * @description 自定义底部内容，相当于 footer slot
    *
    * footer 的优先级高于 actions。
    */
@@ -69,21 +69,16 @@ export interface BaseDialogProps {
 
   /**
    * @description 配置式底部按钮
-   *
-   * footer 未传入时才会渲染。
    */
   actions?: BaseDialogAction[];
 
   /**
-   * @description 弹窗关闭事件
+   * @description 关闭弹窗
    */
   onClose: () => void;
 
   /**
    * @description 弹窗展示位置
-   *
-   * - center：居中弹窗
-   * - right：右侧抽屉式弹窗
    */
   placement?: BaseDialogPlacement;
 
@@ -93,7 +88,7 @@ export interface BaseDialogProps {
   width?: number | string;
 
   /**
-   * @description 是否显示右上角关闭按钮
+   * @description 是否显示关闭按钮
    */
   showClose?: boolean;
 
@@ -113,9 +108,14 @@ export interface BaseDialogProps {
   className?: string;
 
   /**
-   * @description 弹窗内容区域自定义类名
+   * @description 弹窗主体自定义类名
    */
   bodyClassName?: string;
+
+  /**
+   * @description 弹窗底部自定义类名
+   */
+  footerClassName?: string;
 }
 
 /**
@@ -126,9 +126,9 @@ function joinClassNames(...classNames: Array<string | undefined | false>): strin
 }
 
 /**
- * @description 转换弹窗宽度
+ * @description 规范化弹窗宽度
  */
-function normalizeWidth(width: number | string | undefined): string | undefined {
+function normalizeWidth(width?: number | string): string | undefined {
   if (typeof width === 'number') {
     return `${width}px`;
   }
@@ -137,14 +137,14 @@ function normalizeWidth(width: number | string | undefined): string | undefined 
 }
 
 /**
- * @description 通用弹窗组件
+ * @description 基础通用弹窗
  *
  * 支持：
- * - children 自定义内容
- * - footer 自定义底部
+ * - children 自定义主体内容
+ * - footer 自定义底部内容
  * - actions 配置底部按钮
- * - center / right 两种展示模式
- * - 点击遮罩和 Escape 关闭
+ * - center 居中弹窗
+ * - right 右侧抽屉
  */
 export default function BaseDialog({
   open,
@@ -161,6 +161,7 @@ export default function BaseDialog({
   closeOnEscape = true,
   className,
   bodyClassName,
+  footerClassName,
 }: BaseDialogProps) {
   const titleId = useId();
 
@@ -199,7 +200,7 @@ export default function BaseDialog({
     onClose();
   };
 
-  const content = (
+  const dialog = (
     <div className={joinClassNames(styles.mask, placement === 'center' ? styles['mask-center'] : styles['mask-right'])} onMouseDown={handleMaskMouseDown}>
       <section
         role="dialog"
@@ -232,13 +233,13 @@ export default function BaseDialog({
         <div className={joinClassNames(styles.body, bodyClassName)}>{children}</div>
 
         {(footer || actions.length > 0) && (
-          <footer className={styles.footer}>
+          <footer className={joinClassNames(styles.footer, footerClassName)}>
             {footer ??
               actions.map((action) => (
                 <button
                   type="button"
                   key={action.key}
-                  className={joinClassNames(styles['action-button'], styles[`action-${action.variant || 'default'}`])}
+                  className={joinClassNames(styles['action-button'], styles[`action-${action.type || 'default'}`])}
                   disabled={action.disabled}
                   title={action.title}
                   onClick={() => {
@@ -254,5 +255,5 @@ export default function BaseDialog({
     </div>
   );
 
-  return createPortal(content, document.body);
+  return createPortal(dialog, document.body);
 }

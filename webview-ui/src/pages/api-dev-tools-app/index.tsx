@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { vscode } from '../../utils/vscode';
 import styles from '@pages/ApiDevToolsApp/index.module.css';
+import BaseDialog from '@components/BaseDialog';
 import type {
   HttpMethod,
   RequestTab,
@@ -3535,115 +3536,145 @@ export default function ApiDevToolsApp() {
         </section>
       </main>
 
-      {manageDialog && (
-        <div className={styles['modal-mask']} onMouseDown={closeManageDialog}>
-          <div className={[styles['modal'], styles['manage-modal']].filter(Boolean).join(' ')} onMouseDown={(event) => event.stopPropagation()}>
-            <div className={styles['modal-head']}>
-              <strong>{manageDialog.title}</strong>
-              <button className={styles['icon-btn']} onClick={closeManageDialog}>
-                ×
-              </button>
-            </div>
+      <BaseDialog
+        open={Boolean(manageDialog)}
+        title={manageDialog?.title || ''}
+        width={420}
+        placement="center"
+        onClose={closeManageDialog}
+        actions={
+          manageDialog
+            ? [
+                {
+                  key: 'cancel',
+                  label: '取消',
+                  onClick: closeManageDialog,
+                },
+                {
+                  key: 'confirm',
+                  label: 'message' in manageDialog ? (manageDialog.kind === 'clear-all' ? '清空' : '删除') : '确定',
+                  type: 'message' in manageDialog ? 'danger' : 'primary',
+                  onClick: confirmManageDialog,
+                },
+              ]
+            : []
+        }
+      >
+        {manageDialog &&
+          ('message' in manageDialog ? (
+            <div className={styles['dialog-message']}>{manageDialog.message}</div>
+          ) : (
+            <label className={styles['dialog-field']}>
+              <span>{manageDialog.label}</span>
 
-            {'message' in manageDialog ? (
-              <div className={styles['dialog-message']}>{manageDialog.message}</div>
-            ) : (
-              <label className={styles['dialog-field']}>
-                <span>{manageDialog.label}</span>
-                <input
-                  autoFocus
-                  className={styles['dialog-input']}
-                  value={manageDialogValue}
-                  onChange={(event) => setManageDialogValue(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      void confirmManageDialog();
-                    }
-                    if (event.key === 'Escape') {
-                      closeManageDialog();
-                    }
-                  }}
-                />
-              </label>
-            )}
+              <input
+                autoFocus
+                className={styles['dialog-input']}
+                value={manageDialogValue}
+                onChange={(event) => {
+                  setManageDialogValue(event.target.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void confirmManageDialog();
+                  }
+                }}
+              />
+            </label>
+          ))}
+      </BaseDialog>
 
-            <div className={styles['modal-footer']}>
-              <button className={styles['ghost-btn']} onClick={closeManageDialog}>
-                取消
-              </button>
-              <button className={'message' in manageDialog ? styles['danger-btn'] : styles['primary-btn']} onClick={confirmManageDialog}>
-                {'message' in manageDialog ? (manageDialog.kind === 'clear-all' ? '清空' : '删除') : '确定'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {leaveConfirmDialog && (
-        <div className={styles['modal-mask']} onMouseDown={() => closeLeaveConfirmDialog('cancel')}>
-          <div className={[styles['modal'], styles['manage-modal']].filter(Boolean).join(' ')} onMouseDown={(event) => event.stopPropagation()}>
-            <div className={styles['modal-head']}>
-              <strong>{leaveConfirmDialog.title}</strong>
-              <button className={styles['icon-btn']} onClick={() => closeLeaveConfirmDialog('cancel')}>
-                ×
-              </button>
-            </div>
-
-            <div className={styles['dialog-message']}>
-              {leaveConfirmDialog.message}
-              <br />
-              <span className={styles['hint']}>保存后继续切换，或不保存并恢复到修改前内容。</span>
-            </div>
-
-            <div className={styles['modal-footer']}>
-              <button className={styles['ghost-btn']} onClick={() => closeLeaveConfirmDialog('cancel')}>
-                取消切换
-              </button>
-              <button className={styles['ghost-btn']} onClick={() => closeLeaveConfirmDialog('discard')}>
-                不保存并切换
-              </button>
-              <button className={styles['primary-btn']} onClick={() => closeLeaveConfirmDialog('save')}>
-                保存并切换
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showGlobals && (
-        <div className={styles['modal-mask']} onMouseDown={() => setShowGlobals(false)}>
-          <div className={styles['modal']} onMouseDown={(event) => event.stopPropagation()}>
-            <div className={styles['modal-head']}>
-              <strong>全局变量</strong>
-              <button className={styles['icon-btn']} onClick={() => setShowGlobals(false)}>
-                ×
-              </button>
-            </div>
-
-            <p className={styles['hint']}>
-              请求地址、Headers、Body 中可以使用 <code>{'{{baseUrl}}'}</code>、<code>{'{{token}}'}</code> 这类变量。
-            </p>
-
-            <KeyValueEditor
-              items={globals}
-              onChange={(items) => {
-                const nextGlobals = items.map((item) => ({ ...item }));
-
-                globalsRef.current = nextGlobals;
-                setGlobals(nextGlobals);
+      <BaseDialog
+        open={Boolean(leaveConfirmDialog)}
+        title={leaveConfirmDialog?.title || ''}
+        width={420}
+        placement="center"
+        onClose={() => {
+          closeLeaveConfirmDialog('cancel');
+        }}
+        footer={
+          <>
+            <button
+              type="button"
+              className={styles['ghost-btn']}
+              onClick={() => {
+                closeLeaveConfirmDialog('cancel');
               }}
-              keyPlaceholder="变量名"
-              valuePlaceholder="变量值"
-            />
+            >
+              取消切换
+            </button>
 
-            <div className={styles['modal-footer']}>
-              <button className={styles['primary-btn']} onClick={() => setShowGlobals(false)}>
-                完成
-              </button>
-            </div>
+            <button
+              type="button"
+              className={styles['ghost-btn']}
+              onClick={() => {
+                closeLeaveConfirmDialog('discard');
+              }}
+            >
+              不保存并切换
+            </button>
+
+            <button
+              type="button"
+              className={styles['primary-btn']}
+              onClick={() => {
+                closeLeaveConfirmDialog('save');
+              }}
+            >
+              保存并切换
+            </button>
+          </>
+        }
+      >
+        {leaveConfirmDialog && (
+          <div className={styles['dialog-message']}>
+            {leaveConfirmDialog.message}
+
+            <br />
+
+            <span className={styles.hint}>保存后继续切换，或不保存并恢复到修改前内容。</span>
           </div>
-        </div>
-      )}
+        )}
+      </BaseDialog>
+
+      <BaseDialog
+        open={showGlobals}
+        title="全局变量"
+        width="min(680px, 92vw)"
+        placement="right"
+        onClose={() => {
+          setShowGlobals(false);
+        }}
+        actions={[
+          {
+            key: 'complete',
+            label: '完成',
+            type: 'primary',
+            onClick: () => {
+              setShowGlobals(false);
+            },
+          },
+        ]}
+      >
+        <p className={styles.hint}>
+          请求地址、Headers、Body 中可以使用 <code>{'{{baseUrl}}'}</code>、<code>{'{{token}}'}</code> 这类变量。
+        </p>
+
+        <KeyValueEditor
+          items={globals}
+          onChange={(items) => {
+            const nextGlobals = items.map((item) => ({
+              ...item,
+            }));
+
+            globalsRef.current = nextGlobals;
+
+            setGlobals(nextGlobals);
+          }}
+          keyPlaceholder="变量名"
+          valuePlaceholder="变量值"
+        />
+      </BaseDialog>
     </div>
   );
 }
