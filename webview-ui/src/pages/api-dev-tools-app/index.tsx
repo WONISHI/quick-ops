@@ -1,4 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import CodeMirror from '@uiw/react-codemirror';
+import { json } from '@codemirror/lang-json';
+import { SearchQuery, search, setSearchQuery } from '@codemirror/search';
+import { EditorView } from '@codemirror/view';
 import { vscode } from '@utils/vscode';
 import styles from '@pages/api-dev-tools-app/index.module.css';
 import BaseDialog from '@components/BaseDialog';
@@ -396,6 +400,338 @@ function isSameRequest(left: ApiRequestConfig, right: ApiRequestConfig) {
  */
 function isDefaultRequestSnapshot(request: ApiRequestConfig) {
   return isSameRequest(request, createDefaultRequest());
+}
+
+type ResponseEditorLanguage = 'json' | 'plaintext';
+
+type ResponseCodeMirrorTheme = 'light' | 'dark';
+
+interface ResponseCodeMirrorEditorProps {
+  /**
+   * @description 编辑器显示内容
+   */
+  value: string;
+
+  /**
+   * @description 编辑器语言
+   */
+  language: ResponseEditorLanguage;
+
+  /**
+   * @description 悬浮搜索框是否打开
+   */
+  searchOpen: boolean;
+
+  /**
+   * @description 当前搜索关键词
+   */
+  searchQuery: string;
+
+  /**
+   * @description 当前激活搜索结果下标
+   */
+  activeSearchIndex: number;
+}
+
+interface ResponseSearchRange {
+  from: number;
+  to: number;
+}
+
+const responseCodeMirrorSearch = search({
+  top: true,
+});
+
+const responseCodeMirrorTheme = EditorView.theme({
+  '&': {
+    height: '100%',
+    color: 'var(--vscode-editor-foreground)',
+    backgroundColor: 'var(--vscode-editor-background)',
+  },
+  '&.cm-focused': {
+    outline: 'none',
+  },
+  '.cm-scroller': {
+    overflow: 'auto',
+    fontFamily: 'var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)',
+    fontSize: 'var(--vscode-editor-font-size, 12px)',
+    lineHeight: 'var(--vscode-editor-line-height, 1.45)',
+  },
+  '.cm-content': {
+    padding: '8px 0',
+    caretColor: 'var(--vscode-editorCursor-foreground)',
+  },
+  '.cm-line': {
+    padding: '0 8px',
+  },
+  '.cm-gutters': {
+    color: 'var(--vscode-editorLineNumber-foreground)',
+    backgroundColor: 'var(--vscode-editor-background)',
+    border: 'none',
+  },
+  '.cm-activeLine': {
+    backgroundColor: 'transparent',
+  },
+  '.cm-activeLineGutter': {
+    color: 'var(--vscode-editorLineNumber-activeForeground)',
+    backgroundColor: 'transparent',
+  },
+  '.cm-foldGutter .cm-gutterElement': {
+    color: 'var(--vscode-icon-foreground)',
+  },
+  '.cm-selectionBackground, ::selection': {
+    backgroundColor: 'var(--vscode-editor-selectionBackground) !important',
+  },
+  '.cm-searchMatch': {
+    padding: '0 1px',
+    borderRadius: '2px',
+    backgroundColor: 'var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.35))',
+  },
+  '.cm-searchMatch.cm-searchMatch-selected': {
+    color: 'var(--vscode-editor-findMatchForeground, inherit)',
+    backgroundColor: 'var(--vscode-editor-findMatchBackground, rgba(81, 92, 106, 0.75))',
+    outline: '1px solid var(--vscode-editor-findMatchBorder, var(--vscode-focusBorder))',
+  },
+  '.cm-panels': {
+    display: 'none',
+  },
+});
+
+/**
+ * @description 获取适配 VS Code 当前颜色模式的 CodeMirror 主题
+ */
+function getResponseCodeMirrorTheme(): ResponseCodeMirrorTheme {
+  const classList = document.body.classList;
+
+  const isDark = classList.contains('vscode-dark') || classList.contains('vscode-high-contrast');
+
+  return isDark ? 'dark' : 'light';
+}
+
+/**
+ * @description 监听 VS Code Webview 主题变化
+ */
+function useResponseCodeMirrorTheme(): ResponseCodeMirrorTheme {
+  const [theme, setTheme] = useState<ResponseCodeMirrorTheme>(getResponseCodeMirrorTheme);
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const nextTheme = getResponseCodeMirrorTheme();
+
+      setTheme((currentTheme) => {
+        return currentTheme === nextTheme ? currentTheme : nextTheme;
+      });
+    });
+
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  return theme;
+}
+
+/**
+ * @description 判断文本是否可能为 JSON
+ */
+function isJsonLikeText(value: string): boolean {
+  const firstCharacter = String(value || '')
+    .trim()
+    .charAt(0);
+
+  return firstCharacter === '{' || firstCharacter === '[';
+}
+
+/**
+ * @description 获取响应编辑器语言
+ */
+function getResponseEditorLanguage(response: ApiResponsePayload | null, responseTab: ResponseTab, value: string): ResponseEditorLanguage {
+  if (!response || response.error) {
+    return 'plaintext';
+  }
+
+  if (responseTab === 'headers') {
+    return 'json';
+  }
+
+  const contentType = getResponseContentType(response).toLowerCase();
+
+  if (contentType.includes('application/json') || contentType.includes('+json') || isJsonLikeText(value)) {
+    return 'json';
+  }
+
+  return 'plaintext';
+}
+
+/**
+ * @description 获取当前搜索条件的全部匹配范围
+ */
+function getResponseSearchRanges(view: EditorView, query: SearchQuery): ResponseSearchRange[] {
+  const result: ResponseSearchRange[] = [];
+  const cursor = query.getCursor(view.state);
+
+  while (true) {
+    const current = cursor.next();
+
+    if (current.done) {
+      break;
+    }
+
+    result.push({
+      from: current.value.from,
+      to: current.value.to,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * @description 使用 CodeMirror 6 显示只读响应内容
+ */
+function ResponseCodeMirrorEditor({ value, language, searchOpen, searchQuery, activeSearchIndex }: ResponseCodeMirrorEditorProps) {
+  const theme = useResponseCodeMirrorTheme();
+
+  const editorViewRef = useRef<EditorView | null>(null);
+
+  /**
+   * @description 计算 CodeMirror 扩展
+   */
+  const extensions = useMemo(() => {
+    return [...(language === 'json' ? [json()] : []), responseCodeMirrorSearch, responseCodeMirrorTheme, EditorView.lineWrapping];
+  }, [language]);
+
+  /**
+   * @description 同步悬浮搜索条件到 CodeMirror
+   */
+  const syncSearch = useCallback(
+    (targetView = editorViewRef.current) => {
+      if (!targetView) return;
+
+      const normalizedQuery = searchOpen ? searchQuery.trim() : '';
+
+      const query = new SearchQuery({
+        search: normalizedQuery,
+        caseSensitive: false,
+        literal: true,
+      });
+
+      if (!normalizedQuery || !query.valid) {
+        const currentHead = targetView.state.selection.main.head;
+
+        targetView.dispatch({
+          selection: {
+            anchor: currentHead,
+          },
+          effects: setSearchQuery.of(query),
+        });
+
+        return;
+      }
+
+      const ranges = getResponseSearchRanges(targetView, query);
+
+      const safeActiveIndex = ranges.length > 0 ? Math.min(Math.max(activeSearchIndex, 0), ranges.length - 1) : 0;
+
+      const activeRange = ranges[safeActiveIndex];
+
+      if (!activeRange) {
+        targetView.dispatch({
+          effects: setSearchQuery.of(query),
+        });
+
+        return;
+      }
+
+      targetView.dispatch({
+        selection: {
+          anchor: activeRange.from,
+          head: activeRange.to,
+        },
+        effects: [
+          setSearchQuery.of(query),
+          EditorView.scrollIntoView(activeRange.from, {
+            y: 'center',
+          }),
+        ],
+      });
+    },
+    [activeSearchIndex, searchOpen, searchQuery],
+  );
+
+  /**
+   * @description 内容或搜索条件变化后同步编辑器
+   */
+  useEffect(() => {
+    syncSearch();
+  }, [language, syncSearch, value]);
+
+  /**
+   * @description 保存 CodeMirror 编辑器实例
+   */
+  const handleCreateEditor = useCallback(
+    (view: EditorView) => {
+      editorViewRef.current = view;
+
+      syncSearch(view);
+    },
+    [syncSearch],
+  );
+
+  /**
+   * @description 组件销毁时清理编辑器引用
+   */
+  useEffect(() => {
+    return () => {
+      editorViewRef.current = null;
+    };
+  }, []);
+
+  return (
+    <CodeMirror
+      className={styles['response-code-mirror']}
+      width="100%"
+      height={searchOpen ? 'calc(100% - 42px)' : '100%'}
+      value={value}
+      theme={theme}
+      extensions={extensions}
+      editable={false}
+      readOnly
+      indentWithTab={false}
+      onCreateEditor={handleCreateEditor}
+      basicSetup={{
+        lineNumbers: true,
+        highlightActiveLineGutter: false,
+        highlightSpecialChars: false,
+        history: false,
+        foldGutter: language === 'json',
+        drawSelection: true,
+        dropCursor: false,
+        allowMultipleSelections: false,
+        indentOnInput: false,
+        syntaxHighlighting: true,
+        bracketMatching: language === 'json',
+        closeBrackets: false,
+        autocompletion: false,
+        rectangularSelection: false,
+        crosshairCursor: false,
+        highlightActiveLine: false,
+        highlightSelectionMatches: false,
+        closeBracketsKeymap: false,
+        defaultKeymap: false,
+        searchKeymap: false,
+        historyKeymap: false,
+        foldKeymap: language === 'json',
+        completionKeymap: false,
+        lintKeymap: false,
+      }}
+    />
+  );
 }
 
 /**
@@ -2004,10 +2340,11 @@ export default function ApiDevToolsApp() {
   };
 
   const responseBody = getDisplayResponseBody(response);
+
   /**
-   * @description 计算当前响应页签的可搜索文本
+   * @description 计算当前响应页签的编辑器内容
    */
-  const responseSearchText = useMemo(() => {
+  const responseEditorValue = useMemo(() => {
     if (!response) return '';
 
     if (response.error) {
@@ -2024,6 +2361,13 @@ export default function ApiDevToolsApp() {
 
     return responseBody;
   }, [response, responseBody, responseTab]);
+
+  /**
+   * @description 计算当前响应页签的编辑器语言
+   */
+  const responseEditorLanguage = useMemo(() => {
+    return getResponseEditorLanguage(response, responseTab, responseEditorValue);
+  }, [response, responseEditorValue, responseTab]);
 
   /**
    * @description 打开响应内容搜索框
@@ -2389,7 +2733,7 @@ export default function ApiDevToolsApp() {
 
           <BaseSearch
             open={isResponseSearchOpen}
-            text={responseSearchText}
+            text={responseEditorValue}
             className={styles['response-panel']}
             placeholder="搜索响应..."
             maxWidth={560}
@@ -2397,7 +2741,7 @@ export default function ApiDevToolsApp() {
               setIsResponseSearchOpen(false);
             }}
           >
-            {({ renderHighlightedText }) => (
+            {({ query, activeIndex }) => (
               <>
                 {loading && <div className={styles['empty-state']}>正在请求...</div>}
 
@@ -2409,15 +2753,15 @@ export default function ApiDevToolsApp() {
                   </div>
                 )}
 
-                {!loading && response?.error && <pre className={styles['error-box']}>{renderHighlightedText(response.error)}</pre>}
-
-                {!loading && response && !response.error && responseTab === 'body' && <pre className={styles['response-code']}>{renderHighlightedText(responseBody)}</pre>}
-
-                {!loading && response && !response.error && responseTab === 'headers' && (
-                  <pre className={styles['response-code']}>{renderHighlightedText(JSON.stringify(response.headers, null, 2))}</pre>
+                {!loading && response && (
+                  <ResponseCodeMirrorEditor
+                    value={responseEditorValue}
+                    language={responseEditorLanguage}
+                    searchOpen={isResponseSearchOpen}
+                    searchQuery={query}
+                    activeSearchIndex={activeIndex}
+                  />
                 )}
-
-                {!loading && response && !response.error && responseTab === 'raw' && <pre className={styles['response-code']}>{renderHighlightedText(response.body)}</pre>}
               </>
             )}
           </BaseSearch>

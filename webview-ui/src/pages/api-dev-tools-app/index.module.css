@@ -913,3 +913,29 @@
   line-height: 1.7;
   color: var(--vscode-foreground);
 }
+
+.monaco-search-match {
+  border-radius: 2px;
+  background: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.35));
+}
+
+.monaco-search-match-active {
+  border-radius: 2px;
+  color: var(--vscode-editor-findMatchForeground, inherit);
+  background: var(--vscode-editor-findMatchBackground, rgba(81, 92, 106, 0.75));
+  outline: 1px solid var(--vscode-editor-findMatchBorder, var(--vscode-focusBorder));
+}
+
+.response-code-mirror {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.response-code-mirror :global(.cm-editor) {
+  height: 100%;
+}
+
+.response-code-mirror :global(.cm-scroller) {
+  height: 100%;
+}
