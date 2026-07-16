@@ -1,145 +1,42 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { vscode } from '../../utils/vscode';
-import styles from './index.module.css';
+import styles from '@pages/ApiDevToolsApp/index.module.css';
+import type {
+  HttpMethod,
+  RequestTab,
+  ResponseTab,
+  BodyType,
+  AuthType,
+  KeyValueItem,
+  GlobalVariable,
+  AuthConfig,
+  ApiRequestConfig,
+  ApiInterfaceItem,
+  ApiProject,
+  HistoryItem,
+  ApiResponsePayload,
+  PersistedState,
+  ManageDialog,
+  LeaveConfirmAction,
+  LeaveConfirmDialog,
+} from '@pages/ApiDevToolsApp/src/type';
 
-type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
-type RequestTab = 'params' | 'body' | 'headers' | 'cookies' | 'auth' | 'pre' | 'post';
-type ResponseTab = 'body' | 'headers' | 'raw';
-type BodyType = 'none' | 'json' | 'raw' | 'form-urlencoded';
-type AuthType = 'none' | 'bearer' | 'basic';
-
-interface KeyValueItem {
-  id: string;
-  enabled: boolean;
-  key: string;
-  value: string;
-  description?: string;
-}
-
-type GlobalVariable = KeyValueItem;
-
-interface AuthConfig {
-  type: AuthType;
-  token: string;
-  username: string;
-  password: string;
-}
-
-interface ApiRequestConfig {
-  id: string;
-  name: string;
-  method: HttpMethod;
-  url: string;
-  params: KeyValueItem[];
-  headers: KeyValueItem[];
-  cookies: KeyValueItem[];
-  bodyType: BodyType;
-  bodyRaw: string;
-  bodyForm: KeyValueItem[];
-  auth: AuthConfig;
-  preScript: string;
-  postScript: string;
-  timeout: number;
-}
-
-interface ApiInterfaceItem {
-  id: string;
-  name: string;
-  description: string;
-  method: HttpMethod;
-  url: string;
-  request: ApiRequestConfig;
-  createdAt: number;
-  updatedAt: number;
-}
-
-interface ApiProject {
-  id: string;
-  name: string;
-  description: string;
-  interfaces: ApiInterfaceItem[];
-  createdAt: number;
-  updatedAt: number;
-}
-
-interface HistoryItem {
-  id: string;
-  name: string;
-  method: HttpMethod;
-  url: string;
-  status: number;
-  duration: number;
-  timestamp: number;
-  request: ApiRequestConfig;
-}
-
-interface ApiResponsePayload {
-  requestId: string;
-  ok: boolean;
-  url: string;
-  status: number;
-  statusText: string;
-  duration: number;
-  size: number;
-  headers: Record<string, string>;
-  body: string;
-  error?: string;
-}
-
-interface PersistedState {
-  globals: GlobalVariable[];
-  request: ApiRequestConfig;
-  history: HistoryItem[];
-  projects: ApiProject[];
-  activeProjectId: string;
-  activeInterfaceId: string;
-}
-
-type ManageDialog =
-  | { kind: 'project-create'; title: string; label: string; value: string }
-  | { kind: 'project-rename'; title: string; label: string; value: string; projectId: string }
-  | { kind: 'interface-create'; title: string; label: string; value: string }
-  | { kind: 'project-delete'; title: string; message: string; projectId: string; projectName: string }
-  | { kind: 'interface-delete'; title: string; message: string; projectId: string; interfaceId: string; interfaceName: string }
-  | { kind: 'clear-all'; title: string; message: string }
-  | null;
-
-type LeaveConfirmAction = 'save' | 'discard' | 'cancel';
-
-type LeaveConfirmDialog = {
-  title: string;
-  message: string;
-} | null;
-
-const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
-
-const REQUEST_TABS: Array<{ key: RequestTab; label: string }> = [
-  { key: 'params', label: 'Params' },
-  { key: 'body', label: 'Body' },
-  { key: 'headers', label: 'Headers' },
-  { key: 'cookies', label: 'Cookies' },
-  { key: 'auth', label: 'Auth' },
-  { key: 'pre', label: '前置' },
-  { key: 'post', label: '后置' },
-];
-
-const RESPONSE_TABS: Array<{ key: ResponseTab; label: string }> = [
-  { key: 'body', label: 'Body' },
-  { key: 'headers', label: 'Headers' },
-  { key: 'raw', label: 'Raw' },
-];
-
-const BOTTOM_PANEL_COLLAPSED_SIZE = 0;
-const BOTTOM_PANEL_DEFAULT_SIZE = 0;
-const BOTTOM_PANEL_MAX_SIZE = 420;
-const RESPONSE_PANEL_RESERVED_SIZE = 110;
-const RESPONSE_HEAD_SIZE = 34;
-const RESPONSE_TABS_SIZE = 32;
-const BOTTOM_RESIZER_SIZE = 6;
-const WORKSPACE_PANE_DEFAULT_WIDTH = 218;
-const WORKSPACE_PANE_MIN_WIDTH = 0;
-const WORKSPACE_PANE_MAX_WIDTH = 380;
-const WORKSPACE_RESIZER_SIZE = 6;
+import {
+  HTTP_METHODS,
+  REQUEST_TABS,
+  RESPONSE_TABS,
+  BOTTOM_PANEL_COLLAPSED_SIZE,
+  BOTTOM_PANEL_DEFAULT_SIZE,
+  BOTTOM_PANEL_MAX_SIZE,
+  RESPONSE_PANEL_RESERVED_SIZE,
+  RESPONSE_HEAD_SIZE,
+  RESPONSE_TABS_SIZE,
+  BOTTOM_RESIZER_SIZE,
+  WORKSPACE_PANE_DEFAULT_WIDTH,
+  WORKSPACE_PANE_MIN_WIDTH,
+  WORKSPACE_PANE_MAX_WIDTH,
+  WORKSPACE_RESIZER_SIZE
+} from '@pages/ApiDevToolsApp/src/constants';
 
 /**
  * @description 将数值限制在指定的最小值和最大值之间
@@ -199,10 +96,7 @@ function createDefaultRequest(): ApiRequestConfig {
  * @description 创建默认全局变量列表
  */
 function createDefaultGlobals(): GlobalVariable[] {
-  return [
-    createKeyValue('baseUrl', 'http://localhost:3000', true),
-    createKeyValue('token', '', true),
-  ];
+  return [createKeyValue('baseUrl', 'http://localhost:3000', true), createKeyValue('token', '', true)];
 }
 
 /**
@@ -279,17 +173,13 @@ function normalizeRequest(raw: unknown): ApiRequestConfig {
     params: normalizeKeyValueList(item.params),
     headers: normalizeKeyValueList(item.headers),
     cookies: normalizeKeyValueList(item.cookies),
-    bodyType: ['none', 'json', 'raw', 'form-urlencoded'].includes(item.bodyType as string)
-      ? (item.bodyType as BodyType)
-      : def.bodyType,
+    bodyType: ['none', 'json', 'raw', 'form-urlencoded'].includes(item.bodyType as string) ? (item.bodyType as BodyType) : def.bodyType,
     bodyRaw: String(item.bodyRaw ?? def.bodyRaw),
     bodyForm: normalizeKeyValueList(item.bodyForm),
     auth: {
       ...def.auth,
       ...(item.auth || {}),
-      type: ['none', 'bearer', 'basic'].includes(item.auth?.type as string)
-        ? (item.auth?.type as AuthType)
-        : def.auth.type,
+      type: ['none', 'bearer', 'basic'].includes(item.auth?.type as string) ? (item.auth?.type as AuthType) : def.auth.type,
     },
     preScript: String(item.preScript ?? def.preScript),
     postScript: String(item.postScript ?? def.postScript),
@@ -329,9 +219,7 @@ function normalizeProject(raw: unknown): ApiProject | null {
   if (!item || typeof item !== 'object') return null;
 
   const now = Date.now();
-  const interfaces = Array.isArray(item.interfaces)
-    ? (item.interfaces.map(normalizeInterface).filter(Boolean) as ApiInterfaceItem[])
-    : [];
+  const interfaces = Array.isArray(item.interfaces) ? (item.interfaces.map(normalizeInterface).filter(Boolean) as ApiInterfaceItem[]) : [];
 
   return {
     id: item.id || createId('project'),
@@ -348,9 +236,7 @@ function normalizeProject(raw: unknown): ApiProject | null {
  */
 function normalizePersistedState(raw: unknown): PersistedState {
   const state = raw as Partial<PersistedState> | undefined;
-  const projects = Array.isArray(state?.projects)
-    ? (state!.projects.map(normalizeProject).filter(Boolean) as ApiProject[])
-    : [];
+  const projects = Array.isArray(state?.projects) ? (state!.projects.map(normalizeProject).filter(Boolean) as ApiProject[]) : [];
 
   return {
     globals: normalizeKeyValueList(state?.globals).map((item) => ({ ...item })),
@@ -549,12 +435,7 @@ function escapeScriptJson(value: unknown) {
 /**
  * @description 获取用于生成接口文档的项目数据
  */
-function getDocsProjects(
-  projects: ApiProject[],
-  currentRequest: ApiRequestConfig,
-  activeProjectId = '',
-  activeInterfaceId = ''
-) {
+function getDocsProjects(projects: ApiProject[], currentRequest: ApiRequestConfig, activeProjectId = '', activeInterfaceId = '') {
   const validProjects = projects
     .filter((project) => project.interfaces.length > 0)
     .map((project) => ({
@@ -742,13 +623,7 @@ function resolveRequestForDocs(request: ApiRequestConfig, variables: Record<stri
 /**
  * @description 生成接口文档 HTML
  */
-function buildApiDocsHtml(
-  projects: ApiProject[],
-  globals: GlobalVariable[],
-  currentRequest: ApiRequestConfig,
-  activeProjectId = '',
-  activeInterfaceId = ''
-) {
+function buildApiDocsHtml(projects: ApiProject[], globals: GlobalVariable[], currentRequest: ApiRequestConfig, activeProjectId = '', activeInterfaceId = '') {
   const rawDocsProjects = getDocsProjects(projects, currentRequest, activeProjectId, activeInterfaceId);
   const usedGlobals = getUsedDocGlobals(rawDocsProjects, globals, currentRequest);
   const variables = getDocVariableMap(globals);
@@ -808,7 +683,7 @@ function buildApiDocsHtml(
                       <div class="doc-kv-row doc-kv-row-readonly">
                         <code>${escapeHtml(item.key)}</code>
                         <code>${escapeHtml(item.value)}</code>
-                      </div>`
+                      </div>`,
                   )
                   .join('')}
               </div>`
@@ -855,8 +730,8 @@ function buildApiDocsHtml(
           password: auth.password,
         },
         null,
-        2
-      )
+        2,
+      ),
     )}</pre>`;
   };
 
@@ -942,17 +817,22 @@ function buildApiDocsHtml(
       <nav>
         ${docsProjects
           .map(
-            (project) => `<div class="nav-project"><div class="nav-project-title">${escapeHtml(project.name)}</div>${project.interfaces
-              .map((api) => `<a href="#${escapeHtml(api.id)}">${escapeHtml(api.request.method)} ${escapeHtml(api.name)}</a>`)
-              .join('')}</div>`
+            (project) =>
+              `<div class="nav-project"><div class="nav-project-title">${escapeHtml(project.name)}</div>${project.interfaces
+                .map((api) => `<a href="#${escapeHtml(api.id)}">${escapeHtml(api.request.method)} ${escapeHtml(api.name)}</a>`)
+                .join('')}</div>`,
           )
           .join('')}
       </nav>
       <div class="doc-content">
-        ${hasResolvedGlobals ? `<div class="globals"><div class="globals-title">全局变量</div>${resolvedGlobals
-          .filter((item) => item.enabled && item.key.trim())
-          .map((item) => `<div class="global-row"><strong>${escapeHtml(item.key)}</strong><code>${escapeHtml(item.value)}</code></div>`)
-          .join('')}</div>` : ''}
+        ${
+          hasResolvedGlobals
+            ? `<div class="globals"><div class="globals-title">全局变量</div>${resolvedGlobals
+                .filter((item) => item.enabled && item.key.trim())
+                .map((item) => `<div class="global-row"><strong>${escapeHtml(item.key)}</strong><code>${escapeHtml(item.value)}</code></div>`)
+                .join('')}</div>`
+            : ''
+        }
         ${docsProjects
           .map((project) =>
             project.interfaces
@@ -985,7 +865,7 @@ function buildApiDocsHtml(
                   <div class="doc-response" data-doc-response></div>
                 </article>`;
               })
-              .join('')
+              .join(''),
           )
           .join('')}
       </div>
@@ -1320,12 +1200,7 @@ function buildApiDocsHtml(
 /**
  * @description 渲染键值编辑器
  */
-function KeyValueEditor(props: {
-  items: KeyValueItem[];
-  onChange: (items: KeyValueItem[]) => void;
-  keyPlaceholder?: string;
-  valuePlaceholder?: string;
-}) {
+function KeyValueEditor(props: { items: KeyValueItem[]; onChange: (items: KeyValueItem[]) => void; keyPlaceholder?: string; valuePlaceholder?: string }) {
   const { items, onChange, keyPlaceholder = '名称', valuePlaceholder = '值' } = props;
 
   /**
@@ -1361,21 +1236,9 @@ function KeyValueEditor(props: {
 
       {items.map((item) => (
         <div className={styles['kv-row']} key={item.id}>
-          <input
-            type="checkbox"
-            checked={item.enabled}
-            onChange={(event) => updateItem(item.id, { enabled: event.target.checked })}
-          />
-          <input
-            value={item.key}
-            placeholder={keyPlaceholder}
-            onChange={(event) => updateItem(item.id, { key: event.target.value })}
-          />
-          <input
-            value={item.value}
-            placeholder={valuePlaceholder}
-            onChange={(event) => updateItem(item.id, { value: event.target.value })}
-          />
+          <input type="checkbox" checked={item.enabled} onChange={(event) => updateItem(item.id, { enabled: event.target.checked })} />
+          <input value={item.key} placeholder={keyPlaceholder} onChange={(event) => updateItem(item.id, { key: event.target.value })} />
+          <input value={item.value} placeholder={valuePlaceholder} onChange={(event) => updateItem(item.id, { value: event.target.value })} />
           <button className={styles['icon-btn']} onClick={() => removeItem(item.id)}>
             ×
           </button>
@@ -1484,10 +1347,7 @@ export default function ApiDevToolsApp() {
   /**
    * @description 计算当前选中的项目
    */
-  const activeProject = useMemo(
-    () => projects.find((project) => project.id === activeProjectId) || null,
-    [projects, activeProjectId]
-  );
+  const activeProject = useMemo(() => projects.find((project) => project.id === activeProjectId) || null, [projects, activeProjectId]);
 
   /**
    * @description 计算当前选中的接口
@@ -1605,12 +1465,7 @@ export default function ApiDevToolsApp() {
       return BOTTOM_PANEL_MAX_SIZE;
     }
 
-    const available =
-      paneHeight -
-      RESPONSE_HEAD_SIZE -
-      RESPONSE_TABS_SIZE -
-      BOTTOM_RESIZER_SIZE -
-      RESPONSE_PANEL_RESERVED_SIZE;
+    const available = paneHeight - RESPONSE_HEAD_SIZE - RESPONSE_TABS_SIZE - BOTTOM_RESIZER_SIZE - RESPONSE_PANEL_RESERVED_SIZE;
 
     return Math.min(BOTTOM_PANEL_MAX_SIZE, Math.max(BOTTOM_PANEL_COLLAPSED_SIZE, available));
   }, []);
@@ -1625,7 +1480,7 @@ export default function ApiDevToolsApp() {
       bottomPanelSizeRef.current = nextSize;
       setBottomPanelSize(nextSize);
     },
-    [getBottomPanelMaxSize]
+    [getBottomPanelMaxSize],
   );
 
   /**
@@ -1954,7 +1809,7 @@ export default function ApiDevToolsApp() {
         return draft;
       }
     },
-    [setLog]
+    [setLog],
   );
 
   /**
@@ -1969,14 +1824,18 @@ export default function ApiDevToolsApp() {
       try {
         const fn = new Function('response', 'globals', 'console', code);
 
-        fn(payload, { ...globalVariablesRef.current }, {
-          log: (...args: unknown[]) => setLog(args.map(String).join(' ')),
-        });
+        fn(
+          payload,
+          { ...globalVariablesRef.current },
+          {
+            log: (...args: unknown[]) => setLog(args.map(String).join(' ')),
+          },
+        );
       } catch (error: any) {
         setLog(`后置操作失败：${error?.message || String(error)}`);
       }
     },
-    [setLog]
+    [setLog],
   );
 
   /**
@@ -2108,10 +1967,7 @@ export default function ApiDevToolsApp() {
     finalRequest.params.forEach((item) => {
       if (!item.enabled || !item.key.trim()) return;
 
-      urlObject.searchParams.set(
-        interpolateVariables(item.key, variables),
-        interpolateVariables(item.value, variables)
-      );
+      urlObject.searchParams.set(interpolateVariables(item.key, variables), interpolateVariables(item.value, variables));
     });
 
     const headers = getEnabledObject(finalRequest.headers, variables);
@@ -2425,14 +2281,9 @@ export default function ApiDevToolsApp() {
   const discardCurrentRequestChanges = () => {
     const currentProjectId = activeProjectIdRef.current;
     const currentInterfaceId = activeInterfaceIdRef.current;
-    const currentInterface =
-      currentProjectId && currentInterfaceId
-        ? getInterfaceById(currentProjectId, currentInterfaceId)
-        : null;
+    const currentInterface = currentProjectId && currentInterfaceId ? getInterfaceById(currentProjectId, currentInterfaceId) : null;
 
-    const restoredRequest = currentInterface
-      ? cloneRequest(currentInterface.request)
-      : createDefaultRequest();
+    const restoredRequest = currentInterface ? cloneRequest(currentInterface.request) : createDefaultRequest();
 
     requestRef.current = restoredRequest;
 
@@ -2516,9 +2367,7 @@ export default function ApiDevToolsApp() {
   const switchProject = async (project: ApiProject) => {
     const firstInterface = project.interfaces[0] || null;
     const targetInterfaceId = firstInterface?.id || '';
-    const isSameProjectAndTargetInterface =
-      activeProjectIdRef.current === project.id &&
-      activeInterfaceIdRef.current === targetInterfaceId;
+    const isSameProjectAndTargetInterface = activeProjectIdRef.current === project.id && activeInterfaceIdRef.current === targetInterfaceId;
 
     if (isSameProjectAndTargetInterface) return;
 
@@ -2691,9 +2540,7 @@ export default function ApiDevToolsApp() {
         return;
       }
 
-      setProjects((prev) =>
-        prev.map((item) => (item.id === manageDialog.projectId ? { ...item, name: value, updatedAt: Date.now() } : item))
-      );
+      setProjects((prev) => prev.map((item) => (item.id === manageDialog.projectId ? { ...item, name: value, updatedAt: Date.now() } : item)));
       setLog(`已重命名项目：${value}`);
       closeManageDialog();
       return;
@@ -2719,11 +2566,7 @@ export default function ApiDevToolsApp() {
 
       const api = createInterfaceFromRequest(snapshot, value);
 
-      nextProjects = nextProjects.map((project) =>
-        project.id === projectId
-          ? { ...project, interfaces: [api, ...project.interfaces], updatedAt: now }
-          : project
-      );
+      nextProjects = nextProjects.map((project) => (project.id === projectId ? { ...project, interfaces: [api, ...project.interfaces], updatedAt: now } : project));
 
       projectsRef.current = nextProjects;
       activeProjectIdRef.current = projectId;
@@ -2787,7 +2630,7 @@ export default function ApiDevToolsApp() {
               interfaces: item.interfaces.filter((current) => current.id !== manageDialog.interfaceId),
               updatedAt: Date.now(),
             }
-          : item
+          : item,
       );
 
       projectsRef.current = nextProjects;
@@ -2811,8 +2654,7 @@ export default function ApiDevToolsApp() {
   /**
    * @description 获取全部接口标识
    */
-  const getAllInterfaceIds = () =>
-    projectsRef.current.flatMap((project) => project.interfaces.map((api) => api.id));
+  const getAllInterfaceIds = () => projectsRef.current.flatMap((project) => project.interfaces.map((api) => api.id));
 
   /**
    * @description 获取选中用于分享的项目数据
@@ -2859,13 +2701,7 @@ export default function ApiDevToolsApp() {
    * @description 创建接口文档 HTML
    */
   const createDocsHtml = (docsProjects = projectsRef.current) =>
-    buildApiDocsHtml(
-      docsProjects,
-      globalsRef.current,
-      requestRef.current,
-      activeProjectIdRef.current,
-      activeInterfaceIdRef.current
-    );
+    buildApiDocsHtml(docsProjects, globalsRef.current, requestRef.current, activeProjectIdRef.current, activeInterfaceIdRef.current);
 
   /**
    * @description 进入接口文档分享选择状态
@@ -2920,11 +2756,7 @@ export default function ApiDevToolsApp() {
    * @description 切换接口文档分享选择状态
    */
   const toggleShareInterface = (interfaceId: string) => {
-    setShareSelectedInterfaceIds((current) =>
-      current.includes(interfaceId)
-        ? current.filter((id) => id !== interfaceId)
-        : [...current, interfaceId]
-    );
+    setShareSelectedInterfaceIds((current) => (current.includes(interfaceId) ? current.filter((id) => id !== interfaceId) : [...current, interfaceId]));
   };
 
   /**
@@ -3029,9 +2861,7 @@ export default function ApiDevToolsApp() {
   }, [responseSearchQuery, responseSearchText]);
 
   const responseSearchTotal = responseSearchMatches.length;
-  const activeResponseSearchIndex = responseSearchTotal
-    ? Math.min(responseSearchIndex, responseSearchTotal - 1)
-    : 0;
+  const activeResponseSearchIndex = responseSearchTotal ? Math.min(responseSearchIndex, responseSearchTotal - 1) : 0;
 
   /**
    * @description 同步响应搜索结果索引
@@ -3059,9 +2889,7 @@ export default function ApiDevToolsApp() {
     if (!isResponseSearchOpen || responseSearchTotal === 0) return;
 
     window.setTimeout(() => {
-      const activeElement = responseCodeRef.current?.querySelector(
-        '[data-response-search-active="true"]'
-      ) as HTMLElement | null;
+      const activeElement = responseCodeRef.current?.querySelector('[data-response-search-active="true"]') as HTMLElement | null;
 
       activeElement?.scrollIntoView({
         block: 'center',
@@ -3204,16 +3032,11 @@ export default function ApiDevToolsApp() {
       nodes.push(
         <mark
           key={`${matchIndex}-${index}`}
-          className={[
-            styles['response-search-mark'],
-            isActive ? styles['response-search-mark-active'] : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
+          className={[styles['response-search-mark'], isActive ? styles['response-search-mark-active'] : ''].filter(Boolean).join(' ')}
           data-response-search-active={isActive ? 'true' : undefined}
         >
           {text.slice(matchIndex, matchIndex + queryLength)}
-        </mark>
+        </mark>,
       );
 
       lastIndex = matchIndex + queryLength;
@@ -3277,7 +3100,9 @@ export default function ApiDevToolsApp() {
         <aside className={styles['workspace-pane']}>
           <div className={styles['workspace-head']}>
             <strong>项目接口</strong>
-            <span>{projects.length}/{interfaceCount}</span>
+            <span>
+              {projects.length}/{interfaceCount}
+            </span>
           </div>
 
           {sharedDocUrl && (
@@ -3285,25 +3110,21 @@ export default function ApiDevToolsApp() {
               <div className={styles['share-title']}>文档分享中</div>
 
               <div className={styles['share-url-row']}>
-                <button
-                  className={styles['share-url']}
-                  title="点击后确认是否在外部浏览器打开"
-                  onClick={openSharedUrl}
-                >
+                <button className={styles['share-url']} title="点击后确认是否在外部浏览器打开" onClick={openSharedUrl}>
                   {sharedDocUrl}
                 </button>
-                <button
-                  className={styles['share-copy-btn']}
-                  title="复制链接"
-                  onClick={copySharedUrl}
-                >
+                <button className={styles['share-copy-btn']} title="复制链接" onClick={copySharedUrl}>
                   <i className="codicon codicon-copy" />
                 </button>
               </div>
 
               <div className={styles['share-card-actions']}>
-                <button className={styles['tiny-btn']} onClick={openSharedUrl}>预览链接</button>
-                <button className={styles['tiny-btn']} onClick={stopShareDocs}>关闭分享</button>
+                <button className={styles['tiny-btn']} onClick={openSharedUrl}>
+                  预览链接
+                </button>
+                <button className={styles['tiny-btn']} onClick={stopShareDocs}>
+                  关闭分享
+                </button>
               </div>
             </div>
           )}
@@ -3312,7 +3133,9 @@ export default function ApiDevToolsApp() {
             {projects.length === 0 ? (
               <div className={styles['empty-project']}>
                 <div>暂无项目</div>
-                <button className={styles['ghost-btn']} onClick={addProject}>+ 添加项目</button>
+                <button className={styles['ghost-btn']} onClick={addProject}>
+                  + 添加项目
+                </button>
               </div>
             ) : (
               projects.map((project) => (
@@ -3366,15 +3189,8 @@ export default function ApiDevToolsApp() {
                             .join(' ')}
                         >
                           {isShareSelecting && (
-                            <label
-                              className={styles['share-checkbox']}
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={shareSelectedInterfaceIds.includes(api.id)}
-                                onChange={() => toggleShareInterface(api.id)}
-                              />
+                            <label className={styles['share-checkbox']} onClick={(event) => event.stopPropagation()}>
+                              <input type="checkbox" checked={shareSelectedInterfaceIds.includes(api.id)} onChange={() => toggleShareInterface(api.id)} />
                             </label>
                           )}
 
@@ -3409,9 +3225,7 @@ export default function ApiDevToolsApp() {
 
           {isShareSelecting && (
             <div className={styles['share-select-actions']}>
-              <div className={styles['share-select-count']}>
-                已选择 {shareSelectedInterfaceIds.length} 个接口
-              </div>
+              <div className={styles['share-select-count']}>已选择 {shareSelectedInterfaceIds.length} 个接口</div>
               <button className={styles['ghost-btn']} onClick={cancelShareSelect}>
                 取消
               </button>
@@ -3423,23 +3237,14 @@ export default function ApiDevToolsApp() {
         </aside>
 
         <div
-          className={[
-            styles['workspace-resizer'],
-            isResizingWorkspacePane ? styles['workspace-resizer-active'] : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
+          className={[styles['workspace-resizer'], isResizingWorkspacePane ? styles['workspace-resizer-active'] : ''].filter(Boolean).join(' ')}
           title="拖拽调整项目接口宽度"
           onPointerDown={handleWorkspaceResizerPointerDown}
         />
 
         <section className={styles['left-pane']}>
           <div className={styles['request-line']}>
-            <select
-              className={styles['method-select']}
-              value={request.method}
-              onChange={(event) => patchRequest({ method: event.target.value as HttpMethod })}
-            >
+            <select className={styles['method-select']} value={request.method} onChange={(event) => patchRequest({ method: event.target.value as HttpMethod })}>
               {HTTP_METHODS.map((method) => (
                 <option key={method} value={method}>
                   {method}
@@ -3470,65 +3275,34 @@ export default function ApiDevToolsApp() {
           </div>
 
           <div className={styles['request-name-line']}>
-            <input
-              className={styles['request-name-input']}
-              value={request.name}
-              placeholder="接口名称"
-              onChange={(event) => patchRequest({ name: event.target.value })}
-            />
+            <input className={styles['request-name-input']} value={request.name} placeholder="接口名称" onChange={(event) => patchRequest({ name: event.target.value })} />
             <span title={requestBindText}>{requestBindText}</span>
           </div>
 
           <div className={styles['tabs']}>
             {REQUEST_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                className={requestTab === tab.key ? styles.active : ''}
-                onClick={() => setRequestTab(tab.key)}
-              >
+              <button key={tab.key} className={requestTab === tab.key ? styles.active : ''} onClick={() => setRequestTab(tab.key)}>
                 {tab.label}
               </button>
             ))}
           </div>
 
           <div className={styles['request-panel']}>
-            {requestTab === 'params' && (
-              <KeyValueEditor
-                items={request.params}
-                onChange={(params) => patchRequest({ params })}
-                keyPlaceholder="参数名"
-                valuePlaceholder="参数值"
-              />
-            )}
+            {requestTab === 'params' && <KeyValueEditor items={request.params} onChange={(params) => patchRequest({ params })} keyPlaceholder="参数名" valuePlaceholder="参数值" />}
 
             {requestTab === 'headers' && (
-              <KeyValueEditor
-                items={request.headers}
-                onChange={(headers) => patchRequest({ headers })}
-                keyPlaceholder="Header"
-                valuePlaceholder="Value"
-              />
+              <KeyValueEditor items={request.headers} onChange={(headers) => patchRequest({ headers })} keyPlaceholder="Header" valuePlaceholder="Value" />
             )}
 
             {requestTab === 'cookies' && (
-              <KeyValueEditor
-                items={request.cookies}
-                onChange={(cookies) => patchRequest({ cookies })}
-                keyPlaceholder="Cookie"
-                valuePlaceholder="Value"
-              />
+              <KeyValueEditor items={request.cookies} onChange={(cookies) => patchRequest({ cookies })} keyPlaceholder="Cookie" valuePlaceholder="Value" />
             )}
 
             {requestTab === 'auth' && (
               <div className={styles['auth-panel']}>
                 <label>
                   <span>认证类型</span>
-                  <select
-                    value={request.auth.type}
-                    onChange={(event) =>
-                      patchRequest({ auth: { ...request.auth, type: event.target.value as AuthType } })
-                    }
-                  >
+                  <select value={request.auth.type} onChange={(event) => patchRequest({ auth: { ...request.auth, type: event.target.value as AuthType } })}>
                     <option value="none">None</option>
                     <option value="bearer">Bearer Token</option>
                     <option value="basic">Basic Auth</option>
@@ -3538,11 +3312,7 @@ export default function ApiDevToolsApp() {
                 {request.auth.type === 'bearer' && (
                   <label>
                     <span>Token</span>
-                    <input
-                      value={request.auth.token}
-                      placeholder="{{token}}"
-                      onChange={(event) => patchRequest({ auth: { ...request.auth, token: event.target.value } })}
-                    />
+                    <input value={request.auth.token} placeholder="{{token}}" onChange={(event) => patchRequest({ auth: { ...request.auth, token: event.target.value } })} />
                   </label>
                 )}
 
@@ -3550,22 +3320,11 @@ export default function ApiDevToolsApp() {
                   <>
                     <label>
                       <span>Username</span>
-                      <input
-                        value={request.auth.username}
-                        onChange={(event) =>
-                          patchRequest({ auth: { ...request.auth, username: event.target.value } })
-                        }
-                      />
+                      <input value={request.auth.username} onChange={(event) => patchRequest({ auth: { ...request.auth, username: event.target.value } })} />
                     </label>
                     <label>
                       <span>Password</span>
-                      <input
-                        type="password"
-                        value={request.auth.password}
-                        onChange={(event) =>
-                          patchRequest({ auth: { ...request.auth, password: event.target.value } })
-                        }
-                      />
+                      <input type="password" value={request.auth.password} onChange={(event) => patchRequest({ auth: { ...request.auth, password: event.target.value } })} />
                     </label>
                   </>
                 )}
@@ -3577,11 +3336,7 @@ export default function ApiDevToolsApp() {
                 <div className={styles['body-type-row']}>
                   {(['none', 'json', 'raw', 'form-urlencoded'] as BodyType[]).map((type) => (
                     <label key={type}>
-                      <input
-                        type="radio"
-                        checked={request.bodyType === type}
-                        onChange={() => patchRequest({ bodyType: type })}
-                      />
+                      <input type="radio" checked={request.bodyType === type} onChange={() => patchRequest({ bodyType: type })} />
                       <span>{type}</span>
                     </label>
                   ))}
@@ -3590,41 +3345,21 @@ export default function ApiDevToolsApp() {
                 {request.bodyType === 'none' && <div className={styles['empty-state']}>该请求不发送 Body</div>}
 
                 {(request.bodyType === 'json' || request.bodyType === 'raw') && (
-                  <textarea
-                    className={styles['code-editor']}
-                    spellCheck={false}
-                    value={request.bodyRaw}
-                    onChange={(event) => patchRequest({ bodyRaw: event.target.value })}
-                  />
+                  <textarea className={styles['code-editor']} spellCheck={false} value={request.bodyRaw} onChange={(event) => patchRequest({ bodyRaw: event.target.value })} />
                 )}
 
                 {request.bodyType === 'form-urlencoded' && (
-                  <KeyValueEditor
-                    items={request.bodyForm}
-                    onChange={(bodyForm) => patchRequest({ bodyForm })}
-                    keyPlaceholder="字段名"
-                    valuePlaceholder="字段值"
-                  />
+                  <KeyValueEditor items={request.bodyForm} onChange={(bodyForm) => patchRequest({ bodyForm })} keyPlaceholder="字段名" valuePlaceholder="字段值" />
                 )}
               </div>
             )}
 
             {requestTab === 'pre' && (
-              <textarea
-                className={styles['code-editor']}
-                spellCheck={false}
-                value={request.preScript}
-                onChange={(event) => patchRequest({ preScript: event.target.value })}
-              />
+              <textarea className={styles['code-editor']} spellCheck={false} value={request.preScript} onChange={(event) => patchRequest({ preScript: event.target.value })} />
             )}
 
             {requestTab === 'post' && (
-              <textarea
-                className={styles['code-editor']}
-                spellCheck={false}
-                value={request.postScript}
-                onChange={(event) => patchRequest({ postScript: event.target.value })}
-              />
+              <textarea className={styles['code-editor']} spellCheck={false} value={request.postScript} onChange={(event) => patchRequest({ postScript: event.target.value })} />
             )}
           </div>
         </section>
@@ -3636,21 +3371,14 @@ export default function ApiDevToolsApp() {
               <div className={styles['response-meta']}>
                 {response && (
                   <>
-                    <span className={response.ok ? styles['status-ok'] : styles['status-error']}>
-                      {response.status || response.statusText}
-                    </span>
+                    <span className={response.ok ? styles['status-ok'] : styles['status-error']}>{response.status || response.statusText}</span>
                     <span>{response.duration} ms</span>
                     <span>{formatSize(response.size)}</span>
                   </>
                 )}
               </div>
 
-              <button
-                className={styles['icon-btn']}
-                title="搜索响应内容"
-                disabled={!response}
-                onClick={openResponseSearch}
-              >
+              <button className={styles['icon-btn']} title="搜索响应内容" disabled={!response} onClick={openResponseSearch}>
                 <i className="codicon codicon-search" />
               </button>
             </div>
@@ -3658,11 +3386,7 @@ export default function ApiDevToolsApp() {
 
           <div className={styles['tabs']}>
             {RESPONSE_TABS.map((tab) => (
-              <button
-                key={tab.key}
-                className={responseTab === tab.key ? styles.active : ''}
-                onClick={() => setResponseTab(tab.key)}
-              >
+              <button key={tab.key} className={responseTab === tab.key ? styles.active : ''} onClick={() => setResponseTab(tab.key)}>
                 {tab.label}
               </button>
             ))}
@@ -3672,21 +3396,12 @@ export default function ApiDevToolsApp() {
             {isResponseSearchOpen && (
               <div
                 ref={responseSearchBarRef}
-                className={[
-                  styles['response-search-bar'],
-                  isDraggingResponseSearchBar ? styles['response-search-bar-dragging'] : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
+                className={[styles['response-search-bar'], isDraggingResponseSearchBar ? styles['response-search-bar-dragging'] : ''].filter(Boolean).join(' ')}
                 style={{
                   transform: `translate(${responseSearchBarOffset.x}px, ${responseSearchBarOffset.y}px)`,
                 }}
               >
-                <i
-                  className={`codicon codicon-gripper ${styles['response-search-grip']}`}
-                  title="拖拽搜索框"
-                  onPointerDown={handleResponseSearchBarPointerDown}
-                />
+                <i className={`codicon codicon-gripper ${styles['response-search-grip']}`} title="拖拽搜索框" onPointerDown={handleResponseSearchBarPointerDown} />
 
                 <input
                   ref={responseSearchInputRef}
@@ -3707,34 +3422,18 @@ export default function ApiDevToolsApp() {
                 />
 
                 <span className={styles['response-search-count']}>
-                  {responseSearchQuery.trim()
-                    ? `${responseSearchTotal === 0 ? 0 : activeResponseSearchIndex + 1}/${responseSearchTotal}`
-                    : '0/0'}
+                  {responseSearchQuery.trim() ? `${responseSearchTotal === 0 ? 0 : activeResponseSearchIndex + 1}/${responseSearchTotal}` : '0/0'}
                 </span>
 
-                <button
-                  className={styles['response-search-btn']}
-                  title="上一个"
-                  disabled={responseSearchTotal === 0}
-                  onClick={() => jumpResponseSearchMatch('prev')}
-                >
+                <button className={styles['response-search-btn']} title="上一个" disabled={responseSearchTotal === 0} onClick={() => jumpResponseSearchMatch('prev')}>
                   <i className="codicon codicon-arrow-up" />
                 </button>
 
-                <button
-                  className={styles['response-search-btn']}
-                  title="下一个"
-                  disabled={responseSearchTotal === 0}
-                  onClick={() => jumpResponseSearchMatch('next')}
-                >
+                <button className={styles['response-search-btn']} title="下一个" disabled={responseSearchTotal === 0} onClick={() => jumpResponseSearchMatch('next')}>
                   <i className="codicon codicon-arrow-down" />
                 </button>
 
-                <button
-                  className={styles['response-search-btn']}
-                  title="关闭搜索"
-                  onClick={closeResponseSearch}
-                >
+                <button className={styles['response-search-btn']} title="关闭搜索" onClick={closeResponseSearch}>
                   <i className="codicon codicon-close" />
                 </button>
               </div>
@@ -3775,12 +3474,7 @@ export default function ApiDevToolsApp() {
           </div>
 
           <div
-            className={[
-              styles['bottom-resizer'],
-              isResizingBottomPanel ? styles['bottom-resizer-active'] : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
+            className={[styles['bottom-resizer'], isResizingBottomPanel ? styles['bottom-resizer-active'] : ''].filter(Boolean).join(' ')}
             title="拖拽调整历史记录/脚本日志高度"
             onPointerDown={handleBottomResizerPointerDown}
           />
@@ -3826,10 +3520,7 @@ export default function ApiDevToolsApp() {
 
       {manageDialog && (
         <div className={styles['modal-mask']} onMouseDown={closeManageDialog}>
-          <div
-            className={[styles['modal'], styles['manage-modal']].filter(Boolean).join(' ')}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
+          <div className={[styles['modal'], styles['manage-modal']].filter(Boolean).join(' ')} onMouseDown={(event) => event.stopPropagation()}>
             <div className={styles['modal-head']}>
               <strong>{manageDialog.title}</strong>
               <button className={styles['icon-btn']} onClick={closeManageDialog}>
@@ -3863,10 +3554,7 @@ export default function ApiDevToolsApp() {
               <button className={styles['ghost-btn']} onClick={closeManageDialog}>
                 取消
               </button>
-              <button
-                className={'message' in manageDialog ? styles['danger-btn'] : styles['primary-btn']}
-                onClick={confirmManageDialog}
-              >
+              <button className={'message' in manageDialog ? styles['danger-btn'] : styles['primary-btn']} onClick={confirmManageDialog}>
                 {'message' in manageDialog ? (manageDialog.kind === 'clear-all' ? '清空' : '删除') : '确定'}
               </button>
             </div>
@@ -3876,10 +3564,7 @@ export default function ApiDevToolsApp() {
 
       {leaveConfirmDialog && (
         <div className={styles['modal-mask']} onMouseDown={() => closeLeaveConfirmDialog('cancel')}>
-          <div
-            className={[styles['modal'], styles['manage-modal']].filter(Boolean).join(' ')}
-            onMouseDown={(event) => event.stopPropagation()}
-          >
+          <div className={[styles['modal'], styles['manage-modal']].filter(Boolean).join(' ')} onMouseDown={(event) => event.stopPropagation()}>
             <div className={styles['modal-head']}>
               <strong>{leaveConfirmDialog.title}</strong>
               <button className={styles['icon-btn']} onClick={() => closeLeaveConfirmDialog('cancel')}>
@@ -3919,8 +3604,7 @@ export default function ApiDevToolsApp() {
             </div>
 
             <p className={styles['hint']}>
-              请求地址、Headers、Body 中可以使用 <code>{'{{baseUrl}}'}</code>、<code>{'{{token}}'}</code>{' '}
-              这类变量。
+              请求地址、Headers、Body 中可以使用 <code>{'{{baseUrl}}'}</code>、<code>{'{{token}}'}</code> 这类变量。
             </p>
 
             <KeyValueEditor
