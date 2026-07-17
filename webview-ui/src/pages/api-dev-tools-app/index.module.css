@@ -453,67 +453,6 @@
   color: var(--vscode-descriptionForeground);
 }
 
-.project-card {
-  margin-bottom: 6px;
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--vscode-editor-background) 86%, transparent);
-  overflow: hidden;
-}
-
-.project-card-active {
-  border-color: var(--vscode-focusBorder);
-}
-
-.project-card-active .project-title {
-  color: var(--vscode-textLink-foreground, var(--vscode-button-background));
-}
-
-.project-title-row {
-  height: 28px;
-  padding: 0 4px 0 8px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 26px 26px;
-  gap: 4px;
-  align-items: center;
-  border-bottom: 1px solid var(--vscode-panel-border);
-}
-
-.project-title {
-  min-width: 0;
-  border: none;
-  padding: 0;
-  text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--vscode-foreground);
-  background: transparent;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.interface-list {
-  padding: 4px;
-}
-
-.tiny-btn {
-  height: 22px;
-  min-width: 22px;
-  padding: 0 4px;
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 4px;
-  color: var(--vscode-descriptionForeground);
-  background: transparent;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.tiny-btn:hover {
-  color: var(--vscode-foreground);
-  background: var(--vscode-toolbar-hoverBackground);
-}
-
 .share-select-actions {
   flex: 0 0 auto;
   padding: 6px;
@@ -581,10 +520,6 @@
     overflow-y: hidden;
   }
 
-  .project-card {
-    width: 220px;
-    flex: 0 0 auto;
-  }
 }
 
 .dialog-field {

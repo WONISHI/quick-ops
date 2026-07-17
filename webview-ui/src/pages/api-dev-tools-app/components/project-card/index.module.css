@@ -1,0 +1,89 @@
+.card {
+  margin-bottom: 6px;
+  overflow: hidden;
+  border: 1px solid
+    var(--vscode-panel-border);
+  border-radius: 6px;
+  background:
+    color-mix(
+      in srgb,
+      var(--vscode-editor-background) 86%,
+      transparent
+    );
+}
+
+.active {
+  border-color:
+    var(--vscode-focusBorder);
+}
+
+.active .title {
+  color:
+    var(
+      --vscode-textLink-foreground,
+      var(--vscode-button-background)
+    );
+}
+
+.header {
+  height: 28px;
+  padding: 0 4px 0 8px;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    26px
+    26px;
+  gap: 4px;
+  align-items: center;
+  border-bottom: 1px solid
+    var(--vscode-panel-border);
+}
+
+.title {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  color: var(--vscode-foreground);
+  background: transparent;
+  font-weight: 700;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.content {
+  padding: 4px;
+}
+
+.action {
+  height: 22px;
+  min-width: 22px;
+  padding: 0 4px;
+  border: 1px solid
+    var(--vscode-panel-border);
+  border-radius: 4px;
+  color:
+    var(
+      --vscode-descriptionForeground
+    );
+  background: transparent;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.action:hover {
+  color: var(--vscode-foreground);
+  background:
+    var(
+      --vscode-toolbar-hoverBackground
+    );
+}
+
+@media (max-width: 720px) {
+  .card {
+    width: 220px;
+    flex: 0 0 auto;
+  }
+}

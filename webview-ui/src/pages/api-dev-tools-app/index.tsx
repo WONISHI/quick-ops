@@ -4,10 +4,13 @@ import styles from '@pages/api-dev-tools-app/index.module.css';
 import BaseDialog from '@components/BaseDialog';
 import BaseSearch from '@components/BaseSearch';
 import BaseTabs from '@components/BaseTabs';
-import BaseCodeEditor, { type BaseCodeEditorLanguage } from '@components/BaseCodeEditor';
+import BaseCodeEditor, {
+  type BaseCodeEditorLanguage,
+} from '@components/BaseCodeEditor';
 import BottomPanels from '@/pages/api-dev-tools-app/components/bottom-panels';
 import InterfaceItem from '@/pages/api-dev-tools-app/components/interface-item';
 import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-editor';
+import ProjectCard from '@/pages/api-dev-tools-app/components/project-card';
 import ShareCard from '@/pages/api-dev-tools-app/components/share-card';
 import { buildApiDocsHtml } from '@/pages/api-dev-tools-app/src/api-docs-builder';
 import { formatSize, safeBase64, clampNumber, tryFormatJson, isJsonLikeText, cloneRequest } from '@/pages/api-dev-tools-app/src/api-dev-tools.utils';
@@ -2027,7 +2030,14 @@ export default function ApiDevToolsApp() {
             </span>
           </div>
 
-          {sharedDocUrl && <ShareCard url={sharedDocUrl} onOpen={openSharedUrl} onCopy={copySharedUrl} onClose={stopShareDocs} />}
+          {sharedDocUrl && (
+            <ShareCard
+              url={sharedDocUrl}
+              onOpen={openSharedUrl}
+              onCopy={copySharedUrl}
+              onClose={stopShareDocs}
+            />
+          )}
 
           <div className={styles['project-list']}>
             {projects.length === 0 ? (
@@ -2039,65 +2049,72 @@ export default function ApiDevToolsApp() {
               </div>
             ) : (
               projects.map((project) => (
-                <div
+                <ProjectCard
                   key={project.id}
-                  className={[styles['project-card'], activeProjectId === project.id ? styles['project-card-active'] : ''].filter(Boolean).join(' ')}
-                  onClick={() => switchProject(project)}
+                  project={project}
+                  active={
+                    activeProjectId ===
+                    project.id
+                  }
+                  onSelect={() => {
+                    switchProject(project);
+                  }}
+                  onRename={() => {
+                    renameProject(project);
+                  }}
+                  onRemove={() => {
+                    removeProject(project);
+                  }}
                 >
-                  <div className={styles['project-title-row']}>
-                    <button
-                      className={styles['project-title']}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        switchProject(project);
-                      }}
+                  {project.interfaces.length ===
+                  0 ? (
+                    <div
+                      className={
+                        styles['mini-empty']
+                      }
                     >
-                      {project.name}
-                    </button>
-                    <button
-                      className={styles['tiny-btn']}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        renameProject(project);
-                      }}
-                    >
-                      改
-                    </button>
-                    <button
-                      className={styles['tiny-btn']}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        removeProject(project);
-                      }}
-                    >
-                      删
-                    </button>
-                  </div>
-                  <div className={styles['interface-list']}>
-                    {project.interfaces.length === 0 ? (
-                      <div className={styles['mini-empty']}>暂无接口</div>
-                    ) : (
-                      project.interfaces.map((api) => (
+                      暂无接口
+                    </div>
+                  ) : (
+                    project.interfaces.map(
+                      (api) => (
                         <InterfaceItem
                           key={api.id}
                           api={api}
-                          active={activeProjectId === project.id && activeInterfaceId === api.id}
-                          shareMode={isShareSelecting}
-                          checked={shareSelectedInterfaceIds.includes(api.id)}
+                          active={
+                            activeProjectId ===
+                              project.id &&
+                            activeInterfaceId ===
+                              api.id
+                          }
+                          shareMode={
+                            isShareSelecting
+                          }
+                          checked={shareSelectedInterfaceIds.includes(
+                            api.id,
+                          )}
                           onToggleShare={() => {
-                            toggleShareInterface(api.id);
+                            toggleShareInterface(
+                              api.id,
+                            );
                           }}
                           onSelect={() => {
-                            loadInterface(project, api);
+                            loadInterface(
+                              project,
+                              api,
+                            );
                           }}
                           onRemove={() => {
-                            removeInterface(project, api);
+                            removeInterface(
+                              project,
+                              api,
+                            );
                           }}
                         />
-                      ))
-                    )}
-                  </div>
-                </div>
+                      ),
+                    )
+                  )}
+                </ProjectCard>
               ))
             )}
           </div>
@@ -2329,7 +2346,13 @@ export default function ApiDevToolsApp() {
             onPointerDown={handleBottomResizerPointerDown}
           />
 
-          <BottomPanels size={bottomPanelSize} maxSize={bottomPanelMaxSize} history={history} logs={logs} onLoadHistory={loadHistory} />
+          <BottomPanels
+            size={bottomPanelSize}
+            maxSize={bottomPanelMaxSize}
+            history={history}
+            logs={logs}
+            onLoadHistory={loadHistory}
+          />
         </section>
       </main>
 
