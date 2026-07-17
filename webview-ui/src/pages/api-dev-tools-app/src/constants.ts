@@ -1,4 +1,4 @@
-import type { HttpMethod, RequestTab, ResponseTab } from '@pages/ApiDevToolsApp/src/type';
+import type { HttpMethod, RequestTab, ResponseTab } from '@/pages/api-dev-tools-app/src/type';
 
 export const HTTP_METHODS: HttpMethod[] = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
 

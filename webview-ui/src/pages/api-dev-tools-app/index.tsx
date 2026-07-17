@@ -1,6 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { vscode } from '../../utils/vscode';
-import styles from '@pages/ApiDevToolsApp/index.module.css';
+import CodeMirror from '@uiw/react-codemirror';
+import { json } from '@codemirror/lang-json';
+import { SearchQuery, search, setSearchQuery } from '@codemirror/search';
+import { EditorView } from '@codemirror/view';
+import { vscode } from '@utils/vscode';
+import styles from '@pages/api-dev-tools-app/index.module.css';
+import BaseDialog from '@components/BaseDialog';
+import BaseSearch from '@components/BaseSearch';
+import { buildApiDocsHtml } from '@/pages/api-dev-tools-app/src/api-docs-builder';
 import type {
   HttpMethod,
   RequestTab,
@@ -9,7 +16,6 @@ import type {
   AuthType,
   KeyValueItem,
   GlobalVariable,
-  AuthConfig,
   ApiRequestConfig,
   ApiInterfaceItem,
   ApiProject,
@@ -19,7 +25,8 @@ import type {
   ManageDialog,
   LeaveConfirmAction,
   LeaveConfirmDialog,
-} from '@pages/ApiDevToolsApp/src/type';
+  ApiDevToolsViewTitleAction,
+} from '@/pages/api-dev-tools-app/src/type';
 
 import {
   HTTP_METHODS,
@@ -35,8 +42,8 @@ import {
   WORKSPACE_PANE_DEFAULT_WIDTH,
   WORKSPACE_PANE_MIN_WIDTH,
   WORKSPACE_PANE_MAX_WIDTH,
-  WORKSPACE_RESIZER_SIZE
-} from '@pages/ApiDevToolsApp/src/constants';
+  WORKSPACE_RESIZER_SIZE,
+} from '@/pages/api-dev-tools-app/src/constants';
 
 /**
  * @description 将数值限制在指定的最小值和最大值之间
@@ -395,806 +402,336 @@ function isDefaultRequestSnapshot(request: ApiRequestConfig) {
   return isSameRequest(request, createDefaultRequest());
 }
 
-/**
- * @description 格式化时间戳
- */
-function formatTime(timestamp: number) {
-  if (!timestamp) return '-';
+type ResponseEditorLanguage = 'json' | 'plaintext';
 
-  try {
-    return new Date(timestamp).toLocaleString();
-  } catch {
-    return '-';
-  }
+type ResponseCodeMirrorTheme = 'light' | 'dark';
+
+interface ResponseCodeMirrorEditorProps {
+  /**
+   * @description 编辑器显示内容
+   */
+  value: string;
+
+  /**
+   * @description 编辑器语言
+   */
+  language: ResponseEditorLanguage;
+
+  /**
+   * @description 悬浮搜索框是否打开
+   */
+  searchOpen: boolean;
+
+  /**
+   * @description 当前搜索关键词
+   */
+  searchQuery: string;
+
+  /**
+   * @description 当前激活搜索结果下标
+   */
+  activeSearchIndex: number;
+}
+
+interface ResponseSearchRange {
+  from: number;
+  to: number;
+}
+
+const responseCodeMirrorSearch = search({
+  top: true,
+});
+
+const responseCodeMirrorTheme = EditorView.theme({
+  '&': {
+    height: '100%',
+    color: 'var(--vscode-editor-foreground)',
+    backgroundColor: 'var(--vscode-editor-background)',
+  },
+  '&.cm-focused': {
+    outline: 'none',
+  },
+  '.cm-scroller': {
+    overflow: 'auto',
+    fontFamily: 'var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)',
+    fontSize: 'var(--vscode-editor-font-size, 12px)',
+    lineHeight: 'var(--vscode-editor-line-height, 1.45)',
+  },
+  '.cm-content': {
+    padding: '8px 0',
+    caretColor: 'var(--vscode-editorCursor-foreground)',
+  },
+  '.cm-line': {
+    padding: '0 8px',
+  },
+  '.cm-gutters': {
+    color: 'var(--vscode-editorLineNumber-foreground)',
+    backgroundColor: 'var(--vscode-editor-background)',
+    border: 'none',
+  },
+  '.cm-activeLine': {
+    backgroundColor: 'transparent',
+  },
+  '.cm-activeLineGutter': {
+    color: 'var(--vscode-editorLineNumber-activeForeground)',
+    backgroundColor: 'transparent',
+  },
+  '.cm-foldGutter .cm-gutterElement': {
+    color: 'var(--vscode-icon-foreground)',
+  },
+  '.cm-selectionBackground, ::selection': {
+    backgroundColor: 'var(--vscode-editor-selectionBackground) !important',
+  },
+  '.cm-searchMatch': {
+    padding: '0 1px',
+    borderRadius: '2px',
+    backgroundColor: 'var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.35))',
+  },
+  '.cm-searchMatch.cm-searchMatch-selected': {
+    color: 'var(--vscode-editor-findMatchForeground, inherit)',
+    backgroundColor: 'var(--vscode-editor-findMatchBackground, rgba(81, 92, 106, 0.75))',
+    outline: '1px solid var(--vscode-editor-findMatchBorder, var(--vscode-focusBorder))',
+  },
+  '.cm-panels': {
+    display: 'none',
+  },
+});
+
+/**
+ * @description 获取适配 VS Code 当前颜色模式的 CodeMirror 主题
+ */
+function getResponseCodeMirrorTheme(): ResponseCodeMirrorTheme {
+  const classList = document.body.classList;
+
+  const isDark = classList.contains('vscode-dark') || classList.contains('vscode-high-contrast');
+
+  return isDark ? 'dark' : 'light';
 }
 
 /**
- * @description 转义 HTML 特殊字符
+ * @description 监听 VS Code Webview 主题变化
  */
-function escapeHtml(value: unknown) {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+function useResponseCodeMirrorTheme(): ResponseCodeMirrorTheme {
+  const [theme, setTheme] = useState<ResponseCodeMirrorTheme>(getResponseCodeMirrorTheme);
 
-/**
- * @description 转义注入脚本中的 JSON 内容
- */
-function escapeScriptJson(value: unknown) {
-  return JSON.stringify(value)
-    .replace(/</g, '\\u003c')
-    .replace(/>/g, '\\u003e')
-    .replace(/&/g, '\\u0026')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029');
-}
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      const nextTheme = getResponseCodeMirrorTheme();
 
-/**
- * @description 获取用于生成接口文档的项目数据
- */
-function getDocsProjects(projects: ApiProject[], currentRequest: ApiRequestConfig, activeProjectId = '', activeInterfaceId = '') {
-  const validProjects = projects
-    .filter((project) => project.interfaces.length > 0)
-    .map((project) => ({
-      ...project,
-      interfaces: project.interfaces.map((api) => ({
-        ...api,
-        request: cloneRequest(api.request),
-      })),
-    }));
-
-  if (validProjects.length === 0) {
-    return [
-      {
-        ...createProject(currentRequest.name || '当前请求'),
-        interfaces: [createInterfaceFromRequest(currentRequest, currentRequest.name || '当前请求')],
-      },
-    ];
-  }
-
-  if (activeProjectId && activeInterfaceId) {
-    validProjects.forEach((project) => {
-      if (project.id !== activeProjectId) return;
-
-      project.interfaces = project.interfaces.map((api) => {
-        if (api.id !== activeInterfaceId) return api;
-
-        const liveRequest = cloneRequest(currentRequest);
-        const liveName = liveRequest.name || api.name || '未命名接口';
-
-        return {
-          ...api,
-          name: liveName,
-          method: liveRequest.method,
-          url: liveRequest.url,
-          request: liveRequest,
-          updatedAt: Date.now(),
-        };
+      setTheme((currentTheme) => {
+        return currentTheme === nextTheme ? currentTheme : nextTheme;
       });
     });
-  }
 
-  return validProjects;
-}
-
-/**
- * @description 收集文本中使用的文档变量名
- */
-function collectDocVariableNamesFromText(value: unknown, result: Set<string>) {
-  const text = String(value ?? '');
-  const variableRegExp = /\{\{\s*([\w.-]+)\s*\}\}/g;
-
-  let match = variableRegExp.exec(text);
-
-  while (match) {
-    const key = String(match[1] || '').trim();
-
-    if (key) {
-      result.add(key);
-    }
-
-    match = variableRegExp.exec(text);
-  }
-}
-
-/**
- * @description 收集键值列表中使用的文档变量名
- */
-function collectDocVariableNamesFromList(list: KeyValueItem[], result: Set<string>) {
-  (list || []).forEach((item) => {
-    collectDocVariableNamesFromText(item.key, result);
-    collectDocVariableNamesFromText(item.value, result);
-  });
-}
-
-/**
- * @description 判断地址是否为完整 HTTP URL
- */
-function isAbsoluteHttpUrl(value: string) {
-  return /^https?:\/\//i.test(String(value || '').trim());
-}
-
-/**
- * @description 获取分享文档真正用到的全局变量
- *
- * 说明：
- * - 没有被 {{变量名}} 引用的变量不展示。
- * - 相对路径请求会隐式依赖 baseUrl，所以这种情况下保留 baseUrl。
- */
-function getUsedDocGlobals(projects: ApiProject[], globals: GlobalVariable[], currentRequest?: ApiRequestConfig) {
-  const usedNames = new Set<string>();
-
-  projects.forEach((project) => {
-    project.interfaces.forEach((api) => {
-      const request = api.request;
-
-      collectDocVariableNamesFromText(request.url, usedNames);
-      collectDocVariableNamesFromList(request.params, usedNames);
-      collectDocVariableNamesFromList(request.headers, usedNames);
-      collectDocVariableNamesFromList(request.cookies, usedNames);
-      collectDocVariableNamesFromText(request.bodyRaw, usedNames);
-      collectDocVariableNamesFromList(request.bodyForm, usedNames);
-      collectDocVariableNamesFromText(request.auth?.token, usedNames);
-      collectDocVariableNamesFromText(request.auth?.username, usedNames);
-      collectDocVariableNamesFromText(request.auth?.password, usedNames);
-
-      if (!isAbsoluteHttpUrl(request.url)) {
-        usedNames.add('baseUrl');
-      }
+    observer.observe(document.body, {
+      attributes: true,
+      attributeFilter: ['class'],
     });
-  });
 
-  if (currentRequest) {
-    collectDocVariableNamesFromText(currentRequest.url, usedNames);
-    collectDocVariableNamesFromList(currentRequest.params, usedNames);
-    collectDocVariableNamesFromList(currentRequest.headers, usedNames);
-    collectDocVariableNamesFromList(currentRequest.cookies, usedNames);
-    collectDocVariableNamesFromText(currentRequest.bodyRaw, usedNames);
-    collectDocVariableNamesFromList(currentRequest.bodyForm, usedNames);
-    collectDocVariableNamesFromText(currentRequest.auth?.token, usedNames);
-    collectDocVariableNamesFromText(currentRequest.auth?.username, usedNames);
-    collectDocVariableNamesFromText(currentRequest.auth?.password, usedNames);
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
 
-    if (!isAbsoluteHttpUrl(currentRequest.url)) {
-      usedNames.add('baseUrl');
-    }
+  return theme;
+}
+
+/**
+ * @description 判断文本是否可能为 JSON
+ */
+function isJsonLikeText(value: string): boolean {
+  const firstCharacter = String(value || '')
+    .trim()
+    .charAt(0);
+
+  return firstCharacter === '{' || firstCharacter === '[';
+}
+
+/**
+ * @description 获取响应编辑器语言
+ */
+function getResponseEditorLanguage(response: ApiResponsePayload | null, responseTab: ResponseTab, value: string): ResponseEditorLanguage {
+  if (!response || response.error) {
+    return 'plaintext';
   }
 
-  return globals.filter((item) => {
-    const key = String(item.key || '').trim();
+  if (responseTab === 'headers') {
+    return 'json';
+  }
 
-    return item.enabled && key && usedNames.has(key);
-  });
+  const contentType = getResponseContentType(response).toLowerCase();
+
+  if (contentType.includes('application/json') || contentType.includes('+json') || isJsonLikeText(value)) {
+    return 'json';
+  }
+
+  return 'plaintext';
 }
 
 /**
- * @description 构建接口文档变量映射
+ * @description 获取当前搜索条件的全部匹配范围
  */
-function getDocVariableMap(globals: GlobalVariable[]) {
-  const variables: Record<string, string> = {};
+function getResponseSearchRanges(view: EditorView, query: SearchQuery): ResponseSearchRange[] {
+  const result: ResponseSearchRange[] = [];
+  const cursor = query.getCursor(view.state);
 
-  globals.forEach((item) => {
-    const key = String(item.key || '').trim();
+  while (true) {
+    const current = cursor.next();
 
-    if (!item.enabled || !key) return;
+    if (current.done) {
+      break;
+    }
 
-    variables[key] = String(item.value || '');
-  });
+    result.push({
+      from: current.value.from,
+      to: current.value.to,
+    });
+  }
 
-  return variables;
+  return result;
 }
 
 /**
- * @description 解析文档键值列表中的变量
+ * @description 使用 CodeMirror 6 显示只读响应内容
  */
-function resolveKeyValueListForDocs(list: KeyValueItem[], variables: Record<string, string>) {
-  return list.map((item) => ({
-    ...item,
-    key: interpolateVariables(item.key, variables),
-    value: interpolateVariables(item.value, variables),
-  }));
-}
+function ResponseCodeMirrorEditor({ value, language, searchOpen, searchQuery, activeSearchIndex }: ResponseCodeMirrorEditorProps) {
+  const theme = useResponseCodeMirrorTheme();
 
-/**
- * @description 解析文档请求配置中的变量
- */
-function resolveRequestForDocs(request: ApiRequestConfig, variables: Record<string, string>): ApiRequestConfig {
-  const next = cloneRequest(request);
-
-  next.url = interpolateVariables(next.url, variables);
-  next.params = resolveKeyValueListForDocs(next.params, variables);
-  next.headers = resolveKeyValueListForDocs(next.headers, variables);
-  next.cookies = resolveKeyValueListForDocs(next.cookies, variables);
-  next.bodyForm = resolveKeyValueListForDocs(next.bodyForm, variables);
-  next.bodyRaw = interpolateVariables(next.bodyRaw, variables);
-  next.auth = {
-    ...next.auth,
-    token: interpolateVariables(next.auth.token, variables),
-    username: interpolateVariables(next.auth.username, variables),
-    password: interpolateVariables(next.auth.password, variables),
-  };
-
-  return next;
-}
-
-/**
- * @description 生成接口文档 HTML
- */
-function buildApiDocsHtml(projects: ApiProject[], globals: GlobalVariable[], currentRequest: ApiRequestConfig, activeProjectId = '', activeInterfaceId = '') {
-  const rawDocsProjects = getDocsProjects(projects, currentRequest, activeProjectId, activeInterfaceId);
-  const usedGlobals = getUsedDocGlobals(rawDocsProjects, globals, currentRequest);
-  const variables = getDocVariableMap(globals);
-  const docsProjects = rawDocsProjects.map((project) => ({
-    ...project,
-    interfaces: project.interfaces.map((api) => {
-      const request = resolveRequestForDocs(api.request, variables);
-
-      return {
-        ...api,
-        method: request.method,
-        url: request.url,
-        request,
-      };
-    }),
-  }));
-  const resolvedGlobals = usedGlobals.map((item) => ({
-    ...item,
-    key: String(item.key || '').trim(),
-    value: interpolateVariables(item.value, variables),
-  }));
-  const hasResolvedGlobals = resolvedGlobals.some((item) => item.enabled && item.key.trim());
-  const generatedAt = new Date().toLocaleString();
-  const totalCount = docsProjects.reduce((sum, project) => sum + project.interfaces.length, 0);
-  const docsData = {
-    generatedAt,
-    globals: resolvedGlobals,
-    projects: docsProjects.map((project) => ({
-      ...project,
-      interfaces: project.interfaces.map((api) => ({
-        ...api,
-        request: cloneRequest(api.request),
-      })),
-    })),
-  };
+  const editorViewRef = useRef<EditorView | null>(null);
 
   /**
-   * @description 渲染只读键值列表
+   * @description 计算 CodeMirror 扩展
    */
-  const renderDocKeyValueReadonly = (title: string, list: KeyValueItem[]) => {
-    const items = list.filter((item) => item.enabled && item.key.trim());
-
-    return `
-      <div class="doc-block">
-        <div class="doc-block-head">
-          <h4>${escapeHtml(title)}</h4>
-          <span>${items.length} 个启用</span>
-        </div>
-        ${
-          items.length === 0
-            ? '<p class="muted">未配置</p>'
-            : `<div class="doc-kv-table doc-kv-table-readonly">
-                <div class="doc-kv-head doc-kv-head-readonly"><span>名称</span><span>值</span></div>
-                ${items
-                  .map(
-                    (item) => `
-                      <div class="doc-kv-row doc-kv-row-readonly">
-                        <code>${escapeHtml(item.key)}</code>
-                        <code>${escapeHtml(item.value)}</code>
-                      </div>`,
-                  )
-                  .join('')}
-              </div>`
-        }
-      </div>`;
-  };
+  const extensions = useMemo(() => {
+    return [...(language === 'json' ? [json()] : []), responseCodeMirrorSearch, responseCodeMirrorTheme, EditorView.lineWrapping];
+  }, [language]);
 
   /**
-   * @description 渲染只读请求体
+   * @description 同步悬浮搜索条件到 CodeMirror
    */
-  const renderDocBodyReadonly = (request: ApiRequestConfig) => {
-    if (request.bodyType === 'form-urlencoded') {
-      return renderDocKeyValueReadonly('Body - form-urlencoded', request.bodyForm);
-    }
+  const syncSearch = useCallback(
+    (targetView = editorViewRef.current) => {
+      if (!targetView) return;
 
-    if (request.bodyType === 'none' || ['GET', 'HEAD'].includes(request.method)) {
-      return `<div class="doc-block"><h4>Body</h4><p class="muted">该请求不发送 Body</p></div>`;
-    }
+      const normalizedQuery = searchOpen ? searchQuery.trim() : '';
 
-    return `
-      <div class="doc-block">
-        <h4>Body - ${escapeHtml(request.bodyType)}</h4>
-        <pre>${escapeHtml(request.bodyType === 'json' ? tryFormatJson(request.bodyRaw) : request.bodyRaw)}</pre>
-      </div>`;
-  };
+      const query = new SearchQuery({
+        search: normalizedQuery,
+        caseSensitive: false,
+        literal: true,
+      });
 
-  /**
-   * @description 渲染只读认证信息
-   */
-  const renderAuthReadonly = (auth: AuthConfig) => {
-    if (auth.type === 'none') {
-      return '<pre>{\n  "type": "none"\n}</pre>';
-    }
+      if (!normalizedQuery || !query.valid) {
+        const currentHead = targetView.state.selection.main.head;
 
-    if (auth.type === 'bearer') {
-      return `<pre>${escapeHtml(JSON.stringify({ type: auth.type, token: auth.token }, null, 2))}</pre>`;
-    }
+        targetView.dispatch({
+          selection: {
+            anchor: currentHead,
+          },
+          effects: setSearchQuery.of(query),
+        });
 
-    return `<pre>${escapeHtml(
-      JSON.stringify(
-        {
-          type: auth.type,
-          username: auth.username,
-          password: auth.password,
+        return;
+      }
+
+      const ranges = getResponseSearchRanges(targetView, query);
+
+      const safeActiveIndex = ranges.length > 0 ? Math.min(Math.max(activeSearchIndex, 0), ranges.length - 1) : 0;
+
+      const activeRange = ranges[safeActiveIndex];
+
+      if (!activeRange) {
+        targetView.dispatch({
+          effects: setSearchQuery.of(query),
+        });
+
+        return;
+      }
+
+      targetView.dispatch({
+        selection: {
+          anchor: activeRange.from,
+          head: activeRange.to,
         },
-        null,
-        2,
-      ),
-    )}</pre>`;
-  };
-
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Q-ops Api 接口文档</title>
-  <style>
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2328; background: #f6f8fa; }
-    header { position: sticky; top: 0; z-index: 5; padding: 16px 22px; color: #fff; background: linear-gradient(135deg, #0969da, #8250df); box-shadow: 0 8px 24px rgba(31,35,40,.12); }
-    header h1 { margin: 0 0 6px; font-size: 22px; letter-spacing: .2px; }
-    header p { margin: 0; opacity: .9; font-size: 14px; }
-    main { max-width: 1220px; margin: 0 auto; padding: 0px 16px 16px 16px; }
-    .layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); align-items: start;gap:16px; }
-    nav { margin-top: 16px; position: sticky; top: 102px; padding: 12px; border: 1px solid #d0d7de; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(31,35,40,.04); }
-    .nav-project { padding: 8px 0 10px; border-bottom: 1px solid #d8dee4; }
-    .nav-project:last-child { border-bottom: none; }
-    .nav-project-title { margin: 0 0 8px; font-weight: 800; font-size: 16px; color: #1f2328; }
-    nav a { display: block; padding: 7px 8px; color: #57606a; text-decoration: none; border-radius: 8px; font-size: 13px; }
-    nav a:hover { color: #0969da; background: #ddf4ff; }
-    .doc-content { display: grid; gap: 14px; }
-    article.api { padding: 16px; margin-top: 16px; border: 1px solid #d0d7de; border-radius: 14px; background: #fff; box-shadow: 0 1px 2px rgba(31,35,40,.04); }
-    .api-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
-    .api-title { display: flex; align-items: center; gap: 9px; min-width: 0; }
-    .method { min-width: 58px; padding: 4px 8px; text-align: center; border-radius: 999px; color: #fff; font-weight: 800; font-size: 12px; letter-spacing: .4px; }
-    .GET,.HEAD,.OPTIONS { background: #1a7f37; } .POST { background: #0969da; } .PUT,.PATCH { background: #9a6700; } .DELETE { background: #cf222e; }
-    h3 { margin: 0; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    h4 { margin: 0; font-size: 13px; color: #57606a; }
-    .request-line { display: grid; grid-template-columns: 88px minmax(0, 1fr) 112px; gap: 8px; margin-bottom: 12px; }
-    .doc-field { min-height: 34px; display: flex; align-items: center; width: 100%; padding: 6px 10px; border: 1px solid #d0d7de; border-radius: 8px; background: #f6f8fa; color: #1f2328; font-size: 14px; line-height: 1.45; overflow: auto; }
-    .doc-url { color: #0969da; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; }
-    .doc-timeout { justify-content: flex-end; color: #57606a; }
-    .doc-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    .doc-block { min-width: 0; margin-bottom: 10px; }
-    .doc-block-full { grid-column: 1 / -1; }
-    .doc-block-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-    .doc-block-head span { color: #8c959f; font-size: 12px; }
-    .doc-kv-table { display: grid; gap: 6px; }
-    .doc-kv-head, .doc-kv-row { display: grid; gap: 6px; align-items: center; }
-    .doc-kv-head-readonly, .doc-kv-row-readonly { grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr); }
-    .doc-kv-head { color: #57606a; font-size: 12px; padding: 0 2px; }
-    .doc-kv-row-readonly code { min-width: 0; padding: 8px 10px; border: 1px solid #d8dee4; border-radius: 8px; background: #f6f8fa; color: #1f2328; overflow: auto; white-space: pre-wrap; word-break: break-word; }
-    .doc-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 4px 0 12px; color: #57606a; font-size: 13px; }
-    .send-btn { height: 34px; padding: 0 16px; border: none; border-radius: 8px; color: #fff; background: #1a7f37; font-weight: 700; cursor: pointer; }
-    .send-btn:hover { background: #116329; }
-    .send-btn:focus { outline: none; }
-    .send-btn:focus-visible { box-shadow: 0 0 0 3px rgba(9, 105, 218, .25); }
-    .send-btn:disabled { opacity: .65; cursor: not-allowed; }
-    .muted { color: #57606a; }
-    .doc-response { display: none; margin-top: 12px; padding-top: 12px; border-top: 1px solid #d8dee4; }
-    .doc-response.is-show { display: block; }
-    .doc-response-inner { padding: 10px; border: 1px solid #d8dee4; border-radius: 10px; background: #f6f8fa; }
-    .response-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; color: #57606a; font-size: 13px; }
-    .status-ok { color: #1a7f37; font-weight: 800; }
-    .status-error { color: #cf222e; font-weight: 800; }
-    pre { margin: 6px 0 10px; padding: 10px; overflow: auto; border: 1px solid #d8dee4; border-radius: 8px; background: #f6f8fa; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
-    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    .globals { margin: 14px 0; padding: 12px; border: 1px solid #d0d7de; border-radius: 12px; background: #fff; }
-    .globals-title { margin: 0 0 8px; font-weight: 800; }
-    .global-row { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: 8px; padding: 6px 0; border-top: 1px solid #eef1f4; font-size: 13px; }
-    .global-row:first-of-type { border-top: none; }
-    @media (max-width: 860px) {
-      header { position: static; padding: 14px 18px; }
-      main { padding: 14px; }
-      .layout { grid-template-columns: 1fr; }
-      nav { position: static; }
-      .doc-detail-grid { grid-template-columns: 1fr; }
-      .request-line { grid-template-columns: 1fr; }
-      h3 { white-space: normal; }
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <h1>Q-ops Api 接口文档</h1>
-    <p>生成时间：${escapeHtml(generatedAt)} · 项目 ${docsProjects.length} 个 · 接口 ${totalCount} 个</p>
-  </header>
-  <main>
-    <div class="layout">
-      <nav>
-        ${docsProjects
-          .map(
-            (project) =>
-              `<div class="nav-project"><div class="nav-project-title">${escapeHtml(project.name)}</div>${project.interfaces
-                .map((api) => `<a href="#${escapeHtml(api.id)}">${escapeHtml(api.request.method)} ${escapeHtml(api.name)}</a>`)
-                .join('')}</div>`,
-          )
-          .join('')}
-      </nav>
-      <div class="doc-content">
-        ${
-          hasResolvedGlobals
-            ? `<div class="globals"><div class="globals-title">全局变量</div>${resolvedGlobals
-                .filter((item) => item.enabled && item.key.trim())
-                .map((item) => `<div class="global-row"><strong>${escapeHtml(item.key)}</strong><code>${escapeHtml(item.value)}</code></div>`)
-                .join('')}</div>`
-            : ''
-        }
-        ${docsProjects
-          .map((project) =>
-            project.interfaces
-              .map((api) => {
-                const req = api.request;
-                return `<article class="api api-item" id="${escapeHtml(api.id)}" data-api-id="${escapeHtml(api.id)}">
-                  <div class="api-head">
-                    <div class="api-title"><span class="method ${escapeHtml(req.method)}">${escapeHtml(req.method)}</span><h3>${escapeHtml(api.name)}</h3></div>
-                    <button class="send-btn" type="button" data-send-api>发送请求</button>
-                  </div>
-                  <div class="request-line">
-                    <div class="doc-field">${escapeHtml(req.method)}</div>
-                    <div class="doc-field doc-url">${escapeHtml(req.url)}</div>
-                    <div class="doc-field doc-timeout">${escapeHtml(req.timeout)} ms</div>
-                  </div>
-                  ${api.description ? `<p>${escapeHtml(api.description)}</p>` : ''}
-                  <div class="doc-meta"><span>项目：${escapeHtml(project.name)}</span><span>Body 类型：${escapeHtml(req.bodyType)}</span><span>认证：${escapeHtml(req.auth.type)}</span><span>更新时间：${escapeHtml(formatTime(api.updatedAt))}</span></div>
-                  <div class="doc-detail-grid">
-                    ${renderDocKeyValueReadonly('Params', req.params)}
-                    ${renderDocKeyValueReadonly('Headers', req.headers)}
-                    ${renderDocKeyValueReadonly('Cookies', req.cookies)}
-                    <div class="doc-block">
-                      <h4>Auth</h4>
-                      ${renderAuthReadonly(req.auth)}
-                    </div>
-                    <div class="doc-block doc-block-full">
-                      ${renderDocBodyReadonly(req)}
-                    </div>
-                  </div>
-                  <div class="doc-response" data-doc-response></div>
-                </article>`;
-              })
-              .join(''),
-          )
-          .join('')}
-      </div>
-    </div>
-  </main>
-  <script>
-    window.__Q_OPS_API_DOCS__ = ${escapeScriptJson(docsData)};
-
-    (function () {
-      var docs = window.__Q_OPS_API_DOCS__ || { globals: [], projects: [] };
-      var apiMap = {};
-
-      docs.projects.forEach(function (project) {
-        (project.interfaces || []).forEach(function (api) {
-          apiMap[api.id] = api;
-        });
+        effects: [
+          setSearchQuery.of(query),
+          EditorView.scrollIntoView(activeRange.from, {
+            y: 'center',
+          }),
+        ],
       });
+    },
+    [activeSearchIndex, searchOpen, searchQuery],
+  );
 
-      /**
-       * @description 转义接口文档脚本中的 HTML 内容
-       */
-      function html(value) {
-        return String(value == null ? '' : value)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#39;');
-      }
+  /**
+   * @description 内容或搜索条件变化后同步编辑器
+   */
+  useEffect(() => {
+    syncSearch();
+  }, [language, syncSearch, value]);
 
-      /**
-       * @description 格式化接口文档响应 JSON
-       */
-      function formatJson(text) {
-        var value = String(text || '').trim();
-        if (!value) return '';
-        try { return JSON.stringify(JSON.parse(value), null, 2); } catch (error) { return text; }
-      }
+  /**
+   * @description 保存 CodeMirror 编辑器实例
+   */
+  const handleCreateEditor = useCallback(
+    (view: EditorView) => {
+      editorViewRef.current = view;
 
-      /**
-       * @description 格式化字节大小
-       */
-      function formatSize(size) {
-        if (!size) return '0 B';
-        if (size < 1024) return size + ' B';
-        if (size < 1024 * 1024) return (size / 1024).toFixed(1) + ' KB';
-        return (size / 1024 / 1024).toFixed(1) + ' MB';
-      }
+      syncSearch(view);
+    },
+    [syncSearch],
+  );
 
-      /**
-       * @description 将文本安全转换为 Base64
-       */
-      function safeBase64(value) {
-        try { return btoa(unescape(encodeURIComponent(value))); } catch (error) { return btoa(value); }
-      }
+  /**
+   * @description 组件销毁时清理编辑器引用
+   */
+  useEffect(() => {
+    return () => {
+      editorViewRef.current = null;
+    };
+  }, []);
 
-      /**
-       * @description 获取接口文档全局变量
-       */
-      function getGlobals() {
-        var result = {};
-        (docs.globals || []).forEach(function (item) {
-          if (!item.enabled || !String(item.key || '').trim()) return;
-          result[String(item.key).trim()] = String(item.value || '');
-        });
-        return result;
-      }
-
-      /**
-       * @description 替换接口文档中的变量占位符
-       */
-      function interpolate(value, variables) {
-        return String(value || '').replace(/\\{\\{\\s*([\\w.-]+)\\s*\\}\\}/g, function (_, key) {
-          return Object.prototype.hasOwnProperty.call(variables, key) ? variables[key] : '';
-        });
-      }
-
-      /**
-       * @description 将启用的文档键值项转换为对象
-       */
-      function enabledRowsToObject(list, variables) {
-        var result = {};
-        (list || []).forEach(function (item) {
-          var key = interpolate(item && item.key, variables).trim();
-          if (!item || item.enabled === false || !key) return;
-          result[key] = interpolate(item.value, variables);
-        });
-        return result;
-      }
-
-      /**
-       * @description 将启用的文档参数写入 URL
-       */
-      function enabledRowsToSearchParams(list, variables, urlObject) {
-        (list || []).forEach(function (item) {
-          var key = interpolate(item && item.key, variables).trim();
-          if (!item || item.enabled === false || !key) return;
-          urlObject.searchParams.set(key, interpolate(item.value, variables));
-        });
-      }
-
-      /**
-       * @description 构建接口文档请求参数
-       */
-      function buildPayload(article) {
-        var apiId = article.getAttribute('data-api-id');
-        var api = apiMap[apiId];
-        var req = api.request;
-        var variables = getGlobals();
-        var method = String(req.method || 'GET').toUpperCase();
-        var url = interpolate(req.url || '', variables).trim();
-        var timeout = Number(req.timeout || 30000);
-
-        if (!/^https?:\\/\\//i.test(url)) {
-          url = url.replace(/^\\/+/, '');
-          var baseUrl = interpolate(variables.baseUrl || '', variables).replace(/\\/+$/, '');
-          url = baseUrl ? baseUrl + '/' + url : url;
-        }
-
-        var urlObject = new URL(url);
-        enabledRowsToSearchParams(req.params, variables, urlObject);
-
-        var headers = enabledRowsToObject(req.headers, variables);
-        var cookies = enabledRowsToObject(req.cookies, variables);
-
-        if (Object.keys(cookies).length > 0) {
-          headers.Cookie = Object.keys(cookies).map(function (key) { return key + '=' + cookies[key]; }).join('; ');
-        }
-
-        if (req.auth && req.auth.type === 'bearer') {
-          var token = interpolate(req.auth.token || '', variables).trim();
-          if (token) headers.Authorization = 'Bearer ' + token;
-        }
-
-        if (req.auth && req.auth.type === 'basic') {
-          headers.Authorization = 'Basic ' + safeBase64(interpolate(req.auth.username || '', variables) + ':' + interpolate(req.auth.password || '', variables));
-        }
-
-        var body;
-        if (method !== 'GET' && method !== 'HEAD') {
-          if (req.bodyType === 'json' || req.bodyType === 'raw') {
-            body = interpolate(req.bodyRaw || '', variables);
-            if (req.bodyType === 'json' && !headers['Content-Type'] && !headers['content-type']) {
-              headers['Content-Type'] = 'application/json';
-            }
-          }
-
-          if (req.bodyType === 'form-urlencoded') {
-            var params = new URLSearchParams();
-            (req.bodyForm || []).forEach(function (item) {
-              var key = interpolate(item && item.key, variables).trim();
-              if (!item || item.enabled === false || !key) return;
-              params.set(key, interpolate(item.value, variables));
-            });
-            body = params.toString();
-            headers['Content-Type'] = 'application/x-www-form-urlencoded';
-          }
-        }
-
-        return {
-          requestId: 'doc-' + Date.now() + '-' + Math.random().toString(16).slice(2),
-          method: method,
-          url: urlObject.toString(),
-          headers: headers,
-          body: body,
-          timeout: timeout,
-        };
-      }
-
-      /**
-       * @description 直接发送接口文档请求
-       */
-      async function directFetch(payload) {
-        var controller = new AbortController();
-        var timer = payload.timeout > 0 ? setTimeout(function () { controller.abort(); }, payload.timeout) : null;
-        var start = Date.now();
-
-        try {
-          var response = await fetch(payload.url, {
-            method: payload.method,
-            headers: payload.headers,
-            body: payload.method === 'GET' || payload.method === 'HEAD' ? undefined : payload.body,
-            redirect: 'follow',
-            signal: controller.signal,
-          });
-          var body = await response.text();
-          var headers = {};
-          response.headers.forEach(function (value, key) { headers[key] = value; });
-          return {
-            ok: response.ok,
-            url: response.url || payload.url,
-            status: response.status,
-            statusText: response.statusText,
-            duration: Date.now() - start,
-            size: new Blob([body]).size,
-            headers: headers,
-            body: body,
-          };
-        } catch (error) {
-          return {
-            ok: false,
-            url: payload.url,
-            status: 0,
-            statusText: error && error.name === 'AbortError' ? 'Timeout' : 'Request Failed',
-            duration: Date.now() - start,
-            size: 0,
-            headers: {},
-            body: '',
-            error: error && error.name === 'AbortError' ? '请求超时：' + payload.timeout + 'ms' : (error && error.message) || String(error),
-          };
-        } finally {
-          if (timer) clearTimeout(timer);
-        }
-      }
-
-      /**
-       * @description 发送接口文档请求参数
-       */
-      async function sendPayload(payload) {
-        if (location.protocol === 'http:' || location.protocol === 'https:') {
-          var response = await fetch('/__api_send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          var text = await response.text();
-
-          try {
-            return JSON.parse(text || '{}');
-          } catch (error) {
-            return {
-              ok: false,
-              url: payload.url,
-              status: response.status || 0,
-              statusText: response.statusText || 'Request Failed',
-              duration: 0,
-              size: text ? new Blob([text]).size : 0,
-              headers: {},
-              body: '',
-              error: text || '分享服务返回数据格式错误',
-            };
-          }
-        }
-
-        return await directFetch(payload);
-      }
-
-      /**
-       * @description 渲染接口文档请求响应
-       */
-      function renderResponse(article, result) {
-        var box = article.querySelector('[data-doc-response]');
-        if (!box) return;
-
-        var body = result.error || result.body || '';
-        var contentTypeKey = Object.keys(result.headers || {}).find(function (key) { return key.toLowerCase() === 'content-type'; });
-        var contentType = contentTypeKey ? String(result.headers[contentTypeKey]).toLowerCase() : '';
-        if (!result.error && (contentType.indexOf('application/json') >= 0 || /^[{[]/.test(String(body).trim()))) {
-          body = formatJson(body);
-        }
-
-        box.classList.add('is-show');
-        box.innerHTML = '<div class="doc-response-inner">'
-          + '<div class="response-meta">'
-          + '<span class="' + (result.ok ? 'status-ok' : 'status-error') + '">' + html(result.status || result.statusText || 'Failed') + '</span>'
-          + '<span>' + html(result.duration || 0) + ' ms</span>'
-          + '<span>' + html(formatSize(result.size || 0)) + '</span>'
-          + '<span>' + html(result.url || '') + '</span>'
-          + '</div>'
-          + '<h4>响应 Body</h4><pre>' + html(body) + '</pre>'
-          + '<h4>响应 Headers</h4><pre>' + html(JSON.stringify(result.headers || {}, null, 2)) + '</pre>'
-          + '</div>';
-      }
-
-      /**
-       * @description 发送接口文档中的接口请求
-       */
-      async function sendDocApiRequest(button) {
-        if (!button || button.getAttribute('data-sending') === 'true') return;
-
-        var article = button.closest('article.api-item, article.api');
-        if (!article) return;
-
-        var box = article.querySelector('[data-doc-response]');
-
-        try {
-          button.setAttribute('data-sending', 'true');
-          button.disabled = true;
-          button.textContent = '请求中...';
-
-          if (box) {
-            box.classList.add('is-show');
-            box.innerHTML = '<p class="muted">正在发送请求...</p>';
-          }
-
-          var payload = buildPayload(article);
-          var result = await sendPayload(payload);
-          renderResponse(article, result);
-        } catch (error) {
-          renderResponse(article, {
-            ok: false,
-            status: 0,
-            statusText: 'Request Failed',
-            duration: 0,
-            size: 0,
-            headers: {},
-            body: '',
-            error: (error && error.message) || String(error),
-          });
-        } finally {
-          button.removeAttribute('data-sending');
-          button.disabled = false;
-          button.textContent = '发送请求';
-        }
-      }
-
-      document.addEventListener('click', function (event) {
-        var target = event.target;
-        var button = target && target.closest ? target.closest('[data-send-api]') : null;
-
-        if (!button) return;
-
-        event.preventDefault();
-        sendDocApiRequest(button);
-      });
-    })();
-  </script>
-</body>
-</html>`;
+  return (
+    <CodeMirror
+      className={styles['response-code-mirror']}
+      width="100%"
+      height={searchOpen ? 'calc(100% - 42px)' : '100%'}
+      value={value}
+      theme={theme}
+      extensions={extensions}
+      editable={false}
+      readOnly
+      indentWithTab={false}
+      onCreateEditor={handleCreateEditor}
+      basicSetup={{
+        lineNumbers: true,
+        highlightActiveLineGutter: false,
+        highlightSpecialChars: false,
+        history: false,
+        foldGutter: language === 'json',
+        drawSelection: true,
+        dropCursor: false,
+        allowMultipleSelections: false,
+        indentOnInput: false,
+        syntaxHighlighting: true,
+        bracketMatching: language === 'json',
+        closeBrackets: false,
+        autocompletion: false,
+        rectangularSelection: false,
+        crosshairCursor: false,
+        highlightActiveLine: false,
+        highlightSelectionMatches: false,
+        closeBracketsKeymap: false,
+        defaultKeymap: false,
+        searchKeymap: false,
+        historyKeymap: false,
+        foldKeymap: language === 'json',
+        completionKeymap: false,
+        lintKeymap: false,
+      }}
+    />
+  );
 }
 
 /**
@@ -1265,10 +802,6 @@ export default function ApiDevToolsApp() {
   const [requestTab, setRequestTab] = useState<RequestTab>('params');
   const [responseTab, setResponseTab] = useState<ResponseTab>('body');
   const [isResponseSearchOpen, setIsResponseSearchOpen] = useState(false);
-  const [responseSearchQuery, setResponseSearchQuery] = useState('');
-  const [responseSearchIndex, setResponseSearchIndex] = useState(0);
-  const [responseSearchBarOffset, setResponseSearchBarOffset] = useState({ x: 0, y: 0 });
-  const [isDraggingResponseSearchBar, setIsDraggingResponseSearchBar] = useState(false);
   const [response, setResponse] = useState<ApiResponsePayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [showGlobals, setShowGlobals] = useState(false);
@@ -1294,25 +827,6 @@ export default function ApiDevToolsApp() {
   const shareSelectedInterfaceIdsRef = useRef(shareSelectedInterfaceIds);
   const globalVariablesRef = useRef<Record<string, string>>({});
   const rightPaneRef = useRef<HTMLElement | null>(null);
-  const responsePanelRef = useRef<HTMLDivElement | null>(null);
-  const responseCodeRef = useRef<HTMLPreElement | null>(null);
-  const responseSearchInputRef = useRef<HTMLInputElement | null>(null);
-  const responseSearchBarRef = useRef<HTMLDivElement | null>(null);
-  const responseSearchBarOffsetRef = useRef(responseSearchBarOffset);
-  const responseSearchDragStartRef = useRef({
-    x: 0,
-    y: 0,
-    offsetX: 0,
-    offsetY: 0,
-    panelLeft: 0,
-    panelTop: 0,
-    panelRight: 0,
-    panelBottom: 0,
-    barLeft: 0,
-    barTop: 0,
-    barWidth: 0,
-    barHeight: 0,
-  });
   const bottomPanelSizeRef = useRef(BOTTOM_PANEL_DEFAULT_SIZE);
   const workspacePaneWidthRef = useRef(WORKSPACE_PANE_DEFAULT_WIDTH);
   const dragStartYRef = useRef(0);
@@ -1329,6 +843,7 @@ export default function ApiDevToolsApp() {
   const workspaceResizerRef = useRef<HTMLDivElement | null>(null);
   const workspaceResizerPointerIdRef = useRef<number | null>(null);
   const loadedStateRef = useRef(false);
+  const viewTitleActionRef = useRef<(action: ApiDevToolsViewTitleAction) => void>(() => undefined);
 
   /**
    * @description 计算已启用的全局变量映射
@@ -1382,10 +897,6 @@ export default function ApiDevToolsApp() {
   /**
    * @description 同步响应搜索框偏移引用
    */
-  useEffect(() => {
-    responseSearchBarOffsetRef.current = responseSearchBarOffset;
-  }, [responseSearchBarOffset]);
-
   /**
    * @description 同步当前请求引用
    */
@@ -1849,6 +1360,11 @@ export default function ApiDevToolsApp() {
      */
     const handleMessage = (event: MessageEvent) => {
       const message = event.data;
+
+      if (message?.type === 'apiDevToolsViewTitleAction') {
+        viewTitleActionRef.current(message.action as ApiDevToolsViewTitleAction);
+        return;
+      }
 
       if (message?.type === 'apiDevToolsState') {
         const state = normalizePersistedState(message.state);
@@ -2700,8 +2216,15 @@ export default function ApiDevToolsApp() {
   /**
    * @description 创建接口文档 HTML
    */
-  const createDocsHtml = (docsProjects = projectsRef.current) =>
-    buildApiDocsHtml(docsProjects, globalsRef.current, requestRef.current, activeProjectIdRef.current, activeInterfaceIdRef.current);
+  const createDocsHtml = (docsProjects = projectsRef.current): string => {
+    return buildApiDocsHtml({
+      projects: docsProjects,
+      globals: globalsRef.current,
+      currentRequest: requestRef.current,
+      activeProjectId: activeProjectIdRef.current,
+      activeInterfaceId: activeInterfaceIdRef.current,
+    });
+  };
 
   /**
    * @description 进入接口文档分享选择状态
@@ -2817,13 +2340,16 @@ export default function ApiDevToolsApp() {
   };
 
   const responseBody = getDisplayResponseBody(response);
+
   /**
-   * @description 计算响应搜索文本
+   * @description 计算当前响应页签的编辑器内容
    */
-  const responseSearchText = useMemo(() => {
+  const responseEditorValue = useMemo(() => {
     if (!response) return '';
 
-    if (response.error) return response.error;
+    if (response.error) {
+      return response.error;
+    }
 
     if (responseTab === 'headers') {
       return JSON.stringify(response.headers, null, 2);
@@ -2837,66 +2363,11 @@ export default function ApiDevToolsApp() {
   }, [response, responseBody, responseTab]);
 
   /**
-   * @description 计算响应内容中的搜索结果
+   * @description 计算当前响应页签的编辑器语言
    */
-  const responseSearchMatches = useMemo(() => {
-    const query = responseSearchQuery.trim().toLowerCase();
-
-    if (!query || !responseSearchText) return [];
-
-    const text = responseSearchText.toLowerCase();
-    const result: number[] = [];
-    let startIndex = 0;
-
-    while (startIndex <= text.length) {
-      const index = text.indexOf(query, startIndex);
-
-      if (index === -1) break;
-
-      result.push(index);
-      startIndex = index + Math.max(query.length, 1);
-    }
-
-    return result;
-  }, [responseSearchQuery, responseSearchText]);
-
-  const responseSearchTotal = responseSearchMatches.length;
-  const activeResponseSearchIndex = responseSearchTotal ? Math.min(responseSearchIndex, responseSearchTotal - 1) : 0;
-
-  /**
-   * @description 同步响应搜索结果索引
-   */
-  useEffect(() => {
-    setResponseSearchIndex(0);
-  }, [responseSearchQuery, responseSearchText]);
-
-  /**
-   * @description 同步响应搜索结果索引
-   */
-  useEffect(() => {
-    if (!isResponseSearchOpen) return;
-
-    window.setTimeout(() => {
-      responseSearchInputRef.current?.focus();
-      responseSearchInputRef.current?.select();
-    }, 0);
-  }, [isResponseSearchOpen]);
-
-  /**
-   * @description 同步响应搜索结果索引
-   */
-  useEffect(() => {
-    if (!isResponseSearchOpen || responseSearchTotal === 0) return;
-
-    window.setTimeout(() => {
-      const activeElement = responseCodeRef.current?.querySelector('[data-response-search-active="true"]') as HTMLElement | null;
-
-      activeElement?.scrollIntoView({
-        block: 'center',
-        inline: 'nearest',
-      });
-    }, 0);
-  }, [activeResponseSearchIndex, isResponseSearchOpen, responseSearchTotal]);
+  const responseEditorLanguage = useMemo(() => {
+    return getResponseEditorLanguage(response, responseTab, responseEditorValue);
+  }, [response, responseEditorValue, responseTab]);
 
   /**
    * @description 打开响应内容搜索框
@@ -2908,145 +2379,47 @@ export default function ApiDevToolsApp() {
   };
 
   /**
-   * @description 关闭响应内容搜索框
+   * @description 将 VS Code 原生 View 标题栏操作分发给页面现有业务函数
    */
-  const closeResponseSearch = () => {
-    setIsResponseSearchOpen(false);
-    setResponseSearchQuery('');
-    setResponseSearchIndex(0);
-  };
+  viewTitleActionRef.current = (action: ApiDevToolsViewTitleAction) => {
+    switch (action) {
+      case 'add-project':
+        addProject();
+        break;
 
-  /**
-   * @description 跳转到上一个或下一个响应搜索结果
-   */
-  const jumpResponseSearchMatch = (direction: 'prev' | 'next') => {
-    if (responseSearchTotal === 0) return;
+      case 'add-interface':
+        addInterface();
+        break;
 
-    setResponseSearchIndex((current) => {
-      if (direction === 'prev') {
-        return current <= 0 ? responseSearchTotal - 1 : current - 1;
-      }
+      case 'save-interface':
+        saveInterface();
+        break;
 
-      return current >= responseSearchTotal - 1 ? 0 : current + 1;
-    });
-  };
+      case 'share-docs':
+        shareDocs();
+        break;
 
-  /**
-   * @description 处理响应搜索框拖拽开始事件
-   */
-  const handleResponseSearchBarPointerDown = (event: React.PointerEvent<HTMLElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
+      case 'export-docs':
+        exportDocs();
+        break;
 
-    const panelElement = responsePanelRef.current;
-    const barElement = responseSearchBarRef.current;
+      case 'show-globals':
+        setShowGlobals(true);
+        break;
 
-    if (!panelElement || !barElement) return;
+      case 'clear-all':
+        clearAll();
+        break;
 
-    const panelRect = panelElement.getBoundingClientRect();
-    const barRect = barElement.getBoundingClientRect();
+      case 'send-request':
+        if (!loading) {
+          sendRequest();
+        }
+        break;
 
-    responseSearchDragStartRef.current = {
-      x: event.clientX,
-      y: event.clientY,
-      offsetX: responseSearchBarOffsetRef.current.x,
-      offsetY: responseSearchBarOffsetRef.current.y,
-      panelLeft: panelRect.left,
-      panelTop: panelRect.top,
-      panelRight: panelRect.right,
-      panelBottom: panelRect.bottom,
-      barLeft: barRect.left,
-      barTop: barRect.top,
-      barWidth: barRect.width,
-      barHeight: barRect.height,
-    };
-
-    setIsDraggingResponseSearchBar(true);
-  };
-
-  /**
-   * @description 监听响应搜索框拖拽事件
-   */
-  useEffect(() => {
-    if (!isDraggingResponseSearchBar) return;
-
-    /**
-     * @description 处理PointerMove
-     */
-    const handlePointerMove = (event: PointerEvent) => {
-      event.preventDefault();
-
-      const start = responseSearchDragStartRef.current;
-      const nextLeft = start.barLeft + event.clientX - start.x;
-      const nextTop = start.barTop + event.clientY - start.y;
-      const maxLeft = start.panelRight - start.barWidth;
-      const maxTop = start.panelBottom - start.barHeight;
-      const safeLeft = clampNumber(nextLeft, start.panelLeft, maxLeft);
-      const safeTop = clampNumber(nextTop, start.panelTop, maxTop);
-
-      setResponseSearchBarOffset({
-        x: start.offsetX + safeLeft - start.barLeft,
-        y: start.offsetY + safeTop - start.barTop,
-      });
-    };
-
-    /**
-     * @description 处理PointerUp
-     */
-    const handlePointerUp = () => {
-      setIsDraggingResponseSearchBar(false);
-    };
-
-    window.addEventListener('pointermove', handlePointerMove, { passive: false });
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerUp);
-
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerUp);
-    };
-  }, [isDraggingResponseSearchBar]);
-
-  /**
-   * @description 渲染带搜索高亮的响应内容
-   */
-  const renderResponseCode = (text: string) => {
-    const query = responseSearchQuery.trim();
-
-    if (!isResponseSearchOpen || !query || responseSearchTotal === 0) {
-      return text;
+      default:
+        break;
     }
-
-    const nodes: React.ReactNode[] = [];
-    const queryLength = query.length;
-    let lastIndex = 0;
-
-    responseSearchMatches.forEach((matchIndex, index) => {
-      if (matchIndex > lastIndex) {
-        nodes.push(text.slice(lastIndex, matchIndex));
-      }
-
-      const isActive = index === activeResponseSearchIndex;
-
-      nodes.push(
-        <mark
-          key={`${matchIndex}-${index}`}
-          className={[styles['response-search-mark'], isActive ? styles['response-search-mark-active'] : ''].filter(Boolean).join(' ')}
-          data-response-search-active={isActive ? 'true' : undefined}
-        >
-          {text.slice(matchIndex, matchIndex + queryLength)}
-        </mark>,
-      );
-
-      lastIndex = matchIndex + queryLength;
-    });
-
-    if (lastIndex < text.length) {
-      nodes.push(text.slice(lastIndex));
-    }
-
-    return nodes;
   };
 
   const bottomPanelMaxSize = getBottomPanelMaxSize();
@@ -3054,40 +2427,6 @@ export default function ApiDevToolsApp() {
 
   return (
     <div className={styles['api-devtools']}>
-      <header className={styles['topbar']}>
-        <div className={styles['brand']}>
-          <span className={styles['brand-dot']} />
-          <span>Q-ops Api</span>
-        </div>
-
-        <div className={styles['top-actions']}>
-          <button className={styles['ghost-btn']} onClick={addProject}>
-            + 项目
-          </button>
-          <button className={styles['ghost-btn']} onClick={addInterface}>
-            + 接口
-          </button>
-          <button className={styles['ghost-btn']} onClick={saveInterface}>
-            保存接口
-          </button>
-          <button className={styles['ghost-btn']} onClick={shareDocs}>
-            {isShareSelecting ? '选择中...' : '分享文档'}
-          </button>
-          <button className={styles['ghost-btn']} onClick={exportDocs}>
-            导出 HTML
-          </button>
-          <button className={styles['ghost-btn']} onClick={() => setShowGlobals(true)}>
-            变量
-          </button>
-          <button className={styles['ghost-btn']} onClick={clearAll}>
-            清空
-          </button>
-          <button className={styles['primary-btn']} disabled={loading} onClick={sendRequest}>
-            {loading ? '发送中...' : '发送'}
-          </button>
-        </div>
-      </header>
-
       <main
         className={styles['main']}
         style={
@@ -3392,86 +2731,40 @@ export default function ApiDevToolsApp() {
             ))}
           </div>
 
-          <div ref={responsePanelRef} className={styles['response-panel']}>
-            {isResponseSearchOpen && (
-              <div
-                ref={responseSearchBarRef}
-                className={[styles['response-search-bar'], isDraggingResponseSearchBar ? styles['response-search-bar-dragging'] : ''].filter(Boolean).join(' ')}
-                style={{
-                  transform: `translate(${responseSearchBarOffset.x}px, ${responseSearchBarOffset.y}px)`,
-                }}
-              >
-                <i className={`codicon codicon-gripper ${styles['response-search-grip']}`} title="拖拽搜索框" onPointerDown={handleResponseSearchBarPointerDown} />
+          <BaseSearch
+            open={isResponseSearchOpen}
+            text={responseEditorValue}
+            className={styles['response-panel']}
+            placeholder="搜索响应..."
+            maxWidth={560}
+            onClose={() => {
+              setIsResponseSearchOpen(false);
+            }}
+          >
+            {({ query, activeIndex }) => (
+              <>
+                {loading && <div className={styles['empty-state']}>正在请求...</div>}
 
-                <input
-                  ref={responseSearchInputRef}
-                  value={responseSearchQuery}
-                  placeholder="搜索响应..."
-                  onChange={(event) => setResponseSearchQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      jumpResponseSearchMatch(event.shiftKey ? 'prev' : 'next');
-                    }
+                {!loading && !response && (
+                  <div className={styles['empty-state']}>
+                    <div className={styles.rocket}>🚀</div>
 
-                    if (event.key === 'Escape') {
-                      event.preventDefault();
-                      closeResponseSearch();
-                    }
-                  }}
-                />
+                    <div>点击“发送”按钮获取返回结果</div>
+                  </div>
+                )}
 
-                <span className={styles['response-search-count']}>
-                  {responseSearchQuery.trim() ? `${responseSearchTotal === 0 ? 0 : activeResponseSearchIndex + 1}/${responseSearchTotal}` : '0/0'}
-                </span>
-
-                <button className={styles['response-search-btn']} title="上一个" disabled={responseSearchTotal === 0} onClick={() => jumpResponseSearchMatch('prev')}>
-                  <i className="codicon codicon-arrow-up" />
-                </button>
-
-                <button className={styles['response-search-btn']} title="下一个" disabled={responseSearchTotal === 0} onClick={() => jumpResponseSearchMatch('next')}>
-                  <i className="codicon codicon-arrow-down" />
-                </button>
-
-                <button className={styles['response-search-btn']} title="关闭搜索" onClick={closeResponseSearch}>
-                  <i className="codicon codicon-close" />
-                </button>
-              </div>
+                {!loading && response && (
+                  <ResponseCodeMirrorEditor
+                    value={responseEditorValue}
+                    language={responseEditorLanguage}
+                    searchOpen={isResponseSearchOpen}
+                    searchQuery={query}
+                    activeSearchIndex={activeIndex}
+                  />
+                )}
+              </>
             )}
-
-            {loading && <div className={styles['empty-state']}>正在请求...</div>}
-
-            {!loading && !response && (
-              <div className={styles['empty-state']}>
-                <div className={styles['rocket']}>🚀</div>
-                <div>点击“发送”按钮获取返回结果</div>
-              </div>
-            )}
-
-            {!loading && response?.error && (
-              <pre ref={responseCodeRef} className={styles['error-box']}>
-                {renderResponseCode(response.error)}
-              </pre>
-            )}
-
-            {!loading && response && !response.error && responseTab === 'body' && (
-              <pre ref={responseCodeRef} className={styles['response-code']}>
-                {renderResponseCode(responseBody)}
-              </pre>
-            )}
-
-            {!loading && response && !response.error && responseTab === 'headers' && (
-              <pre ref={responseCodeRef} className={styles['response-code']}>
-                {renderResponseCode(JSON.stringify(response.headers, null, 2))}
-              </pre>
-            )}
-
-            {!loading && response && !response.error && responseTab === 'raw' && (
-              <pre ref={responseCodeRef} className={styles['response-code']}>
-                {renderResponseCode(response.body)}
-              </pre>
-            )}
-          </div>
+          </BaseSearch>
 
           <div
             className={[styles['bottom-resizer'], isResizingBottomPanel ? styles['bottom-resizer-active'] : ''].filter(Boolean).join(' ')}
@@ -3518,115 +2811,145 @@ export default function ApiDevToolsApp() {
         </section>
       </main>
 
-      {manageDialog && (
-        <div className={styles['modal-mask']} onMouseDown={closeManageDialog}>
-          <div className={[styles['modal'], styles['manage-modal']].filter(Boolean).join(' ')} onMouseDown={(event) => event.stopPropagation()}>
-            <div className={styles['modal-head']}>
-              <strong>{manageDialog.title}</strong>
-              <button className={styles['icon-btn']} onClick={closeManageDialog}>
-                ×
-              </button>
-            </div>
+      <BaseDialog
+        open={Boolean(manageDialog)}
+        title={manageDialog?.title || ''}
+        width={420}
+        placement="center"
+        onClose={closeManageDialog}
+        actions={
+          manageDialog
+            ? [
+                {
+                  key: 'cancel',
+                  label: '取消',
+                  onClick: closeManageDialog,
+                },
+                {
+                  key: 'confirm',
+                  label: 'message' in manageDialog ? (manageDialog.kind === 'clear-all' ? '清空' : '删除') : '确定',
+                  type: 'message' in manageDialog ? 'danger' : 'primary',
+                  onClick: confirmManageDialog,
+                },
+              ]
+            : []
+        }
+      >
+        {manageDialog &&
+          ('message' in manageDialog ? (
+            <div className={styles['dialog-message']}>{manageDialog.message}</div>
+          ) : (
+            <label className={styles['dialog-field']}>
+              <span>{manageDialog.label}</span>
 
-            {'message' in manageDialog ? (
-              <div className={styles['dialog-message']}>{manageDialog.message}</div>
-            ) : (
-              <label className={styles['dialog-field']}>
-                <span>{manageDialog.label}</span>
-                <input
-                  autoFocus
-                  className={styles['dialog-input']}
-                  value={manageDialogValue}
-                  onChange={(event) => setManageDialogValue(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      void confirmManageDialog();
-                    }
-                    if (event.key === 'Escape') {
-                      closeManageDialog();
-                    }
-                  }}
-                />
-              </label>
-            )}
+              <input
+                autoFocus
+                className={styles['dialog-input']}
+                value={manageDialogValue}
+                onChange={(event) => {
+                  setManageDialogValue(event.target.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void confirmManageDialog();
+                  }
+                }}
+              />
+            </label>
+          ))}
+      </BaseDialog>
 
-            <div className={styles['modal-footer']}>
-              <button className={styles['ghost-btn']} onClick={closeManageDialog}>
-                取消
-              </button>
-              <button className={'message' in manageDialog ? styles['danger-btn'] : styles['primary-btn']} onClick={confirmManageDialog}>
-                {'message' in manageDialog ? (manageDialog.kind === 'clear-all' ? '清空' : '删除') : '确定'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {leaveConfirmDialog && (
-        <div className={styles['modal-mask']} onMouseDown={() => closeLeaveConfirmDialog('cancel')}>
-          <div className={[styles['modal'], styles['manage-modal']].filter(Boolean).join(' ')} onMouseDown={(event) => event.stopPropagation()}>
-            <div className={styles['modal-head']}>
-              <strong>{leaveConfirmDialog.title}</strong>
-              <button className={styles['icon-btn']} onClick={() => closeLeaveConfirmDialog('cancel')}>
-                ×
-              </button>
-            </div>
-
-            <div className={styles['dialog-message']}>
-              {leaveConfirmDialog.message}
-              <br />
-              <span className={styles['hint']}>保存后继续切换，或不保存并恢复到修改前内容。</span>
-            </div>
-
-            <div className={styles['modal-footer']}>
-              <button className={styles['ghost-btn']} onClick={() => closeLeaveConfirmDialog('cancel')}>
-                取消切换
-              </button>
-              <button className={styles['ghost-btn']} onClick={() => closeLeaveConfirmDialog('discard')}>
-                不保存并切换
-              </button>
-              <button className={styles['primary-btn']} onClick={() => closeLeaveConfirmDialog('save')}>
-                保存并切换
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showGlobals && (
-        <div className={styles['modal-mask']} onMouseDown={() => setShowGlobals(false)}>
-          <div className={styles['modal']} onMouseDown={(event) => event.stopPropagation()}>
-            <div className={styles['modal-head']}>
-              <strong>全局变量</strong>
-              <button className={styles['icon-btn']} onClick={() => setShowGlobals(false)}>
-                ×
-              </button>
-            </div>
-
-            <p className={styles['hint']}>
-              请求地址、Headers、Body 中可以使用 <code>{'{{baseUrl}}'}</code>、<code>{'{{token}}'}</code> 这类变量。
-            </p>
-
-            <KeyValueEditor
-              items={globals}
-              onChange={(items) => {
-                const nextGlobals = items.map((item) => ({ ...item }));
-
-                globalsRef.current = nextGlobals;
-                setGlobals(nextGlobals);
+      <BaseDialog
+        open={Boolean(leaveConfirmDialog)}
+        title={leaveConfirmDialog?.title || ''}
+        width={420}
+        placement="center"
+        onClose={() => {
+          closeLeaveConfirmDialog('cancel');
+        }}
+        footer={
+          <>
+            <button
+              type="button"
+              className={styles['ghost-btn']}
+              onClick={() => {
+                closeLeaveConfirmDialog('cancel');
               }}
-              keyPlaceholder="变量名"
-              valuePlaceholder="变量值"
-            />
+            >
+              取消切换
+            </button>
 
-            <div className={styles['modal-footer']}>
-              <button className={styles['primary-btn']} onClick={() => setShowGlobals(false)}>
-                完成
-              </button>
-            </div>
+            <button
+              type="button"
+              className={styles['ghost-btn']}
+              onClick={() => {
+                closeLeaveConfirmDialog('discard');
+              }}
+            >
+              不保存并切换
+            </button>
+
+            <button
+              type="button"
+              className={styles['primary-btn']}
+              onClick={() => {
+                closeLeaveConfirmDialog('save');
+              }}
+            >
+              保存并切换
+            </button>
+          </>
+        }
+      >
+        {leaveConfirmDialog && (
+          <div className={styles['dialog-message']}>
+            {leaveConfirmDialog.message}
+
+            <br />
+
+            <span className={styles.hint}>保存后继续切换，或不保存并恢复到修改前内容。</span>
           </div>
-        </div>
-      )}
+        )}
+      </BaseDialog>
+
+      <BaseDialog
+        open={showGlobals}
+        title="全局变量"
+        width="min(680px, 92vw)"
+        placement="right"
+        onClose={() => {
+          setShowGlobals(false);
+        }}
+        actions={[
+          {
+            key: 'complete',
+            label: '完成',
+            type: 'primary',
+            onClick: () => {
+              setShowGlobals(false);
+            },
+          },
+        ]}
+      >
+        <p className={styles.hint}>
+          请求地址、Headers、Body 中可以使用 <code>{'{{baseUrl}}'}</code>、<code>{'{{token}}'}</code> 这类变量。
+        </p>
+
+        <KeyValueEditor
+          items={globals}
+          onChange={(items) => {
+            const nextGlobals = items.map((item) => ({
+              ...item,
+            }));
+
+            globalsRef.current = nextGlobals;
+
+            setGlobals(nextGlobals);
+          }}
+          keyPlaceholder="变量名"
+          valuePlaceholder="变量值"
+        />
+      </BaseDialog>
     </div>
   );
 }
