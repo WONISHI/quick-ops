@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { vscode } from '@utils/vscode';
 import styles from '@pages/api-dev-tools-app/index.module.css';
+import BaseButton from '@components/BaseButton';
+import BaseCodeEditor, { type BaseCodeEditorLanguage } from '@components/BaseCodeEditor';
 import BaseDialog from '@components/BaseDialog';
 import BaseSearch from '@components/BaseSearch';
 import BaseTabs from '@components/BaseTabs';
-import BaseCodeEditor, { type BaseCodeEditorLanguage } from '@components/BaseCodeEditor';
+import Scrollbar from '@components/Scrollbar';
 import BottomPanels from '@/pages/api-dev-tools-app/components/bottom-panels';
 import InterfaceItem from '@/pages/api-dev-tools-app/components/interface-item';
 import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-editor';
@@ -2030,13 +2032,13 @@ export default function ApiDevToolsApp() {
 
           {sharedDocUrl && <ShareCard url={sharedDocUrl} onOpen={openSharedUrl} onCopy={copySharedUrl} onClose={stopShareDocs} />}
 
-          <div className={styles['project-list']}>
+          <Scrollbar className={styles['project-list']} viewClassName={styles['project-list-view']} direction="both">
             {projects.length === 0 ? (
               <div className={styles['empty-project']}>
                 <div>暂无项目</div>
-                <button className={styles['ghost-btn']} onClick={addProject}>
-                  + 添加项目
-                </button>
+                <BaseButton type="default" size="medium" icon={<i className="codicon codicon-add" />} onClick={addProject}>
+                  添加项目
+                </BaseButton>
               </div>
             ) : (
               projects.map((project) => (
@@ -2079,17 +2081,18 @@ export default function ApiDevToolsApp() {
                 </ProjectCard>
               ))
             )}
-          </div>
+          </Scrollbar>
 
           {isShareSelecting && (
             <div className={styles['share-select-actions']}>
               <div className={styles['share-select-count']}>已选择 {shareSelectedInterfaceIds.length} 个接口</div>
-              <button className={styles['ghost-btn']} onClick={cancelShareSelect}>
+              <BaseButton type="default" size="medium" onClick={cancelShareSelect}>
                 取消
-              </button>
-              <button className={styles['primary-btn']} onClick={confirmShareDocs}>
+              </BaseButton>
+
+              <BaseButton type="primary" size="medium" onClick={confirmShareDocs}>
                 确认分享
-              </button>
+              </BaseButton>
             </div>
           )}
         </aside>
@@ -2249,9 +2252,7 @@ export default function ApiDevToolsApp() {
                 )}
               </div>
 
-              <button className={styles['icon-btn']} title="搜索响应内容" disabled={!response} onClick={openResponseSearch}>
-                <i className="codicon codicon-search" />
-              </button>
+              <BaseButton type="icon" size="medium" title="搜索响应内容" disabled={!response} icon={<i className="codicon codicon-search" />} onClick={openResponseSearch} />
             </div>
           </div>
 
@@ -2372,35 +2373,35 @@ export default function ApiDevToolsApp() {
         }}
         footer={
           <>
-            <button
-              type="button"
-              className={styles['ghost-btn']}
+            <BaseButton
+              type="default"
+              size="medium"
               onClick={() => {
                 closeLeaveConfirmDialog('cancel');
               }}
             >
               取消切换
-            </button>
+            </BaseButton>
 
-            <button
-              type="button"
-              className={styles['ghost-btn']}
+            <BaseButton
+              type="default"
+              size="medium"
               onClick={() => {
                 closeLeaveConfirmDialog('discard');
               }}
             >
               不保存并切换
-            </button>
+            </BaseButton>
 
-            <button
-              type="button"
-              className={styles['primary-btn']}
+            <BaseButton
+              type="primary"
+              size="medium"
               onClick={() => {
                 closeLeaveConfirmDialog('save');
               }}
             >
               保存并切换
-            </button>
+            </BaseButton>
           </>
         }
       >
