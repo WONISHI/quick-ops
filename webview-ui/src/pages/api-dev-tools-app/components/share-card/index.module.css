@@ -1,0 +1,123 @@
+.card {
+  flex: 0 0 auto;
+  margin: 6px;
+  padding: 6px;
+  border: 1px solid
+    var(--vscode-focusBorder);
+  border-radius: 6px;
+  background:
+    color-mix(
+      in srgb,
+      var(--vscode-focusBorder) 10%,
+      transparent
+    );
+}
+
+.title {
+  margin-bottom: 4px;
+  color: var(--vscode-foreground);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.url-row {
+  min-width: 0;
+  margin-bottom: 5px;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    24px;
+  gap: 4px;
+  align-items: center;
+}
+
+.url {
+  width: 100%;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  overflow: hidden;
+  border: 1px solid
+    var(--vscode-panel-border);
+  border-radius: 4px;
+  color:
+    var(
+      --vscode-textLink-foreground,
+      var(--vscode-focusBorder)
+    );
+  background:
+    var(--vscode-input-background);
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.url:hover {
+  background:
+    var(
+      --vscode-list-hoverBackground
+    );
+}
+
+.copy-button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid
+    var(--vscode-panel-border);
+  border-radius: 4px;
+  color:
+    var(
+      --vscode-descriptionForeground
+    );
+  background:
+    var(--vscode-input-background);
+  opacity: 0;
+  cursor: pointer;
+  transition:
+    opacity 0.12s ease,
+    background-color 0.12s ease;
+}
+
+.url-row:hover .copy-button,
+.copy-button:focus-visible {
+  opacity: 1;
+}
+
+.copy-button:hover {
+  color: var(--vscode-foreground);
+  background:
+    var(
+      --vscode-toolbar-hoverBackground
+    );
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.button {
+  height: 22px;
+  min-width: 22px;
+  padding: 0 4px;
+  border: 1px solid
+    var(--vscode-panel-border);
+  border-radius: 4px;
+  color:
+    var(
+      --vscode-descriptionForeground
+    );
+  background: transparent;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.button:hover {
+  color: var(--vscode-foreground);
+  background:
+    var(
+      --vscode-toolbar-hoverBackground
+    );
+}

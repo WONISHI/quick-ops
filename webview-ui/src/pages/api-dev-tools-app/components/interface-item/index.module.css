@@ -1,0 +1,136 @@
+.item {
+  min-width: 0;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    22px;
+  gap: 2px;
+  align-items: center;
+  border-radius: 5px;
+}
+
+.share-mode {
+  grid-template-columns:
+    20px
+    minmax(0, 1fr)
+    22px;
+}
+
+.share-checkbox {
+  width: 20px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.share-checkbox input {
+  width: 13px;
+  height: 13px;
+  margin: 0;
+  accent-color:
+    var(
+      --vscode-button-background
+    );
+}
+
+.item:not(.active):hover {
+  background:
+    var(
+      --vscode-list-hoverBackground
+    );
+}
+
+.active,
+.active:hover {
+  color: var(--vscode-foreground);
+  background:
+    rgba(55, 148, 255, 0.1);
+}
+
+.main {
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 5px;
+  display: grid;
+  grid-template-columns:
+    46px
+    minmax(0, 1fr);
+  grid-template-rows:
+    15px
+    15px;
+  gap: 1px 5px;
+  align-items: center;
+  border: none;
+  color: var(--vscode-foreground);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.url {
+  grid-column: 1 / span 2;
+  min-width: 0;
+  overflow: hidden;
+  color:
+    var(
+      --vscode-descriptionForeground
+    );
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.remove {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  color:
+    var(
+      --vscode-descriptionForeground
+    );
+  background: transparent;
+  cursor: pointer;
+}
+
+.remove:hover {
+  color: var(--vscode-foreground);
+  background:
+    var(
+      --vscode-toolbar-hoverBackground
+    );
+}
+
+.method-get,
+.method-head,
+.method-options {
+  color: #3fb950;
+  font-weight: 700;
+}
+
+.method-post {
+  color:
+    rgba(55, 148, 255, 0.75);
+  font-weight: 700;
+}
+
+.method-put,
+.method-patch {
+  color: #d29922;
+  font-weight: 700;
+}
+
+.method-delete {
+  color: #f85149;
+  font-weight: 700;
+}

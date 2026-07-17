@@ -1,0 +1,43 @@
+.tabs {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 8px;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tab {
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 6px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--vscode-descriptionForeground);
+  background: transparent;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tab:hover:not(:disabled) {
+  color: var(--vscode-foreground);
+}
+
+.tab:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tab:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -2px;
+}
+
+.active {
+  color: var(--vscode-button-background);
+  border-bottom-color: var(--vscode-button-background);
+}

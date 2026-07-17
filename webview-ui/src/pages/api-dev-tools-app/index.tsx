@@ -3,8 +3,12 @@ import { vscode } from '@utils/vscode';
 import styles from '@pages/api-dev-tools-app/index.module.css';
 import BaseDialog from '@components/BaseDialog';
 import BaseSearch from '@components/BaseSearch';
-import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-editor';
+import BaseTabs from '@components/BaseTabs';
 import BaseCodeEditor, { type BaseCodeEditorLanguage } from '@components/BaseCodeEditor';
+import BottomPanels from '@/pages/api-dev-tools-app/components/bottom-panels';
+import InterfaceItem from '@/pages/api-dev-tools-app/components/interface-item';
+import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-editor';
+import ShareCard from '@/pages/api-dev-tools-app/components/share-card';
 import { buildApiDocsHtml } from '@/pages/api-dev-tools-app/src/api-docs-builder';
 import { formatSize, safeBase64, clampNumber, tryFormatJson, isJsonLikeText, cloneRequest } from '@/pages/api-dev-tools-app/src/api-dev-tools.utils';
 import type {
@@ -2023,29 +2027,7 @@ export default function ApiDevToolsApp() {
             </span>
           </div>
 
-          {sharedDocUrl && (
-            <div className={styles['share-card']}>
-              <div className={styles['share-title']}>文档分享中</div>
-
-              <div className={styles['share-url-row']}>
-                <button className={styles['share-url']} title="点击后确认是否在外部浏览器打开" onClick={openSharedUrl}>
-                  {sharedDocUrl}
-                </button>
-                <button className={styles['share-copy-btn']} title="复制链接" onClick={copySharedUrl}>
-                  <i className="codicon codicon-copy" />
-                </button>
-              </div>
-
-              <div className={styles['share-card-actions']}>
-                <button className={styles['tiny-btn']} onClick={openSharedUrl}>
-                  预览链接
-                </button>
-                <button className={styles['tiny-btn']} onClick={stopShareDocs}>
-                  关闭分享
-                </button>
-              </div>
-            </div>
-          )}
+          {sharedDocUrl && <ShareCard url={sharedDocUrl} onOpen={openSharedUrl} onCopy={copySharedUrl} onClose={stopShareDocs} />}
 
           <div className={styles['project-list']}>
             {projects.length === 0 ? (
@@ -2096,43 +2078,22 @@ export default function ApiDevToolsApp() {
                       <div className={styles['mini-empty']}>暂无接口</div>
                     ) : (
                       project.interfaces.map((api) => (
-                        <div
+                        <InterfaceItem
                           key={api.id}
-                          className={[
-                            styles['interface-item'],
-                            isShareSelecting ? styles['interface-item-share-mode'] : '',
-                            activeProjectId === project.id && activeInterfaceId === api.id ? styles['interface-item-active'] : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
-                        >
-                          {isShareSelecting && (
-                            <label className={styles['share-checkbox']} onClick={(event) => event.stopPropagation()}>
-                              <input type="checkbox" checked={shareSelectedInterfaceIds.includes(api.id)} onChange={() => toggleShareInterface(api.id)} />
-                            </label>
-                          )}
-
-                          <button
-                            className={styles['interface-main']}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              loadInterface(project, api);
-                            }}
-                          >
-                            <span className={styles[`method-${api.method.toLowerCase()}`]}>{api.method}</span>
-                            <span className={styles['interface-name']}>{api.name}</span>
-                            <span className={styles['interface-url']}>{api.url}</span>
-                          </button>
-                          <button
-                            className={styles['interface-remove']}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              removeInterface(project, api);
-                            }}
-                          >
-                            ×
-                          </button>
-                        </div>
+                          api={api}
+                          active={activeProjectId === project.id && activeInterfaceId === api.id}
+                          shareMode={isShareSelecting}
+                          checked={shareSelectedInterfaceIds.includes(api.id)}
+                          onToggleShare={() => {
+                            toggleShareInterface(api.id);
+                          }}
+                          onSelect={() => {
+                            loadInterface(project, api);
+                          }}
+                          onRemove={() => {
+                            removeInterface(project, api);
+                          }}
+                        />
                       ))
                     )}
                   </div>
@@ -2197,13 +2158,14 @@ export default function ApiDevToolsApp() {
             <span title={requestBindText}>{requestBindText}</span>
           </div>
 
-          <div className={styles['tabs']}>
-            {REQUEST_TABS.map((tab) => (
-              <button key={tab.key} className={requestTab === tab.key ? styles.active : ''} onClick={() => setRequestTab(tab.key)}>
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <BaseTabs
+            items={REQUEST_TABS}
+            value={requestTab}
+            ariaLabel="请求配置"
+            onChange={(nextTab) => {
+              setRequestTab(nextTab);
+            }}
+          />
 
           <div className={styles['request-panel']}>
             {requestTab === 'params' && <KeyValueEditor items={request.params} onChange={(params) => patchRequest({ params })} keyPlaceholder="参数名" valuePlaceholder="参数值" />}
@@ -2314,13 +2276,14 @@ export default function ApiDevToolsApp() {
             </div>
           </div>
 
-          <div className={styles['tabs']}>
-            {RESPONSE_TABS.map((tab) => (
-              <button key={tab.key} className={responseTab === tab.key ? styles.active : ''} onClick={() => setResponseTab(tab.key)}>
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <BaseTabs
+            items={RESPONSE_TABS}
+            value={responseTab}
+            ariaLabel="响应内容"
+            onChange={(nextTab) => {
+              setResponseTab(nextTab);
+            }}
+          />
 
           {/* 悬浮搜索 */}
           <BaseSearch
@@ -2366,42 +2329,7 @@ export default function ApiDevToolsApp() {
             onPointerDown={handleBottomResizerPointerDown}
           />
 
-          <div
-            className={styles['bottom-panels']}
-            style={{
-              height: `${bottomPanelSize}px`,
-              flexBasis: `${bottomPanelSize}px`,
-              maxHeight: `${bottomPanelMaxSize}px`,
-            }}
-          >
-            <div className={styles['history-panel']}>
-              <div className={styles['sub-title']}>历史记录</div>
-              {history.length === 0 ? (
-                <div className={styles['mini-empty']}>暂无历史</div>
-              ) : (
-                history.map((item) => (
-                  <button key={item.id} className={styles['history-item']} onClick={() => loadHistory(item)}>
-                    <span className={styles[`method-${item.method.toLowerCase()}`]}>{item.method}</span>
-                    <span className={styles['history-url']}>{item.url}</span>
-                    <span>{item.status}</span>
-                  </button>
-                ))
-              )}
-            </div>
-
-            <div className={styles['log-panel']}>
-              <div className={styles['sub-title']}>脚本日志</div>
-              {logs.length === 0 ? (
-                <div className={styles['mini-empty']}>暂无日志</div>
-              ) : (
-                logs.map((item, index) => (
-                  <div key={`${item}-${index}`} className={styles['log-item']}>
-                    {item}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          <BottomPanels size={bottomPanelSize} maxSize={bottomPanelMaxSize} history={history} logs={logs} onLoadHistory={loadHistory} />
         </section>
       </main>
 
