@@ -89,28 +89,6 @@
   white-space: nowrap;
 }
 
-.remove {
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: none;
-  border-radius: 4px;
-  color:
-    var(
-      --vscode-descriptionForeground
-    );
-  background: transparent;
-  cursor: pointer;
-}
-
-.remove:hover {
-  color: var(--vscode-foreground);
-  background:
-    var(
-      --vscode-toolbar-hoverBackground
-    );
-}
-
 .method-get,
 .method-head,
 .method-options {

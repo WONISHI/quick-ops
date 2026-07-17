@@ -31,8 +31,8 @@
   display: grid;
   grid-template-columns:
     minmax(0, 1fr)
-    26px
-    26px;
+    22px
+    22px;
   gap: 4px;
   align-items: center;
   border-bottom: 1px solid
@@ -55,30 +55,6 @@
 
 .content {
   padding: 4px;
-}
-
-.action {
-  height: 22px;
-  min-width: 22px;
-  padding: 0 4px;
-  border: 1px solid
-    var(--vscode-panel-border);
-  border-radius: 4px;
-  color:
-    var(
-      --vscode-descriptionForeground
-    );
-  background: transparent;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.action:hover {
-  color: var(--vscode-foreground);
-  background:
-    var(
-      --vscode-toolbar-hoverBackground
-    );
 }
 
 @media (max-width: 720px) {

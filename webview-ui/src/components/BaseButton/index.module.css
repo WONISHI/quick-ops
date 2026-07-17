@@ -1,0 +1,148 @@
+.button {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  outline: none;
+  font-family: inherit;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.small {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  font-size: 11px;
+}
+
+.medium {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+
+.large {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.default {
+  color: var(--vscode-foreground);
+  background: var(--vscode-button-secondaryBackground, transparent);
+  border-color: var(--vscode-button-border, var(--vscode-panel-border));
+}
+
+.default:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.primary {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border-color: var(--vscode-button-border, transparent);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.danger {
+  color: var(--vscode-errorForeground);
+  background: transparent;
+  border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-panel-border));
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--vscode-inputValidation-errorBackground, var(--vscode-toolbar-hoverBackground));
+}
+
+.text {
+  color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+  background: transparent;
+  border-color: transparent;
+}
+
+.text:hover:not(:disabled) {
+  color: var(--vscode-textLink-activeForeground, var(--vscode-foreground));
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.icon {
+  color: var(--vscode-descriptionForeground);
+  background: transparent;
+  border-color: var(--vscode-panel-border);
+}
+
+.icon:hover:not(:disabled) {
+  color: var(--vscode-foreground);
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.icon-only {
+  padding-right: 0;
+  padding-left: 0;
+}
+
+.icon-only.small {
+  width: 22px;
+}
+
+.icon-only.medium {
+  width: 26px;
+}
+
+.icon-only.large {
+  width: 32px;
+}
+
+.icon-slot {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.icon-slot :global(.codicon) {
+  font-size: inherit;
+}
+
+.content {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.block {
+  width: 100%;
+}
+
+.circle {
+  border-radius: 999px;
+}
+
+.loading {
+  cursor: wait;
+}

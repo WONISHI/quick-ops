@@ -1,3 +1,5 @@
+import BaseButton from '@components/BaseButton';
+
 import type { KeyValueItem } from '@/pages/api-dev-tools-app/src/type';
 
 import styles from './index.module.css';
@@ -124,21 +126,21 @@ export default function KeyValueEditor({ items, onChange, keyPlaceholder = '名�
             }}
           />
 
-          <button
-            type="button"
-            className={styles['icon-button']}
+          <BaseButton
+            type="icon"
+            size="medium"
+            title="删除当前行"
+            icon={<i className="codicon codicon-trash" />}
             onClick={() => {
               removeItem(item.id);
             }}
-          >
-            ×
-          </button>
+          />
         </div>
       ))}
 
-      <button type="button" className={styles['add-button']} onClick={addItem}>
-        + 添加一行
-      </button>
+      <BaseButton type="default" size="medium" className={styles['add-button']} icon={<i className="codicon codicon-add" />} onClick={addItem}>
+        添加一行
+      </BaseButton>
     </div>
   );
 }

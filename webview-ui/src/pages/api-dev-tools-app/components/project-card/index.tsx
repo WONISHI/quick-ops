@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import BaseButton from '@components/BaseButton';
+
 import type { ApiProject } from '@/pages/api-dev-tools-app/src/type';
 
 import styles from './index.module.css';
@@ -62,29 +64,27 @@ export default function ProjectCard({ project, active = false, children, onSelec
           {project.name}
         </button>
 
-        <button
-          type="button"
-          className={styles.action}
+        <BaseButton
+          type="icon"
+          size="small"
           title={`重命名项目：${project.name}`}
+          icon={<i className="codicon codicon-edit" />}
           onClick={(event) => {
             event.stopPropagation();
             onRename();
           }}
-        >
-          改
-        </button>
+        />
 
-        <button
-          type="button"
-          className={styles.action}
+        <BaseButton
+          type="icon"
+          size="small"
           title={`删除项目：${project.name}`}
+          icon={<i className="codicon codicon-trash" />}
           onClick={(event) => {
             event.stopPropagation();
             onRemove();
           }}
-        >
-          删
-        </button>
+        />
       </div>
 
       <div className={styles.content}>{children}</div>

@@ -19,7 +19,10 @@
 .head {
   height: 20px;
   padding: 0 1px;
-  color: var(--vscode-descriptionForeground);
+  color:
+    var(
+      --vscode-descriptionForeground
+    );
   font-size: 11px;
 }
 
@@ -28,55 +31,34 @@
   height: 26px;
   box-sizing: border-box;
   padding: 0 7px;
-  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border: 1px solid
+    var(
+      --vscode-input-border,
+      var(--vscode-panel-border)
+    );
   border-radius: 4px;
   outline: none;
-  color: var(--vscode-input-foreground);
-  background: var(--vscode-input-background);
+  color:
+    var(--vscode-input-foreground);
+  background:
+    var(--vscode-input-background);
   font-size: 12px;
 }
 
 .row input:not([type='checkbox']):focus {
-  border-color: var(--vscode-focusBorder);
+  border-color:
+    var(--vscode-focusBorder);
 }
 
 .row input[type='checkbox'] {
   width: 13px;
   height: 13px;
-  accent-color: var(--vscode-button-background);
-}
-
-.add-button,
-.icon-button {
-  height: 26px;
-  border: 1px solid transparent;
-  border-radius: 4px;
-  font-size: 12px;
-  line-height: 1;
-  cursor: pointer;
+  accent-color:
+    var(
+      --vscode-button-background
+    );
 }
 
 .add-button {
   align-self: flex-start;
-  padding: 0 8px;
-  color: var(--vscode-foreground);
-  background: var(--vscode-button-secondaryBackground, transparent);
-  border-color: var(--vscode-button-border, var(--vscode-panel-border));
-}
-
-.add-button:hover {
-  background: var(--vscode-toolbar-hoverBackground);
-}
-
-.icon-button {
-  width: 26px;
-  padding: 0;
-  color: var(--vscode-descriptionForeground);
-  background: transparent;
-  border-color: var(--vscode-panel-border);
-}
-
-.icon-button:hover {
-  color: var(--vscode-foreground);
-  background: var(--vscode-toolbar-hoverBackground);
 }
