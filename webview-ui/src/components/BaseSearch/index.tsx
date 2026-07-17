@@ -4,6 +4,10 @@ import styles from './index.module.css';
 
 export type BaseSearchDirection = 'prev' | 'next';
 
+export type BaseSearchPosition = 'top' | 'bottom';
+
+export type BaseSearchSize = number | string;
+
 export interface BaseSearchRenderProps {
   /**
    * @description 当前搜索关键词
@@ -19,6 +23,21 @@ export interface BaseSearchRenderProps {
    * @description 当前激活结果下标
    */
   activeIndex: number;
+
+  /**
+   * @description 搜索框固定位置
+   */
+  searchPosition: BaseSearchPosition;
+
+  /**
+   * @description 搜索框标准化后的高度
+   */
+  size: string;
+
+  /**
+   * @description 当前是否允许拖拽
+   */
+  draggable: boolean;
 
   /**
    * @description 渲染带搜索高亮的文本
@@ -68,6 +87,19 @@ export interface BaseSearchProps {
   maxWidth?: number | string;
 
   /**
+   * @description 搜索框高度
+   *
+   * 数字会自动转换为 px，也支持 CSS 尺寸字符串。
+   *
+   * @example
+   * size={34}
+   * size="2.25rem"
+   *
+   * @default 34
+   */
+  size?: BaseSearchSize;
+
+  /**
    * @description 是否区分大小写
    */
   caseSensitive?: boolean;
@@ -78,6 +110,16 @@ export interface BaseSearchProps {
    * @default false
    */
   draggable?: boolean;
+
+  /**
+   * @description 搜索框固定位置
+   *
+   * draggable 为 false 时固定在顶部或底部；
+   * draggable 为 true 时作为初始停靠位置。
+   *
+   * @default 'top'
+   */
+  searchPosition?: BaseSearchPosition;
 
   /**
    * @description 搜索框初始偏移量
@@ -96,9 +138,7 @@ export interface BaseSearchProps {
   /**
    * @description 拖拽结束事件
    */
-  onDragEnd?: (
-    offset: BaseSearchOffset,
-  ) => void;
+  onDragEnd?: (offset: BaseSearchOffset) => void;
 
   /**
    * @description 打开后是否自动聚焦
@@ -174,8 +214,10 @@ export default function BaseSearch({
   style,
   placeholder = '搜索...',
   maxWidth = 560,
+  size = 34,
   caseSensitive = false,
   draggable = false,
+  searchPosition = 'top',
   initialOffset,
   resetOffsetOnClose = true,
   onDragEnd,
@@ -191,10 +233,7 @@ export default function BaseSearch({
     index: 0,
   });
 
-  const [
-    searchBarOffset,
-    setSearchBarOffset,
-  ] = useState<BaseSearchOffset>(() => ({
+  const [searchBarOffset, setSearchBarOffset] = useState<BaseSearchOffset>(() => ({
     x: initialOffset?.x || 0,
     y: initialOffset?.y || 0,
   }));
@@ -225,6 +264,15 @@ export default function BaseSearch({
   });
 
   const normalizedQuery = query.trim();
+
+  const normalizedSearchSize = normalizeSize(size) || '34px';
+
+  const containerStyle = {
+    ...style,
+    '--base-search-size': normalizedSearchSize,
+  } as CSSProperties & {
+    '--base-search-size': string;
+  };
 
   /**
    * @description 计算全部搜索匹配位置
@@ -324,8 +372,7 @@ export default function BaseSearch({
         y: initialOffset?.y || 0,
       };
 
-      searchBarOffsetRef.current =
-        resetOffset;
+      searchBarOffsetRef.current = resetOffset;
 
       setSearchBarOffset(resetOffset);
     }
@@ -334,15 +381,7 @@ export default function BaseSearch({
 
     onQueryChange?.('');
     onClose();
-  }, [
-    caseSensitive,
-    initialOffset?.x,
-    initialOffset?.y,
-    onClose,
-    onQueryChange,
-    resetOffsetOnClose,
-    text,
-  ]);
+  }, [caseSensitive, initialOffset?.x, initialOffset?.y, onClose, onQueryChange, resetOffsetOnClose, text]);
 
   /**
    * @description 跳转到上一个或下一个结果
@@ -432,18 +471,11 @@ export default function BaseSearch({
       const safeTop = clampNumber(nextTop, start.containerTop, maxTop);
 
       const nextOffset = {
-        x:
-          start.offsetX +
-          safeLeft -
-          start.barLeft,
-        y:
-          start.offsetY +
-          safeTop -
-          start.barTop,
+        x: start.offsetX + safeLeft - start.barLeft,
+        y: start.offsetY + safeTop - start.barTop,
       };
 
-      searchBarOffsetRef.current =
-        nextOffset;
+      searchBarOffsetRef.current = nextOffset;
 
       setSearchBarOffset(nextOffset);
     };
@@ -451,9 +483,7 @@ export default function BaseSearch({
     const handlePointerEnd = () => {
       setIsDragging(false);
 
-      onDragEnd?.(
-        searchBarOffsetRef.current,
-      );
+      onDragEnd?.(searchBarOffsetRef.current);
     };
 
     window.addEventListener('pointermove', handlePointerMove, {
@@ -471,10 +501,7 @@ export default function BaseSearch({
 
       window.removeEventListener('pointercancel', handlePointerEnd);
     };
-  }, [
-    isDragging,
-    onDragEnd,
-  ]);
+  }, [isDragging, onDragEnd]);
 
   /**
    * @description 渲染带搜索高亮的文本
@@ -519,24 +546,36 @@ export default function BaseSearch({
     [activeIndex, matches, normalizedQuery, open, total],
   );
 
+  const content = children({
+    query,
+    total,
+    activeIndex,
+    searchPosition,
+    size: normalizedSearchSize,
+    draggable,
+    renderHighlightedText,
+  });
+
   return (
     <div
       ref={containerRef}
-      className={[
-        styles.container,
-        className,
-      ]
-        .filter(Boolean)
-        .join(' ')}
-      style={style}
+      className={[styles.container, draggable ? styles['container-draggable'] : styles[`container-${searchPosition}`], className].filter(Boolean).join(' ')}
+      style={containerStyle}
     >
       {open && (
         <div
           ref={searchBarRef}
-          className={[styles.bar, isDragging ? styles['bar-dragging'] : ''].filter(Boolean).join(' ')}
+          className={[
+            styles.bar,
+            draggable ? styles['bar-draggable'] : styles['bar-fixed'],
+            draggable ? styles[`bar-draggable-${searchPosition}`] : '',
+            isDragging ? styles['bar-dragging'] : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           style={{
             maxWidth: normalizeSize(maxWidth),
-            transform: `translate(${searchBarOffset.x}px, ${searchBarOffset.y}px)`,
+            transform: draggable ? `translate(${searchBarOffset.x}px, ${searchBarOffset.y}px)` : undefined,
           }}
         >
           {draggable && <i className={`codicon codicon-gripper ${styles.grip}`} title="拖拽搜索框" onPointerDown={handlePointerDown} />}
@@ -605,12 +644,7 @@ export default function BaseSearch({
         </div>
       )}
 
-      {children({
-        query,
-        total,
-        activeIndex,
-        renderHighlightedText,
-      })}
+      <div className={styles.content}>{content}</div>
     </div>
   );
 }

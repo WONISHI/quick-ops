@@ -2739,6 +2739,7 @@ export default function ApiDevToolsApp() {
             className={styles['response-panel']}
             placeholder="搜索响应..."
             maxWidth={560}
+            searchPosition='bottom'
             onClose={() => {
               setIsResponseSearchOpen(false);
             }}
