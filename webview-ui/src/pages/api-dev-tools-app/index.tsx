@@ -4,9 +4,7 @@ import styles from '@pages/api-dev-tools-app/index.module.css';
 import BaseDialog from '@components/BaseDialog';
 import BaseSearch from '@components/BaseSearch';
 import BaseTabs from '@components/BaseTabs';
-import BaseCodeEditor, {
-  type BaseCodeEditorLanguage,
-} from '@components/BaseCodeEditor';
+import BaseCodeEditor, { type BaseCodeEditorLanguage } from '@components/BaseCodeEditor';
 import BottomPanels from '@/pages/api-dev-tools-app/components/bottom-panels';
 import InterfaceItem from '@/pages/api-dev-tools-app/components/interface-item';
 import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-editor';
@@ -2030,14 +2028,7 @@ export default function ApiDevToolsApp() {
             </span>
           </div>
 
-          {sharedDocUrl && (
-            <ShareCard
-              url={sharedDocUrl}
-              onOpen={openSharedUrl}
-              onCopy={copySharedUrl}
-              onClose={stopShareDocs}
-            />
-          )}
+          {sharedDocUrl && <ShareCard url={sharedDocUrl} onOpen={openSharedUrl} onCopy={copySharedUrl} onClose={stopShareDocs} />}
 
           <div className={styles['project-list']}>
             {projects.length === 0 ? (
@@ -2052,10 +2043,7 @@ export default function ApiDevToolsApp() {
                 <ProjectCard
                   key={project.id}
                   project={project}
-                  active={
-                    activeProjectId ===
-                    project.id
-                  }
+                  active={activeProjectId === project.id}
                   onSelect={() => {
                     switchProject(project);
                   }}
@@ -2066,53 +2054,27 @@ export default function ApiDevToolsApp() {
                     removeProject(project);
                   }}
                 >
-                  {project.interfaces.length ===
-                  0 ? (
-                    <div
-                      className={
-                        styles['mini-empty']
-                      }
-                    >
-                      暂无接口
-                    </div>
+                  {project.interfaces.length === 0 ? (
+                    <div className={styles['mini-empty']}>暂无接口</div>
                   ) : (
-                    project.interfaces.map(
-                      (api) => (
-                        <InterfaceItem
-                          key={api.id}
-                          api={api}
-                          active={
-                            activeProjectId ===
-                              project.id &&
-                            activeInterfaceId ===
-                              api.id
-                          }
-                          shareMode={
-                            isShareSelecting
-                          }
-                          checked={shareSelectedInterfaceIds.includes(
-                            api.id,
-                          )}
-                          onToggleShare={() => {
-                            toggleShareInterface(
-                              api.id,
-                            );
-                          }}
-                          onSelect={() => {
-                            loadInterface(
-                              project,
-                              api,
-                            );
-                          }}
-                          onRemove={() => {
-                            removeInterface(
-                              project,
-                              api,
-                            );
-                          }}
-                        />
-                      ),
-                    )
+                    project.interfaces.map((api) => (
+                      <InterfaceItem
+                        key={api.id}
+                        api={api}
+                        active={activeProjectId === project.id && activeInterfaceId === api.id}
+                        shareMode={isShareSelecting}
+                        checked={shareSelectedInterfaceIds.includes(api.id)}
+                        onToggleShare={() => {
+                          toggleShareInterface(api.id);
+                        }}
+                        onSelect={() => {
+                          loadInterface(project, api);
+                        }}
+                        onRemove={() => {
+                          removeInterface(project, api);
+                        }}
+                      />
+                    ))
                   )}
                 </ProjectCard>
               ))
@@ -2346,13 +2308,7 @@ export default function ApiDevToolsApp() {
             onPointerDown={handleBottomResizerPointerDown}
           />
 
-          <BottomPanels
-            size={bottomPanelSize}
-            maxSize={bottomPanelMaxSize}
-            history={history}
-            logs={logs}
-            onLoadHistory={loadHistory}
-          />
+          <BottomPanels size={bottomPanelSize} maxSize={bottomPanelMaxSize} history={history} logs={logs} onLoadHistory={loadHistory} />
         </section>
       </main>
 
