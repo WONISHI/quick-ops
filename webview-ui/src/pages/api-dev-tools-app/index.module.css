@@ -914,28 +914,46 @@
   color: var(--vscode-foreground);
 }
 
-.monaco-search-match {
-  border-radius: 2px;
-  background: var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.35));
+
+.request-body-code-editor {
+  flex: 1 1 0;
+  width: 100%;
+  min-width: 0;
+  min-height: 220px;
+  overflow: hidden;
+  border: 1px solid
+    var(
+      --vscode-input-border,
+      var(--vscode-panel-border)
+    );
+  border-radius: 5px;
+  background:
+    var(--vscode-editor-background);
 }
 
-.monaco-search-match-active {
-  border-radius: 2px;
-  color: var(--vscode-editor-findMatchForeground, inherit);
-  background: var(--vscode-editor-findMatchBackground, rgba(81, 92, 106, 0.75));
-  outline: 1px solid var(--vscode-editor-findMatchBorder, var(--vscode-focusBorder));
+.request-body-code-editor
+  .response-code-mirror {
+  height: 100%;
 }
 
 .response-code-mirror {
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
-.response-code-mirror :global(.cm-editor) {
+.response-code-mirror
+  :global(.cm-editor) {
+  width: 100%;
   height: 100%;
 }
 
-.response-code-mirror :global(.cm-scroller) {
+.response-code-mirror
+  :global(.cm-scroller) {
+  width: 100%;
   height: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }

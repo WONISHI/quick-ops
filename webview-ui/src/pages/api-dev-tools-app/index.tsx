@@ -418,19 +418,37 @@ interface ResponseCodeMirrorEditorProps {
   language: ResponseEditorLanguage;
 
   /**
-   * @description 悬浮搜索框是否打开
+   * @description 是否允许编辑
+   *
+   * @default false
    */
-  searchOpen: boolean;
+  editable?: boolean;
+
+  /**
+   * @description 编辑器内容变化事件
+   */
+  onChange?: (value: string) => void;
+
+  /**
+   * @description 悬浮搜索框是否打开
+   *
+   * @default false
+   */
+  searchOpen?: boolean;
 
   /**
    * @description 当前搜索关键词
+   *
+   * @default ''
    */
-  searchQuery: string;
+  searchQuery?: string;
 
   /**
    * @description 当前激活搜索结果下标
+   *
+   * @default 0
    */
-  activeSearchIndex: number;
+  activeSearchIndex?: number;
 }
 
 interface ResponseSearchRange {
@@ -594,7 +612,15 @@ function getResponseSearchRanges(view: EditorView, query: SearchQuery): Response
 /**
  * @description 使用 CodeMirror 6 显示只读响应内容
  */
-function ResponseCodeMirrorEditor({ value, language, searchOpen, searchQuery, activeSearchIndex }: ResponseCodeMirrorEditorProps) {
+function ResponseCodeMirrorEditor({
+  value,
+  language,
+  editable = false,
+  onChange,
+  searchOpen = false,
+  searchQuery = '',
+  activeSearchIndex = 0,
+}: ResponseCodeMirrorEditorProps) {
   const theme = useResponseCodeMirrorTheme();
 
   const editorViewRef = useRef<EditorView | null>(null);
@@ -694,39 +720,57 @@ function ResponseCodeMirrorEditor({ value, language, searchOpen, searchQuery, ac
 
   return (
     <CodeMirror
-      className={styles['response-code-mirror']}
+      className={
+        styles['response-code-mirror']
+      }
       width="100%"
-      height={searchOpen ? 'calc(100% - 42px)' : '100%'}
+      height="100%"
       value={value}
       theme={theme}
       extensions={extensions}
-      editable={false}
-      readOnly
-      indentWithTab={false}
+      editable={editable}
+      readOnly={!editable}
+      indentWithTab={editable}
+      onChange={(nextValue) => {
+        if (!editable) return;
+
+        onChange?.(nextValue);
+      }}
       onCreateEditor={handleCreateEditor}
       basicSetup={{
         lineNumbers: true,
-        highlightActiveLineGutter: false,
+        highlightActiveLineGutter:
+          editable,
         highlightSpecialChars: false,
-        history: false,
-        foldGutter: language === 'json',
+        history: editable,
+        foldGutter:
+          language === 'json',
         drawSelection: true,
-        dropCursor: false,
-        allowMultipleSelections: false,
-        indentOnInput: false,
+        dropCursor: editable,
+        allowMultipleSelections:
+          false,
+        indentOnInput: editable,
         syntaxHighlighting: true,
-        bracketMatching: language === 'json',
-        closeBrackets: false,
+        bracketMatching:
+          language === 'json',
+        closeBrackets:
+          editable &&
+          language === 'json',
         autocompletion: false,
         rectangularSelection: false,
         crosshairCursor: false,
-        highlightActiveLine: false,
-        highlightSelectionMatches: false,
-        closeBracketsKeymap: false,
-        defaultKeymap: false,
+        highlightActiveLine:
+          editable,
+        highlightSelectionMatches:
+          false,
+        closeBracketsKeymap:
+          editable &&
+          language === 'json',
+        defaultKeymap: editable,
         searchKeymap: false,
-        historyKeymap: false,
-        foldKeymap: language === 'json',
+        historyKeymap: editable,
+        foldKeymap:
+          language === 'json',
         completionKeymap: false,
         lintKeymap: false,
       }}
@@ -894,9 +938,6 @@ export default function ApiDevToolsApp() {
     globalsRef.current = globals;
   }, [globals]);
 
-  /**
-   * @description 同步响应搜索框偏移引用
-   */
   /**
    * @description 同步当前请求引用
    */
@@ -2683,8 +2724,31 @@ export default function ApiDevToolsApp() {
 
                 {request.bodyType === 'none' && <div className={styles['empty-state']}>该请求不发送 Body</div>}
 
-                {(request.bodyType === 'json' || request.bodyType === 'raw') && (
-                  <textarea className={styles['code-editor']} spellCheck={false} value={request.bodyRaw} onChange={(event) => patchRequest({ bodyRaw: event.target.value })} />
+                {(request.bodyType === 'json' ||
+                  request.bodyType === 'raw') && (
+                  <div
+                    className={
+                      styles[
+                        'request-body-code-editor'
+                      ]
+                    }
+                  >
+                    <ResponseCodeMirrorEditor
+                      value={request.bodyRaw}
+                      language={
+                        request.bodyType ===
+                        'json'
+                          ? 'json'
+                          : 'plaintext'
+                      }
+                      editable
+                      onChange={(bodyRaw) => {
+                        patchRequest({
+                          bodyRaw,
+                        });
+                      }}
+                    />
+                  </div>
                 )}
 
                 {request.bodyType === 'form-urlencoded' && (
