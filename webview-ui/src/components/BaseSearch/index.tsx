@@ -213,7 +213,7 @@ export default function BaseSearch({
   className,
   style,
   placeholder = '搜索...',
-  maxWidth = 560,
+  maxWidth = 'none',
   size = 34,
   caseSensitive = false,
   draggable = false,

@@ -1,13 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import CodeMirror from '@uiw/react-codemirror';
-import { json } from '@codemirror/lang-json';
-import { SearchQuery, search, setSearchQuery } from '@codemirror/search';
-import { EditorView } from '@codemirror/view';
 import { vscode } from '@utils/vscode';
 import styles from '@pages/api-dev-tools-app/index.module.css';
 import BaseDialog from '@components/BaseDialog';
 import BaseSearch from '@components/BaseSearch';
+import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-editor';
+import BaseCodeEditor, { type BaseCodeEditorLanguage } from '@components/BaseCodeEditor';
 import { buildApiDocsHtml } from '@/pages/api-dev-tools-app/src/api-docs-builder';
+import { formatSize, safeBase64, clampNumber, tryFormatJson, isJsonLikeText, cloneRequest } from '@/pages/api-dev-tools-app/src/api-dev-tools.utils';
 import type {
   HttpMethod,
   RequestTab,
@@ -44,14 +43,6 @@ import {
   WORKSPACE_PANE_MAX_WIDTH,
   WORKSPACE_RESIZER_SIZE,
 } from '@/pages/api-dev-tools-app/src/constants';
-
-/**
- * @description 将数值限制在指定的最小值和最大值之间
- */
-function clampNumber(value: number, min: number, max: number) {
-  const safeMax = Math.max(min, max);
-  return Math.min(Math.max(value, min), safeMax);
-}
 
 /**
  * @description 创建带指定前缀的唯一标识
@@ -127,7 +118,7 @@ function createProject(name = '默认项目'): ApiProject {
  */
 function createInterfaceFromRequest(request: ApiRequestConfig, name?: string): ApiInterfaceItem {
   const now = Date.now();
-  const snapshot = cloneRequest({
+  const snapshot = cloneRequest<ApiRequestConfig>({
     ...request,
     name: name || request.name || request.url || '未命名接口',
   });
@@ -282,21 +273,6 @@ function getEnabledObject(list: KeyValueItem[], variables: Record<string, string
 }
 
 /**
- * @description 尝试格式化 JSON 文本
- */
-function tryFormatJson(text: string) {
-  const value = String(text || '').trim();
-
-  if (!value) return '';
-
-  try {
-    return JSON.stringify(JSON.parse(value), null, 2);
-  } catch {
-    return text;
-  }
-}
-
-/**
  * @description 获取响应内容类型
  */
 function getResponseContentType(response: ApiResponsePayload | null) {
@@ -320,34 +296,6 @@ function getDisplayResponseBody(response: ApiResponsePayload | null) {
   }
 
   return response.body || '';
-}
-
-/**
- * @description 格式化字节大小
- */
-function formatSize(size: number) {
-  if (!size) return '0 B';
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
-  return `${(size / 1024 / 1024).toFixed(1)} MB`;
-}
-
-/**
- * @description 将文本安全转换为 Base64
- */
-function safeBase64(value: string) {
-  try {
-    return btoa(unescape(encodeURIComponent(value)));
-  } catch {
-    return btoa(value);
-  }
-}
-
-/**
- * @description 深拷贝接口请求配置
- */
-function cloneRequest(request: ApiRequestConfig): ApiRequestConfig {
-  return JSON.parse(JSON.stringify(request));
 }
 
 /**
@@ -402,173 +350,10 @@ function isDefaultRequestSnapshot(request: ApiRequestConfig) {
   return isSameRequest(request, createDefaultRequest());
 }
 
-type ResponseEditorLanguage = 'json' | 'plaintext';
-
-type ResponseCodeMirrorTheme = 'light' | 'dark';
-
-interface ResponseCodeMirrorEditorProps {
-  /**
-   * @description 编辑器显示内容
-   */
-  value: string;
-
-  /**
-   * @description 编辑器语言
-   */
-  language: ResponseEditorLanguage;
-
-  /**
-   * @description 是否允许编辑
-   *
-   * @default false
-   */
-  editable?: boolean;
-
-  /**
-   * @description 编辑器内容变化事件
-   */
-  onChange?: (value: string) => void;
-
-  /**
-   * @description 悬浮搜索框是否打开
-   *
-   * @default false
-   */
-  searchOpen?: boolean;
-
-  /**
-   * @description 当前搜索关键词
-   *
-   * @default ''
-   */
-  searchQuery?: string;
-
-  /**
-   * @description 当前激活搜索结果下标
-   *
-   * @default 0
-   */
-  activeSearchIndex?: number;
-}
-
-interface ResponseSearchRange {
-  from: number;
-  to: number;
-}
-
-const responseCodeMirrorSearch = search({
-  top: true,
-});
-
-const responseCodeMirrorTheme = EditorView.theme({
-  '&': {
-    height: '100%',
-    color: 'var(--vscode-editor-foreground)',
-    backgroundColor: 'var(--vscode-editor-background)',
-  },
-  '&.cm-focused': {
-    outline: 'none',
-  },
-  '.cm-scroller': {
-    overflow: 'auto',
-    fontFamily: 'var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace)',
-    fontSize: 'var(--vscode-editor-font-size, 12px)',
-    lineHeight: 'var(--vscode-editor-line-height, 1.45)',
-  },
-  '.cm-content': {
-    padding: '8px 0',
-    caretColor: 'var(--vscode-editorCursor-foreground)',
-  },
-  '.cm-line': {
-    padding: '0 8px',
-  },
-  '.cm-gutters': {
-    color: 'var(--vscode-editorLineNumber-foreground)',
-    backgroundColor: 'var(--vscode-editor-background)',
-    border: 'none',
-  },
-  '.cm-activeLine': {
-    backgroundColor: 'transparent',
-  },
-  '.cm-activeLineGutter': {
-    color: 'var(--vscode-editorLineNumber-activeForeground)',
-    backgroundColor: 'transparent',
-  },
-  '.cm-foldGutter .cm-gutterElement': {
-    color: 'var(--vscode-icon-foreground)',
-  },
-  '.cm-selectionBackground, ::selection': {
-    backgroundColor: 'var(--vscode-editor-selectionBackground) !important',
-  },
-  '.cm-searchMatch': {
-    padding: '0 1px',
-    borderRadius: '2px',
-    backgroundColor: 'var(--vscode-editor-findMatchHighlightBackground, rgba(234, 92, 0, 0.35))',
-  },
-  '.cm-searchMatch.cm-searchMatch-selected': {
-    color: 'var(--vscode-editor-findMatchForeground, inherit)',
-    backgroundColor: 'var(--vscode-editor-findMatchBackground, rgba(81, 92, 106, 0.75))',
-    outline: '1px solid var(--vscode-editor-findMatchBorder, var(--vscode-focusBorder))',
-  },
-  '.cm-panels': {
-    display: 'none',
-  },
-});
-
-/**
- * @description 获取适配 VS Code 当前颜色模式的 CodeMirror 主题
- */
-function getResponseCodeMirrorTheme(): ResponseCodeMirrorTheme {
-  const classList = document.body.classList;
-
-  const isDark = classList.contains('vscode-dark') || classList.contains('vscode-high-contrast');
-
-  return isDark ? 'dark' : 'light';
-}
-
-/**
- * @description 监听 VS Code Webview 主题变化
- */
-function useResponseCodeMirrorTheme(): ResponseCodeMirrorTheme {
-  const [theme, setTheme] = useState<ResponseCodeMirrorTheme>(getResponseCodeMirrorTheme);
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      const nextTheme = getResponseCodeMirrorTheme();
-
-      setTheme((currentTheme) => {
-        return currentTheme === nextTheme ? currentTheme : nextTheme;
-      });
-    });
-
-    observer.observe(document.body, {
-      attributes: true,
-      attributeFilter: ['class'],
-    });
-
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
-
-  return theme;
-}
-
-/**
- * @description 判断文本是否可能为 JSON
- */
-function isJsonLikeText(value: string): boolean {
-  const firstCharacter = String(value || '')
-    .trim()
-    .charAt(0);
-
-  return firstCharacter === '{' || firstCharacter === '[';
-}
-
 /**
  * @description 获取响应编辑器语言
  */
-function getResponseEditorLanguage(response: ApiResponsePayload | null, responseTab: ResponseTab, value: string): ResponseEditorLanguage {
+function getResponseEditorLanguage(response: ApiResponsePayload | null, responseTab: ResponseTab, value: string): BaseCodeEditorLanguage {
   if (!response || response.error) {
     return 'plaintext';
   }
@@ -584,253 +369,6 @@ function getResponseEditorLanguage(response: ApiResponsePayload | null, response
   }
 
   return 'plaintext';
-}
-
-/**
- * @description 获取当前搜索条件的全部匹配范围
- */
-function getResponseSearchRanges(view: EditorView, query: SearchQuery): ResponseSearchRange[] {
-  const result: ResponseSearchRange[] = [];
-  const cursor = query.getCursor(view.state);
-
-  while (true) {
-    const current = cursor.next();
-
-    if (current.done) {
-      break;
-    }
-
-    result.push({
-      from: current.value.from,
-      to: current.value.to,
-    });
-  }
-
-  return result;
-}
-
-/**
- * @description 使用 CodeMirror 6 显示只读响应内容
- */
-function ResponseCodeMirrorEditor({
-  value,
-  language,
-  editable = false,
-  onChange,
-  searchOpen = false,
-  searchQuery = '',
-  activeSearchIndex = 0,
-}: ResponseCodeMirrorEditorProps) {
-  const theme = useResponseCodeMirrorTheme();
-
-  const editorViewRef = useRef<EditorView | null>(null);
-
-  /**
-   * @description 计算 CodeMirror 扩展
-   */
-  const extensions = useMemo(() => {
-    return [...(language === 'json' ? [json()] : []), responseCodeMirrorSearch, responseCodeMirrorTheme, EditorView.lineWrapping];
-  }, [language]);
-
-  /**
-   * @description 同步悬浮搜索条件到 CodeMirror
-   */
-  const syncSearch = useCallback(
-    (targetView = editorViewRef.current) => {
-      if (!targetView) return;
-
-      const normalizedQuery = searchOpen ? searchQuery.trim() : '';
-
-      const query = new SearchQuery({
-        search: normalizedQuery,
-        caseSensitive: false,
-        literal: true,
-      });
-
-      if (!normalizedQuery || !query.valid) {
-        const currentHead = targetView.state.selection.main.head;
-
-        targetView.dispatch({
-          selection: {
-            anchor: currentHead,
-          },
-          effects: setSearchQuery.of(query),
-        });
-
-        return;
-      }
-
-      const ranges = getResponseSearchRanges(targetView, query);
-
-      const safeActiveIndex = ranges.length > 0 ? Math.min(Math.max(activeSearchIndex, 0), ranges.length - 1) : 0;
-
-      const activeRange = ranges[safeActiveIndex];
-
-      if (!activeRange) {
-        targetView.dispatch({
-          effects: setSearchQuery.of(query),
-        });
-
-        return;
-      }
-
-      targetView.dispatch({
-        selection: {
-          anchor: activeRange.from,
-          head: activeRange.to,
-        },
-        effects: [
-          setSearchQuery.of(query),
-          EditorView.scrollIntoView(activeRange.from, {
-            y: 'center',
-          }),
-        ],
-      });
-    },
-    [activeSearchIndex, searchOpen, searchQuery],
-  );
-
-  /**
-   * @description 内容或搜索条件变化后同步编辑器
-   */
-  useEffect(() => {
-    syncSearch();
-  }, [language, syncSearch, value]);
-
-  /**
-   * @description 保存 CodeMirror 编辑器实例
-   */
-  const handleCreateEditor = useCallback(
-    (view: EditorView) => {
-      editorViewRef.current = view;
-
-      syncSearch(view);
-    },
-    [syncSearch],
-  );
-
-  /**
-   * @description 组件销毁时清理编辑器引用
-   */
-  useEffect(() => {
-    return () => {
-      editorViewRef.current = null;
-    };
-  }, []);
-
-  return (
-    <CodeMirror
-      className={
-        styles['response-code-mirror']
-      }
-      width="100%"
-      height="100%"
-      value={value}
-      theme={theme}
-      extensions={extensions}
-      editable={editable}
-      readOnly={!editable}
-      indentWithTab={editable}
-      onChange={(nextValue) => {
-        if (!editable) return;
-
-        onChange?.(nextValue);
-      }}
-      onCreateEditor={handleCreateEditor}
-      basicSetup={{
-        lineNumbers: true,
-        highlightActiveLineGutter:
-          editable,
-        highlightSpecialChars: false,
-        history: editable,
-        foldGutter:
-          language === 'json',
-        drawSelection: true,
-        dropCursor: editable,
-        allowMultipleSelections:
-          false,
-        indentOnInput: editable,
-        syntaxHighlighting: true,
-        bracketMatching:
-          language === 'json',
-        closeBrackets:
-          editable &&
-          language === 'json',
-        autocompletion: false,
-        rectangularSelection: false,
-        crosshairCursor: false,
-        highlightActiveLine:
-          editable,
-        highlightSelectionMatches:
-          false,
-        closeBracketsKeymap:
-          editable &&
-          language === 'json',
-        defaultKeymap: editable,
-        searchKeymap: false,
-        historyKeymap: editable,
-        foldKeymap:
-          language === 'json',
-        completionKeymap: false,
-        lintKeymap: false,
-      }}
-    />
-  );
-}
-
-/**
- * @description 渲染键值编辑器
- */
-function KeyValueEditor(props: { items: KeyValueItem[]; onChange: (items: KeyValueItem[]) => void; keyPlaceholder?: string; valuePlaceholder?: string }) {
-  const { items, onChange, keyPlaceholder = '名称', valuePlaceholder = '值' } = props;
-
-  /**
-   * @description 更新键值配置项
-   */
-  const updateItem = (id: string, patch: Partial<KeyValueItem>) => {
-    onChange(items.map((item) => (item.id === id ? { ...item, ...patch } : item)));
-  };
-
-  /**
-   * @description 删除键值配置项
-   */
-  const removeItem = (id: string) => {
-    const next = items.filter((item) => item.id !== id);
-    onChange(next.length > 0 ? next : [createKeyValue()]);
-  };
-
-  /**
-   * @description 添加键值配置项
-   */
-  const addItem = () => {
-    onChange([...items, createKeyValue()]);
-  };
-
-  return (
-    <div className={styles['kv-editor']}>
-      <div className={styles['kv-head']}>
-        <span />
-        <span>{keyPlaceholder}</span>
-        <span>{valuePlaceholder}</span>
-        <span />
-      </div>
-
-      {items.map((item) => (
-        <div className={styles['kv-row']} key={item.id}>
-          <input type="checkbox" checked={item.enabled} onChange={(event) => updateItem(item.id, { enabled: event.target.checked })} />
-          <input value={item.key} placeholder={keyPlaceholder} onChange={(event) => updateItem(item.id, { key: event.target.value })} />
-          <input value={item.value} placeholder={valuePlaceholder} onChange={(event) => updateItem(item.id, { value: event.target.value })} />
-          <button className={styles['icon-btn']} onClick={() => removeItem(item.id)}>
-            ×
-          </button>
-        </div>
-      ))}
-
-      <button className={styles['ghost-btn']} onClick={addItem}>
-        + 添加一行
-      </button>
-    </div>
-  );
 }
 
 /**
@@ -1347,7 +885,7 @@ export default function ApiDevToolsApp() {
       if (!code) return draft;
 
       try {
-        const mutableRequest = cloneRequest(draft);
+        const mutableRequest = cloneRequest<ApiRequestConfig>(draft);
         const mutableGlobals = { ...globalVariablesRef.current };
         const fn = new Function('request', 'globals', 'console', code);
 
@@ -1440,7 +978,7 @@ export default function ApiDevToolsApp() {
           status: payload.status,
           duration: payload.duration,
           timestamp: Date.now(),
-          request: cloneRequest(currentRequest),
+          request: cloneRequest<ApiRequestConfig>(currentRequest),
         };
 
         setHistory((prev) => {
@@ -1660,7 +1198,7 @@ export default function ApiDevToolsApp() {
   const loadHistory = async (item: HistoryItem) => {
     if (!(await confirmSaveBeforeLeave())) return;
 
-    const nextRequest = cloneRequest(item.request);
+    const nextRequest = cloneRequest<ApiRequestConfig>(item.request);
 
     requestRef.current = nextRequest;
     activeInterfaceIdRef.current = '';
@@ -1738,7 +1276,7 @@ export default function ApiDevToolsApp() {
    */
   const saveCurrentRequestToProject = (options?: { silent?: boolean }) => {
     const now = Date.now();
-    const snapshot = cloneRequest(requestRef.current);
+    const snapshot = cloneRequest<ApiRequestConfig>(requestRef.current);
     const requestName = snapshot.name || snapshot.url || '未命名接口';
 
     snapshot.name = requestName;
@@ -1757,7 +1295,7 @@ export default function ApiDevToolsApp() {
       nextProjects = [project, ...nextProjects];
     }
 
-    let savedRequest = cloneRequest(snapshot);
+    let savedRequest = cloneRequest<ApiRequestConfig>(snapshot);
     let savedInterfaceName = requestName;
     let savedType: '新增' | '更新' = '新增';
 
@@ -1770,7 +1308,7 @@ export default function ApiDevToolsApp() {
         const api = createInterfaceFromRequest(snapshot, requestName);
 
         targetInterfaceId = api.id;
-        savedRequest = cloneRequest(api.request);
+        savedRequest = cloneRequest<ApiRequestConfig>(api.request);
         savedInterfaceName = api.name;
 
         return {
@@ -1789,14 +1327,14 @@ export default function ApiDevToolsApp() {
           if (api.id !== targetInterfaceId) return api;
 
           savedInterfaceName = requestName;
-          savedRequest = cloneRequest(snapshot);
+          savedRequest = cloneRequest<ApiRequestConfig>(snapshot);
 
           return {
             ...api,
             name: requestName,
             method: snapshot.method,
             url: snapshot.url,
-            request: cloneRequest(snapshot),
+            request: cloneRequest<ApiRequestConfig>(snapshot),
             updatedAt: now,
           };
         }),
@@ -1840,7 +1378,7 @@ export default function ApiDevToolsApp() {
     const currentInterfaceId = activeInterfaceIdRef.current;
     const currentInterface = currentProjectId && currentInterfaceId ? getInterfaceById(currentProjectId, currentInterfaceId) : null;
 
-    const restoredRequest = currentInterface ? cloneRequest(currentInterface.request) : createDefaultRequest();
+    const restoredRequest = currentInterface ? cloneRequest<ApiRequestConfig>(currentInterface.request) : createDefaultRequest();
 
     requestRef.current = restoredRequest;
 
@@ -1931,7 +1469,7 @@ export default function ApiDevToolsApp() {
     if (!(await confirmSaveBeforeLeave())) return;
 
     if (firstInterface) {
-      const nextRequest = cloneRequest(firstInterface.request);
+      const nextRequest = cloneRequest<ApiRequestConfig>(firstInterface.request);
 
       activeProjectIdRef.current = project.id;
       activeInterfaceIdRef.current = firstInterface.id;
@@ -2026,7 +1564,7 @@ export default function ApiDevToolsApp() {
 
     if (!(await confirmSaveBeforeLeave())) return;
 
-    const nextRequest = cloneRequest(api.request);
+    const nextRequest = cloneRequest<ApiRequestConfig>(api.request);
 
     activeProjectIdRef.current = project.id;
     activeInterfaceIdRef.current = api.id;
@@ -2107,7 +1645,7 @@ export default function ApiDevToolsApp() {
       if (!value) return;
 
       const now = Date.now();
-      const snapshot = cloneRequest({ ...requestRef.current, name: value });
+      const snapshot = cloneRequest<ApiRequestConfig>({ ...requestRef.current, name: value });
       let projectId = activeProjectIdRef.current;
       let nextProjects = projectsRef.current.map((project) => ({
         ...project,
@@ -2128,10 +1666,10 @@ export default function ApiDevToolsApp() {
       projectsRef.current = nextProjects;
       activeProjectIdRef.current = projectId;
       activeInterfaceIdRef.current = api.id;
-      requestRef.current = cloneRequest(api.request);
+      requestRef.current = cloneRequest<ApiRequestConfig>(api.request);
 
       setProjects(nextProjects);
-      setRequest(cloneRequest(api.request));
+      setRequest(cloneRequest<ApiRequestConfig>(api.request));
       setActiveProjectId(projectId);
       setActiveInterfaceId(api.id);
       saveState({
@@ -2229,11 +1767,11 @@ export default function ApiDevToolsApp() {
             if (project.id !== activeProjectIdValue || api.id !== activeInterfaceIdValue) {
               return {
                 ...api,
-                request: cloneRequest(api.request),
+                request: cloneRequest<ApiRequestConfig>(api.request),
               };
             }
 
-            const liveRequest = cloneRequest(requestRef.current);
+            const liveRequest = cloneRequest<ApiRequestConfig>(requestRef.current);
             const liveName = liveRequest.name || api.name || '未命名接口';
 
             return {
@@ -2724,23 +2262,11 @@ export default function ApiDevToolsApp() {
 
                 {request.bodyType === 'none' && <div className={styles['empty-state']}>该请求不发送 Body</div>}
 
-                {(request.bodyType === 'json' ||
-                  request.bodyType === 'raw') && (
-                  <div
-                    className={
-                      styles[
-                        'request-body-code-editor'
-                      ]
-                    }
-                  >
-                    <ResponseCodeMirrorEditor
+                {(request.bodyType === 'json' || request.bodyType === 'raw') && (
+                  <div className={styles['request-body-code-editor']}>
+                    <BaseCodeEditor
                       value={request.bodyRaw}
-                      language={
-                        request.bodyType ===
-                        'json'
-                          ? 'json'
-                          : 'plaintext'
-                      }
+                      language={request.bodyType === 'json' ? 'json' : 'plaintext'}
                       editable
                       onChange={(bodyRaw) => {
                         patchRequest({
@@ -2802,7 +2328,7 @@ export default function ApiDevToolsApp() {
             text={responseEditorValue}
             className={styles['response-panel']}
             placeholder="搜索响应..."
-            searchPosition='bottom'
+            searchPosition="bottom"
             onClose={() => {
               setIsResponseSearchOpen(false);
             }}
@@ -2820,12 +2346,14 @@ export default function ApiDevToolsApp() {
                 )}
 
                 {!loading && response && (
-                  <ResponseCodeMirrorEditor
+                  <BaseCodeEditor
                     value={responseEditorValue}
                     language={responseEditorLanguage}
-                    searchOpen={isResponseSearchOpen}
-                    searchQuery={query}
-                    activeSearchIndex={activeIndex}
+                    search={{
+                      open: isResponseSearchOpen,
+                      query,
+                      activeIndex,
+                    }}
                   />
                 )}
               </>
@@ -2877,6 +2405,7 @@ export default function ApiDevToolsApp() {
         </section>
       </main>
 
+      {/* 清空提醒 */}
       <BaseDialog
         open={Boolean(manageDialog)}
         title={manageDialog?.title || ''}
@@ -2925,6 +2454,7 @@ export default function ApiDevToolsApp() {
           ))}
       </BaseDialog>
 
+      {/* 离开提醒 */}
       <BaseDialog
         open={Boolean(leaveConfirmDialog)}
         title={leaveConfirmDialog?.title || ''}
