@@ -550,6 +550,11 @@
         "command": "quickOps.apiDevTools.sendRequest",
         "title": "Q-ops Api: 发送请求",
         "icon": "$(send)"
+      },
+      {
+        "command": "quickOps.apiDevTools.stopRequest",
+        "title": "Q-ops Api: 中断请求",
+        "icon": "$(stop-circle)"
       }
     ],
     "keybindings": [
@@ -666,7 +671,12 @@
         },
         {
           "command": "quickOps.apiDevTools.sendRequest",
-          "when": "view == quickOpsApiDevTools",
+          "when": "view == quickOpsApiDevTools && !quickOps.apiDevTools.loading",
+          "group": "navigation@8"
+        },
+        {
+          "command": "quickOps.apiDevTools.stopRequest",
+          "when": "view == quickOpsApiDevTools && quickOps.apiDevTools.loading",
           "group": "navigation@8"
         }
       ],

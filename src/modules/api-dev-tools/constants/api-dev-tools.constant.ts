@@ -5,6 +5,11 @@ export const API_DEV_TOOLS_WEBVIEW_ROUTE = '/api-fox';
 export const API_DEV_TOOLS_STATE_KEY = 'quickOps.apiDevTools.state';
 
 /**
+ * @description API DevTools 请求加载状态上下文
+ */
+export const API_DEV_TOOLS_LOADING_CONTEXT = 'quickOps.apiDevTools.loading';
+
+/**
  * @description API DevTools View 标题栏命令
  */
 export const API_DEV_TOOLS_COMMANDS = {
@@ -16,6 +21,7 @@ export const API_DEV_TOOLS_COMMANDS = {
   SHOW_GLOBALS: 'quickOps.apiDevTools.showGlobals',
   CLEAR_ALL: 'quickOps.apiDevTools.clearAll',
   SEND_REQUEST: 'quickOps.apiDevTools.sendRequest',
+  STOP_REQUEST: 'quickOps.apiDevTools.stopRequest',
 } as const;
 
 /**

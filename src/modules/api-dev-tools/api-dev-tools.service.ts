@@ -11,6 +11,8 @@ export class ApiDevToolsService {
 
   private docServer?: http.Server;
   private docShareHtml = '';
+  private readonly apiRequestControllers = new Map<string, AbortController>();
+  private readonly stoppedApiRequestIds = new Set<string>();
 
   constructor(private readonly extensionContextProvider: ExtensionContextProvider) {}
 
@@ -49,11 +51,24 @@ export class ApiDevToolsService {
       };
     }
 
+    const previousController = this.apiRequestControllers.get(requestId);
+
+    if (previousController && !previousController.signal.aborted) {
+      previousController.abort();
+    }
+
+    this.stoppedApiRequestIds.delete(requestId);
+
     const controller = new AbortController();
+
+    this.apiRequestControllers.set(requestId, controller);
+
     const timer =
       timeout > 0
         ? setTimeout(() => {
-            controller.abort();
+            if (!controller.signal.aborted) {
+              controller.abort();
+            }
           }, timeout)
         : undefined;
 
@@ -87,25 +102,58 @@ export class ApiDevToolsService {
         body: responseBody,
       };
     } catch (error: unknown) {
-      const isAbort = typeof error === 'object' && error !== null && 'name' in error && String((error as { name?: unknown }).name || '') === 'AbortError';
+      const isAbort =
+        controller.signal.aborted ||
+        (typeof error === 'object' &&
+          error !== null &&
+          'name' in error &&
+          String((error as { name?: unknown }).name || '') === 'AbortError');
+
+      const isStopped = this.stoppedApiRequestIds.has(requestId);
 
       return {
         requestId,
         ok: false,
         url,
         status: 0,
-        statusText: isAbort ? 'Timeout' : 'Request Failed',
+        statusText: isStopped ? 'Cancelled' : isAbort ? 'Timeout' : 'Request Failed',
         duration: Date.now() - start,
         size: 0,
         headers: {},
         body: '',
-        error: isAbort ? `请求超时：${timeout}ms` : this.toErrorMessage(error),
+        error: isStopped ? '请求已中断' : isAbort ? `请求超时：${timeout}ms` : this.toErrorMessage(error),
       };
     } finally {
       if (timer) {
         clearTimeout(timer);
       }
+
+      if (this.apiRequestControllers.get(requestId) === controller) {
+        this.apiRequestControllers.delete(requestId);
+      }
+
+      this.stoppedApiRequestIds.delete(requestId);
     }
+  }
+
+  /**
+   * @description 中断指定 API 请求
+   */
+  public stopApiRequest(requestId: string): boolean {
+    const id = String(requestId || '').trim();
+
+    if (!id) return false;
+
+    const controller = this.apiRequestControllers.get(id);
+
+    if (!controller || controller.signal.aborted) {
+      return false;
+    }
+
+    this.stoppedApiRequestIds.add(id);
+    controller.abort();
+
+    return true;
   }
 
   public async shareApiDocs(payload: ApiDocsPayload): Promise<ApiDocsSharePayload | undefined> {
@@ -251,6 +299,14 @@ export class ApiDevToolsService {
   }
 
   public dispose(): void {
+    this.apiRequestControllers.forEach((controller) => {
+      if (!controller.signal.aborted) {
+        controller.abort();
+      }
+    });
+
+    this.apiRequestControllers.clear();
+    this.stoppedApiRequestIds.clear();
     this.closeDocServer();
     this.docShareHtml = '';
   }
