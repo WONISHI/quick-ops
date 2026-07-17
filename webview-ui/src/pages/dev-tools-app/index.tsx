@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { vscode } from '../../utils/vscode';
+import { vscode } from '@utils/vscode';
 import styles from './index.module.css';
 
 interface DevToolsState {
@@ -66,9 +66,7 @@ export default function DevToolsApp() {
             <i className="codicon codicon-debug-alt" />
           </div>
           <div className={styles['devtools-empty-title']}>DevTools</div>
-          <div className={styles['devtools-empty-desc']}>
-            点击网页预览工具栏中的 DevTools 后会显示在这里
-          </div>
+          <div className={styles['devtools-empty-desc']}>点击网页预览工具栏中的 DevTools 后会显示在这里</div>
         </div>
       </div>
     );
@@ -82,21 +80,11 @@ export default function DevToolsApp() {
           {state.devToolsUrl}
         </span>
 
-        <button
-          className={styles['devtools-action']}
-          type="button"
-          onClick={reloadDevTools}
-          title="刷新 DevTools"
-        >
+        <button className={styles['devtools-action']} type="button" onClick={reloadDevTools} title="刷新 DevTools">
           刷新
         </button>
 
-        <button
-          className={styles['devtools-action']}
-          type="button"
-          onClick={openExternal}
-          title="在外部浏览器打开 DevTools"
-        >
+        <button className={styles['devtools-action']} type="button" onClick={openExternal} title="在外部浏览器打开 DevTools">
           外部打开
         </button>
       </div>

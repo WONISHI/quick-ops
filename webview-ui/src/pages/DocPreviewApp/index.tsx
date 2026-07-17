@@ -145,12 +145,7 @@ export default function DocPreviewApp() {
     <div className={styles['app-container']}>
       <div className={styles['toolbar']}>
         <div className={styles['toolbar-title']}>
-          <img
-            src={wordIcon}
-            className={styles['toolbar-icon']}
-            alt=""
-            draggable={false}
-          />
+          <img src={wordIcon} className={styles['toolbar-icon']} alt="" draggable={false} />
           <span className={styles['toolbar-file-name']}>{fileName || 'Word 预览'}</span>
         </div>
       </div>
@@ -170,10 +165,7 @@ export default function DocPreviewApp() {
           </div>
         )}
 
-        <div
-          ref={containerRef}
-          className={`${styles['doc-container']} ${loading || error ? styles['doc-container-hidden'] : ''}`}
-        />
+        <div ref={containerRef} className={`${styles['doc-container']} ${loading || error ? styles['doc-container-hidden'] : ''}`} />
       </div>
     </div>
   );

@@ -17,8 +17,8 @@ import PdfPreviewApp from './pages/PdfPreviewApp';
 import GitDetailApp from './pages/GitDetailApp';
 import HtmlPreviewApp from './pages/HtmlPreviewApp';
 import DocPreviewApp from './pages/DocPreviewApp';
-import DevToolsApp from './pages/DevToolsApp';
 import ApiDevToolsApp from './pages/api-dev-tools-app';
+import DevToolsApp from './pages/dev-tools-app';
 import './index.css';
 import '@vscode/codicons/dist/codicon.css';
 

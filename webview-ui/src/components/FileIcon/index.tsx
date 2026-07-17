@@ -276,6 +276,7 @@ const EXTENSIONS: Record<string, string> = {
   rar: zipIcon,
   '7z': zipIcon,
   xlsx: xlsxIcon,
+  xls: xlsxIcon,
   'code-snippets': vscodeIcon,
   prisma: prismaIcon,
 };
