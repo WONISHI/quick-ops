@@ -74,8 +74,31 @@ export interface BaseSearchProps {
 
   /**
    * @description 是否允许拖拽
+   *
+   * @default false
    */
   draggable?: boolean;
+
+  /**
+   * @description 搜索框初始偏移量
+   *
+   * 仅在组件首次创建时生效。
+   */
+  initialOffset?: Partial<BaseSearchOffset>;
+
+  /**
+   * @description 关闭搜索框时是否重置拖拽位置
+   *
+   * @default true
+   */
+  resetOffsetOnClose?: boolean;
+
+  /**
+   * @description 拖拽结束事件
+   */
+  onDragEnd?: (
+    offset: BaseSearchOffset,
+  ) => void;
 
   /**
    * @description 打开后是否自动聚焦
@@ -95,7 +118,7 @@ interface SearchCursor {
   index: number;
 }
 
-interface SearchBarOffset {
+export interface BaseSearchOffset {
   x: number;
   y: number;
 }
@@ -152,7 +175,10 @@ export default function BaseSearch({
   placeholder = '搜索...',
   maxWidth = 560,
   caseSensitive = false,
-  draggable = true,
+  draggable = false,
+  initialOffset,
+  resetOffsetOnClose = true,
+  onDragEnd,
   autoFocus = true,
   onQueryChange,
 }: BaseSearchProps) {
@@ -165,10 +191,13 @@ export default function BaseSearch({
     index: 0,
   });
 
-  const [searchBarOffset, setSearchBarOffset] = useState<SearchBarOffset>({
-    x: 0,
-    y: 0,
-  });
+  const [
+    searchBarOffset,
+    setSearchBarOffset,
+  ] = useState<BaseSearchOffset>(() => ({
+    x: initialOffset?.x || 0,
+    y: initialOffset?.y || 0,
+  }));
 
   const [isDragging, setIsDragging] = useState(false);
 
@@ -289,15 +318,31 @@ export default function BaseSearch({
       index: 0,
     });
 
-    setSearchBarOffset({
-      x: 0,
-      y: 0,
-    });
+    if (resetOffsetOnClose) {
+      const resetOffset = {
+        x: initialOffset?.x || 0,
+        y: initialOffset?.y || 0,
+      };
+
+      searchBarOffsetRef.current =
+        resetOffset;
+
+      setSearchBarOffset(resetOffset);
+    }
+
     setIsDragging(false);
 
     onQueryChange?.('');
     onClose();
-  }, [caseSensitive, onClose, onQueryChange, text]);
+  }, [
+    caseSensitive,
+    initialOffset?.x,
+    initialOffset?.y,
+    onClose,
+    onQueryChange,
+    resetOffsetOnClose,
+    text,
+  ]);
 
   /**
    * @description 跳转到上一个或下一个结果
@@ -386,14 +431,29 @@ export default function BaseSearch({
 
       const safeTop = clampNumber(nextTop, start.containerTop, maxTop);
 
-      setSearchBarOffset({
-        x: start.offsetX + safeLeft - start.barLeft,
-        y: start.offsetY + safeTop - start.barTop,
-      });
+      const nextOffset = {
+        x:
+          start.offsetX +
+          safeLeft -
+          start.barLeft,
+        y:
+          start.offsetY +
+          safeTop -
+          start.barTop,
+      };
+
+      searchBarOffsetRef.current =
+        nextOffset;
+
+      setSearchBarOffset(nextOffset);
     };
 
     const handlePointerEnd = () => {
       setIsDragging(false);
+
+      onDragEnd?.(
+        searchBarOffsetRef.current,
+      );
     };
 
     window.addEventListener('pointermove', handlePointerMove, {
@@ -411,7 +471,10 @@ export default function BaseSearch({
 
       window.removeEventListener('pointercancel', handlePointerEnd);
     };
-  }, [isDragging]);
+  }, [
+    isDragging,
+    onDragEnd,
+  ]);
 
   /**
    * @description 渲染带搜索高亮的文本
@@ -457,7 +520,16 @@ export default function BaseSearch({
   );
 
   return (
-    <div ref={containerRef} className={className} style={style}>
+    <div
+      ref={containerRef}
+      className={[
+        styles.container,
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      style={style}
+    >
       {open && (
         <div
           ref={searchBarRef}

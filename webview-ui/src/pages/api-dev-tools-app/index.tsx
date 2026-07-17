@@ -2703,6 +2703,7 @@ export default function ApiDevToolsApp() {
           </div>
         </section>
 
+        {/* 返回响应 */}
         <section ref={rightPaneRef} className={styles['right-pane']}>
           <div className={styles['response-head']}>
             <strong>返回响应</strong>
@@ -2731,6 +2732,7 @@ export default function ApiDevToolsApp() {
             ))}
           </div>
 
+          {/* 悬浮搜索 */}
           <BaseSearch
             open={isResponseSearchOpen}
             text={responseEditorValue}
