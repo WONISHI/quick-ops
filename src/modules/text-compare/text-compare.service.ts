@@ -71,7 +71,8 @@ export class TextCompareService {
       title: '文本差异对比',
       column: vscode.ViewColumn.Beside,
       extensionUri: context.extensionUri,
-      icon: 'resources/icons/compare.svg',
+      icon: 'resources/icons/text-compare.svg',
+      fullscreen: true,
       options: {
         enableScripts: true,
         retainContextWhenHidden: true,
@@ -151,10 +152,6 @@ export class TextCompareService {
     if (message.type === 'runDiff') {
       await this.triggerNativeDiff(message.original || '', message.modified || '');
       return;
-    }
-
-    if (message.type === 'toggleFullScreen') {
-      await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
     }
   }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { vscode } from '../../utils/vscode';
+import { vscode } from '@utils/vscode';
 import styles from './index.module.css';
 
 export default function MockProxyPanelApp() {
@@ -45,8 +45,12 @@ export default function MockProxyPanelApp() {
           <input type="number" value={port} onChange={(e) => setPort(e.target.value)} placeholder="例如: 8080" title="请输入一个空闲的端口号" />
         </div>
         <div className={styles['actions']}>
-          <button className={styles['btn-sec']} onClick={() => vscode.postMessage({ type: 'cancel' })} title="取消编辑">取消</button>
-          <button className={styles['btn-pri']} onClick={save} title="保存服务端口配置">保存配置</button>
+          <button className={styles['btn-sec']} onClick={() => vscode.postMessage({ type: 'cancel' })} title="取消编辑">
+            取消
+          </button>
+          <button className={styles['btn-pri']} onClick={save} title="保存服务端口配置">
+            保存配置
+          </button>
         </div>
       </div>
     </div>

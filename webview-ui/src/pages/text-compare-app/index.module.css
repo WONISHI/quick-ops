@@ -20,6 +20,7 @@
   justify-content: space-between;
   flex-shrink: 0;
   margin-bottom: 15px;
+  color: var(--vscode-foreground);
 }
 
 .compare-header h2 {
@@ -43,7 +44,9 @@
   background-color: var(--vscode-button-secondaryBackground);
   font-size: 13px;
   cursor: pointer;
-  transition: background-color 0.2s, opacity 0.2s;
+  transition:
+    background-color 0.2s,
+    opacity 0.2s;
 }
 
 .compare-container button:hover:not(:disabled) {

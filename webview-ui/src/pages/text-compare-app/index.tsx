@@ -322,17 +322,6 @@ export default function TextCompareApp() {
             开始对比
           </button>
 
-          <button
-            title="最大化/还原当前对比窗口"
-            onClick={() =>
-              vscode?.postMessage({
-                type: 'toggleFullScreen',
-              })
-            }
-          >
-            ⛶ 切换全屏
-          </button>
-
           <button disabled={!canCompare} title="在独立的编辑器 Tab 中进行左右对比" onClick={handleNativeDiff}>
             调用原生 Diff
           </button>
