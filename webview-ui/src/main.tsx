@@ -13,7 +13,7 @@ import MockRulePanelApp from './pages/MockApp/MockRulePanelApp';
 import VditorApp from './pages/VditorApp';
 import GitApp from './pages/GitApp';
 import ExcelPreviewApp from './pages/excel-preview-app';
-import PdfPreviewApp from './pages/PdfPreviewApp';
+import PdfPreviewApp from './pages/pdf-preview-app';
 import GitDetailApp from './pages/GitDetailApp';
 import HtmlPreviewApp from './pages/html-preview-app';
 import DocPreviewApp from './pages/doc-preview-app';

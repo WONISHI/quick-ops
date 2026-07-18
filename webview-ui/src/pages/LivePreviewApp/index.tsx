@@ -20,7 +20,7 @@ import {
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 
 import VditorApp from '../VditorApp';
-import PdfPreviewApp from '../PdfPreviewApp';
+import PdfPreviewApp from '../pdf-preview-app';
 import ExcelPreviewApp from '../excel-preview-app';
 import HtmlPreviewApp from '../html-preview-app';
 import PreviewError from '../../components/PreviewError';
