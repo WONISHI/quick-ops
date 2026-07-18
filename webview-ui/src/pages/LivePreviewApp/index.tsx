@@ -4,13 +4,25 @@ import UrlParser from '../../utils/UrlParser';
 import styles from './index.module.css';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faArrowLeft, faRotateRight, faXmark, faStar as faStarSolid, faArrowRight, faRotate, faArrowUpRightFromSquare, faEllipsis, faSpinner, faChevronUp, faChevronDown } from '@fortawesome/free-solid-svg-icons';
+import {
+  faArrowLeft,
+  faRotateRight,
+  faXmark,
+  faStar as faStarSolid,
+  faArrowRight,
+  faRotate,
+  faArrowUpRightFromSquare,
+  faEllipsis,
+  faSpinner,
+  faChevronUp,
+  faChevronDown,
+} from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 
 import VditorApp from '../VditorApp';
 import PdfPreviewApp from '../PdfPreviewApp';
-import ExcelPreviewApp from '../ExcelPreviewApp';
-import HtmlPreviewApp from '../HtmlPreviewApp';
+import ExcelPreviewApp from '../excel-preview-app';
+import HtmlPreviewApp from '../html-preview-app';
 import PreviewError from '../../components/PreviewError';
 
 import WelcomePage from '../../components/WelcomePage';
@@ -213,7 +225,6 @@ function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSu
     };
   }, [commitBrowserFrame]);
 
-
   const notifyViewportSize = useCallback(() => {
     const target = surfaceRef.current;
 
@@ -353,18 +364,21 @@ function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSu
     };
   }, []);
 
-  const sendPanWheel = useCallback((clientX: number, clientY: number, deltaX: number, deltaY: number) => {
-    const point = getBrowserPointByClient(clientX, clientY);
+  const sendPanWheel = useCallback(
+    (clientX: number, clientY: number, deltaX: number, deltaY: number) => {
+      const point = getBrowserPointByClient(clientX, clientY);
 
-    vscode?.postMessage({
-      type: 'browserInput',
-      inputType: 'wheel',
-      x: point.x,
-      y: point.y,
-      deltaX,
-      deltaY,
-    });
-  }, [getBrowserPointByClient]);
+      vscode?.postMessage({
+        type: 'browserInput',
+        inputType: 'wheel',
+        x: point.x,
+        y: point.y,
+        deltaX,
+        deltaY,
+      });
+    },
+    [getBrowserPointByClient],
+  );
 
   const stopMiddleDrag = useCallback(() => {
     if (!middleDragRef.current.active) return;
@@ -625,21 +639,7 @@ function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSu
   };
 
   const isBrowserControlKey = (event: React.KeyboardEvent) => {
-    const keys = new Set([
-      'Backspace',
-      'Delete',
-      'Enter',
-      'Tab',
-      'Escape',
-      'ArrowLeft',
-      'ArrowRight',
-      'ArrowUp',
-      'ArrowDown',
-      'Home',
-      'End',
-      'PageUp',
-      'PageDown',
-    ]);
+    const keys = new Set(['Backspace', 'Delete', 'Enter', 'Tab', 'Escape', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown']);
 
     return keys.has(event.key);
   };
@@ -692,10 +692,7 @@ function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSu
     });
   };
 
-  const sendImeControlKey = (
-    event: React.KeyboardEvent<HTMLTextAreaElement>,
-    eventType: 'keyDown' | 'keyUp'
-  ) => {
+  const sendImeControlKey = (event: React.KeyboardEvent<HTMLTextAreaElement>, eventType: 'keyDown' | 'keyUp') => {
     event.stopPropagation();
 
     const shortcutKey = event.key.toLowerCase();
@@ -764,10 +761,7 @@ function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSu
   return (
     <div
       ref={surfaceRef}
-      className={[
-        styles['browser-lite-surface'],
-        isMiddleDragging ? styles['browser-lite-surface-dragging'] : '',
-      ].filter(Boolean).join(' ')}
+      className={[styles['browser-lite-surface'], isMiddleDragging ? styles['browser-lite-surface-dragging'] : ''].filter(Boolean).join(' ')}
       style={{ width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}
       tabIndex={0}
       onContextMenu={(event) => event.preventDefault()}
@@ -966,11 +960,7 @@ function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSu
         alt="网页预览"
       />
 
-      {!hasBrowserFrame && (
-        <div className={styles['browser-lite-empty']}>
-          {loading ? '正在加载网页...' : '暂无网页内容'}
-        </div>
-      )}
+      {!hasBrowserFrame && <div className={styles['browser-lite-empty']}>{loading ? '正在加载网页...' : '暂无网页内容'}</div>}
     </div>
   );
 }
@@ -1141,7 +1131,6 @@ export default function LivePreviewApp() {
     return `folder-${safeName || 'custom'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   };
 
-
   const activeBrowserEngine = useMemo(() => {
     return getBrowserEngineOption(browserEngine);
   }, [browserEngine]);
@@ -1164,17 +1153,20 @@ export default function LivePreviewApp() {
     return true;
   };
 
-  const parsePreviewInput = useCallback((value: string) => {
-    const raw = String(value || '').trim();
+  const parsePreviewInput = useCallback(
+    (value: string) => {
+      const raw = String(value || '').trim();
 
-    if (!raw) return '';
+      if (!raw) return '';
 
-    if (isSearchKeywordInput(raw)) {
-      return getBrowserEngineOption(browserEngine).searchUrl(raw);
-    }
+      if (isSearchKeywordInput(raw)) {
+        return getBrowserEngineOption(browserEngine).searchUrl(raw);
+      }
 
-    return UrlParser.parse(raw) || '';
-  }, [browserEngine]);
+      return UrlParser.parse(raw) || '';
+    },
+    [browserEngine],
+  );
 
   const clearPreviewLoadTimer = () => {
     if (previewLoadTimerRef.current) {
@@ -1395,7 +1387,6 @@ export default function LivePreviewApp() {
     });
   };
 
-
   const normalizeHistoryUrl = (url: string) => {
     return String(url || '').trim();
   };
@@ -1574,14 +1565,16 @@ export default function LivePreviewApp() {
           resolver(message.ok ? message : null);
         }
       } else if (message.type === 'browserFrame') {
-        window.dispatchEvent(new CustomEvent<BrowserFrameState>('quickops-browser-frame', {
-          detail: {
-            data: message.data || '',
-            width: message.width || 0,
-            height: message.height || 0,
-            format: message.format === 'png' ? 'png' : 'jpeg',
-          },
-        }));
+        window.dispatchEvent(
+          new CustomEvent<BrowserFrameState>('quickops-browser-frame', {
+            detail: {
+              data: message.data || '',
+              width: message.width || 0,
+              height: message.height || 0,
+              format: message.format === 'png' ? 'png' : 'jpeg',
+            },
+          }),
+        );
       } else if (message.type === 'browserPageLoaded') {
         pageLoadedRef.current = true;
         faviconResolvedRef.current = true;
@@ -1715,7 +1708,6 @@ export default function LivePreviewApp() {
       window.clearInterval(timer);
     };
   }, [activeModal]);
-
 
   const navigateToHistory = (index: number) => {
     const stack = historyStackRef.current;
@@ -2088,7 +2080,7 @@ export default function LivePreviewApp() {
       vscode?.postMessage({ type: 'showInfo', message: '✅ 缓存清理成功！' });
       handleRefresh();
     } catch (e) {
-      console.log('e',e)
+      console.log('e', e);
       vscode?.postMessage({ type: 'showWarning', message: '⚠️ 此页面不支持清理缓存或存在跨域限制' });
     }
 
@@ -2422,12 +2414,7 @@ export default function LivePreviewApp() {
           <FontAwesomeIcon icon={faArrowLeft} />
         </button>
 
-        <button
-          className={styles['icon-btn']}
-          disabled={historyIdx < 0 || historyIdx >= historyStack.length - 1}
-          onClick={() => navigateToHistory(historyIdx + 1)}
-          title="前进"
-        >
+        <button className={styles['icon-btn']} disabled={historyIdx < 0 || historyIdx >= historyStack.length - 1} onClick={() => navigateToHistory(historyIdx + 1)} title="前进">
           <FontAwesomeIcon icon={faArrowRight} />
         </button>
 
@@ -2448,13 +2435,7 @@ export default function LivePreviewApp() {
               title={`当前搜索引擎：${activeBrowserEngine.label}，点击切换`}
               aria-label={`当前搜索引擎：${activeBrowserEngine.label}，点击切换`}
             >
-              <span
-                className={[
-                  styles['favicon-img'],
-                  styles['browser-engine-icon'],
-                  styles[`browser-engine-icon-${activeBrowserEngine.key}`],
-                ].filter(Boolean).join(' ')}
-              >
+              <span className={[styles['favicon-img'], styles['browser-engine-icon'], styles[`browser-engine-icon-${activeBrowserEngine.key}`]].filter(Boolean).join(' ')}>
                 {activeBrowserEngine.shortName}
               </span>
             </button>
@@ -2475,13 +2456,7 @@ export default function LivePreviewApp() {
                         switchBrowserEngine(item.key);
                       }}
                     >
-                      <span
-                        className={[
-                          styles['favicon-img'],
-                          styles['browser-engine-icon'],
-                          styles[`browser-engine-icon-${item.key}`],
-                        ].filter(Boolean).join(' ')}
-                      >
+                      <span className={[styles['favicon-img'], styles['browser-engine-icon'], styles[`browser-engine-icon-${item.key}`]].filter(Boolean).join(' ')}>
                         {item.shortName}
                       </span>
                       <span className={styles['browser-switcher-label']}>{item.label}</span>
@@ -2629,11 +2604,7 @@ export default function LivePreviewApp() {
       />
 
       {searchOpen && (
-        <div
-          className={styles['page-search-bar']}
-          onMouseDown={(event) => event.stopPropagation()}
-          onClick={(event) => event.stopPropagation()}
-        >
+        <div className={styles['page-search-bar']} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
           <div className={styles['page-search-input-wrapper']}>
             <input
               ref={searchInputRef}
@@ -2675,39 +2646,19 @@ export default function LivePreviewApp() {
             )}
           </div>
 
-          <span
-            className={[
-              styles['page-search-count'],
-              searchKeyword.trim() && searchResult.total === 0 ? styles['page-search-count-empty'] : '',
-            ].filter(Boolean).join(' ')}
-          >
+          <span className={[styles['page-search-count'], searchKeyword.trim() && searchResult.total === 0 ? styles['page-search-count-empty'] : ''].filter(Boolean).join(' ')}>
             {searchKeyword.trim() ? `${searchResult.current}/${searchResult.total}` : '0/0'}
           </span>
 
-          <button
-            type="button"
-            className={styles['page-search-action']}
-            title="上一个"
-            onClick={() => runPageSearch(searchKeyword, 'previous')}
-          >
+          <button type="button" className={styles['page-search-action']} title="上一个" onClick={() => runPageSearch(searchKeyword, 'previous')}>
             <FontAwesomeIcon icon={faChevronUp} />
           </button>
 
-          <button
-            type="button"
-            className={styles['page-search-action']}
-            title="下一个"
-            onClick={() => runPageSearch(searchKeyword, 'next')}
-          >
+          <button type="button" className={styles['page-search-action']} title="下一个" onClick={() => runPageSearch(searchKeyword, 'next')}>
             <FontAwesomeIcon icon={faChevronDown} />
           </button>
 
-          <button
-            type="button"
-            className={`${styles['page-search-action']} ${styles['page-search-close']}`}
-            title="关闭"
-            onClick={closeSearchBar}
-          >
+          <button type="button" className={`${styles['page-search-action']} ${styles['page-search-close']}`} title="关闭" onClick={closeSearchBar}>
             <FontAwesomeIcon icon={faXmark} />
           </button>
         </div>
@@ -2738,8 +2689,7 @@ export default function LivePreviewApp() {
                 backgroundColor: 'var(--vscode-progressBar-background, #007acc)',
                 width: `${loadingProgress}%`,
                 transition: loadingProgress === 0 ? 'none' : 'width 0.3s ease',
-                boxShadow:
-                  '0 0 10px var(--vscode-progressBar-background, #007acc), 0 0 5px var(--vscode-progressBar-background, #007acc)',
+                boxShadow: '0 0 10px var(--vscode-progressBar-background, #007acc), 0 0 5px var(--vscode-progressBar-background, #007acc)',
               }}
             />
           </div>
@@ -2788,17 +2738,9 @@ export default function LivePreviewApp() {
           <div
             id="deviceWrapper"
             className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}
-            style={
-              device === 'device-responsive'
-                ? { width: '100%', height: '100%', minWidth: 0, minHeight: 0, maxWidth: '100%', maxHeight: '100%' }
-                : undefined
-            }
+            style={device === 'device-responsive' ? { width: '100%', height: '100%', minWidth: 0, minHeight: 0, maxWidth: '100%', maxHeight: '100%' } : undefined}
           >
-            <BrowserSurface
-              loading={previewLoading}
-              onViewportChange={handleBrowserViewportChange}
-              onFindShortcut={openSearchBar}
-            />
+            <BrowserSurface loading={previewLoading} onViewportChange={handleBrowserViewportChange} onFindShortcut={openSearchBar} />
           </div>
         )}
       </div>
