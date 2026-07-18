@@ -1,42 +1,62 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Diff from 'diff';
-import { vscode } from '../../utils/vscode';
+import { vscode } from '@utils/vscode';
 import styles from './index.module.css';
 
 const EMPTY_TOKEN = '___EMPTY_SLOT___';
 
-/** 核心算法：分词器 */
+interface DiffResult {
+  origHtml: string;
+  modHtml: string;
+  error?: string;
+}
+
+/**
+ * @description 对文本进行分词
+ */
 function tokenize(text: string): string[] {
   if (!text) return [];
 
-  const regex = /(https?:\/\/[^\?&,。=;\s]+|[,\?&\.。\=:;\s])/;
+  const regex = /(https?:\/\/[^?&,。=;\s]+|[,?&.。=:;\s])/;
   const rawTokens = text.split(regex);
 
   return rawTokens.map((token) => (token === '' ? EMPTY_TOKEN : token));
 }
 
+/**
+ * @description 判断文本是否为 HTTP 地址
+ */
 function isUrl(value: string): boolean {
   return value.startsWith('http://') || value.startsWith('https://');
 }
 
-/** HTML 转义防止 XSS */
+/**
+ * @description 转义 HTML，防止差异文本产生 XSS
+ */
 function escapeHtml(unsafe: string): string {
   return (unsafe || '').replace(/[&<"']/g, (matched) => {
     switch (matched) {
       case '&':
         return '&amp;';
+
       case '<':
         return '&lt;';
+
       case '"':
         return '&quot;';
+
       case "'":
         return '&#039;';
+
       default:
         return matched;
     }
   });
 }
 
+/**
+ * @description 创建差异展示标签
+ */
 function createSpanStr(text: string, className?: string): string {
   if (!className) {
     return escapeHtml(text);
@@ -45,27 +65,39 @@ function createSpanStr(text: string, className?: string): string {
   return `<span class="${className}">${escapeHtml(text)}</span>`;
 }
 
-/** 核心算法：差异块处理 */
-function renderModificationStr(removedTokens: string[], addedTokens: string[], originalHtmlList: string[], modifiedHtmlList: string[]) {
+/**
+ * @description 处理相邻的删除块和新增块
+ */
+function renderModificationStr(removedTokens: string[], addedTokens: string[], originalHtmlList: string[], modifiedHtmlList: string[]): void {
   const maxLen = Math.max(removedTokens.length, addedTokens.length);
 
   for (let i = 0; i < maxLen; i++) {
     let oldToken = i < removedTokens.length ? removedTokens[i] : null;
+
     let newToken = i < addedTokens.length ? addedTokens[i] : null;
 
-    if (oldToken === EMPTY_TOKEN) oldToken = '';
-    if (newToken === EMPTY_TOKEN) newToken = '';
+    if (oldToken === EMPTY_TOKEN) {
+      oldToken = '';
+    }
+
+    if (newToken === EMPTY_TOKEN) {
+      newToken = '';
+    }
 
     if (oldToken !== null && newToken !== null) {
       if (oldToken === '' && newToken !== '') {
         originalHtmlList.push(createSpanStr(newToken, styles.placeholder));
+
         modifiedHtmlList.push(createSpanStr(newToken, styles['diff-added']));
+
         continue;
       }
 
       if (oldToken !== '' && newToken === '') {
         originalHtmlList.push(createSpanStr(oldToken, styles['diff-removed']));
+
         modifiedHtmlList.push(createSpanStr(oldToken, styles.placeholder));
+
         continue;
       }
 
@@ -76,17 +108,27 @@ function renderModificationStr(removedTokens: string[], addedTokens: string[], o
           charDiffs.forEach((charPart) => {
             if (charPart.added) {
               originalHtmlList.push(createSpanStr(charPart.value, styles.placeholder));
+
               modifiedHtmlList.push(createSpanStr(charPart.value, styles['diff-modified-add']));
-            } else if (charPart.removed) {
-              originalHtmlList.push(createSpanStr(charPart.value, styles['diff-modified-del']));
-              modifiedHtmlList.push(createSpanStr(charPart.value, styles.placeholder));
-            } else {
-              originalHtmlList.push(createSpanStr(charPart.value, styles['diff-modified-base']));
-              modifiedHtmlList.push(createSpanStr(charPart.value, styles['diff-modified-base']));
+
+              return;
             }
+
+            if (charPart.removed) {
+              originalHtmlList.push(createSpanStr(charPart.value, styles['diff-modified-del']));
+
+              modifiedHtmlList.push(createSpanStr(charPart.value, styles.placeholder));
+
+              return;
+            }
+
+            originalHtmlList.push(createSpanStr(charPart.value, styles['diff-modified-base']));
+
+            modifiedHtmlList.push(createSpanStr(charPart.value, styles['diff-modified-base']));
           });
         } else {
           originalHtmlList.push(createSpanStr(oldToken, styles['diff-modified-del']));
+
           modifiedHtmlList.push(createSpanStr(newToken, styles['diff-modified-add']));
         }
 
@@ -100,14 +142,91 @@ function renderModificationStr(removedTokens: string[], addedTokens: string[], o
 
     if (oldToken !== null && oldToken !== '') {
       originalHtmlList.push(createSpanStr(oldToken, styles['diff-removed']));
+
       modifiedHtmlList.push(createSpanStr(oldToken, styles.placeholder));
+
       continue;
     }
 
     if (newToken !== null && newToken !== '') {
       originalHtmlList.push(createSpanStr(newToken, styles.placeholder));
+
       modifiedHtmlList.push(createSpanStr(newToken, styles['diff-added']));
     }
+  }
+}
+
+/**
+ * @description 计算两个文本之间的差异
+ */
+function createDiffResult(original: string, modified: string): DiffResult | null {
+  if (!original.trim() || !modified.trim()) {
+    return null;
+  }
+
+  try {
+    const originalTokens = tokenize(original);
+    const modifiedTokens = tokenize(modified);
+    const diffs = Diff.diffArrays(originalTokens, modifiedTokens);
+
+    const originalHtmlList: string[] = [];
+    const modifiedHtmlList: string[] = [];
+
+    for (let i = 0; i < diffs.length; i++) {
+      const part = diffs[i];
+      const nextPart = diffs[i + 1];
+
+      if (part.removed && nextPart?.added) {
+        renderModificationStr(part.value, nextPart.value, originalHtmlList, modifiedHtmlList);
+
+        i++;
+        continue;
+      }
+
+      if (part.added && nextPart?.removed) {
+        renderModificationStr(nextPart.value, part.value, originalHtmlList, modifiedHtmlList);
+
+        i++;
+        continue;
+      }
+
+      part.value.forEach((token) => {
+        const value = token === EMPTY_TOKEN ? '' : token;
+
+        if (!value) return;
+
+        if (part.added) {
+          originalHtmlList.push(createSpanStr(value, styles.placeholder));
+
+          modifiedHtmlList.push(createSpanStr(value, styles['diff-added']));
+
+          return;
+        }
+
+        if (part.removed) {
+          originalHtmlList.push(createSpanStr(value, styles['diff-removed']));
+
+          modifiedHtmlList.push(createSpanStr(value, styles.placeholder));
+
+          return;
+        }
+
+        originalHtmlList.push(createSpanStr(value, styles['diff-base']));
+
+        modifiedHtmlList.push(createSpanStr(value, styles['diff-base']));
+      });
+    }
+
+    return {
+      origHtml: originalHtmlList.join(''),
+      modHtml: modifiedHtmlList.join(''),
+    };
+  } catch (error: unknown) {
+    return {
+      origHtml: '',
+      modHtml: '',
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
@@ -115,12 +234,7 @@ export default function TextCompareApp() {
   const [original, setOriginal] = useState('');
   const [modified, setModified] = useState('');
   const [isWrap, setIsWrap] = useState(true);
-  const [triggerDiff, setTriggerDiff] = useState(0);
-  const [diffResult, setDiffResult] = useState<{
-    origHtml: string;
-    modHtml: string;
-    error?: string;
-  } | null>(null);
+  const [diffResult, setDiffResult] = useState<DiffResult | null>(null);
 
   const modifiedInputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -129,85 +243,67 @@ export default function TextCompareApp() {
       const message = event.data;
 
       if (message.type === 'updateOriginal') {
-        setOriginal(message.text);
+        setOriginal(message.text || '');
+        setDiffResult(null);
         modifiedInputRef.current?.focus();
       }
     };
 
     window.addEventListener('message', handleMessage);
 
-    vscode?.postMessage({ type: 'ready' });
+    vscode?.postMessage({
+      type: 'ready',
+    });
 
     return () => {
       window.removeEventListener('message', handleMessage);
     };
   }, []);
 
-  useEffect(() => {
-    if (!original.trim() || !modified.trim()) {
-      setDiffResult(null);
-      return;
-    }
+  const canCompare = Boolean(original.trim()) && Boolean(modified.trim());
 
-    try {
-      const originalTokens = tokenize(original);
-      const modifiedTokens = tokenize(modified);
-      const diffs = Diff.diffArrays(originalTokens, modifiedTokens);
+  /**
+   * @description 执行文本差异对比
+   */
+  const handleCompare = () => {
+    setDiffResult(createDiffResult(original, modified));
+  };
 
-      const originalHtmlList: string[] = [];
-      const modifiedHtmlList: string[] = [];
+  /**
+   * @description 清空原文本
+   */
+  const handleClearOriginal = () => {
+    setOriginal('');
+    setDiffResult(null);
+  };
 
-      for (let i = 0; i < diffs.length; i++) {
-        const part = diffs[i];
-        const nextPart = diffs[i + 1];
+  /**
+   * @description 清空新文本
+   */
+  const handleClearModified = () => {
+    setModified('');
+    setDiffResult(null);
+  };
 
-        if (part.removed && nextPart && nextPart.added) {
-          renderModificationStr(part.value, nextPart.value, originalHtmlList, modifiedHtmlList);
-          i++;
-          continue;
-        }
+  /**
+   * @description 修改原文本并清理旧的对比结果
+   */
+  const handleOriginalChange = (value: string) => {
+    setOriginal(value);
+    setDiffResult(null);
+  };
 
-        if (part.added && nextPart && nextPart.removed) {
-          renderModificationStr(nextPart.value, part.value, originalHtmlList, modifiedHtmlList);
-          i++;
-          continue;
-        }
+  /**
+   * @description 修改新文本并清理旧的对比结果
+   */
+  const handleModifiedChange = (value: string) => {
+    setModified(value);
+    setDiffResult(null);
+  };
 
-        part.value.forEach((token) => {
-          const value = token === EMPTY_TOKEN ? '' : token;
-
-          if (!value) return;
-
-          if (part.added) {
-            originalHtmlList.push(createSpanStr(value, styles.placeholder));
-            modifiedHtmlList.push(createSpanStr(value, styles['diff-added']));
-            return;
-          }
-
-          if (part.removed) {
-            originalHtmlList.push(createSpanStr(value, styles['diff-removed']));
-            modifiedHtmlList.push(createSpanStr(value, styles.placeholder));
-            return;
-          }
-
-          originalHtmlList.push(createSpanStr(value, styles['diff-base']));
-          modifiedHtmlList.push(createSpanStr(value, styles['diff-base']));
-        });
-      }
-
-      setDiffResult({
-        origHtml: originalHtmlList.join(''),
-        modHtml: modifiedHtmlList.join(''),
-      });
-    } catch (error: any) {
-      setDiffResult({
-        origHtml: '',
-        modHtml: '',
-        error: error?.message || String(error),
-      });
-    }
-  }, [original, modified, triggerDiff]);
-
+  /**
+   * @description 调用 VS Code 原生 Diff
+   */
   const handleNativeDiff = () => {
     vscode?.postMessage({
       type: 'runDiff',
@@ -216,19 +312,24 @@ export default function TextCompareApp() {
     });
   };
 
-  const canCompare = !!original.trim() && !!modified.trim();
-
   return (
     <div className={styles['compare-container']}>
       <div className={styles['compare-header']}>
         <h2>🔬 极速文本差异对比</h2>
 
         <div className={styles['action-group']}>
-          <button className={styles.primary} disabled={!canCompare} onClick={() => setTriggerDiff((prev) => prev + 1)}>
+          <button className={styles.primary} disabled={!canCompare} onClick={handleCompare}>
             开始对比
           </button>
 
-          <button title="最大化/还原当前对比窗口" onClick={() => vscode?.postMessage({ type: 'toggleFullScreen' })}>
+          <button
+            title="最大化/还原当前对比窗口"
+            onClick={() =>
+              vscode?.postMessage({
+                type: 'toggleFullScreen',
+              })
+            }
+          >
             ⛶ 切换全屏
           </button>
 
@@ -242,23 +343,25 @@ export default function TextCompareApp() {
         <div className={styles['editor-box']}>
           <label>
             <span>【原文本】(Original)</span>
-            <button className={styles['clear-btn']} onClick={() => setOriginal('')}>
+
+            <button className={styles['clear-btn']} onClick={handleClearOriginal}>
               清空
             </button>
           </label>
 
-          <textarea value={original} onChange={(event) => setOriginal(event.target.value)} placeholder="在此粘贴原始链接、JSON 或代码..." />
+          <textarea value={original} onChange={(event) => handleOriginalChange(event.target.value)} placeholder="在此粘贴原始链接、JSON 或代码..." />
         </div>
 
         <div className={styles['editor-box']}>
           <label>
             <span>【新文本】(Modified)</span>
-            <button className={styles['clear-btn']} onClick={() => setModified('')}>
+
+            <button className={styles['clear-btn']} onClick={handleClearModified}>
               清空
             </button>
           </label>
 
-          <textarea ref={modifiedInputRef} value={modified} onChange={(event) => setModified(event.target.value)} placeholder="在此粘贴修改后的内容..." />
+          <textarea ref={modifiedInputRef} value={modified} onChange={(event) => handleModifiedChange(event.target.value)} placeholder="在此粘贴修改后的内容..." />
         </div>
       </div>
 
@@ -298,14 +401,26 @@ export default function TextCompareApp() {
             <div className={[styles['diff-content'], isWrap ? styles['is-wrapped'] : ''].filter(Boolean).join(' ')}>
               <div className={styles['diff-line-container']}>
                 <div className={styles['diff-title']}>[- 原文]</div>
-                <div className={styles['diff-text']} dangerouslySetInnerHTML={{ __html: diffResult.origHtml || '' }} />
+
+                <div
+                  className={styles['diff-text']}
+                  dangerouslySetInnerHTML={{
+                    __html: diffResult.origHtml || '',
+                  }}
+                />
               </div>
 
               <hr className={styles['diff-divider']} />
 
               <div className={styles['diff-line-container']}>
                 <div className={styles['diff-title']}>[+ 新文]</div>
-                <div className={styles['diff-text']} dangerouslySetInnerHTML={{ __html: diffResult.modHtml || '' }} />
+
+                <div
+                  className={styles['diff-text']}
+                  dangerouslySetInnerHTML={{
+                    __html: diffResult.modHtml || '',
+                  }}
+                />
               </div>
             </div>
           )}
