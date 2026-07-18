@@ -10,7 +10,7 @@ import AnchorApp from '@pages/anchor-app';
 import MockSidebarApp from './pages/MockApp/MockSidebarApp';
 import MockProxyPanelApp from './pages/MockApp/MockProxyPanelApp';
 import MockRulePanelApp from './pages/MockApp/MockRulePanelApp';
-import VditorApp from './pages/VditorApp';
+import VditorApp from './pages/vditor-app';
 import GitApp from './pages/GitApp';
 import ExcelPreviewApp from './pages/excel-preview-app';
 import PdfPreviewApp from './pages/pdf-preview-app';
