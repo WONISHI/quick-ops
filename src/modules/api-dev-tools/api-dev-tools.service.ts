@@ -1,10 +1,28 @@
 import * as http from 'http';
 import * as os from 'os';
+import { channel } from 'diagnostics_channel';
 import type { AddressInfo } from 'net';
 import * as vscode from 'vscode';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { API_DEV_TOOLS_STATE_KEY } from '@/modules/api-dev-tools/constants/api-dev-tools.constant';
-import type { ApiDevToolsRequestPayload, ApiDevToolsResponsePayload, ApiDocsExportPayload, ApiDocsPayload, ApiDocsSharePayload } from '@modules/api-dev-tools/api-dev-tools.type';
+import type {
+  ApiDevToolsRequestDetailPayload,
+  ApiDevToolsRequestPayload,
+  ApiDevToolsResponsePayload,
+  ApiDocsExportPayload,
+  ApiDocsPayload,
+  ApiDocsSharePayload,
+} from '@modules/api-dev-tools/api-dev-tools.type';
+
+interface UndiciRequestCreateMessage {
+  request?: {
+    method?: string;
+    origin?: string | URL;
+    path?: string;
+    headers?: Array<string | Buffer> | string;
+    contentLength?: number | string | null;
+  };
+}
 
 export class ApiDevToolsService {
   public static inject = [ExtensionContextProvider];
@@ -34,6 +52,15 @@ export class ApiDevToolsService {
     const url = String(payload?.url || '').trim();
     const headers = this.normalizeHeaders(payload?.headers || {});
     const timeout = this.normalizeTimeout(payload?.timeout);
+    const hasBody = !['GET', 'HEAD'].includes(method) && typeof payload?.body === 'string';
+    const body = hasBody ? payload.body : undefined;
+    const requestDetail: ApiDevToolsRequestDetailPayload = {
+      method,
+      url,
+      headers: this.createFallbackRequestHeaders(url, headers, body),
+      body,
+      timeout,
+    };
     const start = Date.now();
 
     if (!url) {
@@ -47,6 +74,7 @@ export class ApiDevToolsService {
         size: 0,
         headers: {},
         body: '',
+        request: requestDetail,
         error: '请求地址不能为空',
       };
     }
@@ -72,13 +100,34 @@ export class ApiDevToolsService {
           }, timeout)
         : undefined;
 
-    try {
-      const hasBody = !['GET', 'HEAD'].includes(method) && typeof payload?.body === 'string';
+    const requestCreateChannel = channel('undici:request:create');
 
+    /**
+     * @description 捕获当前 Node Fetch 最终创建的请求信息
+     */
+    const handleRequestCreate = (message: unknown) => {
+      try {
+        const captured = this.captureUndiciRequestDetail(message as UndiciRequestCreateMessage, method, url, body, timeout);
+
+        if (!captured) return;
+
+        requestDetail.method = captured.method;
+        requestDetail.url = captured.url;
+        requestDetail.headers = captured.headers;
+        requestDetail.body = captured.body;
+        requestDetail.timeout = captured.timeout;
+      } catch {
+        // diagnostics_channel 回调不能向外抛错，捕获失败时继续使用兜底请求详情
+      }
+    };
+
+    requestCreateChannel.subscribe(handleRequestCreate);
+
+    try {
       const response = await fetch(url, {
         method,
         headers,
-        body: hasBody ? payload.body : undefined,
+        body,
         redirect: 'follow',
         signal: controller.signal,
       });
@@ -100,14 +149,11 @@ export class ApiDevToolsService {
         size: Buffer.byteLength(responseBody || '', 'utf8'),
         headers: responseHeaders,
         body: responseBody,
+        request: requestDetail,
       };
     } catch (error: unknown) {
       const isAbort =
-        controller.signal.aborted ||
-        (typeof error === 'object' &&
-          error !== null &&
-          'name' in error &&
-          String((error as { name?: unknown }).name || '') === 'AbortError');
+        controller.signal.aborted || (typeof error === 'object' && error !== null && 'name' in error && String((error as { name?: unknown }).name || '') === 'AbortError');
 
       const isStopped = this.stoppedApiRequestIds.has(requestId);
 
@@ -121,9 +167,12 @@ export class ApiDevToolsService {
         size: 0,
         headers: {},
         body: '',
+        request: requestDetail,
         error: isStopped ? '请求已中断' : isAbort ? `请求超时：${timeout}ms` : this.toErrorMessage(error),
       };
     } finally {
+      requestCreateChannel.unsubscribe(handleRequestCreate);
+
       if (timer) {
         clearTimeout(timer);
       }
@@ -457,6 +506,144 @@ export class ApiDevToolsService {
     }
 
     return Math.min(Math.max(timeout, 1000), 10 * 60 * 1000);
+  }
+
+  /**
+   * @description 捕获 Node Fetch 最终生成的请求详情
+   */
+  private captureUndiciRequestDetail(
+    message: UndiciRequestCreateMessage,
+    method: string,
+    url: string,
+    body: string | undefined,
+    timeout: number,
+  ): ApiDevToolsRequestDetailPayload | null {
+    const request = message?.request;
+
+    if (!request) return null;
+
+    const requestMethod = String(request.method || '').toUpperCase();
+    const requestUrl = this.getUndiciRequestUrl(request.origin, request.path);
+    const targetUrl = this.normalizeRequestUrl(url);
+
+    if (!requestUrl || !targetUrl || requestMethod !== method || requestUrl !== targetUrl) {
+      return null;
+    }
+
+    const headers = this.parseUndiciHeaders(request.headers);
+    const requestUrlObject = new URL(requestUrl);
+
+    this.setHeaderIfMissing(headers, 'Host', requestUrlObject.host);
+    this.setHeaderIfMissing(headers, 'Connection', 'keep-alive');
+
+    if (body !== undefined && request.contentLength !== null && request.contentLength !== undefined) {
+      this.setHeaderIfMissing(headers, 'Content-Length', String(request.contentLength));
+    }
+
+    return {
+      method: requestMethod,
+      url: requestUrl,
+      headers,
+      body,
+      timeout,
+    };
+  }
+
+  /**
+   * @description 获取 Undici 请求的完整地址
+   */
+  private getUndiciRequestUrl(origin: unknown, path: unknown): string {
+    try {
+      return new URL(String(path || '/'), String(origin || '')).toString();
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * @description 规范化请求地址
+   */
+  private normalizeRequestUrl(url: string): string {
+    try {
+      return new URL(url).toString();
+    } catch {
+      return '';
+    }
+  }
+
+  /**
+   * @description 解析 Undici 生成的请求头
+   */
+  private parseUndiciHeaders(rawHeaders: Array<string | Buffer> | string | undefined): Record<string, string> {
+    const result: Record<string, string> = {};
+
+    if (Array.isArray(rawHeaders)) {
+      for (let index = 0; index < rawHeaders.length; index += 2) {
+        const key = String(rawHeaders[index] || '').trim();
+        const value = String(rawHeaders[index + 1] || '').trim();
+
+        if (!key || !value) continue;
+
+        result[key] = value;
+      }
+
+      return result;
+    }
+
+    String(rawHeaders || '')
+      .split(/\r?\n/)
+      .forEach((line) => {
+        const separatorIndex = line.indexOf(':');
+
+        if (separatorIndex <= 0) return;
+
+        const key = line.slice(0, separatorIndex).trim();
+        const value = line.slice(separatorIndex + 1).trim();
+
+        if (!key || !value) return;
+
+        result[key] = value;
+      });
+
+    return result;
+  }
+
+  /**
+   * @description 创建无法捕获 Undici 信息时的请求头兜底数据
+   */
+  private createFallbackRequestHeaders(url: string, headers: Record<string, string>, body?: string): Record<string, string> {
+    const result = { ...headers };
+    const normalizedUrl = this.normalizeRequestUrl(url);
+
+    if (!normalizedUrl) return result;
+
+    const urlObject = new URL(normalizedUrl);
+
+    this.setHeaderIfMissing(result, 'Host', urlObject.host);
+    this.setHeaderIfMissing(result, 'Connection', 'keep-alive');
+    this.setHeaderIfMissing(result, 'Accept', '*/*');
+    this.setHeaderIfMissing(result, 'Accept-Language', '*');
+    this.setHeaderIfMissing(result, 'Sec-Fetch-Mode', 'cors');
+    this.setHeaderIfMissing(result, 'User-Agent', 'node');
+    this.setHeaderIfMissing(result, 'Accept-Encoding', 'gzip, deflate');
+
+    if (body !== undefined) {
+      this.setHeaderIfMissing(result, 'Content-Length', String(Buffer.byteLength(body, 'utf8')));
+    }
+
+    return result;
+  }
+
+  /**
+   * @description 在请求头不存在时写入默认值
+   */
+  private setHeaderIfMissing(headers: Record<string, string>, name: string, value: string): void {
+    const targetName = name.toLowerCase();
+    const exists = Object.keys(headers).some((key) => key.toLowerCase() === targetName);
+
+    if (!exists && value) {
+      headers[name] = value;
+    }
   }
 
   private normalizeHeaders(headers: Record<string, string>): Record<string, string> {

@@ -7,6 +7,17 @@ export interface ApiDevToolsRequestPayload {
   timeout?: number;
 }
 
+/**
+ * @description 实际发送的 API 请求详情
+ */
+export interface ApiDevToolsRequestDetailPayload {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  body?: string;
+  timeout: number;
+}
+
 export interface ApiDevToolsResponsePayload {
   requestId: string;
   ok: boolean;
@@ -17,6 +28,7 @@ export interface ApiDevToolsResponsePayload {
   size: number;
   headers: Record<string, string>;
   body: string;
+  request: ApiDevToolsRequestDetailPayload;
   error?: string;
 }
 

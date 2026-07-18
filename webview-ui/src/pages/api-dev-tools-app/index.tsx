@@ -357,6 +357,120 @@ function isDefaultRequestSnapshot(request: ApiRequestConfig) {
   return isSameRequest(request, createDefaultRequest());
 }
 
+const REQUEST_DETAIL_TABS: Array<{ key: ResponseTab; label: string }> = [
+  { key: 'body', label: '参数' },
+  { key: 'headers', label: 'Headers' },
+  { key: 'raw', label: 'cURL' },
+];
+
+type DetailSource = 'response' | 'request';
+
+interface RequestDetailPayload {
+  method: HttpMethod;
+  url: string;
+  headers: Record<string, string>;
+  body?: string;
+  timeout: number;
+}
+
+interface ApiResponseMessagePayload extends ApiResponsePayload {
+  request?: RequestDetailPayload;
+}
+
+/**
+ * @description 获取忽略大小写的请求头值
+ */
+function getRequestHeaderValue(headers: Record<string, string>, name: string) {
+  const targetName = name.toLowerCase();
+  const key = Object.keys(headers || {}).find((item) => item.toLowerCase() === targetName);
+
+  return key ? headers[key] : '';
+}
+
+/**
+ * @description 将同名参数追加到参数对象
+ */
+function appendRequestParameter(target: Record<string, string | string[]>, key: string, value: string) {
+  const current = target[key];
+
+  if (current === undefined) {
+    target[key] = value;
+    return;
+  }
+
+  target[key] = Array.isArray(current) ? [...current, value] : [current, value];
+}
+
+/**
+ * @description 获取请求参数内容
+ */
+function getRequestParametersContent(request: RequestDetailPayload) {
+  const result: Record<string, unknown> = {};
+  const query: Record<string, string | string[]> = {};
+  const url = new URL(request.url);
+
+  url.searchParams.forEach((value, key) => {
+    appendRequestParameter(query, key, value);
+  });
+
+  if (Object.keys(query).length > 0) {
+    result.query = query;
+  }
+
+  const body = request.body || '';
+
+  if (body) {
+    const contentType = getRequestHeaderValue(request.headers, 'content-type').toLowerCase();
+
+    if (contentType.includes('application/json') || isJsonLikeText(body)) {
+      try {
+        result.body = JSON.parse(body);
+      } catch {
+        result.body = body;
+      }
+    } else if (contentType.includes('application/x-www-form-urlencoded')) {
+      const bodyParameters: Record<string, string | string[]> = {};
+
+      new URLSearchParams(body).forEach((value, key) => {
+        appendRequestParameter(bodyParameters, key, value);
+      });
+
+      result.body = bodyParameters;
+    } else {
+      result.body = body;
+    }
+  }
+
+  return JSON.stringify(result, null, 2);
+}
+
+/**
+ * @description 将内容转换成可用于 Shell 的单引号字符串
+ */
+function quoteCurlValue(value: string) {
+  return `'${String(value).replace(/'/g, `'"'"'`)}'`;
+}
+
+/**
+ * @description 获取请求对应的 cURL 命令
+ */
+function getCurlRequestContent(request: RequestDetailPayload) {
+  const ignoredHeaders = new Set(['host', 'content-length', 'connection']);
+  const lines = [`curl --request ${request.method}`, `  --url ${quoteCurlValue(request.url)}`];
+
+  Object.entries(request.headers || {}).forEach(([key, value]) => {
+    if (ignoredHeaders.has(key.toLowerCase())) return;
+
+    lines.push(`  --header ${quoteCurlValue(`${key}: ${value}`)}`);
+  });
+
+  if (request.body) {
+    lines.push(`  --data-raw ${quoteCurlValue(request.body)}`);
+  }
+
+  return lines.join(' \\\n');
+}
+
 /**
  * @description 获取响应编辑器语言
  */
@@ -390,7 +504,9 @@ export default function ApiDevToolsApp() {
   const [activeInterfaceId, setActiveInterfaceId] = useState('');
   const [requestTab, setRequestTab] = useState<RequestTab>('params');
   const [responseTab, setResponseTab] = useState<ResponseTab>('body');
+  const [detailSource, setDetailSource] = useState<DetailSource>('response');
   const [isResponseSearchOpen, setIsResponseSearchOpen] = useState(false);
+  const [requestDetail, setRequestDetail] = useState<RequestDetailPayload | null>(null);
   const [response, setResponse] = useState<ApiResponsePayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [showGlobals, setShowGlobals] = useState(false);
@@ -967,7 +1083,7 @@ export default function ApiDevToolsApp() {
       }
 
       if (message?.type === 'apiResponse') {
-        const payload = message.payload as ApiResponsePayload;
+        const payload = message.payload as ApiResponseMessagePayload;
 
         if (payload.requestId !== pendingRequestIdRef.current) return;
 
@@ -976,6 +1092,10 @@ export default function ApiDevToolsApp() {
         setLoading(false);
         setResponse(payload);
         setResponseTab('body');
+
+        if (payload.request) {
+          setRequestDetail(payload.request);
+        }
 
         const nextHistoryItem: HistoryItem = {
           id: createId('history'),
@@ -1142,6 +1262,16 @@ export default function ApiDevToolsApp() {
       const { payload } = buildRequestPayload();
 
       pendingRequestIdRef.current = payload.requestId;
+      setRequestDetail({
+        method: payload.method,
+        url: payload.url,
+        headers: payload.headers,
+        body: payload.body,
+        timeout: payload.timeout,
+      });
+      setDetailSource('response');
+      setIsResponseSearchOpen(false);
+      setResponseTab('body');
       setLoading(true);
       setResponse(null);
       setLog(`发送请求：${payload.method} ${payload.url}`);
@@ -1151,6 +1281,10 @@ export default function ApiDevToolsApp() {
         payload,
       });
     } catch (error: any) {
+      setRequestDetail(null);
+      setDetailSource('response');
+      setIsResponseSearchOpen(false);
+      setResponseTab('body');
       setLoading(false);
       setResponse({
         requestId: createId('error'),
@@ -1180,7 +1314,11 @@ export default function ApiDevToolsApp() {
     setProjects([]);
     setActiveProjectId('');
     setActiveInterfaceId('');
+    setRequestDetail(null);
+    setDetailSource('response');
+    setIsResponseSearchOpen(false);
     setResponse(null);
+    setResponseTab('body');
     setLogs([]);
     setSharedDocUrl('');
     setSafeBottomPanelSize(BOTTOM_PANEL_DEFAULT_SIZE);
@@ -1213,7 +1351,11 @@ export default function ApiDevToolsApp() {
     setRequest(nextRequest);
     setActiveInterfaceId('');
     setRequestTab('params');
+    setRequestDetail(null);
+    setDetailSource('response');
+    setIsResponseSearchOpen(false);
     setResponse(null);
+    setResponseTab('body');
   };
 
   /**
@@ -1274,6 +1416,9 @@ export default function ApiDevToolsApp() {
     setActiveInterfaceId('');
     setRequest(nextRequest);
     setRequestTab('params');
+    setRequestDetail(null);
+    setDetailSource('response');
+    setIsResponseSearchOpen(false);
     setResponse(null);
     setResponseTab('body');
   };
@@ -1390,6 +1535,9 @@ export default function ApiDevToolsApp() {
     requestRef.current = restoredRequest;
 
     setRequest(restoredRequest);
+    setRequestDetail(null);
+    setDetailSource('response');
+    setIsResponseSearchOpen(false);
     setResponse(null);
     setResponseTab('body');
 
@@ -1486,6 +1634,9 @@ export default function ApiDevToolsApp() {
       setActiveInterfaceId(firstInterface.id);
       setRequest(nextRequest);
       setRequestTab('params');
+      setRequestDetail(null);
+      setDetailSource('response');
+      setIsResponseSearchOpen(false);
       setResponse(null);
       setResponseTab('body');
       setLog(`已打开接口：${firstInterface.name}`);
@@ -1582,6 +1733,9 @@ export default function ApiDevToolsApp() {
     setActiveInterfaceId(api.id);
     setRequest(nextRequest);
     setRequestTab('params');
+    setRequestDetail(null);
+    setDetailSource('response');
+    setIsResponseSearchOpen(false);
     setResponse(null);
     setResponseTab('body');
     setLog(`已打开接口：${api.name}`);
@@ -1694,6 +1848,9 @@ export default function ApiDevToolsApp() {
       setActiveProjectId(projectId);
       setActiveInterfaceId(api.id);
       setRequestTab('params');
+      setRequestDetail(null);
+      setDetailSource('response');
+      setIsResponseSearchOpen(false);
       setResponse(null);
       setResponseTab('body');
 
@@ -1728,7 +1885,11 @@ export default function ApiDevToolsApp() {
           setActiveProjectId('');
           setActiveInterfaceId('');
           setRequest(nextRequest);
+          setRequestDetail(null);
+          setDetailSource('response');
+          setIsResponseSearchOpen(false);
           setResponse(null);
+          setResponseTab('body');
         }
       }
 
@@ -1945,11 +2106,27 @@ export default function ApiDevToolsApp() {
   };
 
   const responseBody = getDisplayResponseBody(response);
+  const isRequestDetail = detailSource === 'request';
+  const hasCurrentDetail = isRequestDetail ? Boolean(requestDetail) : Boolean(response);
 
   /**
-   * @description 计算当前响应页签的编辑器内容
+   * @description 计算当前请求或响应页签的编辑器内容
    */
   const responseEditorValue = useMemo(() => {
+    if (detailSource === 'request') {
+      if (!requestDetail) return '';
+
+      if (responseTab === 'headers') {
+        return JSON.stringify(requestDetail.headers, null, 2);
+      }
+
+      if (responseTab === 'raw') {
+        return getCurlRequestContent(requestDetail);
+      }
+
+      return getRequestParametersContent(requestDetail);
+    }
+
     if (!response) return '';
 
     if (response.error) {
@@ -1965,20 +2142,32 @@ export default function ApiDevToolsApp() {
     }
 
     return responseBody;
-  }, [response, responseBody, responseTab]);
+  }, [detailSource, requestDetail, response, responseBody, responseTab]);
 
   /**
-   * @description 计算当前响应页签的编辑器语言
+   * @description 计算当前请求或响应页签的编辑器语言
    */
   const responseEditorLanguage = useMemo(() => {
+    if (detailSource === 'request') {
+      if (responseTab === 'headers') {
+        return 'json';
+      }
+
+      if (responseTab === 'body') {
+        return 'json';
+      }
+
+      return 'plaintext';
+    }
+
     return getResponseEditorLanguage(response, responseTab, responseEditorValue);
-  }, [response, responseEditorValue, responseTab]);
+  }, [detailSource, response, responseEditorValue, responseTab]);
 
   /**
-   * @description 打开响应内容搜索框
+   * @description 打开当前请求或响应内容搜索框
    */
   const openResponseSearch = () => {
-    if (!response) return;
+    if (!responseEditorValue) return;
 
     setIsResponseSearchOpen(true);
   };
@@ -2256,29 +2445,59 @@ export default function ApiDevToolsApp() {
           </div>
         </section>
 
-        {/* 返回响应 */}
+        {/* 请求 / 响应详情 */}
         <section ref={rightPaneRef} className={styles['right-pane']}>
           <div className={styles['response-head']}>
-            <strong>返回响应</strong>
+            <select
+              className={styles['response-source-select']}
+              value={detailSource}
+              aria-label="选择请求或响应详情"
+              onChange={(event) => {
+                setDetailSource(event.target.value as DetailSource);
+                setResponseTab('body');
+                setIsResponseSearchOpen(false);
+              }}
+            >
+              <option value="response">请求响应</option>
+              <option value="request">请求详情</option>
+            </select>
+
             <div className={styles['response-head-actions']}>
               <div className={styles['response-meta']}>
-                {response && (
+                {detailSource === 'response' && response && (
                   <>
                     <span className={response.ok ? styles['status-ok'] : styles['status-error']}>{response.status || response.statusText}</span>
                     <span>{response.duration} ms</span>
                     <span>{formatSize(response.size)}</span>
                   </>
                 )}
+
+                {detailSource === 'request' && requestDetail && (
+                  <>
+                    <span className={styles['request-method-meta']}>{requestDetail.method}</span>
+                    <span className={styles['request-url-meta']} title={requestDetail.url}>
+                      {requestDetail.url}
+                    </span>
+                    <span>超时 {requestDetail.timeout} ms</span>
+                  </>
+                )}
               </div>
 
-              <BaseButton type="icon" size="medium" title="搜索响应内容" disabled={!response} icon={<i className="codicon codicon-search" />} onClick={openResponseSearch} />
+              <BaseButton
+                type="icon"
+                size="medium"
+                title={detailSource === 'request' ? '搜索请求内容' : '搜索响应内容'}
+                disabled={!responseEditorValue}
+                icon={<i className="codicon codicon-search" />}
+                onClick={openResponseSearch}
+              />
             </div>
           </div>
 
           <BaseTabs
-            items={RESPONSE_TABS}
+            items={detailSource === 'request' ? REQUEST_DETAIL_TABS : RESPONSE_TABS}
             value={responseTab}
-            ariaLabel="响应内容"
+            ariaLabel={detailSource === 'request' ? '请求内容' : '响应内容'}
             onChange={(nextTab) => {
               setResponseTab(nextTab);
             }}
@@ -2289,7 +2508,7 @@ export default function ApiDevToolsApp() {
             open={isResponseSearchOpen}
             text={responseEditorValue}
             className={styles['response-panel']}
-            placeholder="搜索响应..."
+            placeholder={detailSource === 'request' ? '搜索请求...' : '搜索响应...'}
             searchPosition="bottom"
             onClose={() => {
               setIsResponseSearchOpen(false);
@@ -2297,9 +2516,9 @@ export default function ApiDevToolsApp() {
           >
             {({ query, activeIndex }) => (
               <>
-                {loading && <div className={styles['empty-state']}>正在请求...</div>}
+                {detailSource === 'response' && loading && <div className={styles['empty-state']}>正在请求...</div>}
 
-                {!loading && !response && (
+                {detailSource === 'response' && !loading && !response && (
                   <div className={styles['empty-state']}>
                     <div className={styles.rocket}>🚀</div>
 
@@ -2307,7 +2526,15 @@ export default function ApiDevToolsApp() {
                   </div>
                 )}
 
-                {!loading && response && (
+                {detailSource === 'request' && !requestDetail && (
+                  <div className={styles['empty-state']}>
+                    <div className={styles.rocket}>🚀</div>
+
+                    <div>发送请求后可查看请求参数、Headers 和 cURL</div>
+                  </div>
+                )}
+
+                {hasCurrentDetail && !(detailSource === 'response' && loading) && (
                   <BaseCodeEditor
                     value={responseEditorValue}
                     language={responseEditorLanguage}
