@@ -1543,7 +1543,8 @@ export default function ApiDevToolsApp() {
    * @description 打开新增接口弹窗
    */
   const addInterface = () => {
-    const value = requestRef.current.name || requestRef.current.url || '未命名接口';
+    const currentProject = projectsRef.current.find((project) => project.id === activeProjectIdRef.current);
+    const value = `接口 ${(currentProject?.interfaces.length || 0) + 1}`;
 
     setManageDialog({
       kind: 'interface-create',
@@ -1650,9 +1651,13 @@ export default function ApiDevToolsApp() {
 
     if (manageDialog.kind === 'interface-create') {
       if (!value) return;
+      if (!(await confirmSaveBeforeLeave())) return;
 
       const now = Date.now();
-      const snapshot = cloneRequest<ApiRequestConfig>({ ...requestRef.current, name: value });
+      const snapshot: ApiRequestConfig = {
+        ...createDefaultRequest(),
+        name: value,
+      };
       let projectId = activeProjectIdRef.current;
       let nextProjects = projectsRef.current.map((project) => ({
         ...project,
@@ -1667,24 +1672,38 @@ export default function ApiDevToolsApp() {
       }
 
       const api = createInterfaceFromRequest(snapshot, value);
+      const nextRequest = cloneRequest<ApiRequestConfig>(api.request);
 
-      nextProjects = nextProjects.map((project) => (project.id === projectId ? { ...project, interfaces: [api, ...project.interfaces], updatedAt: now } : project));
+      nextProjects = nextProjects.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              interfaces: [api, ...project.interfaces],
+              updatedAt: now,
+            }
+          : project,
+      );
 
       projectsRef.current = nextProjects;
       activeProjectIdRef.current = projectId;
       activeInterfaceIdRef.current = api.id;
-      requestRef.current = cloneRequest<ApiRequestConfig>(api.request);
+      requestRef.current = nextRequest;
 
       setProjects(nextProjects);
-      setRequest(cloneRequest<ApiRequestConfig>(api.request));
+      setRequest(nextRequest);
       setActiveProjectId(projectId);
       setActiveInterfaceId(api.id);
+      setRequestTab('params');
+      setResponse(null);
+      setResponseTab('body');
+
       saveState({
         projects: nextProjects,
         activeProjectId: projectId,
         activeInterfaceId: api.id,
-        request: api.request,
+        request: nextRequest,
       });
+
       setLog(`已添加接口：${value}`);
       closeManageDialog();
       return;
@@ -2416,6 +2435,7 @@ export default function ApiDevToolsApp() {
         )}
       </BaseDialog>
 
+      {/* 全局变量 */}
       <BaseDialog
         open={showGlobals}
         title="全局变量"
