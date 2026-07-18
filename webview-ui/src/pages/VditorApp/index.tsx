@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Vditor from 'vditor';
 import 'vditor/dist/index.css';
 import { vscode } from '../../utils/vscode';
@@ -242,7 +242,7 @@ function createMetaActionTools(): MetaActionTools {
       window.dispatchEvent(
         new CustomEvent(`meta:${eventName}`, {
           detail: payload,
-        })
+        }),
       );
     },
   };
@@ -329,7 +329,10 @@ export default function VditorApp(props: VditorAppProps) {
     };
   }, []);
 
-  const postSaveMarkdown = (content: string) => {
+  /**
+   * @description 立即保存 Markdown 内容
+   */
+  const postSaveMarkdown = useCallback((content: string) => {
     if (!isEditModeRef.current || !currentFsPathRef.current) {
       return;
     }
@@ -346,18 +349,24 @@ export default function VditorApp(props: VditorAppProps) {
       content,
       fsPath: currentFsPathRef.current,
     });
-  };
+  }, []);
 
-  const clearSaveTimer = () => {
+  /**
+   * @description 清除 Markdown 自动保存定时器
+   */
+  const clearSaveTimer = useCallback(() => {
     if (!saveTimerRef.current) {
       return;
     }
 
     window.clearTimeout(saveTimerRef.current);
     saveTimerRef.current = null;
-  };
+  }, []);
 
-  const flushPendingSave = () => {
+  /**
+   * @description 立即保存等待中的 Markdown 内容
+   */
+  const flushPendingSave = useCallback(() => {
     clearSaveTimer();
 
     if (!pendingSaveContentRef.current) {
@@ -365,29 +374,38 @@ export default function VditorApp(props: VditorAppProps) {
     }
 
     postSaveMarkdown(pendingSaveContentRef.current);
-  };
+  }, [clearSaveTimer, postSaveMarkdown]);
 
-  const scheduleSaveMarkdown = (content: string) => {
-    if (!isEditModeRef.current || !currentFsPathRef.current) {
-      return;
-    }
+  /**
+   * @description 延迟保存 Markdown 内容
+   */
+  const scheduleSaveMarkdown = useCallback(
+    (content: string) => {
+      if (!isEditModeRef.current || !currentFsPathRef.current) {
+        return;
+      }
 
-    if (content === lastSavedContentRef.current) {
-      pendingSaveContentRef.current = '';
+      if (content === lastSavedContentRef.current) {
+        pendingSaveContentRef.current = '';
+        clearSaveTimer();
+        return;
+      }
+
+      pendingSaveContentRef.current = content;
       clearSaveTimer();
-      return;
-    }
 
-    pendingSaveContentRef.current = content;
-    clearSaveTimer();
+      saveTimerRef.current = window.setTimeout(() => {
+        saveTimerRef.current = null;
+        postSaveMarkdown(content);
+      }, 600);
+    },
+    [clearSaveTimer, postSaveMarkdown],
+  );
 
-    saveTimerRef.current = window.setTimeout(() => {
-      saveTimerRef.current = null;
-      postSaveMarkdown(content);
-    }, 600);
-  };
-
-  const destroyVditor = () => {
+  /**
+   * @description 销毁当前 Vditor 实例
+   */
+  const destroyVditor = useCallback(() => {
     flushPendingSave();
 
     try {
@@ -401,102 +419,108 @@ export default function VditorApp(props: VditorAppProps) {
     if (vditorRef.current) {
       vditorRef.current.innerHTML = '';
     }
-  };
+  }, [flushPendingSave]);
 
-  const renderMarkdown = async (content: string, fsPath: string, mode: 'read' | 'edit') => {
-    if (!vditorRef.current) return;
+  /**
+   * @description 渲染 Markdown 阅读或编辑界面
+   */
+  const renderMarkdown = useCallback(
+    async (content: string, fsPath: string, mode: 'read' | 'edit') => {
+      if (!vditorRef.current) return;
 
-    destroyVditor();
+      destroyVditor();
 
-    const { fileName } = parseFileUriInfo(fsPath);
-    const isEdit = mode === 'edit';
+      const { fileName } = parseFileUriInfo(fsPath);
+      const isEdit = mode === 'edit';
 
-    currentFsPathRef.current = fsPath;
-    isEditModeRef.current = isEdit;
-    pendingSaveContentRef.current = '';
-    setIsReadMode(!isEdit);
+      currentFsPathRef.current = fsPath;
+      isEditModeRef.current = isEdit;
+      pendingSaveContentRef.current = '';
+      setIsReadMode(!isEdit);
 
-    const appPlugins = setupPlugins();
+      const appPlugins = setupPlugins();
 
-    const processedContent = appPlugins
-      .use(VditorMeta, {
-        action: metaAction,
-      })
-      .use(VditorCompat, {
-        title: fileName || '文档预览',
-      })
-      .process(content || '');
+      const processedContent = appPlugins
+        .use(VditorMeta, {
+          action: metaAction,
+        })
+        .use(VditorCompat, {
+          title: fileName || '文档预览',
+        })
+        .process(content || '');
 
-    lastSavedContentRef.current = processedContent;
+      lastSavedContentRef.current = processedContent;
 
-    if (!isEdit) {
-      await Vditor.preview(vditorRef.current, processedContent, {
-        mode: 'light',
-        theme: {
-          current: 'classic',
+      if (!isEdit) {
+        await Vditor.preview(vditorRef.current, processedContent, {
+          mode: 'light',
+          theme: {
+            current: 'classic',
+          },
+          markdown: {
+            linkBase: '',
+            linkPrefix: '',
+            sanitize: false,
+          },
+          after: () => {
+            const links = vditorRef.current?.querySelectorAll('a[href]') || [];
+
+            links.forEach((link) => {
+              link.setAttribute('draggable', 'false');
+
+              const href = link.getAttribute('href') || '';
+
+              if (href.startsWith('http://') || href.startsWith('https://')) {
+                link.setAttribute('target', '_blank');
+                link.setAttribute('rel', 'noopener noreferrer');
+              }
+            });
+          },
+        } as any);
+
+        return;
+      }
+
+      const vd = new Vditor(vditorRef.current, {
+        value: processedContent,
+        mode: 'ir',
+        theme: 'classic',
+        lang: 'zh_CN',
+        height: '100%',
+        toolbar: undefined,
+        toolbarConfig: {
+          hide: false,
+          pin: false,
         },
-        markdown: {
-          linkBase: '',
-          linkPrefix: '',
-          sanitize: false,
+        cache: {
+          enable: false,
+        },
+        preview: {
+          theme: {
+            current: 'classic',
+          },
+          markdown: {
+            linkBase: '',
+            linkPrefix: '',
+            sanitize: false,
+          },
         },
         after: () => {
-          const links = vditorRef.current?.querySelectorAll('a[href]') || [];
+          const vditorElement = vditorRef.current?.querySelector('.vditor') as HTMLElement | null;
 
-          links.forEach((link) => {
-            link.setAttribute('draggable', 'false');
-
-            const href = link.getAttribute('href') || '';
-
-            if (href.startsWith('http://') || href.startsWith('https://')) {
-              link.setAttribute('target', '_blank');
-              link.setAttribute('rel', 'noopener noreferrer');
-            }
-          });
+          if (vditorElement) {
+            vditorElement.style.height = '100%';
+          }
         },
-      } as any);
-
-      return;
-    }
-
-    const vd = new Vditor(vditorRef.current, {
-      value: processedContent,
-      mode: 'ir',
-      theme: 'classic',
-      lang: 'zh_CN',
-      height: '100%',
-      toolbar: undefined,
-      toolbarConfig: {
-        hide: false,
-        pin: false,
-      },
-      cache: {
-        enable: false,
-      },
-      preview: {
-        theme: {
-          current: 'classic',
+        input: (value: string) => {
+          scheduleSaveMarkdown(value);
         },
-        markdown: {
-          linkBase: '',
-          linkPrefix: '',
-          sanitize: false,
-        },
-      },
-      after: () => {
-        const vditorElement = vditorRef.current?.querySelector('.vditor') as HTMLElement | null;
+      });
 
-        if (vditorElement) {
-          vditorElement.style.height = '100%';
-        }
-      },
-      input: (value: string) => {
-        scheduleSaveMarkdown(value);
-      },
-    });
-
-    vditorInstanceRef.current = vd;
-  };
+      vditorInstanceRef.current = vd;
+    },
+    [destroyVditor, metaAction, scheduleSaveMarkdown],
+  );
 
   useEffect(() => {
     const tools = createMetaActionTools();
@@ -610,9 +634,9 @@ export default function VditorApp(props: VditorAppProps) {
     };
 
     /**
- * 双击指定区域时，不保留浏览器默认选中的文字。
- * 不影响拖动选择文本，只处理双击后的选中效果。
- */
+     * 双击指定区域时，不保留浏览器默认选中的文字。
+     * 不影响拖动选择文本，只处理双击后的选中效果。
+     */
     const handleClearSelectionOnDoubleClick = (event: MouseEvent) => {
       const target = event.target as HTMLElement | null;
 
@@ -622,10 +646,7 @@ export default function VditorApp(props: VditorAppProps) {
        * 这里只处理你不希望双击选中的区域。
        * 目前先处理链接和 meta action 区域。
        */
-      const shouldClear =
-        target.closest('a') ||
-        target.closest('[data-meta-action="true"]') ||
-        target.closest('.meta-link-box');
+      const shouldClear = target.closest('a') || target.closest('[data-meta-action="true"]') || target.closest('.meta-link-box');
 
       if (!shouldClear) return;
 
@@ -655,7 +676,7 @@ export default function VditorApp(props: VditorAppProps) {
 
       destroyVditor();
     };
-  }, [metaAction]);
+  }, [destroyVditor, metaAction, renderMarkdown]);
 
   return (
     <div className={`${styles['vditor-container']} ${pageMode ? styles['page-mode'] : ''} ${isReadMode ? styles['read-mode'] : ''}`}>
