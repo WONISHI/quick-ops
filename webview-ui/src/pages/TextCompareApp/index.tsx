@@ -46,12 +46,7 @@ function createSpanStr(text: string, className?: string): string {
 }
 
 /** 核心算法：差异块处理 */
-function renderModificationStr(
-  removedTokens: string[],
-  addedTokens: string[],
-  originalHtmlList: string[],
-  modifiedHtmlList: string[]
-) {
+function renderModificationStr(removedTokens: string[], addedTokens: string[], originalHtmlList: string[], modifiedHtmlList: string[]) {
   const maxLen = Math.max(removedTokens.length, addedTokens.length);
 
   for (let i = 0; i < maxLen; i++) {
@@ -229,26 +224,15 @@ export default function TextCompareApp() {
         <h2>🔬 极速文本差异对比</h2>
 
         <div className={styles['action-group']}>
-          <button
-            className={styles.primary}
-            disabled={!canCompare}
-            onClick={() => setTriggerDiff((prev) => prev + 1)}
-          >
+          <button className={styles.primary} disabled={!canCompare} onClick={() => setTriggerDiff((prev) => prev + 1)}>
             开始对比
           </button>
 
-          <button
-            title="最大化/还原当前对比窗口"
-            onClick={() => vscode?.postMessage({ type: 'toggleFullScreen' })}
-          >
+          <button title="最大化/还原当前对比窗口" onClick={() => vscode?.postMessage({ type: 'toggleFullScreen' })}>
             ⛶ 切换全屏
           </button>
 
-          <button
-            disabled={!canCompare}
-            title="在独立的编辑器 Tab 中进行左右对比"
-            onClick={handleNativeDiff}
-          >
+          <button disabled={!canCompare} title="在独立的编辑器 Tab 中进行左右对比" onClick={handleNativeDiff}>
             调用原生 Diff
           </button>
         </div>
@@ -258,46 +242,29 @@ export default function TextCompareApp() {
         <div className={styles['editor-box']}>
           <label>
             <span>【原文本】(Original)</span>
-            <button
-              className={styles['clear-btn']}
-              onClick={() => setOriginal('')}
-            >
+            <button className={styles['clear-btn']} onClick={() => setOriginal('')}>
               清空
             </button>
           </label>
 
-          <textarea
-            value={original}
-            onChange={(event) => setOriginal(event.target.value)}
-            placeholder="在此粘贴原始链接、JSON 或代码..."
-          />
+          <textarea value={original} onChange={(event) => setOriginal(event.target.value)} placeholder="在此粘贴原始链接、JSON 或代码..." />
         </div>
 
         <div className={styles['editor-box']}>
           <label>
             <span>【新文本】(Modified)</span>
-            <button
-              className={styles['clear-btn']}
-              onClick={() => setModified('')}
-            >
+            <button className={styles['clear-btn']} onClick={() => setModified('')}>
               清空
             </button>
           </label>
 
-          <textarea
-            ref={modifiedInputRef}
-            value={modified}
-            onChange={(event) => setModified(event.target.value)}
-            placeholder="在此粘贴修改后的内容..."
-          />
+          <textarea ref={modifiedInputRef} value={modified} onChange={(event) => setModified(event.target.value)} placeholder="在此粘贴修改后的内容..." />
         </div>
       </div>
 
       <div className={styles['result-container']}>
         <div className={styles['result-header']}>
-          <div className={styles['result-title-row']}>
-            👇 边界保留与空位感知视图 (Boundary & Empty-Slot Preserved)
-          </div>
+          <div className={styles['result-title-row']}>👇 边界保留与空位感知视图 (Boundary & Empty-Slot Preserved)</div>
 
           <div className={styles['result-tools-row']}>
             <span className={styles.legend}>
@@ -315,15 +282,8 @@ export default function TextCompareApp() {
               整体替换 / 链接修改
             </span>
 
-            <label
-              className={styles['wrap-toggle']}
-              title="开启后长文本将自动换行显示，无需横向滚动"
-            >
-              <input
-                type="checkbox"
-                checked={isWrap}
-                onChange={(event) => setIsWrap(event.target.checked)}
-              />
+            <label className={styles['wrap-toggle']} title="开启后长文本将自动换行显示，无需横向滚动">
+              <input type="checkbox" checked={isWrap} onChange={(event) => setIsWrap(event.target.checked)} />
               自动换行 (Wrap)
             </label>
           </div>
@@ -331,34 +291,21 @@ export default function TextCompareApp() {
 
         <div className={styles['diff-wrapper']}>
           {!diffResult ? (
-            <span className={styles['diff-empty']}>
-              请同时输入原文本和新文本，点击右上角【开始对比】按钮...
-            </span>
+            <span className={styles['diff-empty']}>请同时输入原文本和新文本，点击右上角【开始对比】按钮...</span>
           ) : diffResult.error ? (
             <span className={styles['diff-error']}>渲染出错: {diffResult.error}</span>
           ) : (
-            <div
-              className={[
-                styles['diff-content'],
-                isWrap ? styles['is-wrapped'] : '',
-              ].filter(Boolean).join(' ')}
-            >
+            <div className={[styles['diff-content'], isWrap ? styles['is-wrapped'] : ''].filter(Boolean).join(' ')}>
               <div className={styles['diff-line-container']}>
                 <div className={styles['diff-title']}>[- 原文]</div>
-                <div
-                  className={styles['diff-text']}
-                  dangerouslySetInnerHTML={{ __html: diffResult.origHtml || '' }}
-                />
+                <div className={styles['diff-text']} dangerouslySetInnerHTML={{ __html: diffResult.origHtml || '' }} />
               </div>
 
               <hr className={styles['diff-divider']} />
 
               <div className={styles['diff-line-container']}>
                 <div className={styles['diff-title']}>[+ 新文]</div>
-                <div
-                  className={styles['diff-text']}
-                  dangerouslySetInnerHTML={{ __html: diffResult.modHtml || '' }}
-                />
+                <div className={styles['diff-text']} dangerouslySetInnerHTML={{ __html: diffResult.modHtml || '' }} />
               </div>
             </div>
           )}
