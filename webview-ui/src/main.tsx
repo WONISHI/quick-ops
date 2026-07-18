@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
-import TextCompareApp from './pages/TextCompareApp';
+import TextCompareApp from './pages/text-compare-app';
 import MockServerApp from './pages/MockApp/MockSidebarApp';
 import RecentProjectsApp from './pages/RecentProjectsApp';
 import LivePreviewApp from './pages/LivePreviewApp';
