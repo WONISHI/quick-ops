@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
+import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
 import { vscode } from '../../utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -15,24 +17,13 @@ import {
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 import styles from './index.module.css';
 import FileIcon from '../../components/FileIcon';
-import ProjectInitLoading from '../../components/ProjectInitLoading';
 import RecentProjectContextMenu from '../../components/RecentProjectContextMenu';
 import SearchViewWrapper from '../../components/SearchViewWrapper';
 import Tooltip from '../../components/Tooltip';
 import Scrollbar, { type ScrollbarInstance } from '../../components/Scrollbar';
 import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '../../utils';
-import {
-  FileGitStatusBadge,
-  FolderGitStatusDot,
-  getGitStatusTitle,
-} from '../../components/GitStatusMark';
-import type {
-  Project,
-  DirChild,
-  SearchMatch,
-  SearchResult,
-  ContextMenuPayload,
-} from '../../types/RecentProjectsApp';
+import { FileGitStatusBadge, FolderGitStatusDot, getGitStatusTitle } from '../../components/GitStatusMark';
+import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '../../types/RecentProjectsApp';
 
 interface DiagnosticSummary {
   errors: number;
@@ -73,6 +64,77 @@ interface SearchReturnState {
   focusRootPath: string;
   focusRootName: string;
   searchTargetProject: ContextMenuPayload | null;
+}
+
+/**
+ * @description 最近项目初始化骨架屏
+ */
+function RecentProjectsSkeleton() {
+  return (
+    <SkeletonTheme
+      baseColor="var(--vscode-list-inactiveSelectionBackground, rgba(127, 127, 127, 0.12))"
+      highlightColor="var(--vscode-list-hoverBackground, rgba(127, 127, 127, 0.2))"
+      borderRadius={4}
+      duration={1.35}
+    >
+      <div className={[styles['app-wrapper'], styles['recent-projects-skeleton-root']].join(' ')}>
+        <div className={styles['recent-projects-skeleton-search']}>
+          <div className={styles['recent-projects-skeleton-search-box']}>
+            <Skeleton width={14} height={14} circle />
+            <Skeleton width="68%" height={11} />
+          </div>
+        </div>
+
+        <div className={styles['recent-projects-skeleton-list']}>
+          <div className={styles['recent-projects-skeleton-active']}>
+            <div className={styles['recent-projects-skeleton-chevron']}>
+              <Skeleton width={10} height={10} />
+            </div>
+
+            <Skeleton width={18} height={18} />
+
+            <div className={styles['recent-projects-skeleton-info']}>
+              <div className={styles['recent-projects-skeleton-title']}>
+                <Skeleton width="46%" height={12} />
+                <Skeleton width={54} height={16} borderRadius={10} />
+              </div>
+
+              <Skeleton width="76%" height={9} />
+            </div>
+          </div>
+
+          <div className={styles['recent-projects-skeleton-divider']} />
+
+          {Array.from({ length: 8 }).map((_, index) => (
+            <div key={index} className={styles['recent-projects-skeleton-item']}>
+              <div className={styles['recent-projects-skeleton-chevron']}>
+                <Skeleton width={10} height={10} />
+              </div>
+
+              <Skeleton width={18} height={18} />
+
+              <div className={styles['recent-projects-skeleton-info']}>
+                <div className={styles['recent-projects-skeleton-title']}>
+                  <Skeleton width={`${42 + (index % 3) * 9}%`} height={12} />
+
+                  {index % 2 === 0 && <Skeleton width={48} height={16} borderRadius={10} />}
+                </div>
+
+                <Skeleton width={`${68 + (index % 4) * 6}%`} height={9} />
+              </div>
+
+              <Skeleton width={22} height={22} />
+            </div>
+          ))}
+        </div>
+
+        <div className={styles['recent-projects-skeleton-bottom']}>
+          <Skeleton width="100%" height={30} />
+          <Skeleton width="100%" height={30} />
+        </div>
+      </div>
+    </SkeletonTheme>
+  );
 }
 
 export default function RecentProjectsApp() {
@@ -274,7 +336,9 @@ export default function RecentProjectsApp() {
           return decoded.replace(/\\/g, '/').replace(/\/+$/, '');
         }
 
-        return decodeURIComponent(url.pathname || pathValue).replace(/\\/g, '/').replace(/\/+$/, '');
+        return decodeURIComponent(url.pathname || pathValue)
+          .replace(/\\/g, '/')
+          .replace(/\/+$/, '');
       }
     } catch {
       return normalizeFallbackPath(pathValue);
@@ -418,10 +482,7 @@ export default function RecentProjectsApp() {
 
   const getTreeTooltipContent = (pathValue: string, item: any, isFolder: boolean = false) => {
     const displayPath = formatTooltipPath(pathValue || item?.path || item?.fsPath || '');
-    const meta = [
-      getProblemTooltipText(item, isFolder),
-      getSimpleGitStatusText(item?.status, isFolder),
-    ].filter(Boolean);
+    const meta = [getProblemTooltipText(item, isFolder), getSimpleGitStatusText(item?.status, isFolder)].filter(Boolean);
 
     if (!displayPath && meta.length === 0) return null;
 
@@ -440,7 +501,6 @@ export default function RecentProjectsApp() {
 
     return `${displayPath} · ${meta.join(' · ')}`;
   };
-
 
   const getSearchNameHighlightTokens = (query: string) => {
     const value = String(query || '').trim();
@@ -573,7 +633,6 @@ export default function RecentProjectsApp() {
     });
   };
 
-
   const renderDiagnosticsBadge = (item: any) => {
     const diagnostics = getDiagnosticSummary(item);
 
@@ -664,14 +723,14 @@ export default function RecentProjectsApp() {
   // };
 
   const cacheNormalDirChildrenBeforeFocus = (rootPath: string) => {
-    const snapshot: Record<string, DirChild[]> = {}
+    const snapshot: Record<string, DirChild[]> = {};
     Object.keys(dirChildrenRef.current).forEach((key) => {
       if (isPathInside(key, rootPath)) {
         snapshot[key] = dirChildrenRef.current[key];
       }
-    })
+    });
     normalDirChildrenBeforeFocusRef.current = snapshot;
-  }
+  };
 
   const getProjectNameByPath = (pathValue: string) => {
     if (isFocusModeRef.current && focusRootPathRef.current && isPathInside(pathValue, focusRootPathRef.current)) {
@@ -728,14 +787,7 @@ export default function RecentProjectsApp() {
   ) => {
     const currentWorkspaceValue = currentWorkspaceRef.current;
     const targetPath = options?.targetPath || currentWorkspaceValue?.fsPath || payload.path;
-    const title =
-      options?.title ||
-      currentWorkspaceValue?.customName ||
-      currentWorkspaceValue?.name ||
-      payload.customName ||
-      payload.originalName ||
-      payload.name ||
-      '当前项目';
+    const title = options?.title || currentWorkspaceValue?.customName || currentWorkspaceValue?.name || payload.customName || payload.originalName || payload.name || '当前项目';
 
     if (!targetPath) {
       return;
@@ -743,12 +795,7 @@ export default function RecentProjectsApp() {
 
     cacheNormalDirChildrenBeforeFocus(targetPath);
 
-    const focusRefreshPaths = Array.from(new Set([
-      targetPath,
-      ...Array.from(expandedPathsRef.current).filter((itemPath) =>
-        !!itemPath && isPathInside(itemPath, targetPath)
-      ),
-    ]));
+    const focusRefreshPaths = Array.from(new Set([targetPath, ...Array.from(expandedPathsRef.current).filter((itemPath) => !!itemPath && isPathInside(itemPath, targetPath))]));
 
     const nextSearchTargetProject: ContextMenuPayload = {
       ...payload,
@@ -964,10 +1011,7 @@ export default function RecentProjectsApp() {
         return false;
       }
 
-      if (
-        normalizedTarget &&
-        (normalizedChangedPath === normalizedTarget || normalizedChangedPath.startsWith(`${normalizedTarget}/`))
-      ) {
+      if (normalizedTarget && (normalizedChangedPath === normalizedTarget || normalizedChangedPath.startsWith(`${normalizedTarget}/`))) {
         return true;
       }
 
@@ -986,12 +1030,13 @@ export default function RecentProjectsApp() {
       if (msg.type === 'updateProjects') {
         const data = (msg.data as Project[]) || [];
         const currentWorkspaceValue = (msg.currentWorkspace as Project) || null;
-        const focusLock = (msg.focusLock as {
-          enabled?: boolean;
-          active?: boolean;
-          fsPath?: string;
-          name?: string;
-        }) || null;
+        const focusLock =
+          (msg.focusLock as {
+            enabled?: boolean;
+            active?: boolean;
+            fsPath?: string;
+            name?: string;
+          }) || null;
 
         projectsRef.current = data;
         currentWorkspaceRef.current = currentWorkspaceValue;
@@ -1011,19 +1056,22 @@ export default function RecentProjectsApp() {
           isFocusLockedRef.current = true;
 
           if (!isFocusModeRef.current && !searchReturnStateRef.current) {
-            enterFocusMode({
-              path: currentWorkspaceValue.fsPath,
-              name: focusLock.name || currentWorkspaceValue.name,
-              projectName: focusLock.name || currentWorkspaceValue.name,
-              originalName: currentWorkspaceValue.name,
-              customName: currentWorkspaceValue.customName,
-              isActiveProject: true,
-              isRemote: currentWorkspaceValue.fsPath.startsWith('vscode-vfs://') || currentWorkspaceValue.fsPath.startsWith('http'),
-            }, {
-              targetPath: currentWorkspaceValue.fsPath,
-              title: focusLock.name || currentWorkspaceValue.customName || currentWorkspaceValue.name || '当前项目',
-              locked: true,
-            });
+            enterFocusMode(
+              {
+                path: currentWorkspaceValue.fsPath,
+                name: focusLock.name || currentWorkspaceValue.name,
+                projectName: focusLock.name || currentWorkspaceValue.name,
+                originalName: currentWorkspaceValue.name,
+                customName: currentWorkspaceValue.customName,
+                isActiveProject: true,
+                isRemote: currentWorkspaceValue.fsPath.startsWith('vscode-vfs://') || currentWorkspaceValue.fsPath.startsWith('http'),
+              },
+              {
+                targetPath: currentWorkspaceValue.fsPath,
+                title: focusLock.name || currentWorkspaceValue.customName || currentWorkspaceValue.name || '当前项目',
+                locked: true,
+              },
+            );
           }
         } else if (!isFocusModeRef.current) {
           setIsFocusLocked(false);
@@ -1067,7 +1115,7 @@ export default function RecentProjectsApp() {
         if (patchMap.size === 0) return;
 
         setProjects((prev) => prev.map((project) => applyMetadataPatchToItem(project as any, patchMap) as Project));
-        setCurrentWorkspace((prev) => (prev ? applyMetadataPatchToItem(prev as any, patchMap) as Project : prev));
+        setCurrentWorkspace((prev) => (prev ? (applyMetadataPatchToItem(prev as any, patchMap) as Project) : prev));
         setFileNameSearchResults((prev) => prev.map((item) => applyMetadataPatchToItem(item as any, patchMap) as DirChild));
         setFolderSearchResults((prev) => prev.map((item) => applyMetadataPatchToItem(item as any, patchMap) as SearchResult));
         setDirChildren((prev) => {
@@ -1092,11 +1140,7 @@ export default function RecentProjectsApp() {
       } else if (msg.type === 'searchContentChanged') {
         const changedPaths = ((msg.paths as string[]) || []).filter(Boolean);
 
-        if (
-          changedPaths.length > 0 &&
-          folderSearchTypeRef.current === 'content' &&
-          isChangedPathRelatedToCurrentSearch(changedPaths)
-        ) {
+        if (changedPaths.length > 0 && folderSearchTypeRef.current === 'content' && isChangedPathRelatedToCurrentSearch(changedPaths)) {
           requestSilentFolderSearchRefresh();
         }
       } else if (msg.type === 'updateBranchTag') {
@@ -1523,21 +1567,13 @@ export default function RecentProjectsApp() {
 
       const containerRect = scrollableElement.getBoundingClientRect();
       const elementRect = element.getBoundingClientRect();
-      const isVisible =
-        elementRect.top >= containerRect.top &&
-        elementRect.bottom <= containerRect.bottom;
+      const isVisible = elementRect.top >= containerRect.top && elementRect.bottom <= containerRect.bottom;
 
       if (isVisible) {
         return;
       }
 
-      const nextScrollTop = Math.max(
-        0,
-        scrollableElement.scrollTop +
-          elementRect.top -
-          containerRect.top -
-          (scrollableElement.clientHeight - elementRect.height) / 2,
-      );
+      const nextScrollTop = Math.max(0, scrollableElement.scrollTop + elementRect.top - containerRect.top - (scrollableElement.clientHeight - elementRect.height) / 2);
 
       scrollableElement.scrollTo({
         top: nextScrollTop,
@@ -1603,48 +1639,46 @@ export default function RecentProjectsApp() {
       return;
     }
 
-    const searchKey = [
-      searchTargetProject.path,
-      folderSearchType,
-      folderSearchQuery.trim(),
-      searchTargetProject.isRemote ? 'remote' : 'local',
-    ].join('\n');
+    const searchKey = [searchTargetProject.path, folderSearchType, folderSearchQuery.trim(), searchTargetProject.isRemote ? 'remote' : 'local'].join('\n');
     const isSilentRefresh = silentSearchRefreshRef.current && lastSubmittedSearchKeyRef.current === searchKey;
 
     silentSearchRefreshRef.current = false;
 
-    const timeoutId = setTimeout(() => {
-      pendingSearchResponseModeRef.current = isSilentRefresh ? 'silent' : 'normal';
-      lastSubmittedSearchKeyRef.current = searchKey;
+    const timeoutId = setTimeout(
+      () => {
+        pendingSearchResponseModeRef.current = isSilentRefresh ? 'silent' : 'normal';
+        lastSubmittedSearchKeyRef.current = searchKey;
 
-      const requestId = latestSearchRequestIdRef.current + 1;
-      latestSearchRequestIdRef.current = requestId;
-      activeSearchRequestIdRef.current = requestId;
+        const requestId = latestSearchRequestIdRef.current + 1;
+        latestSearchRequestIdRef.current = requestId;
+        activeSearchRequestIdRef.current = requestId;
 
-      if (!isSilentRefresh) {
-        setIsSearchingFolder(true);
-      }
+        if (!isSilentRefresh) {
+          setIsSearchingFolder(true);
+        }
 
-      if (folderSearchType === 'content') {
-        vscode.postMessage({
-          type: 'searchInFolder',
-          requestId,
-          fsPath: searchTargetProject.path,
-          query: folderSearchQuery,
-          isRemote: searchTargetProject.isRemote,
-          focusOnly: false,
-        });
-      } else {
-        vscode.postMessage({
-          type: 'searchFileName',
-          requestId,
-          fsPath: searchTargetProject.path,
-          query: folderSearchQuery,
-          isRemote: searchTargetProject.isRemote,
-          focusOnly: false,
-        });
-      }
-    }, isSilentRefresh ? 120 : 500);
+        if (folderSearchType === 'content') {
+          vscode.postMessage({
+            type: 'searchInFolder',
+            requestId,
+            fsPath: searchTargetProject.path,
+            query: folderSearchQuery,
+            isRemote: searchTargetProject.isRemote,
+            focusOnly: false,
+          });
+        } else {
+          vscode.postMessage({
+            type: 'searchFileName',
+            requestId,
+            fsPath: searchTargetProject.path,
+            query: folderSearchQuery,
+            isRemote: searchTargetProject.isRemote,
+            focusOnly: false,
+          });
+        }
+      },
+      isSilentRefresh ? 120 : 500,
+    );
 
     return () => clearTimeout(timeoutId);
   }, [folderSearchQuery, isSearchMode, searchTargetProject, folderSearchType, isFocusMode, searchRefreshVersion]);
@@ -1709,13 +1743,7 @@ export default function RecentProjectsApp() {
     }
 
     return paths;
-  }, [
-    isSearchMode,
-    searchTargetProject,
-    filteredOtherProjects,
-    isCurrentVisible,
-    activeProjectToRender,
-  ]);
+  }, [isSearchMode, searchTargetProject, filteredOtherProjects, isCurrentVisible, activeProjectToRender]);
 
   const revealVisibleProjectPathKey = revealVisibleProjectPaths.join('\n');
 
@@ -1731,9 +1759,7 @@ export default function RecentProjectsApp() {
   const normalizeTreePath = (pathValue: string) => {
     if (!pathValue) return '';
 
-    return decodeURIComponent(pathValue.split('?')[0])
-      .replace(/\\/g, '/')
-      .replace(/\/+$/, '');
+    return decodeURIComponent(pathValue.split('?')[0]).replace(/\\/g, '/').replace(/\/+$/, '');
   };
 
   const getParentTreePath = (pathValue: string) => {
@@ -1758,13 +1784,7 @@ export default function RecentProjectsApp() {
   };
 
   const getTreeChildrenClassName = (parentPath: string, extraClassName: string = '') => {
-    return [
-      styles['tree-children'],
-      isSelectedDirectParentPath(parentPath) ? styles['active-tree-guide'] : '',
-      extraClassName,
-    ]
-      .filter(Boolean)
-      .join(' ');
+    return [styles['tree-children'], isSelectedDirectParentPath(parentPath) ? styles['active-tree-guide'] : '', extraClassName].filter(Boolean).join(' ');
   };
 
   const requestReadDir = (pathValue: string, projectName: string, forceRefresh: boolean = false) => {
@@ -1951,13 +1971,7 @@ export default function RecentProjectsApp() {
   const canDragEntity = (pathValue: string, isActiveProject: boolean) => {
     const workspacePath = getCurrentWorkspacePath();
 
-    return (
-      !!isActiveProject &&
-      !!workspacePath &&
-      !isRemoteTreePath(pathValue) &&
-      isInsideCurrentWorkspacePath(pathValue) &&
-      !isSameTreePath(pathValue, workspacePath)
-    );
+    return !!isActiveProject && !!workspacePath && !isRemoteTreePath(pathValue) && isInsideCurrentWorkspacePath(pathValue) && !isSameTreePath(pathValue, workspacePath);
   };
 
   const getDragEntityFromEvent = (e: React.DragEvent): DraggingEntity | null => {
@@ -1965,7 +1979,7 @@ export default function RecentProjectsApp() {
 
     try {
       const raw = e.dataTransfer.getData('application/quickops-tree-item');
-      return raw ? JSON.parse(raw) as DraggingEntity : null;
+      return raw ? (JSON.parse(raw) as DraggingEntity) : null;
     } catch {
       return null;
     }
@@ -2126,15 +2140,9 @@ export default function RecentProjectsApp() {
           <div className={styles['chevron-placeholder']}></div>
 
           {isFolder ? (
-            <FontAwesomeIcon
-              icon={faFolder}
-              className={`${styles['icon-closed']} ${styles['sub-icon']} ${styles['folder-icon']}`}
-            />
+            <FontAwesomeIcon icon={faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']} ${styles['folder-icon']}`} />
           ) : (
-            <FileIcon
-              fileName={pendingCreateName || 'untitled'}
-              className={styles['sub-icon']}
-            />
+            <FileIcon fileName={pendingCreateName || 'untitled'} className={styles['sub-icon']} />
           )}
 
           <input
@@ -2181,12 +2189,7 @@ export default function RecentProjectsApp() {
     });
   };
 
-  const handleOpenFile = (
-    pathValue: string,
-    projectName: string,
-    isActiveProject: boolean,
-    e: React.MouseEvent
-  ) => {
+  const handleOpenFile = (pathValue: string, projectName: string, isActiveProject: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
 
     setSelectedPath(pathValue);
@@ -2230,12 +2233,7 @@ export default function RecentProjectsApp() {
     }
   };
 
-  const handleToggleExpand = (
-    pathValue: string,
-    projectName: string,
-    _: boolean,
-    e: React.MouseEvent
-  ) => {
+  const handleToggleExpand = (pathValue: string, projectName: string, _: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
 
     setContextMenu((prev) => ({
@@ -2267,11 +2265,7 @@ export default function RecentProjectsApp() {
     }, 250);
   };
 
-  const handleContextMenu = (
-    e: React.MouseEvent,
-    type: 'top' | 'sub',
-    payload: ContextMenuPayload
-  ) => {
+  const handleContextMenu = (e: React.MouseEvent, type: 'top' | 'sub', payload: ContextMenuPayload) => {
     e.preventDefault();
     e.stopPropagation();
 
@@ -2606,9 +2600,7 @@ export default function RecentProjectsApp() {
   useEffect(() => {
     if (totalMatches > 0 && isSearchMode && flatMatchesList[currentActiveMatch]) {
       const matchInfo = flatMatchesList[currentActiveMatch];
-      const el = document.getElementById(
-        `search-line-${matchInfo.fileIndex}-${matchInfo.matchIndex}`
-      );
+      const el = document.getElementById(`search-line-${matchInfo.fileIndex}-${matchInfo.matchIndex}`);
 
       if (el) {
         el.scrollIntoView({
@@ -2685,13 +2677,7 @@ export default function RecentProjectsApp() {
     normalDirChildrenBeforeFocusRef.current = {};
   };
 
-
-  const renderTreeChildren = (
-    parentPath: string,
-    projectName: string,
-    isActiveProject: boolean = false,
-    highlightQuery: string = ''
-  ) => {
+  const renderTreeChildren = (parentPath: string, projectName: string, isActiveProject: boolean = false, highlightQuery: string = '') => {
     const children = dirChildren[parentPath];
     const isLoading = loadingPaths.has(parentPath);
 
@@ -2718,9 +2704,7 @@ export default function RecentProjectsApp() {
       return <div className={styles['empty-node']}>（空文件夹/无读取权限）</div>;
     }
 
-    const visibleChildren = highlightQuery
-      ? children.filter((child) => isSearchNameTextMatched(child.name, highlightQuery))
-      : children;
+    const visibleChildren = highlightQuery ? children.filter((child) => isSearchNameTextMatched(child.name, highlightQuery)) : children;
 
     if (visibleChildren.length === 0 && !pendingCreateRow) {
       return <div className={styles['empty-node']}>没有匹配的子项</div>;
@@ -2743,8 +2727,9 @@ export default function RecentProjectsApp() {
                 <div
                   id={elementId}
                   data-tree-path={childPath}
-                  className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''
-                    } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
+                  className={`${styles['sub-item']} ${styles['clickable-sub']} ${
+                    selectedPath === childPath ? styles['selected'] : ''
+                  } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
                   draggable={canDragEntity(childPath, isActiveProject)}
                   onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
                   onDragEnd={handleDragEnd}
@@ -2774,24 +2759,13 @@ export default function RecentProjectsApp() {
                         }}
                       />
                     ) : (
-                      <FontAwesomeIcon
-                        icon={isExpanded ? faChevronDown : faChevronRight}
-                        className={styles['chevron-icon']}
-                      />
+                      <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
                     )}
                   </div>
 
-                  <FontAwesomeIcon
-                    icon={isExpanded ? faFolderOpen : faFolder}
-                    className={`${styles['icon-closed']} ${styles['sub-icon']} ${styles['folder-icon']}`}
-                  />
+                  <FontAwesomeIcon icon={isExpanded ? faFolderOpen : faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']} ${styles['folder-icon']}`} />
 
-                  <Tooltip
-                    content={getTreeTooltipContent(childPath, child, true)}
-                    placement="bottom"
-                    align="start"
-                    delay={2000}
-                  >
+                  <Tooltip content={getTreeTooltipContent(childPath, child, true)} placement="bottom" align="start" delay={2000}>
                     {renameInput || (
                       <span
                         className={styles['sub-name']}
@@ -2810,12 +2784,7 @@ export default function RecentProjectsApp() {
                 </div>
 
                 {isExpanded && (
-                  <div
-                    className={getTreeChildrenClassName(
-                      childPath,
-                      styles['search-name-tree-children']
-                    )}
-                  >
+                  <div className={getTreeChildrenClassName(childPath, styles['search-name-tree-children'])}>
                     {renderTreeChildren(childPath, projectName, isActiveProject, highlightQuery)}
                   </div>
                 )}
@@ -2828,8 +2797,9 @@ export default function RecentProjectsApp() {
               <div
                 id={elementId}
                 data-tree-path={childPath}
-                className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''
-                  } ${styles['search-name-sub-item-clickable']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''}`}
+                className={`${styles['sub-item']} ${
+                  selectedPath === childPath ? styles['selected'] : ''
+                } ${styles['search-name-sub-item-clickable']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''}`}
                 draggable={canDragEntity(childPath, isActiveProject)}
                 onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
                 onDragEnd={handleDragEnd}
@@ -2848,20 +2818,12 @@ export default function RecentProjectsApp() {
               >
                 <div className={styles['chevron-placeholder']}></div>
 
-                <FileIcon
-                  fileName={child.name}
-                  status={child.status}
-                  className={styles['sub-icon']}
-                />
+                <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
 
-                <Tooltip
-                  content={getTreeTooltipContent(childPath, child, false)}
-                  placement="bottom"
-                  align="start"
-                  delay={2000}
-                >
+                <Tooltip content={getTreeTooltipContent(childPath, child, false)} placement="bottom" align="start" delay={2000}>
                   {renameInput || (
-                    <span className={styles['sub-name']}
+                    <span
+                      className={styles['sub-name']}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -2884,7 +2846,7 @@ export default function RecentProjectsApp() {
   };
 
   if (isInitLoading) {
-    return <ProjectInitLoading text="正在加载项目视图..." />;
+    return <RecentProjectsSkeleton />;
   }
 
   return (
@@ -2907,11 +2869,7 @@ export default function RecentProjectsApp() {
           onLockFocusMode={lockCurrentFocusMode}
           onExitLockedFocusMode={exitLockedFocusMode}
           focusTree={
-            isFocusMode && focusRootPath ? (
-              <div className={styles['focus-tree-wrapper']}>
-                {renderTreeChildren(focusRootPath, focusRootName || '当前项目', true)}
-              </div>
-            ) : null
+            isFocusMode && focusRootPath ? <div className={styles['focus-tree-wrapper']}>{renderTreeChildren(focusRootPath, focusRootName || '当前项目', true)}</div> : null
           }
           onBack={exitSearchOrFocusMode}
           folderSearchQuery={folderSearchQuery}
@@ -2944,27 +2902,13 @@ export default function RecentProjectsApp() {
           {projects.length > 0 && (
             <div className={styles['search-container']}>
               <div className={styles['search-box']}>
-                <FontAwesomeIcon
-                  icon={faMagnifyingGlass}
-                  className={styles['search-magnify-icon']}
-                />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={handleSearch}
-                  placeholder="搜索标题、文件夹、地址..."
-                  autoComplete="off"
-                  spellCheck="false"
-                />
+                <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['search-magnify-icon']} />
+                <input type="text" value={searchQuery} onChange={handleSearch} placeholder="搜索标题、文件夹、地址..." autoComplete="off" spellCheck="false" />
               </div>
             </div>
           )}
 
-          <Scrollbar
-            ref={listScrollbarRef}
-            className={styles['list-container']}
-            viewClassName={styles['list-view']}
-          >
+          <Scrollbar ref={listScrollbarRef} className={styles['list-container']} viewClassName={styles['list-view']}>
             {projects.length === 0 && !activeProjectToRender ? (
               <div className={styles['empty-state']}>
                 <div className={styles['empty-text']}>暂无项目记录，请添加：</div>
@@ -3009,9 +2953,7 @@ export default function RecentProjectsApp() {
                     const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
                     const branch = branchMap[p.fsPath] || p.branch;
                     const isExpanded = expandedPaths.has(rootPath);
-                    const projectIcon = isRemote
-                      ? (isGitlab ? faGitlab : faGithub)
-                      : (isExpanded ? faFolderOpen : faFolder);
+                    const projectIcon = isRemote ? (isGitlab ? faGitlab : faGithub) : isExpanded ? faFolderOpen : faFolder;
                     const rootLoading = loadingPaths.has(rootPath) && !dirChildren[rootPath];
                     const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
 
@@ -3020,8 +2962,9 @@ export default function RecentProjectsApp() {
                         <div
                           id={elementId}
                           data-tree-path={rootPath}
-                          className={`${styles['active-top-project']} ${selectedPath === rootPath ? styles['selected'] : ''
-                            } ${inHistory ? styles['in-history'] : styles['not-in-history']} ${getDropClassName(rootPath)}`}
+                          className={`${styles['active-top-project']} ${
+                            selectedPath === rootPath ? styles['selected'] : ''
+                          } ${inHistory ? styles['in-history'] : styles['not-in-history']} ${getDropClassName(rootPath)}`}
                           onDragOver={(e) => handleDragOverFolder(e, rootPath, true)}
                           onDragLeave={(e) => handleDragLeaveFolder(e, rootPath)}
                           onDrop={(e) => handleDropOnFolder(e, rootPath, true)}
@@ -3039,10 +2982,7 @@ export default function RecentProjectsApp() {
                           }
                           onClick={() => setSelectedPath(rootPath)}
                         >
-                          <div
-                            className={`${styles['item-left']} ${styles['clickable-expand']}`}
-                            onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}
-                          >
+                          <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}>
                             <div className={styles['tree-chevron']}>
                               {rootLoading ? (
                                 <FontAwesomeIcon
@@ -3055,27 +2995,15 @@ export default function RecentProjectsApp() {
                                   }}
                                 />
                               ) : (
-                                <FontAwesomeIcon
-                                  icon={isExpanded ? faChevronDown : faChevronRight}
-                                  className={styles['chevron-icon']}
-                                />
+                                <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
                               )}
                             </div>
 
                             <div className={styles['info']}>
                               <div className={styles['title']}>
-                                <FontAwesomeIcon
-                                  icon={projectIcon}
-                                  className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''
-                                    }`}
-                                />
+                                <FontAwesomeIcon icon={projectIcon} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
 
-                                <Tooltip
-                                  content={getRootProjectTooltipContent(rootPath, p)}
-                                  placement="bottom"
-                                  align="start"
-                                  delay={2000}
-                                >
+                                <Tooltip content={getRootProjectTooltipContent(rootPath, p)} placement="bottom" align="start" delay={2000}>
                                   <span
                                     className={styles['project-name']}
                                     style={{
@@ -3090,10 +3018,7 @@ export default function RecentProjectsApp() {
 
                                 {branch && (
                                   <span className={styles['branch-tag']} title={branch}>
-                                    <FontAwesomeIcon
-                                      icon={faCodeBranch}
-                                      className={styles['branch-icon']}
-                                    />
+                                    <FontAwesomeIcon icon={faCodeBranch} className={styles['branch-icon']} />
                                     <span className={styles['branch-text']}>{branch}</span>
                                   </span>
                                 )}
@@ -3104,16 +3029,7 @@ export default function RecentProjectsApp() {
                           </div>
                         </div>
 
-                        {isExpanded && (
-                          <div
-                            className={getTreeChildrenClassName(
-                              rootPath,
-                              styles['root-tree-children']
-                            )}
-                          >
-                            {renderTreeChildren(rootPath, title, true)}
-                          </div>
-                        )}
+                        {isExpanded && <div className={getTreeChildrenClassName(rootPath, styles['root-tree-children'])}>{renderTreeChildren(rootPath, title, true)}</div>}
 
                         <div className={styles['top-divider']}></div>
                       </div>
@@ -3130,9 +3046,7 @@ export default function RecentProjectsApp() {
                     const displayPath = getDisplayPath(p);
                     const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
                     const isExpanded = expandedPaths.has(rootPath);
-                    const projectIcon = isRemote
-                      ? (isGitlab ? faGitlab : faGithub)
-                      : (isExpanded ? faFolderOpen : faFolder);
+                    const projectIcon = isRemote ? (isGitlab ? faGitlab : faGithub) : isExpanded ? faFolderOpen : faFolder;
                     const itemLoading = loadingPaths.has(rootPath) && !dirChildren[rootPath];
                     const branch = branchMap[p.fsPath] || p.branch;
                     const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
@@ -3142,8 +3056,7 @@ export default function RecentProjectsApp() {
                         <div
                           id={elementId}
                           data-tree-path={rootPath}
-                          className={`${styles['project-item']} ${isJustOpened ? styles['just-opened'] : ''
-                            } ${selectedPath === rootPath ? styles['selected'] : ''}`}
+                          className={`${styles['project-item']} ${isJustOpened ? styles['just-opened'] : ''} ${selectedPath === rootPath ? styles['selected'] : ''}`}
                           onDoubleClick={() => handleOpenProject(p.fsPath)}
                           onContextMenu={(e) =>
                             handleContextMenu(e, 'top', {
@@ -3158,10 +3071,7 @@ export default function RecentProjectsApp() {
                           }
                           onClick={() => setSelectedPath(rootPath)}
                         >
-                          <div
-                            className={`${styles['item-left']} ${styles['clickable-expand']}`}
-                            onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}
-                          >
+                          <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}>
                             <div className={styles['tree-chevron']}>
                               {itemLoading ? (
                                 <FontAwesomeIcon
@@ -3174,26 +3084,15 @@ export default function RecentProjectsApp() {
                                   }}
                                 />
                               ) : (
-                                <FontAwesomeIcon
-                                  icon={isExpanded ? faChevronDown : faChevronRight}
-                                  className={styles['chevron-icon']}
-                                />
+                                <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
                               )}
                             </div>
 
                             <div className={styles['info']}>
                               <div className={styles['title']}>
-                                <FontAwesomeIcon
-                                  icon={projectIcon}
-                                  className={`${styles['project-icon']} ${styles['icon-closed']}`}
-                                />
+                                <FontAwesomeIcon icon={projectIcon} className={`${styles['project-icon']} ${styles['icon-closed']}`} />
 
-                                <Tooltip
-                                  content={getRootProjectTooltipContent(rootPath, p)}
-                                  placement="bottom"
-                                  align="start"
-                                  delay={2000}
-                                >
+                                <Tooltip content={getRootProjectTooltipContent(rootPath, p)} placement="bottom" align="start" delay={2000}>
                                   <span
                                     className={styles['project-name']}
                                     style={{
@@ -3208,10 +3107,7 @@ export default function RecentProjectsApp() {
 
                                 {branch && (
                                   <span className={styles['branch-tag']} title={branch}>
-                                    <FontAwesomeIcon
-                                      icon={faCodeBranch}
-                                      className={styles['branch-icon']}
-                                    />
+                                    <FontAwesomeIcon icon={faCodeBranch} className={styles['branch-icon']} />
                                     <span className={styles['branch-text']}>{branch}</span>
                                   </span>
                                 )}
@@ -3222,34 +3118,19 @@ export default function RecentProjectsApp() {
                           </div>
 
                           <div className={styles['item-actions']}>
-                            <button
-                              className={`${styles['action-btn-icon']} ${styles['open-btn']}`}
-                              onClick={(e) => handleOpenCurrent(p.fsPath, e)}
-                              title="在当前窗口打开"
-                            >
+                            <button className={`${styles['action-btn-icon']} ${styles['open-btn']}`} onClick={(e) => handleOpenCurrent(p.fsPath, e)} title="在当前窗口打开">
                               <FontAwesomeIcon icon={faArrowRightToBracket} />
                             </button>
                           </div>
                         </div>
 
-                        {isExpanded && (
-                          <div
-                            className={getTreeChildrenClassName(
-                              rootPath,
-                              styles['root-tree-children']
-                            )}
-                          >
-                            {renderTreeChildren(rootPath, title)}
-                          </div>
-                        )}
+                        {isExpanded && <div className={getTreeChildrenClassName(rootPath, styles['root-tree-children'])}>{renderTreeChildren(rootPath, title)}</div>}
                       </li>
                     );
                   })}
                 </ul>
 
-                {searchQuery && filteredOtherProjects.length === 0 && !isCurrentVisible && (
-                  <div className={styles['no-match-msg']}>没有找到匹配的项目...</div>
-                )}
+                {searchQuery && filteredOtherProjects.length === 0 && !isCurrentVisible && <div className={styles['no-match-msg']}>没有找到匹配的项目...</div>}
               </>
             )}
           </Scrollbar>

@@ -555,6 +555,26 @@
         "command": "quickOps.apiDevTools.stopRequest",
         "title": "Q-ops Api: 中断请求",
         "icon": "$(stop-circle)"
+      },
+      {
+        "command": "quickOps.switchPreviousEditor",
+        "title": "返回上一个访问文件",
+        "category": "Quick Ops"
+      },
+      {
+        "command": "quickOps.switchNextEditor",
+        "title": "前进到下一个访问文件",
+        "category": "Quick Ops"
+      },
+      {
+        "command": "quickOps.switchPreviousEditorLocation",
+        "title": "返回当前文件上一个访问位置",
+        "category": "Quick Ops"
+      },
+      {
+        "command": "quickOps.switchNextEditorLocation",
+        "title": "前进到当前文件下一个访问位置",
+        "category": "Quick Ops"
       }
     ],
     "keybindings": [
@@ -562,6 +582,24 @@
         "command": "quickOps.switchPreviousEditor",
         "key": "alt+b",
         "mac": "opt+b",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "quickOps.switchNextEditor",
+        "key": "alt+g",
+        "mac": "opt+g",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "quickOps.switchPreviousEditorLocation",
+        "key": "alt+w",
+        "mac": "opt+w",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "quickOps.switchNextEditorLocation",
+        "key": "alt+s",
+        "mac": "opt+s",
         "when": "editorTextFocus"
       },
       {

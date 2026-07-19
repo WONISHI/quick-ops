@@ -3,9 +3,9 @@ import Vditor from 'vditor';
 import 'vditor/dist/index.css';
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
-import { vscode } from '../../utils/vscode';
+import { vscode } from '@utils/vscode';
 import styles from './index.module.css';
-import { parseFileUriInfo } from '../../utils/index';
+import { parseFileUriInfo } from '@utils/index';
 
 import { setupPlugins } from './plugins/setupPlugins';
 import VditorMeta from './plugins/vditor-meta';
