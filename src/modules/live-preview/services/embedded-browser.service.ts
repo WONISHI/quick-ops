@@ -407,6 +407,33 @@ export class EmbeddedBrowserService extends EventEmitter {
     await page
       .evaluate(
         (payload) => {
+          const getFormControlByPoint = (x: number, y: number): HTMLInputElement | HTMLTextAreaElement | null => {
+            const normalizedX = Math.max(0, Math.floor(Number(x) || 0));
+            const normalizedY = Math.max(0, Math.floor(Number(y) || 0));
+            const element = document.elementFromPoint(normalizedX, normalizedY);
+            const control = element?.closest('input, textarea');
+
+            if (control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement) {
+              return control;
+            }
+
+            return null;
+          };
+
+          const startControl = getFormControlByPoint(payload.startX, payload.startY);
+          const endControl = getFormControlByPoint(payload.endX, payload.endY);
+
+          /**
+           * input / textarea 内部的文本不是普通 DOM 文本节点，不能通过
+           * window.getSelection() 与 Range 设置选区。
+           *
+           * 这里交给已经转发到 Chromium 的原生鼠标按下、移动、松开事件处理，
+           * 避免自定义 DOM Range 覆盖输入框自身的 selectionStart / selectionEnd。
+           */
+          if (startControl || endControl) {
+            return;
+          }
+
           const getRangeByPoint = (x: number, y: number): Range | null => {
             const normalizedX = Math.max(0, Math.floor(Number(x) || 0));
             const normalizedY = Math.max(0, Math.floor(Number(y) || 0));
@@ -994,7 +1021,7 @@ export class EmbeddedBrowserService extends EventEmitter {
           type: eventType,
           x: Math.max(0, Number(message.x) || 0),
           y: Math.max(0, Number(message.y) || 0),
-          button: eventType === 'mouseMoved' ? 'none' : message.button || 'left',
+          button: message.button || 'none',
           buttons: Math.max(0, Number(message.buttons) || 0),
           clickCount: eventType === 'mouseMoved' ? 0 : Math.max(1, Number(message.clickCount) || 1),
         });
