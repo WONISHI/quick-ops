@@ -1300,22 +1300,81 @@ export class EmbeddedBrowserService extends EventEmitter {
     this.imeCompositionText = '';
   }
 
+  /**
+   * @description 向内嵌 Chromium 转发键盘事件
+   *
+   * 普通字符继续使用 Input.insertText，兼容现有英文输入和中文输入法逻辑。
+   * Enter 使用 Puppeteer Keyboard.press 发送完整按下、字符和抬起事件，
+   * 由目标网页自行决定执行提交还是换行。
+   */
   private async dispatchKeyboardInput(message: BrowserInputMessage): Promise<void> {
+    const page = await this.ensurePage();
     const client = await this.ensureClient();
     const key = message.key || '';
     const eventType = message.eventType === 'keyUp' ? 'keyUp' : 'keyDown';
-    const modifiers = this.getKeyboardModifiers(message);
 
     if (key === 'Process' || key === 'Unidentified' || key === 'Dead') {
       return;
     }
 
-    if (key === 'Enter' && eventType === 'keyDown' && (await this.shouldInsertLineBreak(message))) {
+    /**
+     * Enter 必须向目标网页发送完整键盘事件。
+     *
+     * 之前对 contenteditable、textarea、aria-multiline 元素调用
+     * Input.insertText({ text: '\n' })，只能插入换行，不会触发网页监听的
+     * keydown / keyup，因此聊天输入框无法执行提交。
+     *
+     * Webview 会分别发送 keyDown 和 keyUp。这里在 keyDown 时通过 press()
+     * 一次性发送完整事件，并忽略随后到达的 keyUp，避免重复触发。
+     */
+    if (key === 'Enter') {
+      if (eventType === 'keyUp') {
+        return;
+      }
+
       this.imeCompositionText = '';
-      await client.send('Input.insertText', { text: '\n' });
+
+      const pressedModifiers: Array<'Alt' | 'Control' | 'Meta' | 'Shift'> = [];
+
+      try {
+        if (message.altKey) {
+          await page.keyboard.down('Alt');
+          pressedModifiers.push('Alt');
+        }
+
+        if (message.ctrlKey) {
+          await page.keyboard.down('Control');
+          pressedModifiers.push('Control');
+        }
+
+        if (message.metaKey) {
+          await page.keyboard.down('Meta');
+          pressedModifiers.push('Meta');
+        }
+
+        if (message.shiftKey) {
+          await page.keyboard.down('Shift');
+          pressedModifiers.push('Shift');
+        }
+
+        await page.keyboard.press('Enter');
+      } finally {
+        while (pressedModifiers.length > 0) {
+          const modifier = pressedModifiers.pop();
+
+          if (modifier) {
+            await page.keyboard.up(modifier).catch(() => undefined);
+          }
+        }
+      }
+
       return;
     }
 
+    /**
+     * 普通字符不在 keyDown 中重复转发中文输入法的组合文本。
+     * 中文输入仍由 composition / commitComposition 相关分支处理。
+     */
     if (eventType === 'keyDown' && key.length === 1 && !message.ctrlKey && !message.metaKey && !message.altKey) {
       await client.send('Input.insertText', { text: key });
       return;
@@ -1323,64 +1382,15 @@ export class EmbeddedBrowserService extends EventEmitter {
 
     const virtualKeyCode = this.getVirtualKeyCode(key);
     const dispatchType = eventType === 'keyUp' ? 'keyUp' : 'rawKeyDown';
-    const enterText = key === 'Enter' && eventType === 'keyDown' ? '\r' : undefined;
 
     await client.send('Input.dispatchKeyEvent', {
       type: dispatchType,
       key,
       code: message.code || key,
-      text: enterText,
-      unmodifiedText: enterText,
       windowsVirtualKeyCode: virtualKeyCode,
       nativeVirtualKeyCode: virtualKeyCode,
-      modifiers,
+      modifiers: this.getKeyboardModifiers(message),
     });
-  }
-
-  private async shouldInsertLineBreak(message: BrowserInputMessage): Promise<boolean> {
-    if (message.key !== 'Enter') return false;
-
-    const page = await this.ensurePage();
-
-    return page
-      .evaluate(
-        (payload) => {
-          const activeElement = document.activeElement as HTMLElement | null;
-
-          if (!activeElement) return false;
-
-          const tagName = activeElement.tagName.toLowerCase();
-          const isTextarea = tagName === 'textarea';
-          const isContentEditable = activeElement.isContentEditable || !!activeElement.closest('[contenteditable="true"], [contenteditable="plaintext-only"]');
-          const isAriaMultiline = activeElement.getAttribute('aria-multiline') === 'true';
-          const isInput = tagName === 'input';
-
-          if (isTextarea || isContentEditable || isAriaMultiline) {
-            return true;
-          }
-
-          if (!isInput) return false;
-
-          const input = activeElement as HTMLInputElement;
-          const inputType = String(input.type || 'text').toLowerCase();
-          const textLikeTypes = new Set(['text', 'search', 'url', 'email', 'tel', 'password', 'number']);
-
-          if (!textLikeTypes.has(inputType)) return false;
-
-          /**
-           * input 本身是单行控件，普通 Enter 应该保留站点原生行为，比如百度搜索。
-           * 带换行快捷键时也不强行插入换行，避免单行搜索框出现不可见换行。
-           */
-          return false;
-        },
-        {
-          shiftKey: !!message.shiftKey,
-          ctrlKey: !!message.ctrlKey,
-          altKey: !!message.altKey,
-          metaKey: !!message.metaKey,
-        },
-      )
-      .catch(() => false);
   }
 
   private getKeyboardModifiers(message: BrowserInputMessage): number {
