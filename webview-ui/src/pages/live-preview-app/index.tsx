@@ -23,14 +23,14 @@ import VditorApp from '@pages/vditor-app';
 import PdfPreviewApp from '@pages/pdf-preview-app';
 import ExcelPreviewApp from '@pages/excel-preview-app';
 import HtmlPreviewApp from '@pages/html-preview-app';
-import PreviewError from '@pages/LivePreviewApp/components/preview-error';
+import PreviewError from '@pages/live-preview-app/components/preview-error';
 
-import WelcomePage from '@pages/LivePreviewApp/components/welcome-page';
-import FavoriteModal from '@pages/LivePreviewApp/components/favorite-modal';
-import HistoryModal from '@pages/LivePreviewApp/components/history-modal';
-import SuggestBox from '@pages/LivePreviewApp/components/suggest-box';
-import LivePreviewContextMenu from '@pages/LivePreviewApp/components/live-preview-context-menu';
-import { ROOT_FAVORITE_FOLDER_ID, BROWSER_ENGINE_OPTIONS, DEFAULT_BROWSER_ENGINE_KEY, BROWSER_ENGINE_STORAGE_KEY } from '@pages/LivePreviewApp/src/constants';
+import WelcomePage from '@pages/live-preview-app/components/welcome-page';
+import FavoriteModal from '@pages/live-preview-app/components/favorite-modal';
+import HistoryModal from '@pages/live-preview-app/components/history-modal';
+import SuggestBox from '@pages/live-preview-app/components/suggest-box';
+import LivePreviewContextMenu from '@pages/live-preview-app/components/live-preview-context-menu';
+import { ROOT_FAVORITE_FOLDER_ID, BROWSER_ENGINE_OPTIONS, DEFAULT_BROWSER_ENGINE_KEY, BROWSER_ENGINE_STORAGE_KEY } from '@pages/live-preview-app/src/constants';
 import type {
   FavoriteItem,
   FavoriteFolder,
@@ -40,7 +40,7 @@ import type {
   BrowserEngineKey,
   BrowserSurfaceProps,
   PreviewType,
-} from '@pages/LivePreviewApp/src/type';
+} from '@pages/live-preview-app/src/type';
 
 const isBrowserEngineKey = (value: unknown): value is BrowserEngineKey => {
   return value === 'baidu' || value === 'bing' || value === 'quark';
