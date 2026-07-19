@@ -29,7 +29,7 @@ import WelcomePage from '@pages/LivePreviewApp/components/welcome-page';
 import FavoriteModal from '@pages/LivePreviewApp/components/favorite-modal';
 import HistoryModal from '@pages/LivePreviewApp/components/history-modal';
 import SuggestBox from '@pages/LivePreviewApp/components/suggest-box';
-import LivePreviewContextMenu from '../../components/LivePreviewContextMenu';
+import LivePreviewContextMenu from '@pages/LivePreviewApp/components/live-preview-context-menu';
 import { ROOT_FAVORITE_FOLDER_ID, BROWSER_ENGINE_OPTIONS, DEFAULT_BROWSER_ENGINE_KEY, BROWSER_ENGINE_STORAGE_KEY } from '@pages/LivePreviewApp/src/constants';
 import type {
   FavoriteItem,
@@ -930,8 +930,6 @@ export default function LivePreviewApp() {
   const isInternalNav = useRef(false);
 
   const [activeModal, setActiveModal] = useState<'none' | 'fav' | 'history'>('none');
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState({ x: 0, y: 0 });
 
   const [searchOpen, setSearchOpen] = useState(false);
   const searchOpenRef = useRef(false);
@@ -954,7 +952,6 @@ export default function LivePreviewApp() {
   const [isPageLoaded, setIsPageLoaded] = useState(false);
 
   const htmlIframeRef = useRef<HTMLIFrameElement | null>(null);
-  const moreBtnRef = useRef<HTMLButtonElement>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const browserSwitcherRef = useRef<HTMLDivElement>(null);
@@ -1520,10 +1517,6 @@ export default function LivePreviewApp() {
       const targetNode = e.target as Node;
       const targetElement = targetNode instanceof Element ? targetNode : targetNode.parentElement;
 
-      if (!moreBtnRef.current?.contains(targetNode)) {
-        setMenuOpen(false);
-      }
-
       const isInSuggestBox = !!suggestBoxRef.current?.contains(targetNode);
       const isInAddressBar = !!targetElement?.closest(`.${styles['address-bar-wrapper']}`);
 
@@ -1566,7 +1559,6 @@ export default function LivePreviewApp() {
     const handleWindowBlur = () => {
       setShowSuggest(false);
       setSuggestIndex(-1);
-      setMenuOpen(false);
     };
 
     window.addEventListener('blur', handleWindowBlur);
@@ -1797,7 +1789,6 @@ export default function LivePreviewApp() {
 
     if (!refreshValue) {
       resetPreviewState();
-      setMenuOpen(false);
       return;
     }
 
@@ -1810,7 +1801,6 @@ export default function LivePreviewApp() {
         resetPreviewState();
       }
 
-      setMenuOpen(false);
       return;
     }
 
@@ -1849,7 +1839,6 @@ export default function LivePreviewApp() {
         vscode?.postMessage({ type: 'saveUrl', url: temp });
       }, 50);
 
-      setMenuOpen(false);
       return;
     }
 
@@ -1859,8 +1848,6 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'saveUrl', url: temp });
     startWebPreviewGuard(temp);
     vscode?.postMessage({ type: 'browserRefresh', url: temp });
-
-    setMenuOpen(false);
   };
 
   const handleDeviceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -1926,26 +1913,12 @@ export default function LivePreviewApp() {
     });
   };
 
-  const openContextMenu = () => {
-    if (!moreBtnRef.current) return;
-
-    const rect = moreBtnRef.current.getBoundingClientRect();
-    let x = rect.left - 180;
-    const y = rect.bottom + 5;
-
-    if (x + 200 > window.innerWidth) x = window.innerWidth - 210;
-
-    setMenuPos({ x, y });
-    setMenuOpen(!menuOpen);
-  };
-
   const handleCacheClear = (type: 'local' | 'session' | 'cookie') => {
     try {
       if (previewType === 'web') {
         vscode?.postMessage({ type: 'browserClearCache' });
         vscode?.postMessage({ type: 'showInfo', message: '✅ 缓存清理成功！' });
         handleRefresh();
-        setMenuOpen(false);
         return;
       }
 
@@ -1976,8 +1949,6 @@ export default function LivePreviewApp() {
       console.log('e', e);
       vscode?.postMessage({ type: 'showWarning', message: '⚠️ 此页面不支持清理缓存或存在跨域限制' });
     }
-
-    setMenuOpen(false);
   };
 
   const handleCopy = (url: string) => {
@@ -2473,28 +2444,25 @@ export default function LivePreviewApp() {
           <FontAwesomeIcon icon={faArrowUpRightFromSquare} />
         </button>
 
-        <button className={styles['icon-btn']} ref={moreBtnRef} onClick={openContextMenu} title="更多操作">
-          <FontAwesomeIcon icon={faEllipsis} />
-        </button>
+        <LivePreviewContextMenu
+          onRefresh={handleRefresh}
+          onNewTab={() => {
+            vscode?.postMessage({
+              type: 'openNewPreviewTab',
+              url: (frameUrl || urlInput || '').trim(),
+              device,
+            });
+          }}
+          onOpenFav={() => setActiveModal('fav')}
+          onOpenHistory={() => setActiveModal('history')}
+          onClearCache={handleCacheClear}
+          onOpenDevTools={() => vscode?.postMessage({ type: 'openDevTools' })}
+        >
+          <button type="button" className={styles['icon-btn']} title="更多操作">
+            <FontAwesomeIcon icon={faEllipsis} />
+          </button>
+        </LivePreviewContextMenu>
       </div>
-
-      <LivePreviewContextMenu
-        visible={menuOpen}
-        position={menuPos}
-        onRefresh={handleRefresh}
-        onNewTab={() => {
-          vscode?.postMessage({
-            type: 'openNewPreviewTab',
-            url: (frameUrl || urlInput || '').trim(),
-            device,
-          });
-        }}
-        onOpenFav={() => setActiveModal('fav')}
-        onOpenHistory={() => setActiveModal('history')}
-        onClearCache={handleCacheClear}
-        onOpenDevTools={() => vscode?.postMessage({ type: 'openDevTools' })}
-        onClose={() => setMenuOpen(false)}
-      />
 
       {searchOpen && (
         <div className={styles['page-search-bar']} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>

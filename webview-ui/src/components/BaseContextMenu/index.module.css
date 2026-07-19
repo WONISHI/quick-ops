@@ -1,0 +1,291 @@
+.context-menu-trigger {
+  /**
+   * 仅用于接收 children 冒泡的右键事件，
+   * 不创建可见布局盒。
+   */
+  display: contents;
+}
+
+.context-menu-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: transparent;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 9999;
+  box-sizing: border-box;
+  padding: 4px;
+  overflow: visible;
+  color: var(--vscode-menu-foreground, var(--menu-fg, #d7dae0));
+  background: var(--vscode-menu-background, var(--menu-bg, #252a31));
+  border: 1px solid var(--vscode-menu-border, var(--menu-border, rgba(127, 137, 150, 0.32)));
+  border-radius: 6px;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.28),
+    0 2px 8px rgba(0, 0, 0, 0.18);
+  outline: none;
+  font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  font-size: 12px;
+  user-select: none;
+  animation: context-menu-enter 80ms ease-out;
+}
+
+/**
+ * click 触发模式下，指向触发目标的浮层箭头。
+ */
+.context-menu-popup-arrow {
+  position: absolute;
+  left: var(--context-menu-popup-arrow-left, 20px);
+  z-index: 0;
+  width: 10px;
+  height: 10px;
+  pointer-events: none;
+  background: var(--vscode-menu-background, var(--menu-bg, #252a31));
+  border: 1px solid var(--vscode-menu-border, var(--menu-border, rgba(127, 137, 150, 0.32)));
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.context-menu-popup-arrow-top {
+  top: -6px;
+  border-right: 0;
+  border-bottom: 0;
+}
+
+.context-menu-popup-arrow-bottom {
+  bottom: -6px;
+  border-top: 0;
+  border-left: 0;
+}
+
+/**
+ * 菜单内容层显示在箭头上方。
+ *
+ * 箭头是外层菜单的直接子元素；
+ * 滚动只发生在内容层，因此箭头不会被 overflow 裁剪。
+ */
+.context-menu-content {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+}
+
+.context-menu.compact {
+  padding: 4px 0;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.context-menu-item {
+  width: 100%;
+  height: 32px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 8px;
+  padding: 0 8px 0 10px;
+  margin: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  outline: none;
+  text-align: left;
+  cursor: default;
+  font: inherit;
+}
+
+.compact .context-menu-item {
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 0;
+}
+
+.context-menu-item:hover,
+.context-menu-item.active,
+.context-menu-item.child-open {
+  color: var(--vscode-menu-selectionForeground, var(--menu-hover-fg, #ffffff));
+  background: var(--vscode-menu-selectionBackground, var(--menu-hover-bg, #343b46));
+}
+
+.context-menu-item:disabled {
+  opacity: 0.38;
+  background: transparent;
+}
+
+.context-menu-item.danger:not(:disabled) {
+  color: var(--vscode-errorForeground, #f48771);
+}
+
+.context-menu-item.danger:hover,
+.context-menu-item.danger.active,
+.context-menu-item.danger.child-open {
+  color: var(--vscode-menu-selectionForeground, #ffffff);
+  background: color-mix(in srgb, var(--vscode-errorForeground, #f48771) 24%, var(--vscode-menu-selectionBackground, #343b46));
+}
+
+.context-menu-icon {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vscode-icon-foreground, #c5cbd3);
+  font-size: 14px;
+}
+
+.context-menu-icon:empty {
+  visibility: hidden;
+}
+
+.context-menu-label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.context-menu-trailing {
+  min-width: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.context-menu-shortcut {
+  color: var(--vscode-descriptionForeground, #9da5b4);
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.context-menu-arrow {
+  width: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+  font-size: 17px;
+  line-height: 1;
+  opacity: 0.78;
+  transform: translateY(-1px);
+}
+
+.context-menu-item:hover .context-menu-shortcut,
+.context-menu-item.active .context-menu-shortcut,
+.context-menu-item.child-open .context-menu-shortcut {
+  color: currentColor;
+  opacity: 0.72;
+}
+
+.context-menu-separator {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--vscode-menu-separatorBackground, var(--menu-border, rgba(127, 137, 150, 0.28)));
+}
+
+.compact .context-menu-separator {
+  margin: 4px 0;
+}
+
+/**
+ * inline 模式的根菜单外层必须保持 overflow: visible，
+ * 否则位于 top: -6px / bottom: -6px 的浮层箭头会被裁剪。
+ */
+.context-menu-inline-placement {
+  overflow: visible;
+}
+
+/**
+ * inline 展开后的滚动交给内部内容层处理。
+ * 箭头是内容层的兄弟元素，不受这里的 overflow 影响。
+ */
+.context-menu-inline-placement > .context-menu-content {
+  max-height: calc(100vh - 16px);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/**
+ * 内联子菜单不再作为独立浮层显示。
+ */
+.context-menu.context-menu-inline {
+  position: static;
+  z-index: auto;
+  width: 100%;
+  min-width: 0;
+  max-height: none;
+
+  /**
+   * 给内联子菜单增加明显的左侧层级缩进，
+   * 同时在上下各保留少量间距，避免紧贴父菜单项。
+   */
+  padding: 2px 0 2px 0px;
+
+  overflow: visible;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  animation: none;
+}
+
+.context-menu-inline .context-menu-item {
+  border-radius: 4px;
+}
+
+.compact.context-menu-inline .context-menu-item {
+  border-radius: 0;
+}
+
+.context-menu-inline .context-menu-separator {
+  margin-left: 8px;
+}
+
+/**
+ * 内联子菜单项使用更淡的悬停背景，
+ * 与根菜单项的高亮层级区分开。
+ */
+.context-menu-inline > .context-menu-item:hover,
+.context-menu-inline > .context-menu-item.active,
+.context-menu-inline > .context-menu-item.child-open {
+  background: rgba(127, 137, 150, 0.12);
+  background: color-mix(in srgb, var(--vscode-menu-selectionBackground, var(--menu-hover-bg, #343b46)) 42%, transparent);
+}
+
+/**
+ * 深色主题下保持文字可读，但不使用根菜单的强高亮白色。
+ */
+.context-menu-inline > .context-menu-item:hover,
+.context-menu-inline > .context-menu-item.active,
+.context-menu-inline > .context-menu-item.child-open {
+  color: var(--vscode-menu-foreground, var(--menu-fg, #d7dae0));
+}
+
+.context-menu-arrow-inline {
+  transition: transform 120ms ease;
+}
+
+.context-menu-arrow-open {
+  transform: translateY(-1px) rotate(90deg);
+}
+
+@keyframes context-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .context-menu {
+    animation: none;
+  }
+}
