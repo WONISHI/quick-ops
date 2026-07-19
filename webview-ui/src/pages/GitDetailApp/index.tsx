@@ -162,11 +162,7 @@ class Vertex {
 
   getPointConnectingTo(v: Vertex | null, b: Branch) {
     for (let i = 0; i < this.connections.length; i++) {
-      if (
-        this.connections[i] &&
-        this.connections[i].connectsTo === v &&
-        this.connections[i].onBranch === b
-      ) {
+      if (this.connections[i] && this.connections[i].connectsTo === v && this.connections[i].onBranch === b) {
         return {
           x: i,
           y: this.id,
@@ -210,9 +206,7 @@ function buildGraphEngine(commits: GraphCommit[]) {
       vertices[index].setNotCommitted();
     }
 
-    const parents = commit.type === 'stash'
-      ? (commit.parents || []).slice(0, 1)
-      : commit.parents || [];
+    const parents = commit.type === 'stash' ? (commit.parents || []).slice(0, 1) : commit.parents || [];
 
     parents.forEach((parentHash) => {
       if (commitLookup[parentHash] !== undefined) {
@@ -247,13 +241,7 @@ function buildGraphEngine(commits: GraphCommit[]) {
     let lastPoint = vertex.isNotOnBranch() ? vertex.getNextPoint() : vertex.getPoint();
     let curPoint: Point;
 
-    if (
-      parentVertex !== null &&
-      parentVertex.id !== NULL_VERTEX_ID &&
-      vertex.isMerge() &&
-      !vertex.isNotOnBranch() &&
-      !parentVertex.isNotOnBranch()
-    ) {
+    if (parentVertex !== null && parentVertex.id !== NULL_VERTEX_ID && vertex.isMerge() && !vertex.isNotOnBranch() && !parentVertex.isNotOnBranch()) {
       let foundPointToParent = false;
       const parentBranch = parentVertex.getBranch()!;
 
@@ -269,12 +257,7 @@ function buildGraphEngine(commits: GraphCommit[]) {
           curPoint = curVertex.getNextPoint();
         }
 
-        parentBranch.addLine(
-          lastPoint,
-          curPoint,
-          vertex.getIsCommitted(),
-          !foundPointToParent && curVertex !== parentVertex ? lastPoint.x < curPoint.x : true,
-        );
+        parentBranch.addLine(lastPoint, curPoint, vertex.getIsCommitted(), !foundPointToParent && curVertex !== parentVertex ? lastPoint.x < curPoint.x : true);
 
         curVertex.registerUnavailablePoint(curPoint.x, parentVertex, parentBranch);
         lastPoint = curPoint;
@@ -292,10 +275,7 @@ function buildGraphEngine(commits: GraphCommit[]) {
 
       for (i = startAt + 1; i < vertices.length; i++) {
         curVertex = vertices[i];
-        curPoint =
-          parentVertex === curVertex && !parentVertex.isNotOnBranch()
-            ? curVertex.getPoint()
-            : curVertex.getNextPoint();
+        curPoint = parentVertex === curVertex && !parentVertex.isNotOnBranch() ? curVertex.getPoint() : curVertex.getNextPoint();
 
         branch.addLine(lastPoint, curPoint, vertex.getIsCommitted(), lastPoint.x < curPoint.x);
         curVertex.registerUnavailablePoint(curPoint.x, parentVertex, branch);
@@ -362,7 +342,6 @@ function getRefs(refs?: string) {
     .map((ref) => ref.trim())
     .filter(Boolean);
 }
-
 
 function normalizeVisibleRefName(ref: string) {
   return ref
@@ -432,9 +411,7 @@ function isOriginRemoteRef(refName: string) {
 }
 
 function combineLocalAndRemoteRefs(refs: string[]) {
-  const normalizedRefs = refs
-    .map((ref) => ref.trim())
-    .filter(Boolean);
+  const normalizedRefs = refs.map((ref) => ref.trim()).filter(Boolean);
 
   const refNameSet = new Set(normalizedRefs.map((ref) => normalizeVisibleRefName(ref)));
   const usedRemoteRefs = new Set<string>();
@@ -453,12 +430,7 @@ function combineLocalAndRemoteRefs(refs: string[]) {
       }
     }
 
-    if (
-      !isHeadRef(ref, refName) &&
-      !isStashRef(refName) &&
-      !refName.startsWith('origin/') &&
-      refNameSet.has(`origin/${refName}`)
-    ) {
+    if (!isHeadRef(ref, refName) && !isStashRef(refName) && !refName.startsWith('origin/') && refNameSet.has(`origin/${refName}`)) {
       usedRemoteRefs.add(`origin/${refName}`);
       result.push(`${refName} origin`);
       return;
@@ -585,7 +557,6 @@ function getCommitFileStatusClass(status: string) {
   return styles['commit-file-status-normal'];
 }
 
-
 function getRefTagClassName(ref: string) {
   const refName = ref.trim();
 
@@ -632,8 +603,6 @@ function getUncommittedMessageText(message?: string) {
   return '未提交更改';
 }
 
-
-
 function getCommitDisplayMessage(commit: GraphCommit) {
   if (commit.type === 'uncommitted') {
     return getUncommittedMessageText(commit.message);
@@ -645,11 +614,7 @@ function getCommitDisplayMessage(commit: GraphCommit) {
 function isMergeCommitMessage(message: string) {
   const text = message.trim();
 
-  return (
-    /^Merge\s+(remote-tracking\s+)?branch\s+['\"].+['\"]/i.test(text) ||
-    /^Merge\s+pull\s+request\s+/i.test(text) ||
-    /^Merge\s+tag\s+['\"].+['\"]/i.test(text)
-  );
+  return /^Merge\s+(remote-tracking\s+)?branch\s+['\"].+['\"]/i.test(text) || /^Merge\s+pull\s+request\s+/i.test(text) || /^Merge\s+tag\s+['\"].+['\"]/i.test(text);
 }
 
 function isMergeCommit(commit: GraphCommit) {
@@ -905,10 +870,7 @@ export default function GitCommitDetailApp() {
 
       if (!resizeState) return;
 
-      const nextHeight = Math.max(
-        MIN_DETAIL_HEIGHT,
-        Math.min(MAX_DETAIL_HEIGHT, resizeState.startHeight + event.clientY - resizeState.startY),
-      );
+      const nextHeight = Math.max(MIN_DETAIL_HEIGHT, Math.min(MAX_DETAIL_HEIGHT, resizeState.startHeight + event.clientY - resizeState.startY));
 
       setDetailHeight(nextHeight);
       setResizeVersion((prev) => prev + 1);
@@ -1002,16 +964,7 @@ export default function GitCommitDetailApp() {
         return;
       }
 
-      if (
-        [
-          'gitDetailNoWorkspace',
-          'gitDetailNotRepo',
-          'gitDetailError',
-          'noWorkspace',
-          'notRepo',
-          'error',
-        ].includes(msg.type)
-      ) {
+      if (['gitDetailNoWorkspace', 'gitDetailNotRepo', 'gitDetailError', 'noWorkspace', 'notRepo', 'error'].includes(msg.type)) {
         setGraphCommits([]);
         setTotalCommits(0);
         setActiveCommitHash(null);
@@ -1090,9 +1043,7 @@ export default function GitCommitDetailApp() {
       });
     });
 
-    const bgColor =
-      getComputedStyle(document.documentElement).getPropertyValue('--vscode-sideBar-background').trim() ||
-      '#252526';
+    const bgColor = getComputedStyle(document.documentElement).getPropertyValue('--vscode-sideBar-background').trim() || '#252526';
 
     graphData.vertices.slice(0, displayCount).forEach((vertex, index) => {
       const cx = vertex.getPoint().x * LANE_WIDTH + 40;
@@ -1105,11 +1056,7 @@ export default function GitCommitDetailApp() {
 
       const vertexBranch = vertex.getBranch();
       const isUncommittedVertex = commit.type === 'uncommitted';
-      const dotColor = isUncommittedVertex
-        ? '#808080'
-        : vertexBranch
-          ? COLORS[vertexBranch.colour % COLORS.length]
-          : '#808080';
+      const dotColor = isUncommittedVertex ? '#808080' : vertexBranch ? COLORS[vertexBranch.colour % COLORS.length] : '#808080';
 
       if (isHead || isUncommittedVertex) {
         ctx.fillStyle = bgColor;
@@ -1122,14 +1069,7 @@ export default function GitCommitDetailApp() {
         ctx.fill();
       }
     });
-  }, [
-    graphData,
-    filteredCommits,
-    displayCount,
-    yPositions,
-    renderedHeight,
-    resizeVersion,
-  ]);
+  }, [graphData, filteredCommits, displayCount, yPositions, renderedHeight, resizeVersion]);
 
   const handleDetailResizeStart = (event: React.MouseEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -1176,12 +1116,7 @@ export default function GitCommitDetailApp() {
     setActivePopup((current) => (current === popup ? null : popup));
   };
 
-  const renderCommitFileTree = (
-    hash: string,
-    parentHash: string | undefined,
-    nodes: CommitFileTreeNode[],
-    depth = 0,
-  ): React.ReactNode => {
+  const renderCommitFileTree = (hash: string, parentHash: string | undefined, nodes: CommitFileTreeNode[], depth = 0): React.ReactNode => {
     return nodes.map((node) => {
       if (node.isDirectory) {
         const isOpen = isCommitDirOpen(hash, node.fullPath);
@@ -1195,14 +1130,8 @@ export default function GitCommitDetailApp() {
               }}
               onClick={(event) => toggleCommitDir(hash, node.fullPath, event)}
             >
-              <i
-                className={`codicon ${isOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'
-                  } ${styles['commit-file-chevron']}`}
-              />
-              <i
-                className={`codicon ${isOpen ? 'codicon-folder-opened' : 'codicon-folder'
-                  } ${styles['commit-file-icon']}`}
-              />
+              <i className={`codicon ${isOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['commit-file-chevron']}`} />
+              <i className={`codicon ${isOpen ? 'codicon-folder-opened' : 'codicon-folder'} ${styles['commit-file-icon']}`} />
               <span className={styles['commit-file-name']}>{node.name}</span>
             </div>
 
@@ -1235,15 +1164,11 @@ export default function GitCommitDetailApp() {
         >
           <FileIcon fileName={node.name} className={styles['commit-file-icon']} />
 
-          <span className={`${styles['commit-file-name']} ${file.status === 'D' ? styles['commit-file-deleted-name'] : ''}`}>
-            {node.name}
-          </span>
+          <span className={`${styles['commit-file-name']} ${file.status === 'D' ? styles['commit-file-deleted-name'] : ''}`}>{node.name}</span>
 
           <span className={styles['commit-file-spacer']} />
 
-          <span className={`${styles['commit-file-status']} ${getCommitFileStatusClass(file.status)}`}>
-            {getCommitFileStatusText(file.status)}
-          </span>
+          <span className={`${styles['commit-file-status']} ${getCommitFileStatusClass(file.status)}`}>{getCommitFileStatusText(file.status)}</span>
         </div>
       );
     });
@@ -1276,9 +1201,7 @@ export default function GitCommitDetailApp() {
           <span className={styles['branch-name']}>{branch}</span>
 
           {totalCommits > 0 && (
-            <span className={styles['total-badge']}>
-              {filteredCommits.length === totalCommits ? totalCommits : `${filteredCommits.length} / ${totalCommits}`}
-            </span>
+            <span className={styles['total-badge']}>{filteredCommits.length === totalCommits ? totalCommits : `${filteredCommits.length} / ${totalCommits}`}</span>
           )}
         </div>
 
@@ -1308,19 +1231,8 @@ export default function GitCommitDetailApp() {
               togglePopup('desc');
             }}
           />
-
-          <FilterPopup
-            visible={activePopup === 'desc'}
-            anchorRef={descFilterRef}
-            width={260}
-            onClose={() => setActivePopup(null)}
-          >
-            <FilterPopupInput
-              type="text"
-              value={descFilter}
-              onChange={(event) => setDescFilter(event.target.value)}
-              placeholder="输入关键词"
-            />
+          <FilterPopup visible={activePopup === 'desc'} anchorRef={descFilterRef} width={260} onClose={() => setActivePopup(null)}>
+            <FilterPopupInput type="text" value={descFilter} onChange={(event) => setDescFilter(event.target.value)} placeholder="输入关键词" />
 
             <FilterPopupActions>
               <FilterPopupButton onClick={() => setActivePopup(null)}>确定</FilterPopupButton>
@@ -1342,20 +1254,13 @@ export default function GitCommitDetailApp() {
           日期
           <i
             ref={dateFilterRef}
-            className={`codicon codicon-filter ${styles['filter-icon']} ${dateFilter.start || dateFilter.end ? styles['has-filter'] : ''
-              }`}
+            className={`codicon codicon-filter ${styles['filter-icon']} ${dateFilter.start || dateFilter.end ? styles['has-filter'] : ''}`}
             onClick={(event) => {
               event.stopPropagation();
               togglePopup('date');
             }}
           />
-
-          <FilterPopup
-            visible={activePopup === 'date'}
-            anchorRef={dateFilterRef}
-            width={310}
-            onClose={() => setActivePopup(null)}
-          >
+          <FilterPopup visible={activePopup === 'date'} anchorRef={dateFilterRef} width={310} onClose={() => setActivePopup(null)}>
             <FilterPopupDateRow label="开始:">
               <FilterPopupInput
                 type="date"
@@ -1405,20 +1310,13 @@ export default function GitCommitDetailApp() {
           作者
           <i
             ref={authorFilterRef}
-            className={`codicon codicon-filter ${styles['filter-icon']} ${authorFilter.length > 0 ? styles['has-filter'] : ''
-              }`}
+            className={`codicon codicon-filter ${styles['filter-icon']} ${authorFilter.length > 0 ? styles['has-filter'] : ''}`}
             onClick={(event) => {
               event.stopPropagation();
               togglePopup('author');
             }}
           />
-
-          <FilterPopup
-            visible={activePopup === 'author'}
-            anchorRef={authorFilterRef}
-            width={260}
-            onClose={() => setActivePopup(null)}
-          >
+          <FilterPopup visible={activePopup === 'author'} anchorRef={authorFilterRef} width={260} onClose={() => setActivePopup(null)}>
             <FilterPopupCheckboxList>
               {allAuthors.map((author) => (
                 <FilterPopupCheckboxLabel key={author}>
@@ -1464,19 +1362,8 @@ export default function GitCommitDetailApp() {
               togglePopup('hash');
             }}
           />
-
-          <FilterPopup
-            visible={activePopup === 'hash'}
-            anchorRef={hashFilterRef}
-            width={260}
-            onClose={() => setActivePopup(null)}
-          >
-            <FilterPopupInput
-              type="text"
-              value={hashFilter}
-              onChange={(event) => setHashFilter(event.target.value)}
-              placeholder="输入 Commit 过滤"
-            />
+          <FilterPopup visible={activePopup === 'hash'} anchorRef={hashFilterRef} width={260} onClose={() => setActivePopup(null)}>
+            <FilterPopupInput type="text" value={hashFilter} onChange={(event) => setHashFilter(event.target.value)} placeholder="输入 Commit 过滤" />
 
             <FilterPopupActions>
               <FilterPopupButton onClick={() => setActivePopup(null)}>确定</FilterPopupButton>
@@ -1504,12 +1391,7 @@ export default function GitCommitDetailApp() {
         ) : filteredCommits.length === 0 ? (
           <div className={styles['empty-view']}>{graphCommits.length === 0 ? '暂无提交记录' : '没有匹配的筛选结果'}</div>
         ) : (
-          <Scrollbar
-            ref={listScrollbarRef}
-            className={styles['commit-list-scroll']}
-            viewClassName={styles['commit-list-view']}
-            onScroll={handleScroll}
-          >
+          <Scrollbar ref={listScrollbarRef} className={styles['commit-list-scroll']} viewClassName={styles['commit-list-view']} onScroll={handleScroll}>
             <canvas ref={canvasRef} className={styles['graph-canvas']} />
 
             <ul className={styles['commit-list']} style={{ height: `${renderedHeight}px` }}>
@@ -1533,25 +1415,13 @@ export default function GitCommitDetailApp() {
                       <div className={styles['commit-desc']}>
                         <div className={styles['commit-message-line']}>
                           {refs.map((ref) => (
-                            <span
-                              key={ref}
-                              className={getRefTagClassName(ref)}
-                              title={ref}
-                            >
+                            <span key={ref} className={getRefTagClassName(ref)} title={ref}>
                               <i className={`codicon ${getRefTagIcon(ref)} ${styles['ref-tag-icon']}`} />
                               {renderRefText(ref)}
                             </span>
                           ))}
 
-                          <span
-                            className={`${styles['commit-message']} ${
-                              isMergeCommit(commit)
-                                ? styles['remote-merge-message']
-                                : ''
-                            }`}
-                          >
-                            {getCommitDisplayMessage(commit)}
-                          </span>
+                          <span className={`${styles['commit-message']} ${isMergeCommit(commit) ? styles['remote-merge-message'] : ''}`}>{getCommitDisplayMessage(commit)}</span>
                         </div>
                       </div>
 
@@ -1614,25 +1484,14 @@ export default function GitCommitDetailApp() {
                             ) : !commitFilesMap[commit.hash] || commitFilesMap[commit.hash].files.length === 0 ? (
                               <div className={styles['commit-files-empty']}>暂无文件变更</div>
                             ) : (
-                              <Scrollbar
-                                className={styles['commit-files-tree']}
-                                viewClassName={styles['commit-files-tree-view']}
-                                barSize={6}
-                              >
-                                {renderCommitFileTree(
-                                  commit.hash,
-                                  commitFilesMap[commit.hash].parentHash,
-                                  buildCommitFileTree(commitFilesMap[commit.hash].files),
-                                )}
+                              <Scrollbar className={styles['commit-files-tree']} viewClassName={styles['commit-files-tree-view']} barSize={6}>
+                                {renderCommitFileTree(commit.hash, commitFilesMap[commit.hash].parentHash, buildCommitFileTree(commitFilesMap[commit.hash].files))}
                               </Scrollbar>
                             )}
                           </div>
                         </div>
 
-                        <div
-                          className={styles['commit-detail-resize-handle']}
-                          onMouseDown={handleDetailResizeStart}
-                        />
+                        <div className={styles['commit-detail-resize-handle']} onMouseDown={handleDetailResizeStart} />
                       </div>
                     )}
                   </li>
