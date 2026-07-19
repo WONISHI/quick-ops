@@ -28,59 +28,11 @@ import PreviewError from '@pages/LivePreviewApp/components/preview-error';
 import WelcomePage from '@pages/LivePreviewApp/components/welcome-page';
 import FavoriteModal from '@pages/LivePreviewApp/components/favorite-modal';
 import HistoryModal from '@pages/LivePreviewApp/components/history-modal';
-import SuggestBox from '../../components/SuggestBox';
+import SuggestBox from '@pages/LivePreviewApp/components/suggest-box';
 import LivePreviewContextMenu from '../../components/LivePreviewContextMenu';
-
-interface FavoriteItem {
-  url: string;
-  title: string;
-  timestamp: number;
-  description?: string;
-  logo?: string;
-  folderId?: string;
-  isDefault?: boolean;
-  source?: 'builtin' | 'user';
-}
-
-interface FavoriteFolder {
-  id: string;
-  name: string;
-  timestamp: number;
-  isDefault?: boolean;
-  source?: 'builtin' | 'user';
-}
+import type { FavoriteItem, FavoriteFolder, HistoryItem, PreviewErrorState, BrowserFrameState, BrowserEngineKey, BrowserEngineOption } from '@pages/LivePreviewApp/src/type';
 
 const ROOT_FAVORITE_FOLDER_ID = 'root';
-
-interface HistoryItem {
-  url: string;
-  title: string;
-  timestamp: number;
-  logo?: string;
-}
-
-interface PreviewErrorState {
-  title: string;
-  message: string;
-  url: string;
-}
-
-interface BrowserFrameState {
-  data: string;
-  width: number;
-  height: number;
-  format?: 'jpeg' | 'png';
-}
-
-type BrowserEngineKey = 'baidu' | 'bing' | 'quark';
-
-interface BrowserEngineOption {
-  key: BrowserEngineKey;
-  label: string;
-  shortName: string;
-  homeUrl: string;
-  searchUrl: (keyword: string) => string;
-}
 
 const BROWSER_ENGINE_OPTIONS: BrowserEngineOption[] = [
   {
