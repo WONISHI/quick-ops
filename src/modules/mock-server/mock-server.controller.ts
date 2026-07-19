@@ -20,9 +20,9 @@ export class MockServerController implements OnModuleInit {
     this.registerWebviewProvider();
     this.registerCommands();
     this.registerConfigListener();
+    this.registerWorkspaceListener();
 
-    void this.mockServerService.syncServers();
-
+    void this.mockServerService.handleWorkspaceFoldersChanged();
   }
 
   public dispose(): void {
@@ -55,5 +55,17 @@ export class MockServerController implements OnModuleInit {
     this.configurationService.on('configChanged', () => {
       void this.mockServerService.syncServers();
     });
+  }
+
+  /**
+   * @description 工作区全部关闭时停止所有 Mock 服务；
+   * 重新打开工作区后恢复已启用的服务。
+   */
+  private registerWorkspaceListener(): void {
+    this.extensionContextProvider.register(
+      vscode.workspace.onDidChangeWorkspaceFolders(() => {
+        void this.mockServerService.handleWorkspaceFoldersChanged();
+      }),
+    );
   }
 }

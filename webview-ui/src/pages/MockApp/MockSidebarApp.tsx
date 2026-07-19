@@ -12,7 +12,8 @@ export default function MockSidebarApp() {
   const [globalMockDir, setGlobalMockDir] = useState<string>('');
   const [copiedUrl, setCopiedUrl] = useState<string>('');
 
-  const isGlobalRunning = useMemo(() => proxies.some((p) => p.enabled), [proxies]);
+  const isGlobalEnabled = useMemo(() => proxies.some((p) => p.enabled), [proxies]);
+  const isGlobalRunning = runningProxies.length > 0;
 
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
@@ -31,7 +32,11 @@ export default function MockSidebarApp() {
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
-  const toggleGlobalServer = () => vscode.postMessage({ type: 'toggleServer', value: !isGlobalRunning });
+  const toggleGlobalServer = () =>
+    vscode.postMessage({
+      type: 'toggleServer',
+      value: !isGlobalEnabled,
+    });
 
   const selectGlobalMockDir = () => {
     vscode.postMessage({
@@ -70,15 +75,17 @@ export default function MockSidebarApp() {
         </div>
       </div>
       <div className={styles['content']}>
-        {proxies.map(p => {
+        {proxies.map((p) => {
           const isProxyRunning = runningProxies.includes(p.id);
-          const proxyMocks = mocks.filter(m => m.proxyId === p.id);
+          const proxyMocks = mocks.filter((m) => m.proxyId === p.id);
           return (
             <div key={p.id} className={styles['proxy-container']}>
               <div className={styles['proxy-header']}>
                 <div title="当前监听地址">
                   <FontAwesomeIcon icon={faCircle} style={{ color: isProxyRunning ? 'var(--success)' : '#555', fontSize: '10px', marginRight: '6px' }} />
-                  <span className={styles['port-badge']}>{p.domain || '127.0.0.1'}:{p.port}</span>
+                  <span className={styles['port-badge']}>
+                    {p.domain || '127.0.0.1'}:{p.port}
+                  </span>
                 </div>
                 <div className={styles['proxy-actions']}>
                   <label className={styles['switch']} title="启用/停用此端口">
@@ -94,7 +101,7 @@ export default function MockSidebarApp() {
                 </div>
               </div>
               <div className={styles['rule-list']}>
-                {proxyMocks.map(item => {
+                {proxyMocks.map((item) => {
                   const isFile = item.mode === 'file';
                   const host = p.domain || '127.0.0.1';
                   const fullUrl = `http://${host}:${p.port}${item.url.startsWith('/') ? '' : '/'}${item.url}`;
@@ -103,15 +110,16 @@ export default function MockSidebarApp() {
                       <div className={styles['rule-main']}>
                         <div className={styles['url-container']}>
                           <span className={`${styles['tag']} ${styles[`tag-${item.method}`] || ''}`}>{item.method}</span>
-                          {isFile && <span className={`${styles['tag']} ${styles['file-mode-tag']}`} title="此接口返回本地文件">FILE</span>}
-                          <strong className={styles['url-text']} title={`完整路径: ${fullUrl}`}>{item.url}</strong>
+                          {isFile && (
+                            <span className={`${styles['tag']} ${styles['file-mode-tag']}`} title="此接口返回本地文件">
+                              FILE
+                            </span>
+                          )}
+                          <strong className={styles['url-text']} title={`完整路径: ${fullUrl}`}>
+                            {item.url}
+                          </strong>
                           {copiedUrl !== fullUrl ? (
-                            <FontAwesomeIcon
-                              icon={faCopy}
-                              className={styles['copy-icon']}
-                              title={`复制完整路径: ${fullUrl}`}
-                              onClick={() => copyMockUrl(fullUrl)}
-                            />
+                            <FontAwesomeIcon icon={faCopy} className={styles['copy-icon']} title={`复制完整路径: ${fullUrl}`} onClick={() => copyMockUrl(fullUrl)} />
                           ) : (
                             <span className={styles['copied-text']}>已复制!</span>
                           )}

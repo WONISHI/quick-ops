@@ -13,6 +13,7 @@ import type {
   MockRuleConfig,
   MockRuleMode,
   MockSaveRulePayload,
+  MockStopAllOptions,
   MockWebviewMessage,
   MockYamlDocument,
 } from '@modules/mock-server/mock-server.type';
@@ -60,6 +61,14 @@ export class MockServerService implements vscode.WebviewViewProvider {
   }
 
   public async startAll(): Promise<void> {
+    if (!this.hasOpenWorkspace()) {
+      vscode.window.showWarningMessage('启动失败：请先打开一个工作区！');
+      await this.stopAll({
+        silent: true,
+      });
+      return;
+    }
+
     const services = await this.yamlStore.readAllServices();
 
     if (services.length === 0) {
@@ -83,27 +92,63 @@ export class MockServerService implements vscode.WebviewViewProvider {
     }
   }
 
-  public async stopAll(): Promise<void> {
-    for (const server of this.servers.values()) {
-      server.close();
-    }
+  /**
+   * @description 关闭全部 Mock HTTP Server 并释放监听端口
+   */
+  public async stopAll(options: MockStopAllOptions = {}): Promise<void> {
+    const runningServers = Array.from(this.servers.values());
 
     this.servers.clear();
 
-    vscode.window.showInformationMessage('所有 Mock 服务已停止');
+    await Promise.allSettled(runningServers.map((server) => this.closeServer(server)));
+
+    if (!options.silent) {
+      vscode.window.showInformationMessage('所有 Mock 服务已停止');
+    }
+
     this.notifyStatusToWebview();
   }
 
+  /**
+   * @description 根据当前工作区状态启动或停止 Mock 服务
+   */
+  public async handleWorkspaceFoldersChanged(): Promise<void> {
+    if (!this.hasOpenWorkspace()) {
+      await this.stopAll({
+        silent: true,
+      });
+      return;
+    }
+
+    await this.syncServers();
+  }
+
   public async syncServers(): Promise<void> {
+    if (!this.hasOpenWorkspace()) {
+      await this.stopAll({
+        silent: true,
+      });
+      return;
+    }
+
     const services = await this.yamlStore.readAllServices();
+
+    if (!this.hasOpenWorkspace()) {
+      await this.stopAll({
+        silent: true,
+      });
+      return;
+    }
+
     const enabledServices = services.filter((item) => item.enabled);
 
     for (const [proxyId, server] of this.servers.entries()) {
       const conf = enabledServices.find((item) => item.id === proxyId);
 
       if (!conf || server._port !== Number(conf.port) || server._domain !== this.getListenHost(conf.domain)) {
-        server.close();
         this.servers.delete(proxyId);
+
+        await this.closeServer(server);
 
         console.log(`[MockServer] Stopped server for proxyId: ${proxyId}`);
       }
@@ -115,6 +160,13 @@ export class MockServerService implements vscode.WebviewViewProvider {
     }
 
     for (const conf of enabledServices) {
+      if (!this.hasOpenWorkspace()) {
+        await this.stopAll({
+          silent: true,
+        });
+        return;
+      }
+
       if (this.servers.has(conf.id)) continue;
       if (!conf.port) continue;
 
@@ -141,7 +193,9 @@ export class MockServerService implements vscode.WebviewViewProvider {
   }
 
   public dispose(): void {
-    void this.stopAll();
+    void this.stopAll({
+      silent: true,
+    });
 
     this.proxyPanel?.dispose();
     this.rulePanel?.dispose();
@@ -657,6 +711,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
 
     if (newRuleData.mode === 'mock') {
       ruleToSaveConfig.template = newRuleData.template || {};
+      ruleToSaveConfig.mockFields = Array.isArray(newRuleData.mockFields) ? newRuleData.mockFields : [];
     } else if (newRuleData.mode === 'custom') {
       ruleToSaveConfig.data = newRuleData.data || {};
     } else if (newRuleData.mode === 'file') {
@@ -767,15 +822,25 @@ export class MockServerService implements vscode.WebviewViewProvider {
     });
 
     try {
+      if (!this.hasOpenWorkspace()) return;
+
       const listenHost = this.getListenHost(serverConfig.domain);
 
       const server = app.listen(serverConfig.port, listenHost, () => {
-        server._port = Number(serverConfig.port);
-        server._domain = listenHost;
+        if (!this.hasOpenWorkspace() || this.servers.get(serverConfig.id) !== server) {
+          this.servers.delete(serverConfig.id);
+          void this.closeServer(server);
+          this.notifyStatusToWebview();
+          return;
+        }
 
-        this.servers.set(serverConfig.id, server);
         this.notifyStatusToWebview();
       }) as MockHttpServer;
+
+      server._port = Number(serverConfig.port);
+      server._domain = listenHost;
+
+      this.servers.set(serverConfig.id, server);
 
       server.on('error', (error: any) => {
         if (error.code === 'EADDRINUSE') {
@@ -784,7 +849,10 @@ export class MockServerService implements vscode.WebviewViewProvider {
           vscode.window.showErrorMessage(`Mock 服务异常: ${error.message}`);
         }
 
-        this.servers.delete(serverConfig.id);
+        if (this.servers.get(serverConfig.id) === server) {
+          this.servers.delete(serverConfig.id);
+        }
+
         this.notifyStatusToWebview();
       });
     } catch (error: any) {
@@ -878,6 +946,42 @@ export class MockServerService implements vscode.WebviewViewProvider {
         });
       }
     }
+  }
+
+  /**
+   * @description 判断当前窗口是否还存在已打开的工作区
+   */
+  private hasOpenWorkspace(): boolean {
+    return Boolean(vscode.workspace.workspaceFolders?.length);
+  }
+
+  /**
+   * @description 关闭单个 HTTP Server，并强制释放仍存活的连接
+   */
+  private closeServer(server: MockHttpServer): Promise<void> {
+    return new Promise((resolve) => {
+      let settled = false;
+
+      const finish = () => {
+        if (settled) return;
+
+        settled = true;
+        resolve();
+      };
+
+      try {
+        server.close(() => {
+          finish();
+        });
+
+        server.closeIdleConnections?.();
+        server.closeAllConnections?.();
+
+        setTimeout(finish, 1000);
+      } catch {
+        finish();
+      }
+    });
   }
 
   private getWorkspaceRootUri(): vscode.Uri | undefined {
@@ -1274,6 +1378,7 @@ class MockYamlStore {
 
     const data = response.data ?? response.content ?? raw.data ?? raw.content;
     const template = response.template ?? raw.template ?? (mode === 'mock' ? response.content : undefined);
+    const mockFields = Array.isArray(response.mockFields) ? response.mockFields : Array.isArray(raw.mockFields) ? raw.mockFields : undefined;
 
     const yamlPath = this.pathForConfig(uri);
 
@@ -1292,6 +1397,7 @@ class MockYamlStore {
       statusCode: Number(response.statusCode ?? raw.statusCode ?? 200),
       data,
       template,
+      mockFields,
       filePath: String(responseFile.path || raw.filePath || ''),
       fileDisposition: String(responseFile.disposition || raw.fileDisposition || 'inline'),
       port,
@@ -1341,6 +1447,10 @@ class MockYamlStore {
     } else {
       response.template = endpoint.template ?? {};
       response.content = endpoint.template ?? {};
+
+      if (Array.isArray(endpoint.mockFields)) {
+        response.mockFields = endpoint.mockFields;
+      }
     }
 
     return {
