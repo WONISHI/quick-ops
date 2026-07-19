@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faServer, faCircle, faGear, faTrash, faPen, faPlus, faFileCode } from '@fortawesome/free-solid-svg-icons';
 import { faFolderOpen, faCopy, faFile } from '@fortawesome/free-regular-svg-icons';
 import styles from './index.module.css';
+import MockSkeleton from '@pages/mock-app/components/mock-skeleton';
 
 export default function MockSidebarApp() {
   const [proxies, setProxies] = useState<any[]>([]);
@@ -11,6 +12,11 @@ export default function MockSidebarApp() {
   const [runningProxies, setRunningProxies] = useState<string[]>([]);
   const [globalMockDir, setGlobalMockDir] = useState<string>('');
   const [copiedUrl, setCopiedUrl] = useState<string>('');
+
+  /**
+   * @description 是否正在加载 Mock 服务配置
+   */
+  const [initializing, setInitializing] = useState(true);
 
   const isGlobalEnabled = useMemo(() => proxies.some((p) => p.enabled), [proxies]);
   const isGlobalRunning = runningProxies.length > 0;
@@ -22,6 +28,7 @@ export default function MockSidebarApp() {
         setProxies(proxy || []);
         setMocks(mock || []);
         setGlobalMockDir(mockDir || '');
+        setInitializing(false);
       }
       if (type === 'status') {
         setRunningProxies(rp || []);
@@ -57,6 +64,10 @@ export default function MockSidebarApp() {
     setCopiedUrl(url);
     setTimeout(() => setCopiedUrl(''), 3000);
   };
+
+  if (initializing) {
+    return <MockSkeleton variant="sidebar" />;
+  }
 
   return (
     <div className={styles['mock-sidebar-root']}>

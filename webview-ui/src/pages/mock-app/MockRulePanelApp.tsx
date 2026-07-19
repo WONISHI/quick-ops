@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowsRotate, faCheck, faPlus, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { faCopy, faFolderOpen } from '@fortawesome/free-regular-svg-icons';
 import styles from './index.module.css';
+import MockSkeleton from '@pages/mock-app/components/mock-skeleton';
 
 type MockRuleMode = 'mock' | 'custom' | 'file';
 
@@ -729,6 +730,11 @@ export default function MockRulePanelApp() {
 
   const [copyStatus, setCopyStatus] = useState<Record<string, boolean>>({});
 
+  /**
+   * @description 是否正在等待 Extension Host 初始化规则
+   */
+  const [initializing, setInitializing] = useState(true);
+
   const mockTemplateResult = useMemo(() => buildMockTemplate(mockFields), [mockFields]);
 
   const previewContent = mockTemplateResult.error ? `Error: ${mockTemplateResult.error}` : previewResult;
@@ -792,6 +798,7 @@ export default function MockRulePanelApp() {
           setMockFields(normalizeMockFields(rule?.mockFields, rule?.template));
         }
 
+        setInitializing(false);
         return;
       }
 
@@ -1018,6 +1025,10 @@ export default function MockRulePanelApp() {
       });
     }
   };
+
+  if (initializing) {
+    return <MockSkeleton variant="rule" />;
+  }
 
   return (
     <div className={styles['mock-rule-root']}>

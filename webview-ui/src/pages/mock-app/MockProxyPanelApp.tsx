@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
 import { vscode } from '@utils/vscode';
 import styles from './index.module.css';
+import MockSkeleton from '@pages/mock-app/components/mock-skeleton';
 
 export default function MockProxyPanelApp() {
   const [proxyId, setProxyId] = useState('');
   const [domain, setDomain] = useState('127.0.0.1');
   const [port, setPort] = useState('');
   const [isEdit, setIsEdit] = useState(false);
+
+  /**
+   * @description 是否正在等待 Extension Host 初始化面板
+   */
+  const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
     vscode.postMessage({ type: 'webviewLoaded' });
@@ -15,11 +21,15 @@ export default function MockProxyPanelApp() {
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       const msg = e.data;
-      if (msg.type === 'init' && msg.proxy) {
-        setProxyId(msg.proxy.id || '');
-        setDomain(msg.proxy.domain || '127.0.0.1');
-        setPort(msg.proxy.port || '');
-        setIsEdit(true);
+      if (msg.type === 'init') {
+        if (msg.proxy) {
+          setProxyId(msg.proxy.id || '');
+          setDomain(msg.proxy.domain || '127.0.0.1');
+          setPort(msg.proxy.port || '');
+          setIsEdit(true);
+        }
+
+        setInitializing(false);
       }
     };
     window.addEventListener('message', handleMessage);
@@ -31,6 +41,10 @@ export default function MockProxyPanelApp() {
     if (!portNum) return vscode.postMessage({ type: 'error', message: '端口为必填项！' });
     vscode.postMessage({ type: 'saveProxy', payload: { id: proxyId, domain: domain || '127.0.0.1', port: portNum } });
   };
+
+  if (initializing) {
+    return <MockSkeleton variant="proxy" />;
+  }
 
   return (
     <div className={styles['mock-proxy-root']}>
