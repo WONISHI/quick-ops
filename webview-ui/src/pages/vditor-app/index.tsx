@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Vditor from 'vditor';
 import 'vditor/dist/index.css';
+import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
 import { parseFileUriInfo } from '../../utils/index';
@@ -15,6 +17,74 @@ interface VditorAppProps {
    * false：作为其它页面里的组件使用
    */
   pageMode?: boolean;
+}
+
+interface VditorSkeletonProps {
+  /**
+   * @description 是否为只读预览模式
+   */
+  readMode: boolean;
+}
+
+/**
+ * @description Markdown 阅读器与编辑器加载骨架屏
+ */
+function VditorSkeleton({ readMode }: VditorSkeletonProps) {
+  const lineWidths = ['92%', '84%', '96%', '72%', '88%', '64%', '90%', '76%'];
+
+  return (
+    <SkeletonTheme
+      baseColor="var(--vscode-list-inactiveSelectionBackground, rgba(127, 127, 127, 0.12))"
+      highlightColor="var(--vscode-list-hoverBackground, rgba(127, 127, 127, 0.2))"
+      borderRadius={4}
+      duration={1.35}
+    >
+      <div className={styles['vditor-skeleton']}>
+        {!readMode && (
+          <div className={styles['vditor-skeleton-toolbar']}>
+            {Array.from({ length: 12 }).map((_, index) => (
+              <Skeleton key={index} width={22} height={22} />
+            ))}
+          </div>
+        )}
+
+        <div className={styles['vditor-skeleton-body']}>
+          <Skeleton width="46%" height={28} />
+
+          <div className={styles['vditor-skeleton-meta']}>
+            <Skeleton width="28%" height={11} />
+            <Skeleton width="18%" height={11} />
+          </div>
+
+          <div className={styles['vditor-skeleton-paragraph']}>
+            {lineWidths.slice(0, 4).map((width, index) => (
+              <Skeleton key={index} width={width} height={12} />
+            ))}
+          </div>
+
+          <Skeleton className={styles['vditor-skeleton-heading']} width="34%" height={20} />
+
+          <div className={styles['vditor-skeleton-paragraph']}>
+            {lineWidths.slice(4).map((width, index) => (
+              <Skeleton key={index} width={width} height={12} />
+            ))}
+          </div>
+
+          <div className={styles['vditor-skeleton-code']}>
+            {Array.from({ length: 5 }).map((_, index) => (
+              <Skeleton key={index} width={`${88 - index * 8}%`} height={11} />
+            ))}
+          </div>
+
+          <div className={styles['vditor-skeleton-table']}>
+            {Array.from({ length: 12 }).map((_, index) => (
+              <Skeleton key={index} width="100%" height={28} borderRadius={0} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </SkeletonTheme>
+  );
 }
 
 type MetaValueType = 'link' | 'tag' | 'boolean' | 'date' | 'text' | 'empty';
@@ -258,6 +328,12 @@ export default function VditorApp(props: VditorAppProps) {
   const isEditModeRef = useRef(false);
   const lastSavedContentRef = useRef('');
   const pendingSaveContentRef = useRef('');
+
+  /**
+   * @description 是否正在等待或渲染 Markdown 内容
+   */
+  const [loading, setLoading] = useState(true);
+
   const [isReadMode, setIsReadMode] = useState(false);
 
   const metaAction = useMemo<VditorMetaActionConfig>(() => {
@@ -429,6 +505,7 @@ export default function VditorApp(props: VditorAppProps) {
       if (!vditorRef.current) return;
 
       destroyVditor();
+      setLoading(true);
 
       const { fileName } = parseFileUriInfo(fsPath);
       const isEdit = mode === 'edit';
@@ -475,9 +552,12 @@ export default function VditorApp(props: VditorAppProps) {
                 link.setAttribute('rel', 'noopener noreferrer');
               }
             });
+
+            setLoading(false);
           },
         } as any);
 
+        setLoading(false);
         return;
       }
 
@@ -511,6 +591,8 @@ export default function VditorApp(props: VditorAppProps) {
           if (vditorElement) {
             vditorElement.style.height = '100%';
           }
+
+          setLoading(false);
         },
         input: (value: string) => {
           scheduleSaveMarkdown(value);
@@ -630,6 +712,8 @@ export default function VditorApp(props: VditorAppProps) {
         if (vditorRef.current) {
           vditorRef.current.innerHTML = `<div class="${styles['vditor-error']}">${msg.message || 'Markdown 文件读取失败'}</div>`;
         }
+
+        setLoading(false);
       }
     };
 
@@ -680,7 +764,9 @@ export default function VditorApp(props: VditorAppProps) {
 
   return (
     <div className={`${styles['vditor-container']} ${pageMode ? styles['page-mode'] : ''} ${isReadMode ? styles['read-mode'] : ''}`}>
-      <div ref={vditorRef} className={styles['vditor-wrapper']} />
+      <div ref={vditorRef} className={[styles['vditor-wrapper'], loading ? styles['vditor-wrapper-loading'] : ''].filter(Boolean).join(' ')} />
+
+      {loading && <VditorSkeleton readMode={isReadMode} />}
     </div>
   );
 }

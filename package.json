@@ -446,7 +446,7 @@
       },
       {
         "command": "quickOps.openTextCompare",
-        "title": "文本差异对比 (Text Diff Compare)",
+        "title": "文本差异对比",
         "category": "Quick Ops"
       },
       {

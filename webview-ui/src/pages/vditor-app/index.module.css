@@ -3,6 +3,7 @@
   height: 100%;
   min-width: 0;
   min-height: 0;
+  position: relative;
   display: flex;
   flex-direction: column;
   overflow: auto;
@@ -96,7 +97,7 @@
   box-sizing: border-box !important;
   background-color: transparent !important;
   color: var(--vscode-editor-foreground) !important;
-  font-family: var(--vscode-editor-font-family), "Helvetica Neue", sans-serif !important;
+  font-family: var(--vscode-editor-font-family), 'Helvetica Neue', sans-serif !important;
 }
 
 /* Vditor.preview 生成的内容 */
@@ -110,7 +111,7 @@
   box-sizing: border-box !important;
   background-color: transparent !important;
   color: var(--vscode-editor-foreground) !important;
-  font-family: var(--vscode-editor-font-family), "Helvetica Neue", sans-serif !important;
+  font-family: var(--vscode-editor-font-family), 'Helvetica Neue', sans-serif !important;
   word-break: break-word !important;
   overflow-wrap: anywhere !important;
 }
@@ -332,7 +333,7 @@
 :global(.frontmatter-table-container) {
   max-width: 100% !important;
   white-space: normal !important;
-  font-family: var(--vscode-editor-font-family), "Helvetica Neue", sans-serif !important;
+  font-family: var(--vscode-editor-font-family), 'Helvetica Neue', sans-serif !important;
   margin-bottom: 20px;
   border: 1px solid var(--vscode-panel-border);
   border-radius: 4px;
@@ -405,7 +406,9 @@
   color: var(--vscode-icon-foreground);
   padding: 4px;
   border-radius: 3px;
-  transition: opacity 0.2s, background-color 0.2s;
+  transition:
+    opacity 0.2s,
+    background-color 0.2s;
 }
 
 :global(.meta-link-box:hover .meta-copy-btn) {
@@ -449,7 +452,7 @@
   color: var(--vscode-icon-foreground);
 }
 
-:global(.vditor-ir__node[data-type="html-block"] .vditor-ir__preview) {
+:global(.vditor-ir__node[data-type='html-block'] .vditor-ir__preview) {
   margin: 0 !important;
   padding: 0 !important;
   background: transparent !important;
@@ -465,7 +468,7 @@
 }
 
 :global(.meta-copy-btn),
-:global(.meta-icon[data-meta-action="true"]) {
+:global(.meta-icon[data-meta-action='true']) {
   user-select: none !important;
   -webkit-user-select: none !important;
 }
@@ -476,7 +479,6 @@
 
 .vditor-container:not(.read-mode) :global(.vditor-content) {
   flex: 1 1 auto !important;
-  height: 0 !important;
   min-height: 0 !important;
   overflow: hidden !important;
 }
@@ -496,4 +498,118 @@
   overflow-x: hidden !important;
   padding: 24px 36px !important;
   box-sizing: border-box !important;
+}
+
+/* ==================== Vditor 骨架屏 ==================== */
+
+/**
+ * Vditor 目标节点必须一直挂载。
+ * loading 时仅隐藏可见内容，避免初始化消息到达后 ref 不存在。
+ */
+.vditor-wrapper-loading {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.vditor-skeleton {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--vscode-editor-background);
+}
+
+.vditor-skeleton-toolbar {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 5px 8px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-editorGroupHeader-tabsBackground);
+  line-height: 1;
+}
+
+.vditor-skeleton-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 24px 36px;
+  box-sizing: border-box;
+  overflow: hidden;
+  line-height: 1;
+}
+
+.vditor-skeleton-meta {
+  margin-top: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.vditor-skeleton-paragraph {
+  margin-top: 30px;
+  display: grid;
+  gap: 10px;
+}
+
+.vditor-skeleton-heading {
+  margin-top: 38px;
+}
+
+.vditor-skeleton-code {
+  min-height: 112px;
+  margin-top: 34px;
+  padding: 12px;
+  box-sizing: border-box;
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  background: var(--vscode-textCodeBlock-background);
+}
+
+.vditor-skeleton-table {
+  margin-top: 32px;
+  padding: 1px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--vscode-panel-border);
+}
+
+.vditor-skeleton :global(.react-loading-skeleton) {
+  vertical-align: middle;
+}
+
+@media (max-width: 720px) {
+  .vditor-skeleton-body {
+    padding: 20px 22px;
+  }
+
+  .vditor-skeleton-toolbar {
+    gap: 3px;
+  }
+
+  .vditor-skeleton-toolbar > span:nth-child(n + 9) {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .vditor-skeleton-body {
+    padding: 18px 16px;
+  }
+
+  .vditor-skeleton-table {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
