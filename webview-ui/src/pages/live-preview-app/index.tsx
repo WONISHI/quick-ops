@@ -30,6 +30,7 @@ import FavoriteModal from '@pages/live-preview-app/components/favorite-modal';
 import HistoryModal from '@pages/live-preview-app/components/history-modal';
 import SuggestBox from '@pages/live-preview-app/components/suggest-box';
 import LivePreviewContextMenu from '@pages/live-preview-app/components/live-preview-context-menu';
+import LivePreviewSkeleton from '@pages/live-preview-app/components/live-preview-skeleton';
 import { ROOT_FAVORITE_FOLDER_ID, BROWSER_ENGINE_OPTIONS, DEFAULT_BROWSER_ENGINE_KEY, BROWSER_ENGINE_STORAGE_KEY } from '@pages/live-preview-app/src/constants';
 import type {
   FavoriteItem,
@@ -893,6 +894,11 @@ function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSu
 }
 
 export default function LivePreviewApp() {
+  /**
+   * @description 是否正在等待 Extension Host 发送初始化数据
+   */
+  const [initializing, setInitializing] = useState(true);
+
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
   const [previewType, setPreviewType] = useState<PreviewType>('web');
@@ -1443,6 +1449,7 @@ export default function LivePreviewApp() {
         }
 
         vscode?.postMessage({ type: 'reqSyncFavorites' });
+        setInitializing(false);
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
         setFavoriteFolders(message.folders || []);
@@ -2270,6 +2277,10 @@ export default function LivePreviewApp() {
       deviceScaleFactor,
     });
   }, []);
+
+  if (initializing) {
+    return <LivePreviewSkeleton />;
+  }
 
   return (
     <div className={styles['live-preview-container']}>

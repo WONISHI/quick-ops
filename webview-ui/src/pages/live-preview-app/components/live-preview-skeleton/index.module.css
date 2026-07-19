@@ -1,0 +1,148 @@
+.page {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: var(--vscode-editor-foreground);
+  background: var(--vscode-editor-background);
+}
+
+.toolbar {
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  line-height: 1;
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.address-bar {
+  flex: 1 1 auto;
+  min-width: 150px;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  display: grid;
+  grid-template-columns:
+    20px
+    minmax(0, 1fr)
+    18px;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: 2px;
+  background: var(--vscode-input-background);
+}
+
+.divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: var(--vscode-panel-border);
+}
+
+.preview {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 20px;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.preview-window {
+  width: min(860px, 100%);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 94%, var(--vscode-sideBar-background));
+}
+
+.preview-head {
+  flex: 0 0 auto;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  line-height: 1;
+}
+
+.preview-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.preview-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  line-height: 1;
+}
+
+.preview-content > span:nth-child(2) {
+  margin-top: 18px;
+}
+
+.preview-content > span:nth-child(3) {
+  margin-top: 8px;
+}
+
+.preview-links {
+  width: min(300px, 72%);
+  margin-top: 28px;
+  display: grid;
+  gap: 12px;
+}
+
+.page :global(.react-loading-skeleton) {
+  vertical-align: middle;
+}
+
+@media (max-width: 720px) {
+  .toolbar {
+    overflow: hidden;
+  }
+
+  .toolbar > span:nth-last-child(-n + 5),
+  .divider {
+    display: none;
+  }
+
+  .preview {
+    padding: 10px;
+  }
+
+  .preview-content {
+    padding: 18px;
+  }
+
+  .preview-links {
+    width: min(280px, 90%);
+  }
+}
