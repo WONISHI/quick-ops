@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { vscode } from '../../utils/vscode';
+import { vscode } from '@utils/vscode';
 import UrlParser from '../../utils/UrlParser';
 import styles from './index.module.css';
 
@@ -30,36 +30,8 @@ import FavoriteModal from '@pages/LivePreviewApp/components/favorite-modal';
 import HistoryModal from '@pages/LivePreviewApp/components/history-modal';
 import SuggestBox from '@pages/LivePreviewApp/components/suggest-box';
 import LivePreviewContextMenu from '../../components/LivePreviewContextMenu';
-import type { FavoriteItem, FavoriteFolder, HistoryItem, PreviewErrorState, BrowserFrameState, BrowserEngineKey, BrowserEngineOption } from '@pages/LivePreviewApp/src/type';
-
-const ROOT_FAVORITE_FOLDER_ID = 'root';
-
-const BROWSER_ENGINE_OPTIONS: BrowserEngineOption[] = [
-  {
-    key: 'baidu',
-    label: '百度',
-    shortName: '百',
-    homeUrl: 'https://www.baidu.com/',
-    searchUrl: (keyword) => `https://www.baidu.com/s?wd=${encodeURIComponent(keyword)}`,
-  },
-  {
-    key: 'bing',
-    label: 'Bing',
-    shortName: 'B',
-    homeUrl: 'https://www.bing.com/',
-    searchUrl: (keyword) => `https://www.bing.com/search?q=${encodeURIComponent(keyword)}`,
-  },
-  {
-    key: 'quark',
-    label: '夸克',
-    shortName: '夸',
-    homeUrl: 'https://quark.sm.cn/',
-    searchUrl: (keyword) => `https://quark.sm.cn/s?q=${encodeURIComponent(keyword)}`,
-  },
-];
-
-const DEFAULT_BROWSER_ENGINE_KEY: BrowserEngineKey = 'baidu';
-const BROWSER_ENGINE_STORAGE_KEY = 'quickOps.livePreview.browserEngine';
+import { ROOT_FAVORITE_FOLDER_ID, BROWSER_ENGINE_OPTIONS, DEFAULT_BROWSER_ENGINE_KEY, BROWSER_ENGINE_STORAGE_KEY } from '@pages/LivePreviewApp/src/constants';
+import type { FavoriteItem, FavoriteFolder, HistoryItem, PreviewErrorState, BrowserFrameState, BrowserEngineKey, BrowserSurfaceProps } from '@pages/LivePreviewApp/src/type';
 
 const isBrowserEngineKey = (value: unknown): value is BrowserEngineKey => {
   return value === 'baidu' || value === 'bing' || value === 'quark';
@@ -68,12 +40,6 @@ const isBrowserEngineKey = (value: unknown): value is BrowserEngineKey => {
 const getBrowserEngineOption = (key: BrowserEngineKey) => {
   return BROWSER_ENGINE_OPTIONS.find((item) => item.key === key) || BROWSER_ENGINE_OPTIONS[0];
 };
-
-interface BrowserSurfaceProps {
-  loading: boolean;
-  onViewportChange: (width: number, height: number) => void;
-  onFindShortcut: () => void;
-}
 
 function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSurfaceProps) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);

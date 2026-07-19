@@ -46,3 +46,9 @@ export interface BrowserEngineOption {
   homeUrl: string;
   searchUrl: (keyword: string) => string;
 }
+
+export interface BrowserSurfaceProps {
+  loading: boolean;
+  onViewportChange: (width: number, height: number) => void;
+  onFindShortcut: () => void;
+}
