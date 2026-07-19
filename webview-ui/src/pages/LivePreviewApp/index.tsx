@@ -31,7 +31,16 @@ import HistoryModal from '@pages/LivePreviewApp/components/history-modal';
 import SuggestBox from '@pages/LivePreviewApp/components/suggest-box';
 import LivePreviewContextMenu from '../../components/LivePreviewContextMenu';
 import { ROOT_FAVORITE_FOLDER_ID, BROWSER_ENGINE_OPTIONS, DEFAULT_BROWSER_ENGINE_KEY, BROWSER_ENGINE_STORAGE_KEY } from '@pages/LivePreviewApp/src/constants';
-import type { FavoriteItem, FavoriteFolder, HistoryItem, PreviewErrorState, BrowserFrameState, BrowserEngineKey, BrowserSurfaceProps } from '@pages/LivePreviewApp/src/type';
+import type {
+  FavoriteItem,
+  FavoriteFolder,
+  HistoryItem,
+  PreviewErrorState,
+  BrowserFrameState,
+  BrowserEngineKey,
+  BrowserSurfaceProps,
+  PreviewType,
+} from '@pages/LivePreviewApp/src/type';
 
 const isBrowserEngineKey = (value: unknown): value is BrowserEngineKey => {
   return value === 'baidu' || value === 'bing' || value === 'quark';
@@ -883,8 +892,6 @@ function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSu
   );
 }
 
-type PreviewType = 'web' | 'md' | 'pdf' | 'excel' | 'html';
-
 export default function LivePreviewApp() {
   const [urlInput, setUrlInput] = useState('');
   const [frameUrl, setFrameUrl] = useState('');
@@ -1157,22 +1164,6 @@ export default function LivePreviewApp() {
     return '';
   };
 
-  // const activeDefaultFavorite = useMemo(() => {
-  //   const targetUrl = normalizeFavoriteUrl(frameUrl || urlInput);
-  //   if (!targetUrl) return undefined;
-
-  //   return favorites.find((item) => {
-  //     return item.isDefault && item.logo && normalizeFavoriteUrl(item.url) === targetUrl;
-  //   });
-  // }, [favorites, frameUrl, urlInput]);
-
-  // const isDefaultFavoriteUrl = (url: string) => {
-  //   const targetUrl = normalizeFavoriteUrl(url);
-  //   if (!targetUrl) return false;
-
-  //   return favorites.some((item) => item.isDefault && normalizeFavoriteUrl(item.url) === targetUrl);
-  // };
-
   const updateHistoryLogo = (url: string, logo: string) => {
     if (!url || !logo) return;
 
@@ -1265,22 +1256,6 @@ export default function LivePreviewApp() {
       setIsFaviconLoading(false);
     }
   };
-
-  // const showPreviewErrorByRequest = (requestId: number, url: string, title: string, message: string) => {
-  //   if (previewRequestIdRef.current !== requestId) return;
-  //   if (pageLoadedRef.current) return;
-
-  //   clearPreviewLoadTimer();
-
-  //   setPreviewLoading(false);
-  //   setIsPageLoaded(false);
-
-  //   setPreviewError({
-  //     title,
-  //     message,
-  //     url,
-  //   });
-  // };
 
   const startWebPreviewGuard = (url: string) => {
     const requestId = previewRequestIdRef.current + 1;

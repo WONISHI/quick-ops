@@ -52,3 +52,5 @@ export interface BrowserSurfaceProps {
   onViewportChange: (width: number, height: number) => void;
   onFindShortcut: () => void;
 }
+
+export type PreviewType = 'web' | 'md' | 'pdf' | 'excel' | 'html';
