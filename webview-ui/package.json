@@ -28,6 +28,7 @@
     "material-icon-theme": "^5.35.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-loading-skeleton": "^3.5.0",
     "react-pdf": "^10.4.1",
     "react-router-dom": "^7.13.2",
     "vditor": "^3.11.2",

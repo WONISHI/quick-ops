@@ -12,6 +12,7 @@ import InterfaceItem from '@/pages/api-dev-tools-app/components/interface-item';
 import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-editor';
 import ProjectCard from '@/pages/api-dev-tools-app/components/project-card';
 import ShareCard from '@/pages/api-dev-tools-app/components/share-card';
+import ApiDevToolsSkeleton from '@/pages/api-dev-tools-app/components/api-dev-tools-skeleton';
 import { buildApiDocsHtml } from '@/pages/api-dev-tools-app/src/api-docs-builder';
 import { formatSize, safeBase64, clampNumber, tryFormatJson, isJsonLikeText, cloneRequest } from '@/pages/api-dev-tools-app/src/api-dev-tools.utils';
 import type {
@@ -509,6 +510,12 @@ export default function ApiDevToolsApp() {
   const [requestDetail, setRequestDetail] = useState<RequestDetailPayload | null>(null);
   const [response, setResponse] = useState<ApiResponsePayload | null>(null);
   const [loading, setLoading] = useState(false);
+
+  /**
+   * @description 是否正在加载 Extension Host 中持久化的初始状态
+   */
+  const [initializing, setInitializing] = useState(true);
+
   const [showGlobals, setShowGlobals] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [bottomPanelSize, setBottomPanelSize] = useState(BOTTOM_PANEL_DEFAULT_SIZE);
@@ -1079,6 +1086,7 @@ export default function ApiDevToolsApp() {
         setProjects(state.projects || []);
         setActiveProjectId(state.activeProjectId || state.projects[0]?.id || '');
         setActiveInterfaceId(state.activeInterfaceId || '');
+        setInitializing(false);
         return;
       }
 
@@ -2218,6 +2226,10 @@ export default function ApiDevToolsApp() {
 
   const bottomPanelMaxSize = getBottomPanelMaxSize();
   const interfaceCount = projects.reduce((sum, project) => sum + project.interfaces.length, 0);
+
+  if (initializing) {
+    return <ApiDevToolsSkeleton workspacePaneWidth={workspacePaneWidth} workspaceResizerSize={WORKSPACE_RESIZER_SIZE} bottomPanelSize={bottomPanelSize} />;
+  }
 
   return (
     <div className={styles['api-devtools']}>
