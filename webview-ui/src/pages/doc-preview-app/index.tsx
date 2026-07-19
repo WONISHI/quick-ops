@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { renderAsync } from 'docx-preview';
+import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
 import { vscode } from '../../utils/vscode';
 import wordIcon from 'material-icon-theme/icons/word.svg';
 import styles from './index.module.css';
@@ -34,6 +36,52 @@ function getFileExtension(data: DocPreviewData) {
   const match = cleanPath.match(/\.[^./\\]+$/);
 
   return match ? match[0].toLowerCase() : '';
+}
+
+/**
+ * @description Word 文档加载骨架屏
+ */
+function DocPreviewSkeleton() {
+  const lineWidths = ['92%', '86%', '78%', '94%', '72%', '88%', '64%', '90%', '82%', '70%'];
+
+  return (
+    <div className={styles['skeleton-view']}>
+      <div className={styles['skeleton-page']}>
+        <SkeletonTheme baseColor="#e5e7eb" highlightColor="#f3f4f6" borderRadius={3} duration={1.35}>
+          <div className={styles['skeleton-page-content']}>
+            <Skeleton width="42%" height={22} />
+
+            <div className={styles['skeleton-meta']}>
+              <Skeleton width="28%" height={10} />
+              <Skeleton width="18%" height={10} />
+            </div>
+
+            <div className={styles['skeleton-paragraph']}>
+              {lineWidths.slice(0, 5).map((width, index) => (
+                <Skeleton key={index} width={width} height={11} />
+              ))}
+            </div>
+
+            <div className={styles['skeleton-heading']}>
+              <Skeleton width="34%" height={16} />
+            </div>
+
+            <div className={styles['skeleton-paragraph']}>
+              {lineWidths.slice(5).map((width, index) => (
+                <Skeleton key={index} width={width} height={11} />
+              ))}
+            </div>
+
+            <div className={styles['skeleton-table']}>
+              {Array.from({ length: 12 }).map((_, index) => (
+                <Skeleton key={index} width="100%" height={28} borderRadius={0} />
+              ))}
+            </div>
+          </div>
+        </SkeletonTheme>
+      </div>
+    </div>
+  );
 }
 
 export default function DocPreviewApp() {
@@ -146,17 +194,22 @@ export default function DocPreviewApp() {
       <div className={styles['toolbar']}>
         <div className={styles['toolbar-title']}>
           <img src={wordIcon} className={styles['toolbar-icon']} alt="" draggable={false} />
-          <span className={styles['toolbar-file-name']}>{fileName || 'Word 预览'}</span>
+
+          {loading && !fileName ? (
+            <Skeleton
+              width={132}
+              height={12}
+              baseColor="var(--vscode-list-inactiveSelectionBackground, rgba(127, 127, 127, 0.12))"
+              highlightColor="var(--vscode-list-hoverBackground, rgba(127, 127, 127, 0.2))"
+            />
+          ) : (
+            <span className={styles['toolbar-file-name']}>{fileName || 'Word 预览'}</span>
+          )}
         </div>
       </div>
 
       <div className={styles['render-area']}>
-        {loading && (
-          <div className={styles['status-view']}>
-            <i className={`codicon codicon-loading codicon-modifier-spin ${styles['status-icon']}`} />
-            <span>正在加载 Word 文档...</span>
-          </div>
-        )}
+        {loading && <DocPreviewSkeleton />}
 
         {!!error && !loading && (
           <div className={`${styles['status-view']} ${styles['error-view']}`}>
