@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { vscode } from '@utils/vscode';
 import { Document, Page, pdfjs } from 'react-pdf';
+import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import styles from './index.module.css';
@@ -11,8 +13,47 @@ interface PdfPreviewAppProps {
   initialScale?: number;
 }
 
+/**
+ * @description PDF 文档加载骨架屏
+ */
+function PdfPreviewSkeleton() {
+  const lineWidths = ['88%', '94%', '76%', '91%', '68%', '84%', '72%', '90%', '64%', '82%'];
+
+  return (
+    <SkeletonTheme baseColor="#e5e7eb" highlightColor="#f3f4f6" borderRadius={3} duration={1.35}>
+      <div className={styles['pdf-skeleton']}>
+        <div className={styles['pdf-skeleton-page']}>
+          <div className={styles['pdf-skeleton-content']}>
+            <Skeleton width="46%" height={22} />
+
+            <div className={styles['pdf-skeleton-meta']}>
+              <Skeleton width="28%" height={10} />
+              <Skeleton width="20%" height={10} />
+            </div>
+
+            <div className={styles['pdf-skeleton-paragraph']}>
+              {lineWidths.slice(0, 5).map((width, index) => (
+                <Skeleton key={index} width={width} height={11} />
+              ))}
+            </div>
+
+            <Skeleton className={styles['pdf-skeleton-image']} width="100%" height={170} />
+
+            <div className={styles['pdf-skeleton-paragraph']}>
+              {lineWidths.slice(5).map((width, index) => (
+                <Skeleton key={index} width={width} height={11} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </SkeletonTheme>
+  );
+}
+
 export default function PdfPreviewApp({ initialScale = 1.2 }: PdfPreviewAppProps) {
   const [loading, setLoading] = useState(true);
+  const [documentLoading, setDocumentLoading] = useState(true);
   const [pdfBase64, setPdfBase64] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,6 +73,7 @@ export default function PdfPreviewApp({ initialScale = 1.2 }: PdfPreviewAppProps
         }
 
         setPdfBase64(msg.contentBase64);
+        setDocumentLoading(true);
 
         if (msg.initialScale) {
           const finalScale = msg.initialScale > 10 ? msg.initialScale / 100 : msg.initialScale;
@@ -51,6 +93,7 @@ export default function PdfPreviewApp({ initialScale = 1.2 }: PdfPreviewAppProps
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setPageNumber(1);
+    setDocumentLoading(false);
   };
 
   const changePage = (offset: number) => {
@@ -59,9 +102,19 @@ export default function PdfPreviewApp({ initialScale = 1.2 }: PdfPreviewAppProps
 
   if (loading) {
     return (
-      <div className={styles['status-view']}>
-        <span className={`codicon codicon-loading codicon-modifier-spin ${styles['status-icon']} ${styles['loading-text']}`} />
-        <span className={styles['loading-text']}>正在加载 PDF 文档...</span>
+      <div className={styles['app-container']}>
+        <div className={styles.toolbar}>
+          <Skeleton
+            width={148}
+            height={12}
+            baseColor="var(--vscode-list-inactiveSelectionBackground, rgba(127, 127, 127, 0.12))"
+            highlightColor="var(--vscode-list-hoverBackground, rgba(127, 127, 127, 0.2))"
+          />
+        </div>
+
+        <div className={styles['render-area']}>
+          <PdfPreviewSkeleton />
+        </div>
       </div>
     );
   }
@@ -108,11 +161,22 @@ export default function PdfPreviewApp({ initialScale = 1.2 }: PdfPreviewAppProps
       </div>
 
       <div className={styles['render-area']}>
-        <Document file={`data:application/pdf;base64,${pdfBase64}`} onLoadSuccess={onDocumentLoadSuccess} onLoadError={(err) => setError(`PDF 解析失败: ${err.message}`)}>
-          <div className={styles['page-wrapper']}>
-            <Page pageNumber={pageNumber} scale={scale} renderTextLayer={true} renderAnnotationLayer={true} />
-          </div>
-        </Document>
+        {documentLoading && <PdfPreviewSkeleton />}
+
+        <div className={documentLoading ? styles['document-hidden'] : ''}>
+          <Document
+            file={`data:application/pdf;base64,${pdfBase64}`}
+            onLoadSuccess={onDocumentLoadSuccess}
+            onLoadError={(err) => {
+              setDocumentLoading(false);
+              setError(`PDF 解析失败: ${err.message}`);
+            }}
+          >
+            <div className={styles['page-wrapper']}>
+              <Page pageNumber={pageNumber} scale={scale} renderTextLayer={true} renderAnnotationLayer={true} />
+            </div>
+          </Document>
+        </div>
       </div>
     </div>
   );
