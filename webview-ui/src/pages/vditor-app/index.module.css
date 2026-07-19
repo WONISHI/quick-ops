@@ -503,18 +503,15 @@
 /* ==================== Vditor 骨架屏 ==================== */
 
 /**
- * Vditor 目标节点必须一直挂载。
- * loading 时仅隐藏可见内容，避免初始化消息到达后 ref 不存在。
+ * Vditor 挂载节点始终保持可布局状态。
+ * 骨架屏使用绝对定位覆盖，不再修改挂载节点的 className。
  */
-.vditor-wrapper-loading {
-  visibility: hidden;
-  pointer-events: none;
-}
 
 .vditor-skeleton {
   position: absolute;
   inset: 0;
   z-index: 20;
+  pointer-events: auto;
   min-width: 0;
   min-height: 0;
   display: flex;

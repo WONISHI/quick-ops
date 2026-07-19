@@ -764,7 +764,12 @@ export default function VditorApp(props: VditorAppProps) {
 
   return (
     <div className={`${styles['vditor-container']} ${pageMode ? styles['page-mode'] : ''} ${isReadMode ? styles['read-mode'] : ''}`}>
-      <div ref={vditorRef} className={[styles['vditor-wrapper'], loading ? styles['vditor-wrapper-loading'] : ''].filter(Boolean).join(' ')} />
+      {/*
+       * Vditor 会直接修改这个挂载节点的 class 和内部 DOM。
+       * 因此这里的 className 必须保持稳定，不能跟 loading 状态联动。
+       * 骨架屏通过绝对定位覆盖在上层即可。
+       */}
+      <div ref={vditorRef} className={styles['vditor-wrapper']} />
 
       {loading && <VditorSkeleton readMode={isReadMode} />}
     </div>
