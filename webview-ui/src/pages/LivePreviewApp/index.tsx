@@ -19,15 +19,15 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 
-import VditorApp from '../vditor-app';
-import PdfPreviewApp from '../pdf-preview-app';
-import ExcelPreviewApp from '../excel-preview-app';
-import HtmlPreviewApp from '../html-preview-app';
-import PreviewError from '../../components/PreviewError';
+import VditorApp from '@pages/vditor-app';
+import PdfPreviewApp from '@pages/pdf-preview-app';
+import ExcelPreviewApp from '@pages/excel-preview-app';
+import HtmlPreviewApp from '@pages/html-preview-app';
+import PreviewError from '@pages/LivePreviewApp/components/preview-error';
 
-import WelcomePage from '../../components/WelcomePage';
-import FavoriteModal from '../../components/FavoriteModal';
-import HistoryModal from '../../components/HistoryModal';
+import WelcomePage from '@pages/LivePreviewApp/components/welcome-page';
+import FavoriteModal from '@pages/LivePreviewApp/components/favorite-modal';
+import HistoryModal from '@pages/LivePreviewApp/components/history-modal';
 import SuggestBox from '../../components/SuggestBox';
 import LivePreviewContextMenu from '../../components/LivePreviewContextMenu';
 
