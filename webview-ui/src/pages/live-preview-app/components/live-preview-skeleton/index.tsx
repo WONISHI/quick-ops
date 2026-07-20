@@ -35,7 +35,9 @@ export default function LivePreviewSkeleton() {
 
           <div className={styles.divider} />
 
-          <Skeleton width={125} height={28} />
+          <Skeleton width={28} height={28} />
+
+          <Skeleton width={28} height={28} />
 
           <Skeleton width={28} height={28} />
 

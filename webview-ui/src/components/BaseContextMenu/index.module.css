@@ -14,23 +14,28 @@
 }
 
 .context-menu {
+  --context-menu-bg: var(--vscode-menu-background, var(--menu-bg, #252a31));
+  --context-menu-fg: var(--vscode-menu-foreground, var(--menu-fg, #d7dae0));
+  --context-menu-border: var(--vscode-menu-border, var(--menu-border, rgba(127, 137, 150, 0.32)));
+  --context-menu-hover-bg: var(--vscode-menu-selectionBackground, var(--menu-hover-bg, #343b46));
+  --context-menu-hover-fg: var(--vscode-menu-selectionForeground, var(--menu-hover-fg, #ffffff));
+
   position: fixed;
   z-index: 9999;
   box-sizing: border-box;
-  padding: 4px;
+  padding: 5px;
   overflow: visible;
-  color: var(--vscode-menu-foreground, var(--menu-fg, #d7dae0));
-  background: var(--vscode-menu-background, var(--menu-bg, #252a31));
-  border: 1px solid var(--vscode-menu-border, var(--menu-border, rgba(127, 137, 150, 0.32)));
-  border-radius: 6px;
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.28),
-    0 2px 8px rgba(0, 0, 0, 0.18);
+  color: var(--context-menu-fg);
+  background: var(--context-menu-bg);
+  border: 1px solid var(--context-menu-border);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
   outline: none;
   font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
   font-size: 12px;
+  line-height: 1.2;
   user-select: none;
-  animation: context-menu-enter 80ms ease-out;
+  animation: context-menu-enter 100ms ease-out;
 }
 
 /**
@@ -40,22 +45,22 @@
   position: absolute;
   left: var(--context-menu-popup-arrow-left, 20px);
   z-index: 0;
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   pointer-events: none;
-  background: var(--vscode-menu-background, var(--menu-bg, #252a31));
-  border: 1px solid var(--vscode-menu-border, var(--menu-border, rgba(127, 137, 150, 0.32)));
+  background: var(--context-menu-bg);
+  border: 1px solid var(--context-menu-border);
   transform: translateX(-50%) rotate(45deg);
 }
 
 .context-menu-popup-arrow-top {
-  top: -6px;
+  top: -5px;
   border-right: 0;
   border-bottom: 0;
 }
 
 .context-menu-popup-arrow-bottom {
-  bottom: -6px;
+  bottom: -5px;
   border-top: 0;
   border-left: 0;
 }
@@ -73,45 +78,54 @@
 }
 
 .context-menu.compact {
-  padding: 4px 0;
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  padding: 4px;
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
 }
 
 .context-menu-item {
   width: 100%;
-  height: 32px;
+  min-height: 30px;
+  box-sizing: border-box;
   display: grid;
-  grid-template-columns: 18px minmax(0, 1fr) auto;
+  grid-template-columns:
+    18px
+    minmax(0, 1fr)
+    auto;
   align-items: center;
   column-gap: 8px;
-  padding: 0 8px 0 10px;
+  padding: 5px 8px;
   margin: 0;
   color: inherit;
   background: transparent;
   border: 0;
-  border-radius: 4px;
+  border-radius: 5px;
   outline: none;
   text-align: left;
-  cursor: default;
+  cursor: pointer;
   font: inherit;
+  line-height: 1.2;
+  transition:
+    background-color 80ms ease,
+    color 80ms ease;
 }
 
 .compact .context-menu-item {
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 0;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 5px;
 }
 
 .context-menu-item:hover,
 .context-menu-item.active,
 .context-menu-item.child-open {
-  color: var(--vscode-menu-selectionForeground, var(--menu-hover-fg, #ffffff));
-  background: var(--vscode-menu-selectionBackground, var(--menu-hover-bg, #343b46));
+  color: var(--context-menu-hover-fg);
+  background: var(--context-menu-hover-bg);
 }
 
 .context-menu-item:disabled {
   opacity: 0.38;
+  cursor: not-allowed;
   background: transparent;
 }
 
@@ -133,7 +147,8 @@
   align-items: center;
   justify-content: center;
   color: var(--vscode-icon-foreground, #c5cbd3);
-  font-size: 14px;
+  font-size: 13px;
+  opacity: 0.9;
 }
 
 .context-menu-icon:empty {
@@ -152,7 +167,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 10px;
 }
 
 .context-menu-shortcut {
@@ -167,7 +182,7 @@
   align-items: center;
   justify-content: center;
   color: currentColor;
-  font-size: 17px;
+  font-size: 15px;
   line-height: 1;
   opacity: 0.78;
   transform: translateY(-1px);
@@ -182,12 +197,12 @@
 
 .context-menu-separator {
   height: 1px;
-  margin: 4px 8px;
+  margin: 5px 4px;
   background: var(--vscode-menu-separatorBackground, var(--menu-border, rgba(127, 137, 150, 0.28)));
 }
 
 .compact .context-menu-separator {
-  margin: 4px 0;
+  margin: 5px 4px;
 }
 
 /**
@@ -233,11 +248,11 @@
 }
 
 .context-menu-inline .context-menu-item {
-  border-radius: 4px;
+  border-radius: 5px;
 }
 
 .compact.context-menu-inline .context-menu-item {
-  border-radius: 0;
+  border-radius: 5px;
 }
 
 .context-menu-inline .context-menu-separator {
@@ -275,7 +290,7 @@
 @keyframes context-menu-enter {
   from {
     opacity: 0;
-    transform: translateY(-2px) scale(0.985);
+    transform: translateY(-3px) scale(0.98);
   }
 
   to {

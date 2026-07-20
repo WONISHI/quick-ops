@@ -159,6 +159,173 @@
   cursor: not-allowed !important;
 }
 
+
+
+/* ==================== 设备与预览标签页菜单 ==================== */
+
+.toolbar-menu-trigger {
+  position: relative;
+  z-index: 10000;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.device-context-menu {
+  max-height: min(
+    520px,
+    calc(100vh - 64px)
+  );
+}
+
+.preview-tabs-context-menu {
+  width: min(
+    320px,
+    calc(100vw - 20px)
+  );
+  max-height: min(
+    460px,
+    calc(100vh - 64px)
+  );
+}
+
+/**
+ * 分组标题复用菜单项 DOM，
+ * 但展示为普通不可交互的分组文本。
+ */
+.device-menu-group-title {
+  min-height: 24px !important;
+  grid-template-columns:
+    minmax(0, 1fr) !important;
+  padding: 0 8px !important;
+  opacity: 1 !important;
+  color: var(--desc-color) !important;
+  background: transparent !important;
+  cursor: default !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+.device-menu-group-title
+  > span:first-child,
+.device-menu-group-title
+  > span:last-child {
+  display: none;
+}
+
+.device-menu-group-title
+  > span:nth-child(2) {
+  grid-column: 1;
+}
+
+.device-menu-selected-item {
+  font-weight: 500;
+}
+
+.preview-tabs-menu-header-item {
+  min-height: 30px !important;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto !important;
+  padding: 0 8px !important;
+  opacity: 1 !important;
+  color: var(--desc-color) !important;
+  background: transparent !important;
+  cursor: default !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+}
+
+.preview-tabs-menu-header-item
+  > span:first-child {
+  display: none;
+}
+
+.preview-tabs-menu-header-item
+  > span:nth-child(2) {
+  grid-column: 1;
+}
+
+.preview-tabs-menu-empty-item {
+  min-height: 48px !important;
+  opacity: 1 !important;
+  color: var(--desc-color) !important;
+  background: transparent !important;
+  cursor: default !important;
+  text-align: center !important;
+}
+
+.preview-tabs-btn {
+  position: relative;
+}
+
+.preview-tabs-count {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border: 1px solid var(--bg);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    var(--vscode-badge-background);
+  color:
+    var(--vscode-badge-foreground);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.preview-tab-context-menu-item {
+  min-height: 48px !important;
+  align-items: center;
+}
+
+.preview-tab-context-menu-item-active {
+  font-weight: 500;
+}
+
+.preview-tab-item-main {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.preview-tab-title,
+.preview-tab-url {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-tab-title {
+  color: inherit;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.preview-tab-url {
+  color: var(--desc-color);
+  font-size: 10px;
+  opacity: 0.82;
+}
+
+.preview-tab-context-menu-item:hover
+  .preview-tab-url,
+.preview-tab-context-menu-item-active
+  .preview-tab-url {
+  color: inherit;
+  opacity: 0.76;
+}
+
 .vscode-select {
   background: var(--input-bg);
   color: var(--input-fg);

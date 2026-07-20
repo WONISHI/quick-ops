@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { vscode } from '@utils/vscode';
 import UrlParser from '../../utils/UrlParser';
+import BaseContextMenu from '@components/BaseContextMenu';
+import type { BaseContextMenuItem } from '@components/BaseContextMenu';
 import styles from './index.module.css';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -16,6 +18,7 @@ import {
   faSpinner,
   faChevronUp,
   faChevronDown,
+  faWindowRestore,
 } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 
@@ -50,6 +53,116 @@ const isBrowserEngineKey = (value: unknown): value is BrowserEngineKey => {
 const getBrowserEngineOption = (key: BrowserEngineKey) => {
   return BROWSER_ENGINE_OPTIONS.find((item) => item.key === key) || BROWSER_ENGINE_OPTIONS[0];
 };
+
+/**
+ * @description AirPlay 设备投放图标
+ *
+ * Font Awesome Free 中没有 `faAirplay`，
+ * 使用内联 SVG，颜色自动继承按钮的 currentColor。
+ */
+function AirPlayIcon() {
+  return (
+    <svg
+      width="1em"
+      height="1em"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        d="M8 17H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      <path
+        d="m12 15 4 5H8l4-5Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+interface PreviewTabItem {
+  id: string;
+  title: string;
+  url: string;
+  active: boolean;
+}
+
+const PREVIEW_DEVICE_GROUPS = [
+  {
+    label: '响应式',
+    items: [
+      {
+        value: 'device-responsive',
+        label: '响应式铺满',
+      },
+    ],
+  },
+  {
+    label: 'Apple',
+    items: [
+      {
+        value: 'device-iphone-se',
+        label: 'iPhone SE',
+      },
+      {
+        value: 'device-iphone-xr',
+        label: 'iPhone XR',
+      },
+      {
+        value: 'device-iphone-12-pro',
+        label: 'iPhone 12 Pro',
+      },
+      {
+        value: 'device-iphone-14-pro-max',
+        label: 'iPhone 14 Pro',
+      },
+    ],
+  },
+  {
+    label: 'Android',
+    items: [
+      {
+        value: 'device-pixel-7',
+        label: 'Pixel 7',
+      },
+      {
+        value: 'device-galaxy-s8-plus',
+        label: 'Galaxy S8+',
+      },
+      {
+        value: 'device-galaxy-s20-ultra',
+        label: 'Galaxy S20',
+      },
+    ],
+  },
+  {
+    label: '平板电脑',
+    items: [
+      {
+        value: 'device-ipad-mini',
+        label: 'iPad Mini',
+      },
+      {
+        value: 'device-ipad-air',
+        label: 'iPad Air',
+      },
+      {
+        value: 'device-ipad-pro',
+        label: 'iPad Pro',
+      },
+      {
+        value: 'device-surface-pro-7',
+        label: 'Surface Pro',
+      },
+    ],
+  },
+] as const;
 
 function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSurfaceProps) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
@@ -921,6 +1034,10 @@ export default function LivePreviewApp() {
     return isBrowserEngineKey(cached) ? cached : DEFAULT_BROWSER_ENGINE_KEY;
   });
   const [browserSwitcherOpen, setBrowserSwitcherOpen] = useState(false);
+  const [deviceMenuOpen, setDeviceMenuOpen] = useState(false);
+  const [previewTabsMenuOpen, setPreviewTabsMenuOpen] = useState(false);
+  const [previewTabs, setPreviewTabs] = useState<PreviewTabItem[]>([]);
+  const [currentPreviewTabId, setCurrentPreviewTabId] = useState('');
 
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [favoriteFolders, setFavoriteFolders] = useState<FavoriteFolder[]>([]);
@@ -1449,7 +1566,21 @@ export default function LivePreviewApp() {
         }
 
         vscode?.postMessage({ type: 'reqSyncFavorites' });
+        vscode?.postMessage({ type: 'reqPreviewTabs' });
         setInitializing(false);
+      } else if (message.type === 'previewTabsChanged') {
+        setPreviewTabs(
+          Array.isArray(message.tabs)
+            ? message.tabs
+            : [],
+        );
+        setCurrentPreviewTabId(
+          String(
+            message.currentTabId ||
+              message.activeTabId ||
+              '',
+          ),
+        );
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
         setFavoriteFolders(message.folders || []);
@@ -1857,17 +1988,187 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'browserRefresh', url: temp });
   };
 
-  const handleDeviceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newDevice = e.target.value;
+  const handleDeviceSelect = useCallback(
+    (newDevice: string) => {
+      setDevice(newDevice);
+      setDeviceMenuOpen(false);
 
-    setDevice(newDevice);
+      if (newDevice === 'device-responsive') {
+        setIsRotated(false);
+      }
 
-    if (newDevice === 'device-responsive') {
-      setIsRotated(false);
+      vscode?.postMessage({
+        type: 'saveDevice',
+        device: newDevice,
+      });
+    },
+    [],
+  );
+
+  const activeDeviceLabel = useMemo(() => {
+    for (const group of PREVIEW_DEVICE_GROUPS) {
+      const matched = group.items.find(
+        item => item.value === device,
+      );
+
+      if (matched) {
+        return matched.label;
+      }
     }
 
-    vscode?.postMessage({ type: 'saveDevice', device: newDevice });
-  };
+    return '响应式铺满';
+  }, [device]);
+
+  /**
+   * @description 预览设备菜单
+   *
+   * 分组标题使用 disabled 菜单项，
+   * 保持所有设备分组默认展开，不改变原来的交互。
+   */
+  const deviceMenuItems = useMemo<BaseContextMenuItem[]>(() => {
+    const items: BaseContextMenuItem[] = [];
+
+    PREVIEW_DEVICE_GROUPS.forEach(
+      (group, groupIndex) => {
+        if (groupIndex > 0) {
+          items.push({
+            type: 'separator',
+            key: `device-separator-${group.label}`,
+          });
+        }
+
+        items.push({
+          key: `device-group-${group.label}`,
+          label: group.label,
+          disabled: true,
+          className:
+            styles['device-menu-group-title'],
+        });
+
+        group.items.forEach(item => {
+          const active =
+            item.value === device;
+
+          items.push({
+            key: item.value,
+            label: item.label,
+            shortcut: active ? '✓' : undefined,
+            className: active
+              ? styles[
+                  'device-menu-selected-item'
+                ]
+              : undefined,
+            onSelect: () => {
+              handleDeviceSelect(item.value);
+            },
+          });
+        });
+      },
+    );
+
+    return items;
+  }, [device, handleDeviceSelect]);
+
+  /**
+   * @description 当前打开的 Live Preview 标签页菜单
+   */
+  const previewTabMenuItems =
+    useMemo<BaseContextMenuItem[]>(() => {
+      const items: BaseContextMenuItem[] = [
+        {
+          key: 'preview-tabs-header',
+          label: '预览标签页',
+          shortcut: String(
+            previewTabs.length || 1,
+          ),
+          disabled: true,
+          className:
+            styles[
+              'preview-tabs-menu-header-item'
+            ],
+        },
+        {
+          type: 'separator',
+          key: 'preview-tabs-header-separator',
+        },
+      ];
+
+      if (previewTabs.length === 0) {
+        items.push({
+          key: 'preview-tabs-loading',
+          label: '正在读取标签页...',
+          disabled: true,
+          className:
+            styles[
+              'preview-tabs-menu-empty-item'
+            ],
+        });
+
+        return items;
+      }
+
+      previewTabs.forEach(tab => {
+        const active =
+          tab.active ||
+          tab.id === currentPreviewTabId;
+
+        items.push({
+          key: tab.id,
+          label: (
+            <span
+              className={
+                styles[
+                  'preview-tab-item-main'
+                ]
+              }
+            >
+              <span
+                className={
+                  styles['preview-tab-title']
+                }
+              >
+                {tab.title || '新建预览'}
+              </span>
+
+              <span
+                className={
+                  styles['preview-tab-url']
+                }
+              >
+                {tab.url || '暂无地址'}
+              </span>
+            </span>
+          ),
+          shortcut: active ? '✓' : undefined,
+          title: tab.url || tab.title,
+          className: [
+            styles[
+              'preview-tab-context-menu-item'
+            ],
+            active
+              ? styles[
+                  'preview-tab-context-menu-item-active'
+                ]
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' '),
+          onSelect: () => {
+            if (active) return;
+
+            vscode?.postMessage({
+              type: 'switchPreviewTab',
+              tabId: tab.id,
+            });
+          },
+        });
+      });
+
+      return items;
+    }, [
+      currentPreviewTabId,
+      previewTabs,
+    ]);
 
   const parsedUrlInput = useMemo(() => {
     const value = urlInput.trim();
@@ -2305,6 +2606,8 @@ export default function LivePreviewApp() {
               onClick={(event) => {
                 event.preventDefault();
                 event.stopPropagation();
+                setDeviceMenuOpen(false);
+                setPreviewTabsMenuOpen(false);
                 setBrowserSwitcherOpen((visible) => !visible);
               }}
               title={`当前搜索引擎：${activeBrowserEngine.label}，点击切换`}
@@ -2412,28 +2715,116 @@ export default function LivePreviewApp() {
 
         <div className={styles['divider']} />
 
-        <select className={styles['vscode-select']} value={device} onChange={handleDeviceChange} title="选择预览设备" disabled={previewType !== 'web' && previewType !== 'html'}>
-          <optgroup label="响应式">
-            <option value="device-responsive">响应式铺满</option>
-          </optgroup>
-          <optgroup label="Apple">
-            <option value="device-iphone-se">iPhone SE</option>
-            <option value="device-iphone-xr">iPhone XR</option>
-            <option value="device-iphone-12-pro">iPhone 12 Pro</option>
-            <option value="device-iphone-14-pro-max">iPhone 14 Pro</option>
-          </optgroup>
-          <optgroup label="Android">
-            <option value="device-pixel-7">Pixel 7</option>
-            <option value="device-galaxy-s8-plus">Galaxy S8+</option>
-            <option value="device-galaxy-s20-ultra">Galaxy S20</option>
-          </optgroup>
-          <optgroup label="平板电脑">
-            <option value="device-ipad-mini">iPad Mini</option>
-            <option value="device-ipad-air">iPad Air</option>
-            <option value="device-ipad-pro">iPad Pro</option>
-            <option value="device-surface-pro-7">Surface Pro</option>
-          </optgroup>
-        </select>
+        <div
+          className={
+            styles['toolbar-menu-trigger']
+          }
+        >
+          <BaseContextMenu
+            trigger="click"
+            showArrow
+            open={deviceMenuOpen}
+            items={deviceMenuItems}
+            minWidth={178}
+            density="default"
+            menuClassName={
+              styles['device-context-menu']
+            }
+            onOpenChange={open => {
+              setDeviceMenuOpen(open);
+
+              if (open) {
+                setBrowserSwitcherOpen(false);
+                setPreviewTabsMenuOpen(false);
+              }
+            }}
+          >
+            <button
+              type="button"
+              className={[
+                styles['icon-btn'],
+                deviceMenuOpen
+                  ? styles['active-blue']
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              disabled={
+                previewType !== 'web' &&
+                previewType !== 'html'
+              }
+              title={`选择预览设备：${activeDeviceLabel}`}
+              aria-label={`选择预览设备：${activeDeviceLabel}`}
+              aria-expanded={deviceMenuOpen}
+            >
+              <AirPlayIcon />
+            </button>
+          </BaseContextMenu>
+        </div>
+
+        <div
+          className={
+            styles['toolbar-menu-trigger']
+          }
+        >
+          <BaseContextMenu
+            trigger="click"
+            showArrow
+            open={previewTabsMenuOpen}
+            items={previewTabMenuItems}
+            minWidth={280}
+            density="default"
+            menuClassName={
+              styles[
+                'preview-tabs-context-menu'
+              ]
+            }
+            onOpenChange={open => {
+              setPreviewTabsMenuOpen(open);
+
+              if (open) {
+                setBrowserSwitcherOpen(false);
+                setDeviceMenuOpen(false);
+
+                vscode?.postMessage({
+                  type: 'reqPreviewTabs',
+                });
+              }
+            }}
+          >
+            <button
+              type="button"
+              className={[
+                styles['icon-btn'],
+                styles['preview-tabs-btn'],
+                previewTabsMenuOpen
+                  ? styles['active-blue']
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              title={`当前打开 ${previewTabs.length || 1} 个预览标签页`}
+              aria-label={`当前打开 ${previewTabs.length || 1} 个预览标签页`}
+              aria-expanded={
+                previewTabsMenuOpen
+              }
+            >
+              <FontAwesomeIcon
+                icon={faWindowRestore}
+              />
+
+              <span
+                className={
+                  styles[
+                    'preview-tabs-count'
+                  ]
+                }
+              >
+                {previewTabs.length || 1}
+              </span>
+            </button>
+          </BaseContextMenu>
+        </div>
 
         <button
           className={`${styles['icon-btn']} ${isRotated ? styles['active-blue'] : ''}`}

@@ -10,6 +10,21 @@ import { DevToolsWebviewProvider } from '@modules/live-preview/providers/dev-too
 import type { PendingLocalFile } from '@modules/live-preview/live-preview.type';
 import type { WebviewEnhancerOptions } from '@plugins/webview-enhancer/type';
 
+interface PreviewTabRecord {
+  id: string;
+  panel: vscode.WebviewPanel;
+  title: string;
+  url: string;
+  isMain: boolean;
+}
+
+interface PreviewTabInfo {
+  id: string;
+  title: string;
+  url: string;
+  active: boolean;
+}
+
 /**
  * @description Live Preview Webview Provider
  *
@@ -30,6 +45,16 @@ export class LivePreviewProvider {
   private browserEventsBound = false;
   private pendingInitialUrl = '';
   private pendingInitialDevice = 'device-responsive';
+
+  /**
+   * @description 主预览标签页固定标识
+   */
+  private readonly mainPreviewTabId = 'quickOpsLivePreview:main';
+
+  /**
+   * @description 当前所有打开的 Live Preview 编辑器标签页
+   */
+  private readonly previewTabs = new Map<string, PreviewTabRecord>();
 
   private readonly webviewWorkflow = new WebviewWorkflow();
   private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
@@ -59,8 +84,9 @@ export class LivePreviewProvider {
     this.bindMainBrowserEvents();
 
     if (this.panel) {
-      this.panel.reveal(vscode.ViewColumn.Beside);
+      this.panel.reveal(this.panel.viewColumn || vscode.ViewColumn.Beside);
       await this.syncFavoritesToPanel();
+      this.broadcastPreviewTabs();
 
       if (initialUrl) {
         this.panel.webview.postMessage({
@@ -101,6 +127,8 @@ export class LivePreviewProvider {
         if (this.panel === panel) {
           this.panel = undefined;
         }
+
+        this.unregisterPreviewTab(this.mainPreviewTabId, panel);
         this.pendingLocalFile = null;
 
         /**
@@ -112,10 +140,20 @@ export class LivePreviewProvider {
 
     this.panel = panel;
 
+    this.registerPreviewTab({
+      id: this.mainPreviewTabId,
+      panel,
+      title: this.createPreviewTabTitle('', this.pendingInitialUrl),
+      url: this.pendingInitialUrl,
+      isMain: true,
+    });
+
     panel.onDidChangeViewState((event) => {
       if (event.webviewPanel.visible) {
         void this.syncFavoritesToPanel();
       }
+
+      this.broadcastPreviewTabs();
     });
   }
 
@@ -158,8 +196,14 @@ export class LivePreviewProvider {
   }
 
   public dispose(): void {
-    this.panel?.dispose();
+    const panels = Array.from(this.previewTabs.values()).map((item) => item.panel);
+
+    panels.forEach((panel) => {
+      panel.dispose();
+    });
+
     this.panel = undefined;
+    this.previewTabs.clear();
     this.pendingLocalFile = null;
     this.devToolsWebviewProvider.clear();
     void this.embeddedBrowserService.dispose();
@@ -176,6 +220,19 @@ export class LivePreviewProvider {
 
       case 'saveUrl':
         await context.workspaceState.update('quickOps.lastPreviewUrl', message.url || '');
+        this.updatePreviewTab(this.mainPreviewTabId, {
+          url: String(message.url || ''),
+        });
+        break;
+
+      case 'reqPreviewTabs':
+        if (this.panel) {
+          this.postPreviewTabsToPanel(this.panel, this.mainPreviewTabId);
+        }
+        break;
+
+      case 'switchPreviewTab':
+        this.switchPreviewTab(String(message.tabId || ''));
         break;
 
       case 'saveDevice':
@@ -385,6 +442,10 @@ export class LivePreviewProvider {
 
     await this.loadPendingLocalFile();
     await this.syncFavoritesToPanel();
+
+    if (this.panel) {
+      this.postPreviewTabsToPanel(this.panel, this.mainPreviewTabId);
+    }
   }
 
   private async toggleFavorite(message: any, panel?: vscode.WebviewPanel): Promise<void> {
@@ -447,10 +508,10 @@ export class LivePreviewProvider {
     if (this.browserEventsBound) return;
 
     this.browserEventsBound = true;
-    this.bindBrowserEvents(this.embeddedBrowserService, () => this.panel);
+    this.bindBrowserEvents(this.embeddedBrowserService, () => this.panel, this.mainPreviewTabId);
   }
 
-  private bindBrowserEvents(browserService: EmbeddedBrowserService, getPanel: () => vscode.WebviewPanel | undefined): void {
+  private bindBrowserEvents(browserService: EmbeddedBrowserService, getPanel: () => vscode.WebviewPanel | undefined, tabId: string): void {
     browserService.on('frame', (frame) => {
       getPanel()?.webview.postMessage({
         type: 'browserFrame',
@@ -459,6 +520,11 @@ export class LivePreviewProvider {
     });
 
     browserService.on('pageLoaded', (payload) => {
+      this.updatePreviewTab(tabId, {
+        title: String(payload?.title || ''),
+        url: String(payload?.url || ''),
+      });
+
       getPanel()?.webview.postMessage({
         type: 'browserPageLoaded',
         ...payload,
@@ -466,6 +532,10 @@ export class LivePreviewProvider {
     });
 
     browserService.on('urlChanged', (payload) => {
+      this.updatePreviewTab(tabId, {
+        url: String(payload?.url || ''),
+      });
+
       getPanel()?.webview.postMessage({
         type: 'browserUrlChanged',
         ...payload,
@@ -473,6 +543,10 @@ export class LivePreviewProvider {
     });
 
     browserService.on('titleChanged', (payload) => {
+      this.updatePreviewTab(tabId, {
+        title: String(payload?.title || ''),
+      });
+
       getPanel()?.webview.postMessage({
         type: 'browserTitleChanged',
         ...payload,
@@ -502,6 +576,11 @@ export class LivePreviewProvider {
     }
 
     if (snapshot.url) {
+      this.updatePreviewTab(this.mainPreviewTabId, {
+        title: snapshot.title || snapshot.url,
+        url: snapshot.url,
+      });
+
       this.panel.webview.postMessage({
         type: 'browserUrlChanged',
         url: snapshot.url,
@@ -532,11 +611,12 @@ export class LivePreviewProvider {
   private async createNewPreviewTab(initialUrl = '', initialDevice = ''): Promise<void> {
     const context = this.extensionContextProvider.getContext();
     const browserService = this.embeddedBrowserService.createDetached('BrowserUserData-Detached');
+    const tabId = `quickOpsLivePreview:${Date.now()}:${Math.random().toString(36).slice(2)}`;
 
     let panel: vscode.WebviewPanel | undefined;
 
     panel = await this.webviewWorkflow.createWebview<any, WebviewEnhancerOptions>({
-      key: `quickOpsLivePreview:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+      key: tabId,
       viewType: 'quickOpsLivePreview',
       title: '网页预览 (Preview)',
       column: this.panel?.viewColumn || vscode.ViewColumn.Active,
@@ -560,17 +640,37 @@ export class LivePreviewProvider {
       onDidReceiveMessage: async (message) => {
         if (!panel) return;
 
-        await this.handleDetachedMessage(panel, browserService, message, initialUrl, initialDevice);
+        await this.handleDetachedMessage(tabId, panel, browserService, message, initialUrl, initialDevice);
       },
       onDidDispose: () => {
+        this.unregisterPreviewTab(tabId, panel);
         void browserService.dispose();
       },
     });
 
-    this.bindBrowserEvents(browserService, () => panel);
+    this.registerPreviewTab({
+      id: tabId,
+      panel,
+      title: this.createPreviewTabTitle('', initialUrl),
+      url: initialUrl,
+      isMain: false,
+    });
+
+    panel.onDidChangeViewState(() => {
+      this.broadcastPreviewTabs();
+    });
+
+    this.bindBrowserEvents(browserService, () => panel, tabId);
   }
 
-  private async handleDetachedMessage(panel: vscode.WebviewPanel, browserService: EmbeddedBrowserService, message: any, initialUrl: string, initialDevice: string): Promise<void> {
+  private async handleDetachedMessage(
+    tabId: string,
+    panel: vscode.WebviewPanel,
+    browserService: EmbeddedBrowserService,
+    message: any,
+    initialUrl: string,
+    initialDevice: string,
+  ): Promise<void> {
     const context = this.extensionContextProvider.getContext();
 
     const run = async (action: () => Promise<void>) => {
@@ -593,10 +693,22 @@ export class LivePreviewProvider {
           device: initialDevice || String(context.workspaceState.get('quickOps.lastPreviewDevice') || 'device-responsive'),
         });
         await this.postFavoritesToPanel(panel);
+        this.postPreviewTabsToPanel(panel, tabId);
         break;
 
       case 'saveUrl':
         await context.workspaceState.update('quickOps.lastPreviewUrl', message.url || '');
+        this.updatePreviewTab(tabId, {
+          url: String(message.url || ''),
+        });
+        break;
+
+      case 'reqPreviewTabs':
+        this.postPreviewTabsToPanel(panel, tabId);
+        break;
+
+      case 'switchPreviewTab':
+        this.switchPreviewTab(String(message.tabId || ''));
         break;
 
       case 'saveDevice':
@@ -633,7 +745,7 @@ export class LivePreviewProvider {
         break;
 
       case 'openNewPreviewTab':
-        await this.createNewPreviewTab('', message.device || '');
+        await this.createNewPreviewTab(message.url || '', message.device || '');
         break;
 
       case 'browserNavigate':
@@ -728,6 +840,125 @@ export class LivePreviewProvider {
         break;
     }
   }
+  /**
+   * @description 注册一个 Live Preview 编辑器标签页
+   */
+  private registerPreviewTab(record: PreviewTabRecord): void {
+    this.previewTabs.set(record.id, record);
+    this.broadcastPreviewTabs();
+  }
+
+  /**
+   * @description 删除已经关闭的标签页
+   */
+  private unregisterPreviewTab(tabId: string, panel?: vscode.WebviewPanel): void {
+    const record = this.previewTabs.get(tabId);
+
+    if (!record) return;
+    if (panel && record.panel !== panel) return;
+
+    this.previewTabs.delete(tabId);
+    this.broadcastPreviewTabs();
+  }
+
+  /**
+   * @description 更新标签页标题或 URL
+   */
+  private updatePreviewTab(
+    tabId: string,
+    patch: {
+      title?: string;
+      url?: string;
+    },
+  ): void {
+    const record = this.previewTabs.get(tabId);
+
+    if (!record) return;
+
+    const nextUrl = typeof patch.url === 'string' ? patch.url : record.url;
+    const nextTitle = typeof patch.title === 'string' && patch.title.trim() ? patch.title.trim() : record.title;
+
+    record.url = nextUrl;
+    record.title = this.createPreviewTabTitle(nextTitle, nextUrl);
+
+    this.broadcastPreviewTabs();
+  }
+
+  /**
+   * @description 生成标签页列表里展示的标题
+   */
+  private createPreviewTabTitle(title: string, url: string): string {
+    const cleanTitle = String(title || '').trim();
+
+    if (cleanTitle && cleanTitle !== 'about:blank' && cleanTitle !== '网页预览 (Preview)') {
+      return cleanTitle;
+    }
+
+    const cleanUrl = String(url || '').trim();
+
+    if (!cleanUrl || cleanUrl === 'about:blank') {
+      return '新建预览';
+    }
+
+    try {
+      const parsed = new URL(cleanUrl);
+
+      return parsed.hostname || parsed.pathname || cleanUrl;
+    } catch {
+      const normalized = cleanUrl.replace(/\\/g, '/');
+      const parts = normalized.split('/').filter(Boolean);
+
+      return parts[parts.length - 1] || cleanUrl;
+    }
+  }
+
+  /**
+   * @description 将标签页列表发送给指定 Webview
+   */
+  private postPreviewTabsToPanel(panel: vscode.WebviewPanel, currentTabId: string): void {
+    const records = Array.from(this.previewTabs.values());
+    const hasActivePanel = records.some((item) => item.panel.active);
+
+    const tabs: PreviewTabInfo[] = records.map((item) => ({
+      id: item.id,
+      title: item.title,
+      url: item.url,
+      active: hasActivePanel ? item.panel.active : item.id === currentTabId,
+    }));
+
+    void panel.webview.postMessage({
+      type: 'previewTabsChanged',
+      tabs,
+      count: tabs.length,
+      currentTabId,
+      activeTabId: tabs.find((item) => item.active)?.id || currentTabId,
+    });
+  }
+
+  /**
+   * @description 向所有已打开的 Live Preview 标签同步列表
+   */
+  private broadcastPreviewTabs(): void {
+    this.previewTabs.forEach((record) => {
+      this.postPreviewTabsToPanel(record.panel, record.id);
+    });
+  }
+
+  /**
+   * @description 激活指定的 VS Code Live Preview 标签页
+   */
+  private switchPreviewTab(tabId: string): void {
+    const record = this.previewTabs.get(tabId);
+
+    if (!record) return;
+
+    record.panel.reveal(record.panel.viewColumn || vscode.ViewColumn.Active, false);
+
+    setTimeout(() => {
+      this.broadcastPreviewTabs();
+    }, 0);
+  }
+
   private async loadPendingLocalFile(): Promise<void> {
     if (!this.panel || !this.pendingLocalFile) return;
 
