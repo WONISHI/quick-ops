@@ -6,8 +6,8 @@ import FilterPopup, {
   FilterPopupCheckboxList,
   FilterPopupDateRow,
   FilterPopupInput,
-} from '@pages/GitDetailApp/components/filter-popup';
-import GitDetailSkeleton from '@pages/GitDetailApp/components/git-detail-skeleton';
+} from '@/pages/git-detail-app/components/filter-popup';
+import GitDetailSkeleton from '@/pages/git-detail-app/components/git-detail-skeleton';
 import { vscode } from '@utils/vscode';
 import styles from '@pages/GitDetailApp/index.module.css';
 import FileIcon from '@components/FileIcon';
