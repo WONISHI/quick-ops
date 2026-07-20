@@ -9,7 +9,7 @@ import FilterPopup, {
 } from '@/pages/git-detail-app/components/filter-popup';
 import GitDetailSkeleton from '@/pages/git-detail-app/components/git-detail-skeleton';
 import { vscode } from '@utils/vscode';
-import styles from '@pages/GitDetailApp/index.module.css';
+import styles from '@pages/git-detail-app/index.module.css';
 import FileIcon from '@components/FileIcon';
 import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
 import type { GitFileItem, CommitFilesState, CommitFileTreeNode, GraphCommit } from '@pages/git-detail-app/src/type';
