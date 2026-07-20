@@ -365,43 +365,6 @@ function isHeadRef(ref: string, refName: string) {
   return ref === 'HEAD' || refName === 'HEAD' || ref.startsWith('HEAD ->');
 }
 
-function getCurrentRemoteRef(currentBranch: string) {
-  return currentBranch ? `origin/${currentBranch}` : '';
-}
-
-function getSelectedRefNames(selectedGraphFilter: string, currentBranch: string) {
-  const filter = normalizeVisibleRefName(selectedGraphFilter || '');
-  const current = normalizeVisibleRefName(currentBranch || '');
-
-  if (!filter || filter === '全部分支' || filter === '当前分支') {
-    return {
-      filter,
-      current,
-      selectedLocal: current,
-      selectedRemote: getCurrentRemoteRef(current),
-      isAll: true,
-    };
-  }
-
-  const selectedLocal = filter.startsWith('origin/') ? filter.replace(/^origin\//, '') : filter;
-  const selectedRemote = filter.startsWith('origin/') ? filter : `origin/${filter}`;
-
-  return {
-    filter,
-    current,
-    selectedLocal,
-    selectedRemote,
-    isAll: false,
-  };
-}
-
-/**
- * Git Graph 的分支筛选是按 selected branch 限制显示内容。
- * 这里额外把 ref tag 也按当前筛选分支收敛：
- * - 全部分支/当前分支：只显示 HEAD、当前本地分支、当前远程跟踪分支、origin/HEAD、stash。
- * - 指定分支：只显示该分支、本地/远程对应分支、origin/HEAD、stash。
- * 这样 master 视图里不会把 feature/test... 这种无关本地分支 tag 挤出来。
- */
 function stripOriginPrefix(refName: string) {
   return refName.replace(/^origin\//, '');
 }
@@ -614,7 +577,7 @@ function getCommitDisplayMessage(commit: GraphCommit) {
 function isMergeCommitMessage(message: string) {
   const text = message.trim();
 
-  return /^Merge\s+(remote-tracking\s+)?branch\s+['\"].+['\"]/i.test(text) || /^Merge\s+pull\s+request\s+/i.test(text) || /^Merge\s+tag\s+['\"].+['\"]/i.test(text);
+  return /^Merge\s+(remote-tracking\s+)?branch\s+['"].+['"]/i.test(text) || /^Merge\s+pull\s+request\s+/i.test(text) || /^Merge\s+tag\s+['"].+['"]/i.test(text);
 }
 
 function isMergeCommit(commit: GraphCommit) {
@@ -738,10 +701,6 @@ export default function GitCommitDetailApp() {
     });
   }, [graphCommits, descFilter, dateFilter, authorFilter, hashFilter]);
 
-  useEffect(() => {
-    setDisplayCount(100);
-  }, [filteredCommits.length]);
-
   const graphData = useMemo(() => {
     return buildGraphEngine(filteredCommits);
   }, [filteredCommits]);
@@ -769,23 +728,26 @@ export default function GitCommitDetailApp() {
   const visibleCommits = filteredCommits.slice(0, displayCount);
   const renderedHeight = yPositions[Math.min(displayCount, filteredCommits.length)] || 0;
 
-  useEffect(() => {
-    if (!activeCommitHash) return;
-
-    if (commitFilesMap[activeCommitHash] || commitFilesLoadingMap[activeCommitHash]) {
+  /**
+   * @description 展开提交详情时按需加载文件列表
+   *
+   * 由点击事件触发，避免在 Effect 中同步调用 setState。
+   */
+  const requestCommitFiles = (hash: string) => {
+    if (commitFilesMap[hash] || commitFilesLoadingMap[hash]) {
       return;
     }
 
     setCommitFilesLoadingMap((prev) => ({
       ...prev,
-      [activeCommitHash]: true,
+      [hash]: true,
     }));
 
     vscode.postMessage({
       command: 'getGitDetailCommitFiles',
-      hash: activeCommitHash,
+      hash,
     });
-  }, [activeCommitHash, commitFilesMap, commitFilesLoadingMap]);
+  };
 
   useEffect(() => {
     if (!activeCommitHash || !commitFilesLoadingMap[activeCommitHash]) return;
@@ -1232,7 +1194,15 @@ export default function GitCommitDetailApp() {
             }}
           />
           <FilterPopup visible={activePopup === 'desc'} anchorRef={descFilterRef} width={260} onClose={() => setActivePopup(null)}>
-            <FilterPopupInput type="text" value={descFilter} onChange={(event) => setDescFilter(event.target.value)} placeholder="输入关键词" />
+            <FilterPopupInput
+              type="text"
+              value={descFilter}
+              onChange={(event) => {
+                setDescFilter(event.target.value);
+                setDisplayCount(100);
+              }}
+              placeholder="输入关键词"
+            />
 
             <FilterPopupActions>
               <FilterPopupButton onClick={() => setActivePopup(null)}>确定</FilterPopupButton>
@@ -1241,6 +1211,7 @@ export default function GitCommitDetailApp() {
                 secondary
                 onClick={() => {
                   setDescFilter('');
+                  setDisplayCount(100);
                   setActivePopup(null);
                 }}
               >
@@ -1265,12 +1236,13 @@ export default function GitCommitDetailApp() {
               <FilterPopupInput
                 type="date"
                 value={dateFilter.start}
-                onChange={(event) =>
+                onChange={(event) => {
                   setDateFilter({
                     ...dateFilter,
                     start: event.target.value,
-                  })
-                }
+                  });
+                  setDisplayCount(100);
+                }}
               />
             </FilterPopupDateRow>
 
@@ -1278,12 +1250,13 @@ export default function GitCommitDetailApp() {
               <FilterPopupInput
                 type="date"
                 value={dateFilter.end}
-                onChange={(event) =>
+                onChange={(event) => {
                   setDateFilter({
                     ...dateFilter,
                     end: event.target.value,
-                  })
-                }
+                  });
+                  setDisplayCount(100);
+                }}
               />
             </FilterPopupDateRow>
 
@@ -1297,6 +1270,7 @@ export default function GitCommitDetailApp() {
                     start: '',
                     end: '',
                   });
+                  setDisplayCount(100);
                   setActivePopup(null);
                 }}
               >
@@ -1329,6 +1303,8 @@ export default function GitCommitDetailApp() {
                       } else {
                         setAuthorFilter(authorFilter.filter((item) => item !== author));
                       }
+
+                      setDisplayCount(100);
                     }}
                   />
                   {author}
@@ -1343,6 +1319,7 @@ export default function GitCommitDetailApp() {
                 secondary
                 onClick={() => {
                   setAuthorFilter([]);
+                  setDisplayCount(100);
                   setActivePopup(null);
                 }}
               >
@@ -1363,7 +1340,15 @@ export default function GitCommitDetailApp() {
             }}
           />
           <FilterPopup visible={activePopup === 'hash'} anchorRef={hashFilterRef} width={260} onClose={() => setActivePopup(null)}>
-            <FilterPopupInput type="text" value={hashFilter} onChange={(event) => setHashFilter(event.target.value)} placeholder="输入 Commit 过滤" />
+            <FilterPopupInput
+              type="text"
+              value={hashFilter}
+              onChange={(event) => {
+                setHashFilter(event.target.value);
+                setDisplayCount(100);
+              }}
+              placeholder="输入 Commit 过滤"
+            />
 
             <FilterPopupActions>
               <FilterPopupButton onClick={() => setActivePopup(null)}>确定</FilterPopupButton>
@@ -1372,6 +1357,7 @@ export default function GitCommitDetailApp() {
                 secondary
                 onClick={() => {
                   setHashFilter('');
+                  setDisplayCount(100);
                   setActivePopup(null);
                 }}
               >
@@ -1407,7 +1393,14 @@ export default function GitCommitDetailApp() {
                       className={`${styles['commit-row']} ${isActive ? styles['active'] : ''}`}
                       onClick={() => {
                         setActivePopup(null);
-                        setActiveCommitHash(isActive ? null : commit.hash);
+
+                        if (isActive) {
+                          setActiveCommitHash(null);
+                          return;
+                        }
+
+                        setActiveCommitHash(commit.hash);
+                        requestCommitFiles(commit.hash);
                       }}
                     >
                       <div className={styles['graph-space']} style={{ width: `${paddingWidth}px` }} />
