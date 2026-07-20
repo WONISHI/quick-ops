@@ -422,7 +422,7 @@
       },
       {
         "command": "quickOps.addToSnippets",
-        "title": "添加选中内容到代码片段 (Add to Quick Ops Snippets)"
+        "title": "添加选中内容到代码片段"
       },
       {
         "command": "quickOps.transformToLower",
