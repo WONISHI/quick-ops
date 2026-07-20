@@ -164,7 +164,33 @@ const PREVIEW_DEVICE_GROUPS = [
   },
 ] as const;
 
-function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSurfaceProps) {
+const PREVIEW_ZOOM_MIN = 0.5;
+const PREVIEW_ZOOM_MAX = 2;
+const PREVIEW_ZOOM_STEP = 0.1;
+
+/**
+ * @description 将预览缩放值限制在 50% - 200%
+ */
+function normalizePreviewZoom(value: number): number {
+  const normalized = Math.min(
+    PREVIEW_ZOOM_MAX,
+    Math.max(PREVIEW_ZOOM_MIN, value),
+  );
+
+  return Number(normalized.toFixed(1));
+}
+
+function BrowserSurface({
+  loading,
+  onViewportChange,
+  onFindShortcut,
+  previewZoom = 1,
+}: BrowserSurfaceProps & {
+  /**
+   * @description 外层设备预览的视觉缩放比例
+   */
+  previewZoom?: number;
+}) {
   const surfaceRef = useRef<HTMLDivElement | null>(null);
   const lastViewportRef = useRef({ width: 0, height: 0 });
   const resizeRafRef = useRef<number | null>(null);
@@ -272,8 +298,20 @@ function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSu
     if (!target) return;
 
     const rect = target.getBoundingClientRect();
-    const width = Math.max(320, Math.floor(rect.width));
-    const height = Math.max(240, Math.floor(rect.height));
+
+    /**
+     * deviceWrapper 使用 CSS zoom 做视觉缩放。
+     * 上报给 EmbeddedBrowser 的仍然是设备原始尺寸，
+     * 否则 Ctrl + 滚轮会变成修改浏览器 viewport，而不是放大画面。
+     */
+    const width = Math.max(
+      320,
+      Math.floor(rect.width / previewZoom),
+    );
+    const height = Math.max(
+      240,
+      Math.floor(rect.height / previewZoom),
+    );
 
     if (lastViewportRef.current.width === width && lastViewportRef.current.height === height) {
       return;
@@ -281,7 +319,7 @@ function BrowserSurface({ loading, onViewportChange, onFindShortcut }: BrowserSu
 
     lastViewportRef.current = { width, height };
     onViewportChange(width, height);
-  }, [onViewportChange]);
+  }, [onViewportChange, previewZoom]);
 
   useEffect(() => {
     const target = surfaceRef.current;
@@ -1024,6 +1062,13 @@ export default function LivePreviewApp() {
 
   const [device, setDevice] = useState('device-responsive');
   const [isRotated, setIsRotated] = useState(false);
+
+  /**
+   * @description 网页和 HTML 预览的视觉缩放比例
+   */
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [showPreviewZoom, setShowPreviewZoom] = useState(false);
+
   const [faviconUrl, setFaviconUrl] = useState('');
   const [faviconError, setFaviconError] = useState(false);
   const [, setIsFaviconLoading] = useState(false);
@@ -1078,6 +1123,8 @@ export default function LivePreviewApp() {
   const suggestBoxRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const browserSwitcherRef = useRef<HTMLDivElement>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const previewZoomTimerRef = useRef<number | null>(null);
   const previewLoadTimerRef = useRef<number | null>(null);
 
   const previewRequestIdRef = useRef(0);
@@ -1103,6 +1150,88 @@ export default function LivePreviewApp() {
       window.removeEventListener('mousedown', handleWindowPointerDown);
     };
   }, []);
+
+  /**
+   * @description Ctrl/Cmd + 鼠标滚轮缩放网页预览
+   *
+   * 使用原生 passive:false 监听，阻止 Chromium 默认缩放整个 Webview。
+   * 仅对网页和本地 HTML 预览生效。
+   */
+  useEffect(() => {
+    const target = previewContainerRef.current;
+
+    if (!target) return;
+
+    const handlePreviewWheel = (
+      event: WheelEvent,
+    ) => {
+      if (!event.ctrlKey && !event.metaKey) {
+        return;
+      }
+
+      if (
+        previewType !== 'web' &&
+        previewType !== 'html'
+      ) {
+        return;
+      }
+
+      if (!frameUrl) {
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const direction =
+        event.deltaY < 0 ? 1 : -1;
+
+      setPreviewZoom(current => {
+        return normalizePreviewZoom(
+          current +
+            direction * PREVIEW_ZOOM_STEP,
+        );
+      });
+
+      setShowPreviewZoom(true);
+
+      if (previewZoomTimerRef.current) {
+        window.clearTimeout(
+          previewZoomTimerRef.current,
+        );
+      }
+
+      previewZoomTimerRef.current =
+        window.setTimeout(() => {
+          previewZoomTimerRef.current = null;
+          setShowPreviewZoom(false);
+        }, 800);
+    };
+
+    target.addEventListener(
+      'wheel',
+      handlePreviewWheel,
+      {
+        passive: false,
+        capture: true,
+      },
+    );
+
+    return () => {
+      target.removeEventListener(
+        'wheel',
+        handlePreviewWheel,
+        true,
+      );
+
+      if (previewZoomTimerRef.current) {
+        window.clearTimeout(
+          previewZoomTimerRef.current,
+        );
+        previewZoomTimerRef.current = null;
+      }
+    };
+  }, [frameUrl, previewType]);
 
   // 控制顶部虚拟进度条：页面加载完成后直接卸载 DOM，避免残留一条线
   useEffect(() => {
@@ -2928,7 +3057,16 @@ export default function LivePreviewApp() {
       )}
 
       <div
-        className={`${styles['preview-container']} ${device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' ? styles['no-padding'] : ''}`}
+        ref={previewContainerRef}
+        className={`${styles['preview-container']} ${
+          device === 'device-responsive' &&
+          previewType !== 'md' &&
+          previewType !== 'pdf' &&
+          previewType !== 'excel' &&
+          previewZoom === 1
+            ? styles['no-padding']
+            : ''
+        }`}
         style={{ position: 'relative' }}
       >
         {showProgress && (
@@ -2961,6 +3099,25 @@ export default function LivePreviewApp() {
         {/* 原有转圈 Mask：可以与上方进度条共存，如果不喜欢可以将这行删掉 */}
         {renderPreviewLoadingMask()}
 
+        {showPreviewZoom &&
+          frameUrl &&
+          (previewType === 'web' ||
+            previewType === 'html') && (
+            <div
+              className={
+                styles[
+                  'preview-zoom-indicator'
+                ]
+              }
+              aria-live="polite"
+            >
+              {Math.round(
+                previewZoom * 100,
+              )}
+              %
+            </div>
+          )}
+
         {!frameUrl ? (
           <WelcomePage onQuickOpen={handleGo} />
         ) : previewType === 'md' ? (
@@ -2970,7 +3127,16 @@ export default function LivePreviewApp() {
         ) : previewType === 'excel' ? (
           <ExcelPreviewApp key={frameUrl} />
         ) : previewType === 'html' ? (
-          <div id="deviceWrapper" className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}>
+          <div
+            id="deviceWrapper"
+            className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}
+            style={
+              {
+                '--preview-zoom':
+                  previewZoom,
+              } as React.CSSProperties
+            }
+          >
             <HtmlPreviewApp
               key={frameUrl}
               fsPath={frameUrl}
@@ -3001,9 +3167,32 @@ export default function LivePreviewApp() {
           <div
             id="deviceWrapper"
             className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}
-            style={device === 'device-responsive' ? { width: '100%', height: '100%', minWidth: 0, minHeight: 0, maxWidth: '100%', maxHeight: '100%' } : undefined}
+            style={
+              {
+                ...(device ===
+                'device-responsive'
+                  ? {
+                      width: '100%',
+                      height: '100%',
+                      minWidth: 0,
+                      minHeight: 0,
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                    }
+                  : null),
+                '--preview-zoom':
+                  previewZoom,
+              } as React.CSSProperties
+            }
           >
-            <BrowserSurface loading={previewLoading} onViewportChange={handleBrowserViewportChange} onFindShortcut={openSearchBar} />
+            <BrowserSurface
+              loading={previewLoading}
+              previewZoom={previewZoom}
+              onViewportChange={
+                handleBrowserViewportChange
+              }
+              onFindShortcut={openSearchBar}
+            />
           </div>
         )}
       </div>

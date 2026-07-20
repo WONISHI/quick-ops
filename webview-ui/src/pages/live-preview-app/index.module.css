@@ -409,6 +409,14 @@
 
 #deviceWrapper {
   background: #ffffff;
+
+  /**
+   * Ctrl/Cmd + 滚轮只缩放预览内容，
+   * 不缩放顶部工具栏和整个 Webview。
+   */
+  zoom: var(--preview-zoom, 1);
+  transform-origin: top center;
+
   transition: width 0.3s ease, height 0.3s ease;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
   border-radius: 2px;
@@ -494,6 +502,67 @@
   color: var(--desc-color);
   font-size: 13px;
   background: var(--bg);
+}
+
+/* ==================== 预览缩放提示 ==================== */
+
+.preview-zoom-indicator {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  z-index: 10020;
+  min-width: 54px;
+  height: 28px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: 1px solid
+    var(
+      --vscode-menu-border,
+      var(--border)
+    );
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color:
+    var(
+      --vscode-menu-foreground,
+      var(--fg)
+    );
+  background:
+    var(
+      --vscode-menu-background,
+      var(--bg)
+    );
+  box-shadow:
+    0 8px 22px rgba(0, 0, 0, 0.26);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: none;
+  transform: translateX(-50%);
+  animation:
+    preview-zoom-indicator-enter
+    100ms
+    ease-out;
+}
+
+@keyframes preview-zoom-indicator-enter {
+  from {
+    opacity: 0;
+    transform:
+      translateX(-50%)
+      translateY(-3px)
+      scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform:
+      translateX(-50%)
+      translateY(0)
+      scale(1);
+  }
 }
 
 /* ==================== 设备尺寸预设 ==================== */
