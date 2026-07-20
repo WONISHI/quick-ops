@@ -12,36 +12,7 @@ import { vscode } from '@utils/vscode';
 import styles from '@pages/GitDetailApp/index.module.css';
 import FileIcon from '@components/FileIcon';
 import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
-
-interface GitFileItem {
-  status: string;
-  file: string;
-  baseRef?: string;
-}
-
-interface CommitFilesState {
-  parentHash?: string;
-  files: GitFileItem[];
-}
-
-interface CommitFileTreeNode {
-  name: string;
-  fullPath: string;
-  isDirectory: boolean;
-  children: CommitFileTreeNode[];
-  file?: GitFileItem;
-}
-
-export interface GraphCommit {
-  hash: string;
-  parents?: string[];
-  author: string;
-  email?: string;
-  message: string;
-  timestamp?: number;
-  refs?: string;
-  type?: 'commit' | 'uncommitted' | 'stash';
-}
+import type { GitFileItem, CommitFilesState, CommitFileTreeNode, GraphCommit } from '@pages/git-detail-app/src/type';
 
 const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];
 const LANE_WIDTH = 14;
