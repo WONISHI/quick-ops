@@ -6,7 +6,7 @@ import FilterPopup, {
   FilterPopupCheckboxList,
   FilterPopupDateRow,
   FilterPopupInput,
-} from '../../components/FilterPopup';
+} from '@pages/GitDetailApp/components/filter-popup';
 import { vscode } from '../../utils/vscode';
 import styles from './index.module.css';
 import FileIcon from '../../components/FileIcon';
