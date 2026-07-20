@@ -3209,7 +3209,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private shouldIgnoreName(name: string): boolean {
-    return ['node_modules', 'dist', 'build', 'out', '.git', '.svn', '.hg', '.DS_Store', 'Thumbs.db'].includes(name);
+    return ['.git', '.svn', '.hg', '.DS_Store', 'Thumbs.db'].includes(name);
   }
 
   private isBinaryLikeFile(name: string): boolean {
