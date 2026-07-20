@@ -291,7 +291,7 @@
       },
       {
         "id": "quickOps.transformSubmenu",
-        "label": "转换文本格式 (Transform Text)"
+        "label": "转换文本格式"
       }
     ],
     "commands": [
