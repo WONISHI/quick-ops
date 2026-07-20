@@ -22,7 +22,6 @@ import { ComponentIntellisenseModule } from '@modules/component-intellisense/com
 import { TextCompareModule } from '@modules/text-compare/text-compare.module';
 import { GitModule } from '@modules/git/git.module';
 import { InlineConstantHintModule } from '@modules/inline-constant-hint/inline-constant-hint.module';
-import { FocusHistoryModule } from '@modules/focus-history/focus-history.module';
 import { ApiDevToolsModule } from '@modules/api-dev-tools/api-dev-tools.module';
 
 export const AppModule: QuickOpsModule = {
@@ -50,7 +49,6 @@ export const AppModule: QuickOpsModule = {
     TextCompareModule,
     GitModule,
     InlineConstantHintModule,
-    FocusHistoryModule,
     ApiDevToolsModule
   ],
 };

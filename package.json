@@ -607,12 +607,6 @@
         "key": "ctrl+alt+t",
         "mac": "cmd+alt+t",
         "when": "editorHasSelection"
-      },
-      {
-        "command": "quickOps.focusBack",
-        "key": "ctrl+n",
-        "mac": "cmd+n",
-        "when": "editorTextFocus"
       }
     ],
     "menus": {
