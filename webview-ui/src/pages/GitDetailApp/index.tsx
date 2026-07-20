@@ -7,10 +7,10 @@ import FilterPopup, {
   FilterPopupDateRow,
   FilterPopupInput,
 } from '@pages/GitDetailApp/components/filter-popup';
-import { vscode } from '../../utils/vscode';
-import styles from './index.module.css';
-import FileIcon from '../../components/FileIcon';
-import Scrollbar, { type ScrollbarInstance } from '../../components/Scrollbar';
+import { vscode } from '@utils/vscode';
+import styles from '@pages/GitDetailApp/index.module.css';
+import FileIcon from '@components/FileIcon';
+import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
 
 interface GitFileItem {
   status: string;
