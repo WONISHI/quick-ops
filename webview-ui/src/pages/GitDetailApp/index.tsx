@@ -7,6 +7,7 @@ import FilterPopup, {
   FilterPopupDateRow,
   FilterPopupInput,
 } from '@pages/GitDetailApp/components/filter-popup';
+import GitDetailSkeleton from '@pages/GitDetailApp/components/git-detail-skeleton';
 import { vscode } from '@utils/vscode';
 import styles from '@pages/GitDetailApp/index.module.css';
 import FileIcon from '@components/FileIcon';
@@ -352,10 +353,6 @@ function normalizeVisibleRefName(ref: string) {
     .replace(/^refs\/tags\//, '')
     .trim();
 }
-
-// function isRemoteRef(refName: string) {
-//   return refName.startsWith('origin/');
-// }
 
 function isStashRef(refName: string) {
   return refName.startsWith('stash@');
@@ -1370,10 +1367,7 @@ export default function GitCommitDetailApp() {
 
       <div className={styles['git-detail-content']}>
         {loading ? (
-          <div className={styles['loading-view']}>
-            <i className="codicon codicon-loading codicon-modifier-spin" />
-            正在加载提交记录...
-          </div>
+          <GitDetailSkeleton />
         ) : filteredCommits.length === 0 ? (
           <div className={styles['empty-view']}>{graphCommits.length === 0 ? '暂无提交记录' : '没有匹配的筛选结果'}</div>
         ) : (
