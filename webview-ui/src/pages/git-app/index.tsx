@@ -13,19 +13,8 @@ import CommitTypeTag from '@/pages/git-app/components/commit-type-tag';
 import type { CommitType } from '@/pages/git-app/components/commit-type-tag/src/type';
 import GraphMoreMenu from '@/pages/git-app/components/graph-more-menu';
 import { GitContextMenu, type ContextMenuState } from '@/pages/git-app/components/git-context-menu';
+import type {RemoteSyncState,CommitDraftSnapshot} from "@pages/git-app/src/type"
 
-interface RemoteSyncState {
-  hasRemote: boolean;
-  hasUpstream: boolean;
-  branch: string;
-  upstream: string;
-  ahead: number;
-  behind: number;
-  needsPull: boolean;
-  needsPush: boolean;
-  checkedAt: number;
-  error?: string;
-}
 
 const EMPTY_REMOTE_SYNC: RemoteSyncState = {
   hasRemote: false,
@@ -38,13 +27,6 @@ const EMPTY_REMOTE_SYNC: RemoteSyncState = {
   needsPush: false,
   checkedAt: 0,
 };
-
-interface CommitDraftSnapshot {
-  message: string;
-  commitType: CommitType;
-  commitTypeEnabled: boolean;
-  finalMessage: string;
-}
 
 const COMMIT_TYPE_ALIAS_MAP: Record<string, CommitType> = {
   feat: 'feat' as CommitType,
