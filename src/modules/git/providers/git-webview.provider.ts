@@ -1898,8 +1898,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           case 'pull': {
             await this.executeGitOperation(async () => {
               try {
-                vscode.window.showInformationMessage('正在拉取代码...');
-
                 await this.gitService.pull(cwd);
 
                 vscode.window.showInformationMessage('⬇️ 拉取成功！');
@@ -1944,8 +1942,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
                   if (confirm !== '确认推送') return;
                 }
-
-                vscode.window.showInformationMessage('正在推送到远程...');
 
                 await this.gitService.push(cwd, {
                   createUpstream: !pushInfo.hasUpstream,
