@@ -2,6 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 
 import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './index.module.css';
+import { useDismissOnOutsideInteraction } from '@/hooks/use-dismiss-on-outside-interaction';
 
 export type BaseContextMenuTrigger = 'contextmenu' | 'click';
 
@@ -638,6 +639,7 @@ function MenuLevel(props: MenuLevelProps) {
               }
         }
         data-context-menu-level={level}
+        data-base-context-menu-root="true"
         onKeyDown={handleKeyDown}
         onContextMenu={(event) => event.preventDefault()}
         onMouseLeave={submenuPlacement === 'inline' ? undefined : clearOpenTimer}
@@ -848,6 +850,21 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
   };
 
   /**
+   * @description 菜单打开后监听外部交互。
+   *
+   * Webview 内部点击通过 pointerdown 判断；
+   * 点击 VS Code 编辑器等 Webview 外部区域时，
+   * 通过 window blur 感知当前 Webview 已失焦。
+   */
+  useDismissOnOutsideInteraction({
+    active: mergedOpen,
+    onDismiss: closeMenu,
+    insideSelector: '[data-base-context-menu-root="true"]',
+    ignoreRightClick: true,
+    dismissOnWindowBlur: true,
+  });
+
+  /**
    * @description 在指定位置打开菜单。
    */
   const openMenuAtPosition = (nextPosition: MenuPosition) => {
@@ -939,10 +956,8 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
           <>
             <div
               className={styles['context-menu-mask']}
-              onMouseDown={closeMenu}
               onContextMenu={(event) => {
                 event.preventDefault();
-                closeMenu();
               }}
             />
 

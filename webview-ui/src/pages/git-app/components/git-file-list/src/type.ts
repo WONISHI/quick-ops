@@ -1,4 +1,4 @@
-import type { ContextMenuState } from '@/pages/git-app/components/git-context-menu';
+import type { ContextMenuState } from '@/pages/git-app/components/git-context-menu/src/type';
 import type { GitFile } from '@/pages/git-app/src/type';
 
 export interface GitFileListProps {
