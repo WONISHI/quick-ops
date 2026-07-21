@@ -2,12 +2,12 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown, faChevronRight, faFolder, faFolderOpen, faSpinner } from '@fortawesome/free-solid-svg-icons';
 
-import { vscode } from '../../utils/vscode';
-import FileIcon from '../FileIcon';
+import { vscode } from '../../../../utils/vscode';
+import FileIcon from '../../../../components/FileIcon';
 import HighlightText from '../HighlightText';
-import Tooltip from '../Tooltip';
-import Scrollbar, { type ScrollbarInstance } from '../Scrollbar';
-import type { ContextMenuPayload, DirChild, SearchMatch, SearchResult } from '../../types/RecentProjectsApp';
+import Tooltip from '../../../../components/Tooltip';
+import Scrollbar, { type ScrollbarInstance } from '../../../../components/Scrollbar';
+import type { ContextMenuPayload, DirChild, SearchMatch, SearchResult } from '../../../../types/RecentProjectsApp';
 
 import styles from './index.module.css';
 

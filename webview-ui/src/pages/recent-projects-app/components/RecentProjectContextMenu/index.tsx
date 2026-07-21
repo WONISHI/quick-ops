@@ -22,7 +22,7 @@ import {
 import { faCopy, faSquareCheck, faClone, faFolderOpen as faFolderOpenReg, faWindowRestore, faFileCode } from '@fortawesome/free-regular-svg-icons';
 
 import styles from './index.module.css';
-import type { ContextMenuPayload } from '../../types/RecentProjectsApp';
+import type { ContextMenuPayload } from '../../../../types/RecentProjectsApp';
 
 interface ContextMenuProps {
   visible: boolean;

@@ -17,12 +17,12 @@ import {
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 import styles from './index.module.css';
 import FileIcon from '../../components/FileIcon';
-import RecentProjectContextMenu from '../../components/RecentProjectContextMenu';
-import SearchViewWrapper from '../../components/SearchViewWrapper';
+import RecentProjectContextMenu from './components/RecentProjectContextMenu';
+import SearchViewWrapper from './components/SearchViewWrapper';
 import Tooltip from '../../components/Tooltip';
 import Scrollbar, { type ScrollbarInstance } from '../../components/Scrollbar';
 import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '../../utils';
-import { FileGitStatusBadge, FolderGitStatusDot, getGitStatusTitle } from '../../components/GitStatusMark';
+import { FileGitStatusBadge, FolderGitStatusDot, getGitStatusTitle } from './components/GitStatusMark';
 import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '../../types/RecentProjectsApp';
 
 interface DiagnosticSummary {
