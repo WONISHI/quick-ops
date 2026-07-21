@@ -26,7 +26,18 @@ export class PackageScriptsService {
 
   private commandSeq = 0;
   private runningProcess?: ChildProcessWithoutNullStreams;
+  private runningTerminal?: vscode.Terminal;
   private runningCommand?: RunningCommandInfo;
+
+  /**
+   * @description 当前终端命令结束事件
+   */
+  private terminalExecutionEndDisposable?: vscode.Disposable;
+
+  /**
+   * @description 当前运行终端关闭事件
+   */
+  private terminalCloseDisposable?: vscode.Disposable;
 
   private packageJsonCache = new Map<string, PackageJsonInfo | undefined>();
 
@@ -159,17 +170,33 @@ export class PackageScriptsService {
   }
 
   public async stopRunningCommand(): Promise<void> {
-    if (!this.runningProcess || !this.runningCommand) {
-      vscode.window.showInformationMessage('当前没有正在后台执行的脚本');
+    if (!this.runningCommand || this.runningCommand.state !== 'running') {
+      vscode.window.showInformationMessage('当前没有正在执行的脚本');
       return;
     }
 
     const displayName = this.runningCommand.displayName;
 
-    this.runningProcess.kill();
-    this.runningProcess = undefined;
+    if (this.runningProcess) {
+      this.runningProcess.kill();
+      this.runningProcess = undefined;
+    }
+
+    if (this.runningTerminal) {
+      /**
+       * 向当前终端发送 Ctrl+C。
+       * Shell Integration 会继续触发结束事件，
+       * 但 runningCommand 已标记为 cancelled，
+       * 因此不会再次覆盖取消状态。
+       */
+      this.runningTerminal.sendText('\u0003', false);
+      this.runningTerminal = undefined;
+    }
 
     this.runningCommand.state = 'cancelled';
+
+    this.disposeTerminalExecutionListeners();
+    this.stopStatusTicker();
 
     this.lastStatus = {
       type: 'cancelled',
@@ -188,20 +215,21 @@ export class PackageScriptsService {
   }
 
   public dispose(): void {
-    if (this.statusHideTimer) {
-      clearTimeout(this.statusHideTimer);
-      this.statusHideTimer = undefined;
-    }
-
-    if (this.statusTickTimer) {
-      clearInterval(this.statusTickTimer);
-      this.statusTickTimer = undefined;
-    }
+    this.clearStatusHideTimer();
+    this.stopStatusTicker();
+    this.disposeTerminalExecutionListeners();
 
     if (this.runningProcess) {
       this.runningProcess.kill();
       this.runningProcess = undefined;
     }
+
+    if (this.runningTerminal) {
+      this.runningTerminal.sendText('\u0003', false);
+      this.runningTerminal = undefined;
+    }
+
+    this.runningCommand = undefined;
 
     this.statusBarItem?.dispose();
     this.statusBarItem = undefined;
@@ -215,13 +243,26 @@ export class PackageScriptsService {
     if (!command) return;
 
     const displayName = this.getScriptDisplayName(item);
+    const commandId = ++this.commandSeq;
+
     const terminal = vscode.window.createTerminal({
       name: `QuickOps: ${displayName}`,
       cwd: item.cwd,
     });
 
-    terminal.show();
-    terminal.sendText(command);
+    this.clearStatusHideTimer();
+    this.disposeTerminalExecutionListeners();
+
+    this.runningTerminal = terminal;
+    this.runningCommand = {
+      id: commandId,
+      displayName,
+      command,
+      cwd: item.cwd,
+      startedAt: Date.now(),
+      output: [],
+      state: 'running',
+    };
 
     this.lastStatus = {
       type: 'running',
@@ -229,7 +270,63 @@ export class PackageScriptsService {
       message: command,
     };
 
+    this.ensureStatusTicker();
     this.updateScriptStatusBar();
+
+    terminal.show();
+
+    const shellIntegration = await this.waitForTerminalShellIntegration(terminal);
+
+    if (!this.runningCommand || this.runningCommand.id !== commandId || this.runningCommand.state !== 'running') {
+      return;
+    }
+
+    if (!shellIntegration) {
+      this.runTerminalCommandWithoutTracking(terminal, commandId, displayName, command);
+      return;
+    }
+
+    let execution: vscode.TerminalShellExecution | undefined;
+
+    this.terminalExecutionEndDisposable = vscode.window.onDidEndTerminalShellExecution((event) => {
+      if (!execution || event.execution !== execution) {
+        return;
+      }
+
+      this.finishTerminalExecution({
+        commandId,
+        displayName,
+        command,
+        exitCode: event.exitCode,
+      });
+    });
+
+    this.terminalCloseDisposable = vscode.window.onDidCloseTerminal((closedTerminal) => {
+      if (closedTerminal !== terminal) {
+        return;
+      }
+
+      if (!this.runningCommand || this.runningCommand.id !== commandId || this.runningCommand.state !== 'running') {
+        return;
+      }
+
+      this.finishTerminalExecution({
+        commandId,
+        displayName,
+        command,
+        exitCode: undefined,
+        cancelled: true,
+        message: '终端已关闭',
+      });
+    });
+
+    try {
+      execution = shellIntegration.executeCommand(command);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      this.runTerminalCommandWithoutTracking(terminal, commandId, displayName, command, message);
+    }
   }
 
   private async runScriptInBackground(item: ScriptItem): Promise<void> {
@@ -247,6 +344,10 @@ export class PackageScriptsService {
 
     const displayName = this.getScriptDisplayName(item);
     const commandId = ++this.commandSeq;
+
+    this.clearStatusHideTimer();
+    this.disposeTerminalExecutionListeners();
+    this.runningTerminal = undefined;
 
     const shell = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : process.env.SHELL || '/bin/sh';
 
@@ -287,7 +388,9 @@ export class PackageScriptsService {
     });
 
     child.on('error', (error) => {
-      if (!this.runningCommand || this.runningCommand.id !== commandId) return;
+      if (!this.runningCommand || this.runningCommand.id !== commandId || this.runningCommand.state === 'cancelled') {
+        return;
+      }
 
       this.runningCommand.state = 'failed';
       this.runningCommand.errorMessage = error.message;
@@ -307,7 +410,9 @@ export class PackageScriptsService {
     });
 
     child.on('close', (code) => {
-      if (!this.runningCommand || this.runningCommand.id !== commandId) return;
+      if (!this.runningCommand || this.runningCommand.id !== commandId || this.runningCommand.state === 'cancelled') {
+        return;
+      }
 
       this.runningCommand.exitCode = code;
 
@@ -343,6 +448,144 @@ export class PackageScriptsService {
       this.updateScriptStatusBar();
       this.scheduleHideStatus();
     });
+  }
+
+  /**
+   * @description 等待新终端完成 Shell Integration 初始化
+   */
+  private async waitForTerminalShellIntegration(terminal: vscode.Terminal, timeout = 3000): Promise<vscode.TerminalShellIntegration | undefined> {
+    if (terminal.shellIntegration) {
+      return terminal.shellIntegration;
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      let timer: NodeJS.Timeout | undefined;
+      let disposable: vscode.Disposable | undefined;
+
+      const finish = (shellIntegration?: vscode.TerminalShellIntegration) => {
+        if (settled) return;
+
+        settled = true;
+
+        if (timer) {
+          clearTimeout(timer);
+          timer = undefined;
+        }
+
+        disposable?.dispose();
+        disposable = undefined;
+
+        resolve(shellIntegration);
+      };
+
+      disposable = vscode.window.onDidChangeTerminalShellIntegration((event) => {
+        if (event.terminal !== terminal) {
+          return;
+        }
+
+        finish(event.shellIntegration);
+      });
+
+      timer = setTimeout(() => {
+        finish(undefined);
+      }, timeout);
+    });
+  }
+
+  /**
+   * @description Shell Integration 不可用时退回 sendText
+   *
+   * 这种情况下 VS Code 无法得知命令退出时间和退出码，
+   * 因此停止计时，避免状态栏永久显示 loading。
+   */
+  private runTerminalCommandWithoutTracking(terminal: vscode.Terminal, commandId: number, displayName: string, command: string, reason = ''): void {
+    if (!this.runningCommand || this.runningCommand.id !== commandId || this.runningCommand.state !== 'running') {
+      return;
+    }
+
+    this.disposeTerminalExecutionListeners();
+
+    terminal.sendText(command);
+
+    this.runningCommand.state = 'success';
+    this.runningTerminal = undefined;
+
+    const suffix = reason ? `：${reason}` : '';
+
+    this.lastStatus = {
+      type: 'success',
+      displayName,
+      message: `命令已发送到终端，当前 Shell Integration 不可用，无法检测完成状态${suffix}`,
+    };
+
+    this.stopStatusTicker();
+    this.updateScriptStatusBar();
+    this.scheduleHideStatus();
+  }
+
+  /**
+   * @description 处理终端命令完成、失败或终端关闭
+   */
+  private finishTerminalExecution(options: { commandId: number; displayName: string; command: string; exitCode: number | undefined; cancelled?: boolean; message?: string }): void {
+    const { commandId, displayName, command, exitCode, cancelled = false, message } = options;
+
+    if (!this.runningCommand || this.runningCommand.id !== commandId || this.runningCommand.state !== 'running') {
+      return;
+    }
+
+    this.runningCommand.exitCode = exitCode ?? null;
+    this.runningTerminal = undefined;
+
+    if (cancelled) {
+      this.runningCommand.state = 'cancelled';
+
+      this.lastStatus = {
+        type: 'cancelled',
+        displayName,
+        message: message || '脚本已取消',
+      };
+    } else if (exitCode === 0) {
+      this.runningCommand.state = 'success';
+
+      this.lastStatus = {
+        type: 'success',
+        displayName,
+        message: '脚本执行完成',
+      };
+
+      vscode.window.showInformationMessage(`脚本执行完成：${displayName}`);
+    } else {
+      this.runningCommand.state = 'failed';
+
+      const errorMessage = exitCode === undefined ? `命令执行结束，但未获得退出码：${command}` : this.getCommandErrorMessage(exitCode, '', command);
+
+      this.runningCommand.errorMessage = errorMessage;
+
+      this.lastStatus = {
+        type: 'failed',
+        displayName,
+        message: errorMessage,
+      };
+
+      vscode.window.showErrorMessage(errorMessage);
+    }
+
+    this.disposeTerminalExecutionListeners();
+    this.stopStatusTicker();
+    this.updateScriptStatusBar();
+    this.scheduleHideStatus();
+  }
+
+  /**
+   * @description 清理终端命令事件监听
+   */
+  private disposeTerminalExecutionListeners(): void {
+    this.terminalExecutionEndDisposable?.dispose();
+    this.terminalExecutionEndDisposable = undefined;
+
+    this.terminalCloseDisposable?.dispose();
+    this.terminalCloseDisposable = undefined;
   }
 
   private async resolveCommand(item: ScriptItem): Promise<string | undefined> {
@@ -968,12 +1211,19 @@ export class PackageScriptsService {
     this.statusTickTimer = undefined;
   }
 
+  private clearStatusHideTimer(): void {
+    if (!this.statusHideTimer) return;
+
+    clearTimeout(this.statusHideTimer);
+    this.statusHideTimer = undefined;
+  }
+
   private scheduleHideStatus(): void {
-    if (this.statusHideTimer) {
-      clearTimeout(this.statusHideTimer);
-    }
+    this.clearStatusHideTimer();
 
     this.statusHideTimer = setTimeout(() => {
+      this.statusHideTimer = undefined;
+
       this.lastStatus = {
         type: 'idle',
       };

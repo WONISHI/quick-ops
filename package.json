@@ -607,6 +607,18 @@
         "key": "ctrl+alt+t",
         "mac": "cmd+alt+t",
         "when": "editorHasSelection"
+      },
+      {
+        "command": "quickOps.scrollToTop",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "quickOps.scrollToBottom",
+        "key": "ctrl+shift+z",
+        "mac": "cmd+shift+z",
+        "when": "editorTextFocus"
       }
     ],
     "menus": {
