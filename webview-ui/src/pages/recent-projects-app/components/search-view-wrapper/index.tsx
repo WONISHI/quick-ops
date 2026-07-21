@@ -4,78 +4,38 @@ import { faChevronDown, faChevronRight, faFolder, faFolderOpen, faSpinner } from
 
 import { vscode } from '@/utils/vscode';
 import FileIcon from '@/components/FileIcon';
-import HighlightText from '../HighlightText';
+import HighlightText from '../highlight-text';
 import Tooltip from '@/components/Tooltip';
 import Scrollbar, { type ScrollbarInstance } from '@/components/Scrollbar';
-import type { ContextMenuPayload, DirChild, SearchMatch, SearchResult } from '@/pages/recent-projects-app/src/type';
-
+import type { SearchMatch, SearchResult } from '@/pages/recent-projects-app/src/type';
+import type { FolderSearchType, SearchViewWrapperProps, ExtensionTagOption } from '@pages/recent-projects-app/components/search-view-wrapper/src/type';
 import styles from './index.module.css';
 
-type FolderSearchType = 'content' | 'name';
-
-type FlatMatchItem = {
-  fileIndex: number;
-  matchIndex: number;
-  lineGlobalIndex: number;
-  fullPath: string;
-  lineNum: number;
-};
-
-interface SearchViewWrapperProps {
-  searchTargetProject: ContextMenuPayload;
-
-  focusMode?: boolean;
-  focusLocked?: boolean;
-  focusTree?: React.ReactNode;
-  onBack?: () => void;
-  onLockFocusMode?: () => void;
-  onExitLockedFocusMode?: () => void;
-
-  folderSearchQuery: string;
-  setFolderSearchQuery: React.Dispatch<React.SetStateAction<string>>;
-
-  folderSearchType: FolderSearchType;
-  setFolderSearchType: React.Dispatch<React.SetStateAction<FolderSearchType>>;
-
-  folderSearchResults: SearchResult[];
-  setFolderSearchResults: React.Dispatch<React.SetStateAction<SearchResult[]>>;
-
-  fileNameSearchResults: DirChild[];
-  setFileNameSearchResults: React.Dispatch<React.SetStateAction<DirChild[]>>;
-
-  folderSearchError: string;
-  setFolderSearchError: React.Dispatch<React.SetStateAction<string>>;
-
-  isSearchingFolder: boolean;
-
-  totalMatches: number;
-  currentActiveMatch: number;
-  setCurrentActiveMatch: React.Dispatch<React.SetStateAction<number>>;
-
-  lineStartIndexMap: Map<string, number>;
-  flatMatchesList: FlatMatchItem[];
-
-  expandedPaths: Set<string>;
-  selectedPath: string;
-
-  setIsSearchMode: React.Dispatch<React.SetStateAction<boolean>>;
-
-  handlePrevSearchMatch: () => void;
-  handleNextSearchMatch: () => void;
-
-  handleToggleExpand: (path: string, projectName: string, isRemote: boolean, e: React.MouseEvent) => void;
-
-  handleOpenFile: (path: string, projectName: string, isActiveProject: boolean, e: React.MouseEvent) => void;
-
-  renderTreeChildren: (parentPath: string, projectName: string, isActiveProject?: boolean, highlightQuery?: string) => React.ReactNode;
-}
-
-interface ExtensionTagOption {
-  ext: string;
-  count: number;
-}
-
-const EXTENSION_TAG_PRIORITY = ['js', 'ts', 'json', 'jsx', 'tsx', 'vue', 'css', 'scss', 'less', 'html', 'htm', 'md', 'mdx', 'yml', 'yaml', 'xml', 'svg', 'png', 'jpg', 'jpeg', 'webp', 'gif', 'txt'];
+const EXTENSION_TAG_PRIORITY = [
+  'js',
+  'ts',
+  'json',
+  'jsx',
+  'tsx',
+  'vue',
+  'css',
+  'scss',
+  'less',
+  'html',
+  'htm',
+  'md',
+  'mdx',
+  'yml',
+  'yaml',
+  'xml',
+  'svg',
+  'png',
+  'jpg',
+  'jpeg',
+  'webp',
+  'gif',
+  'txt',
+];
 
 const EXTENSION_TAG_COLOR_MAP: Record<string, string> = {
   js: '#f1e05a',
@@ -849,7 +809,13 @@ ${searchTargetProject.path || ''}`;
 
             <span
               className={`${styles['search-target-title']} ${focusMode ? styles['search-target-title-focus'] : ''} ${isLockedFocusView ? styles['search-target-title-locked'] : ''}`}
-              title={focusMode ? (isLockedFocusView ? `${getSearchTargetTitle()} · 已锁定，下次打开该项目会自动进入专注模式` : `${getSearchTargetTitle()} · 双击进入锁定模式`) : getSearchTargetTitle()}
+              title={
+                focusMode
+                  ? isLockedFocusView
+                    ? `${getSearchTargetTitle()} · 已锁定，下次打开该项目会自动进入专注模式`
+                    : `${getSearchTargetTitle()} · 双击进入锁定模式`
+                  : getSearchTargetTitle()
+              }
               onDoubleClick={handleSearchTitleDoubleClick}
             >
               {(() => {
@@ -871,11 +837,21 @@ ${searchTargetProject.path || ''}`;
 
           {folderSearchType === 'content' && (
             <div className={styles['search-nav-btns']}>
-              <button className={`${styles['action-btn-icon']} ${styles['search-nav-btn']}`} onClick={handlePrevEffectiveSearchMatch} disabled={effectiveTotalMatches === 0} title="上一个匹配项">
+              <button
+                className={`${styles['action-btn-icon']} ${styles['search-nav-btn']}`}
+                onClick={handlePrevEffectiveSearchMatch}
+                disabled={effectiveTotalMatches === 0}
+                title="上一个匹配项"
+              >
                 <span className={`codicon codicon-arrow-up ${styles['search-nav-icon']}`}></span>
               </button>
 
-              <button className={`${styles['action-btn-icon']} ${styles['search-nav-btn']}`} onClick={handleNextEffectiveSearchMatch} disabled={effectiveTotalMatches === 0} title="下一个匹配项">
+              <button
+                className={`${styles['action-btn-icon']} ${styles['search-nav-btn']}`}
+                onClick={handleNextEffectiveSearchMatch}
+                disabled={effectiveTotalMatches === 0}
+                title="下一个匹配项"
+              >
                 <span className={`codicon codicon-arrow-down ${styles['search-nav-icon']}`}></span>
               </button>
             </div>
@@ -987,9 +963,7 @@ ${searchTargetProject.path || ''}`;
               {filteredContentResults.map(({ result: res, originalIndex }) => {
                 const fileDisplayInfo = getSearchResultFileDisplayInfo(res.file || res.fullPath || '');
                 const fileMatchCount = getSearchResultMatchCount(res);
-                const fileTitle = fileDisplayInfo.folderPath
-                  ? `${fileDisplayInfo.fileName} ${fileDisplayInfo.folderPath}`
-                  : fileDisplayInfo.fileName;
+                const fileTitle = fileDisplayInfo.folderPath ? `${fileDisplayInfo.fileName} ${fileDisplayInfo.folderPath}` : fileDisplayInfo.fileName;
 
                 return (
                   <li key={`${originalIndex}-${res.fullPath || res.file}`} className={styles['search-file-list-item']}>
@@ -1030,48 +1004,54 @@ ${searchTargetProject.path || ''}`;
 
                     <ul className={styles['search-matches-list']}>
                       {res.matches.map((m: SearchMatch, j: number) => {
-                      const globalStartIndex = lineStartIndexMap.get(`${originalIndex}-${j}`) || 0;
-                      const matchInfo = flatMatchesList[currentActiveMatch];
-                      const isLineActive = matchInfo && matchInfo.fileIndex === originalIndex && matchInfo.matchIndex === j;
-                      const previewText = getContentSearchPreviewText(m.text, folderSearchQuery);
+                        const globalStartIndex = lineStartIndexMap.get(`${originalIndex}-${j}`) || 0;
+                        const matchInfo = flatMatchesList[currentActiveMatch];
+                        const isLineActive = matchInfo && matchInfo.fileIndex === originalIndex && matchInfo.matchIndex === j;
+                        const previewText = getContentSearchPreviewText(m.text, folderSearchQuery);
 
-                      return (
-                        <li
-                          key={j}
-                          id={`search-line-${originalIndex}-${j}`}
-                          onClick={() => {
-                            setCurrentActiveMatch(globalStartIndex);
+                        return (
+                          <li
+                            key={j}
+                            id={`search-line-${originalIndex}-${j}`}
+                            onClick={() => {
+                              setCurrentActiveMatch(globalStartIndex);
 
-                            const targetProjectName = getTargetProjectName();
-                            const targetPath = res.fullPath;
+                              const targetProjectName = getTargetProjectName();
+                              const targetPath = res.fullPath;
 
-                            if (targetPath.toLowerCase().endsWith('.md')) {
-                              vscode.postMessage({
-                                type: 'previewWithVditor',
-                                fsPath: targetPath,
-                                projectName: targetProjectName,
-                                isActiveProject: searchTargetProject.isActiveProject,
-                                line: m.line,
-                              });
-                            } else {
-                              vscode.postMessage({
-                                type: 'openFileAtLine',
-                                fsPath: targetPath,
-                                line: m.line,
-                                isActiveProject: searchTargetProject.isActiveProject,
-                                projectName: targetProjectName,
-                              });
-                            }
-                          }}
-                          className={`${styles['search-match-item']} ${isLineActive ? styles['active'] : ''}`}
-                        >
-                          <span className={styles['search-match-line-num']}>{m.line}</span>
+                              if (targetPath.toLowerCase().endsWith('.md')) {
+                                vscode.postMessage({
+                                  type: 'previewWithVditor',
+                                  fsPath: targetPath,
+                                  projectName: targetProjectName,
+                                  isActiveProject: searchTargetProject.isActiveProject,
+                                  line: m.line,
+                                });
+                              } else {
+                                vscode.postMessage({
+                                  type: 'openFileAtLine',
+                                  fsPath: targetPath,
+                                  line: m.line,
+                                  isActiveProject: searchTargetProject.isActiveProject,
+                                  projectName: targetProjectName,
+                                });
+                              }
+                            }}
+                            className={`${styles['search-match-item']} ${isLineActive ? styles['active'] : ''}`}
+                          >
+                            <span className={styles['search-match-line-num']}>{m.line}</span>
 
-                          <span className={styles['search-match-text']} title={m.text}>
-                            <HighlightText text={previewText} query={folderSearchQuery} globalStartIndex={globalStartIndex} currentActiveMatch={currentActiveMatch} isLineActive={!!isLineActive} />
-                          </span>
-                        </li>
-                      );
+                            <span className={styles['search-match-text']} title={m.text}>
+                              <HighlightText
+                                text={previewText}
+                                query={folderSearchQuery}
+                                globalStartIndex={globalStartIndex}
+                                currentActiveMatch={currentActiveMatch}
+                                isLineActive={!!isLineActive}
+                              />
+                            </span>
+                          </li>
+                        );
                       })}
                     </ul>
                   </li>
