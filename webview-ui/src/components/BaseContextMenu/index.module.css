@@ -23,6 +23,7 @@
   position: fixed;
   z-index: 9999;
   box-sizing: border-box;
+  max-width: calc(100vw - 16px);
   padding: 5px;
   overflow: visible;
   color: var(--context-menu-fg);
@@ -43,24 +44,33 @@
  */
 .context-menu-popup-arrow {
   position: absolute;
-  left: var(--context-menu-popup-arrow-left, 20px);
-  z-index: 0;
-  width: 8px;
-  height: 8px;
+  left: var(--context-menu-popup-arrow-left, 50%);
+  z-index: 2;
+  display: none;
+  width: 9px;
+  height: 9px;
   pointer-events: none;
   background: var(--context-menu-bg);
   border: 1px solid var(--context-menu-border);
   transform: translateX(-50%) rotate(45deg);
 }
 
-.context-menu-popup-arrow-top {
+/**
+ * 菜单显示在目标元素下方时，箭头位于菜单顶部。
+ */
+.context-menu[data-popup-arrow-placement='bottom'] > .context-menu-popup-arrow {
   top: -5px;
+  display: block;
   border-right: 0;
   border-bottom: 0;
 }
 
-.context-menu-popup-arrow-bottom {
+/**
+ * 菜单显示在目标元素上方时，箭头位于菜单底部。
+ */
+.context-menu[data-popup-arrow-placement='top'] > .context-menu-popup-arrow {
   bottom: -5px;
+  display: block;
   border-top: 0;
   border-left: 0;
 }
@@ -75,6 +85,44 @@
   position: relative;
   z-index: 1;
   min-width: 0;
+  max-height: calc(100vh - 16px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.context-menu-content[data-scrollable='true'] {
+  /**
+   * 强制保留滚动条，明确提示当前菜单还有更多内容。
+   */
+  overflow-y: scroll;
+  scroll-padding-block: 4px;
+}
+
+.context-menu-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.context-menu-content::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4)) 18%, transparent);
+  border-radius: 999px;
+}
+
+.context-menu-content::-webkit-scrollbar-thumb {
+  background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4));
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.context-menu-content::-webkit-scrollbar-thumb:hover {
+  background: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 .context-menu.compact {
@@ -247,6 +295,12 @@
   animation: none;
 }
 
+.context-menu-inline > .context-menu-content {
+  max-height: none;
+  overflow: visible;
+  scrollbar-gutter: auto;
+}
+
 .context-menu-inline .context-menu-item {
   border-radius: 5px;
 }
@@ -263,9 +317,9 @@
  * 内联子菜单项使用更淡的悬停背景，
  * 与根菜单项的高亮层级区分开。
  */
-.context-menu-inline > .context-menu-item:hover,
-.context-menu-inline > .context-menu-item.active,
-.context-menu-inline > .context-menu-item.child-open {
+.context-menu-inline > .context-menu-content > .context-menu-item:hover,
+.context-menu-inline > .context-menu-content > .context-menu-item.active,
+.context-menu-inline > .context-menu-content > .context-menu-item.child-open {
   background: rgba(127, 137, 150, 0.12);
   background: color-mix(in srgb, var(--vscode-menu-selectionBackground, var(--menu-hover-bg, #343b46)) 42%, transparent);
 }
@@ -273,9 +327,9 @@
 /**
  * 深色主题下保持文字可读，但不使用根菜单的强高亮白色。
  */
-.context-menu-inline > .context-menu-item:hover,
-.context-menu-inline > .context-menu-item.active,
-.context-menu-inline > .context-menu-item.child-open {
+.context-menu-inline > .context-menu-content > .context-menu-item:hover,
+.context-menu-inline > .context-menu-content > .context-menu-item.active,
+.context-menu-inline > .context-menu-content > .context-menu-item.child-open {
   color: var(--vscode-menu-foreground, var(--menu-fg, #d7dae0));
 }
 

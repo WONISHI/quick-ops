@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './index.module.css';
@@ -7,6 +7,8 @@ import { useDismissOnOutsideInteraction } from '@/hooks/use-dismiss-on-outside-i
 export type BaseContextMenuTrigger = 'contextmenu' | 'click';
 
 export type BaseContextMenuSubmenuPlacement = 'auto' | 'left' | 'right' | 'inline';
+
+export type BaseContextMenuPopupPlacement = 'auto' | 'top' | 'bottom';
 
 export interface BaseContextMenuPosition {
   x: number;
@@ -97,13 +99,49 @@ export interface BaseContextMenuProps {
   trigger?: BaseContextMenuTrigger;
 
   /**
-   * 是否显示菜单浮层指向触发目标的箭头。
+   * 是否显示菜单浮层指向目标元素或 position 坐标的箭头。
    *
-   * 仅在 trigger="click" 时生效。
+   * click 触发模式会自动指向触发元素的水平中点；
+   * 受控模式可以传 anchorEl，未传时使用 position 作为锚点。
    *
    * @default false
    */
   showArrow?: boolean;
+
+  /**
+   * 受控模式下用于定位和计算箭头的目标元素。
+   *
+   * click 触发模式会自动使用被点击的第一个子元素。
+   */
+  anchorEl?: HTMLElement | null;
+
+  /**
+   * 根菜单优先展示方向。
+   *
+   * @default auto
+   */
+  popupPlacement?: BaseContextMenuPopupPlacement;
+
+  /**
+   * 菜单与目标元素之间的间距。
+   *
+   * @default 8
+   */
+  popupOffset?: number;
+
+  /**
+   * 菜单与视口边缘之间的安全距离。
+   *
+   * @default 8
+   */
+  viewportPadding?: number;
+
+  /**
+   * 根菜单最大高度。
+   *
+   * 超过该高度时，菜单内容区域自动出现纵向滚动条。
+   */
+  maxHeight?: number;
 
   /**
    * 每一级菜单的最小宽度。
@@ -173,24 +211,6 @@ interface MenuPosition {
   top: number;
 }
 
-interface PopupArrowState {
-  /**
-   * top 表示箭头显示在菜单顶部，指向上方目标；
-   * bottom 表示箭头显示在菜单底部，指向下方目标。
-   */
-  placement: 'top' | 'bottom';
-
-  /**
-   * 触发目标中心点在视口中的横坐标。
-   */
-  anchorX: number;
-}
-
-interface ClickTriggerPositionResult {
-  position: MenuPosition;
-  popupArrow: PopupArrowState;
-}
-
 interface MenuLevelProps {
   items: BaseContextMenuItem[];
   level: number;
@@ -204,7 +224,13 @@ interface MenuLevelProps {
   /**
    * 仅根菜单使用的弹出箭头配置。
    */
-  popupArrow?: PopupArrowState | null;
+  showArrow?: boolean;
+  anchorEl?: HTMLElement | null;
+  anchorPoint?: BaseContextMenuPosition | null;
+  popupPlacement?: BaseContextMenuPopupPlacement;
+  popupOffset?: number;
+  viewportPadding?: number;
+  maxHeight?: number;
 
   menuClassName?: string;
   menuStyle?: CSSProperties;
@@ -213,7 +239,8 @@ interface MenuLevelProps {
   onSelectItem: (item: BaseContextMenuActionItem) => Promise<void>;
 }
 
-const VIEWPORT_GAP = 8;
+const DEFAULT_VIEWPORT_PADDING = 8;
+const DEFAULT_POPUP_OFFSET = 8;
 const SUBMENU_GAP = 4;
 const DEFAULT_ITEM_HEIGHT = 30;
 const COMPACT_ITEM_HEIGHT = 28;
@@ -275,41 +302,34 @@ function normalizePosition(position: BaseContextMenuPosition | BaseContextMenuOf
 /**
  * @description 将根菜单坐标限制在视口范围内。
  */
-function getSafeRootPosition(position: MenuPosition, menuWidth: number, menuHeight: number): MenuPosition {
+function getSafeRootPosition(position: MenuPosition, menuWidth: number, menuHeight: number, viewportPadding = DEFAULT_VIEWPORT_PADDING): MenuPosition {
   return {
-    left: Math.max(VIEWPORT_GAP, Math.min(position.left, window.innerWidth - menuWidth - VIEWPORT_GAP)),
-    top: Math.max(VIEWPORT_GAP, Math.min(position.top, window.innerHeight - menuHeight - VIEWPORT_GAP)),
+    left: Math.max(viewportPadding, Math.min(position.left, window.innerWidth - menuWidth - viewportPadding)),
+    top: Math.max(viewportPadding, Math.min(position.top, window.innerHeight - menuHeight - viewportPadding)),
   };
 }
 
 /**
- * @description 根据点击目标计算类似 Tooltip / Dropdown 的菜单位置。
+ * @description 将滚动区域高度向下对齐到最后一个完整菜单项。
+ *
+ * 视口可用高度通常不是菜单行高的整数倍。
+ * 直接使用可用高度会在底部截出半行菜单项，
+ * 看起来像内容显示不全。
  */
-function getClickTriggerPosition(triggerRect: DOMRect, menuWidth: number, menuHeight: number): ClickTriggerPositionResult {
-  /**
-   * 给箭头预留空间，避免菜单边框紧贴触发元素。
-   */
-  const arrowGap = 8;
+function getCompleteItemContentHeight(contentElement: HTMLDivElement, availableHeight: number): number {
+  const children = Array.from(contentElement.children).filter((element): element is HTMLElement => element instanceof HTMLElement);
 
-  const canOpenBelow = triggerRect.bottom + arrowGap + menuHeight + VIEWPORT_GAP <= window.innerHeight;
+  let completeHeight = 0;
 
-  const placement: PopupArrowState['placement'] = canOpenBelow ? 'top' : 'bottom';
+  children.forEach((element) => {
+    const elementBottom = element.offsetTop + element.offsetHeight;
 
-  const top = canOpenBelow ? triggerRect.bottom + arrowGap : triggerRect.top - menuHeight - arrowGap;
+    if (elementBottom <= availableHeight) {
+      completeHeight = elementBottom;
+    }
+  });
 
-  let left = triggerRect.left;
-
-  if (left + menuWidth + VIEWPORT_GAP > window.innerWidth) {
-    left = triggerRect.right - menuWidth;
-  }
-
-  return {
-    position: getSafeRootPosition({ left, top }, menuWidth, menuHeight),
-    popupArrow: {
-      placement,
-      anchorX: triggerRect.left + triggerRect.width / 2,
-    },
-  };
+  return completeHeight > 0 ? completeHeight : availableHeight;
 }
 
 /**
@@ -320,9 +340,9 @@ function getSafeSubmenuPosition(triggerRect: DOMRect, menuWidth: number, menuHei
 
   const leftPosition = triggerRect.left - menuWidth - SUBMENU_GAP;
 
-  const canOpenRight = rightPosition + menuWidth + VIEWPORT_GAP <= window.innerWidth;
+  const canOpenRight = rightPosition + menuWidth + DEFAULT_VIEWPORT_PADDING <= window.innerWidth;
 
-  const canOpenLeft = leftPosition >= VIEWPORT_GAP;
+  const canOpenLeft = leftPosition >= DEFAULT_VIEWPORT_PADDING;
 
   let left = rightPosition;
 
@@ -334,9 +354,9 @@ function getSafeSubmenuPosition(triggerRect: DOMRect, menuWidth: number, menuHei
     left = canOpenRight ? rightPosition : leftPosition;
   }
 
-  left = Math.max(VIEWPORT_GAP, Math.min(left, window.innerWidth - menuWidth - VIEWPORT_GAP));
+  left = Math.max(DEFAULT_VIEWPORT_PADDING, Math.min(left, window.innerWidth - menuWidth - DEFAULT_VIEWPORT_PADDING));
 
-  const top = Math.max(VIEWPORT_GAP, Math.min(triggerRect.top - 4, window.innerHeight - menuHeight - VIEWPORT_GAP));
+  const top = Math.max(DEFAULT_VIEWPORT_PADDING, Math.min(triggerRect.top - 4, window.innerHeight - menuHeight - DEFAULT_VIEWPORT_PADDING));
 
   return {
     left,
@@ -357,7 +377,13 @@ function MenuLevel(props: MenuLevelProps) {
     submenuPlacement,
     submenuOpenDelay,
     inline = false,
-    popupArrow,
+    showArrow = false,
+    anchorEl,
+    anchorPoint,
+    popupPlacement = 'auto',
+    popupOffset = DEFAULT_POPUP_OFFSET,
+    viewportPadding = DEFAULT_VIEWPORT_PADDING,
+    maxHeight,
     menuClassName,
     menuStyle,
     onCloseAll,
@@ -366,6 +392,8 @@ function MenuLevel(props: MenuLevelProps) {
   } = props;
 
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const contentRef = useRef<HTMLDivElement | null>(null);
 
   const itemRefs = useRef(new Map<string, HTMLButtonElement>());
 
@@ -409,23 +437,192 @@ function MenuLevel(props: MenuLevelProps) {
   }, [inline]);
 
   /**
-   * 根据菜单真实宽度计算箭头横向位置。
+   * @description 根据真实尺寸完成菜单定位、箭头定位和高度碰撞处理。
    *
-   * 这里在布局完成后读取 menuRef，不会在 render 阶段访问 ref。
+   * 菜单高度超过可用空间时，只让内容层滚动，
+   * 外层菜单继续保持 overflow: visible，避免箭头被裁剪。
    */
-  useLayoutEffect(() => {
-    if (level !== 0 || !popupArrow || !menuRef.current) {
+  const updateMenuLayout = useCallback(() => {
+    const menuElement = menuRef.current;
+    const contentElement = contentRef.current;
+
+    if (inline || !menuElement || !contentElement) {
       return;
     }
 
-    const menuRect = menuRef.current.getBoundingClientRect();
+    const previousScrollTop = contentElement.scrollTop;
 
-    const edgeGap = 14;
+    menuElement.style.visibility = 'hidden';
+    menuElement.style.maxHeight = '';
+    contentElement.style.maxHeight = '';
+    contentElement.style.overflowY = '';
+    contentElement.style.overflowX = 'hidden';
+    delete contentElement.dataset.scrollable;
 
-    const arrowLeft = Math.max(edgeGap, Math.min(popupArrow.anchorX - menuRect.left, menuRect.width - edgeGap));
+    const computedStyle = window.getComputedStyle(menuElement);
+    const verticalChrome =
+      Number.parseFloat(computedStyle.paddingTop || '0') +
+      Number.parseFloat(computedStyle.paddingBottom || '0') +
+      Number.parseFloat(computedStyle.borderTopWidth || '0') +
+      Number.parseFloat(computedStyle.borderBottomWidth || '0');
 
-    menuRef.current.style.setProperty('--context-menu-popup-arrow-left', `${arrowLeft}px`);
-  }, [level, popupArrow, position.left, position.top, minWidth]);
+    const naturalContentHeight = contentElement.scrollHeight;
+    const naturalMenuHeight = naturalContentHeight + verticalChrome;
+    const viewportMaxHeight = Math.max(32, window.innerHeight - viewportPadding * 2);
+    const configuredMaxHeight = typeof maxHeight === 'number' ? Math.min(viewportMaxHeight, Math.max(32, maxHeight)) : viewportMaxHeight;
+
+    const connectedAnchor = anchorEl?.isConnected ? anchorEl : null;
+    const anchorRect = connectedAnchor?.getBoundingClientRect();
+    const resolvedAnchorPoint = anchorRect
+      ? {
+          x: anchorRect.left + anchorRect.width / 2,
+          top: anchorRect.top,
+          bottom: anchorRect.bottom,
+        }
+      : anchorPoint
+        ? {
+            x: anchorPoint.x,
+            top: anchorPoint.y,
+            bottom: anchorPoint.y,
+          }
+        : null;
+
+    let resolvedPopupPlacement: Exclude<BaseContextMenuPopupPlacement, 'auto'> = 'bottom';
+    let availableHeight = configuredMaxHeight;
+
+    if (resolvedAnchorPoint) {
+      const spaceBelow = Math.max(0, window.innerHeight - resolvedAnchorPoint.bottom - popupOffset - viewportPadding);
+      const spaceAbove = Math.max(0, resolvedAnchorPoint.top - popupOffset - viewportPadding);
+
+      const preferredPlacement = popupPlacement === 'auto' ? 'bottom' : popupPlacement;
+      const oppositePlacement = preferredPlacement === 'bottom' ? 'top' : 'bottom';
+      const preferredSpace = preferredPlacement === 'bottom' ? spaceBelow : spaceAbove;
+      const oppositeSpace = oppositePlacement === 'bottom' ? spaceBelow : spaceAbove;
+
+      if (naturalMenuHeight <= preferredSpace) {
+        resolvedPopupPlacement = preferredPlacement;
+      } else if (naturalMenuHeight <= oppositeSpace) {
+        resolvedPopupPlacement = oppositePlacement;
+      } else {
+        resolvedPopupPlacement = spaceBelow >= spaceAbove ? 'bottom' : 'top';
+      }
+
+      availableHeight = Math.min(configuredMaxHeight, resolvedPopupPlacement === 'bottom' ? spaceBelow : spaceAbove);
+    }
+
+    const effectiveMenuMaxHeight = resolvedAnchorPoint ? Math.max(32, Math.min(configuredMaxHeight, availableHeight)) : configuredMaxHeight;
+
+    if (naturalMenuHeight > effectiveMenuMaxHeight) {
+      const availableContentHeight = Math.max(24, Math.floor(effectiveMenuMaxHeight - verticalChrome - 1));
+
+      /**
+       * 让滚动区域底边落在完整菜单项之后，
+       * 避免出现截图中 iPad Air 只显示半行的情况。
+       */
+      const contentMaxHeight = getCompleteItemContentHeight(contentElement, availableContentHeight);
+
+      contentElement.style.maxHeight = `${contentMaxHeight}px`;
+      contentElement.style.overflowY = 'scroll';
+      contentElement.dataset.scrollable = 'true';
+    }
+
+    const menuWidth = menuElement.offsetWidth;
+    const menuHeight = menuElement.offsetHeight;
+
+    let nextLeft = position.left;
+    let nextTop = position.top;
+
+    if (resolvedAnchorPoint) {
+      nextLeft = resolvedAnchorPoint.x - menuWidth / 2;
+
+      nextTop = resolvedPopupPlacement === 'bottom' ? resolvedAnchorPoint.bottom + popupOffset : resolvedAnchorPoint.top - menuHeight - popupOffset;
+    }
+
+    const safePosition = getSafeRootPosition(
+      {
+        left: nextLeft,
+        top: nextTop,
+      },
+      menuWidth,
+      menuHeight,
+      viewportPadding,
+    );
+
+    menuElement.style.left = `${Math.round(safePosition.left)}px`;
+    menuElement.style.top = `${Math.round(safePosition.top)}px`;
+
+    if (level === 0 && showArrow && resolvedAnchorPoint) {
+      const edgeGap = 14;
+      const arrowLeft = Math.max(edgeGap, Math.min(resolvedAnchorPoint.x - safePosition.left, menuWidth - edgeGap));
+
+      menuElement.style.setProperty('--context-menu-popup-arrow-left', `${Math.round(arrowLeft)}px`);
+      menuElement.dataset.popupArrowPlacement = resolvedPopupPlacement;
+    } else {
+      delete menuElement.dataset.popupArrowPlacement;
+    }
+
+    /**
+     * 外部滚动、窗口缩放或锚点变化会重新执行布局。
+     * 重新设置 max-height 后恢复原来的滚动位置，
+     * 避免菜单被强制拉回顶部或无法滚动到最后一项。
+     */
+    const maxScrollTop = Math.max(0, contentElement.scrollHeight - contentElement.clientHeight);
+
+    contentElement.scrollTop = Math.min(previousScrollTop, maxScrollTop);
+
+    menuElement.style.visibility = 'visible';
+  }, [anchorEl, anchorPoint, inline, level, maxHeight, popupOffset, popupPlacement, position.left, position.top, showArrow, viewportPadding]);
+
+  useLayoutEffect(() => {
+    updateMenuLayout();
+  }, [updateMenuLayout, visibleItems]);
+
+  useEffect(() => {
+    if (inline) {
+      return;
+    }
+
+    const handleWindowResize = () => {
+      updateMenuLayout();
+    };
+
+    const handleDocumentScroll = (event: Event) => {
+      const target = event.target;
+
+      /**
+       * window.addEventListener('scroll', ..., true)
+       * 会捕获菜单内容自身的滚动事件。
+       *
+       * 如果这里继续执行 updateMenuLayout，会在每一次滚动时
+       * 清空并重新设置 max-height，导致滚动位置被反复校正，
+       * 表现为滚不到最后一项或滚动条回弹。
+       */
+      if (target instanceof Node && menuRef.current?.contains(target)) {
+        return;
+      }
+
+      updateMenuLayout();
+    };
+
+    const handleAnchorResize = () => {
+      updateMenuLayout();
+    };
+
+    window.addEventListener('resize', handleWindowResize);
+    window.addEventListener('scroll', handleDocumentScroll, true);
+
+    const resizeObserver = new ResizeObserver(handleAnchorResize);
+
+    if (anchorEl) {
+      resizeObserver.observe(anchorEl);
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleWindowResize);
+      window.removeEventListener('scroll', handleDocumentScroll, true);
+      resizeObserver.disconnect();
+    };
+  }, [anchorEl, inline, updateMenuLayout]);
 
   useEffect(() => {
     return () => {
@@ -644,111 +841,112 @@ function MenuLevel(props: MenuLevelProps) {
         onContextMenu={(event) => event.preventDefault()}
         onMouseLeave={submenuPlacement === 'inline' ? undefined : clearOpenTimer}
       >
-        {level === 0 && popupArrow && (
-          <span
-            className={[styles['context-menu-popup-arrow'], popupArrow.placement === 'top' ? styles['context-menu-popup-arrow-top'] : styles['context-menu-popup-arrow-bottom']]
-              .filter(Boolean)
-              .join(' ')}
-            aria-hidden="true"
-          />
-        )}
+        {level === 0 && showArrow && <span className={styles['context-menu-popup-arrow']} aria-hidden="true" />}
 
-        {visibleItems.map((item) => {
-          if (item.type === 'separator') {
-            return <div key={item.key} className={styles['context-menu-separator']} role="separator" />;
-          }
+        <div ref={contentRef} className={styles['context-menu-content']}>
+          {visibleItems.map((item) => {
+            if (item.type === 'separator') {
+              return <div key={item.key} className={styles['context-menu-separator']} role="separator" />;
+            }
 
-          const active = item.key === resolvedActiveKey;
+            const active = item.key === resolvedActiveKey;
 
-          const hasChildren = hasVisibleChildren(item);
+            const hasChildren = hasVisibleChildren(item);
 
-          const childOpen = item.key === openChildKey;
+            const childOpen = item.key === openChildKey;
 
-          return (
-            <Fragment key={item.key}>
-              <button
-                ref={(element) => {
-                  if (element) {
-                    itemRefs.current.set(item.key, element);
-                  } else {
-                    itemRefs.current.delete(item.key);
-                  }
-                }}
-                type="button"
-                role="menuitem"
-                title={item.title}
-                disabled={item.disabled}
-                aria-haspopup={hasChildren ? 'menu' : undefined}
-                aria-expanded={hasChildren ? childOpen : undefined}
-                className={[styles['context-menu-item'], active ? styles.active : '', childOpen ? styles['child-open'] : '', item.danger ? styles.danger : '', item.className || '']
-                  .filter(Boolean)
-                  .join(' ')}
-                style={item.style}
-                onMouseEnter={() => {
-                  if (item.disabled) return;
-
-                  setActiveKey(item.key);
-
-                  if (submenuPlacement !== 'inline') {
-                    openChildMenu(item);
-                  }
-                }}
-                onClick={() => {
-                  if (item.disabled) return;
-
-                  if (hasChildren) {
-                    toggleChildMenu(item);
-                    return;
-                  }
-
-                  void onSelectItem(item);
-                }}
-              >
-                <span className={styles['context-menu-icon']}>{item.icon}</span>
-
-                <span className={styles['context-menu-label']}>{item.label}</span>
-
-                <span className={styles['context-menu-trailing']}>
-                  {item.shortcut && <span className={styles['context-menu-shortcut']}>{item.shortcut}</span>}
-
-                  {hasChildren && (
-                    <span
-                      className={[
-                        styles['context-menu-arrow'],
-                        submenuPlacement === 'inline' ? styles['context-menu-arrow-inline'] : '',
-                        submenuPlacement === 'inline' && childOpen ? styles['context-menu-arrow-open'] : '',
-                      ]
-                        .filter(Boolean)
-                        .join(' ')}
-                      aria-hidden="true"
-                    >
-                      ›
-                    </span>
-                  )}
-                </span>
-              </button>
-
-              {submenuPlacement === 'inline' && childOpen && hasChildren && (
-                <MenuLevel
-                  items={item.children || []}
-                  level={level + 1}
-                  position={{
-                    left: 0,
-                    top: 0,
+            return (
+              <Fragment key={item.key}>
+                <button
+                  ref={(element) => {
+                    if (element) {
+                      itemRefs.current.set(item.key, element);
+                    } else {
+                      itemRefs.current.delete(item.key);
+                    }
                   }}
-                  minWidth={minWidth}
-                  density={density}
-                  submenuPlacement={submenuPlacement}
-                  submenuOpenDelay={submenuOpenDelay}
-                  inline
-                  onCloseAll={onCloseAll}
-                  onCloseLevel={() => closeChildMenu(true)}
-                  onSelectItem={onSelectItem}
-                />
-              )}
-            </Fragment>
-          );
-        })}
+                  type="button"
+                  role="menuitem"
+                  title={item.title}
+                  disabled={item.disabled}
+                  aria-haspopup={hasChildren ? 'menu' : undefined}
+                  aria-expanded={hasChildren ? childOpen : undefined}
+                  className={[
+                    styles['context-menu-item'],
+                    active ? styles.active : '',
+                    childOpen ? styles['child-open'] : '',
+                    item.danger ? styles.danger : '',
+                    item.className || '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  style={item.style}
+                  onMouseEnter={() => {
+                    if (item.disabled) return;
+
+                    setActiveKey(item.key);
+
+                    if (submenuPlacement !== 'inline') {
+                      openChildMenu(item);
+                    }
+                  }}
+                  onClick={() => {
+                    if (item.disabled) return;
+
+                    if (hasChildren) {
+                      toggleChildMenu(item);
+                      return;
+                    }
+
+                    void onSelectItem(item);
+                  }}
+                >
+                  <span className={styles['context-menu-icon']}>{item.icon}</span>
+
+                  <span className={styles['context-menu-label']}>{item.label}</span>
+
+                  <span className={styles['context-menu-trailing']}>
+                    {item.shortcut && <span className={styles['context-menu-shortcut']}>{item.shortcut}</span>}
+
+                    {hasChildren && (
+                      <span
+                        className={[
+                          styles['context-menu-arrow'],
+                          submenuPlacement === 'inline' ? styles['context-menu-arrow-inline'] : '',
+                          submenuPlacement === 'inline' && childOpen ? styles['context-menu-arrow-open'] : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        aria-hidden="true"
+                      >
+                        ›
+                      </span>
+                    )}
+                  </span>
+                </button>
+
+                {submenuPlacement === 'inline' && childOpen && hasChildren && (
+                  <MenuLevel
+                    items={item.children || []}
+                    level={level + 1}
+                    position={{
+                      left: 0,
+                      top: 0,
+                    }}
+                    minWidth={minWidth}
+                    density={density}
+                    submenuPlacement={submenuPlacement}
+                    submenuOpenDelay={submenuOpenDelay}
+                    inline
+                    onCloseAll={onCloseAll}
+                    onCloseLevel={() => closeChildMenu(true)}
+                    onSelectItem={onSelectItem}
+                  />
+                )}
+              </Fragment>
+            );
+          })}
+        </div>
       </div>
 
       {submenuPlacement !== 'inline' && activeChildItem && (
@@ -785,6 +983,11 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
     position,
     trigger = 'contextmenu',
     showArrow = false,
+    anchorEl,
+    popupPlacement = 'auto',
+    popupOffset = DEFAULT_POPUP_OFFSET,
+    viewportPadding = DEFAULT_VIEWPORT_PADDING,
+    maxHeight,
     minWidth = 220,
     disabled = false,
     density = 'default',
@@ -807,7 +1010,9 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
 
   const [internalPopupContainer, setInternalPopupContainer] = useState<HTMLElement | null>(null);
 
-  const [internalPopupArrow, setInternalPopupArrow] = useState<PopupArrowState | null>(null);
+  const [internalAnchorEl, setInternalAnchorEl] = useState<HTMLElement | null>(null);
+
+  const [internalAnchorPoint, setInternalAnchorPoint] = useState<BaseContextMenuPosition | null>(null);
 
   const controlledOpen = open ?? visible;
   const isControlled = controlledOpen !== undefined;
@@ -820,7 +1025,20 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
 
   const mergedPosition = externalPosition || internalPosition;
 
-  const safePosition = typeof window === 'undefined' ? mergedPosition : getSafeRootPosition(mergedPosition, minWidth, getEstimatedMenuHeight(visibleItems, density));
+  const safePosition =
+    typeof window === 'undefined' ? mergedPosition : getSafeRootPosition(mergedPosition, minWidth, getEstimatedMenuHeight(visibleItems, density), viewportPadding);
+
+  const resolvedAnchorEl = anchorEl || internalAnchorEl;
+
+  const resolvedAnchorPoint = resolvedAnchorEl
+    ? null
+    : internalAnchorPoint ||
+      (showArrow && position
+        ? {
+            x: 'x' in position ? position.x : position.left,
+            y: 'y' in position ? position.y : position.top,
+          }
+        : null);
 
   const resolvedPopupContainer = popupContainer || internalPopupContainer || (typeof document === 'undefined' ? null : document.body);
 
@@ -845,7 +1063,8 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
       setInternalPopupContainer(null);
     }
 
-    setInternalPopupArrow(null);
+    setInternalAnchorEl(null);
+    setInternalAnchorPoint(null);
     onClose?.();
   };
 
@@ -888,18 +1107,20 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
     event.preventDefault();
     event.stopPropagation();
 
-    setInternalPopupArrow(null);
-
-    openMenuAtPosition(
-      getSafeRootPosition(
-        {
-          left: event.clientX,
-          top: event.clientY,
-        },
-        minWidth,
-        getEstimatedMenuHeight(visibleItems, density),
-      ),
+    setInternalAnchorEl(null);
+    setInternalAnchorPoint(
+      showArrow
+        ? {
+            x: event.clientX,
+            y: event.clientY,
+          }
+        : null,
     );
+
+    openMenuAtPosition({
+      left: event.clientX,
+      top: event.clientY,
+    });
   };
 
   /**
@@ -931,11 +1152,15 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
 
     if (!target) return;
 
-    const result = getClickTriggerPosition(target.getBoundingClientRect(), minWidth, getEstimatedMenuHeight(visibleItems, density));
+    const targetRect = target.getBoundingClientRect();
 
-    setInternalPopupArrow(showArrow ? result.popupArrow : null);
+    setInternalAnchorEl(target);
+    setInternalAnchorPoint(null);
 
-    openMenuAtPosition(result.position);
+    openMenuAtPosition({
+      left: targetRect.left,
+      top: targetRect.bottom + popupOffset,
+    });
   };
 
   /**
@@ -981,7 +1206,13 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
               density={density}
               submenuPlacement={submenuPlacement}
               submenuOpenDelay={submenuOpenDelay}
-              popupArrow={trigger === 'click' && showArrow ? internalPopupArrow : null}
+              showArrow={showArrow}
+              anchorEl={resolvedAnchorEl}
+              anchorPoint={resolvedAnchorPoint}
+              popupPlacement={popupPlacement}
+              popupOffset={popupOffset}
+              viewportPadding={viewportPadding}
+              maxHeight={maxHeight}
               menuClassName={menuClassName}
               menuStyle={menuStyle}
               onCloseAll={closeMenu}
