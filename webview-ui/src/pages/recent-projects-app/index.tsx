@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
-import { vscode } from '../../utils/vscode';
+import { vscode } from '@utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faMagnifyingGlass,
@@ -16,55 +16,15 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 import styles from './index.module.css';
-import FileIcon from '../../components/FileIcon';
+import FileIcon from '@components/FileIcon';
 import RecentProjectContextMenu from './components/RecentProjectContextMenu';
 import SearchViewWrapper from './components/SearchViewWrapper';
-import Tooltip from '../../components/Tooltip';
-import Scrollbar, { type ScrollbarInstance } from '../../components/Scrollbar';
-import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '../../utils';
+import Tooltip from '@components/Tooltip';
+import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
+import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '@/utils';
 import { FileGitStatusBadge, FolderGitStatusDot, getGitStatusTitle } from './components/GitStatusMark';
-import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '../../types/RecentProjectsApp';
-
-interface DiagnosticSummary {
-  errors: number;
-  warnings: number;
-}
-
-interface MetadataPatchItem {
-  path: string;
-  status?: string;
-  diagnostics?: DiagnosticSummary;
-}
-
-interface PendingCreateEntity {
-  parentPath: string;
-  type: 'file' | 'folder';
-  projectName: string;
-  isActiveProject: boolean;
-}
-
-interface PendingRenameEntity {
-  path: string;
-  name: string;
-  isFolder: boolean;
-  projectName: string;
-  isActiveProject: boolean;
-}
-
-interface DraggingEntity {
-  path: string;
-  name: string;
-  isFolder: boolean;
-  projectName: string;
-}
-
-interface SearchReturnState {
-  isFocusMode: boolean;
-  isFocusLocked: boolean;
-  focusRootPath: string;
-  focusRootName: string;
-  searchTargetProject: ContextMenuPayload | null;
-}
+import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '@/types/RecentProjectsApp';
+import type { DiagnosticSummary, MetadataPatchItem, PendingCreateEntity, PendingRenameEntity, DraggingEntity, SearchReturnState } from '@/pages/recent-projects-app/src/type';
 
 /**
  * @description 最近项目初始化骨架屏
