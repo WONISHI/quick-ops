@@ -23,7 +23,7 @@ import Tooltip from '@components/Tooltip';
 import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
 import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '@/utils';
 import { FileGitStatusBadge, FolderGitStatusDot, getGitStatusTitle } from './components/GitStatusMark';
-import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '@/types/RecentProjectsApp';
+import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '@/pages/recent-projects-app/src/type';
 import type { DiagnosticSummary, MetadataPatchItem, PendingCreateEntity, PendingRenameEntity, DraggingEntity, SearchReturnState } from '@/pages/recent-projects-app/src/type';
 
 /**

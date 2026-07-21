@@ -3,7 +3,7 @@ import { vscode } from '@utils/vscode';
 import styles from '@pages/git-app/components/GitFileList/index.module.css';
 import Tooltip from '@/components/Tooltip';
 import FileIcon from '@/components/FileIcon';
-import type { GitFile, TreeNode } from '@/types/GitApp';
+import type { GitFile, TreeNode } from '@/pages/git-app/src/type';
 import type { ContextMenuState } from '@/pages/git-app/components/git-context-menu';
 import { getStatusText, getStatusFullText, buildTree } from '@utils/index';
 

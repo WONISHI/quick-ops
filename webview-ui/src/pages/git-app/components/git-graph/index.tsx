@@ -3,7 +3,7 @@ import { vscode } from '@utils/vscode';
 import styles from '@pages/git-app/components/GitGraph/index.module.css';
 import CommitHoverWidget from '@/pages/git-app/components/commit-hover-widget';
 import GraphSearchWidget from '@/pages/git-app/components/graph-search-widget';
-import type { GitFile } from '@/types/GitApp';
+import type { GitFile } from '@/pages/git-app/src/type';
 import Tooltip from '@components/Tooltip';
 import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
 

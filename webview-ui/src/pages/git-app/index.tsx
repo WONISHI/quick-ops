@@ -8,7 +8,7 @@ import GitFileList from '@/pages/git-app/components/git-file-list';
 import GitNotInstalled from '@/pages/git-app/components/git-not-installed';
 import LoadingMask from '@/pages/git-app/components/loading-mask';
 import GitAppSkeleton from '@/pages/git-app/components/git-app-skeleton';
-import type { GitFile } from '@/types/GitApp';
+import type { GitFile } from '@/pages/git-app/src/type';
 import CommitTypeTag from '@/pages/git-app/components/commit-type-tag';
 import type { CommitType } from '@/pages/git-app/components/commit-type-tag/src/type';
 import GraphMoreMenu from '@/pages/git-app/components/graph-more-menu';

@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import styles from '@pages/git-app/components/GitCompareList/index.module.css';
 import { type GraphCommit } from '@/pages/git-app/components/git-graph';
 import CommitHoverWidget from '@/pages/git-app/components/commit-hover-widget';
-import type { GitFile } from '@/types/GitApp';
+import type { GitFile } from '@/pages/git-app/src/type';
 import Tooltip from '@components/Tooltip';
 
 interface GitCompareListProps {

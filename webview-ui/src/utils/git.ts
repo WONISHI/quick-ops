@@ -1,4 +1,4 @@
-import type { GitFile, TreeNode } from '../types/GitApp';
+import type { GitFile, TreeNode } from '../pages/git-app/src/type';
 
 export function formatRelativeTime(ms: number) {
   const diff = Date.now() - ms;

@@ -7,7 +7,7 @@ import FileIcon from '@/components/FileIcon';
 import HighlightText from '../HighlightText';
 import Tooltip from '@/components/Tooltip';
 import Scrollbar, { type ScrollbarInstance } from '@/components/Scrollbar';
-import type { ContextMenuPayload, DirChild, SearchMatch, SearchResult } from '@/types/RecentProjectsApp';
+import type { ContextMenuPayload, DirChild, SearchMatch, SearchResult } from '@/pages/recent-projects-app/src/type';
 
 import styles from './index.module.css';
 
