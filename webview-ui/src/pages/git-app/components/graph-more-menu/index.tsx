@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import styles from '@pages/git-app/components/GraphMoreMenu/index.module.css';
+import styles from '@pages/git-app/components/graph-more-menu/index.module.css';
 import type { GraphMoreMenuProps } from '@/pages/git-app/components/graph-more-menu/src/type';
 
 const GraphMoreMenu: React.FC<GraphMoreMenuProps> = ({ isSearchOpen, onToggleSearch, onCollapseCommitFiles, triggerClassName = '', activeTriggerClassName = '' }) => {

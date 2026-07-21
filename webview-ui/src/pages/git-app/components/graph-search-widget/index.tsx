@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-import styles from '@pages/git-app/components/GraphSearchWidget/index.module.css';
+import styles from '@pages/git-app/components/graph-search-widget/index.module.css';
 import type { GraphSearchWidgetProps, SearchOffset, DragStart } from '@/pages/git-app/components/graph-search-widget/src/type';
 
 const GraphSearchWidget: React.FC<GraphSearchWidgetProps> = ({
