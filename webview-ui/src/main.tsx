@@ -4,14 +4,14 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 
 import TextCompareApp from '@pages/text-compare-app';
 import MockServerApp from '@pages/mock-app/MockSidebarApp';
-import RecentProjectsApp from './pages/RecentProjectsApp';
+import RecentProjectsApp from '@pages/recent-projects-app';
 import LivePreviewApp from '@pages/live-preview-app';
 import AnchorApp from '@pages/anchor-app';
 import MockSidebarApp from '@pages/mock-app/MockSidebarApp';
 import MockProxyPanelApp from '@pages/mock-app/MockProxyPanelApp';
 import MockRulePanelApp from '@pages/mock-app/MockRulePanelApp';
 import VditorApp from '@pages/vditor-app';
-import GitApp from './pages/git-app';
+import GitApp from '@pages/git-app';
 import ExcelPreviewApp from '@pages/excel-preview-app';
 import PdfPreviewApp from '@pages/pdf-preview-app';
 import GitDetailApp from '@pages/git-detail-app';
