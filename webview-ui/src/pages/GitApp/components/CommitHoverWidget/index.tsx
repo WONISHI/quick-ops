@@ -1,8 +1,8 @@
 import React from 'react';
-import { vscode } from '../../utils/vscode';
+import { vscode } from '../../../../utils/vscode';
 import styles from './index.module.css';
 import { type GraphCommit } from '../GitGraph';
-import { formatRelativeTime, formatAbsoluteTime, parseRemoteInfo } from '../../utils/index';
+import { formatRelativeTime, formatAbsoluteTime, parseRemoteInfo } from '../../../../utils/index';
 
 interface CommitHoverWidgetProps {
   commit: GraphCommit;

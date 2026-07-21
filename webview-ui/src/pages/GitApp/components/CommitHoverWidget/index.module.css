@@ -262,11 +262,11 @@
 }
 
 .platform-icon-gitee {
-  mask-image: url("../../assets/icon/gitee.svg");
-  -webkit-mask-image: url("../../assets/icon/gitee.svg");
+  mask-image: url("../../../../assets/icon/gitee.svg");
+  -webkit-mask-image: url("../../../../assets/icon/gitee.svg");
 }
 
 .platform-icon-gitlab {
-  mask-image: url("../../assets/icon/gitlab.svg");
-  -webkit-mask-image: url("../../assets/icon/gitlab.svg");
+  mask-image: url("../../../../assets/icon/gitlab.svg");
+  -webkit-mask-image: url("../../../../assets/icon/gitlab.svg");
 }

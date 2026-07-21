@@ -2,15 +2,15 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { vscode } from '@utils/vscode';
 import styles from './index.module.css';
 import Tooltip from '@components/Tooltip';
-import GitGraph, { type GraphCommit } from '../../components/GitGraph';
-import GitCompareList from '../../components/GitCompareList';
-import GitFileList from '../../components/GitFileList';
-import GitNotInstalled from '../../components/GitNotInstalled';
+import GitGraph, { type GraphCommit } from './components/GitGraph';
+import GitCompareList from './components/GitCompareList';
+import GitFileList from './components/GitFileList';
+import GitNotInstalled from './components/GitNotInstalled';
 import LoadingMask from '../../components/LoadingMask';
 import type { GitFile } from '../../types/GitApp';
-import CommitTypeTag, { type CommitType } from '../../components/CommitTypeTag';
-import GraphMoreMenu from '../../components/GraphMoreMenu';
-import { GitContextMenu, type ContextMenuState } from '../../components/GitContextMenu';
+import CommitTypeTag, { type CommitType } from './components/CommitTypeTag';
+import GraphMoreMenu from './components/GraphMoreMenu';
+import { GitContextMenu, type ContextMenuState } from './components/GitContextMenu';
 
 interface RemoteSyncState {
   hasRemote: boolean;

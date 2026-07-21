@@ -2,17 +2,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 're
 import { createPortal } from 'react-dom';
 import styles from './index.module.css';
 
-export type CommitType =
-  | 'feat'
-  | 'fix'
-  | 'docs'
-  | 'style'
-  | 'refactor'
-  | 'perf'
-  | 'test'
-  | 'chore'
-  | 'revert'
-  | 'build';
+export type CommitType = 'feat' | 'fix' | 'docs' | 'style' | 'refactor' | 'perf' | 'test' | 'chore' | 'revert' | 'build';
 
 export interface CommitTypeOption {
   value: CommitType;
@@ -40,12 +30,7 @@ interface CommitTypeTagProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-const CommitTypeTag: React.FC<CommitTypeTagProps> = ({
-  value,
-  disabled,
-  onChange,
-  onOpenChange,
-}) => {
+const CommitTypeTag: React.FC<CommitTypeTagProps> = ({ value, disabled, onChange, onOpenChange }) => {
   const tagRef = useRef<HTMLButtonElement | null>(null);
   const popupRef = useRef<HTMLDivElement | null>(null);
 
@@ -198,9 +183,7 @@ const CommitTypeTag: React.FC<CommitTypeTagProps> = ({
                     setPopupOpen(false);
                   }}
                 >
-                  <span className={`${styles['commit-type-option-badge']} ${styles[`commit-type-${item.value}`] || ''}`}>
-                    {item.label}
-                  </span>
+                  <span className={`${styles['commit-type-option-badge']} ${styles[`commit-type-${item.value}`] || ''}`}>{item.label}</span>
 
                   <span className={styles['commit-type-option-desc']}>{item.description}</span>
 

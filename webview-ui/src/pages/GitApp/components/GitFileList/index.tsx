@@ -1,11 +1,11 @@
 import React from 'react';
-import { vscode } from '../../utils/vscode';
+import { vscode } from '@utils/vscode';
 import styles from './index.module.css';
-import Tooltip from '../Tooltip';
-import FileIcon from '../FileIcon';
-import type { GitFile, TreeNode } from '../../types/GitApp';
+import Tooltip from '@/components/Tooltip';
+import FileIcon from '@/components/FileIcon';
+import type { GitFile, TreeNode } from '@/types/GitApp';
 import type { ContextMenuState } from '../GitContextMenu';
-import { getStatusText, getStatusFullText, buildTree } from '../../utils/index';
+import { getStatusText, getStatusFullText, buildTree } from '@utils/index';
 
 const getStatusClass = (status: string) => {
   if (status.includes('M')) return styles['status-M'];

@@ -1,7 +1,7 @@
 import React, { useLayoutEffect, useRef, useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './index.module.css';
-import { vscode } from '../../utils/vscode'; // 确保路径正确
+import { vscode } from '@utils/vscode'; // 确保路径正确
 
 // ==========================================
 // 1. 基础 UI 组件 (碰撞检测与渲染)

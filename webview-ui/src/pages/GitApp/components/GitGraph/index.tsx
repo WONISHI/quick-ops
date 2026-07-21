@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
-import { vscode } from '../../utils/vscode';
+import { vscode } from '../../../../utils/vscode';
 import styles from './index.module.css';
 import CommitHoverWidget from '../CommitHoverWidget';
-import GraphSearchWidget from '../GraphSearchWidget';
-import type { GitFile } from '../../types/GitApp';
-import Tooltip from '../Tooltip';
-import Scrollbar, { type ScrollbarInstance } from '../Scrollbar';
+import GraphSearchWidget from '../../../../components/GraphSearchWidget';
+import type { GitFile } from '../../../../types/GitApp';
+import Tooltip from '../../../../components/Tooltip';
+import Scrollbar, { type ScrollbarInstance } from '../../../../components/Scrollbar';
 
 export interface GraphCommit {
     hash: string;
