@@ -3,14 +3,7 @@ import { createPortal } from 'react-dom';
 
 import styles from '@pages/GitApp/components/CommitTypeTag/index.module.css';
 import { COMMIT_TYPE_OPTIONS } from '@pages/GitApp/components/CommitTypeTag/src/constants';
-import type { CommitType } from '@pages/GitApp/components/CommitTypeTag/src/type';
-
-interface CommitTypeTagProps {
-  value: CommitType;
-  disabled?: boolean;
-  onChange: (value: CommitType) => void;
-  onOpenChange?: (open: boolean) => void;
-}
+import type { CommitTypeTagProps } from '@pages/GitApp/components/CommitTypeTag/src/type';
 
 const CommitTypeTag: React.FC<CommitTypeTagProps> = ({ value, disabled, onChange, onOpenChange }) => {
   const tagRef = useRef<HTMLButtonElement | null>(null);

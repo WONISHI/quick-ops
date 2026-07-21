@@ -6,3 +6,9 @@ export interface CommitTypeOption {
   description: string;
 }
 
+export interface CommitTypeTagProps {
+  value: CommitType;
+  disabled?: boolean;
+  onChange: (value: CommitType) => void;
+  onOpenChange?: (open: boolean) => void;
+}
