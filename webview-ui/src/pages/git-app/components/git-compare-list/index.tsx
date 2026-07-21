@@ -1,23 +1,21 @@
 import React, { useState, useRef } from 'react';
 import styles from '@pages/git-app/components/git-compare-list/index.module.css';
-import { type GraphCommit } from '@/pages/git-app/components/git-graph';
+import { type GraphCommit } from '@/pages/git-app/components/git-graph/src/type';
 import CommitHoverWidget from '@/pages/git-app/components/commit-hover-widget';
-import type { GitFile } from '@/pages/git-app/src/type';
+import type { GitCompareListProps } from '@/pages/git-app/components/git-compare-list/src/type';
 import Tooltip from '@components/Tooltip';
 
-interface GitCompareListProps {
-  commits: GraphCommit[];
-  activeCommitHash: string | null;
-  loadedCommitHash: string | null;
-  commitFilesLoading: boolean;
-  commitFiles: GitFile[];
-  remoteUrl?: string;
-  onCommitClick: (hash: string) => void;
-  renderCommitFiles: (files: GitFile[]) => React.ReactNode;
-  onOpenCommitMultiDiff: (hash: string) => void;
-}
-
-const GitCompareList: React.FC<GitCompareListProps> = ({ commits, activeCommitHash, loadedCommitHash, commitFilesLoading, commitFiles, remoteUrl, onCommitClick, renderCommitFiles, onOpenCommitMultiDiff }) => {
+const GitCompareList: React.FC<GitCompareListProps> = ({
+  commits,
+  activeCommitHash,
+  loadedCommitHash,
+  commitFilesLoading,
+  commitFiles,
+  remoteUrl,
+  onCommitClick,
+  renderCommitFiles,
+  onOpenCommitMultiDiff,
+}) => {
   const [hoverInfo, setHoverInfo] = useState<{ commit: GraphCommit; x: number; y: number; position: 'top' | 'bottom' } | null>(null);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -86,7 +84,7 @@ const GitCompareList: React.FC<GitCompareListProps> = ({ commits, activeCommitHa
               className={`${styles['file-item']} ${styles['compare-commit-row']}`}
               onClick={() => handleItemClick(c.hash)}
               onMouseEnter={(e) => handleMouseEnter(e, c)}
-              onMouseLeave={handleMouseLeave} 
+              onMouseLeave={handleMouseLeave}
             >
               <div className={styles['compare-commit-icon-wrap']}>
                 <i className={`codicon codicon-git-commit ${styles['compare-commit-icon']}`} />

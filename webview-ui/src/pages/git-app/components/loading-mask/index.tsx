@@ -1,10 +1,6 @@
 import React from 'react';
 import styles from './index.module.css';
-
-interface LoadingMaskProps {
-  visible: boolean;
-  children?: React.ReactNode;
-}
+import type { LoadingMaskProps } from '@pages/git-app/components/loading-mask/src/type';
 
 const LoadingMask: React.FC<LoadingMaskProps> = ({ visible, children }) => {
   if (!visible) return null;
@@ -13,11 +9,7 @@ const LoadingMask: React.FC<LoadingMaskProps> = ({ visible, children }) => {
     <div className={styles['loading-mask']}>
       <div className={styles['loading-mask-bg']} />
 
-      {children || (
-        <i
-          className={`codicon codicon-loading codicon-modifier-spin ${styles['loading-icon']}`}
-        />
-      )}
+      {children || <i className={`codicon codicon-loading codicon-modifier-spin ${styles['loading-icon']}`} />}
     </div>
   );
 };

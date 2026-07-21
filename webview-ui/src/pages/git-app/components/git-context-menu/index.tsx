@@ -2,17 +2,10 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import styles from '@pages/git-app/components/git-context-menu/index.module.css';
 import { vscode } from '@utils/vscode'; // 确保路径正确
-
+import type { ContextMenuProps } from '@pages/git-app/components/git-context-menu/src/type';
 // ==========================================
 // 1. 基础 UI 组件 (碰撞检测与渲染)
 // ==========================================
-interface ContextMenuProps {
-  visible: boolean;
-  x: number;
-  y: number;
-  onClose: () => void;
-  children: React.ReactNode;
-}
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({ visible, x, y, onClose, children }) => {
   const menuRef = useRef<HTMLDivElement | null>(null);

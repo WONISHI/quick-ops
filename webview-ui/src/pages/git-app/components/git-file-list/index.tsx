@@ -4,7 +4,7 @@ import styles from '@pages/git-app/components/git-file-list/index.module.css';
 import Tooltip from '@/components/Tooltip';
 import FileIcon from '@/components/FileIcon';
 import type { GitFile, TreeNode } from '@/pages/git-app/src/type';
-import type { ContextMenuState } from '@/pages/git-app/components/git-context-menu';
+import type { GitFileListProps } from '@pages/git-app/components/git-file-list/src/type';
 import { getStatusText, getStatusFullText, buildTree } from '@utils/index';
 
 const getStatusClass = (status: string) => {
@@ -12,21 +12,6 @@ const getStatusClass = (status: string) => {
   if (status.includes('D')) return styles['status-D'];
   return styles['status-A'];
 };
-
-interface GitFileListProps {
-  files: GitFile[];
-  listType: 'staged' | 'unstaged' | 'history' | 'compare' | 'stash-file';
-  historyHash?: string;
-  viewMode: 'list' | 'tree';
-  activeFile: string | null;
-  setActiveFile: (file: string | null) => void;
-  expandedDirs: Record<string, boolean>;
-  toggleDir: (path: string, e: React.MouseEvent) => void;
-  collapseDirs: (paths: string[], e: React.MouseEvent) => void;
-  openHistoryDiff: (item: GitFile, historyHash?: string) => void;
-  openCompareDiff: (item: GitFile) => void;
-  setContextMenu: (state: ContextMenuState) => void;
-}
 
 const GitFileList: React.FC<GitFileListProps> = ({
   files,
@@ -207,10 +192,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
   const renderStatusBadge = (item: GitFile) => {
     return (
       <Tooltip content={getStatusFullText(item.status)}>
-        <div
-          className={`${styles['status-badge']} ${getStatusClass(item.status)}`}
-          style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}
-        >
+        <div className={`${styles['status-badge']} ${getStatusClass(item.status)}`} style={item.status === 'C' ? { color: '#f14c4c', fontWeight: 'bold' } : {}}>
           {getStatusText(item.status)}
         </div>
       </Tooltip>

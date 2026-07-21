@@ -1,19 +1,9 @@
 import React from 'react';
 import { vscode } from '@utils/vscode';
 import styles from '@pages/git-app/index.module.css';
-import { type GraphCommit } from '@/pages/git-app/components/git-graph';
-import { formatRelativeTime, formatAbsoluteTime, parseRemoteInfo } from '@utils/index';
+import type { CommitHoverWidgetProps } from '@pages/git-app/components/commit-hover-widget/src/type';
 
-interface CommitHoverWidgetProps {
-  commit: GraphCommit;
-  x: number;
-  y: number;
-  position: 'top' | 'bottom';
-  branch?: string;
-  remoteUrl?: string;
-  onMouseEnter: () => void;
-  onMouseLeave: () => void;
-}
+import { formatRelativeTime, formatAbsoluteTime, parseRemoteInfo } from '@utils/index';
 
 const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({ commit, y, position, branch, remoteUrl, onMouseEnter, onMouseLeave }) => {
   const remoteInfo = remoteUrl ? parseRemoteInfo(remoteUrl, commit.hash) : null;
