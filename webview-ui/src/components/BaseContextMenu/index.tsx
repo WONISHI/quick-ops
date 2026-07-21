@@ -859,7 +859,7 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
   useDismissOnOutsideInteraction({
     active: mergedOpen,
     onDismiss: closeMenu,
-    insideSelector: '[data-base-context-menu-root="true"]',
+    insideSelector: ['[data-base-context-menu-root="true"]', '[data-base-context-menu-trigger="true"]'].join(','),
     ignoreRightClick: true,
     dismissOnWindowBlur: true,
   });
@@ -911,6 +911,18 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
       return;
     }
 
+    event.preventDefault();
+    event.stopPropagation();
+
+    /**
+     * 菜单已经打开时，再次点击触发器应直接关闭，
+     * 不再重新计算位置后重复打开。
+     */
+    if (mergedOpen) {
+      closeMenu();
+      return;
+    }
+
     const firstChild = event.currentTarget.firstElementChild;
 
     const eventTarget = event.target instanceof HTMLElement ? event.target : null;
@@ -944,7 +956,7 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
   return (
     <>
       {children !== undefined && (
-        <div className={styles['context-menu-trigger']} onClick={handleTriggerClick} onContextMenu={handleTriggerContextMenu}>
+        <div className={styles['context-menu-trigger']} data-base-context-menu-trigger="true" onClick={handleTriggerClick} onContextMenu={handleTriggerContextMenu}>
           {children}
         </div>
       )}

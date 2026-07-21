@@ -366,9 +366,9 @@ export const GitContextMenu: React.FC<GitContextMenuProps> = ({ contextMenu, onC
         x: contextMenu.x,
         y: contextMenu.y,
       }}
-      showArrow={true}
+      showArrow
       items={items}
-      minWidth={220}
+      minWidth={168}
       density="compact"
       onClose={onClose}
     />
