@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import styles from '@pages/GitApp/components/GraphSearchWidget/index.module.css';
-import type { GraphSearchWidgetProps, SearchOffset, DragStart } from '@pages/GitApp/components/GraphSearchWidget/src/type';
+import type { GraphSearchWidgetProps, SearchOffset, DragStart } from '@/pages/git-app/components/GraphSearchWidget/src/type';
 
 const GraphSearchWidget: React.FC<GraphSearchWidgetProps> = ({
   isSearchOpen,

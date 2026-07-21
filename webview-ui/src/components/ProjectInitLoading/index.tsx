@@ -1,7 +1,7 @@
 import React from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSpinner } from '@fortawesome/free-solid-svg-icons';
-import LoadingMask from '../../pages/GitApp/components/LoadingMask';
+import LoadingMask from '../../pages/git-app/components/LoadingMask';
 import styles from './index.module.css';
 
 interface ProjectInitLoadingProps {
