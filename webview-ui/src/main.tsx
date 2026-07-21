@@ -14,7 +14,7 @@ import VditorApp from '@pages/vditor-app';
 import GitApp from './pages/GitApp';
 import ExcelPreviewApp from '@pages/excel-preview-app';
 import PdfPreviewApp from '@pages/pdf-preview-app';
-import GitDetailApp from './pages/GitDetailApp';
+import GitDetailApp from './pages/git-detail-app';
 import HtmlPreviewApp from '@pages/html-preview-app';
 import DocPreviewApp from '@pages/doc-preview-app';
 import ApiDevToolsApp from '@pages/api-dev-tools-app';
