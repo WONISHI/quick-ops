@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { vscode } from '@utils/vscode';
-import styles from './index.module.css';
+import styles from '@pages/GitApp/index.module.css';
 import Tooltip from '@components/Tooltip';
-import GitGraph, { type GraphCommit } from './components/GitGraph';
-import GitCompareList from './components/GitCompareList';
-import GitFileList from './components/GitFileList';
-import GitNotInstalled from './components/GitNotInstalled';
-import LoadingMask from '../../components/LoadingMask';
-import type { GitFile } from '../../types/GitApp';
-import CommitTypeTag from './components/CommitTypeTag';
-import type { CommitType } from './components/CommitTypeTag/src/type';
-import GraphMoreMenu from './components/GraphMoreMenu';
-import { GitContextMenu, type ContextMenuState } from './components/GitContextMenu';
+import GitGraph, { type GraphCommit } from '@pages/GitApp/components/GitGraph';
+import GitCompareList from '@pages/GitApp/components/GitCompareList';
+import GitFileList from '@pages/GitApp/components/GitFileList';
+import GitNotInstalled from '@pages/GitApp/components/GitNotInstalled';
+import LoadingMask from '@pages/GitApp/components/LoadingMask';
+import GitAppSkeleton from '@pages/GitApp/components/GitAppSkeleton';
+import type { GitFile } from '@/types/GitApp';
+import CommitTypeTag from '@pages/GitApp/components/CommitTypeTag';
+import type { CommitType } from '@pages/GitApp/components/CommitTypeTag/src/type';
+import GraphMoreMenu from '@pages/GitApp/components/GraphMoreMenu';
+import { GitContextMenu, type ContextMenuState } from '@pages/GitApp/components/GitContextMenu';
 
 interface RemoteSyncState {
   hasRemote: boolean;
@@ -91,6 +92,7 @@ const parseCommitTypeFromText = (value: string) => {
 export default function GitApp() {
   const [isRepo, setIsRepo] = useState<boolean>(true);
   const [isGitInstalled, setIsGitInstalled] = useState<boolean | null>(null);
+  const [initialLoading, setInitialLoading] = useState(true);
 
   const [stagedFiles, setStagedFiles] = useState<GitFile[]>([]);
   const [unstagedFiles, setUnstagedFiles] = useState<GitFile[]>([]);
@@ -301,6 +303,7 @@ export default function GitApp() {
       if (msg.type === 'startLoading') {
         setIsGraphLoading(true);
       } else if (msg.type === 'noWorkspace' || msg.type === 'notRepo') {
+        setInitialLoading(false);
         setLoading(false);
         setChangesRefreshing(false);
         setIsGraphLoading(false);
@@ -327,6 +330,7 @@ export default function GitApp() {
         justCommittedBranchRef.current = '';
         setJustCommitted(false);
       } else if (msg.type === 'statusData') {
+        setInitialLoading(false);
         setIsRepo(true);
         setChangesRefreshing(false);
         setStagedFiles(msg.stagedFiles || []);
@@ -371,6 +375,8 @@ export default function GitApp() {
         setStashFilesLoading((prev) => ({ ...prev, [msg.index]: false }));
       } else if (msg.type === 'graphData') {
         const commits = msg.graphCommits || [];
+
+        setInitialLoading(false);
 
         setGraphCommits(commits);
         setTotalCommits(msg.totalCommits ?? commits.length);
@@ -422,6 +428,7 @@ export default function GitApp() {
         setActiveCompareCommitHash(null);
         setIsCompareOpen(true);
       } else if (msg.type === 'error') {
+        setInitialLoading(false);
         setLoading(false);
         setChangesRefreshing(false);
         setIsGraphLoading(false);
@@ -458,6 +465,10 @@ export default function GitApp() {
         setJustCommitted(false);
       } else if (msg.type === 'gitInstallationStatus') {
         setIsGitInstalled(msg.isInstalled);
+
+        if (!msg.isInstalled) {
+          setInitialLoading(false);
+        }
 
         if (msg.isInit && msg.defaultSkipVerify !== undefined) {
           setSkipVerify(msg.defaultSkipVerify);
@@ -769,6 +780,10 @@ export default function GitApp() {
 
   const hasUnpushedCommit = remoteSync.needsPush && remoteSync.ahead > 0;
   const canUndoLastCommit = justCommitted || hasUnpushedCommit;
+
+  if (initialLoading || isGitInstalled === null) {
+    return <GitAppSkeleton />;
+  }
 
   if (isGitInstalled === false) {
     return <GitNotInstalled />;

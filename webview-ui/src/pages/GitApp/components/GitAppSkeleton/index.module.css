@@ -1,0 +1,367 @@
+.root {
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+  box-sizing: border-box;
+  line-height: 1;
+}
+
+.toolbar {
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 8px;
+  border-bottom: 1px solid
+    color-mix(
+      in srgb,
+      var(--vscode-panel-border)
+        64%,
+      transparent
+    );
+  box-sizing: border-box;
+}
+
+.toolbar-title {
+  width: clamp(110px, 48%, 220px);
+  min-width: 0;
+  display: block;
+}
+
+.toolbar-actions,
+.section-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-action {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  display: block;
+  line-height: 1;
+}
+
+.commit-box {
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px;
+  border-bottom: 1px solid
+    color-mix(
+      in srgb,
+      var(--vscode-panel-border)
+        48%,
+      transparent
+    );
+  box-sizing: border-box;
+}
+
+.commit-input {
+  min-width: 0;
+  height: 48px;
+  flex: 1;
+  display: block;
+}
+
+.commit-button {
+  width: 96px;
+  height: 48px;
+  flex: 0 0 96px;
+  display: block;
+}
+
+.content {
+  min-height: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.changes-section {
+  min-height: 180px;
+  flex: 1 1 48%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.graph-section {
+  min-height: 190px;
+  flex: 1 1 52%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-top: 1px solid
+    color-mix(
+      in srgb,
+      var(--vscode-panel-border)
+        72%,
+      transparent
+    );
+}
+
+.section-header,
+.secondary-header {
+  height: 28px;
+  min-height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.section-header {
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px;
+  border-bottom: 1px solid
+    color-mix(
+      in srgb,
+      var(--vscode-panel-border)
+        45%,
+      transparent
+    );
+  background:
+    color-mix(
+      in srgb,
+      var(--vscode-sideBar-background)
+        92%,
+      transparent
+    );
+}
+
+.section-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.section-title-text {
+  width: 52px;
+  display: block;
+}
+
+.secondary-header {
+  gap: 6px;
+  margin-top: 4px;
+  padding: 0 8px;
+  border-top: 1px solid
+    color-mix(
+      in srgb,
+      var(--vscode-panel-border)
+        42%,
+      transparent
+    );
+  border-bottom: 1px solid
+    color-mix(
+      in srgb,
+      var(--vscode-panel-border)
+        42%,
+      transparent
+    );
+}
+
+.secondary-title {
+  width: 42px;
+  display: block;
+}
+
+.change-list,
+.graph-list {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.change-list {
+  flex: 1;
+  padding: 2px 0;
+}
+
+.graph-list {
+  flex: 1;
+  padding: 1px 0;
+}
+
+.change-row {
+  height: 22px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
+.change-row-chevron {
+  width: 14px;
+  flex: 0 0 14px;
+  display: block;
+}
+
+.change-row-icon {
+  width: 18px;
+  flex: 0 0 18px;
+  display: block;
+  margin-right: 4px;
+}
+
+.change-row-name {
+  min-width: 62px;
+  max-width: calc(100% - 72px);
+  display: block;
+}
+
+.change-row-status {
+  width: 14px;
+  flex: 0 0 14px;
+  display: block;
+  margin-left: auto;
+}
+
+.graph-row {
+  height: 24px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+  box-sizing: border-box;
+}
+
+.graph-lane {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  flex: 0 0 44px;
+}
+
+.graph-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 14px;
+  width: 2px;
+  border-radius: 999px;
+  background:
+    color-mix(
+      in srgb,
+      var(--vscode-foreground)
+        22%,
+      transparent
+    );
+  transform: translateX(-50%);
+}
+
+.graph-dot {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid
+    var(--vscode-editor-background);
+  border-radius: 50%;
+  background:
+    color-mix(
+      in srgb,
+      var(--vscode-foreground)
+        42%,
+      transparent
+    );
+  transform: translate(-50%, -50%);
+  box-sizing: border-box;
+}
+
+.graph-message {
+  min-width: 72px;
+  max-width: calc(100% - 108px);
+  display: block;
+}
+
+.graph-hash {
+  width: 54px;
+  flex: 0 0 54px;
+  display: block;
+  margin-left: auto;
+  text-align: right;
+}
+
+.root
+  :global(
+    .react-loading-skeleton
+  ) {
+  display: inline-flex;
+  width: 100%;
+  vertical-align: middle;
+}
+
+.toolbar-title
+  > :global(
+    [aria-live="polite"]
+  ),
+.commit-input
+  > :global(
+    [aria-live="polite"]
+  ),
+.commit-button
+  > :global(
+    [aria-live="polite"]
+  ),
+.section-title-text
+  > :global(
+    [aria-live="polite"]
+  ),
+.secondary-title
+  > :global(
+    [aria-live="polite"]
+  ),
+.change-row-name
+  > :global(
+    [aria-live="polite"]
+  ),
+.graph-message
+  > :global(
+    [aria-live="polite"]
+  ) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  line-height: 1;
+}
+
+@media (max-height: 620px) {
+  .commit-input,
+  .commit-button {
+    height: 40px;
+  }
+
+  .change-row:nth-child(n + 7),
+  .graph-row:nth-child(n + 9) {
+    display: none;
+  }
+}
+
+@media (max-width: 320px) {
+  .commit-button {
+    width: 80px;
+    flex-basis: 80px;
+  }
+
+  .toolbar-actions
+    .toolbar-action:nth-child(-n + 2),
+  .section-actions
+    .toolbar-action:nth-child(-n + 2) {
+    display: none;
+  }
+}
