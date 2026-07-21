@@ -4,7 +4,7 @@ import styles from '@pages/git-app/components/GitFileList/index.module.css';
 import Tooltip from '@/components/Tooltip';
 import FileIcon from '@/components/FileIcon';
 import type { GitFile, TreeNode } from '@/types/GitApp';
-import type { ContextMenuState } from '@/pages/git-app/components/GitContextMenu';
+import type { ContextMenuState } from '@/pages/git-app/components/git-context-menu';
 import { getStatusText, getStatusFullText, buildTree } from '@utils/index';
 
 const getStatusClass = (status: string) => {

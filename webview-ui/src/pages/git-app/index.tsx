@@ -2,17 +2,17 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { vscode } from '@utils/vscode';
 import styles from '@pages/git-app/index.module.css';
 import Tooltip from '@components/Tooltip';
-import GitGraph, { type GraphCommit } from '@/pages/git-app/components/GitGraph';
-import GitCompareList from '@/pages/git-app/components/GitCompareList';
-import GitFileList from '@/pages/git-app/components/GitFileList';
-import GitNotInstalled from '@/pages/git-app/components/GitNotInstalled';
-import LoadingMask from '@/pages/git-app/components/LoadingMask';
-import GitAppSkeleton from '@/pages/git-app/components/GitAppSkeleton';
+import GitGraph, { type GraphCommit } from '@/pages/git-app/components/git-graph';
+import GitCompareList from '@/pages/git-app/components/git-compare-list';
+import GitFileList from '@/pages/git-app/components/git-file-list';
+import GitNotInstalled from '@/pages/git-app/components/git-not-installed';
+import LoadingMask from '@/pages/git-app/components/loading-mask';
+import GitAppSkeleton from '@/pages/git-app/components/git-app-skeleton';
 import type { GitFile } from '@/types/GitApp';
-import CommitTypeTag from '@/pages/git-app/components/CommitTypeTag';
-import type { CommitType } from '@/pages/git-app/components/CommitTypeTag/src/type';
-import GraphMoreMenu from '@/pages/git-app/components/GraphMoreMenu';
-import { GitContextMenu, type ContextMenuState } from '@/pages/git-app/components/GitContextMenu';
+import CommitTypeTag from '@/pages/git-app/components/commit-type-tag';
+import type { CommitType } from '@/pages/git-app/components/commit-type-tag/src/type';
+import GraphMoreMenu from '@/pages/git-app/components/graph-more-menu';
+import { GitContextMenu, type ContextMenuState } from '@/pages/git-app/components/git-context-menu';
 
 interface RemoteSyncState {
   hasRemote: boolean;
