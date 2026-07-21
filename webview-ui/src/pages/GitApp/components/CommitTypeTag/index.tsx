@@ -1,27 +1,9 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+
 import styles from './index.module.css';
-
-export type CommitType = 'feat' | 'fix' | 'docs' | 'style' | 'refactor' | 'perf' | 'test' | 'chore' | 'revert' | 'build';
-
-export interface CommitTypeOption {
-  value: CommitType;
-  label: string;
-  description: string;
-}
-
-export const COMMIT_TYPE_OPTIONS: CommitTypeOption[] = [
-  { value: 'feat', label: 'feat', description: '新功能' },
-  { value: 'fix', label: 'fix', description: '修补 bug' },
-  { value: 'docs', label: 'docs', description: '文档' },
-  { value: 'style', label: 'style', description: '格式（不影响代码运行的变动）' },
-  { value: 'refactor', label: 'refactor', description: '重构' },
-  { value: 'perf', label: 'perf', description: '性能优化' },
-  { value: 'test', label: 'test', description: '测试' },
-  { value: 'chore', label: 'chore', description: '构建过程或辅助工具的变动' },
-  { value: 'revert', label: 'revert', description: '回退' },
-  { value: 'build', label: 'build', description: '打包' },
-];
+import { COMMIT_TYPE_OPTIONS } from './src/constants';
+import type { CommitType } from './src/type';
 
 interface CommitTypeTagProps {
   value: CommitType;
@@ -45,10 +27,16 @@ const CommitTypeTag: React.FC<CommitTypeTagProps> = ({ value, disabled, onChange
     return COMMIT_TYPE_OPTIONS.find((item) => item.value === value) || COMMIT_TYPE_OPTIONS[0];
   }, [value]);
 
-  const setPopupOpen = (nextOpen: boolean) => {
-    setOpen(nextOpen);
-    onOpenChange?.(nextOpen);
-  };
+  /**
+   * @description 统一修改弹窗状态，并同步通知父组件
+   */
+  const setPopupOpen = useCallback(
+    (nextOpen: boolean) => {
+      setOpen(nextOpen);
+      onOpenChange?.(nextOpen);
+    },
+    [onOpenChange],
+  );
 
   useLayoutEffect(() => {
     if (!open) return;
@@ -95,8 +83,13 @@ const CommitTypeTag: React.FC<CommitTypeTagProps> = ({ value, disabled, onChange
     const handleMouseDown = (event: MouseEvent) => {
       const target = event.target as Node;
 
-      if (tagRef.current && tagRef.current.contains(target)) return;
-      if (popupRef.current && popupRef.current.contains(target)) return;
+      if (tagRef.current?.contains(target)) {
+        return;
+      }
+
+      if (popupRef.current?.contains(target)) {
+        return;
+      }
 
       setPopupOpen(false);
     };
@@ -120,7 +113,7 @@ const CommitTypeTag: React.FC<CommitTypeTagProps> = ({ value, disabled, onChange
       document.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('resize', handleWindowResize);
     };
-  }, [open]);
+  }, [open, setPopupOpen]);
 
   return (
     <>

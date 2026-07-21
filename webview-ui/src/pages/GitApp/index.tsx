@@ -8,7 +8,8 @@ import GitFileList from './components/GitFileList';
 import GitNotInstalled from './components/GitNotInstalled';
 import LoadingMask from '../../components/LoadingMask';
 import type { GitFile } from '../../types/GitApp';
-import CommitTypeTag, { type CommitType } from './components/CommitTypeTag';
+import CommitTypeTag from './components/CommitTypeTag';
+import type { CommitType } from './components/CommitTypeTag/src/type';
 import GraphMoreMenu from './components/GraphMoreMenu';
 import { GitContextMenu, type ContextMenuState } from './components/GitContextMenu';
 
