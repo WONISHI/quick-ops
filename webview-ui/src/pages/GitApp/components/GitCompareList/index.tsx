@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
-import styles from './index.module.css'; // 请确保这个路径正确指向你的 css
+import styles from './index.module.css';
 import { type GraphCommit } from '@/pages/GitApp/components/GitGraph';
-import CommitHoverWidget from '../CommitHoverWidget';
+import CommitHoverWidget from '@pages/GitApp/components/CommitHoverWidget';
 import type { GitFile } from '@/types/GitApp';
 import Tooltip from '@components/Tooltip';
 

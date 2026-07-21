@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-import styles from './index.module.css';
-import { COMMIT_TYPE_OPTIONS } from './src/constants';
-import type { CommitType } from './src/type';
+import styles from '@pages/GitApp/components/CommitTypeTag/index.module.css';
+import { COMMIT_TYPE_OPTIONS } from '@pages/GitApp/components/CommitTypeTag/src/constants';
+import type { CommitType } from '@pages/GitApp/components/CommitTypeTag/src/type';
 
 interface CommitTypeTagProps {
   value: CommitType;
