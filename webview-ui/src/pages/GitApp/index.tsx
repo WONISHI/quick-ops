@@ -205,58 +205,91 @@ export default function GitApp() {
   const canCommit = isRepo && !loading && !!getNormalizedCommitMessage() && stagedFiles.length > 0;
 
 
-  const setCommitInputValue = (value: string) => {
-    setCommitMsg(value);
+  const setCommitInputValue = useCallback(
+    (value: string) => {
+      setCommitMsg(value);
 
-    requestAnimationFrame(() => {
-      if (commitInputRef.current) {
-        commitInputRef.current.innerText = value;
-      }
-    });
-  };
+      requestAnimationFrame(() => {
+        if (commitInputRef.current) {
+          commitInputRef.current.innerText =
+            value;
+        }
+      });
+    },
+    [],
+  );
 
-  const clearCommitDraft = () => {
-    setCommitMsg('');
+  const clearCommitDraft = useCallback(
+    () => {
+      setCommitMsg('');
 
-    requestAnimationFrame(() => {
-      if (commitInputRef.current) {
-        commitInputRef.current.innerText = '';
-      }
-    });
-  };
+      requestAnimationFrame(() => {
+        if (commitInputRef.current) {
+          commitInputRef.current.innerText =
+            '';
+        }
+      });
+    },
+    [],
+  );
 
-  const restoreCommitDraft = (snapshot: CommitDraftSnapshot) => {
-    setCommitType(snapshot.commitType);
-    setCommitTypeEnabled(snapshot.commitTypeEnabled);
-    setCommitInputValue(snapshot.message);
-    setJustCommitted(false);
+  const restoreCommitDraft = useCallback(
+    (
+      snapshot:
+        CommitDraftSnapshot,
+    ) => {
+      setCommitType(
+        snapshot.commitType,
+      );
+      setCommitTypeEnabled(
+        snapshot.commitTypeEnabled,
+      );
+      setCommitInputValue(
+        snapshot.message,
+      );
+      setJustCommitted(false);
 
-    requestAnimationFrame(() => {
-      commitInputRef.current?.focus();
-    });
-  };
+      requestAnimationFrame(() => {
+        commitInputRef.current?.focus();
+      });
+    },
+    [setCommitInputValue],
+  );
 
-  const restoreCommitMessageText = (value: string) => {
-    const message = value.trim();
+  const restoreCommitMessageText =
+    useCallback(
+      (value: string) => {
+        const message =
+          value.trim();
 
-    if (!message) return;
+        if (!message) return;
 
-    const parsed = parseCommitTypeFromText(message);
+        const parsed =
+          parseCommitTypeFromText(
+            message,
+          );
 
-    if (parsed) {
-      setCommitType(parsed.type);
-      setCommitTypeEnabled(true);
-      setCommitInputValue(parsed.message);
-    } else {
-      setCommitInputValue(message);
-    }
+        if (parsed) {
+          setCommitType(parsed.type);
+          setCommitTypeEnabled(true);
+          setCommitInputValue(
+            parsed.message,
+          );
+        } else {
+          setCommitInputValue(
+            message,
+          );
+        }
 
-    setJustCommitted(false);
+        setJustCommitted(false);
 
-    requestAnimationFrame(() => {
-      commitInputRef.current?.focus();
-    });
-  };
+        requestAnimationFrame(() => {
+          commitInputRef.current
+            ?.focus();
+        });
+      },
+      [setCommitInputValue],
+    );
 
   useEffect(() => {
     lastRefreshRef.current = Date.now();
@@ -473,7 +506,12 @@ export default function GitApp() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [isRepo]);
+  }, [
+    isRepo,
+    clearCommitDraft,
+    restoreCommitDraft,
+    restoreCommitMessageText,
+  ]);
 
   const syncCommitInputValue = (value: string) => {
     const text = value.replace(/\n/g, '').trim();

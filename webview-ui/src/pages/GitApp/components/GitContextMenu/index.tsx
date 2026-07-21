@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useRef, useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import styles from './index.module.css';
 import { vscode } from '@utils/vscode'; // 确保路径正确
@@ -15,39 +15,60 @@ interface ContextMenuProps {
 }
 
 export const ContextMenu: React.FC<ContextMenuProps> = ({ visible, x, y, onClose, children }) => {
-  const menuRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ x: -9999, y: -9999 });
-  const [isCalculated, setIsCalculated] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
-  // 🌟 核心：碰撞检测逻辑
-  useLayoutEffect(() => {
-    if (visible && menuRef.current) {
-      const rect = menuRef.current.getBoundingClientRect();
-      const padding = 8; // 距离屏幕边缘的安全距离
+  /**
+   * @description 菜单挂载时直接完成碰撞定位
+   *
+   * callback ref 在 DOM 提交阶段执行，
+   * 不需要在 Effect 中同步调用 setState，
+   * 因此不会产生级联渲染。
+   */
+  const setMenuRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      menuRef.current = node;
 
-      let newX = x;
-      let newY = y;
+      if (!node || !visible) {
+        return;
+      }
 
-      if (x + rect.width > window.innerWidth) newX = window.innerWidth - rect.width - padding;
-      if (y + rect.height > window.innerHeight) newY = window.innerHeight - rect.height - padding;
-      newX = Math.max(padding, newX);
-      newY = Math.max(padding, newY);
+      const rect = node.getBoundingClientRect();
+      const padding = 8;
 
-      setPos({ x: newX, y: newY });
-      setIsCalculated(true);
-    } else {
-      setIsCalculated(false);
-    }
-  }, [visible, x, y]);
+      let nextX = x;
+      let nextY = y;
 
-  // 2. 🌟 核心：全局监听点击其他地方或失焦关闭
+      if (nextX + rect.width > window.innerWidth - padding) {
+        nextX = window.innerWidth - rect.width - padding;
+      }
+
+      if (nextY + rect.height > window.innerHeight - padding) {
+        nextY = window.innerHeight - rect.height - padding;
+      }
+
+      nextX = Math.max(padding, nextX);
+      nextY = Math.max(padding, nextY);
+
+      node.style.left = `${nextX}px`;
+      node.style.top = `${nextY}px`;
+    },
+    [visible, x, y],
+  );
+
+  /**
+   * @description 监听外部点击、Escape 和窗口失焦
+   */
   useEffect(() => {
     if (!visible) return;
 
-    const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
 
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         onClose();
       }
     };
@@ -72,30 +93,43 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({ visible, x, y, onClose
 
   return createPortal(
     <div
-      ref={menuRef}
-      className={`${styles.menu} ${isCalculated ? styles.visible : ''}`}
-      style={{ left: pos.x, top: pos.y }}
-      onMouseDown={(e) => e.stopPropagation()}
-      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      ref={setMenuRef}
+      className={`${styles.menu} ${styles.visible}`}
+      style={{
+        left: -9999,
+        top: -9999,
+      }}
+      onMouseDown={(event) => {
+        event.stopPropagation();
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
     >
       {children}
     </div>,
-    document.body
+    document.body,
   );
 };
 
-export const MenuItem = ({ icon, text, onClick }: { icon: string, text: string, onClick: () => void }) => (
+export const MenuItem = ({ icon, text, onClick }: { icon: string; text: string; onClick: () => void }) => (
   <div
     className={styles.item}
-    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); onClick(); }}
+    onMouseDown={(e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      onClick();
+    }}
   >
     <i className={`codicon ${icon} ${styles.icon}`} />
-    <span className={styles.text} title={text}>{text}</span>
+    <span className={styles.text} title={text}>
+      {text}
+    </span>
   </div>
 );
 
 export const MenuDivider = () => <div className={styles.divider} />;
-
 
 // ==========================================
 // 2. 🌟 业务组件：Git 专属右键菜单
@@ -127,7 +161,6 @@ export const GitContextMenu: React.FC<GitContextMenuProps> = ({ contextMenu, onC
 
   return (
     <ContextMenu visible={contextMenu.visible} x={contextMenu.x} y={contextMenu.y} onClose={onClose}>
-
       {/* 1. Commit 记录的菜单 */}
       {contextMenu.type === 'commit' && contextMenu.commit && (
         <>
@@ -405,7 +438,6 @@ export const GitContextMenu: React.FC<GitContextMenuProps> = ({ contextMenu, onC
           )}
         </>
       )}
-
     </ContextMenu>
   );
 };
