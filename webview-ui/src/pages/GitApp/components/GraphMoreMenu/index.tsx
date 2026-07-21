@@ -1,22 +1,9 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import styles from './index.module.css';
+import styles from '@pages/GitApp/components/GraphMoreMenu/index.module.css';
+import type { GraphMoreMenuProps } from '@pages/GitApp/components/GraphMoreMenu/src/type';
 
-interface GraphMoreMenuProps {
-  isSearchOpen: boolean;
-  onToggleSearch: () => void;
-  onCollapseCommitFiles: () => void;
-  triggerClassName?: string;
-  activeTriggerClassName?: string;
-}
-
-const GraphMoreMenu: React.FC<GraphMoreMenuProps> = ({
-  isSearchOpen,
-  onToggleSearch,
-  onCollapseCommitFiles,
-  triggerClassName = '',
-  activeTriggerClassName = '',
-}) => {
+const GraphMoreMenu: React.FC<GraphMoreMenuProps> = ({ isSearchOpen, onToggleSearch, onCollapseCommitFiles, triggerClassName = '', activeTriggerClassName = '' }) => {
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popupRef = useRef<HTMLDivElement | null>(null);
 
@@ -160,9 +147,7 @@ const GraphMoreMenu: React.FC<GraphMoreMenuProps> = ({
               }}
             >
               <i className={`codicon codicon-search ${styles['graph-more-icon']}`} />
-              <span className={styles['graph-more-text']}>
-                {isSearchOpen ? '关闭查询提交' : '查询提交'}
-              </span>
+              <span className={styles['graph-more-text']}>{isSearchOpen ? '关闭查询提交' : '查询提交'}</span>
             </button>
           </div>,
           document.body,

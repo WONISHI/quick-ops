@@ -1,31 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
-
-import styles from './index.module.css';
-
-interface GraphSearchWidgetProps {
-  isSearchOpen: boolean;
-  setIsSearchOpen: (open: boolean) => void;
-  searchQuery: string;
-  setSearchQuery: (query: string) => void;
-  currentMatchIndex: number;
-  setCurrentMatchIndex: (index: number) => void;
-  matchedIndices: number[];
-  handlePrevMatch: () => void;
-  handleNextMatch: () => void;
-  anchorRef: React.RefObject<HTMLDivElement | null>;
-}
-
-interface SearchOffset {
-  x: number;
-  y: number;
-}
-
-interface DragStart {
-  mouseX: number;
-  mouseY: number;
-  currentX: number;
-  currentY: number;
-}
+import styles from '@pages/GitApp/components/GraphSearchWidget/index.module.css';
+import type { GraphSearchWidgetProps, SearchOffset, DragStart } from '@pages/GitApp/components/GraphSearchWidget/src/type';
 
 const GraphSearchWidget: React.FC<GraphSearchWidgetProps> = ({
   isSearchOpen,

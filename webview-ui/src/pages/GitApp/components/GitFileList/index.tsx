@@ -1,6 +1,6 @@
 import React from 'react';
 import { vscode } from '@utils/vscode';
-import styles from './index.module.css';
+import styles from '@pages/GitApp/components/GitFileList/index.module.css';
 import Tooltip from '@/components/Tooltip';
 import FileIcon from '@/components/FileIcon';
 import type { GitFile, TreeNode } from '@/types/GitApp';
