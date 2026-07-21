@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import styles from '@pages/GitApp/components/GitContextMenu/index.module.css';
+import styles from '@pages/git-app/components/GitContextMenu/index.module.css';
 import { vscode } from '@utils/vscode'; // 确保路径正确
 
 // ==========================================

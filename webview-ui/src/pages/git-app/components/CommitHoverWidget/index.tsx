@@ -1,6 +1,6 @@
 import React from 'react';
 import { vscode } from '@utils/vscode';
-import styles from '@pages/GitApp/index.module.css';
+import styles from '@pages/git-app/index.module.css';
 import { type GraphCommit } from '@/pages/git-app/components/GitGraph';
 import { formatRelativeTime, formatAbsoluteTime, parseRemoteInfo } from '@utils/index';
 

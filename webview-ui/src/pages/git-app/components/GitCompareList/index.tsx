@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import styles from '@pages/GitApp/components/GitCompareList/index.module.css';
+import styles from '@pages/git-app/components/GitCompareList/index.module.css';
 import { type GraphCommit } from '@/pages/git-app/components/GitGraph';
 import CommitHoverWidget from '@/pages/git-app/components/CommitHoverWidget';
 import type { GitFile } from '@/types/GitApp';
