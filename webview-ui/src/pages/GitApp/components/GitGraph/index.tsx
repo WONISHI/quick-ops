@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 're
 import { vscode } from '../../../../utils/vscode';
 import styles from './index.module.css';
 import CommitHoverWidget from '../CommitHoverWidget';
-import GraphSearchWidget from '../../../../components/GraphSearchWidget';
+import GraphSearchWidget from '../GraphSearchWidget';
 import type { GitFile } from '../../../../types/GitApp';
 import Tooltip from '../../../../components/Tooltip';
 import Scrollbar, { type ScrollbarInstance } from '../../../../components/Scrollbar';
