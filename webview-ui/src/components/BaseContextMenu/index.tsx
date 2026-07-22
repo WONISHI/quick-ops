@@ -102,7 +102,8 @@ export interface BaseContextMenuProps {
    * 是否显示菜单浮层指向目标元素或 position 坐标的箭头。
    *
    * click 触发模式会自动指向触发元素的水平中点；
-   * 受控模式可以传 anchorEl，未传时使用 position 作为锚点。
+   * trigger !== 'click' 时，箭头固定显示在菜单水平中心；
+   * 受控模式可以传 anchorEl，未传时使用 position 作为定位锚点。
    *
    * @default false
    */
@@ -225,6 +226,15 @@ interface MenuLevelProps {
    * 仅根菜单使用的弹出箭头配置。
    */
   showArrow?: boolean;
+
+  /**
+   * @description 是否强制将箭头放在菜单水平中心
+   *
+   * click 模式保持指向触发元素；
+   * contextmenu / 受控位置模式使用水平居中。
+   */
+  centerArrow?: boolean;
+
   anchorEl?: HTMLElement | null;
   anchorPoint?: BaseContextMenuPosition | null;
   popupPlacement?: BaseContextMenuPopupPlacement;
@@ -378,6 +388,7 @@ function MenuLevel(props: MenuLevelProps) {
     submenuOpenDelay,
     inline = false,
     showArrow = false,
+    centerArrow = false,
     anchorEl,
     anchorPoint,
     popupPlacement = 'auto',
@@ -552,13 +563,45 @@ function MenuLevel(props: MenuLevelProps) {
     menuElement.style.top = `${Math.round(safePosition.top)}px`;
 
     if (level === 0 && showArrow && resolvedAnchorPoint) {
-      const edgeGap = 14;
-      const arrowLeft = Math.max(edgeGap, Math.min(resolvedAnchorPoint.x - safePosition.left, menuWidth - edgeGap));
+      menuElement.dataset.popupArrowPlacement =
+        resolvedPopupPlacement;
 
-      menuElement.style.setProperty('--context-menu-popup-arrow-left', `${Math.round(arrowLeft)}px`);
-      menuElement.dataset.popupArrowPlacement = resolvedPopupPlacement;
+      if (centerArrow) {
+        /**
+         * 非 click 模式直接交给 CSS 使用 left: 50%。
+         *
+         * 这样箭头会根据菜单最终真实宽度始终保持居中，
+         * 不受首次测量、滚动条和内容宽度变化影响。
+         */
+        menuElement.dataset.popupArrowAlign =
+          'center';
+        menuElement.style.removeProperty(
+          '--context-menu-popup-arrow-left',
+        );
+      } else {
+        const edgeGap = 14;
+        const arrowLeft = Math.max(
+          edgeGap,
+          Math.min(
+            resolvedAnchorPoint.x -
+              safePosition.left,
+            menuWidth - edgeGap,
+          ),
+        );
+
+        menuElement.dataset.popupArrowAlign =
+          'anchor';
+        menuElement.style.setProperty(
+          '--context-menu-popup-arrow-left',
+          `${Math.round(arrowLeft)}px`,
+        );
+      }
     } else {
       delete menuElement.dataset.popupArrowPlacement;
+      delete menuElement.dataset.popupArrowAlign;
+      menuElement.style.removeProperty(
+        '--context-menu-popup-arrow-left',
+      );
     }
 
     /**
@@ -571,7 +614,20 @@ function MenuLevel(props: MenuLevelProps) {
     contentElement.scrollTop = Math.min(previousScrollTop, maxScrollTop);
 
     menuElement.style.visibility = 'visible';
-  }, [anchorEl, anchorPoint, inline, level, maxHeight, popupOffset, popupPlacement, position.left, position.top, showArrow, viewportPadding]);
+  }, [
+    anchorEl,
+    anchorPoint,
+    centerArrow,
+    inline,
+    level,
+    maxHeight,
+    popupOffset,
+    popupPlacement,
+    position.left,
+    position.top,
+    showArrow,
+    viewportPadding,
+  ]);
 
   useLayoutEffect(() => {
     updateMenuLayout();
@@ -1214,6 +1270,7 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
             submenuPlacement={submenuPlacement}
             submenuOpenDelay={submenuOpenDelay}
             showArrow={showArrow}
+            centerArrow={trigger !== 'click'}
             anchorEl={resolvedAnchorEl}
             anchorPoint={resolvedAnchorPoint}
             popupPlacement={popupPlacement}

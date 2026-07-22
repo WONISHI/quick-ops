@@ -14,7 +14,13 @@
   --context-menu-hover-fg: var(--vscode-menu-selectionForeground, var(--menu-hover-fg, #ffffff));
 
   position: fixed;
-  z-index: 9999;
+
+  /**
+   * 菜单需要高于项目列表的 active/selected 层级，
+   * isolation 同时确保箭头和内容只在当前菜单内部排序。
+   */
+  z-index: 2147483647;
+  isolation: isolate;
   box-sizing: border-box;
   max-width: calc(100vw - 16px);
   padding: 5px;
@@ -38,7 +44,12 @@
 .context-menu-popup-arrow {
   position: absolute;
   left: var(--context-menu-popup-arrow-left, 50%);
-  z-index: 2;
+
+  /**
+   * 箭头放在内容层下面，避免覆盖第一条 active 菜单项。
+   * 外侧三角仍然可以正常显示。
+   */
+  z-index: 0;
   display: none;
   width: 9px;
   height: 9px;
@@ -69,6 +80,20 @@
 }
 
 /**
+ * 非 click 模式始终基于菜单最终实际宽度居中。
+ */
+.context-menu[data-popup-arrow-align='center'] > .context-menu-popup-arrow {
+  left: 50%;
+}
+
+/**
+ * click 模式继续指向触发元素的水平中心。
+ */
+.context-menu[data-popup-arrow-align='anchor'] > .context-menu-popup-arrow {
+  left: var(--context-menu-popup-arrow-left, 50%);
+}
+
+/**
  * 菜单内容层显示在箭头上方。
  *
  * 箭头是外层菜单的直接子元素；
@@ -78,6 +103,13 @@
   position: relative;
   z-index: 1;
   min-width: 0;
+
+  /**
+   * 内容层覆盖箭头位于菜单内部的那一半，
+   * 防止箭头压在 active 菜单项背景上。
+   */
+  background: var(--context-menu-bg);
+  border-radius: 5px;
   max-height: calc(100vh - 16px);
   overflow-x: hidden;
   overflow-y: auto;
