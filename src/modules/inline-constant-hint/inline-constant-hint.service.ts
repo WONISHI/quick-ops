@@ -304,7 +304,7 @@ export class InlineConstantHintService {
     if (!value) return '';
 
     /**
-     * 只显示简单字面量，避免把复杂表达式塞到提示里。
+     * 字符串字面量。
      */
     const stringMatch = value.match(/^(['"`])([\s\S]*?)\1$/);
 
@@ -312,15 +312,162 @@ export class InlineConstantHintService {
       return JSON.stringify(stringMatch[2]);
     }
 
-    if (/^-?\d+(\.\d+)?$/.test(value)) {
-      return value;
-    }
-
+    /**
+     * 布尔值及空值字面量。
+     */
     if (/^(true|false|null|undefined)$/.test(value)) {
       return value;
     }
 
+    /**
+     * 数字字面量和纯数字运算表达式。
+     *
+     * 这里只校验表达式是否合法，不计算最终结果。
+     */
+    if (this.isNumericExpression(value)) {
+      return value;
+    }
+
     return '';
+  }
+
+  /**
+   * @description 判断是否为合法的纯数字算术表达式
+   *
+   * 只验证 Token 和运算符结构，不执行任何计算。
+   */
+  private isNumericExpression(expression: string): boolean {
+    const tokens = this.tokenizeNumericExpression(expression);
+
+    if (!tokens) {
+      return false;
+    }
+
+    let cursor = 0;
+
+    const peek = (): string | undefined => tokens[cursor];
+
+    const consume = (): string | undefined => {
+      const token = tokens[cursor];
+      cursor += 1;
+      return token;
+    };
+
+    const parsePrimary = (): boolean => {
+      const token = consume();
+
+      if (!token) {
+        return false;
+      }
+
+      if (token === '(') {
+        if (!parseAdditive()) {
+          return false;
+        }
+
+        return consume() === ')';
+      }
+
+      return this.isNumericToken(token);
+    };
+
+    const parseUnary = (): boolean => {
+      const token = peek();
+
+      if (token === '+' || token === '-') {
+        consume();
+        return parseUnary();
+      }
+
+      return parsePrimary();
+    };
+
+    const parsePower = (): boolean => {
+      if (!parseUnary()) {
+        return false;
+      }
+
+      if (peek() === '**') {
+        consume();
+        return parsePower();
+      }
+
+      return true;
+    };
+
+    const parseMultiplicative = (): boolean => {
+      if (!parsePower()) {
+        return false;
+      }
+
+      while (peek() === '*' || peek() === '/' || peek() === '%') {
+        consume();
+
+        if (!parsePower()) {
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    const parseAdditive = (): boolean => {
+      if (!parseMultiplicative()) {
+        return false;
+      }
+
+      while (peek() === '+' || peek() === '-') {
+        consume();
+
+        if (!parseMultiplicative()) {
+          return false;
+        }
+      }
+
+      return true;
+    };
+
+    return parseAdditive() && cursor === tokens.length;
+  }
+
+  /**
+   * @description 将纯数字表达式拆分为安全 Token
+   */
+  private tokenizeNumericExpression(expression: string): string[] | null {
+    const source = expression.replace(/\s+/g, '');
+
+    if (!source) {
+      return null;
+    }
+
+    const tokenReg =
+      /0[xX][0-9a-fA-F](?:_?[0-9a-fA-F])*|0[bB][01](?:_?[01])*|0[oO][0-7](?:_?[0-7])*|(?:\d(?:_?\d)*(?:\.(?:\d(?:_?\d)*)?)?|\.\d(?:_?\d)*)(?:[eE][+-]?\d(?:_?\d)*)?|\*\*|[()+\-*/%]/gy;
+
+    const tokens: string[] = [];
+    let index = 0;
+
+    while (index < source.length) {
+      tokenReg.lastIndex = index;
+      const match = tokenReg.exec(source);
+
+      if (!match || match.index !== index) {
+        return null;
+      }
+
+      tokens.push(match[0]);
+      index = tokenReg.lastIndex;
+    }
+
+    return tokens;
+  }
+
+  /**
+   * @description 判断 Token 是否为数字字面量
+   */
+  private isNumericToken(token: string): boolean {
+    return /^(?:0[xX][0-9a-fA-F](?:_?[0-9a-fA-F])*|0[bB][01](?:_?[01])*|0[oO][0-7](?:_?[0-7])*|(?:\d(?:_?\d)*(?:\.(?:\d(?:_?\d)*)?)?|\.\d(?:_?\d)*)(?:[eE][+-]?\d(?:_?\d)*)?)$/.test(
+      token,
+    );
   }
 
   private stripBlockComments(text: string): string {
