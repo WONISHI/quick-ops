@@ -221,7 +221,7 @@ function getSearchNameHighlightTokens(query: string) {
     }
   });
 
-  const compactValue = value.replace(/[\s\/_.-]+/g, '');
+  const compactValue = value.replace(/[\s/_.-]+/g, '');
 
   if (compactValue && compactValue !== value) {
     tokenSet.add(compactValue);
