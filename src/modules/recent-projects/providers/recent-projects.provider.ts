@@ -575,6 +575,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         if (targetPath) await this.openInVsCode(targetPath);
         break;
 
+      case 'openInIntegratedTerminal':
+        if (targetPath) {
+          this.openInIntegratedTerminal(
+            targetPath,
+          );
+        }
+        break;
+
       case 'openInNewWindow':
         if (targetPath) await this.openProject(targetPath, true);
         break;
@@ -946,6 +954,38 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       vscode.window.showErrorMessage(`无法打开该项目：${this.toErrorMessage(error)}`);
     }
+  }
+
+  /**
+   * @description 在文件所在目录打开 VS Code 集成终端
+   */
+  private openInIntegratedTerminal(
+    fsPath: string,
+  ): void {
+    const targetUri =
+      this.toUri(fsPath);
+
+    if (
+      !targetUri ||
+      targetUri.scheme !== 'file'
+    ) {
+      vscode.window.showWarningMessage(
+        '仅支持在当前运行项目的本地文件中打开集成终端。',
+      );
+      return;
+    }
+
+    const cwd = vscode.Uri.file(
+      path.dirname(targetUri.fsPath),
+    );
+
+    const terminal =
+      vscode.window.createTerminal({
+        name: `QuickOps: ${path.basename(cwd.fsPath) || 'Terminal'}`,
+        cwd,
+      });
+
+    terminal.show();
   }
 
   private async openInVsCode(fsPath: string): Promise<void> {

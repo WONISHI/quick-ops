@@ -2270,6 +2270,13 @@ export default function RecentProjectsApp() {
         });
         break;
 
+      case 'openInIntegratedTerminal':
+        vscode.postMessage({
+          type: 'openInIntegratedTerminal',
+          fsPath: payload.path,
+        });
+        break;
+
       case 'openWith':
         vscode.postMessage({
           type: 'openWith',

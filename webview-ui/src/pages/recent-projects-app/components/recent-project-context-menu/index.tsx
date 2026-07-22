@@ -18,6 +18,7 @@ import {
   faFolderPlus,
   faBullseye,
   faFolderMinus,
+  faTerminal,
 } from '@fortawesome/free-solid-svg-icons';
 import { faCopy, faSquareCheck, faClone, faFolderOpen as faFolderOpenReg, faWindowRestore, faFileCode } from '@fortawesome/free-regular-svg-icons';
 
@@ -316,6 +317,21 @@ function createSubMenuItems(payload: ContextMenuPayload, onAction: (action: stri
         },
       },
     );
+
+    /**
+     * 只有当前运行项目中的本地文件才允许在集成终端中打开。
+     * 终端工作目录使用该文件所在文件夹。
+     */
+    if (payload.isActiveProject && !isRemotePath) {
+      items.push({
+        key: 'open-file-in-integrated-terminal',
+        label: '在集成终端中打开',
+        icon: createIcon(faTerminal),
+        onSelect: () => {
+          onAction('openInIntegratedTerminal');
+        },
+      });
+    }
 
     if (hasFileChangeStatus) {
       items.push(
