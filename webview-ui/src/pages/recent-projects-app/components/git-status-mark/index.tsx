@@ -1,6 +1,6 @@
 import React from 'react';
 
-import styles from './index.module.css';
+import styles from '@pages/recent-projects-app/components/git-status-mark/index.module.css';
 import { getGitStatusClassName, getGitStatusText } from './src/uitls';
 
 interface GitStatusMarkProps {

@@ -1,4 +1,4 @@
-import styles from './index.module.css';
+import styles from '@pages/recent-projects-app/components/git-status-mark/index.module.css';
 
 export type GitStatus =
   | string
