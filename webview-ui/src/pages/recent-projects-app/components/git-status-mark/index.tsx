@@ -1,11 +1,7 @@
 import React from 'react';
-
 import styles from '@pages/recent-projects-app/components/git-status-mark/index.module.css';
 import { getGitStatusClassName, getGitStatusText } from './src/uitls';
-
-interface GitStatusMarkProps {
-  status?: string;
-}
+import type { GitStatusMarkProps } from '@pages/recent-projects-app/components/git-status-mark/src/type';
 
 /**
  * @description 文件夹 Git 状态圆点
