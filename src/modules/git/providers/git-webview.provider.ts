@@ -18,6 +18,11 @@ interface GitGraphLikeCommit {
   timestamp?: number;
   refs?: string;
   type?: 'commit' | 'uncommitted' | 'stash';
+
+  /**
+   * @description 当前提交是否存在于远程跟踪分支历史中
+   */
+  isRemote?: boolean;
 }
 
 interface GitGraphLikeData {
@@ -2355,6 +2360,22 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     return output.split(/\r?\n/).filter((line) => line.trim()).length;
   }
 
+  /**
+   * @description 获取所有远程跟踪分支可达的提交 Hash
+   *
+   * 使用 refs/remotes/* 的本地状态，不额外请求网络。
+   */
+  private async getRemoteCommitHashSet(cwd: string): Promise<Set<string>> {
+    const output = await this.runGitSafe(cwd, ['rev-list', '--remotes']);
+
+    return new Set(
+      output
+        .split(/\r?\n/)
+        .map((hash) => hash.trim())
+        .filter(Boolean),
+    );
+  }
+
   private async getStashRows(cwd: string): Promise<GitGraphLikeCommit[]> {
     const stashListOutput = await this.runGitSafe(cwd, ['stash', 'list', '--format=%gd%x1f%H%x1f%ct%x1f%gs']);
 
@@ -2388,6 +2409,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         timestamp: Number(timestampText) * 1000,
         refs: stashName,
         message,
+        isRemote: false,
       });
     }
 
@@ -2416,6 +2438,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       timestamp: Date.now(),
       refs: '',
       message: `Uncommitted Changes (${changeCount})`,
+      isRemote: false,
     };
   }
 
@@ -2472,18 +2495,24 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
   private async getGitGraphLikeData(cwd: string, graphFilter: string): Promise<GitGraphLikeData> {
     const normalizedGraphFilter = this.normalizeGraphFilterName(graphFilter);
-    const allStashRows = await this.getStashRows(cwd);
+
+    const [allStashRows, remoteCommitHashSet] = await Promise.all([this.getStashRows(cwd), this.getRemoteCommitHashSet(cwd)]);
 
     const extraRefs = normalizedGraphFilter === this.gitService.ALL_BRANCH_FILTER || normalizedGraphFilter === '全部分支' ? this.getStashBaseParentHashes(allStashRows) : [];
 
     const output = await this.runGit(cwd, this.getGraphArgs(normalizedGraphFilter, extraRefs));
 
-    const commits = output
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .map((line) => this.parseLogLine(line))
-      .filter(Boolean) as GitGraphLikeCommit[];
+    const commits = (
+      output
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => this.parseLogLine(line))
+        .filter(Boolean) as GitGraphLikeCommit[]
+    ).map((commit) => ({
+      ...commit,
+      isRemote: remoteCommitHashSet.has(commit.hash),
+    }));
 
     const commitHashSet = new Set(commits.map((commit) => commit.hash));
 
@@ -2514,6 +2543,11 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     return {
       graphCommits: uniqueRows,
       graphFilter: normalizedGraphFilter,
+
+      /**
+       * 保持现有统计口径：
+       * 图形中显示的未提交行仍然计入 totalCommits。
+       */
       totalCommits: uniqueRows.length,
     };
   }

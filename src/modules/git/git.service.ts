@@ -473,6 +473,27 @@ export class GitService {
     return `${refs}\n---STATUS---\n${status}\n---STASH---\n${stash}`;
   }
 
+  /**
+   * @description 获取所有远程跟踪分支可达的提交 Hash
+   *
+   * 这里只读取本地 refs/remotes/*，不会发起网络请求。
+   * 没有远程仓库或读取失败时返回空集合。
+   */
+  private async getRemoteCommitHashSet(git: SimpleGit): Promise<Set<string>> {
+    try {
+      const output = await git.raw(['rev-list', '--remotes']);
+
+      return new Set(
+        output
+          .split(/\r?\n/)
+          .map((hash) => hash.trim())
+          .filter(Boolean),
+      );
+    } catch {
+      return new Set();
+    }
+  }
+
   public async getGraph(cwd: string, graphFilter = this.CURRENT_BRANCH_FILTER): Promise<GitGraphResult> {
     const git = this.createGit(cwd);
     const isCurrentBranch = graphFilter === this.CURRENT_BRANCH_FILTER;
@@ -499,7 +520,7 @@ export class GitService {
       logOptions[targetRef] = null;
     }
 
-    const logRaw = await git.log(logOptions);
+    const [logRaw, remoteCommitHashSet] = await Promise.all([git.log(logOptions), this.getRemoteCommitHashSet(git)]);
 
     const graphCommits: GitGraphCommit[] = logRaw.all.map((commit: any) => ({
       hash: commit.hash,
@@ -509,6 +530,7 @@ export class GitService {
       message: commit.message,
       refs: commit.refs || '',
       timestamp: parseInt(String(commit.timestamp), 10) * 1000,
+      isRemote: remoteCommitHashSet.has(commit.hash),
     }));
 
     let totalCommits = graphCommits.length;

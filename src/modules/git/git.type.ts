@@ -1,15 +1,6 @@
 import type * as vscode from 'vscode';
 
-export type GitFileStatusType =
-  | 'modified'
-  | 'added'
-  | 'deleted'
-  | 'renamed'
-  | 'copied'
-  | 'untracked'
-  | 'conflicted'
-  | 'staged'
-  | 'unknown';
+export type GitFileStatusType = 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'untracked' | 'conflicted' | 'staged' | 'unknown';
 
 export interface GitFileItem {
   path: string;
@@ -62,6 +53,14 @@ export interface GitGraphCommit {
   refs?: string;
   timestamp: number;
   type?: 'commit' | 'uncommitted' | 'stash';
+
+  /**
+   * @description 当前提交是否能从本地远程跟踪分支访问
+   *
+   * true 表示该提交已经存在于 refs/remotes/* 可达历史中，
+   * 可以在对应远程仓库中打开。
+   */
+  isRemote?: boolean;
 }
 
 export interface GitGraphResult {

@@ -6,8 +6,7 @@
   --accent-bg: rgba(170, 59, 255, 0.1);
   --accent-border: rgba(170, 59, 255, 0.5);
   --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --shadow: rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -39,8 +38,7 @@
     --accent-bg: rgba(192, 132, 252, 0.15);
     --accent-border: rgba(192, 132, 252, 0.5);
     --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+    --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
   }
 
   #social .button-icon {
@@ -97,8 +95,6 @@ code {
 }
 
 .platform-icon {
-  width: 14px;
-  height: 14px;
   margin-right: 4px;
   display: inline-block;
   flex-shrink: 0;
@@ -107,9 +103,14 @@ code {
 }
 
 .platform-icon-gitee {
-  background-image: url("./assets/icon/gitee.svg");
+  width: 14px;
+  height: 14px;
+  background-image: url('./assets/icon/gitee.svg');
 }
 
 .platform-icon-gitlab {
-  background-image: url("./assets/icon/gitlab.svg");
+  width: 10px;
+  height: 10px;
+  background-size: 10px;
+  background-image: url('./assets/icon/gitlab.svg');
 }

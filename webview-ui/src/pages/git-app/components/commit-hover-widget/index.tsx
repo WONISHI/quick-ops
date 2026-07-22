@@ -6,7 +6,19 @@ import type { CommitHoverWidgetProps } from '@pages/git-app/components/commit-ho
 import { formatRelativeTime, formatAbsoluteTime, parseRemoteInfo } from '@utils/index';
 
 const CommitHoverWidget: React.FC<CommitHoverWidgetProps> = ({ commit, y, position, branch, remoteUrl, onMouseEnter, onMouseLeave }) => {
-  const remoteInfo = remoteUrl ? parseRemoteInfo(remoteUrl, commit.hash) : null;
+  const remoteAwareCommit = commit as typeof commit & {
+    isRemote?: boolean;
+  };
+
+  /**
+   * 普通提交只有已经存在于远程跟踪分支历史中时，
+   * 才显示“在 GitHub / Gitee / GitLab 上打开”。
+   *
+   * 未提交行、stash 和尚未 Push 的本地提交都不显示。
+   */
+  const canOpenRemote = (!commit.type || commit.type === 'commit') && remoteAwareCommit.isRemote === true;
+
+  const remoteInfo = canOpenRemote && remoteUrl ? parseRemoteInfo(remoteUrl, commit.hash) : null;
 
   const hasChangeStats = typeof commit.filesChanged === 'number' || typeof commit.insertions === 'number' || typeof commit.deletions === 'number';
 
