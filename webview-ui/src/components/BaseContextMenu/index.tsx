@@ -1014,6 +1014,14 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
 
   const [internalAnchorPoint, setInternalAnchorPoint] = useState<BaseContextMenuPosition | null>(null);
 
+  /**
+   * @description 当前 BaseContextMenu 实例自己的触发区域。
+   *
+   * 不能仅通过全局 data 属性判断，否则点击其他
+   * BaseContextMenu 的触发器也会被误认为当前菜单内部。
+   */
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+
   const controlledOpen = open ?? visible;
   const isControlled = controlledOpen !== undefined;
 
@@ -1078,8 +1086,9 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
   useDismissOnOutsideInteraction({
     active: mergedOpen,
     onDismiss: closeMenu,
-    insideSelector: ['[data-base-context-menu-root="true"]', '[data-base-context-menu-trigger="true"]'].join(','),
-    ignoreRightClick: true,
+    insideSelector: '[data-base-context-menu-root="true"]',
+    insideRefs: [triggerRef],
+    ignoreRightClick: false,
     dismissOnWindowBlur: true,
   });
 
@@ -1181,7 +1190,13 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
   return (
     <>
       {children !== undefined && (
-        <div className={styles['context-menu-trigger']} data-base-context-menu-trigger="true" onClick={handleTriggerClick} onContextMenu={handleTriggerContextMenu}>
+        <div
+          ref={triggerRef}
+          className={styles['context-menu-trigger']}
+          data-base-context-menu-trigger="true"
+          onClick={handleTriggerClick}
+          onContextMenu={handleTriggerContextMenu}
+        >
           {children}
         </div>
       )}
@@ -1190,35 +1205,26 @@ export default function BaseContextMenu(props: BaseContextMenuProps) {
         resolvedPopupContainer &&
         visibleItems.length > 0 &&
         createPortal(
-          <>
-            <div
-              className={styles['context-menu-mask']}
-              onContextMenu={(event) => {
-                event.preventDefault();
-              }}
-            />
-
-            <MenuLevel
-              items={visibleItems}
-              level={0}
-              position={safePosition}
-              minWidth={minWidth}
-              density={density}
-              submenuPlacement={submenuPlacement}
-              submenuOpenDelay={submenuOpenDelay}
-              showArrow={showArrow}
-              anchorEl={resolvedAnchorEl}
-              anchorPoint={resolvedAnchorPoint}
-              popupPlacement={popupPlacement}
-              popupOffset={popupOffset}
-              viewportPadding={viewportPadding}
-              maxHeight={maxHeight}
-              menuClassName={menuClassName}
-              menuStyle={menuStyle}
-              onCloseAll={closeMenu}
-              onSelectItem={selectItem}
-            />
-          </>,
+          <MenuLevel
+            items={visibleItems}
+            level={0}
+            position={safePosition}
+            minWidth={minWidth}
+            density={density}
+            submenuPlacement={submenuPlacement}
+            submenuOpenDelay={submenuOpenDelay}
+            showArrow={showArrow}
+            anchorEl={resolvedAnchorEl}
+            anchorPoint={resolvedAnchorPoint}
+            popupPlacement={popupPlacement}
+            popupOffset={popupOffset}
+            viewportPadding={viewportPadding}
+            maxHeight={maxHeight}
+            menuClassName={menuClassName}
+            menuStyle={menuStyle}
+            onCloseAll={closeMenu}
+            onSelectItem={selectItem}
+          />,
           resolvedPopupContainer,
         )}
     </>

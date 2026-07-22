@@ -1,6 +1,6 @@
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
-import styles from './index.module.css';
+import styles from '@pages/git-app/components/git-app-skeleton/index.module.css';
 
 
 const CHANGE_ROW_COUNT = 9;

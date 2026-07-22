@@ -273,6 +273,8 @@ function createStashFileItems(contextMenu: ContextMenuState): BaseContextMenuIte
   ];
 }
 
+
+
 function createHistoryItems(contextMenu: ContextMenuState): BaseContextMenuItem[] {
   const file = contextMenu.file;
 

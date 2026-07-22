@@ -6,13 +6,6 @@
   display: contents;
 }
 
-.context-menu-mask {
-  position: fixed;
-  inset: 0;
-  z-index: 9998;
-  background: transparent;
-}
-
 .context-menu {
   --context-menu-bg: var(--vscode-menu-background, var(--menu-bg, #252a31));
   --context-menu-fg: var(--vscode-menu-foreground, var(--menu-fg, #d7dae0));
