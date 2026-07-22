@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-
 import styles from '@pages/git-app/components/commit-type-tag/index.module.css';
+import { createPortal } from 'react-dom';
 import { COMMIT_TYPE_OPTIONS } from '@/pages/git-app/components/commit-type-tag/src/constants';
 import type { CommitTypeTagProps } from '@/pages/git-app/components/commit-type-tag/src/type';
+
+
 
 const CommitTypeTag: React.FC<CommitTypeTagProps> = ({ value, disabled, onChange, onOpenChange }) => {
   const tagRef = useRef<HTMLButtonElement | null>(null);

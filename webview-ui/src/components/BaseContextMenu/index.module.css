@@ -89,7 +89,14 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+
+  /**
+   * 普通菜单不预留滚动条槽位。
+   *
+   * scrollbar-gutter: stable 会在没有滚动条时也固定占用一列宽度，
+   * 因此短菜单右侧会出现明显空白。
+   */
+  scrollbar-gutter: auto;
   scrollbar-width: thin;
   touch-action: pan-y;
   -webkit-overflow-scrolling: touch;
@@ -97,9 +104,13 @@
 
 .context-menu-content[data-scrollable='true'] {
   /**
-   * 强制保留滚动条，明确提示当前菜单还有更多内容。
+   * 只有内容确实超高时才允许滚动。
+   *
+   * 使用 auto，避免系统滚动条处于隐藏状态时仍占用空白槽位；
+   * Chromium Webview 在发生溢出时会自动显示滚动条。
    */
-  overflow-y: scroll;
+  overflow-y: auto;
+  scrollbar-gutter: auto;
   scroll-padding-block: 4px;
 }
 
@@ -108,8 +119,7 @@
 }
 
 .context-menu-content::-webkit-scrollbar-track {
-  background: color-mix(in srgb, var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4)) 18%, transparent);
-  border-radius: 999px;
+  background: transparent;
 }
 
 .context-menu-content::-webkit-scrollbar-thumb {

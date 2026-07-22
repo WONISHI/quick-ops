@@ -1,6 +1,6 @@
 import React from 'react';
-import { vscode } from '@/utils/vscode';
 import styles from '@pages/git-app/components/git-not-installed/index.module.css';
+import { vscode } from '@/utils/vscode';
 
 const GitNotInstalled: React.FC = () => {
   return (

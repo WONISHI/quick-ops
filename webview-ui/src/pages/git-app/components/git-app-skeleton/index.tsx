@@ -1,8 +1,7 @@
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
-
 import 'react-loading-skeleton/dist/skeleton.css';
-
 import styles from './index.module.css';
+
 
 const CHANGE_ROW_COUNT = 9;
 const GRAPH_ROW_COUNT = 12;

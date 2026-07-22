@@ -1,11 +1,12 @@
 import React from 'react';
-import { vscode } from '@utils/vscode';
 import styles from '@pages/git-app/components/git-file-list/index.module.css';
 import Tooltip from '@/components/Tooltip';
 import FileIcon from '@/components/FileIcon';
+import { vscode } from '@utils/vscode';
+import { getStatusText, getStatusFullText, buildTree } from '@utils/index';
 import type { GitFile, TreeNode } from '@/pages/git-app/src/type';
 import type { GitFileListProps } from '@pages/git-app/components/git-file-list/src/type';
-import { getStatusText, getStatusFullText, buildTree } from '@utils/index';
+
 
 const getStatusClass = (status: string) => {
   if (status.includes('M')) return styles['status-M'];

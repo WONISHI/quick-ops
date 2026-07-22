@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo, useLayoutEffect } from 'react';
-import { vscode } from '@utils/vscode';
 import styles from '@pages/git-app/components/git-graph/index.module.css';
 import CommitHoverWidget from '@/pages/git-app/components/commit-hover-widget';
 import GraphSearchWidget from '@/pages/git-app/components/graph-search-widget';
 import Tooltip from '@components/Tooltip';
 import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
+import { vscode } from '@utils/vscode';
 import type { GraphCommit, GitGraphProps } from '@pages/git-app/components/git-graph/src/type';
 
 const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];

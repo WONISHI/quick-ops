@@ -1,6 +1,6 @@
 import BaseContextMenu from '@components/BaseContextMenu';
-import type { BaseContextMenuItem } from '@components/BaseContextMenu';
 import { vscode } from '@utils/vscode';
+import type { BaseContextMenuItem } from '@components/BaseContextMenu';
 import type { GitContextMenuProps, ContextMenuState } from '@pages/git-app/components/git-context-menu/src/type';
 
 function createIcon(icon: string) {
