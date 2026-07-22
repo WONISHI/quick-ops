@@ -107,6 +107,7 @@ export class LivePreviewProvider {
       extensionUri: context.extensionUri,
       icon: 'resources/icons/livepreview.svg',
       fullscreen: true,
+      floating: true,
       options: {
         enableScripts: true,
         retainContextWhenHidden: true,
@@ -275,7 +276,7 @@ export class LivePreviewProvider {
         break;
 
       case 'openNewPreviewTab':
-        await this.createNewPreviewTab(message.url || '', message.device || '');
+        await this.createNewPreviewTab(message.device || '');
         break;
 
       case 'browserNavigate':
@@ -608,10 +609,11 @@ export class LivePreviewProvider {
     }
   }
 
-  private async createNewPreviewTab(initialUrl = '', initialDevice = ''): Promise<void> {
+  private async createNewPreviewTab(initialDevice = ''): Promise<void> {
     const context = this.extensionContextProvider.getContext();
     const browserService = this.embeddedBrowserService.createDetached('BrowserUserData-Detached');
     const tabId = `quickOpsLivePreview:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+    const initialUrl = '';
 
     let panel: vscode.WebviewPanel | undefined;
 
@@ -623,6 +625,7 @@ export class LivePreviewProvider {
       extensionUri: context.extensionUri,
       icon: 'resources/icons/livepreview.svg',
       fullscreen: true,
+      floating: true,
       revealIfExists: false,
       options: {
         enableScripts: true,
@@ -745,7 +748,7 @@ export class LivePreviewProvider {
         break;
 
       case 'openNewPreviewTab':
-        await this.createNewPreviewTab(message.url || '', message.device || '');
+        await this.createNewPreviewTab(message.device || '');
         break;
 
       case 'browserNavigate':

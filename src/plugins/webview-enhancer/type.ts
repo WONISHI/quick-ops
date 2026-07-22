@@ -22,6 +22,11 @@ export interface WebviewEnhancerOptions {
    * @description 当前 Webview 激活时，是否显示 editor/title 放大按钮
    */
   fullscreen?: boolean;
+
+  /**
+   * @description 当前 Webview 激活时，是否显示“移至浮动编辑器窗口”按钮
+   */
+  floating?: boolean;
 }
 
 export interface WebviewCreatedPayload {

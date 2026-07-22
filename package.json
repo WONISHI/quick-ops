@@ -575,6 +575,12 @@
         "command": "quickOps.switchNextEditorLocation",
         "title": "前进到当前文件下一个访问位置",
         "category": "Quick Ops"
+      },
+      {
+        "command": "quickOps.webview.moveToFloatingWindow",
+        "title": "添加至浮动编辑器窗口",
+        "category": "Quick Ops",
+        "icon": "$(multiple-windows)"
       }
     ],
     "keybindings": [
@@ -732,6 +738,11 @@
         {
           "command": "quickOps.openLivePreview",
           "group": "navigation@2"
+        },
+        {
+          "command": "quickOps.webview.moveToFloatingWindow",
+          "when": "quickOps.activeWebview.floating",
+          "group": "navigation@3"
         },
         {
           "command": "quickOps.webview.toggleFullscreen",

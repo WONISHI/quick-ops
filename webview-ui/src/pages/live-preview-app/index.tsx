@@ -61,26 +61,10 @@ const getBrowserEngineOption = (key: BrowserEngineKey) => {
  */
 function AirPlayIcon() {
   return (
-    <svg
-      width="1em"
-      height="1em"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path
-        d="M8 17H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+      <path d="M8 17H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
 
-      <path
-        d="m12 15 4 5H8l4-5Z"
-        fill="currentColor"
-      />
+      <path d="m12 15 4 5H8l4-5Z" fill="currentColor" />
     </svg>
   );
 }
@@ -171,10 +155,7 @@ const PREVIEW_ZOOM_STEP = 0.1;
  * @description 将预览缩放值限制在 50% - 200%
  */
 function normalizePreviewZoom(value: number): number {
-  const normalized = Math.min(
-    PREVIEW_ZOOM_MAX,
-    Math.max(PREVIEW_ZOOM_MIN, value),
-  );
+  const normalized = Math.min(PREVIEW_ZOOM_MAX, Math.max(PREVIEW_ZOOM_MIN, value));
 
   return Number(normalized.toFixed(1));
 }
@@ -303,14 +284,8 @@ function BrowserSurface({
      * 上报给 EmbeddedBrowser 的仍然是设备原始尺寸，
      * 否则 Ctrl + 滚轮会变成修改浏览器 viewport，而不是放大画面。
      */
-    const width = Math.max(
-      320,
-      Math.floor(rect.width / previewZoom),
-    );
-    const height = Math.max(
-      240,
-      Math.floor(rect.height / previewZoom),
-    );
+    const width = Math.max(320, Math.floor(rect.width / previewZoom));
+    const height = Math.max(240, Math.floor(rect.height / previewZoom));
 
     if (lastViewportRef.current.width === width && lastViewportRef.current.height === height) {
       return;
@@ -1159,17 +1134,12 @@ export default function LivePreviewApp() {
 
     if (!target) return;
 
-    const handlePreviewWheel = (
-      event: WheelEvent,
-    ) => {
+    const handlePreviewWheel = (event: WheelEvent) => {
       if (!event.ctrlKey && !event.metaKey) {
         return;
       }
 
-      if (
-        previewType !== 'web' &&
-        previewType !== 'html'
-      ) {
+      if (previewType !== 'web' && previewType !== 'html') {
         return;
       }
 
@@ -1180,51 +1150,34 @@ export default function LivePreviewApp() {
       event.preventDefault();
       event.stopPropagation();
 
-      const direction =
-        event.deltaY < 0 ? 1 : -1;
+      const direction = event.deltaY < 0 ? 1 : -1;
 
-      setPreviewZoom(current => {
-        return normalizePreviewZoom(
-          current +
-            direction * PREVIEW_ZOOM_STEP,
-        );
+      setPreviewZoom((current) => {
+        return normalizePreviewZoom(current + direction * PREVIEW_ZOOM_STEP);
       });
 
       setShowPreviewZoom(true);
 
       if (previewZoomTimerRef.current) {
-        window.clearTimeout(
-          previewZoomTimerRef.current,
-        );
+        window.clearTimeout(previewZoomTimerRef.current);
       }
 
-      previewZoomTimerRef.current =
-        window.setTimeout(() => {
-          previewZoomTimerRef.current = null;
-          setShowPreviewZoom(false);
-        }, 800);
+      previewZoomTimerRef.current = window.setTimeout(() => {
+        previewZoomTimerRef.current = null;
+        setShowPreviewZoom(false);
+      }, 800);
     };
 
-    target.addEventListener(
-      'wheel',
-      handlePreviewWheel,
-      {
-        passive: false,
-        capture: true,
-      },
-    );
+    target.addEventListener('wheel', handlePreviewWheel, {
+      passive: false,
+      capture: true,
+    });
 
     return () => {
-      target.removeEventListener(
-        'wheel',
-        handlePreviewWheel,
-        true,
-      );
+      target.removeEventListener('wheel', handlePreviewWheel, true);
 
       if (previewZoomTimerRef.current) {
-        window.clearTimeout(
-          previewZoomTimerRef.current,
-        );
+        window.clearTimeout(previewZoomTimerRef.current);
         previewZoomTimerRef.current = null;
       }
     };
@@ -1689,18 +1642,8 @@ export default function LivePreviewApp() {
         vscode?.postMessage({ type: 'reqPreviewTabs' });
         setInitializing(false);
       } else if (message.type === 'previewTabsChanged') {
-        setPreviewTabs(
-          Array.isArray(message.tabs)
-            ? message.tabs
-            : [],
-        );
-        setCurrentPreviewTabId(
-          String(
-            message.currentTabId ||
-              message.activeTabId ||
-              '',
-          ),
-        );
+        setPreviewTabs(Array.isArray(message.tabs) ? message.tabs : []);
+        setCurrentPreviewTabId(String(message.currentTabId || message.activeTabId || ''));
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
         setFavoriteFolders(message.folders || []);
@@ -2108,28 +2051,23 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'browserRefresh', url: temp });
   };
 
-  const handleDeviceSelect = useCallback(
-    (newDevice: string) => {
-      setDevice(newDevice);
-      setDeviceMenuOpen(false);
+  const handleDeviceSelect = useCallback((newDevice: string) => {
+    setDevice(newDevice);
+    setDeviceMenuOpen(false);
 
-      if (newDevice === 'device-responsive') {
-        setIsRotated(false);
-      }
+    if (newDevice === 'device-responsive') {
+      setIsRotated(false);
+    }
 
-      vscode?.postMessage({
-        type: 'saveDevice',
-        device: newDevice,
-      });
-    },
-    [],
-  );
+    vscode?.postMessage({
+      type: 'saveDevice',
+      device: newDevice,
+    });
+  }, []);
 
   const activeDeviceLabel = useMemo(() => {
     for (const group of PREVIEW_DEVICE_GROUPS) {
-      const matched = group.items.find(
-        item => item.value === device,
-      );
+      const matched = group.items.find((item) => item.value === device);
 
       if (matched) {
         return matched.label;
@@ -2148,43 +2086,35 @@ export default function LivePreviewApp() {
   const deviceMenuItems = useMemo<BaseContextMenuItem[]>(() => {
     const items: BaseContextMenuItem[] = [];
 
-    PREVIEW_DEVICE_GROUPS.forEach(
-      (group, groupIndex) => {
-        if (groupIndex > 0) {
-          items.push({
-            type: 'separator',
-            key: `device-separator-${group.label}`,
-          });
-        }
+    PREVIEW_DEVICE_GROUPS.forEach((group, groupIndex) => {
+      if (groupIndex > 0) {
+        items.push({
+          type: 'separator',
+          key: `device-separator-${group.label}`,
+        });
+      }
+
+      items.push({
+        key: `device-group-${group.label}`,
+        label: group.label,
+        disabled: true,
+        className: styles['device-menu-group-title'],
+      });
+
+      group.items.forEach((item) => {
+        const active = item.value === device;
 
         items.push({
-          key: `device-group-${group.label}`,
-          label: group.label,
-          disabled: true,
-          className:
-            styles['device-menu-group-title'],
+          key: item.value,
+          label: item.label,
+          shortcut: active ? '✓' : undefined,
+          className: active ? styles['device-menu-selected-item'] : undefined,
+          onSelect: () => {
+            handleDeviceSelect(item.value);
+          },
         });
-
-        group.items.forEach(item => {
-          const active =
-            item.value === device;
-
-          items.push({
-            key: item.value,
-            label: item.label,
-            shortcut: active ? '✓' : undefined,
-            className: active
-              ? styles[
-                  'device-menu-selected-item'
-                ]
-              : undefined,
-            onSelect: () => {
-              handleDeviceSelect(item.value);
-            },
-          });
-        });
-      },
-    );
+      });
+    });
 
     return items;
   }, [device, handleDeviceSelect]);
@@ -2192,103 +2122,60 @@ export default function LivePreviewApp() {
   /**
    * @description 当前打开的 Live Preview 标签页菜单
    */
-  const previewTabMenuItems =
-    useMemo<BaseContextMenuItem[]>(() => {
-      const items: BaseContextMenuItem[] = [
-        {
-          key: 'preview-tabs-header',
-          label: '预览标签页',
-          shortcut: String(
-            previewTabs.length || 1,
-          ),
-          disabled: true,
-          className:
-            styles[
-              'preview-tabs-menu-header-item'
-            ],
-        },
-        {
-          type: 'separator',
-          key: 'preview-tabs-header-separator',
-        },
-      ];
+  const previewTabMenuItems = useMemo<BaseContextMenuItem[]>(() => {
+    const items: BaseContextMenuItem[] = [
+      {
+        key: 'preview-tabs-header',
+        label: '预览标签页',
+        shortcut: String(previewTabs.length || 1),
+        disabled: true,
+        className: styles['preview-tabs-menu-header-item'],
+      },
+      {
+        type: 'separator',
+        key: 'preview-tabs-header-separator',
+      },
+    ];
 
-      if (previewTabs.length === 0) {
-        items.push({
-          key: 'preview-tabs-loading',
-          label: '正在读取标签页...',
-          disabled: true,
-          className:
-            styles[
-              'preview-tabs-menu-empty-item'
-            ],
-        });
-
-        return items;
-      }
-
-      previewTabs.forEach(tab => {
-        const active =
-          tab.active ||
-          tab.id === currentPreviewTabId;
-
-        items.push({
-          key: tab.id,
-          label: (
-            <span
-              className={
-                styles[
-                  'preview-tab-item-main'
-                ]
-              }
-            >
-              <span
-                className={
-                  styles['preview-tab-title']
-                }
-              >
-                {tab.title || '新建预览'}
-              </span>
-
-              <span
-                className={
-                  styles['preview-tab-url']
-                }
-              >
-                {tab.url || '暂无地址'}
-              </span>
-            </span>
-          ),
-          shortcut: active ? '✓' : undefined,
-          title: tab.url || tab.title,
-          className: [
-            styles[
-              'preview-tab-context-menu-item'
-            ],
-            active
-              ? styles[
-                  'preview-tab-context-menu-item-active'
-                ]
-              : '',
-          ]
-            .filter(Boolean)
-            .join(' '),
-          onSelect: () => {
-            if (active) return;
-
-            vscode?.postMessage({
-              type: 'switchPreviewTab',
-              tabId: tab.id,
-            });
-          },
-        });
+    if (previewTabs.length === 0) {
+      items.push({
+        key: 'preview-tabs-loading',
+        label: '正在读取标签页...',
+        disabled: true,
+        className: styles['preview-tabs-menu-empty-item'],
       });
 
       return items;
-    }, [
-      currentPreviewTabId,
-      previewTabs,
-    ]);
+    }
+
+    previewTabs.forEach((tab) => {
+      const active = tab.active || tab.id === currentPreviewTabId;
+
+      items.push({
+        key: tab.id,
+        label: (
+          <span className={styles['preview-tab-item-main']}>
+            <span className={styles['preview-tab-title']}>{tab.title || '新建预览'}</span>
+
+            <span className={styles['preview-tab-url']}>{tab.url || '暂无地址'}</span>
+          </span>
+        ),
+        shortcut: active ? '✓' : undefined,
+        title: tab.url || tab.title,
+        className: [styles['preview-tab-context-menu-item'], active ? styles['preview-tab-context-menu-item-active'] : ''].filter(Boolean).join(' '),
+        onSelect: () => {
+          if (active) return;
+
+          vscode?.postMessage({
+            type: 'switchPreviewTab',
+            tabId: tab.id,
+          });
+        },
+      });
+    });
+
+    return items;
+  }, [currentPreviewTabId, previewTabs]);
 
   const parsedUrlInput = useMemo(() => {
     const value = urlInput.trim();
@@ -2835,11 +2722,7 @@ export default function LivePreviewApp() {
 
         <div className={styles['divider']} />
 
-        <div
-          className={
-            styles['toolbar-menu-trigger']
-          }
-        >
+        <div className={styles['toolbar-menu-trigger']}>
           <BaseContextMenu
             trigger="click"
             showArrow
@@ -2847,10 +2730,8 @@ export default function LivePreviewApp() {
             items={deviceMenuItems}
             minWidth={178}
             density="default"
-            menuClassName={
-              styles['device-context-menu']
-            }
-            onOpenChange={open => {
+            menuClassName={styles['device-context-menu']}
+            onOpenChange={(open) => {
               setDeviceMenuOpen(open);
 
               if (open) {
@@ -2861,18 +2742,8 @@ export default function LivePreviewApp() {
           >
             <button
               type="button"
-              className={[
-                styles['icon-btn'],
-                deviceMenuOpen
-                  ? styles['active-blue']
-                  : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
-              disabled={
-                previewType !== 'web' &&
-                previewType !== 'html'
-              }
+              className={[styles['icon-btn'], deviceMenuOpen ? styles['active-blue'] : ''].filter(Boolean).join(' ')}
+              disabled={previewType !== 'web' && previewType !== 'html'}
               title={`选择预览设备：${activeDeviceLabel}`}
               aria-label={`选择预览设备：${activeDeviceLabel}`}
               aria-expanded={deviceMenuOpen}
@@ -2882,11 +2753,7 @@ export default function LivePreviewApp() {
           </BaseContextMenu>
         </div>
 
-        <div
-          className={
-            styles['toolbar-menu-trigger']
-          }
-        >
+        <div className={styles['toolbar-menu-trigger']}>
           <BaseContextMenu
             trigger="click"
             showArrow
@@ -2894,12 +2761,8 @@ export default function LivePreviewApp() {
             items={previewTabMenuItems}
             minWidth={280}
             density="default"
-            menuClassName={
-              styles[
-                'preview-tabs-context-menu'
-              ]
-            }
-            onOpenChange={open => {
+            menuClassName={styles['preview-tabs-context-menu']}
+            onOpenChange={(open) => {
               setPreviewTabsMenuOpen(open);
 
               if (open) {
@@ -2914,34 +2777,14 @@ export default function LivePreviewApp() {
           >
             <button
               type="button"
-              className={[
-                styles['icon-btn'],
-                styles['preview-tabs-btn'],
-                previewTabsMenuOpen
-                  ? styles['active-blue']
-                  : '',
-              ]
-                .filter(Boolean)
-                .join(' ')}
+              className={[styles['icon-btn'], styles['preview-tabs-btn'], previewTabsMenuOpen ? styles['active-blue'] : ''].filter(Boolean).join(' ')}
               title={`当前打开 ${previewTabs.length || 1} 个预览标签页`}
               aria-label={`当前打开 ${previewTabs.length || 1} 个预览标签页`}
-              aria-expanded={
-                previewTabsMenuOpen
-              }
+              aria-expanded={previewTabsMenuOpen}
             >
-              <FontAwesomeIcon
-                icon={faWindowRestore}
-              />
+              <FontAwesomeIcon icon={faWindowRestore} />
 
-              <span
-                className={
-                  styles[
-                    'preview-tabs-count'
-                  ]
-                }
-              >
-                {previewTabs.length || 1}
-              </span>
+              <span className={styles['preview-tabs-count']}>{previewTabs.length || 1}</span>
             </button>
           </BaseContextMenu>
         </div>
@@ -2971,7 +2814,6 @@ export default function LivePreviewApp() {
           onNewTab={() => {
             vscode?.postMessage({
               type: 'openNewPreviewTab',
-              url: (frameUrl || urlInput || '').trim(),
               device,
             });
           }}
@@ -3015,13 +2857,7 @@ export default function LivePreviewApp() {
       <div
         ref={previewContainerRef}
         className={`${styles['preview-container']} ${
-          device === 'device-responsive' &&
-          previewType !== 'md' &&
-          previewType !== 'pdf' &&
-          previewType !== 'excel' &&
-          previewZoom === 1
-            ? styles['no-padding']
-            : ''
+          device === 'device-responsive' && previewType !== 'md' && previewType !== 'pdf' && previewType !== 'excel' && previewZoom === 1 ? styles['no-padding'] : ''
         }`}
         style={{ position: 'relative' }}
       >
@@ -3055,24 +2891,11 @@ export default function LivePreviewApp() {
         {/* 原有转圈 Mask：可以与上方进度条共存，如果不喜欢可以将这行删掉 */}
         {renderPreviewLoadingMask()}
 
-        {showPreviewZoom &&
-          frameUrl &&
-          (previewType === 'web' ||
-            previewType === 'html') && (
-            <div
-              className={
-                styles[
-                  'preview-zoom-indicator'
-                ]
-              }
-              aria-live="polite"
-            >
-              {Math.round(
-                previewZoom * 100,
-              )}
-              %
-            </div>
-          )}
+        {showPreviewZoom && frameUrl && (previewType === 'web' || previewType === 'html') && (
+          <div className={styles['preview-zoom-indicator']} aria-live="polite">
+            {Math.round(previewZoom * 100)}%
+          </div>
+        )}
 
         {!frameUrl ? (
           <WelcomePage onQuickOpen={handleGo} />
@@ -3088,8 +2911,7 @@ export default function LivePreviewApp() {
             className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}
             style={
               {
-                '--preview-zoom':
-                  previewZoom,
+                '--preview-zoom': previewZoom,
               } as React.CSSProperties
             }
           >
@@ -3125,8 +2947,7 @@ export default function LivePreviewApp() {
             className={`${styles[device] || device} ${isRotated ? styles['rotated'] : ''}`}
             style={
               {
-                ...(device ===
-                'device-responsive'
+                ...(device === 'device-responsive'
                   ? {
                       width: '100%',
                       height: '100%',
@@ -3136,19 +2957,11 @@ export default function LivePreviewApp() {
                       maxHeight: '100%',
                     }
                   : null),
-                '--preview-zoom':
-                  previewZoom,
+                '--preview-zoom': previewZoom,
               } as React.CSSProperties
             }
           >
-            <BrowserSurface
-              loading={previewLoading}
-              previewZoom={previewZoom}
-              onViewportChange={
-                handleBrowserViewportChange
-              }
-              onFindShortcut={openSearchBar}
-            />
+            <BrowserSurface loading={previewLoading} previewZoom={previewZoom} onViewportChange={handleBrowserViewportChange} onFindShortcut={openSearchBar} />
           </div>
         )}
       </div>

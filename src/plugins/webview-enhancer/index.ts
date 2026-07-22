@@ -4,7 +4,10 @@ import type { WebviewCreatedPayload, WebviewIcon } from '@plugins/webview-enhanc
 import type { WorkspaceOn, WebviewAppearancePluginInitOptions } from '@plugins/webview-enhancer/type';
 
 const ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT = 'quickOps.activeWebview.fullscreen';
+const ACTIVE_WEBVIEW_FLOATING_CONTEXT = 'quickOps.activeWebview.floating';
 const TOGGLE_WEBVIEW_FULLSCREEN_COMMAND = 'quickOps.webview.toggleFullscreen';
+const MOVE_WEBVIEW_TO_FLOATING_WINDOW_COMMAND = 'quickOps.webview.moveToFloatingWindow';
+const MOVE_EDITOR_TO_NEW_WINDOW_COMMANDS = ['workbench.action.moveEditorToNewWindow', 'workbench.action.editor.moveEditorToNextWindow'] as const;
 
 export class WebviewAppearancePlugin {
   public readonly use = ['on'] as const;
@@ -13,16 +16,21 @@ export class WebviewAppearancePlugin {
 
   private readonly fullscreenPanels = new Set<vscode.WebviewPanel>();
 
+  private readonly floatingPanels = new Set<vscode.WebviewPanel>();
+
   private readonly disposables: vscode.Disposable[] = [];
 
   private globalListenersRegistered = false;
 
   private commandRegistered = false;
 
+  private moveEditorToNewWindowCommand?: string;
+
   public init({ on }: WebviewAppearancePluginInitOptions = {}) {
     this.workspaceOn = on;
 
     this.registerCommandsOnce();
+    void this.detectFloatingWindowSupport();
 
     return {
       pluginId: 'webview-appearance-plugin',
@@ -51,6 +59,10 @@ export class WebviewAppearancePlugin {
       vscode.commands.registerCommand(TOGGLE_WEBVIEW_FULLSCREEN_COMMAND, async () => {
         await this.toggleFullscreen();
       }),
+
+      vscode.commands.registerCommand(MOVE_WEBVIEW_TO_FLOATING_WINDOW_COMMAND, async () => {
+        await this.moveToFloatingWindow();
+      }),
     );
   }
 
@@ -67,6 +79,43 @@ export class WebviewAppearancePlugin {
     }
   }
 
+  /**
+   * @description 将当前激活的 Webview 编辑器移入 VS Code 浮动窗口
+   */
+  private async moveToFloatingWindow(): Promise<void> {
+    const hasActiveFloatingWebview = Array.from(this.floatingPanels).some((panel) => panel.active && panel.visible);
+
+    if (!hasActiveFloatingWebview) return;
+
+    if (!this.moveEditorToNewWindowCommand) {
+      void vscode.window.showWarningMessage('当前 VS Code 版本不支持浮动编辑器窗口，请升级到 1.85 或更高版本。');
+      return;
+    }
+
+    try {
+      await vscode.commands.executeCommand(this.moveEditorToNewWindowCommand);
+    } catch (error) {
+      console.warn('[WebviewAppearancePlugin] move editor to floating window failed.', error);
+      void vscode.window.showWarningMessage('无法将当前 Webview 移至浮动编辑器窗口。');
+    }
+  }
+
+  /**
+   * @description 仅在宿主提供对应命令时展示浮动窗口按钮
+   */
+  private async detectFloatingWindowSupport(): Promise<void> {
+    try {
+      const commands = await vscode.commands.getCommands(true);
+
+      this.moveEditorToNewWindowCommand = MOVE_EDITOR_TO_NEW_WINDOW_COMMANDS.find((command) => commands.includes(command));
+    } catch (error) {
+      this.moveEditorToNewWindowCommand = undefined;
+      console.warn('[WebviewAppearancePlugin] detect floating window support failed.', error);
+    }
+
+    this.refreshAppearanceContexts();
+  }
+
   private handleWebviewCreated(payload: WebviewCreatedPayload): void {
     const { panel } = payload;
 
@@ -75,8 +124,8 @@ export class WebviewAppearancePlugin {
     this.applyWebviewIcon(payload);
 
     this.registerGlobalListenersOnce();
-    this.registerFullscreenPanel(payload);
-    this.refreshFullscreenContext();
+    this.registerAppearancePanel(payload);
+    this.refreshAppearanceContexts();
   }
 
   private handleWebviewDisposed(payload: WebviewCreatedPayload): void {
@@ -85,7 +134,8 @@ export class WebviewAppearancePlugin {
     if (!panel) return;
 
     this.fullscreenPanels.delete(panel);
-    this.refreshFullscreenContext();
+    this.floatingPanels.delete(panel);
+    this.refreshAppearanceContexts();
   }
 
   private applyWebviewIcon(payload: WebviewCreatedPayload): void {
@@ -98,25 +148,30 @@ export class WebviewAppearancePlugin {
     panel.iconPath = this.resolveIconPath(options.extensionUri, options.icon);
   }
 
-  private registerFullscreenPanel(payload: WebviewCreatedPayload): void {
+  private registerAppearancePanel(payload: WebviewCreatedPayload): void {
     const { panel, options } = payload;
 
     if (!panel) return;
 
-    if (!options?.fullscreen) {
-      return;
+    if (options?.fullscreen) {
+      this.fullscreenPanels.add(panel);
     }
 
-    this.fullscreenPanels.add(panel);
+    if (options?.floating) {
+      this.floatingPanels.add(panel);
+    }
+
+    if (!options?.fullscreen && !options?.floating) return;
 
     this.disposables.push(
       panel.onDidChangeViewState(() => {
-        this.refreshFullscreenContext();
+        this.refreshAppearanceContexts();
       }),
 
       panel.onDidDispose(() => {
         this.fullscreenPanels.delete(panel);
-        this.refreshFullscreenContext();
+        this.floatingPanels.delete(panel);
+        this.refreshAppearanceContexts();
       }),
     );
   }
@@ -133,25 +188,32 @@ export class WebviewAppearancePlugin {
 
     this.disposables.push(
       this.workspaceOn(WORKSPACE_EVENTS.DID_CHANGE_ACTIVE_TEXT_EDITOR, () => {
-        this.refreshFullscreenContext();
+        this.refreshAppearanceContexts();
       }),
 
       this.workspaceOn(WORKSPACE_EVENTS.DID_CHANGE_TABS, () => {
-        this.refreshFullscreenContext();
+        this.refreshAppearanceContexts();
       }),
 
       this.workspaceOn(WORKSPACE_EVENTS.DID_CHANGE_TAB_GROUPS, () => {
-        this.refreshFullscreenContext();
+        this.refreshAppearanceContexts();
       }),
     );
   }
 
-  private refreshFullscreenContext(): void {
+  private refreshAppearanceContexts(): void {
     const isActiveFullscreenWebview = Array.from(this.fullscreenPanels).some((panel) => {
       return panel.active && panel.visible;
     });
 
+    const isActiveFloatingWebview =
+      Boolean(this.moveEditorToNewWindowCommand) &&
+      Array.from(this.floatingPanels).some((panel) => {
+        return panel.active && panel.visible;
+      });
+
     void vscode.commands.executeCommand('setContext', ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT, isActiveFullscreenWebview);
+    void vscode.commands.executeCommand('setContext', ACTIVE_WEBVIEW_FLOATING_CONTEXT, isActiveFloatingWebview);
   }
 
   private resolveIconPath(extensionUri: vscode.Uri, icon: WebviewIcon): vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } {
@@ -172,11 +234,14 @@ export class WebviewAppearancePlugin {
 
     this.disposables.length = 0;
     this.fullscreenPanels.clear();
+    this.floatingPanels.clear();
     this.globalListenersRegistered = false;
     this.commandRegistered = false;
+    this.moveEditorToNewWindowCommand = undefined;
     this.workspaceOn = undefined;
 
     void vscode.commands.executeCommand('setContext', ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT, false);
+    void vscode.commands.executeCommand('setContext', ACTIVE_WEBVIEW_FLOATING_CONTEXT, false);
   }
 }
 
