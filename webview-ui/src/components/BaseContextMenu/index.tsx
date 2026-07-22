@@ -563,8 +563,7 @@ function MenuLevel(props: MenuLevelProps) {
     menuElement.style.top = `${Math.round(safePosition.top)}px`;
 
     if (level === 0 && showArrow && resolvedAnchorPoint) {
-      menuElement.dataset.popupArrowPlacement =
-        resolvedPopupPlacement;
+      menuElement.dataset.popupArrowPlacement = resolvedPopupPlacement;
 
       if (centerArrow) {
         /**
@@ -573,35 +572,19 @@ function MenuLevel(props: MenuLevelProps) {
          * 这样箭头会根据菜单最终真实宽度始终保持居中，
          * 不受首次测量、滚动条和内容宽度变化影响。
          */
-        menuElement.dataset.popupArrowAlign =
-          'center';
-        menuElement.style.removeProperty(
-          '--context-menu-popup-arrow-left',
-        );
+        menuElement.dataset.popupArrowAlign = 'center';
+        menuElement.style.removeProperty('--context-menu-popup-arrow-left');
       } else {
         const edgeGap = 14;
-        const arrowLeft = Math.max(
-          edgeGap,
-          Math.min(
-            resolvedAnchorPoint.x -
-              safePosition.left,
-            menuWidth - edgeGap,
-          ),
-        );
+        const arrowLeft = Math.max(edgeGap, Math.min(resolvedAnchorPoint.x - safePosition.left, menuWidth - edgeGap));
 
-        menuElement.dataset.popupArrowAlign =
-          'anchor';
-        menuElement.style.setProperty(
-          '--context-menu-popup-arrow-left',
-          `${Math.round(arrowLeft)}px`,
-        );
+        menuElement.dataset.popupArrowAlign = 'anchor';
+        menuElement.style.setProperty('--context-menu-popup-arrow-left', `${Math.round(arrowLeft)}px`);
       }
     } else {
       delete menuElement.dataset.popupArrowPlacement;
       delete menuElement.dataset.popupArrowAlign;
-      menuElement.style.removeProperty(
-        '--context-menu-popup-arrow-left',
-      );
+      menuElement.style.removeProperty('--context-menu-popup-arrow-left');
     }
 
     /**
@@ -614,20 +597,7 @@ function MenuLevel(props: MenuLevelProps) {
     contentElement.scrollTop = Math.min(previousScrollTop, maxScrollTop);
 
     menuElement.style.visibility = 'visible';
-  }, [
-    anchorEl,
-    anchorPoint,
-    centerArrow,
-    inline,
-    level,
-    maxHeight,
-    popupOffset,
-    popupPlacement,
-    position.left,
-    position.top,
-    showArrow,
-    viewportPadding,
-  ]);
+  }, [anchorEl, anchorPoint, centerArrow, inline, level, maxHeight, popupOffset, popupPlacement, position.left, position.top, showArrow, viewportPadding]);
 
   useLayoutEffect(() => {
     updateMenuLayout();
@@ -893,8 +863,17 @@ function MenuLevel(props: MenuLevelProps) {
         }
         data-context-menu-level={level}
         data-base-context-menu-root="true"
+        onPointerDown={(event) => {
+          event.stopPropagation();
+        }}
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
         onKeyDown={handleKeyDown}
-        onContextMenu={(event) => event.preventDefault()}
+        onContextMenu={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }}
         onMouseLeave={submenuPlacement === 'inline' ? undefined : clearOpenTimer}
       >
         {level === 0 && showArrow && <span className={styles['context-menu-popup-arrow']} aria-hidden="true" />}

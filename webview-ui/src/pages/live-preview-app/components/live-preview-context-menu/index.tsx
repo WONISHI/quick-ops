@@ -96,7 +96,7 @@ export default function LivePreviewContextMenu(props: ContextMenuProps) {
   ];
 
   return (
-    <BaseContextMenu trigger="click" items={items} minWidth={180} density="compact" submenuPlacement="inline" showArrow={true} submenuOpenDelay={120}>
+    <BaseContextMenu trigger="click" items={items} minWidth={200} density="compact" submenuPlacement="inline" showArrow={true} submenuOpenDelay={120}>
       {children}
     </BaseContextMenu>
   );
