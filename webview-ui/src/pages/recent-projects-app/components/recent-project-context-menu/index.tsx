@@ -24,16 +24,9 @@ import { faCopy, faSquareCheck, faClone, faFolderOpen as faFolderOpenReg, faWind
 import BaseContextMenu from '@components/BaseContextMenu';
 import type { BaseContextMenuItem } from '@components/BaseContextMenu';
 import type { ContextMenuPayload } from '@/pages/recent-projects-app/src/type';
+import type {RecentProjectContextMenuProps} from "@pages/recent-projects-app/components/recent-project-context-menu/src/type"
 
-interface RecentProjectContextMenuProps {
-  visible: boolean;
-  x: number;
-  y: number;
-  type: 'top' | 'sub';
-  payload: ContextMenuPayload;
-  onClose: () => void;
-  onAction: (action: string, arg?: string) => void;
-}
+
 
 function createIcon(icon: IconDefinition) {
   return <FontAwesomeIcon icon={icon} />;
@@ -54,7 +47,7 @@ function getStatusKey(status?: string): string {
   }
 
   const cleanStatus = raw
-    .replace(/[\[\]]/g, '')
+    .replace(/\[|\]/g, '')
     .replace(/^\s*[·•-]?\s*/, '')
     .trim();
 
