@@ -1,15 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronDown, faChevronRight, faFolder, faFolderOpen, faSpinner } from '@fortawesome/free-solid-svg-icons';
-
-import { vscode } from '@/utils/vscode';
 import FileIcon from '@/components/FileIcon';
 import HighlightText from '../highlight-text';
 import Tooltip from '@/components/Tooltip';
+import styles from './index.module.css';
 import Scrollbar, { type ScrollbarInstance } from '@/components/Scrollbar';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faChevronDown, faChevronRight, faFolder, faFolderOpen, faSpinner } from '@fortawesome/free-solid-svg-icons';
+import { vscode } from '@/utils/vscode';
 import type { SearchMatch, SearchResult } from '@/pages/recent-projects-app/src/type';
 import type { FolderSearchType, SearchViewWrapperProps, ExtensionTagOption } from '@pages/recent-projects-app/components/search-view-wrapper/src/type';
-import styles from './index.module.css';
 
 const EXTENSION_TAG_PRIORITY = [
   'js',

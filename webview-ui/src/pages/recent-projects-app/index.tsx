@@ -15,14 +15,15 @@ import {
   faSpinner,
 } from '@fortawesome/free-solid-svg-icons';
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
-import styles from './index.module.css';
+import styles from '@pages/recent-projects-app/index.module.css';
 import FileIcon from '@components/FileIcon';
-import RecentProjectContextMenu from './components/recent-project-context-menu';
-import SearchViewWrapper from './components/search-view-wrapper';
+import RecentProjectContextMenu from '@pages/recent-projects-app/components/recent-project-context-menu';
+import SearchViewWrapper from '@pages/recent-projects-app/components/search-view-wrapper';
 import Tooltip from '@components/Tooltip';
 import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
 import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '@/utils';
-import { FileGitStatusBadge, FolderGitStatusDot, getGitStatusTitle } from './components/git-status-mark';
+import { FileGitStatusBadge, FolderGitStatusDot } from '@pages/recent-projects-app/components/git-status-mark';
+import { getGitStatusTitle } from '@pages/recent-projects-app/components/git-status-mark/src/uitls';
 import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '@/pages/recent-projects-app/src/type';
 import type { DiagnosticSummary, MetadataPatchItem, PendingCreateEntity, PendingRenameEntity, DraggingEntity, SearchReturnState } from '@/pages/recent-projects-app/src/type';
 
@@ -164,8 +165,6 @@ export default function RecentProjectsApp() {
     type: 'top',
     payload: { path: '' },
   });
-
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const [isSearchMode, setIsSearchMode] = useState(false);
   const isSearchModeRef = useRef(false);
@@ -2817,7 +2816,12 @@ export default function RecentProjectsApp() {
         y={contextMenu.y}
         type={contextMenu.type}
         payload={contextMenu.payload}
-        menuRef={menuRef}
+        onClose={() => {
+          setContextMenu((current) => ({
+            ...current,
+            visible: false,
+          }));
+        }}
         onAction={executeMenuAction}
       />
 

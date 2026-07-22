@@ -1,5 +1,5 @@
-import React from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
 import {
   faMagnifyingGlass,
   faCodeBranch,
@@ -21,23 +21,37 @@ import {
 } from '@fortawesome/free-solid-svg-icons';
 import { faCopy, faSquareCheck, faClone, faFolderOpen as faFolderOpenReg, faWindowRestore, faFileCode } from '@fortawesome/free-regular-svg-icons';
 
-import styles from './index.module.css';
-import type { ContextMenuPayload } from '../../../../pages/recent-projects-app/src/type';
+import BaseContextMenu from '@components/BaseContextMenu';
+import type { BaseContextMenuItem } from '@components/BaseContextMenu';
+import type { ContextMenuPayload } from '@/pages/recent-projects-app/src/type';
 
-interface ContextMenuProps {
+interface RecentProjectContextMenuProps {
   visible: boolean;
   x: number;
   y: number;
   type: 'top' | 'sub';
   payload: ContextMenuPayload;
-  menuRef: React.RefObject<HTMLDivElement | null>;
+  onClose: () => void;
   onAction: (action: string, arg?: string) => void;
 }
 
-function getStatusKey(status?: string) {
+function createIcon(icon: IconDefinition) {
+  return <FontAwesomeIcon icon={icon} />;
+}
+
+function createSeparator(key: string): BaseContextMenuItem {
+  return {
+    type: 'separator',
+    key,
+  };
+}
+
+function getStatusKey(status?: string): string {
   const raw = String(status || '').trim();
 
-  if (!raw) return '';
+  if (!raw) {
+    return '';
+  }
 
   const cleanStatus = raw
     .replace(/[\[\]]/g, '')
@@ -52,7 +66,7 @@ function getStatusKey(status?: string) {
   const matchedToken = tokens.find((item) => {
     const key = item[0]?.toUpperCase();
 
-    return !!key && ['U', '?', 'M', 'A', 'D', 'R', 'C', 'I', '!', 'X', 'T'].includes(key);
+    return Boolean(key) && ['U', '?', 'M', 'A', 'D', 'R', 'C', 'I', '!', 'X', 'T'].includes(key);
   });
 
   if (matchedToken) {
@@ -68,232 +82,433 @@ function getStatusKey(status?: string) {
   );
 }
 
-export default function RecentProjectContextMenu({ visible, x, y, type, payload, menuRef, onAction }: ContextMenuProps) {
-  if (!visible) return null;
+function createTopMenuItems(payload: ContextMenuPayload, onAction: (action: string, arg?: string) => void): BaseContextMenuItem[] {
+  const items: BaseContextMenuItem[] = [];
+
+  if (!payload.isActiveProject) {
+    items.push(
+      {
+        key: 'open-project-current',
+        label: '在当前窗口打开',
+        icon: createIcon(faArrowRightToBracket),
+        onSelect: () => {
+          onAction('openProjectCurrent');
+        },
+      },
+      {
+        key: 'open-project-new-window',
+        label: '在新窗口打开',
+        icon: createIcon(faArrowUpRightFromSquare),
+        onSelect: () => {
+          onAction('openInNewWindow');
+        },
+      },
+      createSeparator('top-open-separator'),
+    );
+  }
+
+  items.push({
+    key: 'search-in-project',
+    label: '查找文件内容...',
+    icon: createIcon(faMagnifyingGlass),
+    onSelect: () => {
+      onAction('searchInFolder');
+    },
+  });
+
+  if (payload.isActiveProject) {
+    items.push({
+      key: 'focus-mode',
+      label: '专注模式',
+      icon: createIcon(faBullseye),
+      onSelect: () => {
+        onAction('focusMode');
+      },
+    });
+  }
+
+  items.push(
+    createSeparator('top-search-separator'),
+    {
+      key: 'add-to-git-list',
+      label: '添加到 Git 记录列表',
+      icon: createIcon(faListUl),
+      onSelect: () => {
+        onAction('addToGitList');
+      },
+    },
+    {
+      key: 'edit-project-name',
+      label: '编辑项目名称',
+      icon: createIcon(faPen),
+      onSelect: () => {
+        onAction('edit');
+      },
+    },
+    {
+      key: 'change-project-address',
+      label: '更换地址',
+      icon: createIcon(faLocationDot),
+      onSelect: () => {
+        onAction('changeAddress');
+      },
+    },
+  );
+
+  if (payload.isRemote) {
+    items.push({
+      key: 'switch-branch',
+      label: '切换分支',
+      icon: createIcon(faCodeBranch),
+      onSelect: () => {
+        onAction('switchBranch');
+      },
+    });
+  }
+
+  items.push(
+    createSeparator('top-edit-separator'),
+    {
+      key: 'copy-original-name',
+      label: '复制文件名',
+      icon: createIcon(faCopy),
+      onSelect: () => {
+        onAction('copyText', payload.originalName);
+      },
+    },
+    {
+      key: 'update-branch',
+      label: '更新分支',
+      icon: createIcon(faRotateRight),
+      onSelect: () => {
+        onAction('updateBranch');
+      },
+    },
+  );
+
+  if (payload.customName) {
+    items.push({
+      key: 'copy-custom-name',
+      label: '复制项目名',
+      icon: createIcon(faCopy),
+      onSelect: () => {
+        onAction('copyText', payload.customName);
+      },
+    });
+  }
+
+  items.push({
+    key: 'copy-project-path',
+    label: '复制地址链接',
+    icon: createIcon(faLink),
+    onSelect: () => {
+      onAction('copyText', payload.path);
+    },
+  });
+
+  if (payload.isRemote) {
+    items.push({
+      key: 'open-project-in-browser',
+      label: '在浏览器中打开',
+      icon: createIcon(faGlobe),
+      onSelect: () => {
+        onAction('openLink');
+      },
+    });
+  } else {
+    items.push({
+      key: 'reveal-project-in-explorer',
+      label: '在访达/资源管理器中显示',
+      icon: createIcon(faFolderOpenReg),
+      onSelect: () => {
+        onAction('revealInExplorer');
+      },
+    });
+  }
+
+  items.push(createSeparator('top-remove-separator'));
+
+  if (payload.isActiveProject) {
+    if (
+      !(
+        payload as {
+          inHistory?: boolean;
+        }
+      ).inHistory
+    ) {
+      items.push({
+        key: 'add-active-project-history',
+        label: '添加到资源管理器记录',
+        icon: createIcon(faFolderPlus),
+        onSelect: () => {
+          onAction('addToHistory');
+        },
+      });
+    } else {
+      items.push({
+        key: 'remove-active-project-history',
+        label: '从资源管理器记录中移除',
+        icon: createIcon(faTrash),
+        danger: true,
+        onSelect: () => {
+          onAction('delete');
+        },
+      });
+    }
+  } else {
+    items.push({
+      key: 'remove-project',
+      label: '移除该项目',
+      icon: createIcon(faTrash),
+      danger: true,
+      onSelect: () => {
+        onAction('delete');
+      },
+    });
+  }
+
+  return items;
+}
+
+function createSubMenuItems(payload: ContextMenuPayload, onAction: (action: string, arg?: string) => void): BaseContextMenuItem[] {
+  const items: BaseContextMenuItem[] = [];
 
   const isRemotePath = payload.path.startsWith('vscode-vfs') || payload.path.startsWith('http');
+
   const isLocalHtmlOrSvg = !isRemotePath && /\.(html|htm|svg|svga)$/i.test(payload.path);
 
-  const statusKey = getStatusKey((payload as any).status);
+  const statusKey = getStatusKey(
+    (
+      payload as {
+        status?: string;
+      }
+    ).status,
+  );
 
   /**
    * “与旧代码对比 / 取消变更”只允许当前运行项目展示。
-   *
-   * 历史项目、远程项目、只读预览项目虽然也可能有 status，
-   * 但它们不是当前 VS Code 工作区，右侧无法稳定作为可编辑工作区文件，
-   * 所以这里统一不显示这两个操作，保持和 VS Code 原生资源管理器一致。
    */
-  const hasFileChangeStatus = type === 'sub' && !payload.isFolder && !isRemotePath && !!payload.isActiveProject && !!statusKey;
+  const hasFileChangeStatus = !payload.isFolder && !isRemotePath && Boolean(payload.isActiveProject) && Boolean(statusKey);
 
-  const menuStyle: React.CSSProperties = {};
+  if (!payload.isFolder) {
+    if (isLocalHtmlOrSvg) {
+      items.push(
+        {
+          key: 'open-with',
+          label: '打开方式...',
+          icon: createIcon(faFileCode),
+          onSelect: () => {
+            onAction('openWith');
+          },
+        },
+        createSeparator('sub-open-with-separator'),
+      );
+    }
 
-  const estimatedWidth = 230;
-  menuStyle.left = Math.max(4, Math.min(x, window.innerWidth - estimatedWidth));
-  if (y > window.innerHeight / 2) {
-    menuStyle.bottom = window.innerHeight - y;
-    menuStyle.top = 'auto';
+    items.push(
+      {
+        key: 'open-file-to-side',
+        label: '向右拆分',
+        icon: createIcon(faColumns),
+        onSelect: () => {
+          onAction('openFileToSide');
+        },
+      },
+      {
+        key: 'open-file-in-new-tab',
+        label: '在新标签页打开',
+        icon: createIcon(faWindowRestore),
+        onSelect: () => {
+          onAction('openFileInNewTab');
+        },
+      },
+    );
+
+    if (hasFileChangeStatus) {
+      items.push(
+        {
+          key: 'compare-with-old-code',
+          label: '与旧代码对比',
+          icon: createIcon(faCodeCompare),
+          onSelect: () => {
+            onAction('compareWithOldCode');
+          },
+        },
+        createSeparator('sub-change-separator'),
+      );
+    }
+
+    items.push(
+      {
+        key: 'copy-file',
+        label: '复制文件',
+        icon: createIcon(faCopy),
+        onSelect: () => {
+          onAction('copyFile');
+        },
+      },
+      createSeparator('sub-copy-file-separator'),
+      {
+        key: 'select-for-compare',
+        label: '选择以进行比较',
+        icon: createIcon(faSquareCheck),
+        onSelect: () => {
+          onAction('selectForCompare');
+        },
+      },
+      {
+        key: 'compare-with-selected',
+        label: '与已选项目进行比较',
+        icon: createIcon(faCodeCompare),
+        onSelect: () => {
+          onAction('compareWithSelected');
+        },
+      },
+      createSeparator('sub-compare-separator'),
+    );
   } else {
-    menuStyle.top = y;
-    menuStyle.bottom = 'auto';
+    items.push(
+      {
+        key: 'search-in-sub-folder',
+        label: '查找文件内容...',
+        icon: createIcon(faMagnifyingGlass),
+        onSelect: () => {
+          onAction('searchInFolder');
+        },
+      },
+      {
+        key: 'collapse-folder-children',
+        label: '折叠',
+        icon: createIcon(faFolderMinus),
+        onSelect: () => {
+          onAction('collapseFolderChildren');
+        },
+      },
+    );
+
+    if (!payload.isRemote) {
+      items.push(
+        createSeparator('sub-create-separator'),
+        {
+          key: 'create-file',
+          label: '新建文件',
+          icon: createIcon(faFileCode),
+          onSelect: () => {
+            onAction('createFile');
+          },
+        },
+        {
+          key: 'create-folder',
+          label: '新建文件夹',
+          icon: createIcon(faFolderPlus),
+          onSelect: () => {
+            onAction('createFolder');
+          },
+        },
+      );
+    }
+
+    items.push(createSeparator('sub-folder-separator'));
   }
 
-  return (
-    <div className={styles['context-menu']} ref={menuRef as any} style={menuStyle}>
-      <ul>
-        {type === 'top' && (
-          <>
-            {!payload.isActiveProject && (
-              <>
-                <li onClick={() => onAction('openProjectCurrent')}>
-                  <FontAwesomeIcon icon={faArrowRightToBracket} className={styles['menu-icon']} /> 在当前窗口打开
-                </li>
-                <li onClick={() => onAction('openInNewWindow')}>
-                  <FontAwesomeIcon icon={faArrowUpRightFromSquare} className={styles['menu-icon']} /> 在新窗口打开
-                </li>
-                <div className={styles['menu-separator']}></div>
-              </>
-            )}
-
-            <li onClick={() => onAction('searchInFolder')}>
-              <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
-            </li>
-
-            {payload.isActiveProject && (
-              <li onClick={() => onAction('focusMode')}>
-                <FontAwesomeIcon icon={faBullseye} className={styles['menu-icon']} /> 专注模式
-              </li>
-            )}
-
-            <div className={styles['menu-separator']}></div>
-
-            <li onClick={() => onAction('addToGitList')}>
-              <FontAwesomeIcon icon={faListUl} className={styles['menu-icon']} /> 添加到 Git 记录列表
-            </li>
-
-            <li onClick={() => onAction('edit')}>
-              <FontAwesomeIcon icon={faPen} className={styles['menu-icon']} /> 编辑项目名称
-            </li>
-            <li onClick={() => onAction('changeAddress')}>
-              <FontAwesomeIcon icon={faLocationDot} className={styles['menu-icon']} /> 更换地址
-            </li>
-            {payload.isRemote && (
-              <li onClick={() => onAction('switchBranch')}>
-                <FontAwesomeIcon icon={faCodeBranch} className={styles['menu-icon']} /> 切换分支
-              </li>
-            )}
-            <div className={styles['menu-separator']}></div>
-            <li onClick={() => onAction('copyText', payload.originalName)}>
-              <FontAwesomeIcon icon={faCopy} className={styles['menu-icon']} /> 复制文件名
-            </li>
-            <li onClick={() => onAction('updateBranch')}>
-              <FontAwesomeIcon icon={faRotateRight} className={styles['menu-icon']} /> 更新分支
-            </li>
-            {payload.customName && (
-              <li onClick={() => onAction('copyText', payload.customName)}>
-                <FontAwesomeIcon icon={faCopy} className={styles['menu-icon']} /> 复制项目名
-              </li>
-            )}
-            <li onClick={() => onAction('copyText', payload.path)}>
-              <FontAwesomeIcon icon={faLink} className={styles['menu-icon']} /> 复制地址链接
-            </li>
-            {payload.isRemote ? (
-              <li onClick={() => onAction('openLink')}>
-                <FontAwesomeIcon icon={faGlobe} className={styles['menu-icon']} /> 在浏览器中打开
-              </li>
-            ) : (
-              <li onClick={() => onAction('revealInExplorer')}>
-                <FontAwesomeIcon icon={faFolderOpenReg} className={styles['menu-icon']} /> 在访达/资源管理器中显示
-              </li>
-            )}
-
-            <div className={styles['menu-separator']}></div>
-            {payload.isActiveProject ? (
-              !(payload as any).inHistory ? (
-                <li onClick={() => onAction('addToHistory')}>
-                  <FontAwesomeIcon icon={faFolderPlus} className={styles['menu-icon']} /> 添加到资源管理器记录
-                </li>
-              ) : (
-                <li onClick={() => onAction('delete')} style={{ color: 'var(--vscode-errorForeground)' }}>
-                  <FontAwesomeIcon icon={faTrash} className={styles['menu-icon']} /> 从资源管理器记录中移除
-                </li>
-              )
-            ) : (
-              <li onClick={() => onAction('delete')} style={{ color: 'var(--vscode-errorForeground)' }}>
-                <FontAwesomeIcon icon={faTrash} className={styles['menu-icon']} /> 移除该项目
-              </li>
-            )}
-          </>
-        )}
-
-        {type === 'sub' && (
-          <>
-            {!payload.isFolder && (
-              <>
-                {isLocalHtmlOrSvg && (
-                  <>
-                    <li onClick={() => onAction('openWith')}>
-                      <FontAwesomeIcon icon={faFileCode} className={styles['menu-icon']} /> 打开方式...
-                    </li>
-                    <div className={styles['menu-separator']}></div>
-                  </>
-                )}
-
-                <li onClick={() => onAction('openFileToSide')}>
-                  <FontAwesomeIcon icon={faColumns} className={styles['menu-icon']} /> 向右拆分
-                </li>
-                <li onClick={() => onAction('openFileInNewTab')}>
-                  <FontAwesomeIcon icon={faWindowRestore} className={styles['menu-icon']} /> 在新标签页打开
-                </li>
-
-                {hasFileChangeStatus && (
-                  <>
-                    <li onClick={() => onAction('compareWithOldCode')}>
-                      <FontAwesomeIcon icon={faCodeCompare} className={styles['menu-icon']} /> 与旧代码对比
-                    </li>
-                    <div className={styles['menu-separator']}></div>
-                  </>
-                )}
-
-                <li onClick={() => onAction('copyFile')}>
-                  <FontAwesomeIcon icon={faCopy} className={styles['menu-icon']} /> 复制文件
-                </li>
-                <div className={styles['menu-separator']}></div>
-                <li onClick={() => onAction('selectForCompare')}>
-                  <FontAwesomeIcon icon={faSquareCheck} className={styles['menu-icon']} /> 选择以进行比较
-                </li>
-                <li onClick={() => onAction('compareWithSelected')}>
-                  <FontAwesomeIcon icon={faCodeCompare} className={styles['menu-icon']} /> 与已选项目进行比较
-                </li>
-                <div className={styles['menu-separator']}></div>
-              </>
-            )}
-
-            {payload.isFolder && (
-              <>
-                <li onClick={() => onAction('searchInFolder')}>
-                  <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['menu-icon']} /> 查找文件内容...
-                </li>
-                <li onClick={() => onAction('collapseFolderChildren')}>
-                  <FontAwesomeIcon icon={faFolderMinus} className={styles['menu-icon']} /> 折叠
-                </li>
-                {!payload.isRemote && (
-                  <>
-                    <div className={styles['menu-separator']}></div>
-                    <li onClick={() => onAction('createFile')}>
-                      <FontAwesomeIcon icon={faFileCode} className={styles['menu-icon']} /> 新建文件
-                    </li>
-                    <li onClick={() => onAction('createFolder')}>
-                      <FontAwesomeIcon icon={faFolderPlus} className={styles['menu-icon']} /> 新建文件夹
-                    </li>
-                  </>
-                )}
-                <div className={styles['menu-separator']}></div>
-              </>
-            )}
-
-            <li onClick={() => onAction('copyText', payload.name)}>
-              <FontAwesomeIcon icon={faClone} className={styles['menu-icon']} /> 复制名称
-            </li>
-            <li onClick={() => onAction('copyText', payload.path)}>
-              <FontAwesomeIcon icon={faLink} className={styles['menu-icon']} /> 复制路径
-            </li>
-            {!isRemotePath && (
-              <>
-                <div className={styles['menu-separator']}></div>
-                <li onClick={() => onAction('revealInExplorer', payload.path)}>
-                  <FontAwesomeIcon icon={faFolderOpenReg} className={styles['menu-icon']} /> 在访达/资源管理器中显示
-                </li>
-              </>
-            )}
-
-            {!payload.isFolder && !payload.isActiveProject && (
-              <>
-                <div className={styles['menu-separator']}></div>
-                <li onClick={() => onAction('openInVsCode')}>
-                  <FontAwesomeIcon icon={faFileCode} className={styles['menu-icon']} /> 在 VS Code 中打开...
-                </li>
-              </>
-            )}
-
-            {payload.isActiveProject && !isRemotePath && (
-              <>
-                <div className={styles['menu-separator']}></div>
-                {hasFileChangeStatus && (
-                  <li onClick={() => onAction('discardFileChanges')} style={{ color: 'var(--vscode-errorForeground)' }}>
-                    <FontAwesomeIcon icon={faRotateLeft} className={styles['menu-icon']} /> 取消变更
-                  </li>
-                )}
-                <li onClick={() => onAction('renameFileEntity')}>
-                  <FontAwesomeIcon icon={faPen} className={styles['menu-icon']} /> 重命名
-                </li>
-                <li onClick={() => onAction('deleteFileEntity')} style={{ color: 'var(--vscode-errorForeground)' }}>
-                  <FontAwesomeIcon icon={faTrash} className={styles['menu-icon']} /> 删除
-                </li>
-              </>
-            )}
-          </>
-        )}
-      </ul>
-    </div>
+  items.push(
+    {
+      key: 'copy-entity-name',
+      label: '复制名称',
+      icon: createIcon(faClone),
+      onSelect: () => {
+        onAction('copyText', payload.name);
+      },
+    },
+    {
+      key: 'copy-entity-path',
+      label: '复制路径',
+      icon: createIcon(faLink),
+      onSelect: () => {
+        onAction('copyText', payload.path);
+      },
+    },
   );
+
+  if (!isRemotePath) {
+    items.push(createSeparator('sub-reveal-separator'), {
+      key: 'reveal-entity-in-explorer',
+      label: '在访达/资源管理器中显示',
+      icon: createIcon(faFolderOpenReg),
+      onSelect: () => {
+        onAction('revealInExplorer', payload.path);
+      },
+    });
+  }
+
+  if (!payload.isFolder && !payload.isActiveProject) {
+    items.push(createSeparator('sub-open-vscode-separator'), {
+      key: 'open-in-vscode',
+      label: '在 VS Code 中打开...',
+      icon: createIcon(faFileCode),
+      onSelect: () => {
+        onAction('openInVsCode');
+      },
+    });
+  }
+
+  if (payload.isActiveProject && !isRemotePath) {
+    items.push(createSeparator('sub-edit-entity-separator'));
+
+    if (hasFileChangeStatus) {
+      items.push({
+        key: 'discard-file-changes',
+        label: '取消变更',
+        icon: createIcon(faRotateLeft),
+        danger: true,
+        onSelect: () => {
+          onAction('discardFileChanges');
+        },
+      });
+    }
+
+    items.push(
+      {
+        key: 'rename-file-entity',
+        label: '重命名',
+        icon: createIcon(faPen),
+        onSelect: () => {
+          onAction('renameFileEntity');
+        },
+      },
+      {
+        key: 'delete-file-entity',
+        label: '删除',
+        icon: createIcon(faTrash),
+        danger: true,
+        onSelect: () => {
+          onAction('deleteFileEntity');
+        },
+      },
+    );
+  }
+
+  return items;
+}
+
+/**
+ * @description 最近项目右键菜单
+ *
+ * 定位、视口碰撞、超高滚动、外部点击关闭、
+ * 右键切换和键盘操作统一交给 BaseContextMenu。
+ */
+export default function RecentProjectContextMenu(props: RecentProjectContextMenuProps) {
+  const { visible, x, y, type, payload, onClose, onAction } = props;
+
+  if (!visible) {
+    return null;
+  }
+
+  const items = type === 'top' ? createTopMenuItems(payload, onAction) : createSubMenuItems(payload, onAction);
+
+  if (items.length === 0) {
+    return null;
+  }
+
+  return <BaseContextMenu open position={{ x, y }} items={items} minWidth={230} density="compact" onClose={onClose} />;
 }
