@@ -3,6 +3,7 @@ import { vscode } from '@utils/vscode';
 import UrlParser from '../../utils/UrlParser';
 import BaseContextMenu from '@components/BaseContextMenu';
 import type { BaseContextMenuItem } from '@components/BaseContextMenu';
+import BaseSearch from '@components/BaseSearch';
 import styles from './index.module.css';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -16,8 +17,6 @@ import {
   faArrowUpRightFromSquare,
   faEllipsis,
   faSpinner,
-  faChevronUp,
-  faChevronDown,
   faWindowRestore,
 } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
@@ -1101,7 +1100,6 @@ export default function LivePreviewApp() {
 
   const [searchOpen, setSearchOpen] = useState(false);
   const searchOpenRef = useRef(false);
-  const [searchKeyword, setSearchKeyword] = useState('');
   const [searchResult, setSearchResult] = useState({ keyword: '', total: 0, current: 0 });
 
   const [favSort, setFavSort] = useState<'time' | 'title'>('time');
@@ -1121,7 +1119,6 @@ export default function LivePreviewApp() {
 
   const htmlIframeRef = useRef<HTMLIFrameElement | null>(null);
   const suggestBoxRef = useRef<HTMLDivElement>(null);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const browserSwitcherRef = useRef<HTMLDivElement>(null);
   const previewContainerRef = useRef<HTMLDivElement>(null);
   const previewZoomTimerRef = useRef<number | null>(null);
@@ -1359,22 +1356,16 @@ export default function LivePreviewApp() {
   const openSearchBar = () => {
     searchOpenRef.current = true;
     setSearchOpen(true);
-
-    window.setTimeout(() => {
-      searchInputRef.current?.focus();
-      searchInputRef.current?.select();
-    }, 0);
   };
 
   const closeSearchBar = () => {
     searchOpenRef.current = false;
     setSearchOpen(false);
-    setSearchKeyword('');
     setSearchResult({ keyword: '', total: 0, current: 0 });
     vscode?.postMessage({ type: 'browserSearch', keyword: '', direction: 'next' });
   };
 
-  const runPageSearch = (keyword = searchKeyword, direction: 'next' | 'previous' = 'next') => {
+  const runPageSearch = (keyword: string, direction: 'next' | 'previous' = 'next') => {
     const value = keyword.trim();
 
     if (!value) {
@@ -2984,7 +2975,13 @@ export default function LivePreviewApp() {
               device,
             });
           }}
-          onOpenFav={() => setActiveModal('fav')}
+          onOpenFav={() => {
+            if (searchOpenRef.current) {
+              closeSearchBar();
+            }
+
+            setActiveModal('fav');
+          }}
           onOpenHistory={() => setActiveModal('history')}
           onClearCache={handleCacheClear}
           onOpenDevTools={() => vscode?.postMessage({ type: 'openDevTools' })}
@@ -2995,66 +2992,25 @@ export default function LivePreviewApp() {
         </LivePreviewContextMenu>
       </div>
 
-      {searchOpen && (
-        <div className={styles['page-search-bar']} onMouseDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
-          <div className={styles['page-search-input-wrapper']}>
-            <input
-              ref={searchInputRef}
-              className={styles['page-search-input']}
-              value={searchKeyword}
-              placeholder="搜索网页内容"
-              onChange={(event) => {
-                const value = event.target.value;
-
-                setSearchKeyword(value);
-                runPageSearch(value, 'next');
-              }}
-              onKeyDown={(event) => {
-                event.stopPropagation();
-
-                if (event.key === 'Enter') {
-                  runPageSearch(searchKeyword, event.shiftKey ? 'previous' : 'next');
-                }
-
-                if (event.key === 'Escape') {
-                  closeSearchBar();
-                }
-              }}
-            />
-
-            {searchKeyword && (
-              <button
-                type="button"
-                className={styles['page-search-clear']}
-                title="清空关键词"
-                onClick={() => {
-                  setSearchKeyword('');
-                  runPageSearch('', 'next');
-                  searchInputRef.current?.focus();
-                }}
-              >
-                <FontAwesomeIcon icon={faXmark} />
-              </button>
-            )}
-          </div>
-
-          <span className={[styles['page-search-count'], searchKeyword.trim() && searchResult.total === 0 ? styles['page-search-count-empty'] : ''].filter(Boolean).join(' ')}>
-            {searchKeyword.trim() ? `${searchResult.current}/${searchResult.total}` : '0/0'}
-          </span>
-
-          <button type="button" className={styles['page-search-action']} title="上一个" onClick={() => runPageSearch(searchKeyword, 'previous')}>
-            <FontAwesomeIcon icon={faChevronUp} />
-          </button>
-
-          <button type="button" className={styles['page-search-action']} title="下一个" onClick={() => runPageSearch(searchKeyword, 'next')}>
-            <FontAwesomeIcon icon={faChevronDown} />
-          </button>
-
-          <button type="button" className={`${styles['page-search-action']} ${styles['page-search-close']}`} title="关闭" onClick={closeSearchBar}>
-            <FontAwesomeIcon icon={faXmark} />
-          </button>
-        </div>
-      )}
+      <BaseSearch
+        open={searchOpen}
+        standalone
+        draggable
+        text=""
+        placeholder="搜索网页内容"
+        maxWidth={380}
+        size={42}
+        initialOffset={{ y: 44 }}
+        result={{
+          query: searchResult.keyword,
+          current: searchResult.current,
+          total: searchResult.total,
+        }}
+        onSearch={(query, direction) => {
+          runPageSearch(query, direction === 'prev' ? 'previous' : 'next');
+        }}
+        onClose={closeSearchBar}
+      />
 
       <div
         ref={previewContainerRef}

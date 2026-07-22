@@ -8,6 +8,23 @@ export type BaseSearchPosition = 'top' | 'bottom';
 
 export type BaseSearchSize = number | string;
 
+export interface BaseSearchResult {
+  /**
+   * @description 当前结果序号，从 1 开始；没有结果时为 0
+   */
+  current: number;
+
+  /**
+   * @description 匹配结果总数
+   */
+  total: number;
+
+  /**
+   * @description 结果对应的关键词，用于忽略异步返回的旧结果
+   */
+  query?: string;
+}
+
 export interface BaseSearchRenderProps {
   /**
    * @description 当前搜索关键词
@@ -54,7 +71,7 @@ export interface BaseSearchProps {
   /**
    * @description 被搜索的完整文本
    */
-  text: string;
+  text?: string;
 
   /**
    * @description 搜索框关闭事件
@@ -64,7 +81,40 @@ export interface BaseSearchProps {
   /**
    * @description 自定义搜索区域内容
    */
-  children: (context: BaseSearchRenderProps) => ReactNode;
+  children?: (context: BaseSearchRenderProps) => ReactNode;
+
+  /**
+   * @description 是否只渲染悬浮搜索框，不包裹内容区域
+   *
+   * 适用于网页查找等由外部负责搜索的场景。
+   *
+   * @default false
+   */
+  standalone?: boolean;
+
+  /**
+   * @description 外部搜索结果
+   *
+   * 传入后，结果数量和当前位置由外部控制。
+   */
+  result?: BaseSearchResult;
+
+  /**
+   * @description 执行搜索或切换上一个、下一个结果
+   */
+  onSearch?: (query: string, direction: BaseSearchDirection) => void;
+
+  /**
+   * @description 是否显示上一个、下一个按钮
+   *
+   * @default true
+   */
+  showNavigation?: boolean;
+
+  /**
+   * @description 自定义结果数量文本
+   */
+  formatCount?: (current: number, total: number, query: string) => ReactNode;
 
   /**
    * @description 搜索容器类名
@@ -207,9 +257,14 @@ function normalizeSize(value?: number | string): string | undefined {
  */
 export default function BaseSearch({
   open,
-  text,
+  text = '',
   onClose,
   children,
+  standalone = false,
+  result,
+  onSearch,
+  showNavigation = true,
+  formatCount,
   className,
   style,
   placeholder = '搜索...',
@@ -302,13 +357,25 @@ export default function BaseSearch({
     return result;
   }, [caseSensitive, normalizedQuery, text]);
 
-  const total = matches.length;
+  const internalTotal = matches.length;
+
+  const isExternalResultCurrent = typeof result?.query !== 'string' || result.query.trim() === normalizedQuery;
+
+  const externalTotal = isExternalResultCurrent ? Math.max(0, Math.trunc(Number(result?.total) || 0)) : 0;
+
+  const total = result ? externalTotal : internalTotal;
 
   const isCurrentSearchCursor = searchCursor.query === normalizedQuery && searchCursor.text === text && searchCursor.caseSensitive === caseSensitive;
 
   const currentSearchIndex = isCurrentSearchCursor ? searchCursor.index : 0;
 
-  const activeIndex = total ? Math.min(currentSearchIndex, total - 1) : 0;
+  const externalCurrent = total ? clampNumber(Math.trunc(Number(result?.current) || 0), 0, total) : 0;
+
+  const activeIndex = result ? Math.max(0, externalCurrent - 1) : total ? Math.min(currentSearchIndex, total - 1) : 0;
+
+  const current = normalizedQuery && total ? (result ? externalCurrent : activeIndex + 1) : 0;
+
+  const floating = standalone || draggable;
 
   /**
    * @description 同步搜索框偏移量引用
@@ -332,6 +399,15 @@ export default function BaseSearch({
       window.clearTimeout(timer);
     };
   }, [autoFocus, open]);
+
+  /**
+   * @description 外部关闭搜索框时同步清空内部关键词
+   */
+  useEffect(() => {
+    if (open || !query) return;
+
+    setQuery('');
+  }, [open, query]);
 
   /**
    * @description 当前结果变化后滚动到可视区域
@@ -384,10 +460,36 @@ export default function BaseSearch({
   }, [caseSensitive, initialOffset?.x, initialOffset?.y, onClose, onQueryChange, resetOffsetOnClose, text]);
 
   /**
+   * @description 清空关键词并保留搜索框焦点
+   */
+  const handleClear = useCallback(() => {
+    setQuery('');
+
+    setSearchCursor({
+      query: '',
+      text,
+      caseSensitive,
+      index: 0,
+    });
+
+    onQueryChange?.('');
+    onSearch?.('', 'next');
+
+    searchInputRef.current?.focus();
+  }, [caseSensitive, onQueryChange, onSearch, text]);
+
+  /**
    * @description 跳转到上一个或下一个结果
    */
   const jumpMatch = useCallback(
     (direction: BaseSearchDirection) => {
+      if (!normalizedQuery) return;
+
+      if (result) {
+        onSearch?.(normalizedQuery, direction);
+        return;
+      }
+
       if (total === 0) return;
 
       setSearchCursor((current) => {
@@ -405,7 +507,7 @@ export default function BaseSearch({
         };
       });
     },
-    [caseSensitive, normalizedQuery, text, total],
+    [caseSensitive, normalizedQuery, onSearch, result, text, total],
   );
 
   /**
@@ -546,7 +648,7 @@ export default function BaseSearch({
     [activeIndex, matches, normalizedQuery, open, total],
   );
 
-  const content = children({
+  const content = children?.({
     query,
     total,
     activeIndex,
@@ -556,10 +658,23 @@ export default function BaseSearch({
     renderHighlightedText,
   });
 
+  const countContent = formatCount
+    ? formatCount(current, total, query)
+    : normalizedQuery
+      ? `${current}/${total}`
+      : '0/0';
+
   return (
     <div
       ref={containerRef}
-      className={[styles.container, draggable ? styles['container-draggable'] : styles[`container-${searchPosition}`], className].filter(Boolean).join(' ')}
+      className={[
+        styles.container,
+        standalone ? styles['container-standalone'] : '',
+        floating ? styles['container-draggable'] : styles[`container-${searchPosition}`],
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
       style={containerStyle}
     >
       {open && (
@@ -567,16 +682,18 @@ export default function BaseSearch({
           ref={searchBarRef}
           className={[
             styles.bar,
-            draggable ? styles['bar-draggable'] : styles['bar-fixed'],
-            draggable ? styles[`bar-draggable-${searchPosition}`] : '',
+            floating ? styles['bar-draggable'] : styles['bar-fixed'],
+            floating ? styles[`bar-draggable-${searchPosition}`] : '',
             isDragging ? styles['bar-dragging'] : '',
           ]
             .filter(Boolean)
             .join(' ')}
           style={{
             maxWidth: normalizeSize(maxWidth),
-            transform: draggable ? `translate(${searchBarOffset.x}px, ${searchBarOffset.y}px)` : undefined,
+            transform: floating ? `translate(${searchBarOffset.x}px, ${searchBarOffset.y}px)` : undefined,
           }}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
         >
           {draggable && <i className={`codicon codicon-gripper ${styles.grip}`} title="拖拽搜索框" onPointerDown={handlePointerDown} />}
 
@@ -584,6 +701,7 @@ export default function BaseSearch({
             ref={searchInputRef}
             value={query}
             placeholder={placeholder}
+            aria-label={placeholder}
             onChange={(event) => {
               const value = event.target.value;
 
@@ -597,6 +715,7 @@ export default function BaseSearch({
               });
 
               onQueryChange?.(value);
+              onSearch?.(value, 'next');
             }}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
@@ -612,31 +731,41 @@ export default function BaseSearch({
             }}
           />
 
-          <span className={styles.count}>{normalizedQuery ? `${total === 0 ? 0 : activeIndex + 1}/${total}` : '0/0'}</span>
+          {query && (
+            <button type="button" className={`${styles.button} ${styles['clear-button']}`} title="清空关键词" onClick={handleClear}>
+              <i className="codicon codicon-close" />
+            </button>
+          )}
 
-          <button
-            type="button"
-            className={styles.button}
-            title="上一个"
-            disabled={total === 0}
-            onClick={() => {
-              jumpMatch('prev');
-            }}
-          >
-            <i className="codicon codicon-arrow-up" />
-          </button>
+          <span className={[styles.count, normalizedQuery && total === 0 ? styles['count-empty'] : ''].filter(Boolean).join(' ')}>{countContent}</span>
 
-          <button
-            type="button"
-            className={styles.button}
-            title="下一个"
-            disabled={total === 0}
-            onClick={() => {
-              jumpMatch('next');
-            }}
-          >
-            <i className="codicon codicon-arrow-down" />
-          </button>
+          {showNavigation && (
+            <>
+              <button
+                type="button"
+                className={styles.button}
+                title="上一个"
+                disabled={!normalizedQuery || (!result && total === 0)}
+                onClick={() => {
+                  jumpMatch('prev');
+                }}
+              >
+                <i className="codicon codicon-arrow-up" />
+              </button>
+
+              <button
+                type="button"
+                className={styles.button}
+                title="下一个"
+                disabled={!normalizedQuery || (!result && total === 0)}
+                onClick={() => {
+                  jumpMatch('next');
+                }}
+              >
+                <i className="codicon codicon-arrow-down" />
+              </button>
+            </>
+          )}
 
           <button type="button" className={styles.button} title="关闭搜索" onClick={handleClose}>
             <i className="codicon codicon-close" />
@@ -644,7 +773,7 @@ export default function BaseSearch({
         </div>
       )}
 
-      <div className={styles.content}>{content}</div>
+      {!standalone && <div className={styles.content}>{content}</div>}
     </div>
   );
 }

@@ -13,8 +13,11 @@ import {
   faFolderPlus,
   faFileImport,
   faFileExport,
+  faMagnifyingGlass,
 } from '@fortawesome/free-solid-svg-icons';
 import { faCopy as faCopyRegular } from '@fortawesome/free-regular-svg-icons';
+import BaseDialog from '@components/BaseDialog';
+import BaseSearch from '@components/BaseSearch';
 import styles from './index.module.css';
 
 interface FavoriteItem {
@@ -97,6 +100,10 @@ export default function FavoriteModal(props: FavoriteModalProps) {
     setFavSort,
     setFavForm,
   } = props;
+  const [folderSearchKeyword, setFolderSearchKeyword] = useState('');
+  const [favoriteSearchOpen, setFavoriteSearchOpen] = useState(false);
+  const [favoriteSearchKeyword, setFavoriteSearchKeyword] = useState('');
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [folderName, setFolderName] = useState('');
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const isFolderComposingRef = useRef(false);
@@ -114,15 +121,54 @@ export default function FavoriteModal(props: FavoriteModalProps) {
     return countMap;
   }, [sortedFavorites]);
 
-  const displayFavorites = useMemo(() => {
+  const folderFavorites = useMemo(() => {
     if (selectedFolderId === ALL_FOLDER_ID) return sortedFavorites;
 
     return sortedFavorites.filter((favorite) => (favorite.folderId || ROOT_FOLDER_ID) === selectedFolderId);
   }, [selectedFolderId, sortedFavorites]);
 
-  const editableFolders = favoriteFolders.filter((folder) => !folder.isDefault);
+  const displayFavorites = useMemo(() => {
+    const keyword = favoriteSearchKeyword.trim().toLocaleLowerCase();
+
+    if (!keyword) return folderFavorites;
+
+    return folderFavorites.filter((favorite) => {
+      return [favorite.title, favorite.url, favorite.description || ''].some((value) => value.toLocaleLowerCase().includes(keyword));
+    });
+  }, [favoriteSearchKeyword, folderFavorites]);
+
+  const visibleFolders = useMemo(() => {
+    const keyword = folderSearchKeyword.trim().toLocaleLowerCase();
+
+    if (!keyword) return favoriteFolders;
+
+    return favoriteFolders.filter((folder) => folder.name.toLocaleLowerCase().includes(keyword));
+  }, [favoriteFolders, folderSearchKeyword]);
+
+  const showAllFolder = !folderSearchKeyword.trim() || '全部收藏'.includes(folderSearchKeyword.trim());
 
   if (!visible) return null;
+
+  const closeFolderDialog = () => {
+    setFolderDialogOpen(false);
+    setFolderName('');
+    isFolderComposingRef.current = false;
+  };
+
+  const openFolderDialog = () => {
+    setFavoriteSearchOpen(false);
+    setFavoriteSearchKeyword('');
+    setFolderName('');
+    setFolderDialogOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    closeFolderDialog();
+    setFolderSearchKeyword('');
+    setFavoriteSearchOpen(false);
+    setFavoriteSearchKeyword('');
+    onClose();
+  };
 
   const handleCreateFolder = () => {
     /**
@@ -139,15 +185,9 @@ export default function FavoriteModal(props: FavoriteModalProps) {
 
     const createdFolderId = onCreateFolder(name);
 
-    setFolderName('');
-
-    if (folderInputRef.current) {
-      folderInputRef.current.value = '';
-      folderInputRef.current.focus();
-    }
-
     if (createdFolderId) {
       setSelectedFolderId(createdFolderId);
+      closeFolderDialog();
     }
   };
 
@@ -169,7 +209,14 @@ export default function FavoriteModal(props: FavoriteModalProps) {
   };
 
   return (
-    <div className={styles['fav-overlay']} onClick={onClose}>
+    <div
+      className={[styles['fav-overlay'], folderDialogOpen ? styles['fav-overlay-dialog-open'] : ''].filter(Boolean).join(' ')}
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          handleCloseModal();
+        }
+      }}
+    >
       <div className={styles['fav-modal']} onClick={(e) => e.stopPropagation()}>
         <div className={styles['fav-header']}>
           <h3>
@@ -178,6 +225,16 @@ export default function FavoriteModal(props: FavoriteModalProps) {
           </h3>
 
           <div className={styles['fav-header-actions']}>
+            <button
+              type="button"
+              className={styles['fav-tool-btn']}
+              onClick={() => setFavoriteSearchOpen(true)}
+              title="搜索当前文件夹中的书签"
+            >
+              <FontAwesomeIcon icon={faMagnifyingGlass} />
+              搜索
+            </button>
+
             <button className={styles['fav-tool-btn']} onClick={onImportFavorites} title="导入浏览器书签 HTML">
               <FontAwesomeIcon icon={faFileImport} />
               导入
@@ -212,80 +269,99 @@ export default function FavoriteModal(props: FavoriteModalProps) {
 
             <div className={styles['fav-header-divider']} />
 
-            <FontAwesomeIcon icon={faXmark} className={styles['fav-close']} onClick={onClose} title="关闭" />
+            <FontAwesomeIcon icon={faXmark} className={styles['fav-close']} onClick={handleCloseModal} title="关闭" />
           </div>
         </div>
 
+        <BaseSearch
+          open={favoriteSearchOpen}
+          standalone
+          draggable
+          text=""
+          placeholder="搜索当前文件夹的标题、地址或备注"
+          maxWidth={420}
+          size={42}
+          initialOffset={{ y: 44 }}
+          showNavigation={false}
+          result={{
+            query: favoriteSearchKeyword,
+            current: 0,
+            total: displayFavorites.length,
+          }}
+          formatCount={(_current, total, query) => (query.trim() ? `${total} 条` : '0 条')}
+          onQueryChange={setFavoriteSearchKeyword}
+          onClose={() => {
+            setFavoriteSearchOpen(false);
+            setFavoriteSearchKeyword('');
+          }}
+        />
+
         <div className={styles['fav-page-body']}>
           <aside className={styles['fav-sidebar']}>
-            <div className={styles['fav-folder-create']}>
+            <div className={styles['fav-folder-search']}>
               <input
-                ref={folderInputRef}
                 className={styles['fav-folder-input']}
-                value={folderName}
-                placeholder="新增文件夹"
-                onChange={(e) => setFolderName(e.target.value)}
-                onCompositionStart={() => {
-                  isFolderComposingRef.current = true;
-                }}
-                onCompositionEnd={(e) => {
-                  isFolderComposingRef.current = false;
-                  setFolderName(e.currentTarget.value);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-
-                    if (isFolderComposingRef.current) {
-                      return;
-                    }
-
-                    handleCreateFolder();
-                  }
-                }}
+                value={folderSearchKeyword}
+                placeholder="搜索文件夹名称"
+                onChange={(e) => setFolderSearchKeyword(e.target.value)}
               />
 
-              <button type="button" className={styles['fav-folder-add']} onClick={handleCreateFolder} title="新增文件夹">
-                <FontAwesomeIcon icon={faFolderPlus} />
-              </button>
+              {folderSearchKeyword && (
+                <button type="button" className={styles['fav-folder-search-clear']} title="清空文件夹搜索" onClick={() => setFolderSearchKeyword('')}>
+                  <FontAwesomeIcon icon={faXmark} />
+                </button>
+              )}
             </div>
 
-            <button
-              className={`${styles['fav-folder-item']} ${selectedFolderId === ALL_FOLDER_ID ? styles['fav-folder-active'] : ''}`}
-              onClick={() => setSelectedFolderId(ALL_FOLDER_ID)}
-            >
-              <span className={styles['fav-folder-title']}>
-                <FontAwesomeIcon icon={faStarSolid} />
-                全部收藏
-              </span>
-              <span className={styles['fav-folder-count']}>{folderCountMap.get(ALL_FOLDER_ID) || 0}</span>
-            </button>
-
-            {favoriteFolders.map((folder) => {
-              const active = selectedFolderId === folder.id;
-
-              return (
+            <div className={styles['fav-folder-list']}>
+              {showAllFolder && (
                 <button
-                  key={folder.id}
-                  className={`${styles['fav-folder-item']} ${active ? styles['fav-folder-active'] : ''}`}
-                  onClick={() => setSelectedFolderId(folder.id)}
+                  className={`${styles['fav-folder-item']} ${selectedFolderId === ALL_FOLDER_ID ? styles['fav-folder-active'] : ''}`}
+                  onClick={() => setSelectedFolderId(ALL_FOLDER_ID)}
                 >
-                  <span className={styles['fav-folder-title']} title={folder.name}>
-                    <FontAwesomeIcon icon={faFolder} />
-                    {folder.name}
+                  <span className={styles['fav-folder-title']}>
+                    <FontAwesomeIcon icon={faStarSolid} />
+                    全部收藏
                   </span>
-
-                  <span className={styles['fav-folder-count']}>{folderCountMap.get(folder.id) || 0}</span>
-
-                  {!folder.isDefault && (
-                    <span className={styles['fav-folder-actions']} onClick={(e) => e.stopPropagation()}>
-                      <FontAwesomeIcon icon={faPen} title="重命名" onClick={() => handleRenameFolder(folder)} />
-                      <FontAwesomeIcon icon={faTrash} title="删除文件夹" onClick={() => handleDeleteFolder(folder)} />
-                    </span>
-                  )}
+                  <span className={styles['fav-folder-count']}>{folderCountMap.get(ALL_FOLDER_ID) || 0}</span>
                 </button>
-              );
-            })}
+              )}
+
+              {visibleFolders.map((folder) => {
+                const active = selectedFolderId === folder.id;
+
+                return (
+                  <button
+                    key={folder.id}
+                    className={`${styles['fav-folder-item']} ${active ? styles['fav-folder-active'] : ''}`}
+                    onClick={() => setSelectedFolderId(folder.id)}
+                  >
+                    <span className={styles['fav-folder-title']} title={folder.name}>
+                      <FontAwesomeIcon icon={faFolder} />
+                      {folder.name}
+                    </span>
+
+                    <span className={styles['fav-folder-count']}>{folderCountMap.get(folder.id) || 0}</span>
+
+                    {!folder.isDefault && (
+                      <span className={styles['fav-folder-actions']} onClick={(e) => e.stopPropagation()}>
+                        <FontAwesomeIcon icon={faPen} title="重命名" onClick={() => handleRenameFolder(folder)} />
+                        <FontAwesomeIcon icon={faTrash} title="删除文件夹" onClick={() => handleDeleteFolder(folder)} />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+
+              {!showAllFolder && visibleFolders.length === 0 && <div className={styles['fav-folder-empty']}>未找到匹配的文件夹</div>}
+            </div>
+
+            <button type="button" className={`${styles['fav-folder-item']} ${styles['fav-folder-add']}`} onClick={openFolderDialog} title="新增文件夹">
+              <span className={styles['fav-folder-title']}>
+                <FontAwesomeIcon icon={faFolderPlus} />
+                新增文件夹
+              </span>
+            </button>
           </aside>
 
           <main className={styles['fav-main']}>
@@ -358,7 +434,9 @@ export default function FavoriteModal(props: FavoriteModalProps) {
 
             <div className={styles['fav-list']}>
               {displayFavorites.length === 0 ? (
-                <div className={styles['fav-empty']}>暂无收藏。点击右上角 + 号，或地址栏星号添加。</div>
+                <div className={styles['fav-empty']}>
+                  {favoriteSearchKeyword.trim() ? '未找到匹配的书签。' : '暂无收藏。点击右上角 + 号，或地址栏星号添加。'}
+                </div>
               ) : (
                 displayFavorites.map((f, i) => (
                   <div key={`${f.isDefault ? 'default' : 'user'}-${f.url}-${i}`} className={styles['fav-item']} onClick={() => onOpenUrl(f.url)}>
@@ -461,6 +539,54 @@ export default function FavoriteModal(props: FavoriteModalProps) {
           </main>
         </div>
       </div>
+
+      <BaseDialog
+        open={folderDialogOpen}
+        title="新增文件夹"
+        width={360}
+        placement="center"
+        onClose={closeFolderDialog}
+        actions={[
+          {
+            key: 'cancel',
+            label: '取消',
+            onClick: closeFolderDialog,
+          },
+          {
+            key: 'confirm',
+            label: '新增',
+            type: 'primary',
+            disabled: !folderName.trim(),
+            onClick: handleCreateFolder,
+          },
+        ]}
+      >
+        <label className={styles['fav-folder-dialog-field']}>
+          <span>文件夹名称</span>
+
+          <input
+            ref={folderInputRef}
+            autoFocus
+            className={styles['fav-folder-dialog-input']}
+            value={folderName}
+            placeholder="请输入文件夹名称"
+            onChange={(event) => setFolderName(event.target.value)}
+            onCompositionStart={() => {
+              isFolderComposingRef.current = true;
+            }}
+            onCompositionEnd={(event) => {
+              isFolderComposingRef.current = false;
+              setFolderName(event.currentTarget.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter' || isFolderComposingRef.current) return;
+
+              event.preventDefault();
+              handleCreateFolder();
+            }}
+          />
+        </label>
+      </BaseDialog>
     </div>
   );
 }

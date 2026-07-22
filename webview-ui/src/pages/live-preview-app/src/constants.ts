@@ -1,4 +1,4 @@
-import type { BrowserEngineKey, BrowserEngineOption } from '@pages/LivePreviewApp/src/type';
+import type { BrowserEngineKey, BrowserEngineOption } from '@pages/live-preview-app/src/type';
 export const ROOT_FAVORITE_FOLDER_ID = 'root';
 
 export const BROWSER_ENGINE_OPTIONS: BrowserEngineOption[] = [
