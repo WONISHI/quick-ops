@@ -503,5 +503,5 @@ export default function RecentProjectContextMenu(props: RecentProjectContextMenu
     return null;
   }
 
-  return <BaseContextMenu open position={{ x, y }} items={items} minWidth={230} density="compact" onClose={onClose} />;
+  return <BaseContextMenu open position={{ x, y }} showArrow items={items} minWidth={168} density="compact" onClose={onClose} />;
 }
