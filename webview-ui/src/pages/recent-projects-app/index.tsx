@@ -1364,8 +1364,10 @@ export default function RecentProjectsApp() {
         }
 
         const responseMode = pendingSearchResponseModeRef.current;
-        pendingSearchResponseModeRef.current = 'normal';
-        setIsSearchingFolder(false);
+        const isDone = msg.done !== false;
+        const shouldReset = Boolean(msg.reset);
+        const shouldAppend = Boolean(msg.append);
+        const incomingResults = (msg.results as SearchResult[]) || [];
 
         if (msg.error) {
           setFolderSearchError(msg.error as string);
@@ -1373,20 +1375,32 @@ export default function RecentProjectsApp() {
           setFolderSearchTotalMatches(0);
         } else {
           setFolderSearchError('');
-          setFolderSearchResults((msg.results as SearchResult[]) || []);
+          setFolderSearchResults((prev) => {
+            if (shouldReset) return incomingResults;
+            if (shouldAppend) return [...prev, ...incomingResults];
+
+            return incomingResults;
+          });
           setFolderSearchTotalMatches(Number((msg as any).totalMatches) || 0);
 
-          if (responseMode !== 'silent') {
+          if (shouldReset && responseMode !== 'silent') {
             setCurrentActiveMatch(0);
           }
+        }
+
+        if (isDone) {
+          pendingSearchResponseModeRef.current = 'normal';
+          setIsSearchingFolder(false);
         }
       } else if (msg.type === 'searchFileNameResult') {
         if (typeof msg.requestId === 'number' && msg.requestId !== activeSearchRequestIdRef.current) {
           return;
         }
 
-        pendingSearchResponseModeRef.current = 'normal';
-        setIsSearchingFolder(false);
+        const isDone = msg.done !== false;
+        const shouldReset = Boolean(msg.reset);
+        const shouldAppend = Boolean(msg.append);
+        const incomingResults = (msg.results as DirChild[]) || [];
 
         if (msg.error) {
           setFolderSearchError(msg.error as string);
@@ -1394,7 +1408,17 @@ export default function RecentProjectsApp() {
         } else {
           setFolderSearchTotalMatches(0);
           setFolderSearchError('');
-          setFileNameSearchResults((msg.results as DirChild[]) || []);
+          setFileNameSearchResults((prev) => {
+            if (shouldReset) return incomingResults;
+            if (shouldAppend) return [...prev, ...incomingResults];
+
+            return incomingResults;
+          });
+        }
+
+        if (isDone) {
+          pendingSearchResponseModeRef.current = 'normal';
+          setIsSearchingFolder(false);
         }
       } else if (msg.type === 'revealPath') {
         /**
@@ -1583,7 +1607,15 @@ export default function RecentProjectsApp() {
   }, [expandedPaths, isSearchMode, isFocusMode, dirChildren]);
 
   useEffect(() => {
-    if (!isSearchMode || !searchTargetProject) return;
+    activeSearchRequestIdRef.current = 0;
+    vscode.postMessage({
+      type: 'cancelSearch',
+    });
+
+    if (!isSearchMode || !searchTargetProject) {
+      setIsSearchingFolder(false);
+      return;
+    }
 
     if (!folderSearchQuery.trim()) {
       setFolderSearchResults([]);
@@ -1603,6 +1635,15 @@ export default function RecentProjectsApp() {
 
     silentSearchRefreshRef.current = false;
 
+    if (!isSilentRefresh) {
+      setFolderSearchResults([]);
+      setFolderSearchTotalMatches(0);
+      setFileNameSearchResults([]);
+      setFolderSearchError('');
+      setCurrentActiveMatch(0);
+      setIsSearchingFolder(true);
+    }
+
     const timeoutId = setTimeout(
       () => {
         pendingSearchResponseModeRef.current = isSilentRefresh ? 'silent' : 'normal';
@@ -1611,10 +1652,6 @@ export default function RecentProjectsApp() {
         const requestId = latestSearchRequestIdRef.current + 1;
         latestSearchRequestIdRef.current = requestId;
         activeSearchRequestIdRef.current = requestId;
-
-        if (!isSilentRefresh) {
-          setIsSearchingFolder(true);
-        }
 
         if (folderSearchType === 'content') {
           vscode.postMessage({
@@ -1636,10 +1673,16 @@ export default function RecentProjectsApp() {
           });
         }
       },
-      isSilentRefresh ? 120 : 500,
+      isSilentRefresh ? 80 : 250,
     );
 
-    return () => clearTimeout(timeoutId);
+    return () => {
+      clearTimeout(timeoutId);
+      activeSearchRequestIdRef.current = 0;
+      vscode.postMessage({
+        type: 'cancelSearch',
+      });
+    };
   }, [folderSearchQuery, isSearchMode, searchTargetProject, folderSearchType, isFocusMode, searchRefreshVersion]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1712,8 +1755,6 @@ export default function RecentProjectsApp() {
       visibleProjectPaths: revealVisibleProjectPaths,
     });
   }, [revealVisibleProjectPathKey, revealVisibleProjectPaths]);
-
-  const clickTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const normalizeTreePath = (pathValue: string) => {
     if (!pathValue) return '';
@@ -2131,8 +2172,6 @@ export default function RecentProjectsApp() {
   };
 
   const handleOpenProject = (pathValue: string) => {
-    if (clickTimeout.current) clearTimeout(clickTimeout.current);
-
     vscode.postMessage({
       type: 'openProject',
       fsPath: pathValue,
@@ -2200,28 +2239,26 @@ export default function RecentProjectsApp() {
       visible: false,
     }));
 
-    if (clickTimeout.current) clearTimeout(clickTimeout.current);
+    const next = new Set(expandedPathsRef.current);
+    const isExpanding = !next.has(pathValue);
 
-    clickTimeout.current = setTimeout(() => {
-      setExpandedPaths((prev) => {
-        const next = new Set(prev);
-        const isExpanding = !next.has(pathValue);
+    if (isExpanding) {
+      next.add(pathValue);
+    } else {
+      next.delete(pathValue);
+    }
 
-        if (isExpanding) {
-          next.add(pathValue);
+    expandedPathsRef.current = next;
+    setExpandedPaths(next);
 
-          if (!dirChildrenRef.current[pathValue]) {
-            setLoadingPaths((l) => new Set(l).add(pathValue));
-          }
-
-          requestReadDir(pathValue, projectName, true);
-        } else {
-          next.delete(pathValue);
-        }
-
-        return next;
-      });
-    }, 250);
+    /**
+     * 已加载过的目录直接复用前端数据；文件系统变更时会由 refreshExpandedDirs
+     * 主动强制刷新，不需要每次展开都重新读取。
+     */
+    if (isExpanding && !dirChildrenRef.current[pathValue]) {
+      setLoadingPaths((loading) => new Set(loading).add(pathValue));
+      requestReadDir(pathValue, projectName);
+    }
   };
 
   const handleContextMenu = (e: React.MouseEvent, type: 'top' | 'sub', payload: ContextMenuPayload) => {

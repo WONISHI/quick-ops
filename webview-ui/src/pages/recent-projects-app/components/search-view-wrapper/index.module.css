@@ -66,11 +66,7 @@
 .search-header {
   padding: 7px 10px 5px;
   border-bottom: 1px solid var(--vscode-panel-border);
-  background: color-mix(
-    in srgb,
-    var(--vscode-sideBar-background, var(--vscode-editor-background)) 96%,
-    var(--vscode-foreground) 4%
-  );
+  background: color-mix(in srgb, var(--vscode-sideBar-background, var(--vscode-editor-background)) 96%, var(--vscode-foreground) 4%);
   box-sizing: border-box;
 }
 
@@ -403,6 +399,19 @@
   font-size: 12px;
 }
 
+.search-status-msg-inline {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  margin-bottom: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--vscode-widget-border, transparent);
+  border-radius: 4px;
+  background: var(--vscode-sideBar-background);
+  text-align: left;
+  opacity: 0.9;
+}
+
 .search-error-msg {
   color: var(--vscode-errorForeground);
   font-size: 12px;
@@ -603,11 +612,7 @@
 .tree-children {
   margin-left: 8px;
   padding-left: 6px;
-  border-left: 1px solid color-mix(
-    in srgb,
-    var(--vscode-tree-indentGuidesStroke) 32%,
-    transparent
-  );
+  border-left: 1px solid color-mix(in srgb, var(--vscode-tree-indentGuidesStroke) 32%, transparent);
 }
 
 .sub-item {
@@ -623,11 +628,7 @@
 }
 
 .sub-item:hover {
-  background-color: color-mix(
-    in srgb,
-    var(--vscode-list-hoverBackground, var(--vscode-list-inactiveSelectionBackground)) 85%,
-    transparent
-  );
+  background-color: color-mix(in srgb, var(--vscode-list-hoverBackground, var(--vscode-list-inactiveSelectionBackground)) 85%, transparent);
 }
 
 .sub-item.selected {

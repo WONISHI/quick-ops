@@ -628,7 +628,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   }, [extensionTagOptions]);
 
   const activeExtensionTags = useMemo(() => {
-    if (folderSearchType !== 'content' || isSearchingFolder || folderSearchError) {
+    if (folderSearchType !== 'content' || folderSearchError) {
       return new Set<string>();
     }
 
@@ -649,7 +649,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     });
 
     return next;
-  }, [activeExtensionTagState, extensionTagSet, folderSearchError, folderSearchType, isSearchingFolder, searchFilterKey]);
+  }, [activeExtensionTagState, extensionTagSet, folderSearchError, folderSearchType, searchFilterKey]);
 
   const filteredContentResults = useMemo(() => {
     if (folderSearchType !== 'content') {
@@ -770,6 +770,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   };
 
   const shouldShowExtensionTags = folderSearchType === 'content' && !isSearchingFolder && !folderSearchError && folderSearchQuery.trim() && extensionTagOptions.length > 0;
+  const partialSearchResultCount = folderSearchType === 'content' ? effectiveTotalMatches : fileNameSearchResults.length;
 
   useEffect(() => {
     const searchKey = `${folderSearchType}
@@ -939,185 +940,193 @@ ${searchTargetProject.path || ''}`;
         className={styles['search-results-container']}
         viewClassName={styles['search-results-view']}
         onScroll={({ scrollTop }) => {
-          if (!isSearchingFolder) {
-            resultScrollTopRef.current = scrollTop;
-          }
+          resultScrollTopRef.current = scrollTop;
         }}
       >
         {focusMode && !folderSearchQuery.trim() ? (
           focusTree || <div className={styles['search-empty-msg']}>当前项目没有文件或文件夹</div>
-        ) : isSearchingFolder ? (
-          <div className={styles['search-status-msg']}>
-            <FontAwesomeIcon icon={faSpinner} spin /> 正在高速检索中...
-          </div>
-        ) : folderSearchError ? (
-          <div className={styles['search-error-msg']}>{folderSearchError}</div>
-        ) : folderSearchType === 'content' ? (
-          folderSearchResults.length === 0 && folderSearchQuery ? (
-            <div className={styles['search-empty-msg']}>没有找到符合条件的代码内容</div>
-          ) : filteredContentResults.length === 0 && folderSearchResults.length > 0 ? (
-            <div className={styles['search-empty-msg']}>没有找到符合当前文件格式筛选的结果</div>
-          ) : (
-            <ul>
-              {filteredContentResults.map(({ result: res, originalIndex }) => {
-                const fileDisplayInfo = getSearchResultFileDisplayInfo(res.file || res.fullPath || '');
-                const fileMatchCount = getSearchResultMatchCount(res);
-                const fileTitle = fileDisplayInfo.folderPath ? `${fileDisplayInfo.fileName} ${fileDisplayInfo.folderPath}` : fileDisplayInfo.fileName;
+        ) : (
+          <>
+            {isSearchingFolder && (
+              <div className={`${styles['search-status-msg']} ${partialSearchResultCount > 0 ? styles['search-status-msg-inline'] : ''}`}>
+                <FontAwesomeIcon icon={faSpinner} spin /> {partialSearchResultCount > 0 ? `已找到 ${partialSearchResultCount} 项，继续检索中...` : '正在高速检索中...'}
+              </div>
+            )}
 
-                return (
-                  <li key={`${originalIndex}-${res.fullPath || res.file}`} className={styles['search-file-list-item']}>
-                    <div className={styles['search-file-title-row']}>
-                      <Tooltip content={res.file} placement="bottom" textAlign="left" delay={2000}>
-                        <div className={styles['search-file-title']} title={res.file}>
-                          <FileIcon fileName={fileDisplayInfo.fileName} status={res.status} className={styles['search-file-icon']} />
+            {folderSearchError ? (
+              <div className={styles['search-error-msg']}>{folderSearchError}</div>
+            ) : folderSearchType === 'content' ? (
+              folderSearchResults.length === 0 && folderSearchQuery ? (
+                isSearchingFolder ? null : (
+                  <div className={styles['search-empty-msg']}>没有找到符合条件的代码内容</div>
+                )
+              ) : filteredContentResults.length === 0 && folderSearchResults.length > 0 ? (
+                <div className={styles['search-empty-msg']}>没有找到符合当前文件格式筛选的结果</div>
+              ) : (
+                <ul>
+                  {filteredContentResults.map(({ result: res, originalIndex }) => {
+                    const fileDisplayInfo = getSearchResultFileDisplayInfo(res.file || res.fullPath || '');
+                    const fileMatchCount = getSearchResultMatchCount(res);
+                    const fileTitle = fileDisplayInfo.folderPath ? `${fileDisplayInfo.fileName} ${fileDisplayInfo.folderPath}` : fileDisplayInfo.fileName;
 
-                          <span className={`${styles['search-file-name']} ${getFileStatusClassName(res.status)}`} title={fileTitle}>
-                            {fileDisplayInfo.fileName}
+                    return (
+                      <li key={`${originalIndex}-${res.fullPath || res.file}`} className={styles['search-file-list-item']}>
+                        <div className={styles['search-file-title-row']}>
+                          <Tooltip content={res.file} placement="bottom" textAlign="left" delay={2000}>
+                            <div className={styles['search-file-title']} title={res.file}>
+                              <FileIcon fileName={fileDisplayInfo.fileName} status={res.status} className={styles['search-file-icon']} />
+
+                              <span className={`${styles['search-file-name']} ${getFileStatusClassName(res.status)}`} title={fileTitle}>
+                                {fileDisplayInfo.fileName}
+                              </span>
+
+                              {fileDisplayInfo.folderPath && (
+                                <span className={styles['search-file-folder']} title={fileDisplayInfo.folderPath}>
+                                  {fileDisplayInfo.folderPath}
+                                </span>
+                              )}
+                            </div>
+                          </Tooltip>
+
+                          <span className={styles['search-file-match-count']} title={`当前文件中有 ${fileMatchCount} 处关键词`}>
+                            {fileMatchCount}
                           </span>
 
-                          {fileDisplayInfo.folderPath && (
-                            <span className={styles['search-file-folder']} title={fileDisplayInfo.folderPath}>
-                              {fileDisplayInfo.folderPath}
+                          <button
+                            type="button"
+                            className={styles['search-file-remove-btn']}
+                            title={`清除当前文件，减少 ${fileMatchCount} 处关键词`}
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              handleExcludeContentResult(res, originalIndex);
+                            }}
+                          >
+                            <span className="codicon codicon-close"></span>
+                          </button>
+                        </div>
+
+                        <ul className={styles['search-matches-list']}>
+                          {res.matches.map((m: SearchMatch, j: number) => {
+                            const globalStartIndex = lineStartIndexMap.get(`${originalIndex}-${j}`) || 0;
+                            const matchInfo = flatMatchesList[currentActiveMatch];
+                            const isLineActive = matchInfo && matchInfo.fileIndex === originalIndex && matchInfo.matchIndex === j;
+                            const previewText = getContentSearchPreviewText(m.text, folderSearchQuery);
+
+                            return (
+                              <li
+                                key={j}
+                                id={`search-line-${originalIndex}-${j}`}
+                                onClick={() => {
+                                  setCurrentActiveMatch(globalStartIndex);
+
+                                  const targetProjectName = getTargetProjectName();
+                                  const targetPath = res.fullPath;
+
+                                  if (targetPath.toLowerCase().endsWith('.md')) {
+                                    vscode.postMessage({
+                                      type: 'previewWithVditor',
+                                      fsPath: targetPath,
+                                      projectName: targetProjectName,
+                                      isActiveProject: searchTargetProject.isActiveProject,
+                                      line: m.line,
+                                    });
+                                  } else {
+                                    vscode.postMessage({
+                                      type: 'openFileAtLine',
+                                      fsPath: targetPath,
+                                      line: m.line,
+                                      isActiveProject: searchTargetProject.isActiveProject,
+                                      projectName: targetProjectName,
+                                    });
+                                  }
+                                }}
+                                className={`${styles['search-match-item']} ${isLineActive ? styles['active'] : ''}`}
+                              >
+                                <span className={styles['search-match-line-num']}>{m.line}</span>
+
+                                <span className={styles['search-match-text']} title={m.text}>
+                                  <HighlightText
+                                    text={previewText}
+                                    query={folderSearchQuery}
+                                    globalStartIndex={globalStartIndex}
+                                    currentActiveMatch={currentActiveMatch}
+                                    isLineActive={!!isLineActive}
+                                  />
+                                </span>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )
+            ) : fileNameSearchResults.length === 0 && folderSearchQuery ? (
+              isSearchingFolder ? null : (
+                <div className={styles['search-empty-msg']}>没有找到匹配的文件或文件夹</div>
+              )
+            ) : (
+              <ul>
+                {fileNameSearchResults.map((child) => {
+                  const childPath = child.path;
+                  const isExpanded = expandedPaths.has(childPath);
+                  const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
+                  const targetProjName = getTargetProjectName();
+                  const statusClassName = getFileStatusClassName(child.status);
+
+                  if (child.isFolder) {
+                    return (
+                      <li key={childPath} className={styles['search-name-list-item']}>
+                        <Tooltip content={formatSearchNameTooltipPath(childPath)} placement="bottom" textAlign="left" delay={2000}>
+                          <div
+                            className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item']}`}
+                            onClick={(e) => handleToggleExpand(childPath, targetProjName, isRemote, e)}
+                          >
+                            <div className={styles['tree-chevron']}>
+                              <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+                            </div>
+
+                            <FontAwesomeIcon icon={isExpanded ? faFolderOpen : faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']}`} />
+
+                            <span className={`${styles['sub-name']} ${statusClassName}`} title={child.status ? `${child.name} [${child.status}]` : child.name}>
+                              {renderSearchNameHighlightText(child.name, folderSearchQuery)}
                             </span>
-                          )}
+                          </div>
+                        </Tooltip>
+
+                        {isExpanded && (
+                          <div className={`${styles['tree-children']} ${styles['search-name-tree-children']}`}>
+                            {renderTreeChildren(childPath, targetProjName, searchTargetProject.isActiveProject, folderSearchQuery)}
+                          </div>
+                        )}
+                      </li>
+                    );
+                  }
+
+                  return (
+                    <li key={childPath} className={styles['search-name-list-item']}>
+                      <Tooltip content={formatSearchNameTooltipPath(childPath)} placement="bottom" textAlign="left" delay={2000}>
+                        <div
+                          className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item-clickable']}`}
+                          onClick={(e) => handleOpenFile(childPath, targetProjName, !!searchTargetProject.isActiveProject, e)}
+                        >
+                          <div className={styles['chevron-placeholder']}></div>
+
+                          <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
+
+                          <span className={`${styles['sub-name']} ${statusClassName}`} title={child.status ? `${child.name} [${child.status}]` : child.name}>
+                            {renderSearchNameHighlightText(child.name, folderSearchQuery)}
+                          </span>
                         </div>
                       </Tooltip>
-
-                      <span className={styles['search-file-match-count']} title={`当前文件中有 ${fileMatchCount} 处关键词`}>
-                        {fileMatchCount}
-                      </span>
-
-                      <button
-                        type="button"
-                        className={styles['search-file-remove-btn']}
-                        title={`清除当前文件，减少 ${fileMatchCount} 处关键词`}
-                        onClick={(event) => {
-                          event.preventDefault();
-                          event.stopPropagation();
-                          handleExcludeContentResult(res, originalIndex);
-                        }}
-                      >
-                        <span className="codicon codicon-close"></span>
-                      </button>
-                    </div>
-
-                    <ul className={styles['search-matches-list']}>
-                      {res.matches.map((m: SearchMatch, j: number) => {
-                        const globalStartIndex = lineStartIndexMap.get(`${originalIndex}-${j}`) || 0;
-                        const matchInfo = flatMatchesList[currentActiveMatch];
-                        const isLineActive = matchInfo && matchInfo.fileIndex === originalIndex && matchInfo.matchIndex === j;
-                        const previewText = getContentSearchPreviewText(m.text, folderSearchQuery);
-
-                        return (
-                          <li
-                            key={j}
-                            id={`search-line-${originalIndex}-${j}`}
-                            onClick={() => {
-                              setCurrentActiveMatch(globalStartIndex);
-
-                              const targetProjectName = getTargetProjectName();
-                              const targetPath = res.fullPath;
-
-                              if (targetPath.toLowerCase().endsWith('.md')) {
-                                vscode.postMessage({
-                                  type: 'previewWithVditor',
-                                  fsPath: targetPath,
-                                  projectName: targetProjectName,
-                                  isActiveProject: searchTargetProject.isActiveProject,
-                                  line: m.line,
-                                });
-                              } else {
-                                vscode.postMessage({
-                                  type: 'openFileAtLine',
-                                  fsPath: targetPath,
-                                  line: m.line,
-                                  isActiveProject: searchTargetProject.isActiveProject,
-                                  projectName: targetProjectName,
-                                });
-                              }
-                            }}
-                            className={`${styles['search-match-item']} ${isLineActive ? styles['active'] : ''}`}
-                          >
-                            <span className={styles['search-match-line-num']}>{m.line}</span>
-
-                            <span className={styles['search-match-text']} title={m.text}>
-                              <HighlightText
-                                text={previewText}
-                                query={folderSearchQuery}
-                                globalStartIndex={globalStartIndex}
-                                currentActiveMatch={currentActiveMatch}
-                                isLineActive={!!isLineActive}
-                              />
-                            </span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </li>
-                );
-              })}
-            </ul>
-          )
-        ) : fileNameSearchResults.length === 0 && folderSearchQuery ? (
-          <div className={styles['search-empty-msg']}>没有找到匹配的文件或文件夹</div>
-        ) : (
-          <ul>
-            {fileNameSearchResults.map((child) => {
-              const childPath = child.path;
-              const isExpanded = expandedPaths.has(childPath);
-              const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
-              const targetProjName = getTargetProjectName();
-              const statusClassName = getFileStatusClassName(child.status);
-
-              if (child.isFolder) {
-                return (
-                  <li key={childPath} className={styles['search-name-list-item']}>
-                    <Tooltip content={formatSearchNameTooltipPath(childPath)} placement="bottom" textAlign="left" delay={2000}>
-                      <div
-                        className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item']}`}
-                        onClick={(e) => handleToggleExpand(childPath, targetProjName, isRemote, e)}
-                      >
-                        <div className={styles['tree-chevron']}>
-                          <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
-                        </div>
-
-                        <FontAwesomeIcon icon={isExpanded ? faFolderOpen : faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']}`} />
-
-                        <span className={`${styles['sub-name']} ${statusClassName}`} title={child.status ? `${child.name} [${child.status}]` : child.name}>
-                          {renderSearchNameHighlightText(child.name, folderSearchQuery)}
-                        </span>
-                      </div>
-                    </Tooltip>
-
-                    {isExpanded && (
-                      <div className={`${styles['tree-children']} ${styles['search-name-tree-children']}`}>
-                        {renderTreeChildren(childPath, targetProjName, searchTargetProject.isActiveProject, folderSearchQuery)}
-                      </div>
-                    )}
-                  </li>
-                );
-              }
-
-              return (
-                <li key={childPath} className={styles['search-name-list-item']}>
-                  <Tooltip content={formatSearchNameTooltipPath(childPath)} placement="bottom" textAlign="left" delay={2000}>
-                    <div
-                      className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item-clickable']}`}
-                      onClick={(e) => handleOpenFile(childPath, targetProjName, !!searchTargetProject.isActiveProject, e)}
-                    >
-                      <div className={styles['chevron-placeholder']}></div>
-
-                      <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
-
-                      <span className={`${styles['sub-name']} ${statusClassName}`} title={child.status ? `${child.name} [${child.status}]` : child.name}>
-                        {renderSearchNameHighlightText(child.name, folderSearchQuery)}
-                      </span>
-                    </div>
-                  </Tooltip>
-                </li>
-              );
-            })}
-          </ul>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </>
         )}
       </Scrollbar>
     </div>
