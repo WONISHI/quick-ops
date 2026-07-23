@@ -1,22 +1,22 @@
 import * as vscode from 'vscode';
-import { QuickOpsApplication } from './app/QuickOpsApplication';
+import { QuickOpsApplication } from './app/quick-ops.application';
 
 let app: QuickOpsApplication | undefined;
 
 /**
  * 插件激活入口
  */
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
   app = new QuickOpsApplication(context);
-  app.start();
+  await app.start();
 }
 
 /**
  * 插件停用入口
  */
-export function deactivate() {
+export async function deactivate() {
   if (app) {
-    app.dispose();
+    await app.dispose();
     app = undefined;
   }
 }

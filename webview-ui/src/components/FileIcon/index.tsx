@@ -260,6 +260,7 @@ const EXTENSIONS: Record<string, string> = {
   gif: imageIcon,
   webp: imageIcon,
   wasm: webassemblyIcon,
+  woff2: fontIcon,
   ico: imageIcon,
   txt: documentIcon,
   log: logIcon,
@@ -276,6 +277,7 @@ const EXTENSIONS: Record<string, string> = {
   rar: zipIcon,
   '7z': zipIcon,
   xlsx: xlsxIcon,
+  xls: xlsxIcon,
   'code-snippets': vscodeIcon,
   prisma: prismaIcon,
 };

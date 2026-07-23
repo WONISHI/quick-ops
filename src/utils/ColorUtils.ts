@@ -15,11 +15,13 @@ export class ColorUtils {
     '#90a4ae', // Blue Grey
   ];
 
-  // 预定义一组对应的 Emoji (用于 CodeLens 文本显示)
+  /**
+   * @description 预定义一组对应的 Emoji (用于 CodeLens 文本显示)
+   */ 
   private static emojis = ['🎯', '🧹', '✏️', '📝', '📋', '💾', '🔍', '⚙️', '🗑️', '🐫', '🐪', '🐍', '📌', '⭐', '🧪', '🚀', '⏳'];
 
   /**
-   * 根据字符串计算哈希值，返回一个固定的索引
+   * @description 根据字符串计算哈希值，返回一个固定的索引
    */
   private static getHashIndex(str: string): number {
     let hash = 0;
@@ -32,21 +34,21 @@ export class ColorUtils {
   }
 
   /**
-   * 获取分组对应的 Hex 颜色
+   * @description 获取分组对应的 Hex 颜色
    */
   public static getColor(group: string): string {
     return this.colors[this.getHashIndex(group)];
   }
 
   /**
-   * 获取分组对应的 Emoji 图标
+   * @description 获取分组对应的 Emoji 图标
    */
   public static getEmoji(group: string): string {
     return this.emojis[this.getHashIndex(group)];
   }
 
   /**
-   * 生成一个 SVG 圆点的 Data URI (用于 Gutter 装饰)
+   * @description 生成一个 SVG 圆点的 Data URI (用于 Gutter 装饰)
    */
   public static getSvgDotUri(color: string): vscode.Uri {
     const svg = `

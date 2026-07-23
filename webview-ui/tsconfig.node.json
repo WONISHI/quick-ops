@@ -7,14 +7,20 @@
     "types": ["node"],
     "skipLibCheck": true,
 
-    /* Bundler mode */
+    "paths": {
+      "@/*": ["./src/*"],
+      "@pages/*": ["./src/pages/*"],
+      "@components/*": ["./src/components/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@app-types/*": ["./src/types/*"]
+    },
+
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "moduleDetection": "force",
     "noEmit": true,
 
-    /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

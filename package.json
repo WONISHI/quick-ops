@@ -2,7 +2,7 @@
   "name": "quick-ops",
   "displayName": "Quick Ops: Code Utils & Anchors",
   "description": "Boost productivity with Code Anchors, SCSS structure generation, and essential navigation shortcuts.",
-  "version": "0.0.73",
+  "version": "0.0.75",
   "engines": {
     "vscode": "^1.73.0"
   },
@@ -123,19 +123,6 @@
           "default": "mindmap",
           "description": "锚点视图的展示模式 (思维导图或列表菜单)"
         },
-        "quick-ops.general.mindMapPosition": {
-          "type": "string",
-          "enum": [
-            "left",
-            "right"
-          ],
-          "enumDescriptions": [
-            "以思维导图形式可视化展示 (Visual Mind Map)",
-            "以快速选择列表形式展示 (Quick Pick Menu)"
-          ],
-          "default": "right",
-          "description": "思维导图视图在编辑器中打开的位置"
-        },
         "quick-ops.logger.template": {
           "type": "string",
           "default": "[icon]-[~/^/^/name]-[line]-[$0]",
@@ -240,7 +227,7 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "quick-ops-view-container",
+          "id": "quickOps-view-container",
           "title": "Quick Ops",
           "icon": "$(server)"
         }
@@ -259,9 +246,9 @@
       ]
     },
     "views": {
-      "quick-ops-view-container": [
+      "quickOps-view-container": [
         {
-          "id": "quick-ops.mockView",
+          "id": "quickOps.mockView",
           "name": "Mock服务管理器",
           "icon": "$(server)",
           "type": "webview"
@@ -298,13 +285,13 @@
     },
     "submenus": [
       {
-        "id": "quick-ops.explorerSubmenu",
+        "id": "quickOps.explorerSubmenu",
         "label": "Quick Ops",
         "icon": "$(zap)"
       },
       {
-        "id": "quick-ops.transformSubmenu",
-        "label": "转换文本格式 (Transform Text)"
+        "id": "quickOps.transformSubmenu",
+        "label": "转换文本格式"
       }
     ],
     "commands": [
@@ -343,7 +330,7 @@
         "icon": "$(refresh)"
       },
       {
-        "command": "quick-ops.showPackageScripts",
+        "command": "quickOps.showPackageScripts",
         "title": "运行快捷脚本 (Scripts)",
         "category": "Quick Ops",
         "icon": {
@@ -352,7 +339,7 @@
         }
       },
       {
-        "command": "quick-ops.openLivePreview",
+        "command": "quickOps.openLivePreview",
         "title": "网页预览台 (Live Preview)",
         "category": "Quick Ops",
         "icon": {
@@ -361,13 +348,13 @@
         }
       },
       {
-        "command": "quick-ops.anchor.showMenu",
+        "command": "quickOps.anchor.showMenu",
         "title": "显示冒点 (Show Anchors)",
         "category": "Quick Ops",
         "icon": "$(bookmark)"
       },
       {
-        "command": "quick-ops.revealInExplorer",
+        "command": "quickOps.revealInExplorer",
         "title": "定位当前文件 (Reveal File)",
         "category": "Quick Ops",
         "icon": {
@@ -376,7 +363,7 @@
         }
       },
       {
-        "command": "quick-ops.scrollToTop",
+        "command": "quickOps.scrollToTop",
         "title": "回到顶部 (Scroll to Top)",
         "icon": {
           "light": "resources/icons/light/scroll-top.svg",
@@ -384,7 +371,7 @@
         }
       },
       {
-        "command": "quick-ops.scrollToBottom",
+        "command": "quickOps.scrollToBottom",
         "title": "回到底部 (Scroll to Bottom)",
         "category": "Quick Ops",
         "icon": {
@@ -393,28 +380,28 @@
         }
       },
       {
-        "command": "quick-ops.createConfigFile",
+        "command": "quickOps.createConfigFile",
         "title": "打开设置面板 (Open Settings)",
         "category": "Quick Ops",
         "icon": "$(settings-gear)"
       },
       {
-        "command": "quick-ops.toggleIgnore",
+        "command": "quickOps.toggleIgnore",
         "title": "添加/移除 QuickOps 忽略 (Toggle Ignore)",
         "category": "Quick Ops"
       },
       {
-        "command": "quick-ops.generateStyleStructure",
+        "command": "quickOps.generateStyleStructure",
         "title": "生成样式结构 (Generate SCSS)",
         "category": "Quick Ops"
       },
       {
-        "command": "quick-ops.anchor.add",
+        "command": "quickOps.anchor.add",
         "title": "添加锚点",
         "icon": "$(bookmark)"
       },
       {
-        "command": "quick-ops.anchor.showMenu",
+        "command": "quickOps.anchor.showMenu",
         "title": "显示锚点菜单 (Show Anchors)",
         "icon": {
           "light": "resources/icons/light/tag.svg",
@@ -422,44 +409,44 @@
         }
       },
       {
-        "command": "quick-ops.anchor.listByGroup",
+        "command": "quickOps.anchor.listByGroup",
         "title": "按分组列出锚点 (List Anchors)"
       },
       {
-        "command": "quick-ops.anchor.navigate",
+        "command": "quickOps.anchor.navigate",
         "title": "跳转到锚点 (Navigate Anchor)"
       },
       {
-        "command": "quick-ops.anchor.delete",
+        "command": "quickOps.anchor.delete",
         "title": "删除锚点 (Delete Anchor)"
       },
       {
-        "command": "quick-ops.addToSnippets",
-        "title": "添加选中内容到代码片段 (Add to Quick Ops Snippets)"
+        "command": "quickOps.addToSnippets",
+        "title": "添加选中内容到代码片段"
       },
       {
-        "command": "quick-ops.transformToLower",
+        "command": "quickOps.transformToLower",
         "title": "转为全小写 (lowercase)"
       },
       {
-        "command": "quick-ops.transformToCamel",
+        "command": "quickOps.transformToCamel",
         "title": "转为小驼峰 (camelCase)"
       },
       {
-        "command": "quick-ops.transformToPascal",
+        "command": "quickOps.transformToPascal",
         "title": "转为大驼峰 (PascalCase)"
       },
       {
-        "command": "quick-ops.transformToConstant",
+        "command": "quickOps.transformToConstant",
         "title": "转为全大写常量 (CONSTANT_CASE)"
       },
       {
-        "command": "quick-ops.transformToKebab",
+        "command": "quickOps.transformToKebab",
         "title": "转为短横线 (kebab-case)"
       },
       {
-        "command": "quick-ops.openTextCompare",
-        "title": "文本差异对比 (Text Diff Compare)",
+        "command": "quickOps.openTextCompare",
+        "title": "文本差异对比",
         "category": "Quick Ops"
       },
       {
@@ -473,7 +460,7 @@
         "icon": "$(diff)"
       },
       {
-        "command": "quick-ops.openInNewTab",
+        "command": "quickOps.openInNewTab",
         "title": "在新标签页打开",
         "category": "QuickOps"
       },
@@ -513,29 +500,135 @@
         "icon": "$(terminal-git-bash)"
       },
       {
-        "command": "quick-ops.openExternalPreview",
+        "command": "quickOps.openExternalPreview",
         "title": "从外部条件打开...",
         "category": "QuickOps",
         "icon": "$(preview)"
+      },
+      {
+        "command": "quickOps.webview.toggleFullscreen",
+        "title": "放大 Webview",
+        "category": "Quick Ops",
+        "icon": "$(screen-full)"
+      },
+      {
+        "command": "quickOps.apiDevTools.openFloating",
+        "title": "Q-ops Api: 浮动编辑器",
+        "icon": "$(multiple-windows)"
+      },
+      {
+        "command": "quickOps.apiDevTools.addProject",
+        "title": "Q-ops Api: 添加项目",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "quickOps.apiDevTools.addInterface",
+        "title": "Q-ops Api: 添加接口",
+        "icon": "$(group-by-ref-type)"
+      },
+      {
+        "command": "quickOps.apiDevTools.saveInterface",
+        "title": "Q-ops Api: 保存接口",
+        "icon": "$(save)"
+      },
+      {
+        "command": "quickOps.apiDevTools.shareDocs",
+        "title": "Q-ops Api: 分享文档",
+        "icon": "$(share)"
+      },
+      {
+        "command": "quickOps.apiDevTools.exportDocs",
+        "title": "Q-ops Api: 导出 HTML",
+        "icon": "$(export)"
+      },
+      {
+        "command": "quickOps.apiDevTools.showGlobals",
+        "title": "Q-ops Api: 变量",
+        "icon": "$(symbol-variable)"
+      },
+      {
+        "command": "quickOps.apiDevTools.clearAll",
+        "title": "Q-ops Api: 清空",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "quickOps.apiDevTools.sendRequest",
+        "title": "Q-ops Api: 发送请求",
+        "icon": "$(send)"
+      },
+      {
+        "command": "quickOps.apiDevTools.stopRequest",
+        "title": "Q-ops Api: 中断请求",
+        "icon": "$(stop-circle)"
+      },
+      {
+        "command": "quickOps.switchPreviousEditor",
+        "title": "返回上一个访问文件",
+        "category": "Quick Ops"
+      },
+      {
+        "command": "quickOps.switchNextEditor",
+        "title": "前进到下一个访问文件",
+        "category": "Quick Ops"
+      },
+      {
+        "command": "quickOps.switchPreviousEditorLocation",
+        "title": "返回当前文件上一个访问位置",
+        "category": "Quick Ops"
+      },
+      {
+        "command": "quickOps.switchNextEditorLocation",
+        "title": "前进到当前文件下一个访问位置",
+        "category": "Quick Ops"
+      },
+      {
+        "command": "quickOps.webview.moveToFloatingWindow",
+        "title": "添加至浮动编辑器窗口",
+        "category": "Quick Ops",
+        "icon": "$(multiple-windows)"
       }
     ],
     "keybindings": [
       {
-        "command": "quick-ops.switchPreviousEditor",
+        "command": "quickOps.switchPreviousEditor",
         "key": "alt+b",
         "mac": "opt+b",
         "when": "editorTextFocus"
       },
       {
-        "command": "quick-ops.transformText",
+        "command": "quickOps.switchNextEditor",
+        "key": "alt+g",
+        "mac": "opt+g",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "quickOps.switchPreviousEditorLocation",
+        "key": "alt+w",
+        "mac": "opt+w",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "quickOps.switchNextEditorLocation",
+        "key": "alt+s",
+        "mac": "opt+s",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "quickOps.transformText",
         "key": "ctrl+alt+t",
         "mac": "cmd+alt+t",
         "when": "editorHasSelection"
       },
       {
-        "command": "quick-ops.focusBack",
-        "key": "ctrl+n",
-        "mac": "cmd+n",
+        "command": "quickOps.scrollToTop",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "quickOps.scrollToBottom",
+        "key": "ctrl+shift+z",
+        "mac": "cmd+shift+z",
         "when": "editorTextFocus"
       }
     ],
@@ -569,130 +662,190 @@
         {
           "command": "quickOps.returnToWorkspace",
           "when": "view == quickOps.gitView",
-          "group": "navigation@1"
+          "group": "navigation@6"
         },
         {
           "command": "quickOps.cloneGitProject",
           "when": "view == quickOps.gitView",
-          "group": "navigation@2"
+          "group": "navigation@7"
         },
         {
           "command": "quickOps.openProject",
           "when": "view == quickOps.gitView && quickOps.isPreviewingOther",
-          "group": "navigation@3"
+          "group": "navigation@8"
         },
         {
           "command": "quickOps.editRemoteUrl",
           "when": "view == quickOps.gitView && quickOps.hasGitRemote",
-          "group": "navigation@4"
+          "group": "navigation@9"
         },
         {
           "command": "quickOps.openGitDetail",
           "when": "view == quickOps.gitView",
-          "group": "navigation@5"
+          "group": "navigation@10"
         },
         {
           "command": "quickOps.switchGitProject",
           "when": "view == quickOps.gitView",
+          "group": "navigation@11"
+        },
+        {
+          "command": "quickOps.apiDevTools.openFloating",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@0"
+        },
+        {
+          "command": "quickOps.apiDevTools.addProject",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@1"
+        },
+        {
+          "command": "quickOps.apiDevTools.addInterface",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@2"
+        },
+        {
+          "command": "quickOps.apiDevTools.saveInterface",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@3"
+        },
+        {
+          "command": "quickOps.apiDevTools.shareDocs",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@4"
+        },
+        {
+          "command": "quickOps.apiDevTools.exportDocs",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@5"
+        },
+        {
+          "command": "quickOps.apiDevTools.showGlobals",
+          "when": "view == quickOpsApiDevTools",
           "group": "navigation@6"
+        },
+        {
+          "command": "quickOps.apiDevTools.clearAll",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@7"
+        },
+        {
+          "command": "quickOps.apiDevTools.sendRequest",
+          "when": "view == quickOpsApiDevTools && !quickOps.apiDevTools.loading",
+          "group": "navigation@8"
+        },
+        {
+          "command": "quickOps.apiDevTools.stopRequest",
+          "when": "view == quickOpsApiDevTools && quickOps.apiDevTools.loading",
+          "group": "navigation@8"
         }
       ],
       "editor/title": [
         {
-          "command": "quick-ops.showPackageScripts",
+          "command": "quickOps.showPackageScripts",
           "group": "navigation@1"
         },
         {
-          "command": "quick-ops.openLivePreview",
+          "command": "quickOps.openLivePreview",
           "group": "navigation@2"
         },
         {
-          "command": "quick-ops.anchor.showMenu",
-          "group": "navigation@3",
-          "when": "quickOps.hasAnchorsInProject && resourceScheme == file"
+          "command": "quickOps.webview.moveToFloatingWindow",
+          "when": "quickOps.activeWebview.floating",
+          "group": "navigation@3"
         },
         {
-          "command": "quick-ops.revealInExplorer",
-          "when": "resourceScheme == file",
+          "command": "quickOps.webview.toggleFullscreen",
+          "when": "quickOps.activeWebview.fullscreen",
           "group": "navigation@4"
         },
         {
-          "command": "quick-ops.scrollToTop",
+          "command": "quickOps.anchor.showMenu",
           "group": "navigation@5",
+          "when": "quickOps.hasAnchorsInProject && resourceScheme == file"
+        },
+        {
+          "command": "quickOps.revealInExplorer",
+          "when": "resourceScheme == file",
+          "group": "navigation@6"
+        },
+        {
+          "command": "quickOps.scrollToTop",
+          "group": "navigation@7",
           "when": "editorTextFocus"
         },
         {
-          "command": "quick-ops.scrollToBottom",
-          "group": "navigation@6",
+          "command": "quickOps.scrollToBottom",
+          "group": "navigation@8",
           "when": "editorTextFocus"
         }
       ],
       "explorer/context": [
         {
-          "command": "quick-ops.openExternalPreview",
+          "command": "quickOps.openExternalPreview",
           "group": "navigation@2",
           "when": "resourceScheme == file && !explorerResourceIsFolder && (resourceExtname == .md || resourceExtname == .markdown || resourceExtname == .pdf || resourceExtname == .xlsx || resourceExtname == .xls || resourceExtname == .docx || resourceExtname == .doc)"
         },
         {
-          "command": "quick-ops.openInNewTab",
+          "command": "quickOps.openInNewTab",
           "group": "navigation",
           "when": "resourceScheme == 'file'"
         },
         {
-          "submenu": "quick-ops.explorerSubmenu",
+          "submenu": "quickOps.explorerSubmenu",
           "group": "7_modification"
         }
       ],
       "editor/context": [
         {
-          "command": "quick-ops.addToSnippets",
+          "command": "quickOps.addToSnippets",
           "group": "1_modification@1",
           "when": "editorHasSelection"
         },
         {
-          "submenu": "quick-ops.transformSubmenu",
+          "submenu": "quickOps.transformSubmenu",
           "group": "1_modification@2",
           "when": "editorHasSelection"
         },
         {
-          "command": "quick-ops.openTextCompare",
+          "command": "quickOps.openTextCompare",
           "group": "1_modification@3"
         }
       ],
-      "quick-ops.transformSubmenu": [
+      "quickOps.transformSubmenu": [
         {
-          "command": "quick-ops.transformToLower",
+          "command": "quickOps.transformToLower",
           "group": "1"
         },
         {
-          "command": "quick-ops.transformToCamel",
+          "command": "quickOps.transformToCamel",
           "group": "2"
         },
         {
-          "command": "quick-ops.transformToPascal",
+          "command": "quickOps.transformToPascal",
           "group": "3"
         },
         {
-          "command": "quick-ops.transformToKebab",
+          "command": "quickOps.transformToKebab",
           "group": "4"
         },
         {
-          "command": "quick-ops.transformToConstant",
+          "command": "quickOps.transformToConstant",
           "group": "5"
         }
       ],
-      "quick-ops.explorerSubmenu": [
+      "quickOps.explorerSubmenu": [
         {
-          "command": "quick-ops.createConfigFile",
+          "command": "quickOps.createConfigFile",
           "group": "quickOps@1"
         },
         {
-          "command": "quick-ops.toggleIgnore",
+          "command": "quickOps.toggleIgnore",
           "group": "quickOps@2",
           "when": "resourceScheme == file"
         },
         {
-          "command": "quick-ops.generateStyleStructure",
+          "command": "quickOps.generateStyleStructure",
           "group": "quickOps@3",
           "when": "resourceLangId == vue || resourceLangId == html || resourceLangId == javascriptreact || resourceLangId == typescriptreact"
         },
@@ -709,7 +862,7 @@
       ],
       "editor/lineNumber/context": [
         {
-          "command": "quick-ops.anchor.add",
+          "command": "quickOps.anchor.add",
           "group": "1_modification"
         }
       ]
@@ -717,7 +870,11 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run build:all",
-    "compile": "webpack --mode development",
+    "compile": "npm run compile:ext",
+    "compile:ext": "webpack --mode development",
+    "compile:ui": "cd webview-ui && npm run build",
+    "compile:all": "concurrently -c \"cyan.bold,green.bold\" -n \"EXT,UI\" \"npm run compile:ext\" \"npm run compile:ui\"",
+    "watch": "npm run watch:ext",
     "watch:ext": "webpack --mode development --watch",
     "watch:ui": "cd webview-ui && npm run build -- --watch",
     "watch:all": "concurrently -c \"cyan.bold,green.bold\" -n \"EXT,UI\" \"npm run watch:ext\" \"npm run watch:ui\"",
@@ -758,7 +915,6 @@
     "body-parser": "^2.2.2",
     "cheerio": "^1.1.2",
     "concurrently": "^9.2.1",
-    "copy-webpack-plugin": "^13.0.1",
     "cors": "^2.8.6",
     "dayjs": "^1.11.13",
     "eslint": "^9.32.0",

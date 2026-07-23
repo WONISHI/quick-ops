@@ -1,0 +1,311 @@
+.page {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+  font-size: 12px;
+}
+
+.main {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid-template-columns:
+    var(--api-skeleton-workspace-width, 218px)
+    var(--api-skeleton-workspace-resizer-size, 6px)
+    minmax(360px, 1.05fr)
+    minmax(360px, 0.95fr);
+  overflow: hidden;
+}
+
+.workspace,
+.request,
+.response {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.workspace,
+.request {
+  border-right: 1px solid var(--vscode-panel-border);
+}
+
+.workspace {
+  background: var(--vscode-sideBar-background);
+}
+
+.workspace-head,
+.response-head {
+  flex: 0 0 auto;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  line-height: 1;
+}
+
+.project-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 6px;
+  overflow: hidden;
+}
+
+.project-card {
+  margin-bottom: 6px;
+  overflow: hidden;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+}
+
+.project-card-head {
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0 6px 0 8px;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    18px
+    18px;
+  gap: 4px;
+  align-items: center;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  line-height: 1;
+}
+
+.project-card-content {
+  padding: 4px;
+}
+
+.interface-row {
+  min-height: 34px;
+  padding: 3px 4px;
+  display: grid;
+  grid-template-columns:
+    40px
+    minmax(0, 1fr)
+    18px;
+  gap: 5px;
+  align-items: center;
+  line-height: 1;
+}
+
+.interface-main {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.workspace-resizer {
+  width: var(--api-skeleton-workspace-resizer-size, 6px);
+  height: 100%;
+  position: relative;
+  background: var(--vscode-editor-background);
+  border-right: 1px solid var(--vscode-panel-border);
+}
+
+.workspace-resizer::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 38px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: color-mix(in srgb, var(--vscode-foreground) 18%, transparent);
+}
+
+.request-line {
+  flex: 0 0 auto;
+  padding: 8px;
+  display: grid;
+  grid-template-columns:
+    88px
+    minmax(0, 1fr)
+    78px;
+  gap: 6px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  line-height: 1;
+}
+
+.request-name-line {
+  flex: 0 0 auto;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+  gap: 8px;
+  align-items: center;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  line-height: 1;
+}
+
+.tabs {
+  flex: 0 0 auto;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  line-height: 1;
+}
+
+.request-panel {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+  line-height: 1;
+}
+
+.kv-head,
+.kv-row {
+  display: grid;
+  grid-template-columns:
+    22px
+    minmax(96px, 0.9fr)
+    minmax(120px, 1.2fr)
+    26px;
+  gap: 6px;
+  align-items: center;
+}
+
+.kv-head {
+  height: 20px;
+  padding: 0 1px;
+}
+
+.response-head {
+  background: var(--vscode-sideBar-background);
+}
+
+.response-head-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1;
+}
+
+.response-panel {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 8px;
+  overflow: hidden;
+}
+
+.response-code {
+  display: grid;
+  gap: 7px;
+  line-height: 1;
+}
+
+.bottom-resizer {
+  flex: 0 0 6px;
+  height: 6px;
+  box-sizing: border-box;
+  position: relative;
+  border-top: 1px solid var(--vscode-panel-border);
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.bottom-resizer::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 38px;
+  height: 2px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: color-mix(in srgb, var(--vscode-foreground) 18%, transparent);
+}
+
+.bottom-panels {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.bottom-panel {
+  min-width: 0;
+  padding: 8px;
+  overflow: hidden;
+  line-height: 1;
+}
+
+.bottom-panel:first-child {
+  border-right: 1px solid var(--vscode-panel-border);
+}
+
+.bottom-panel-list {
+  margin-top: 8px;
+  display: grid;
+  gap: 8px;
+}
+
+.history-row {
+  display: grid;
+  grid-template-columns:
+    38px
+    minmax(0, 1fr)
+    26px;
+  gap: 6px;
+  align-items: center;
+}
+
+.page :global(.react-loading-skeleton) {
+  vertical-align: middle;
+}
+
+@media (max-width: 720px) {
+  .main {
+    grid-template-columns: 1fr;
+    grid-template-rows:
+      170px
+      minmax(0, 1fr)
+      minmax(0, 1fr);
+  }
+
+  .workspace-resizer {
+    display: none;
+  }
+
+  .workspace,
+  .request {
+    border-right: none;
+    border-bottom: 1px solid var(--vscode-panel-border);
+  }
+
+  .project-list {
+    display: flex;
+    gap: 6px;
+    overflow: hidden;
+  }
+
+  .project-card {
+    width: 220px;
+    flex: 0 0 auto;
+  }
+}

@@ -6,14 +6,17 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Run Extension (ts-node)",
+      "name": "Run Extension",
       "type": "extensionHost",
       "request": "launch",
       "runtimeExecutable": "${execPath}",
       "args": ["--extensionDevelopmentPath=${workspaceFolder}"],
-      "runtimeArgs": ["-r", "ts-node/register"],
-      "outFiles": ["${workspaceFolder}/dist/**/*.ts"],
-      "preLaunchTask": "npm: watch-all"
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "sourceMaps": true,
+      "smartStep": true,
+      "preLaunchTask": "npm: watch",
+      "resolveSourceMapLocations": ["${workspaceFolder}/dist/**/*.js.map", "${workspaceFolder}/**", "!**/node_modules/**"],
+      "skipFiles": ["<node_internals>/**"]
     },
     {
       "name": "Run Extension Tests",
@@ -22,7 +25,26 @@
       "runtimeExecutable": "${execPath}",
       "args": ["--disable-extensions", "--extensionDevelopmentPath=${workspaceFolder}", "--extensionTestsPath=${workspaceFolder}/dist/test/suite/index"],
       "outFiles": ["${workspaceFolder}/dist/test/**/*.js"],
+      "sourceMaps": true,
       "preLaunchTask": "npm: watch"
+    },
+    {
+      "name": "Run Extension Clean",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "--disable-extensions",
+        "--user-data-dir=${workspaceFolder}/.vscode-test/user-data",
+        "--extensions-dir=${workspaceFolder}/.vscode-test/extensions",
+        "--extensionDevelopmentPath=${workspaceFolder}"
+      ],
+      "outFiles": ["${workspaceFolder}/dist/**/*.js"],
+      "sourceMaps": true,
+      "smartStep": true,
+      "preLaunchTask": "npm: watch",
+      "resolveSourceMapLocations": ["${workspaceFolder}/dist/**/*.js.map", "${workspaceFolder}/**", "!**/node_modules/**"],
+      "skipFiles": ["<node_internals>/**"]
     }
   ]
 }
