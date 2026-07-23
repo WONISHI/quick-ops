@@ -1167,10 +1167,6 @@ export default function LivePreviewApp() {
 
     return `folder-${safeName || 'custom'}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   };
-<<<<<<< HEAD:webview-ui/src/pages/LivePreviewApp/index.tsx
-
-=======
->>>>>>> refactor/0.0.1:webview-ui/src/pages/live-preview-app/index.tsx
 
   const activeBrowserEngine = useMemo(() => {
     return getBrowserEngineOption(browserEngine);
@@ -1711,10 +1707,6 @@ export default function LivePreviewApp() {
       window.clearInterval(timer);
     };
   }, [activeModal]);
-<<<<<<< HEAD:webview-ui/src/pages/LivePreviewApp/index.tsx
-
-=======
->>>>>>> refactor/0.0.1:webview-ui/src/pages/live-preview-app/index.tsx
 
   const navigateToHistory = (index: number) => {
     const stack = historyStackRef.current;
