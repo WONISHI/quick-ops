@@ -586,6 +586,12 @@
         "title": "添加至浮动编辑器窗口",
         "category": "Quick Ops",
         "icon": "$(multiple-windows)"
+      },
+      {
+        "command": "quickOps.webview.restoreToMainWindow",
+        "title": "返回编辑器分栏",
+        "category": "Quick Ops",
+        "icon": "$(layout)"
       }
     ],
     "keybindings": [
@@ -751,7 +757,12 @@
         },
         {
           "command": "quickOps.webview.moveToFloatingWindow",
-          "when": "quickOps.activeWebview.floating",
+          "when": "quickOps.activeWebview.floating && !isAuxiliaryWindow",
+          "group": "navigation@3"
+        },
+        {
+          "command": "quickOps.webview.restoreToMainWindow",
+          "when": "quickOps.activeWebview.floating && isAuxiliaryWindow",
           "group": "navigation@3"
         },
         {
