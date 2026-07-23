@@ -1532,11 +1532,9 @@ export default function RecentProjectsApp() {
     return null;
   };
 
-  const scrollElementIntoVisibleArea = (element: HTMLElement, retryCount: number) => {
-    const behavior: ScrollBehavior = retryCount > 0 ? 'auto' : 'smooth';
-
+  const scrollElementIntoVisibleArea = (element: HTMLElement) => {
     element.scrollIntoView({
-      behavior,
+      behavior: 'auto',
       block: 'center',
       inline: 'nearest',
     });
@@ -1560,7 +1558,7 @@ export default function RecentProjectsApp() {
 
       scrollableElement.scrollTo({
         top: nextScrollTop,
-        behavior,
+        behavior: 'auto',
       });
     });
   };
@@ -1589,7 +1587,7 @@ export default function RecentProjectsApp() {
     }
 
     window.requestAnimationFrame(() => {
-      scrollElementIntoVisibleArea(el, retryCount);
+      scrollElementIntoVisibleArea(el);
       autoScrollTarget.current = null;
     });
   };
@@ -2607,7 +2605,7 @@ export default function RecentProjectsApp() {
 
       if (el) {
         el.scrollIntoView({
-          behavior: 'smooth',
+          behavior: 'auto',
           block: 'center',
         });
       }
