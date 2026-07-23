@@ -17,8 +17,15 @@ interface BrowserFramePayload {
 interface BrowserSnapshot {
   url: string;
   title: string;
+  faviconUrl: string;
   frame: BrowserFramePayload | null;
   hasPage: boolean;
+}
+
+interface BrowserPageMetadata {
+  url: string;
+  title: string;
+  faviconUrl: string;
 }
 
 interface BrowserSearchResult {
@@ -72,6 +79,7 @@ export class EmbeddedBrowserService extends EventEmitter {
 
   private readonly context: vscode.ExtensionContext;
   private readonly userDataDirName: string;
+  private readonly sharedBrowserSource?: EmbeddedBrowserService;
 
   private lastNavigationUrl = '';
   private lastProxyUrl = '';
@@ -91,6 +99,7 @@ export class EmbeddedBrowserService extends EventEmitter {
   private readonly frameEmitInterval = platform() === 'darwin' ? 66 : 50;
   private screencastFrameHandler: ((event: any) => Promise<void>) | null = null;
   private readonly hookedPages = new WeakSet<Page>();
+  private readonly compatibilityConfiguredPages = new WeakSet<Page>();
   private debugPort = 9222;
   private activeUserDataDirName = 'BrowserUserData';
   private readonly TEMP_USER_DATA_DIR_PREFIX = 'BrowserUserData-Temp-';
@@ -106,27 +115,42 @@ export class EmbeddedBrowserService extends EventEmitter {
     private readonly extensionContextProvider: ExtensionContextProvider,
     private readonly localProxyServerService: LocalProxyServerService,
     userDataDirName = 'BrowserUserData',
+    sharedBrowserSource?: EmbeddedBrowserService,
   ) {
     super();
 
     this.context = this.extensionContextProvider.getContext();
     this.userDataDirName = userDataDirName;
     this.activeUserDataDirName = userDataDirName;
+    this.sharedBrowserSource = sharedBrowserSource;
 
     /**
      * 启动时清理超过 1 天的历史临时 Profile。
      * 当前实例创建的临时 Profile 会在 dispose() 时立即删除。
      */
-    void this.cleanupStaleTempUserDataDirs();
+    if (!this.sharedBrowserSource) {
+      void this.cleanupStaleTempUserDataDirs();
+    }
   }
 
   /**
    * @description 创建独立浏览器实例
    *
-   * 新预览标签使用独立 Chrome Profile，避免和主预览页互相抢占 Page。
+   * 新预览标签共享主实例的 Chrome 进程和 HTTP 磁盘缓存，但仍创建独立
+   * Page。这样既不会互相抢占页面，也省去了每个标签重新启动 Chrome、
+   * 初始化 Profile 和建立缓存的成本。
    */
   public createDetached(userDataDirName = 'BrowserUserData-Detached'): EmbeddedBrowserService {
-    return new EmbeddedBrowserService(this.extensionContextProvider, this.localProxyServerService, userDataDirName);
+    return new EmbeddedBrowserService(this.extensionContextProvider, this.localProxyServerService, userDataDirName, this.sharedBrowserSource || this);
+  }
+
+  /**
+   * @description 预热浏览器进程
+   *
+   * 只启动 Chrome，不创建 Page，也不会向欢迎页推送空白截图。
+   */
+  public async warmUp(): Promise<void> {
+    await this.ensureBrowser();
   }
 
   /**
@@ -153,14 +177,16 @@ export class EmbeddedBrowserService extends EventEmitter {
       return {
         url: '',
         title: '',
+        faviconUrl: '',
         frame: this.lastFramePayload,
         hasPage: false,
       };
     }
 
+    const metadata = await this.getPageMetadata(this.page);
+
     return {
-      url: this.page.url(),
-      title: await this.page.title().catch(() => this.page?.url() || ''),
+      ...metadata,
       frame: this.lastFramePayload,
       hasPage: true,
     };
@@ -799,21 +825,27 @@ export class EmbeddedBrowserService extends EventEmitter {
     return result;
   }
 
+  private isCookieDomainMatchedUrl(cookie: any, rawUrl: string): boolean {
+    if (!this.isHttpLikeUrl(rawUrl)) return false;
+
+    try {
+      const host = new URL(rawUrl).hostname.toLowerCase();
+      const domain = String(cookie?.domain || '')
+        .replace(/^\./, '')
+        .toLowerCase();
+
+      return !!host && !!domain && (host === domain || host.endsWith(`.${domain}`));
+    } catch {
+      return false;
+    }
+  }
+
   private isCookieMatchedUrl(cookie: any, rawUrl: string): boolean {
     if (!this.isHttpLikeUrl(rawUrl)) return false;
 
     try {
       const targetUrl = new URL(rawUrl);
-      const host = targetUrl.hostname.toLowerCase();
-      const domain = String(cookie?.domain || '')
-        .replace(/^\./, '')
-        .toLowerCase();
-
-      if (!host || !domain) return false;
-
-      const domainMatched = host === domain || host.endsWith(`.${domain}`);
-
-      if (!domainMatched) return false;
+      if (!this.isCookieDomainMatchedUrl(cookie, rawUrl)) return false;
       if (cookie?.secure && targetUrl.protocol !== 'https:') return false;
 
       const cookiePath = String(cookie?.path || '/');
@@ -926,24 +958,28 @@ export class EmbeddedBrowserService extends EventEmitter {
     await this.writeSharedCookies(Array.from(cookieMap.values()));
   }
 
+  /**
+   * @description 清理当前预览页缓存
+   *
+   * 只清 HTTP Cache、当前站点 Cache Storage 与 Service Worker，
+   * 不清 Cookie、LocalStorage、SessionStorage 和登录态。
+   */
   public async clearCache(): Promise<void> {
     const client = await this.ensureClient();
+    const currentUrl = this.page?.url() || this.lastNavigationUrl;
 
-    /**
-     * 只清 HTTP Cache，不清登录态。
-     *
-     * 不能调用：
-     * - Network.clearBrowserCookies
-     * - Storage.clearDataForOrigin(..., storageTypes: 'all')
-     *
-     * 否则会清掉 Cookie / localStorage / IndexedDB / Service Worker 数据，
-     * DeepSeek、ChatGPT 等需要登录的网站会被退出登录。
-     */
-    await client.send('Network.clearBrowserCache').catch((error) => {
-      console.warn('[EmbeddedBrowserService] clear browser cache failed:', error);
-    });
+    await client.send('Network.clearBrowserCache');
 
-    this.schedulePersistSharedCookies(300);
+    if (this.isHttpLikeUrl(currentUrl)) {
+      await client
+        .send('Storage.clearDataForOrigin', {
+          origin: new URL(currentUrl).origin,
+          storageTypes: 'cache_storage,service_workers',
+        })
+        .catch((error) => {
+          console.warn('[EmbeddedBrowserService] clear origin cache storage failed:', error);
+        });
+    }
   }
 
   public async getDevToolsUrl(): Promise<string> {
@@ -1090,7 +1126,13 @@ export class EmbeddedBrowserService extends EventEmitter {
   }
 
   public async dispose(): Promise<void> {
-    this.stopProxy();
+    if (!this.sharedBrowserSource) {
+      this.stopProxy();
+    } else {
+      this.lastProxyUrl = '';
+      this.useProxy = false;
+    }
+
     if (this.sharedCookiePersistTimer) {
       clearTimeout(this.sharedCookiePersistTimer);
       this.sharedCookiePersistTimer = null;
@@ -1099,12 +1141,15 @@ export class EmbeddedBrowserService extends EventEmitter {
     await this.persistSharedCookies().catch(() => undefined);
     await this.disposePage();
 
-    if (this.browser) {
+    if (this.browser && !this.sharedBrowserSource) {
       await this.browser.close().catch(() => undefined);
-      this.browser = null;
     }
 
-    await this.cleanupCreatedTempUserDataDirs();
+    this.browser = null;
+
+    if (!this.sharedBrowserSource) {
+      await this.cleanupCreatedTempUserDataDirs();
+    }
 
     this.activeUserDataDirName = this.userDataDirName;
     this.removeAllListeners();
@@ -1445,6 +1490,7 @@ export class EmbeddedBrowserService extends EventEmitter {
 
     this.page = await this.browser.newPage();
     await this.page.setViewport(this.lastViewport);
+    await this.configurePageCompatibility(this.page);
     await this.hookPageEvents(this.page);
     await this.ensureClient();
 
@@ -1488,9 +1534,93 @@ export class EmbeddedBrowserService extends EventEmitter {
 
     this.page = await this.browser.newPage();
     await this.page.setViewport(this.lastViewport);
+    await this.configurePageCompatibility(this.page);
     await this.hookPageEvents(this.page);
 
     return this.page;
+  }
+
+  /**
+   * @description 配置网页兼容请求信息
+   *
+   * Puppeteer 的无头模式会在 User-Agent 中加入 HeadlessChrome。
+   * 这里直接使用当前已安装 Chrome 返回的 UA，仅移除无头模式标识，
+   * 保证浏览器版本、操作系统信息与真实运行环境保持一致，不写死版本号。
+   *
+   * 该配置只作用于当前 Page，不写入 VS Code 全局设置。
+   */
+  private async configurePageCompatibility(page: Page): Promise<void> {
+    if (this.compatibilityConfiguredPages.has(page)) return;
+
+    this.compatibilityConfiguredPages.add(page);
+
+    let browserUserAgent = '';
+
+    try {
+      browserUserAgent = String((await this.browser?.userAgent()) || '').trim();
+    } catch {
+      browserUserAgent = '';
+    }
+
+    const userAgent = browserUserAgent.replace(/\bHeadlessChrome\//gi, 'Chrome/');
+
+    if (userAgent) {
+      await page.setUserAgent(userAgent).catch((error) => {
+        console.warn('[EmbeddedBrowserService] set compatible user agent failed:', error);
+      });
+    }
+
+    await page
+      .setExtraHTTPHeaders({
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+      })
+      .catch((error) => {
+        console.warn('[EmbeddedBrowserService] set compatible request headers failed:', error);
+      });
+  }
+
+  /**
+   * @description 获取当前网页标题与站点图标
+   */
+  private async getPageMetadata(page: Page): Promise<BrowserPageMetadata> {
+    try {
+      return await page.evaluate(() => {
+        const url = window.location.href;
+        const title = document.title || url;
+        const links = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel][href]'));
+        const declaredIcon = links.find((link) => {
+          const rel = String(link.rel || '').toLowerCase();
+          const relTokens = rel.split(/\s+/).filter(Boolean);
+
+          return relTokens.includes('icon') || rel === 'apple-touch-icon' || rel === 'apple-touch-icon-precomposed';
+        });
+
+        let faviconUrl = declaredIcon?.href || '';
+
+        if (!faviconUrl && /^https?:\/\//i.test(url)) {
+          try {
+            faviconUrl = new URL('/favicon.ico', url).href;
+          } catch {
+            faviconUrl = '';
+          }
+        }
+
+        return {
+          url,
+          title,
+          faviconUrl,
+        };
+      });
+    } catch {
+      const fallbackUrl = page.url();
+      const fallbackTitle = await page.title().catch(() => fallbackUrl);
+
+      return {
+        url: fallbackUrl,
+        title: fallbackTitle || fallbackUrl,
+        faviconUrl: '',
+      };
+    }
   }
 
   private isTempUserDataDirName(userDataDirName: string): boolean {
@@ -1572,6 +1702,19 @@ export class EmbeddedBrowserService extends EventEmitter {
   }
 
   private async ensureBrowser(): Promise<void> {
+    if (this.sharedBrowserSource) {
+      await this.sharedBrowserSource.ensureBrowser();
+
+      if (!this.sharedBrowserSource.browser) {
+        throw new Error('共享 Chrome 启动失败。');
+      }
+
+      this.browser = this.sharedBrowserSource.browser;
+      this.debugPort = this.sharedBrowserSource.debugPort;
+      this.activeUserDataDirName = this.sharedBrowserSource.activeUserDataDirName;
+      return;
+    }
+
     if (this.browser || this.isLaunching) {
       while (this.isLaunching) {
         await new Promise((resolve) => setTimeout(resolve, 50));
@@ -1607,6 +1750,7 @@ export class EmbeddedBrowserService extends EventEmitter {
         '--disable-dev-shm-usage',
         '--disable-extensions',
         '--disable-sync',
+        '--lang=zh-CN',
         '--mute-audio',
         '--metrics-recording-only',
         '--disable-component-update',
@@ -1979,6 +2123,7 @@ export class EmbeddedBrowserService extends EventEmitter {
 
     this.page = nextPage;
     await this.page.setViewport(this.lastViewport).catch(() => undefined);
+    await this.configurePageCompatibility(this.page);
     await this.hookPageEvents(this.page);
     await this.ensureClient();
 
@@ -2008,20 +2153,14 @@ export class EmbeddedBrowserService extends EventEmitter {
       await this.patchCurrentDocumentNavigation(page);
       this.schedulePersistSharedCookies(800);
 
-      this.emit('pageLoaded', {
-        url: page.url(),
-        title: await page.title().catch(() => page.url()),
-      });
+      this.emit('pageLoaded', await this.getPageMetadata(page));
     });
 
     page.on('domcontentloaded', async () => {
       await this.patchCurrentDocumentNavigation(page);
       this.schedulePersistSharedCookies(1200);
 
-      this.emit('pageLoaded', {
-        url: page.url(),
-        title: await page.title().catch(() => page.url()),
-      });
+      this.emit('pageLoaded', await this.getPageMetadata(page));
     });
 
     page.on('framenavigated', async (frame) => {
@@ -2107,8 +2246,6 @@ export class EmbeddedBrowserService extends EventEmitter {
         height: event.metadata?.deviceHeight || this.lastViewport.height,
         format: this.getScreencastFormat(),
       };
-
-      this.schedulePersistSharedCookies(3000);
 
       const isFirstFrame = !this.lastFramePayload;
 

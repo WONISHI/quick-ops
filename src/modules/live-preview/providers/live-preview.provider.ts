@@ -521,12 +521,16 @@ export class LivePreviewProvider {
     });
 
     browserService.on('pageLoaded', (payload) => {
+      const panel = getPanel();
+
       this.updatePreviewTab(tabId, {
         title: String(payload?.title || ''),
         url: String(payload?.url || ''),
       });
 
-      getPanel()?.webview.postMessage({
+      this.updatePreviewPanelIcon(panel, payload?.faviconUrl);
+
+      panel?.webview.postMessage({
         type: 'browserPageLoaded',
         ...payload,
       });
@@ -581,6 +585,7 @@ export class LivePreviewProvider {
         title: snapshot.title || snapshot.url,
         url: snapshot.url,
       });
+      this.updatePreviewPanelIcon(this.panel, snapshot.faviconUrl);
 
       this.panel.webview.postMessage({
         type: 'browserUrlChanged',
@@ -591,6 +596,7 @@ export class LivePreviewProvider {
         type: 'browserPageLoaded',
         url: snapshot.url,
         title: snapshot.title || snapshot.url,
+        faviconUrl: snapshot.faviconUrl,
       });
     }
 
@@ -883,8 +889,32 @@ export class LivePreviewProvider {
 
     record.url = nextUrl;
     record.title = this.createPreviewTabTitle(nextTitle, nextUrl);
+    record.panel.title = record.title;
 
     this.broadcastPreviewTabs();
+  }
+
+  /**
+   * @description 使用网页声明的 favicon 更新 VS Code 编辑器标签图标
+   */
+  private updatePreviewPanelIcon(panel: vscode.WebviewPanel | undefined, rawFaviconUrl: unknown): void {
+    if (!panel) return;
+
+    const faviconUrl = typeof rawFaviconUrl === 'string' ? rawFaviconUrl.trim() : '';
+
+    if (!faviconUrl) return;
+
+    try {
+      const iconUri = vscode.Uri.parse(faviconUrl);
+
+      if (!['http', 'https', 'file'].includes(iconUri.scheme.toLowerCase())) {
+        return;
+      }
+
+      panel.iconPath = iconUri;
+    } catch (error) {
+      console.warn('[LivePreviewProvider] update preview favicon failed:', error);
+    }
   }
 
   /**
