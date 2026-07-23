@@ -31,9 +31,19 @@ import WelcomePage from '@pages/live-preview-app/components/welcome-page';
 import FavoriteModal from '@pages/live-preview-app/components/favorite-modal';
 import HistoryModal from '@pages/live-preview-app/components/history-modal';
 import SuggestBox from '@pages/live-preview-app/components/suggest-box';
+import AirPlayIcon from '@pages/live-preview-app/components/airplay-icon';
 import LivePreviewContextMenu from '@pages/live-preview-app/components/live-preview-context-menu';
 import LivePreviewSkeleton from '@pages/live-preview-app/components/live-preview-skeleton';
-import { ROOT_FAVORITE_FOLDER_ID, BROWSER_ENGINE_OPTIONS, DEFAULT_BROWSER_ENGINE_KEY, BROWSER_ENGINE_STORAGE_KEY } from '@pages/live-preview-app/src/constants';
+import {
+  ROOT_FAVORITE_FOLDER_ID,
+  BROWSER_ENGINE_OPTIONS,
+  DEFAULT_BROWSER_ENGINE_KEY,
+  BROWSER_ENGINE_STORAGE_KEY,
+  PREVIEW_DEVICE_GROUPS,
+  PREVIEW_ZOOM_MIN,
+  PREVIEW_ZOOM_MAX,
+  PREVIEW_ZOOM_STEP,
+} from '@pages/live-preview-app/src/constants';
 import type {
   FavoriteItem,
   FavoriteFolder,
@@ -43,6 +53,7 @@ import type {
   BrowserEngineKey,
   BrowserSurfaceProps,
   PreviewType,
+  PreviewTabItem,
 } from '@pages/live-preview-app/src/type';
 
 const isBrowserEngineKey = (value: unknown): value is BrowserEngineKey => {
@@ -52,104 +63,6 @@ const isBrowserEngineKey = (value: unknown): value is BrowserEngineKey => {
 const getBrowserEngineOption = (key: BrowserEngineKey) => {
   return BROWSER_ENGINE_OPTIONS.find((item) => item.key === key) || BROWSER_ENGINE_OPTIONS[0];
 };
-
-/**
- * @description AirPlay 设备投放图标
- *
- * Font Awesome Free 中没有 `faAirplay`，
- * 使用内联 SVG，颜色自动继承按钮的 currentColor。
- */
-function AirPlayIcon() {
-  return (
-    <svg width="1em" height="1em" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
-      <path d="M8 17H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-
-      <path d="m12 15 4 5H8l4-5Z" fill="currentColor" />
-    </svg>
-  );
-}
-
-interface PreviewTabItem {
-  id: string;
-  title: string;
-  url: string;
-  active: boolean;
-}
-
-const PREVIEW_DEVICE_GROUPS = [
-  {
-    label: '响应式',
-    items: [
-      {
-        value: 'device-responsive',
-        label: '响应式铺满',
-      },
-    ],
-  },
-  {
-    label: 'Apple',
-    items: [
-      {
-        value: 'device-iphone-se',
-        label: 'iPhone SE',
-      },
-      {
-        value: 'device-iphone-xr',
-        label: 'iPhone XR',
-      },
-      {
-        value: 'device-iphone-12-pro',
-        label: 'iPhone 12 Pro',
-      },
-      {
-        value: 'device-iphone-14-pro-max',
-        label: 'iPhone 14 Pro',
-      },
-    ],
-  },
-  {
-    label: 'Android',
-    items: [
-      {
-        value: 'device-pixel-7',
-        label: 'Pixel 7',
-      },
-      {
-        value: 'device-galaxy-s8-plus',
-        label: 'Galaxy S8+',
-      },
-      {
-        value: 'device-galaxy-s20-ultra',
-        label: 'Galaxy S20',
-      },
-    ],
-  },
-  {
-    label: '平板电脑',
-    items: [
-      {
-        value: 'device-ipad-mini',
-        label: 'iPad Mini',
-      },
-      {
-        value: 'device-ipad-air',
-        label: 'iPad Air',
-      },
-      {
-        value: 'device-ipad-pro',
-        label: 'iPad Pro',
-      },
-      {
-        value: 'device-surface-pro-7',
-        label: 'Surface Pro',
-      },
-    ],
-  },
-] as const;
-
-const PREVIEW_ZOOM_MIN = 0.5;
-const PREVIEW_ZOOM_MAX = 2;
-const PREVIEW_ZOOM_STEP = 0.1;
 
 /**
  * @description 将预览缩放值限制在 50% - 200%

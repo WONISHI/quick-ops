@@ -54,3 +54,10 @@ export interface BrowserSurfaceProps {
 }
 
 export type PreviewType = 'web' | 'md' | 'pdf' | 'excel' | 'html';
+
+export interface PreviewTabItem {
+  id: string;
+  title: string;
+  url: string;
+  active: boolean;
+}
