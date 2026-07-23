@@ -889,7 +889,7 @@ export class LivePreviewProvider {
 
     record.url = nextUrl;
     record.title = this.createPreviewTabTitle(nextTitle, nextUrl);
-    record.panel.title = record.title;
+    record.panel.title = this.createPreviewPanelTitle(record.title);
 
     this.broadcastPreviewTabs();
   }
@@ -921,7 +921,9 @@ export class LivePreviewProvider {
    * @description 生成标签页列表里展示的标题
    */
   private createPreviewTabTitle(title: string, url: string): string {
-    const cleanTitle = String(title || '').trim();
+    const cleanTitle = String(title || '')
+      .replace(/\s+/g, ' ')
+      .trim();
 
     if (cleanTitle && cleanTitle !== 'about:blank' && cleanTitle !== '网页预览 (Preview)') {
       return cleanTitle;
@@ -943,6 +945,51 @@ export class LivePreviewProvider {
 
       return parts[parts.length - 1] || cleanUrl;
     }
+  }
+
+  /**
+   * @description 缩短 VS Code 面板标题，避免网页长标题占满编辑器工具栏
+   */
+  private createPreviewPanelTitle(title: string): string {
+    const maxDisplayWidth = 40;
+    const chars = Array.from(String(title || '').trim());
+    const getCharDisplayWidth = (char: string): number => (/^[\u0000-\u00ff]$/.test(char) ? 1 : 2);
+    const totalDisplayWidth = chars.reduce((width, char) => width + getCharDisplayWidth(char), 0);
+
+    if (totalDisplayWidth <= maxDisplayWidth) {
+      return chars.join('');
+    }
+
+    const maxContentWidth = maxDisplayWidth - 1;
+    let currentDisplayWidth = 0;
+    const visibleChars: string[] = [];
+
+    for (const char of chars) {
+      const charDisplayWidth = getCharDisplayWidth(char);
+
+      if (currentDisplayWidth + charDisplayWidth > maxContentWidth) {
+        break;
+      }
+
+      visibleChars.push(char);
+      currentDisplayWidth += charDisplayWidth;
+    }
+
+    const nextChar = chars[visibleChars.length];
+
+    if (/[a-z\d]/i.test(visibleChars[visibleChars.length - 1] || '') && /[a-z\d]/i.test(nextChar || '')) {
+      let wordStartIndex = visibleChars.length;
+
+      while (wordStartIndex > 0 && /[a-z\d]/i.test(visibleChars[wordStartIndex - 1])) {
+        wordStartIndex -= 1;
+      }
+
+      if (wordStartIndex > 0) {
+        visibleChars.splice(wordStartIndex);
+      }
+    }
+
+    return `${visibleChars.join('').trimEnd()}…`;
   }
 
   /**
