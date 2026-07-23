@@ -512,6 +512,11 @@
         "icon": "$(screen-full)"
       },
       {
+        "command": "quickOps.apiDevTools.openFloating",
+        "title": "Q-ops Api: 浮动编辑器",
+        "icon": "$(multiple-windows)"
+      },
+      {
         "command": "quickOps.apiDevTools.addProject",
         "title": "Q-ops Api: 添加项目",
         "icon": "$(new-folder)"
@@ -683,6 +688,11 @@
           "command": "quickOps.switchGitProject",
           "when": "view == quickOps.gitView",
           "group": "navigation@11"
+        },
+        {
+          "command": "quickOps.apiDevTools.openFloating",
+          "when": "view == quickOpsApiDevTools",
+          "group": "navigation@0"
         },
         {
           "command": "quickOps.apiDevTools.addProject",

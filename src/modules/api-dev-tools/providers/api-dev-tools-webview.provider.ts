@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import WebviewWorkflow from '@/workflow/webview';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import {
@@ -9,6 +10,7 @@ import {
 } from '@/modules/api-dev-tools/constants/api-dev-tools.constant';
 import { ApiDevToolsService } from '@modules/api-dev-tools/api-dev-tools.service';
 import type { ApiDevToolsRequestPayload, ApiDevToolsViewTitleAction, ApiDevToolsWebviewMessage, ApiDocsPayload } from '@modules/api-dev-tools/api-dev-tools.type';
+import type { WebviewEnhancerOptions } from '@plugins/webview-enhancer/type';
 
 export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
   public static inject = [ExtensionContextProvider, ApiDevToolsService];
@@ -16,8 +18,10 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = API_DEV_TOOLS_VIEW_TYPE;
 
   private view?: vscode.WebviewView;
+  private floatingPanel?: vscode.WebviewPanel;
   private activeRequestId = '';
   private requestLoading = false;
+  private readonly webviewWorkflow = new WebviewWorkflow();
   private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
 
   constructor(
@@ -44,27 +48,93 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
     });
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
-      try {
-        await this.handleMessage(message as ApiDevToolsWebviewMessage);
-      } catch (error) {
-        console.error('[ApiDevToolsWebviewProvider] handleMessage failed:', error);
-
-        vscode.window.showErrorMessage(`API 调试工具操作失败：${this.toErrorMessage(error)}`);
-      }
+      await this.handleIncomingMessage(message);
     });
 
     webviewView.onDidDispose(() => {
       if (this.view === webviewView) {
-        if (this.activeRequestId) {
+        if (!this.floatingPanel && this.activeRequestId) {
           this.apiDevToolsService.stopApiRequest(this.activeRequestId);
         }
 
-        this.activeRequestId = '';
         this.view = undefined;
 
-        void this.setRequestLoading(false, true);
+        if (!this.floatingPanel) {
+          this.activeRequestId = '';
+          void this.setRequestLoading(false, true);
+        }
       }
     });
+  }
+
+  /**
+   * @description 在浮动编辑器窗口中打开 API DevTools
+   *
+   * WebviewView 不能直接移动到浮动编辑器窗口，因此创建同一路由的
+   * WebviewPanel，并交给 WebviewAppearancePlugin 执行浮动窗口迁移。
+   */
+  public async openFloatingEditor(): Promise<void> {
+    if (this.floatingPanel) {
+      this.floatingPanel.reveal(this.floatingPanel.viewColumn || vscode.ViewColumn.Active, false);
+      return;
+    }
+
+    const context = this.extensionContextProvider.getContext();
+    let panel: vscode.WebviewPanel;
+
+    panel = await this.webviewWorkflow.createWebview<unknown, WebviewEnhancerOptions>({
+      key: 'quickOpsApiDevToolsFloatingEditor',
+      viewType: 'quickOpsApiDevToolsFloatingEditor',
+      title: 'Q-ops Api',
+      column: vscode.ViewColumn.Active,
+      extensionUri: context.extensionUri,
+      floating: true,
+      revealIfExists: false,
+      options: {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        enableFindWidget: true,
+        localResourceRoots: [context.extensionUri],
+      },
+      htmlFactory: async (webview) => {
+        return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+          extensionUri: context.extensionUri,
+          webview,
+          routeName: API_DEV_TOOLS_WEBVIEW_ROUTE,
+        });
+      },
+      onDidReceiveMessage: async (message) => {
+        await this.handleIncomingMessage(message);
+      },
+      onDidDispose: () => {
+        if (this.floatingPanel === panel) {
+          this.floatingPanel = undefined;
+        }
+
+        if (!this.view) {
+          if (this.activeRequestId) {
+            this.apiDevToolsService.stopApiRequest(this.activeRequestId);
+          }
+
+          this.activeRequestId = '';
+          void this.setRequestLoading(false, true);
+        }
+      },
+    });
+
+    this.floatingPanel = panel;
+
+    /**
+     * 等待新建的 WebviewPanel 成为活动编辑器后再执行浮动迁移。
+     */
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    try {
+      await vscode.commands.executeCommand('quickOps.webview.moveToFloatingWindow');
+    } catch (error) {
+      console.warn('[ApiDevToolsWebviewProvider] open floating editor failed:', error);
+      vscode.window.showWarningMessage('无法将 API DevTools 移至浮动编辑器窗口。');
+    }
   }
 
   public dispose(): void {
@@ -74,6 +144,8 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
 
     this.activeRequestId = '';
     this.view = undefined;
+    this.floatingPanel?.dispose();
+    this.floatingPanel = undefined;
 
     void this.setRequestLoading(false, true);
 
@@ -90,7 +162,9 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
 
     this.view?.show(true);
 
-    this.postMessage({
+    if (!this.view) return;
+
+    void this.view.webview.postMessage({
       type: API_DEV_TOOLS_VIEW_TITLE_ACTION_MESSAGE,
       action,
     });
@@ -222,6 +296,16 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async handleIncomingMessage(message: unknown): Promise<void> {
+    try {
+      await this.handleMessage(message as ApiDevToolsWebviewMessage);
+    } catch (error) {
+      console.error('[ApiDevToolsWebviewProvider] handleMessage failed:', error);
+
+      vscode.window.showErrorMessage(`API 调试工具操作失败：${this.toErrorMessage(error)}`);
+    }
+  }
+
   /**
    * @description 同步 API 请求加载状态到 VS Code Context
    */
@@ -243,9 +327,13 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
   }
 
   private postMessage(message: Record<string, unknown>): void {
-    if (!this.view) return;
+    if (this.view) {
+      void this.view.webview.postMessage(message);
+    }
 
-    void this.view.webview.postMessage(message);
+    if (this.floatingPanel) {
+      void this.floatingPanel.webview.postMessage(message);
+    }
   }
 
   private toErrorMessage(error: unknown): string {

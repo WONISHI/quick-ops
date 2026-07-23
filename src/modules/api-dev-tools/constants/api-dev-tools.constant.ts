@@ -13,6 +13,7 @@ export const API_DEV_TOOLS_LOADING_CONTEXT = 'quickOps.apiDevTools.loading';
  * @description API DevTools View 标题栏命令
  */
 export const API_DEV_TOOLS_COMMANDS = {
+  OPEN_FLOATING: 'quickOps.apiDevTools.openFloating',
   ADD_PROJECT: 'quickOps.apiDevTools.addProject',
   ADD_INTERFACE: 'quickOps.apiDevTools.addInterface',
   SAVE_INTERFACE: 'quickOps.apiDevTools.saveInterface',

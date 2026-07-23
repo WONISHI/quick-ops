@@ -50,6 +50,12 @@ export class ApiDevToolsController implements OnModuleInit {
    * @description 注册 API DevTools 原生 View 标题栏命令
    */
   private registerCommands(): void {
+    this.extensionContextProvider.register(
+      vscode.commands.registerCommand(API_DEV_TOOLS_COMMANDS.OPEN_FLOATING, async () => {
+        await this.apiDevToolsWebviewProvider.openFloatingEditor();
+      }),
+    );
+
     const commands: Array<readonly [string, ApiDevToolsViewTitleAction]> = [
       [API_DEV_TOOLS_COMMANDS.ADD_PROJECT, 'add-project'],
       [API_DEV_TOOLS_COMMANDS.ADD_INTERFACE, 'add-interface'],
