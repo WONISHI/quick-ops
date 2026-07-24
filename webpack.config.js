@@ -142,62 +142,6 @@ module.exports = (_env, argv = {}) => {
           test: /\.ts$/,
           exclude: /node_modules/,
 
-<<<<<<< HEAD
-/** @type {import('webpack').Configuration} */
-const extensionConfig = {
-  target: 'node16',
-  mode: isProduction ? 'production' : 'development',
-  entry: {
-    extension: './src/extension.ts',
-  },
-  output: {
-    path: path.resolve(__dirname, 'dist'),
-    filename: '[name].js',
-    libraryTarget: 'commonjs',
-  },
-  externalsPresets: {
-    node: true,
-  },
-  externals: {
-    vscode: 'commonjs vscode',
-    bufferutil: 'bufferutil',
-    'utf-8-validate': 'utf-8-validate',
-  },
-  cache: {
-    type: 'filesystem',
-  },
-  resolve: {
-    extensions: ['.ts', '.js'],
-    alias: {
-      '@': path.resolve(__dirname, 'src'),
-      lodash: 'lodash-es',
-    },
-  },
-  ignoreWarnings: [
-    {
-      module: /express[\\/]lib[\\/]view\.js/,
-      message: /Critical dependency: the request of a dependency is an expression/,
-    },
-    {
-      module: /@vue[\\/]compiler-sfc/,
-      message: /Critical dependency/,
-    },
-    {
-      module: /[\\/]node_modules[\\/](@puppeteer|puppeteer-core|@puppeteer\/browsers)[\\/]/,
-      message: /Critical dependency: require function is used in a way/,
-    },
-  ],
-  module: {
-    rules: [
-      {
-        test: /\.ts$/,
-        exclude: /node_modules/,
-        use: [
-          {
-            loader: 'ts-loader',
-            options: {
-              transpileOnly: true,
-=======
           use: [
             {
               loader: 'ts-loader',
@@ -279,7 +223,6 @@ const extensionConfig = {
             format: {
               comments: false,
               beautify: false,
->>>>>>> refactor/0.0.1
             },
           },
         }),
