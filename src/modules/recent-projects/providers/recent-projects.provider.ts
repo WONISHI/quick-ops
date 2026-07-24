@@ -315,11 +315,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
 
     const openInCurrentWindowButton: vscode.QuickInputButton = {
-      iconPath: new vscode.ThemeIcon('arrow-right'),
+      iconPath: new vscode.ThemeIcon('open-in-product'),
       tooltip: '在当前窗口打开',
     };
     const openInNewWindowButton: vscode.QuickInputButton = {
-      iconPath: new vscode.ThemeIcon('multiple-windows'),
+      iconPath: new vscode.ThemeIcon('open-in-window'),
       tooltip: '在新窗口打开',
     };
     const quickPick = vscode.window.createQuickPick<RecentProjectQuickPickItem>();
