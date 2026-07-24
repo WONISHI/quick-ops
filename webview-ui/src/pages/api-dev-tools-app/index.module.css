@@ -460,6 +460,7 @@
 }
 
 .mini-empty {
+  padding: 3px 5px;
   color: var(--vscode-descriptionForeground);
   font-size: 11px;
 }
@@ -587,8 +588,8 @@
 
 .workspace-head {
   flex: 0 0 auto;
-  height: 34px;
-  padding: 0 8px;
+  height: 30px;
+  padding: 0 6px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -606,7 +607,11 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: 6px;
+  padding: 4px;
+}
+
+.project-list-view {
+  min-width: 0;
 }
 
 .empty-project {
@@ -661,16 +666,16 @@
 }
 
 .interface-list {
-  padding: 4px;
+  padding: 2px;
 }
 
 .interface-item {
   min-width: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 22px;
-  gap: 2px;
+  gap: 1px;
   align-items: center;
-  border-radius: 5px;
+  border-radius: 3px;
 }
 
 .interface-item-share-mode {
@@ -679,7 +684,7 @@
 
 .share-checkbox {
   width: 20px;
-  height: 34px;
+  height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -705,13 +710,13 @@
 
 .interface-main {
   min-width: 0;
-  min-height: 34px;
+  min-height: 28px;
   border: none;
-  padding: 4px 5px;
+  padding: 2px 4px;
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
-  grid-template-rows: 15px 15px;
-  gap: 1px 5px;
+  grid-template-columns: 40px minmax(0, 1fr);
+  grid-template-rows: 13px 13px;
+  gap: 0 4px;
   align-items: center;
   text-align: left;
   color: var(--vscode-foreground);
@@ -733,12 +738,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--vscode-descriptionForeground);
-  font-size: 11px;
+  font-size: 10px;
 }
 
 .interface-remove {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   border: none;
   border-radius: 4px;
   color: var(--vscode-descriptionForeground);
@@ -749,6 +754,83 @@
 .interface-remove:hover {
   color: var(--vscode-foreground);
   background: var(--vscode-toolbar-hoverBackground);
+}
+
+.interface-group {
+  min-width: 0;
+  margin-bottom: 2px;
+}
+
+.interface-group-head {
+  height: 24px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px;
+  border-radius: 3px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.interface-group-head:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.interface-group-toggle {
+  min-width: 0;
+  height: 24px;
+  padding: 0 3px;
+  display: grid;
+  grid-template-columns: 14px 15px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  border: none;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.interface-group-toggle span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--vscode-foreground);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.interface-group-toggle small {
+  color: var(--vscode-descriptionForeground);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.interface-group-actions {
+  padding-right: 1px;
+  display: none;
+  align-items: center;
+  gap: 1px;
+}
+
+.interface-group-head:hover .interface-group-actions,
+.interface-group-head:focus-within .interface-group-actions {
+  display: flex;
+}
+
+.interface-group-content {
+  margin-left: 13px;
+  padding-left: 3px;
+  border-left: 1px solid var(--vscode-tree-inactiveIndentGuidesStroke, var(--vscode-panel-border));
+}
+
+.ungrouped-title {
+  height: 20px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  color: var(--vscode-descriptionForeground);
+  font-size: 10px;
 }
 
 .tiny-btn {

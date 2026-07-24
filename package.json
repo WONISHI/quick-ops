@@ -522,11 +522,6 @@
         "icon": "$(new-folder)"
       },
       {
-        "command": "quickOps.apiDevTools.addInterface",
-        "title": "Q-ops Api: 添加接口",
-        "icon": "$(group-by-ref-type)"
-      },
-      {
         "command": "quickOps.apiDevTools.saveInterface",
         "title": "Q-ops Api: 保存接口",
         "icon": "$(save)"
@@ -708,15 +703,10 @@
         {
           "command": "quickOps.apiDevTools.openFloating",
           "when": "view == quickOpsApiDevTools",
-          "group": "navigation@0"
-        },
-        {
-          "command": "quickOps.apiDevTools.addProject",
-          "when": "view == quickOpsApiDevTools",
           "group": "navigation@1"
         },
         {
-          "command": "quickOps.apiDevTools.addInterface",
+          "command": "quickOps.apiDevTools.addProject",
           "when": "view == quickOpsApiDevTools",
           "group": "navigation@2"
         },

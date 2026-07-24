@@ -9,7 +9,7 @@ import BaseTabs from '@components/BaseTabs';
 import Scrollbar from '@components/Scrollbar';
 import BottomPanels from '@/pages/api-dev-tools-app/components/bottom-panels';
 import InterfaceItem from '@/pages/api-dev-tools-app/components/interface-item';
-import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-editor';
+import KeyValueEditor, { type KeyValueEditorItem } from '@/pages/api-dev-tools-app/components/key-value-editor';
 import ProjectCard from '@/pages/api-dev-tools-app/components/project-card';
 import ShareCard from '@/pages/api-dev-tools-app/components/share-card';
 import ApiDevToolsSkeleton from '@/pages/api-dev-tools-app/components/api-dev-tools-skeleton';
@@ -51,6 +51,70 @@ import {
   WORKSPACE_PANE_MAX_WIDTH,
   WORKSPACE_RESIZER_SIZE,
 } from '@/pages/api-dev-tools-app/src/constants';
+
+interface ApiInterfaceGroup {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+type GroupedApiInterfaceItem = ApiInterfaceItem & {
+  groupId?: string;
+};
+
+type GroupedApiProject = Omit<ApiProject, 'interfaces'> & {
+  interfaces: GroupedApiInterfaceItem[];
+  groups?: ApiInterfaceGroup[];
+};
+
+type GroupedPersistedState = Omit<PersistedState, 'projects'> & {
+  projects: GroupedApiProject[];
+};
+
+type GroupManageDialog =
+  | {
+      kind: 'group-create';
+      title: string;
+      label: string;
+      value: string;
+      projectId: string;
+    }
+  | {
+      kind: 'group-rename';
+      title: string;
+      label: string;
+      value: string;
+      projectId: string;
+      groupId: string;
+    }
+  | {
+      kind: 'group-delete';
+      title: string;
+      message: string;
+      projectId: string;
+      groupId: string;
+      groupName: string;
+    }
+  | {
+      kind: 'group-interface-create';
+      title: string;
+      label: string;
+      value: string;
+      projectId: string;
+      groupId: string;
+    };
+
+type ApiManageDialog = ManageDialog | GroupManageDialog;
+
+interface ApiFormDataPayloadItem {
+  key: string;
+  type: 'text' | 'file';
+  value?: string;
+  fileName?: string;
+  mimeType?: string;
+  fileData?: string;
+}
 
 /**
  * @description 创建带指定前缀的唯一标识
@@ -108,7 +172,7 @@ function createDefaultGlobals(): GlobalVariable[] {
 /**
  * @description 创建接口项目
  */
-function createProject(name = '默认项目'): ApiProject {
+function createProject(name = '默认项目'): GroupedApiProject {
   const now = Date.now();
 
   return {
@@ -116,6 +180,7 @@ function createProject(name = '默认项目'): ApiProject {
     name,
     description: '',
     interfaces: [],
+    groups: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -124,7 +189,7 @@ function createProject(name = '默认项目'): ApiProject {
 /**
  * @description 根据请求配置创建接口记录
  */
-function createInterfaceFromRequest(request: ApiRequestConfig, name?: string): ApiInterfaceItem {
+function createInterfaceFromRequest(request: ApiRequestConfig, name?: string, groupId = ''): GroupedApiInterfaceItem {
   const now = Date.now();
   const snapshot = cloneRequest<ApiRequestConfig>({
     ...request,
@@ -138,6 +203,7 @@ function createInterfaceFromRequest(request: ApiRequestConfig, name?: string): A
     method: snapshot.method,
     url: snapshot.url,
     request: snapshot,
+    groupId,
     createdAt: now,
     updatedAt: now,
   };
@@ -155,6 +221,10 @@ function normalizeKeyValueList(list: unknown): KeyValueItem[] {
     key: String(item?.key || ''),
     value: String(item?.value || ''),
     description: String(item?.description || ''),
+    valueType: item?.valueType === 'file' ? 'file' : 'text',
+    fileName: String(item?.fileName || ''),
+    fileMimeType: String(item?.fileMimeType || ''),
+    fileData: String(item?.fileData || ''),
   }));
 
   return normalized.length > 0 ? normalized : [createKeyValue()];
@@ -179,7 +249,7 @@ function normalizeRequest(raw: unknown): ApiRequestConfig {
     params: normalizeKeyValueList(item.params),
     headers: normalizeKeyValueList(item.headers),
     cookies: normalizeKeyValueList(item.cookies),
-    bodyType: ['none', 'json', 'raw', 'form-urlencoded'].includes(item.bodyType as string) ? (item.bodyType as BodyType) : def.bodyType,
+    bodyType: ['none', 'json', 'raw', 'form-urlencoded', 'form-data'].includes(item.bodyType as string) ? (item.bodyType as BodyType) : def.bodyType,
     bodyRaw: String(item.bodyRaw ?? def.bodyRaw),
     bodyForm: normalizeKeyValueList(item.bodyForm),
     auth: {
@@ -196,8 +266,8 @@ function normalizeRequest(raw: unknown): ApiRequestConfig {
 /**
  * @description 规范化接口记录
  */
-function normalizeInterface(raw: unknown): ApiInterfaceItem | null {
-  const item = raw as Partial<ApiInterfaceItem> | undefined;
+function normalizeInterface(raw: unknown): GroupedApiInterfaceItem | null {
+  const item = raw as Partial<GroupedApiInterfaceItem> | undefined;
 
   if (!item || typeof item !== 'object') return null;
 
@@ -211,6 +281,7 @@ function normalizeInterface(raw: unknown): ApiInterfaceItem | null {
     method: HTTP_METHODS.includes(item.method as HttpMethod) ? (item.method as HttpMethod) : request.method,
     url: String(item.url || request.url || ''),
     request,
+    groupId: String(item.groupId || ''),
     createdAt: Number(item.createdAt) || now,
     updatedAt: Number(item.updatedAt) || now,
   };
@@ -219,19 +290,36 @@ function normalizeInterface(raw: unknown): ApiInterfaceItem | null {
 /**
  * @description 规范化接口项目
  */
-function normalizeProject(raw: unknown): ApiProject | null {
-  const item = raw as Partial<ApiProject> | undefined;
+function normalizeProject(raw: unknown): GroupedApiProject | null {
+  const item = raw as Partial<GroupedApiProject> | undefined;
 
   if (!item || typeof item !== 'object') return null;
 
   const now = Date.now();
-  const interfaces = Array.isArray(item.interfaces) ? (item.interfaces.map(normalizeInterface).filter(Boolean) as ApiInterfaceItem[]) : [];
+  const groups = Array.isArray(item.groups)
+    ? item.groups
+        .map((group) => ({
+          id: String(group?.id || createId('api-group')),
+          name: String(group?.name || '未命名分组'),
+          createdAt: Number(group?.createdAt) || now,
+          updatedAt: Number(group?.updatedAt) || now,
+        }))
+        .filter((group) => group.id)
+    : [];
+  const groupIdSet = new Set(groups.map((group) => group.id));
+  const interfaces = Array.isArray(item.interfaces)
+    ? (item.interfaces.map(normalizeInterface).filter(Boolean) as GroupedApiInterfaceItem[]).map((api) => ({
+        ...api,
+        groupId: api.groupId && groupIdSet.has(api.groupId) ? api.groupId : '',
+      }))
+    : [];
 
   return {
     id: item.id || createId('project'),
     name: String(item.name || '未命名项目'),
     description: String(item.description || ''),
     interfaces,
+    groups,
     createdAt: Number(item.createdAt) || now,
     updatedAt: Number(item.updatedAt) || now,
   };
@@ -240,9 +328,9 @@ function normalizeProject(raw: unknown): ApiProject | null {
 /**
  * @description 规范化持久化状态
  */
-function normalizePersistedState(raw: unknown): PersistedState {
+function normalizePersistedState(raw: unknown): GroupedPersistedState {
   const state = raw as Partial<PersistedState> | undefined;
-  const projects = Array.isArray(state?.projects) ? (state!.projects.map(normalizeProject).filter(Boolean) as ApiProject[]) : [];
+  const projects = Array.isArray(state?.projects) ? (state!.projects.map(normalizeProject).filter(Boolean) as GroupedApiProject[]) : [];
 
   return {
     globals: normalizeKeyValueList(state?.globals).map((item) => ({ ...item })),
@@ -264,6 +352,36 @@ function interpolateVariables(value: string, variables: Record<string, string>) 
 }
 
 /**
+ * @description 将 GET 地址中的查询字符串拆分到 Params
+ */
+function parseGetRequestUrl(value: string): { url: string; params: KeyValueItem[] } | null {
+  const rawUrl = String(value || '').trim();
+  const queryIndex = rawUrl.indexOf('?');
+
+  if (queryIndex < 0) return null;
+
+  const hashIndex = rawUrl.indexOf('#', queryIndex + 1);
+  const query = rawUrl.slice(queryIndex + 1, hashIndex >= 0 ? hashIndex : undefined);
+
+  if (!query) return null;
+
+  const params: KeyValueItem[] = [];
+
+  new URLSearchParams(query).forEach((paramValue, key) => {
+    params.push(createKeyValue(key, paramValue, true));
+  });
+
+  if (params.length === 0) return null;
+
+  const hash = hashIndex >= 0 ? rawUrl.slice(hashIndex) : '';
+
+  return {
+    url: `${rawUrl.slice(0, queryIndex)}${hash}`,
+    params,
+  };
+}
+
+/**
  * @description 将启用的键值项转换为对象
  */
 function getEnabledObject(list: KeyValueItem[], variables: Record<string, string>) {
@@ -278,6 +396,38 @@ function getEnabledObject(list: KeyValueItem[], variables: Record<string, string
   });
 
   return result;
+}
+
+/**
+ * @description 创建 multipart/form-data 请求字段
+ */
+function getFormDataPayload(list: KeyValueItem[], variables: Record<string, string>): ApiFormDataPayloadItem[] {
+  return (list || [])
+    .map((rawItem) => {
+      const item = rawItem as KeyValueEditorItem;
+      const key = interpolateVariables(item.key, variables).trim();
+
+      if (!item.enabled || !key) return null;
+
+      if (item.valueType === 'file') {
+        if (!item.fileData) return null;
+
+        return {
+          key,
+          type: 'file' as const,
+          fileName: item.fileName || 'file',
+          mimeType: item.fileMimeType || 'application/octet-stream',
+          fileData: item.fileData,
+        };
+      }
+
+      return {
+        key,
+        type: 'text' as const,
+        value: interpolateVariables(item.value, variables),
+      };
+    })
+    .filter(Boolean) as ApiFormDataPayloadItem[];
 }
 
 /**
@@ -310,12 +460,20 @@ function getDisplayResponseBody(response: ApiResponsePayload | null) {
  * @description 获取用于比较的键值列表
  */
 function getComparableKeyValueList(list: KeyValueItem[]) {
-  return (list || []).map((item) => ({
-    enabled: item.enabled !== false,
-    key: String(item.key || ''),
-    value: String(item.value || ''),
-    description: String(item.description || ''),
-  }));
+  return (list || []).map((rawItem) => {
+    const item = rawItem as KeyValueEditorItem;
+
+    return {
+      enabled: item.enabled !== false,
+      key: String(item.key || ''),
+      value: String(item.value || ''),
+      description: String(item.description || ''),
+      valueType: item.valueType === 'file' ? 'file' : 'text',
+      fileName: String(item.fileName || ''),
+      fileMimeType: String(item.fileMimeType || ''),
+      fileData: String(item.fileData || ''),
+    };
+  });
 }
 
 /**
@@ -500,7 +658,7 @@ export default function ApiDevToolsApp() {
   const [globals, setGlobals] = useState<GlobalVariable[]>(createDefaultGlobals);
   const [request, setRequest] = useState<ApiRequestConfig>(createDefaultRequest);
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [projects, setProjects] = useState<ApiProject[]>([]);
+  const [projects, setProjects] = useState<GroupedApiProject[]>([]);
   const [activeProjectId, setActiveProjectId] = useState('');
   const [activeInterfaceId, setActiveInterfaceId] = useState('');
   const [requestTab, setRequestTab] = useState<RequestTab>('params');
@@ -525,8 +683,9 @@ export default function ApiDevToolsApp() {
   const [sharedDocUrl, setSharedDocUrl] = useState('');
   const [isShareSelecting, setIsShareSelecting] = useState(false);
   const [shareSelectedInterfaceIds, setShareSelectedInterfaceIds] = useState<string[]>([]);
-  const [manageDialog, setManageDialog] = useState<ManageDialog>(null);
+  const [manageDialog, setManageDialog] = useState<ApiManageDialog>(null);
   const [manageDialogValue, setManageDialogValue] = useState('');
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
   const [leaveConfirmDialog, setLeaveConfirmDialog] = useState<LeaveConfirmDialog>(null);
 
   const pendingRequestIdRef = useRef('');
@@ -1179,10 +1338,34 @@ export default function ApiDevToolsApp() {
   };
 
   /**
+   * @description 把 GET 地址中的查询字符串同步到 Params
+   */
+  const syncGetUrlParams = (urlValue: string) => {
+    if (requestRef.current.method !== 'GET') return false;
+
+    const parsed = parseGetRequestUrl(urlValue);
+
+    if (!parsed) return false;
+
+    const nextRequest = {
+      ...requestRef.current,
+      url: parsed.url,
+      params: parsed.params,
+    };
+
+    requestRef.current = nextRequest;
+    setRequest(nextRequest);
+    setRequestTab('params');
+
+    return true;
+  };
+
+  /**
    * @description 构建待发送的请求参数
    */
   const buildRequestPayload = () => {
-    const finalRequest = runPreScript(request.preScript, request);
+    const currentRequest = requestRef.current;
+    const finalRequest = runPreScript(currentRequest.preScript, currentRequest);
     const variables = { ...globalVariables };
     let url = interpolateVariables(finalRequest.url, variables).trim();
 
@@ -1225,6 +1408,7 @@ export default function ApiDevToolsApp() {
     }
 
     let body: string | undefined;
+    let formData: ApiFormDataPayloadItem[] | undefined;
 
     if (!['GET', 'HEAD'].includes(finalRequest.method)) {
       if (finalRequest.bodyType === 'json' || finalRequest.bodyType === 'raw') {
@@ -1247,6 +1431,16 @@ export default function ApiDevToolsApp() {
         body = params.toString();
         headers['Content-Type'] = 'application/x-www-form-urlencoded';
       }
+
+      if (String(finalRequest.bodyType) === 'form-data') {
+        formData = getFormDataPayload(finalRequest.bodyForm, variables);
+
+        Object.keys(headers).forEach((key) => {
+          if (key.toLowerCase() === 'content-type') {
+            delete headers[key];
+          }
+        });
+      }
     }
 
     return {
@@ -1257,6 +1451,7 @@ export default function ApiDevToolsApp() {
         url: urlObject.toString(),
         headers,
         body,
+        formData,
         timeout: finalRequest.timeout,
       },
     };
@@ -1274,7 +1469,13 @@ export default function ApiDevToolsApp() {
         method: payload.method,
         url: payload.url,
         headers: payload.headers,
-        body: payload.body,
+        body:
+          payload.body ||
+          payload.formData
+            ?.map((item) => {
+              return item.type === 'file' ? `${item.key}: [File] ${item.fileName || 'file'}` : `${item.key}: ${item.value || ''}`;
+            })
+            .join('\n'),
         timeout: payload.timeout,
       });
       setDetailSource('response');
@@ -1297,7 +1498,7 @@ export default function ApiDevToolsApp() {
       setResponse({
         requestId: createId('error'),
         ok: false,
-        url: request.url,
+        url: requestRef.current.url,
         status: 0,
         statusText: 'Invalid Request',
         duration: 0,
@@ -1320,6 +1521,7 @@ export default function ApiDevToolsApp() {
     setGlobals(nextGlobals);
     setHistory([]);
     setProjects([]);
+    setCollapsedGroupIds(new Set());
     setActiveProjectId('');
     setActiveInterfaceId('');
     setRequestDetail(null);
@@ -1699,6 +1901,86 @@ export default function ApiDevToolsApp() {
   };
 
   /**
+   * @description 打开新增接口分组弹窗
+   */
+  const addProjectGroup = (project: GroupedApiProject) => {
+    const value = `分组 ${(project.groups?.length || 0) + 1}`;
+
+    setManageDialog({
+      kind: 'group-create',
+      title: '添加接口分组',
+      label: '分组名称',
+      value,
+      projectId: project.id,
+    });
+    setManageDialogValue(value);
+  };
+
+  /**
+   * @description 打开接口分组重命名弹窗
+   */
+  const renameProjectGroup = (project: GroupedApiProject, group: ApiInterfaceGroup) => {
+    setManageDialog({
+      kind: 'group-rename',
+      title: '重命名接口分组',
+      label: '分组名称',
+      value: group.name,
+      projectId: project.id,
+      groupId: group.id,
+    });
+    setManageDialogValue(group.name);
+  };
+
+  /**
+   * @description 打开删除接口分组确认框
+   */
+  const removeProjectGroup = (project: GroupedApiProject, group: ApiInterfaceGroup) => {
+    setManageDialog({
+      kind: 'group-delete',
+      title: '删除接口分组',
+      message: `确定删除分组「${group.name}」吗？分组中的接口会移动到未分组。`,
+      projectId: project.id,
+      groupId: group.id,
+      groupName: group.name,
+    });
+    setManageDialogValue('');
+  };
+
+  /**
+   * @description 打开分组内新增接口弹窗
+   */
+  const addInterfaceToGroup = (project: GroupedApiProject, group: ApiInterfaceGroup) => {
+    const value = `接口 ${project.interfaces.length + 1}`;
+
+    setManageDialog({
+      kind: 'group-interface-create',
+      title: `添加接口到 ${group.name}`,
+      label: '接口名称',
+      value,
+      projectId: project.id,
+      groupId: group.id,
+    });
+    setManageDialogValue(value);
+  };
+
+  /**
+   * @description 展开或折叠接口分组
+   */
+  const toggleProjectGroup = (groupId: string) => {
+    setCollapsedGroupIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
+      }
+
+      return next;
+    });
+  };
+
+  /**
    * @description 打开新增接口弹窗
    */
   const addInterface = () => {
@@ -1807,6 +2089,160 @@ export default function ApiDevToolsApp() {
 
       setProjects((prev) => prev.map((item) => (item.id === manageDialog.projectId ? { ...item, name: value, updatedAt: Date.now() } : item)));
       setLog(`已重命名项目：${value}`);
+      closeManageDialog();
+      return;
+    }
+
+    if (manageDialog.kind === 'group-create') {
+      if (!value) return;
+
+      const now = Date.now();
+      const group: ApiInterfaceGroup = {
+        id: createId('api-group'),
+        name: value,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const nextProjects = projectsRef.current.map((project) =>
+        project.id === manageDialog.projectId
+          ? {
+              ...project,
+              groups: [...(project.groups || []), group],
+              updatedAt: now,
+            }
+          : project,
+      );
+
+      projectsRef.current = nextProjects;
+      setProjects(nextProjects);
+      saveState({
+        projects: nextProjects,
+      });
+      setLog(`已添加接口分组：${value}`);
+      closeManageDialog();
+      return;
+    }
+
+    if (manageDialog.kind === 'group-rename') {
+      if (!value || value === manageDialog.value) {
+        closeManageDialog();
+        return;
+      }
+
+      const now = Date.now();
+      const nextProjects = projectsRef.current.map((project) =>
+        project.id === manageDialog.projectId
+          ? {
+              ...project,
+              groups: (project.groups || []).map((group) =>
+                group.id === manageDialog.groupId
+                  ? {
+                      ...group,
+                      name: value,
+                      updatedAt: now,
+                    }
+                  : group,
+              ),
+              updatedAt: now,
+            }
+          : project,
+      );
+
+      projectsRef.current = nextProjects;
+      setProjects(nextProjects);
+      saveState({
+        projects: nextProjects,
+      });
+      setLog(`已重命名接口分组：${value}`);
+      closeManageDialog();
+      return;
+    }
+
+    if (manageDialog.kind === 'group-delete') {
+      const now = Date.now();
+      const nextProjects = projectsRef.current.map((project) =>
+        project.id === manageDialog.projectId
+          ? {
+              ...project,
+              groups: (project.groups || []).filter((group) => group.id !== manageDialog.groupId),
+              interfaces: project.interfaces.map((api) =>
+                api.groupId === manageDialog.groupId
+                  ? {
+                      ...api,
+                      groupId: '',
+                    }
+                  : api,
+              ),
+              updatedAt: now,
+            }
+          : project,
+      );
+
+      projectsRef.current = nextProjects;
+      setProjects(nextProjects);
+      setCollapsedGroupIds((current) => {
+        const next = new Set(current);
+        next.delete(manageDialog.groupId);
+        return next;
+      });
+      saveState({
+        projects: nextProjects,
+      });
+      setLog(`已删除接口分组：${manageDialog.groupName}`);
+      closeManageDialog();
+      return;
+    }
+
+    if (manageDialog.kind === 'group-interface-create') {
+      if (!value) return;
+      if (!(await confirmSaveBeforeLeave())) return;
+
+      const now = Date.now();
+      const snapshot: ApiRequestConfig = {
+        ...createDefaultRequest(),
+        name: value,
+      };
+      const api = createInterfaceFromRequest(snapshot, value, manageDialog.groupId);
+      const nextRequest = cloneRequest<ApiRequestConfig>(api.request);
+      const nextProjects = projectsRef.current.map((project) =>
+        project.id === manageDialog.projectId
+          ? {
+              ...project,
+              interfaces: [api, ...project.interfaces],
+              updatedAt: now,
+            }
+          : project,
+      );
+
+      projectsRef.current = nextProjects;
+      activeProjectIdRef.current = manageDialog.projectId;
+      activeInterfaceIdRef.current = api.id;
+      requestRef.current = nextRequest;
+
+      setProjects(nextProjects);
+      setRequest(nextRequest);
+      setActiveProjectId(manageDialog.projectId);
+      setActiveInterfaceId(api.id);
+      setRequestTab('params');
+      setRequestDetail(null);
+      setDetailSource('response');
+      setIsResponseSearchOpen(false);
+      setResponse(null);
+      setResponseTab('body');
+      setCollapsedGroupIds((current) => {
+        const next = new Set(current);
+        next.delete(manageDialog.groupId);
+        return next;
+      });
+
+      saveState({
+        projects: nextProjects,
+        activeProjectId: manageDialog.projectId,
+        activeInterfaceId: api.id,
+        request: nextRequest,
+      });
+
+      setLog(`已添加接口：${value}`);
       closeManageDialog();
       return;
     }
@@ -2261,45 +2697,123 @@ export default function ApiDevToolsApp() {
                 </BaseButton>
               </div>
             ) : (
-              projects.map((project) => (
-                <ProjectCard
-                  key={project.id}
-                  project={project}
-                  active={activeProjectId === project.id}
-                  onSelect={() => {
-                    switchProject(project);
-                  }}
-                  onRename={() => {
-                    renameProject(project);
-                  }}
-                  onRemove={() => {
-                    removeProject(project);
-                  }}
-                >
-                  {project.interfaces.length === 0 ? (
-                    <div className={styles['mini-empty']}>暂无接口</div>
-                  ) : (
-                    project.interfaces.map((api) => (
-                      <InterfaceItem
-                        key={api.id}
-                        api={api}
-                        active={activeProjectId === project.id && activeInterfaceId === api.id}
-                        shareMode={isShareSelecting}
-                        checked={shareSelectedInterfaceIds.includes(api.id)}
-                        onToggleShare={() => {
-                          toggleShareInterface(api.id);
-                        }}
-                        onSelect={() => {
-                          loadInterface(project, api);
-                        }}
-                        onRemove={() => {
-                          removeInterface(project, api);
-                        }}
-                      />
-                    ))
-                  )}
-                </ProjectCard>
-              ))
+              projects.map((project) => {
+                const groups = project.groups || [];
+                const groupIdSet = new Set(groups.map((group) => group.id));
+                const ungroupedInterfaces = project.interfaces.filter((api) => !api.groupId || !groupIdSet.has(api.groupId));
+
+                const renderInterfaceItem = (api: GroupedApiInterfaceItem) => (
+                  <InterfaceItem
+                    key={api.id}
+                    api={api}
+                    active={activeProjectId === project.id && activeInterfaceId === api.id}
+                    shareMode={isShareSelecting}
+                    checked={shareSelectedInterfaceIds.includes(api.id)}
+                    onToggleShare={() => {
+                      toggleShareInterface(api.id);
+                    }}
+                    onSelect={() => {
+                      loadInterface(project, api);
+                    }}
+                    onRemove={() => {
+                      removeInterface(project, api);
+                    }}
+                  />
+                );
+
+                return (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    active={activeProjectId === project.id}
+                    onSelect={() => {
+                      switchProject(project);
+                    }}
+                    onRename={() => {
+                      renameProject(project);
+                    }}
+                    onAddGroup={() => {
+                      addProjectGroup(project);
+                    }}
+                    onRemove={() => {
+                      removeProject(project);
+                    }}
+                  >
+                    {groups.map((group) => {
+                      const groupInterfaces = project.interfaces.filter((api) => api.groupId === group.id);
+                      const collapsed = collapsedGroupIds.has(group.id);
+
+                      return (
+                        <section className={styles['interface-group']} key={group.id}>
+                          <div className={styles['interface-group-head']}>
+                            <button
+                              type="button"
+                              className={styles['interface-group-toggle']}
+                              title={group.name}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                toggleProjectGroup(group.id);
+                              }}
+                            >
+                              <i className={`codicon codicon-chevron-${collapsed ? 'right' : 'down'}`} />
+                              <i className="codicon codicon-folder" />
+                              <span>{group.name}</span>
+                              <small>{groupInterfaces.length}</small>
+                            </button>
+
+                            <div className={styles['interface-group-actions']}>
+                              <BaseButton
+                                type="icon"
+                                size="small"
+                                title={`在 ${group.name} 中添加接口`}
+                                icon={<i className="codicon codicon-group-by-ref-type" />}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  addInterfaceToGroup(project, group);
+                                }}
+                              />
+
+                              <BaseButton
+                                type="icon"
+                                size="small"
+                                title={`重命名分组：${group.name}`}
+                                icon={<i className="codicon codicon-edit" />}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  renameProjectGroup(project, group);
+                                }}
+                              />
+
+                              <BaseButton
+                                type="icon"
+                                size="small"
+                                title={`删除分组：${group.name}`}
+                                icon={<i className="codicon codicon-trash" />}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  removeProjectGroup(project, group);
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          {!collapsed && (
+                            <div className={styles['interface-group-content']}>
+                              {groupInterfaces.length > 0 ? groupInterfaces.map(renderInterfaceItem) : <div className={styles['mini-empty']}>暂无接口</div>}
+                            </div>
+                          )}
+                        </section>
+                      );
+                    })}
+
+                    {groups.length > 0 && ungroupedInterfaces.length > 0 && <div className={styles['ungrouped-title']}>未分组</div>}
+
+                    {ungroupedInterfaces.map(renderInterfaceItem)}
+
+                    {project.interfaces.length === 0 && groups.length === 0 && <div className={styles['mini-empty']}>暂无接口</div>}
+                  </ProjectCard>
+                );
+              })
             )}
           </Scrollbar>
 
@@ -2325,7 +2839,30 @@ export default function ApiDevToolsApp() {
 
         <section className={styles['left-pane']}>
           <div className={styles['request-line']}>
-            <select className={styles['method-select']} value={request.method} onChange={(event) => patchRequest({ method: event.target.value as HttpMethod })}>
+            <select
+              className={styles['method-select']}
+              value={request.method}
+              onChange={(event) => {
+                const method = event.target.value as HttpMethod;
+                const parsed = method === 'GET' ? parseGetRequestUrl(requestRef.current.url) : null;
+
+                patchRequest(
+                  parsed
+                    ? {
+                        method,
+                        url: parsed.url,
+                        params: parsed.params,
+                      }
+                    : {
+                        method,
+                      },
+                );
+
+                if (parsed) {
+                  setRequestTab('params');
+                }
+              }}
+            >
               {HTTP_METHODS.map((method) => (
                 <option key={method} value={method}>
                   {method}
@@ -2338,9 +2875,28 @@ export default function ApiDevToolsApp() {
               value={request.url}
               placeholder="请输入请求地址，例如 {{baseUrl}}/api/user"
               onChange={(event) => patchRequest({ url: event.target.value })}
+              onPaste={(event) => {
+                if (requestRef.current.method !== 'GET') return;
+
+                const value = event.clipboardData.getData('text');
+
+                if (!parseGetRequestUrl(value)) return;
+
+                event.preventDefault();
+                syncGetUrlParams(value);
+              }}
+              onBlur={(event) => {
+                syncGetUrlParams(event.currentTarget.value);
+              }}
               onKeyDown={(event) => {
                 if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                  sendRequest();
+                  const parsed = syncGetUrlParams(event.currentTarget.value);
+
+                  if (parsed) {
+                    window.setTimeout(sendRequest, 0);
+                  } else {
+                    sendRequest();
+                  }
                 }
               }}
             />
@@ -2416,7 +2972,7 @@ export default function ApiDevToolsApp() {
             {requestTab === 'body' && (
               <div className={styles['body-panel']}>
                 <div className={styles['body-type-row']}>
-                  {(['none', 'json', 'raw', 'form-urlencoded'] as BodyType[]).map((type) => (
+                  {(['none', 'json', 'raw', 'form-urlencoded', 'form-data'] as BodyType[]).map((type) => (
                     <label key={type}>
                       <input type="radio" checked={request.bodyType === type} onChange={() => patchRequest({ bodyType: type })} />
                       <span>{type}</span>
@@ -2443,6 +2999,10 @@ export default function ApiDevToolsApp() {
 
                 {request.bodyType === 'form-urlencoded' && (
                   <KeyValueEditor items={request.bodyForm} onChange={(bodyForm) => patchRequest({ bodyForm })} keyPlaceholder="字段名" valuePlaceholder="字段值" />
+                )}
+
+                {String(request.bodyType) === 'form-data' && (
+                  <KeyValueEditor items={request.bodyForm} onChange={(bodyForm) => patchRequest({ bodyForm })} keyPlaceholder="字段名" valuePlaceholder="字段值 / 文件" showType />
                 )}
               </div>
             )}

@@ -6,6 +6,7 @@ import * as vscode from 'vscode';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { API_DEV_TOOLS_STATE_KEY } from '@/modules/api-dev-tools/constants/api-dev-tools.constant';
 import type {
+  ApiDevToolsFormDataItemPayload,
   ApiDevToolsRequestDetailPayload,
   ApiDevToolsRequestPayload,
   ApiDevToolsResponsePayload,
@@ -52,13 +53,21 @@ export class ApiDevToolsService {
     const url = String(payload?.url || '').trim();
     const headers = this.normalizeHeaders(payload?.headers || {});
     const timeout = this.normalizeTimeout(payload?.timeout);
-    const hasBody = !['GET', 'HEAD'].includes(method) && typeof payload?.body === 'string';
-    const body = hasBody ? payload.body : undefined;
+    const canSendBody = !['GET', 'HEAD'].includes(method);
+    const multipartBody = canSendBody ? this.createMultipartBody(payload?.formData) : undefined;
+    const body = canSendBody && !multipartBody && typeof payload?.body === 'string' ? payload.body : undefined;
+    const requestBody = multipartBody || body;
+    const requestBodyText = multipartBody ? this.createMultipartBodySummary(payload?.formData) : body;
+
+    if (multipartBody) {
+      this.deleteHeader(headers, 'Content-Type');
+    }
+
     const requestDetail: ApiDevToolsRequestDetailPayload = {
       method,
       url,
-      headers: this.createFallbackRequestHeaders(url, headers, body),
-      body,
+      headers: this.createFallbackRequestHeaders(url, headers, multipartBody ? undefined : body),
+      body: requestBodyText,
       timeout,
     };
     const start = Date.now();
@@ -107,7 +116,7 @@ export class ApiDevToolsService {
      */
     const handleRequestCreate = (message: unknown) => {
       try {
-        const captured = this.captureUndiciRequestDetail(message as UndiciRequestCreateMessage, method, url, body, timeout);
+        const captured = this.captureUndiciRequestDetail(message as UndiciRequestCreateMessage, method, url, requestBodyText, timeout);
 
         if (!captured) return;
 
@@ -127,7 +136,7 @@ export class ApiDevToolsService {
       const response = await fetch(url, {
         method,
         headers,
-        body,
+        body: requestBody,
         redirect: 'follow',
         signal: controller.signal,
       });
@@ -509,6 +518,80 @@ export class ApiDevToolsService {
   }
 
   /**
+   * @description 创建 multipart/form-data 请求体
+   */
+  private createMultipartBody(items: ApiDevToolsFormDataItemPayload[] | undefined): FormData | undefined {
+    if (!Array.isArray(items) || items.length === 0) return undefined;
+
+    const formData = new FormData();
+    let hasValue = false;
+
+    items.forEach((item) => {
+      const key = String(item?.key || '').trim();
+
+      if (!key) return;
+
+      if (item.type === 'file') {
+        const fileData = this.normalizeBase64FileData(item.fileData);
+
+        if (!fileData) return;
+
+        const buffer = Buffer.from(fileData, 'base64');
+        const bytes = Uint8Array.from(buffer);
+        const blob = new Blob([bytes], {
+          type: String(item.mimeType || 'application/octet-stream'),
+        });
+
+        formData.append(key, blob, String(item.fileName || 'file'));
+        hasValue = true;
+        return;
+      }
+
+      formData.append(key, String(item.value ?? ''));
+      hasValue = true;
+    });
+
+    return hasValue ? formData : undefined;
+  }
+
+  /**
+   * @description 创建 multipart/form-data 请求详情摘要
+   */
+  private createMultipartBodySummary(items: ApiDevToolsFormDataItemPayload[] | undefined): string | undefined {
+    if (!Array.isArray(items)) return undefined;
+
+    const lines = items
+      .map((item) => {
+        const key = String(item?.key || '').trim();
+
+        if (!key) return '';
+
+        if (item.type === 'file') {
+          return `${key}: [File] ${String(item.fileName || 'file')}`;
+        }
+
+        return `${key}: ${String(item.value ?? '')}`;
+      })
+      .filter(Boolean);
+
+    return lines.length > 0 ? lines.join('\n') : undefined;
+  }
+
+  /**
+   * @description 去掉 Data URL 前缀，仅保留 Base64 内容
+   */
+  private normalizeBase64FileData(value: unknown): string {
+    const fileData = String(value || '').trim();
+    const separatorIndex = fileData.indexOf(',');
+
+    if (/^data:/i.test(fileData) && separatorIndex >= 0) {
+      return fileData.slice(separatorIndex + 1);
+    }
+
+    return fileData;
+  }
+
+  /**
    * @description 捕获 Node Fetch 最终生成的请求详情
    */
   private captureUndiciRequestDetail(
@@ -644,6 +727,19 @@ export class ApiDevToolsService {
     if (!exists && value) {
       headers[name] = value;
     }
+  }
+
+  /**
+   * @description 按名称删除请求头，忽略大小写
+   */
+  private deleteHeader(headers: Record<string, string>, name: string): void {
+    const targetName = name.toLowerCase();
+
+    Object.keys(headers).forEach((key) => {
+      if (key.toLowerCase() === targetName) {
+        delete headers[key];
+      }
+    });
   }
 
   private normalizeHeaders(headers: Record<string, string>): Record<string, string> {

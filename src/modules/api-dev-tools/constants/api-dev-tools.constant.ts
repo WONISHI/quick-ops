@@ -15,7 +15,6 @@ export const API_DEV_TOOLS_LOADING_CONTEXT = 'quickOps.apiDevTools.loading';
 export const API_DEV_TOOLS_COMMANDS = {
   OPEN_FLOATING: 'quickOps.apiDevTools.openFloating',
   ADD_PROJECT: 'quickOps.apiDevTools.addProject',
-  ADD_INTERFACE: 'quickOps.apiDevTools.addInterface',
   SAVE_INTERFACE: 'quickOps.apiDevTools.saveInterface',
   SHARE_DOCS: 'quickOps.apiDevTools.shareDocs',
   EXPORT_DOCS: 'quickOps.apiDevTools.exportDocs',
