@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { QuickOpsApplication } from './app/quick-ops.application';
+import { QuickOpsApplication } from '@app/quick-ops.application';
 
 let app: QuickOpsApplication | undefined;
 

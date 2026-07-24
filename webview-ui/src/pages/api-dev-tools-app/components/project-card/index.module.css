@@ -1,42 +1,31 @@
 .card {
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   overflow: hidden;
-  border: 1px solid
-    var(--vscode-panel-border);
-  border-radius: 6px;
-  background:
-    color-mix(
-      in srgb,
-      var(--vscode-editor-background) 86%,
-      transparent
-    );
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--vscode-editor-background) 86%, transparent);
 }
 
 .active {
-  border-color:
-    var(--vscode-focusBorder);
+  border-color: var(--vscode-focusBorder);
 }
 
 .active .title {
-  color:
-    var(
-      --vscode-textLink-foreground,
-      var(--vscode-button-background)
-    );
+  color: var(--vscode-textLink-foreground, var(--vscode-button-background));
 }
 
 .header {
-  height: 28px;
-  padding: 0 4px 0 8px;
+  height: 24px;
+  padding: 0 2px 0 6px;
   display: grid;
   grid-template-columns:
     minmax(0, 1fr)
     22px
+    22px
     22px;
-  gap: 4px;
+  gap: 1px;
   align-items: center;
-  border-bottom: 1px solid
-    var(--vscode-panel-border);
+  border-bottom: 1px solid var(--vscode-panel-border);
 }
 
 .title {
@@ -47,6 +36,7 @@
   color: var(--vscode-foreground);
   background: transparent;
   font-weight: 700;
+  font-size: 12px;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -54,7 +44,7 @@
 }
 
 .content {
-  padding: 4px;
+  padding: 2px;
 }
 
 @media (max-width: 720px) {

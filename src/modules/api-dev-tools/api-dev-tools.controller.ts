@@ -58,7 +58,6 @@ export class ApiDevToolsController implements OnModuleInit {
 
     const commands: Array<readonly [string, ApiDevToolsViewTitleAction]> = [
       [API_DEV_TOOLS_COMMANDS.ADD_PROJECT, 'add-project'],
-      [API_DEV_TOOLS_COMMANDS.ADD_INTERFACE, 'add-interface'],
       [API_DEV_TOOLS_COMMANDS.SAVE_INTERFACE, 'save-interface'],
       [API_DEV_TOOLS_COMMANDS.SHARE_DOCS, 'share-docs'],
       [API_DEV_TOOLS_COMMANDS.EXPORT_DOCS, 'export-docs'],

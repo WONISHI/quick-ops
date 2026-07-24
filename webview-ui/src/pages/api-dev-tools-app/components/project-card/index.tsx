@@ -35,6 +35,11 @@ export interface ProjectCardProps {
   onRename: () => void;
 
   /**
+   * @description 给项目添加接口分组
+   */
+  onAddGroup: () => void;
+
+  /**
    * @description 删除项目
    */
   onRemove: () => void;
@@ -43,7 +48,7 @@ export interface ProjectCardProps {
 /**
  * @description 项目卡片
  */
-export default function ProjectCard({ project, active = false, children, onSelect, onRename, onRemove }: ProjectCardProps) {
+export default function ProjectCard({ project, active = false, children, onSelect, onRename, onAddGroup, onRemove }: ProjectCardProps) {
   return (
     <div
       className={[styles.card, active ? styles.active : ''].filter(Boolean).join(' ')}
@@ -63,6 +68,17 @@ export default function ProjectCard({ project, active = false, children, onSelec
         >
           {project.name}
         </button>
+
+        <BaseButton
+          type="icon"
+          size="small"
+          title={`给项目添加分组：${project.name}`}
+          icon={<i className="codicon codicon-new-collection" />}
+          onClick={(event) => {
+            event.stopPropagation();
+            onAddGroup();
+          }}
+        />
 
         <BaseButton
           type="icon"

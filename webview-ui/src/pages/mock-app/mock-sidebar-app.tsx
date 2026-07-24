@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo } from 'react';
-import { vscode } from '../../utils/vscode';
+import { vscode } from '@utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faServer, faCircle, faGear, faTrash, faPen, faPlus, faFileCode } from '@fortawesome/free-solid-svg-icons';
 import { faFolderOpen, faCopy, faFile } from '@fortawesome/free-regular-svg-icons';
-import styles from './index.module.css';
+import styles from '@pages/mock-app/index.module.css';
 import MockSkeleton from '@pages/mock-app/components/mock-skeleton';
 
 export default function MockSidebarApp() {

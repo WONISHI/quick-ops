@@ -8,55 +8,100 @@
 .row {
   display: grid;
   grid-template-columns:
-    22px
-    minmax(96px, 0.9fr)
-    minmax(120px, 1.2fr)
-    26px;
-  gap: 6px;
+    18px
+    minmax(86px, 0.9fr)
+    minmax(110px, 1.2fr)
+    24px;
+  gap: 4px;
   align-items: center;
 }
 
+.head.with-type,
+.row.with-type {
+  grid-template-columns:
+    18px
+    minmax(76px, 0.8fr)
+    70px
+    minmax(110px, 1.2fr)
+    24px;
+}
+
 .head {
-  height: 20px;
+  height: 18px;
   padding: 0 1px;
-  color:
-    var(
-      --vscode-descriptionForeground
-    );
+  color: var(--vscode-descriptionForeground);
   font-size: 11px;
 }
 
 .row input:not([type='checkbox']) {
   min-width: 0;
-  height: 26px;
+  height: 24px;
   box-sizing: border-box;
-  padding: 0 7px;
-  border: 1px solid
-    var(
-      --vscode-input-border,
-      var(--vscode-panel-border)
-    );
+  padding: 0 6px;
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
   border-radius: 4px;
   outline: none;
-  color:
-    var(--vscode-input-foreground);
-  background:
-    var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
   font-size: 12px;
 }
 
+.row select {
+  min-width: 0;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 5px;
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: 4px;
+  outline: none;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-dropdown-background, var(--vscode-input-background));
+  font-size: 11px;
+}
+
+.row select:focus {
+  border-color: var(--vscode-focusBorder);
+}
+
 .row input:not([type='checkbox']):focus {
-  border-color:
-    var(--vscode-focusBorder);
+  border-color: var(--vscode-focusBorder);
 }
 
 .row input[type='checkbox'] {
   width: 13px;
   height: 13px;
-  accent-color:
-    var(
-      --vscode-button-background
-    );
+  accent-color: var(--vscode-button-background);
+}
+
+.file-picker {
+  min-width: 0;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border-radius: 4px;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  cursor: pointer;
+}
+
+.file-picker:hover {
+  border-color: var(--vscode-focusBorder);
+}
+
+.file-picker span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-picker input {
+  display: none;
 }
 
 .add-button {

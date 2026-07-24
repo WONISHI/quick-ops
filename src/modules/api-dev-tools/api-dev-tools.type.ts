@@ -1,9 +1,27 @@
+/**
+ * @description multipart/form-data 字段类型
+ */
+export type ApiDevToolsFormDataValueType = 'text' | 'file';
+
+/**
+ * @description multipart/form-data 字段
+ */
+export interface ApiDevToolsFormDataItemPayload {
+  key: string;
+  type: ApiDevToolsFormDataValueType;
+  value?: string;
+  fileName?: string;
+  mimeType?: string;
+  fileData?: string;
+}
+
 export interface ApiDevToolsRequestPayload {
   requestId: string;
   method: string;
   url: string;
   headers?: Record<string, string>;
   body?: string;
+  formData?: ApiDevToolsFormDataItemPayload[];
   timeout?: number;
 }
 

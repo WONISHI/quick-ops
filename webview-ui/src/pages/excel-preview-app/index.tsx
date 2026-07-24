@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
-import { vscode } from '../../utils/vscode';
-import styles from './index.module.css';
-import { getColumnLetter } from '../../utils';
+import { vscode } from '@utils/vscode';
+import styles from '@pages/excel-preview-app/index.module.css';
+import { getColumnLetter } from '@/utils';
 
 /**
  * @description Excel 表格加载骨架屏

@@ -2,6 +2,7 @@ export const RECENT_PROJECTS_VIEW_ID = 'quickOps.recentProjectsView';
 
 export const RECENT_PROJECTS_COMMANDS = {
   addRecentProject: 'quickOps.addRecentProject',
+  showOtherRecentProjects: 'quickOps.showOtherRecentProjects',
   refreshRecentProjects: 'quickOps.refreshRecentProjects',
   refreshCurrentWorkspaceRecentProject:
     'quickOps.refreshCurrentWorkspaceRecentProject',
@@ -15,6 +16,7 @@ export const RECENT_PROJECTS_COMMANDS = {
 
 export const RECENT_PROJECTS_CONTEXT_KEYS = {
   canRevealInRecent: 'quickOps.canRevealInRecent',
+  focusMode: 'quickOps.recentProjects.focusMode',
 } as const;
 
 export const RECENT_PROJECTS_STORAGE_KEYS = {

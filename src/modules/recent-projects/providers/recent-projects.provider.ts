@@ -22,6 +22,15 @@ import type {
 
 const execFileAsync = promisify(execFile);
 
+type GitMetadataContext = {
+  gitRoot: string;
+  statusMap: Map<string, GitFileStatus>;
+};
+
+type RecentProjectQuickPickItem = vscode.QuickPickItem & {
+  project: RecentProjectItem;
+};
+
 export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   public static inject = [ExtensionContextProvider, RecentProjectsService, GitVirtualContentProvider];
 
@@ -57,7 +66,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       timestamp: number;
     }
   >();
-  private readonly directoryCacheTtl = 3000;
+  private readonly directoryCacheTtl = 15_000;
+  private readonly gitMetadataCache = new Map<
+    string,
+    GitMetadataContext & {
+      timestamp: number;
+    }
+  >();
+  private readonly gitMetadataInFlight = new Map<string, Promise<GitMetadataContext>>();
+  private readonly gitMetadataCacheTtl = 2000;
+  private searchRunId = 0;
 
   private statusSyncTimer: NodeJS.Timeout | undefined;
   private pathStatusSyncTimer: NodeJS.Timeout | undefined;
@@ -79,6 +97,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   public async resolveWebviewView(webviewView: vscode.WebviewView, _context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken): Promise<void> {
     this.view = webviewView;
+    void vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.focusMode, false);
 
     const context = this.extensionContextProvider.getContext();
 
@@ -98,11 +117,39 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         await this.handleMessage(message);
       } catch (error) {
         console.error('[RecentProjectsProvider] handleMessage failed:', error);
+        const errorMessage = this.toErrorMessage(error);
+
+        if (message?.type === 'searchFileName') {
+          this.postMessage({
+            type: 'searchFileNameResult',
+            requestId: message?.requestId,
+            results: [],
+            data: [],
+            reset: true,
+            done: true,
+            error: errorMessage,
+          });
+          return;
+        }
+
+        if (message?.type === 'searchFolder' || message?.type === 'searchInFolder') {
+          this.postMessage({
+            type: 'searchFolderResult',
+            requestId: message?.requestId,
+            results: [],
+            data: [],
+            reset: true,
+            done: true,
+            totalMatches: 0,
+            error: errorMessage,
+          });
+          return;
+        }
 
         this.postMessage({
           type: 'error',
           requestId: message?.requestId,
-          error: this.toErrorMessage(error),
+          error: errorMessage,
         });
       }
     });
@@ -110,6 +157,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     webviewView.onDidDispose(() => {
       if (this.view === webviewView) {
         this.view = undefined;
+        void vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.focusMode, false);
       }
     });
 
@@ -127,6 +175,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   public dispose(): void {
+    this.cancelActiveSearch();
+
     const timers = [this.statusSyncTimer, this.pathStatusSyncTimer, this.dirtyStatusSyncTimer, this.searchContentChangedTimer];
 
     timers.forEach((timer) => {
@@ -146,6 +196,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.markdownImageAssets.clear();
     this.loadedDirChildren.clear();
     this.directoryCache.clear();
+    this.gitMetadataCache.clear();
+    this.gitMetadataInFlight.clear();
     this.pendingMetadataPaths.clear();
     this.pendingDirtyMetadataPaths.clear();
     this.pendingSearchContentChangedPaths.clear();
@@ -155,6 +207,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.currentActivePath = '';
     this.revealVisibleProjectPaths = undefined;
     this.revealVisibleInWebview = true;
+
+    void vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.focusMode, false);
   }
 
   public getRecentProjects(): RecentProjectItem[] {
@@ -241,6 +295,87 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       if (selected?.label.includes('填写远程仓库')) {
         await this.addRemoteProject();
       }
+    });
+
+    quickPick.show();
+  }
+
+  public showOtherProjectsQuickPick(): void {
+    const currentWorkspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri.toString() || '';
+    const normalizedCurrentWorkspace = this.normalizeProjectPath(currentWorkspaceUri);
+    const projects = this.getRecentProjects().filter((project) => {
+      if (!normalizedCurrentWorkspace) return true;
+
+      return this.normalizeProjectPath(project.fsPath) !== normalizedCurrentWorkspace;
+    });
+
+    if (projects.length === 0) {
+      void vscode.window.showInformationMessage('没有可打开的其他最近项目');
+      return;
+    }
+
+    const openInCurrentWindowButton: vscode.QuickInputButton = {
+      iconPath: new vscode.ThemeIcon('open-in-product'),
+      tooltip: '在当前窗口打开',
+    };
+    const openInNewWindowButton: vscode.QuickInputButton = {
+      iconPath: new vscode.ThemeIcon('open-in-window'),
+      tooltip: '在新窗口打开',
+    };
+    const quickPick = vscode.window.createQuickPick<RecentProjectQuickPickItem>();
+
+    quickPick.title = '其他最近项目';
+    quickPick.placeholder = '回车在当前窗口打开，或使用项目右侧按钮';
+    quickPick.matchOnDescription = true;
+    quickPick.matchOnDetail = true;
+    quickPick.items = projects.map((project) => {
+      const projectUri = this.toUri(project.fsPath);
+      const displayPath = projectUri?.scheme === 'file' ? projectUri.fsPath : project.fsPath;
+      const isRemote = this.recentProjectsService.isRemoteProject(project);
+
+      return {
+        label: `$(${isRemote ? 'repo' : 'folder'}) ${project.customName || project.name}`,
+        description: project.branch ? `$(git-branch) ${project.branch}` : undefined,
+        detail: displayPath,
+        project,
+        buttons: [openInCurrentWindowButton, openInNewWindowButton],
+      };
+    });
+
+    let isOpening = false;
+
+    const openQuickPickProject = async (item: RecentProjectQuickPickItem, forceNewWindow: boolean): Promise<void> => {
+      if (isOpening) return;
+
+      isOpening = true;
+      quickPick.hide();
+
+      if (!forceNewWindow) {
+        const projectName = item.project.customName || item.project.name || '该项目';
+        const confirm = await vscode.window.showWarningMessage(`确定要在当前窗口打开 [ ${projectName} ] 吗？\n这将会关闭您当前正在工作的工作区！`, { modal: true }, '确认覆盖打开');
+
+        if (confirm !== '确认覆盖打开') {
+          return;
+        }
+      }
+
+      await this.openProject(item.project.fsPath, forceNewWindow);
+    };
+
+    quickPick.onDidTriggerItemButton((event) => {
+      void openQuickPickProject(event.item, event.button === openInNewWindowButton);
+    });
+
+    quickPick.onDidAccept(() => {
+      const selectedItem = quickPick.selectedItems[0];
+
+      if (selectedItem) {
+        void openQuickPickProject(selectedItem, false);
+      }
+    });
+
+    quickPick.onDidHide(() => {
+      quickPick.dispose();
     });
 
     quickPick.show();
@@ -498,6 +633,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         this.revealCurrentActive();
         break;
 
+      case 'setFocusModeContext':
+        await vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.focusMode, Boolean(message.enabled));
+        break;
+
       case 'setFocusLock': {
         const currentWorkspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri.toString() || '';
         const fsPath = String(targetPath || currentWorkspaceUri).trim();
@@ -577,9 +716,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       case 'openInIntegratedTerminal':
         if (targetPath) {
-          this.openInIntegratedTerminal(
-            targetPath,
-          );
+          this.openInIntegratedTerminal(targetPath);
         }
         break;
 
@@ -778,6 +915,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
         break;
 
+      case 'cancelSearch':
+        this.cancelActiveSearch();
+        break;
+
       case 'searchFolder':
       case 'searchInFolder':
         if (targetPath) {
@@ -959,31 +1100,20 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   /**
    * @description 在文件所在目录打开 VS Code 集成终端
    */
-  private openInIntegratedTerminal(
-    fsPath: string,
-  ): void {
-    const targetUri =
-      this.toUri(fsPath);
+  private openInIntegratedTerminal(fsPath: string): void {
+    const targetUri = this.toUri(fsPath);
 
-    if (
-      !targetUri ||
-      targetUri.scheme !== 'file'
-    ) {
-      vscode.window.showWarningMessage(
-        '仅支持在当前运行项目的本地文件中打开集成终端。',
-      );
+    if (!targetUri || targetUri.scheme !== 'file') {
+      vscode.window.showWarningMessage('仅支持在当前运行项目的本地文件中打开集成终端。');
       return;
     }
 
-    const cwd = vscode.Uri.file(
-      path.dirname(targetUri.fsPath),
-    );
+    const cwd = vscode.Uri.file(path.dirname(targetUri.fsPath));
 
-    const terminal =
-      vscode.window.createTerminal({
-        name: `QuickOps: ${path.basename(cwd.fsPath) || 'Terminal'}`,
-        cwd,
-      });
+    const terminal = vscode.window.createTerminal({
+      name: `QuickOps: ${path.basename(cwd.fsPath) || 'Terminal'}`,
+      cwd,
+    });
 
     terminal.show();
   }
@@ -1213,16 +1343,32 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const uri = this.toUri(fsPath);
 
     if (!uri) {
-      this.postDirectoryResult(fsPath, [], requestId, '无效路径');
+      this.postDirectoryResult(fsPath, [], requestId, '无效路径', focusOnly);
       return;
     }
 
     try {
       const children = await this.readDirectoryChildren(uri, focusOnly, forceRefresh);
 
-      this.postDirectoryResult(fsPath, children, requestId);
+      this.postDirectoryResult(fsPath, children, requestId, undefined, focusOnly);
+
+      /**
+       * 目录结构先返回给 Webview，让展开动作立即完成。
+       * Git 状态和目录诊断随后按批次补齐，避免每次点击都同步等待整仓库 git status。
+       */
+      if (!focusOnly && uri.scheme === 'file' && children.length > 0) {
+        this.requestPathMetadataSync(
+          [
+            fsPath,
+            ...children.map((child) => {
+              return child.path;
+            }),
+          ],
+          40,
+        );
+      }
     } catch (error) {
-      this.postDirectoryResult(fsPath, [], requestId, this.toErrorMessage(error));
+      this.postDirectoryResult(fsPath, [], requestId, this.toErrorMessage(error), focusOnly);
 
       if (uri.scheme !== 'file') {
         vscode.window.showErrorMessage('读取失败：可能是网络超时或触发了远程仓库 API 限制，请稍后再试。');
@@ -1230,7 +1376,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private postDirectoryResult(fsPath: string, children: RecentProjectFileItem[], requestId?: WebviewRequestId, error?: string): void {
+  private postDirectoryResult(fsPath: string, children: RecentProjectFileItem[], requestId?: WebviewRequestId, error?: string, focusOnly = false): void {
     const message = {
       requestId,
       fsPath,
@@ -1238,6 +1384,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       children,
       data: children,
       error,
+      focusOnly,
     };
 
     this.postMessage({
@@ -1267,27 +1414,33 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
 
     const entries = await vscode.workspace.fs.readDirectory(uri);
-    const gitRoot = uri.scheme === 'file' ? await this.getGitRoot(uri.fsPath) : '';
-    const statusMap = gitRoot ? await this.getGitStatusMap(gitRoot) : new Map<string, GitFileStatus>();
+    let gitContext: GitMetadataContext | undefined;
 
-    const children = await Promise.all(
-      entries
-        .filter(([name]) => !this.shouldIgnoreName(name))
-        .map(async ([name, type]) => {
-          const childUri = vscode.Uri.joinPath(uri, name);
-          const isFolder = (type & vscode.FileType.Directory) !== 0;
-          const gitRelativePath = gitRoot && childUri.scheme === 'file' ? path.relative(gitRoot, childUri.fsPath).replace(/\\/g, '/') : '';
-          const status = gitRoot ? this.getChildGitStatus(gitRelativePath, isFolder, statusMap) : undefined;
+    /**
+     * 专注模式需要依赖 Git 状态过滤，因此仍需等待元数据。
+     * 普通目录展开不在这里读取 Git，避免阻塞首屏结果。
+     */
+    if (focusOnly && uri.scheme === 'file') {
+      const metadataRootUri = this.getMetadataRootUri(uri.toString()) || uri;
+      gitContext = await this.getGitMetadataContext(metadataRootUri.fsPath, forceRefresh);
+    }
 
-          return {
-            path: childUri.toString(),
-            name,
-            isFolder,
-            status,
-            diagnostics: this.getDiagnostics(childUri),
-          } as RecentProjectFileItem;
-        }),
-    );
+    const children = entries
+      .filter(([name]) => !this.shouldIgnoreName(name))
+      .map(([name, type]) => {
+        const childUri = vscode.Uri.joinPath(uri, name);
+        const isFolder = (type & vscode.FileType.Directory) !== 0;
+        const gitRelativePath = gitContext?.gitRoot && childUri.scheme === 'file' ? path.relative(gitContext.gitRoot, childUri.fsPath).replace(/\\/g, '/') : '';
+        const status = gitContext?.gitRoot ? this.getChildGitStatus(gitRelativePath, isFolder, gitContext.statusMap) : undefined;
+
+        return {
+          path: childUri.toString(),
+          name,
+          isFolder,
+          status,
+          diagnostics: this.getDiagnostics(childUri),
+        } as RecentProjectFileItem;
+      });
 
     const result = children
       .filter((child) => {
@@ -1304,7 +1457,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.loadedDirChildren.set(uriStr, result);
     this.directoryCache.set(cacheKey, {
       children: result,
-      timestamp: now,
+      timestamp: Date.now(),
     });
 
     return result;
@@ -1355,6 +1508,51 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
 
     return statusMap;
+  }
+
+  private async getGitMetadataContext(nativeRootPath: string, forceRefresh = false): Promise<GitMetadataContext> {
+    const resolvedPath = path.resolve(nativeRootPath);
+    const cacheKey = process.platform === 'win32' ? resolvedPath.toLowerCase() : resolvedPath;
+    const cached = this.gitMetadataCache.get(cacheKey);
+
+    if (!forceRefresh && cached && Date.now() - cached.timestamp <= this.gitMetadataCacheTtl) {
+      return {
+        gitRoot: cached.gitRoot,
+        statusMap: cached.statusMap,
+      };
+    }
+
+    const runningTask = this.gitMetadataInFlight.get(cacheKey);
+
+    if (runningTask) {
+      return runningTask;
+    }
+
+    const task = (async () => {
+      const gitRoot = await this.getGitRoot(resolvedPath);
+      const statusMap = gitRoot ? await this.getGitStatusMap(gitRoot) : new Map<string, GitFileStatus>();
+      const context = {
+        gitRoot,
+        statusMap,
+      };
+
+      this.gitMetadataCache.set(cacheKey, {
+        ...context,
+        timestamp: Date.now(),
+      });
+
+      return context;
+    })();
+
+    this.gitMetadataInFlight.set(cacheKey, task);
+
+    try {
+      return await task;
+    } finally {
+      if (this.gitMetadataInFlight.get(cacheKey) === task) {
+        this.gitMetadataInFlight.delete(cacheKey);
+      }
+    }
   }
 
   private getChildGitStatus(gitRelativePath: string, isFolder: boolean, statusMap: Map<string, GitFileStatus>): GitFileStatus | undefined {
@@ -1609,8 +1807,55 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     await vscode.env.openExternal(uri);
   }
 
+  /**
+   * @description 判断文件、文件夹名称或路径片段是否符合名称搜索
+   *
+   * 单段关键词只匹配当前项名称，避免搜索 `src` 时把 `src` 下的所有文件
+   * 都因为祖先路径包含 `src` 而误判为命中。
+   *
+   * 包含 `/` 的关键词允许匹配路径片段，但命中范围必须延伸到当前项名称。
+   * 例如：
+   * - `src/modules` 命中 `src/modules` 文件夹；
+   * - `modules/app` 命中 `src/modules/app.module.ts`；
+   * - `src` 不会仅因为路径是 `src/app.module.ts` 就命中该文件。
+   */
+  private isFileNameSearchMatched(name: string, relativePath: string, query: string): boolean {
+    const normalizedQuery = query
+      .trim()
+      .replace(/\\/g, '/')
+      .replace(/^\/+|\/+$/g, '')
+      .toLowerCase();
+
+    if (!normalizedQuery) {
+      return false;
+    }
+
+    if (name.toLowerCase().includes(normalizedQuery)) {
+      return true;
+    }
+
+    if (!normalizedQuery.includes('/')) {
+      return false;
+    }
+
+    const normalizedRelativePath = relativePath.replace(/\\/g, '/').toLowerCase();
+    const currentNameStartIndex = normalizedRelativePath.lastIndexOf('/') + 1;
+    let matchIndex = normalizedRelativePath.indexOf(normalizedQuery);
+
+    while (matchIndex !== -1) {
+      if (matchIndex + normalizedQuery.length > currentNameStartIndex) {
+        return true;
+      }
+
+      matchIndex = normalizedRelativePath.indexOf(normalizedQuery, matchIndex + 1);
+    }
+
+    return false;
+  }
+
   private async handleSearchFileName(fsPath: string, query: string, focusOnly: boolean, requestId?: WebviewRequestId): Promise<void> {
     const uri = this.toUri(fsPath);
+    const searchRunId = ++this.searchRunId;
 
     if (!uri || !query.trim()) {
       this.postMessage({
@@ -1618,71 +1863,123 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         requestId,
         results: [],
         data: [],
+        reset: true,
+        done: true,
+        totalResults: 0,
       });
 
       return;
     }
 
-    const results: RecentProjectFileItem[] = [];
-    const lowerQuery = query.trim().toLowerCase();
     const maxResults = 200;
-
-    const walk = async (dirUri: vscode.Uri, rootUri: vscode.Uri): Promise<void> => {
-      if (results.length >= maxResults) return;
-
-      let entries: [string, vscode.FileType][];
-
-      try {
-        entries = await vscode.workspace.fs.readDirectory(dirUri);
-      } catch {
-        return;
-      }
-
-      for (const [name, type] of entries) {
-        if (results.length >= maxResults) break;
-        if (this.shouldIgnoreName(name)) continue;
-
-        const childUri = vscode.Uri.joinPath(dirUri, name);
-        const isFolder = (type & vscode.FileType.Directory) !== 0;
-        const relativePath = path.posix.relative(rootUri.path, childUri.path);
-
-        if (name.toLowerCase().includes(lowerQuery) || relativePath.toLowerCase().includes(lowerQuery)) {
-          results.push({
-            path: childUri.toString(),
-            name,
-            relativePath,
-            isFolder,
-            diagnostics: this.getDiagnostics(childUri),
-          } as RecentProjectFileItem);
-        }
-
-        if (isFolder) {
-          await walk(childUri, rootUri);
-        }
-      }
+    const pendingBatch: RecentProjectFileItem[] = [];
+    const isCancelled = () => {
+      return searchRunId !== this.searchRunId || !this.view;
     };
 
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Window,
-        title: 'Quick Ops: 正在按文件名/路径检索...',
-      },
-      async () => {
-        await walk(uri, uri);
-      },
-    );
+    let totalResults = 0;
+    let firstBatch = true;
+    let lastFlushAt = Date.now();
 
-    this.postMessage({
-      type: 'searchFileNameResult',
-      requestId,
-      results,
-      data: results,
-      focusOnly,
-    });
+    const flush = (done = false) => {
+      if (isCancelled()) return;
+
+      const results = pendingBatch.splice(0);
+
+      if (results.length === 0 && !done) return;
+
+      const reset = firstBatch;
+
+      this.postMessage({
+        type: 'searchFileNameResult',
+        requestId,
+        results,
+        data: results,
+        append: !reset,
+        reset,
+        done,
+        totalResults,
+        focusOnly,
+      });
+
+      firstBatch = false;
+      lastFlushAt = Date.now();
+    };
+
+    let directories: vscode.Uri[] = [uri];
+
+    while (directories.length > 0 && totalResults < maxResults && !isCancelled()) {
+      const currentLevel = directories;
+      const nextLevel: vscode.Uri[] = [];
+
+      directories = nextLevel;
+
+      await this.runWithConcurrency(
+        currentLevel,
+        4,
+        async (dirUri) => {
+          if (isCancelled() || totalResults >= maxResults) return;
+
+          let entries: [string, vscode.FileType][];
+
+          try {
+            entries = await vscode.workspace.fs.readDirectory(dirUri);
+          } catch {
+            return;
+          }
+
+          for (const [name, type] of entries) {
+            if (isCancelled() || totalResults >= maxResults) break;
+
+            const isFolder = (type & vscode.FileType.Directory) !== 0;
+            const isSymbolicLink = (type & vscode.FileType.SymbolicLink) !== 0;
+
+            if (this.shouldIgnoreSearchEntry(name, isFolder)) continue;
+
+            const childUri = vscode.Uri.joinPath(dirUri, name);
+            const relativePath = path.posix.relative(uri.path, childUri.path);
+
+            if (this.isFileNameSearchMatched(name, relativePath, query)) {
+              pendingBatch.push({
+                path: childUri.toString(),
+                name,
+                relativePath,
+                isFolder,
+                diagnostics: this.getDiagnostics(childUri),
+              });
+
+              totalResults++;
+
+              if (pendingBatch.length >= 24 || Date.now() - lastFlushAt >= 80) {
+                flush();
+              }
+            }
+
+            if (isFolder && !isSymbolicLink) {
+              nextLevel.push(childUri);
+            }
+
+            if (pendingBatch.length > 0 && Date.now() - lastFlushAt >= 80) {
+              flush();
+            }
+          }
+        },
+        isCancelled,
+      );
+
+      if (Date.now() - lastFlushAt >= 80) {
+        flush();
+      }
+    }
+
+    if (!isCancelled()) {
+      flush(true);
+    }
   }
 
   private async handleSearchInFolder(fsPath: string, query: string, focusOnly: boolean, requestId?: WebviewRequestId): Promise<void> {
     const uri = this.toUri(fsPath);
+    const searchRunId = ++this.searchRunId;
 
     if (!uri || !query.trim()) {
       this.postMessage({
@@ -1690,97 +1987,171 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         requestId,
         results: [],
         data: [],
+        reset: true,
+        done: true,
+        totalMatches: 0,
       });
 
       return;
     }
 
     const lowerQuery = query.trim().toLowerCase();
-    const results: any[] = [];
-    const maxResults = 200;
+    const maxMatches = 200;
+    const pendingBatch: any[] = [];
     let matchCount = 0;
+    let firstBatch = true;
+    let lastFlushAt = Date.now();
 
-    const walk = async (dirUri: vscode.Uri, rootUri: vscode.Uri): Promise<void> => {
-      if (matchCount >= maxResults) return;
+    const isCancelled = () => {
+      return searchRunId !== this.searchRunId || !this.view;
+    };
 
-      let entries: [string, vscode.FileType][];
+    const flush = (done = false) => {
+      if (isCancelled()) return;
 
-      try {
-        entries = await vscode.workspace.fs.readDirectory(dirUri);
-      } catch {
-        return;
-      }
+      const results = pendingBatch.splice(0);
 
-      for (const [name, type] of entries) {
-        if (matchCount >= maxResults) break;
-        if (this.shouldIgnoreName(name)) continue;
+      if (results.length === 0 && !done) return;
 
-        const childUri = vscode.Uri.joinPath(dirUri, name);
-        const isFolder = (type & vscode.FileType.Directory) !== 0;
+      const reset = firstBatch;
 
-        if (isFolder) {
-          await walk(childUri, rootUri);
-          continue;
-        }
+      this.postMessage({
+        type: 'searchFolderResult',
+        requestId,
+        results,
+        data: results,
+        append: !reset,
+        reset,
+        done,
+        totalMatches: matchCount,
+        focusOnly,
+      });
 
-        if (this.isBinaryLikeFile(name)) continue;
+      firstBatch = false;
+      lastFlushAt = Date.now();
+    };
 
-        try {
-          const stat = await vscode.workspace.fs.stat(childUri);
+    let directories: vscode.Uri[] = [uri];
 
-          if (stat.size > 2 * 1024 * 1024) continue;
+    while (directories.length > 0 && matchCount < maxMatches && !isCancelled()) {
+      const currentLevel = directories;
+      const nextLevel: vscode.Uri[] = [];
+      const files: vscode.Uri[] = [];
 
-          const contentBytes = await vscode.workspace.fs.readFile(childUri);
-          const content = Buffer.from(contentBytes).toString('utf8');
-          const lines = content.split(/\r?\n/);
-          const matches: Array<{ line: number; text: string }> = [];
+      directories = nextLevel;
 
-          lines.forEach((line, index) => {
-            if (matchCount >= maxResults) return;
+      await this.runWithConcurrency(
+        currentLevel,
+        4,
+        async (dirUri) => {
+          if (isCancelled() || matchCount >= maxMatches) return;
 
-            if (line.toLowerCase().includes(lowerQuery)) {
+          let entries: [string, vscode.FileType][];
+
+          try {
+            entries = await vscode.workspace.fs.readDirectory(dirUri);
+          } catch {
+            return;
+          }
+
+          for (const [name, type] of entries) {
+            if (isCancelled()) break;
+
+            const isFolder = (type & vscode.FileType.Directory) !== 0;
+            const isSymbolicLink = (type & vscode.FileType.SymbolicLink) !== 0;
+
+            if (this.shouldIgnoreSearchEntry(name, isFolder)) continue;
+
+            const childUri = vscode.Uri.joinPath(dirUri, name);
+
+            if (isFolder) {
+              if (!isSymbolicLink) {
+                nextLevel.push(childUri);
+              }
+
+              continue;
+            }
+
+            if (!this.isBinaryLikeFile(name)) {
+              files.push(childUri);
+            }
+          }
+        },
+        isCancelled,
+      );
+
+      await this.runWithConcurrency(
+        files,
+        4,
+        async (childUri) => {
+          if (isCancelled() || matchCount >= maxMatches) return;
+
+          try {
+            const stat = await vscode.workspace.fs.stat(childUri);
+
+            if (stat.size > 2 * 1024 * 1024 || isCancelled()) return;
+
+            const contentBytes = await vscode.workspace.fs.readFile(childUri);
+
+            if (isCancelled() || this.isLikelyBinaryContent(contentBytes)) return;
+
+            const content = Buffer.from(contentBytes).toString('utf8');
+            const lines = content.split(/\r?\n/);
+            const matches: Array<{ line: number; text: string; count: number }> = [];
+            let fileMatchCount = 0;
+
+            for (let index = 0; index < lines.length && matchCount < maxMatches; index++) {
+              const line = lines[index];
+              const occurrences = this.countOccurrences(line.toLowerCase(), lowerQuery);
+
+              if (occurrences === 0) continue;
+
+              const acceptedCount = Math.min(occurrences, maxMatches - matchCount);
+
               matches.push({
                 line: index + 1,
                 text: line.trim().slice(0, 300),
+                count: acceptedCount,
               });
 
-              matchCount++;
+              fileMatchCount += acceptedCount;
+              matchCount += acceptedCount;
             }
-          });
 
-          if (matches.length > 0) {
-            const relativePath = path.posix.relative(rootUri.path, childUri.path);
+            if (matches.length > 0) {
+              const relativePath = path.posix.relative(uri.path, childUri.path);
 
-            results.push({
-              file: relativePath,
-              fullPath: childUri.toString(),
-              matches,
-              diagnostics: this.getDiagnostics(childUri),
-            });
+              pendingBatch.push({
+                file: relativePath,
+                fullPath: childUri.toString(),
+                matches,
+                matchCount: fileMatchCount,
+                diagnostics: this.getDiagnostics(childUri),
+              });
+
+              if (pendingBatch.length >= 6 || Date.now() - lastFlushAt >= 80) {
+                flush();
+              }
+            }
+          } catch {
+            // 忽略不可读取文件
           }
-        } catch {
-          // 忽略不可读取文件
-        }
+
+          if (pendingBatch.length > 0 && Date.now() - lastFlushAt >= 80) {
+            flush();
+          }
+        },
+        isCancelled,
+      );
+
+      if (Date.now() - lastFlushAt >= 80) {
+        flush();
       }
-    };
+    }
 
-    await vscode.window.withProgress(
-      {
-        location: vscode.ProgressLocation.Window,
-        title: 'Quick Ops: 正在检索文件夹内容...',
-      },
-      async () => {
-        await walk(uri, uri);
-      },
-    );
-
-    this.postMessage({
-      type: 'searchFolderResult',
-      requestId,
-      results,
-      data: results,
-      focusOnly,
-    });
+    if (!isCancelled()) {
+      flush(true);
+    }
   }
 
   private async getGitFileLocation(fsPath: string): Promise<
@@ -1993,6 +2364,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   public invalidateDirCache(fsPath?: string): void {
+    this.gitMetadataCache.clear();
+
     if (!fsPath) {
       this.directoryCache.clear();
       this.loadedDirChildren.clear();
@@ -2106,6 +2479,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     if (!target) return;
 
+    this.gitMetadataCache.clear();
     this.pendingDirtyMetadataPaths.delete(target);
     this.requestPathMetadataSync(target, delay);
   }
@@ -2264,32 +2638,28 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private async createMetadataPatches(paths: Map<string, boolean>): Promise<MetadataPatchItem[]> {
-    const contextCache = new Map<
-      string,
-      {
-        gitRoot: string;
-        statusMap: Map<string, GitFileStatus>;
-      }
-    >();
+    const contextCache = new Map<string, Promise<GitMetadataContext>>();
+    const entries = Array.from(paths.entries()).map(([targetPath, isFolder], index) => {
+      return {
+        targetPath,
+        isFolder,
+        index,
+      };
+    });
+    const results: Array<MetadataPatchItem | undefined> = new Array(entries.length);
 
-    return Promise.all(
-      Array.from(paths.entries()).map(async ([targetPath, isFolder]) => {
-        return this.createMetadataPatch(targetPath, isFolder, contextCache);
-      }),
-    );
+    /**
+     * 限制 stat 并发，避免老机器在大量可见节点时瞬间打满磁盘。
+     * 同一个项目的 Git 上下文用 Promise 去重，只执行一次 rev-parse / status。
+     */
+    await this.runWithConcurrency(entries, 4, async (entry) => {
+      results[entry.index] = await this.createMetadataPatch(entry.targetPath, entry.isFolder, contextCache);
+    });
+
+    return results.filter((item): item is MetadataPatchItem => Boolean(item));
   }
 
-  private async createMetadataPatch(
-    targetPath: string,
-    isFolder: boolean,
-    contextCache: Map<
-      string,
-      {
-        gitRoot: string;
-        statusMap: Map<string, GitFileStatus>;
-      }
-    >,
-  ): Promise<MetadataPatchItem> {
+  private async createMetadataPatch(targetPath: string, isFolder: boolean, contextCache: Map<string, Promise<GitMetadataContext>>): Promise<MetadataPatchItem> {
     const uri = this.toUri(targetPath);
     let status: string | undefined;
 
@@ -2299,18 +2669,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         const actualIsFolder = (stat.type & vscode.FileType.Directory) !== 0;
         const metadataRootUri = this.getMetadataRootUri(targetPath) || (actualIsFolder ? uri : vscode.Uri.file(path.dirname(uri.fsPath)));
         const contextKey = metadataRootUri.fsPath;
-        let context = contextCache.get(contextKey);
+        let contextTask = contextCache.get(contextKey);
 
-        if (!context) {
-          const gitRoot = await this.getGitRoot(metadataRootUri.fsPath);
-          const statusMap = gitRoot ? await this.getGitStatusMap(gitRoot) : new Map<string, GitFileStatus>();
-
-          context = {
-            gitRoot,
-            statusMap,
-          };
-          contextCache.set(contextKey, context);
+        if (!contextTask) {
+          contextTask = this.getGitMetadataContext(metadataRootUri.fsPath);
+          contextCache.set(contextKey, contextTask);
         }
+
+        const context = await contextTask;
 
         if (context.gitRoot) {
           const relativePath = path.relative(context.gitRoot, uri.fsPath).replace(/\\/g, '/');
@@ -2353,6 +2719,30 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       if (changed) {
         this.loadedDirChildren.set(dirPath, nextChildren);
+      }
+    }
+
+    for (const [cacheKey, cached] of this.directoryCache) {
+      let changed = false;
+      const nextChildren = cached.children.map((child) => {
+        const patch = patchMap.get(this.normalizeComparePath(child.path));
+
+        if (!patch) return child;
+
+        changed = true;
+
+        return {
+          ...child,
+          status: patch.status,
+          diagnostics: patch.diagnostics,
+        };
+      });
+
+      if (changed) {
+        this.directoryCache.set(cacheKey, {
+          ...cached,
+          children: nextChildren,
+        });
       }
     }
   }
@@ -3248,8 +3638,69 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     await vscode.workspace.fs.createDirectory(parentUri);
   }
 
+  private cancelActiveSearch(): void {
+    this.searchRunId++;
+  }
+
+  private async runWithConcurrency<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>, isCancelled?: () => boolean): Promise<void> {
+    if (items.length === 0) return;
+
+    let nextIndex = 0;
+    const workerCount = Math.min(Math.max(1, concurrency), items.length);
+
+    const runWorker = async () => {
+      while (nextIndex < items.length && !isCancelled?.()) {
+        const currentIndex = nextIndex;
+
+        nextIndex++;
+        await worker(items[currentIndex]);
+      }
+    };
+
+    await Promise.all(
+      Array.from({ length: workerCount }, () => {
+        return runWorker();
+      }),
+    );
+  }
+
   private shouldIgnoreName(name: string): boolean {
     return ['.git', '.svn', '.hg', '.DS_Store', 'Thumbs.db'].includes(name);
+  }
+
+  private shouldIgnoreSearchEntry(name: string, isFolder: boolean): boolean {
+    if (this.shouldIgnoreName(name)) return true;
+    if (!isFolder) return false;
+
+    return ['node_modules', 'bower_components', '.yarn', '.pnpm-store', '.next', '.nuxt', '.output', 'coverage', '.cache', '.turbo'].includes(name.toLowerCase());
+  }
+
+  private isLikelyBinaryContent(content: Uint8Array): boolean {
+    const sampleLength = Math.min(content.length, 8192);
+
+    for (let index = 0; index < sampleLength; index++) {
+      if (content[index] === 0) return true;
+    }
+
+    return false;
+  }
+
+  private countOccurrences(text: string, query: string): number {
+    if (!query) return 0;
+
+    let count = 0;
+    let fromIndex = 0;
+
+    while (fromIndex < text.length) {
+      const matchIndex = text.indexOf(query, fromIndex);
+
+      if (matchIndex === -1) break;
+
+      count++;
+      fromIndex = matchIndex + Math.max(1, query.length);
+    }
+
+    return count;
   }
 
   private isBinaryLikeFile(name: string): boolean {

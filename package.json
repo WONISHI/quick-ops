@@ -522,11 +522,6 @@
         "icon": "$(new-folder)"
       },
       {
-        "command": "quickOps.apiDevTools.addInterface",
-        "title": "Q-ops Api: 添加接口",
-        "icon": "$(group-by-ref-type)"
-      },
-      {
         "command": "quickOps.apiDevTools.saveInterface",
         "title": "Q-ops Api: 保存接口",
         "icon": "$(save)"
@@ -586,6 +581,17 @@
         "title": "添加至浮动编辑器窗口",
         "category": "Quick Ops",
         "icon": "$(multiple-windows)"
+      },
+      {
+        "command": "quickOps.webview.restoreToMainWindow",
+        "title": "返回编辑器分栏",
+        "category": "Quick Ops",
+        "icon": "$(layout)"
+      },
+      {
+        "command": "quickOps.showOtherRecentProjects",
+        "title": "查看其他最近项目",
+        "icon": "$(milestone)"
       }
     ],
     "keybindings": [
@@ -634,6 +640,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "quickOps.showOtherRecentProjects",
+          "when": "view == quickOps.recentProjectsView && quickOps.recentProjects.focusMode",
+          "group": "navigation@0"
+        },
         {
           "command": "quickOps.addRecentProject",
           "when": "view == quickOps.recentProjectsView",
@@ -692,15 +703,10 @@
         {
           "command": "quickOps.apiDevTools.openFloating",
           "when": "view == quickOpsApiDevTools",
-          "group": "navigation@0"
-        },
-        {
-          "command": "quickOps.apiDevTools.addProject",
-          "when": "view == quickOpsApiDevTools",
           "group": "navigation@1"
         },
         {
-          "command": "quickOps.apiDevTools.addInterface",
+          "command": "quickOps.apiDevTools.addProject",
           "when": "view == quickOpsApiDevTools",
           "group": "navigation@2"
         },
@@ -751,7 +757,12 @@
         },
         {
           "command": "quickOps.webview.moveToFloatingWindow",
-          "when": "quickOps.activeWebview.floating",
+          "when": "quickOps.activeWebview.floating && !isAuxiliaryWindow",
+          "group": "navigation@3"
+        },
+        {
+          "command": "quickOps.webview.restoreToMainWindow",
+          "when": "quickOps.activeWebview.floating && isAuxiliaryWindow",
           "group": "navigation@3"
         },
         {

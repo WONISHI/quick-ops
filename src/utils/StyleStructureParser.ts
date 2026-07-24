@@ -1,4 +1,4 @@
-import type { StyleNode } from '../core/types/style-generator';
+import type { StyleNode } from '@core/types/style-generator';
 
 export class StyleStructureParser {
   static async parse(content: string, languageId: string): Promise<string> {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { vscode } from '@utils/vscode';
-import styles from './index.module.css';
+import styles from '@pages/mock-app/index.module.css';
 import MockSkeleton from '@pages/mock-app/components/mock-skeleton';
 
 export default function MockProxyPanelApp() {

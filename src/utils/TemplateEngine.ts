@@ -1,5 +1,5 @@
-import type { IWorkspaceContext } from '../core/types/work-space';
-import type { RenderStatus, TemplateResult } from '../core/types/package-script';
+import type { IWorkspaceContext } from '@core/types/work-space';
+import type { RenderStatus, TemplateResult } from '@core/types/package-script';
 import { isObject } from 'lodash-es';
 
 export class TemplateEngine {

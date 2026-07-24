@@ -1,12 +1,4 @@
-import React, {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import styles from './index.module.css';
 
 export interface ScrollbarInstance {
@@ -118,7 +110,6 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     axis: 'vertical' | 'horizontal';
     startClient: number;
     startScroll: number;
-    maxScroll: number;
     maxThumbOffset: number;
   } | null>(null);
 
@@ -156,14 +147,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
 
     if (!wrap) return;
 
-    const {
-      clientHeight,
-      clientWidth,
-      scrollHeight,
-      scrollWidth,
-      scrollTop,
-      scrollLeft,
-    } = wrap;
+    const { clientHeight, clientWidth, scrollHeight, scrollWidth, scrollTop, scrollLeft } = wrap;
 
     const hasVertical = canScrollVertical && scrollHeight > clientHeight + 1;
     const hasHorizontal = canScrollHorizontal && scrollWidth > clientWidth + 1;
@@ -171,24 +155,16 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     const verticalTrackSize = Math.max(0, clientHeight - barOffsetSize);
     const horizontalTrackSize = Math.max(0, clientWidth - barOffsetSize);
 
-    const verticalSize = hasVertical
-      ? Math.max(Math.round((clientHeight * verticalTrackSize) / scrollHeight), MIN_THUMB_SIZE)
-      : 0;
+    const verticalSize = hasVertical ? Math.max(Math.round((clientHeight * verticalTrackSize) / scrollHeight), MIN_THUMB_SIZE) : 0;
 
-    const horizontalSize = hasHorizontal
-      ? Math.max(Math.round((clientWidth * horizontalTrackSize) / scrollWidth), MIN_THUMB_SIZE)
-      : 0;
+    const horizontalSize = hasHorizontal ? Math.max(Math.round((clientWidth * horizontalTrackSize) / scrollWidth), MIN_THUMB_SIZE) : 0;
 
     const verticalMaxOffset = Math.max(0, verticalTrackSize - verticalSize);
     const horizontalMaxOffset = Math.max(0, horizontalTrackSize - horizontalSize);
 
-    const verticalOffset = hasVertical
-      ? Math.round((scrollTop / Math.max(1, scrollHeight - clientHeight)) * verticalMaxOffset)
-      : 0;
+    const verticalOffset = hasVertical ? Math.round((scrollTop / Math.max(1, scrollHeight - clientHeight)) * verticalMaxOffset) : 0;
 
-    const horizontalOffset = hasHorizontal
-      ? Math.round((scrollLeft / Math.max(1, scrollWidth - clientWidth)) * horizontalMaxOffset)
-      : 0;
+    const horizontalOffset = hasHorizontal ? Math.round((scrollLeft / Math.max(1, scrollWidth - clientWidth)) * horizontalMaxOffset) : 0;
 
     setThumbState({
       verticalSize,
@@ -240,129 +216,154 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     });
   }, [onScroll, scheduleUpdate, showScrollbarTemporarily]);
 
-  const handleWheel = useCallback((event: React.WheelEvent<HTMLDivElement>) => {
-    const wrap = wrapRef.current;
+  const handleWheel = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      const wrap = wrapRef.current;
 
-    if (!wrap || native || direction !== 'horizontal' || !wheelX) return;
+      if (!wrap || native || direction !== 'horizontal' || !wheelX) return;
 
-    const maxScrollLeft = wrap.scrollWidth - wrap.clientWidth;
+      const maxScrollLeft = wrap.scrollWidth - wrap.clientWidth;
 
-    if (maxScrollLeft <= 0) return;
+      if (maxScrollLeft <= 0) return;
 
-    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
 
-    if (!delta) return;
+      if (!delta) return;
 
-    const prevScrollLeft = wrap.scrollLeft;
-    const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, prevScrollLeft + delta));
+      const prevScrollLeft = wrap.scrollLeft;
+      const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, prevScrollLeft + delta));
 
-    if (nextScrollLeft === prevScrollLeft) return;
+      if (nextScrollLeft === prevScrollLeft) return;
 
-    event.preventDefault();
-    wrap.scrollLeft = nextScrollLeft;
-    handleScroll();
-  }, [direction, handleScroll, native, wheelX]);
-
-  const scrollTo = useCallback((options: ScrollToOptions | number, y?: number) => {
-    const wrap = wrapRef.current;
-
-    if (!wrap) return;
-
-    if (typeof options === 'number') {
-      wrap.scrollTo(options, y || 0);
-      return;
-    }
-
-    wrap.scrollTo(options);
-  }, []);
-
-  const setScrollTop = useCallback((value: number) => {
-    if (wrapRef.current) {
-      wrapRef.current.scrollTop = value;
-    }
-  }, []);
-
-  const setScrollLeft = useCallback((value: number) => {
-    if (wrapRef.current) {
-      wrapRef.current.scrollLeft = value;
-    }
-  }, []);
-
-  useImperativeHandle(ref, () => ({
-    get wrapRef() {
-      return wrapRef.current;
+      event.preventDefault();
+      wrap.scrollLeft = nextScrollLeft;
+      handleScroll();
     },
-    update,
-    scrollTo,
-    setScrollTop,
-    setScrollLeft,
-  }), [scrollTo, setScrollLeft, setScrollTop, update]);
+    [direction, handleScroll, native, wheelX],
+  );
 
-  const handleMouseEnter = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    setHovering(true);
-    onMouseEnter?.(event);
-  }, [onMouseEnter]);
+  const scrollTo = useCallback(
+    (options: ScrollToOptions | number, y?: number) => {
+      const wrap = wrapRef.current;
 
-  const handleMouseLeave = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    setHovering(false);
-    onMouseLeave?.(event);
-  }, [onMouseLeave]);
+      if (!wrap) return;
 
-  const startDrag = useCallback((event: React.MouseEvent, axis: 'vertical' | 'horizontal') => {
-    const wrap = wrapRef.current;
+      if (typeof options === 'number') {
+        wrap.scrollTo(options, y || 0);
+        scheduleUpdate();
+        return;
+      }
 
-    if (!wrap) return;
+      wrap.scrollTo(options);
+      scheduleUpdate();
+    },
+    [scheduleUpdate],
+  );
 
-    event.preventDefault();
-    event.stopPropagation();
+  const setScrollTop = useCallback(
+    (value: number) => {
+      if (wrapRef.current) {
+        wrapRef.current.scrollTop = value;
+        scheduleUpdate();
+      }
+    },
+    [scheduleUpdate],
+  );
 
-    const trackSize = axis === 'vertical'
-      ? wrap.clientHeight - barOffsetSize
-      : wrap.clientWidth - barOffsetSize;
+  const setScrollLeft = useCallback(
+    (value: number) => {
+      if (wrapRef.current) {
+        wrapRef.current.scrollLeft = value;
+        scheduleUpdate();
+      }
+    },
+    [scheduleUpdate],
+  );
 
-    const thumbSize = axis === 'vertical'
-      ? thumbState.verticalSize
-      : thumbState.horizontalSize;
+  useImperativeHandle(
+    ref,
+    () => ({
+      get wrapRef() {
+        return wrapRef.current;
+      },
+      update,
+      scrollTo,
+      setScrollTop,
+      setScrollLeft,
+    }),
+    [scrollTo, setScrollLeft, setScrollTop, update],
+  );
 
-    draggingRef.current = {
-      axis,
-      startClient: axis === 'vertical' ? event.clientY : event.clientX,
-      startScroll: axis === 'vertical' ? wrap.scrollTop : wrap.scrollLeft,
-      maxScroll: axis === 'vertical'
-        ? wrap.scrollHeight - wrap.clientHeight
-        : wrap.scrollWidth - wrap.clientWidth,
-      maxThumbOffset: Math.max(1, trackSize - thumbSize),
-    };
+  const handleMouseEnter = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      setHovering(true);
+      onMouseEnter?.(event);
+    },
+    [onMouseEnter],
+  );
 
-    clearHideTimer();
-    setDragging(true);
-    setScrolling(true);
-  }, [barOffsetSize, clearHideTimer, thumbState.horizontalSize, thumbState.verticalSize]);
+  const handleMouseLeave = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      setHovering(false);
+      onMouseLeave?.(event);
+    },
+    [onMouseLeave],
+  );
 
-  const handleTrackMouseDown = useCallback((event: React.MouseEvent, axis: 'vertical' | 'horizontal') => {
-    const wrap = wrapRef.current;
+  const startDrag = useCallback(
+    (event: React.MouseEvent, axis: 'vertical' | 'horizontal') => {
+      const wrap = wrapRef.current;
 
-    if (!wrap || event.target !== event.currentTarget) return;
+      if (!wrap) return;
 
-    event.preventDefault();
-    event.stopPropagation();
+      event.preventDefault();
+      event.stopPropagation();
 
-    const rect = event.currentTarget.getBoundingClientRect();
+      const trackSize = axis === 'vertical' ? wrap.clientHeight - barOffsetSize : wrap.clientWidth - barOffsetSize;
 
-    if (axis === 'vertical') {
-      const offset = event.clientY - rect.top - thumbState.verticalSize / 2;
-      const maxThumbOffset = Math.max(1, wrap.clientHeight - barOffsetSize - thumbState.verticalSize);
+      const thumbSize = axis === 'vertical' ? thumbState.verticalSize : thumbState.horizontalSize;
 
-      wrap.scrollTop = (offset / maxThumbOffset) * (wrap.scrollHeight - wrap.clientHeight);
-    } else {
-      const offset = event.clientX - rect.left - thumbState.horizontalSize / 2;
-      const maxThumbOffset = Math.max(1, wrap.clientWidth - barOffsetSize - thumbState.horizontalSize);
+      draggingRef.current = {
+        axis,
+        startClient: axis === 'vertical' ? event.clientY : event.clientX,
+        startScroll: axis === 'vertical' ? wrap.scrollTop : wrap.scrollLeft,
+        maxThumbOffset: Math.max(1, trackSize - thumbSize),
+      };
 
-      wrap.scrollLeft = (offset / maxThumbOffset) * (wrap.scrollWidth - wrap.clientWidth);
-    }
+      clearHideTimer();
+      setDragging(true);
+      setScrolling(true);
+    },
+    [barOffsetSize, clearHideTimer, thumbState.horizontalSize, thumbState.verticalSize],
+  );
 
-    handleScroll();
-  }, [barOffsetSize, handleScroll, thumbState.horizontalSize, thumbState.verticalSize]);
+  const handleTrackMouseDown = useCallback(
+    (event: React.MouseEvent, axis: 'vertical' | 'horizontal') => {
+      const wrap = wrapRef.current;
+
+      if (!wrap || event.target !== event.currentTarget) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+
+      const rect = event.currentTarget.getBoundingClientRect();
+
+      if (axis === 'vertical') {
+        const offset = event.clientY - rect.top - thumbState.verticalSize / 2;
+        const maxThumbOffset = Math.max(1, wrap.clientHeight - barOffsetSize - thumbState.verticalSize);
+
+        wrap.scrollTop = (offset / maxThumbOffset) * (wrap.scrollHeight - wrap.clientHeight);
+      } else {
+        const offset = event.clientX - rect.left - thumbState.horizontalSize / 2;
+        const maxThumbOffset = Math.max(1, wrap.clientWidth - barOffsetSize - thumbState.horizontalSize);
+
+        wrap.scrollLeft = (offset / maxThumbOffset) * (wrap.scrollWidth - wrap.clientWidth);
+      }
+
+      handleScroll();
+    },
+    [barOffsetSize, handleScroll, thumbState.horizontalSize, thumbState.verticalSize],
+  );
 
   useEffect(() => {
     if (!dragging) return undefined;
@@ -375,7 +376,8 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
 
       const currentClient = dragState.axis === 'vertical' ? event.clientY : event.clientX;
       const delta = currentClient - dragState.startClient;
-      const scrollDelta = (delta / dragState.maxThumbOffset) * dragState.maxScroll;
+      const maxScroll = dragState.axis === 'vertical' ? wrap.scrollHeight - wrap.clientHeight : wrap.scrollWidth - wrap.clientWidth;
+      const scrollDelta = (delta / dragState.maxThumbOffset) * maxScroll;
 
       if (dragState.axis === 'vertical') {
         wrap.scrollTop = dragState.startScroll + scrollDelta;
@@ -400,8 +402,8 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
   }, [dragging, showScrollbarTemporarily]);
 
   useEffect(() => {
-    update();
-  }, [children, update]);
+    scheduleUpdate();
+  }, [children, scheduleUpdate]);
 
   useEffect(() => {
     if (native || noresize) return undefined;
@@ -449,38 +451,26 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
         direction === 'horizontal' ? styles['is-horizontal-only'] : '',
         direction === 'both' ? styles['is-both'] : '',
         className || '',
-      ].filter(Boolean).join(' ')}
+      ]
+        .filter(Boolean)
+        .join(' ')}
       style={rootStyle}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
       <div
         ref={wrapRef}
-        className={[
-          styles['scrollbar-wrap'],
-          native ? styles['scrollbar-wrap-native'] : '',
-          wrapClassName || '',
-        ].filter(Boolean).join(' ')}
+        className={[styles['scrollbar-wrap'], native ? styles['scrollbar-wrap-native'] : '', wrapClassName || ''].filter(Boolean).join(' ')}
         onScroll={handleScroll}
         onWheel={handleWheel}
       >
-        <div
-          ref={viewRef}
-          className={[
-            styles['scrollbar-view'],
-            viewClassName || '',
-          ].filter(Boolean).join(' ')}
-          style={viewStyle}
-        >
+        <div ref={viewRef} className={[styles['scrollbar-view'], viewClassName || ''].filter(Boolean).join(' ')} style={viewStyle}>
           {children}
         </div>
       </div>
 
       {!native && thumbState.verticalVisible && (
-        <div
-          className={`${styles['scrollbar-bar']} ${styles['scrollbar-bar-vertical']} ${barVisibleClassName}`}
-          onMouseDown={(event) => handleTrackMouseDown(event, 'vertical')}
-        >
+        <div className={`${styles['scrollbar-bar']} ${styles['scrollbar-bar-vertical']} ${barVisibleClassName}`} onMouseDown={(event) => handleTrackMouseDown(event, 'vertical')}>
           <div
             className={styles['scrollbar-thumb']}
             style={{

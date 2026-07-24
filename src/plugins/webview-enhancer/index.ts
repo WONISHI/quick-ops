@@ -7,6 +7,8 @@ const ACTIVE_WEBVIEW_FULLSCREEN_CONTEXT = 'quickOps.activeWebview.fullscreen';
 const ACTIVE_WEBVIEW_FLOATING_CONTEXT = 'quickOps.activeWebview.floating';
 const TOGGLE_WEBVIEW_FULLSCREEN_COMMAND = 'quickOps.webview.toggleFullscreen';
 const MOVE_WEBVIEW_TO_FLOATING_WINDOW_COMMAND = 'quickOps.webview.moveToFloatingWindow';
+const RESTORE_WEBVIEW_TO_MAIN_WINDOW_COMMAND = 'quickOps.webview.restoreToMainWindow';
+const RESTORE_EDITORS_TO_MAIN_WINDOW_COMMAND = 'workbench.action.restoreEditorsToMainWindow';
 const MOVE_EDITOR_TO_NEW_WINDOW_COMMANDS = ['workbench.action.moveEditorToNewWindow', 'workbench.action.editor.moveEditorToNextWindow'] as const;
 
 export class WebviewAppearancePlugin {
@@ -63,6 +65,10 @@ export class WebviewAppearancePlugin {
       vscode.commands.registerCommand(MOVE_WEBVIEW_TO_FLOATING_WINDOW_COMMAND, async () => {
         await this.moveToFloatingWindow();
       }),
+
+      vscode.commands.registerCommand(RESTORE_WEBVIEW_TO_MAIN_WINDOW_COMMAND, async () => {
+        await this.restoreToMainWindow();
+      }),
     );
   }
 
@@ -97,6 +103,21 @@ export class WebviewAppearancePlugin {
     } catch (error) {
       console.warn('[WebviewAppearancePlugin] move editor to floating window failed.', error);
       void vscode.window.showWarningMessage('无法将当前 Webview 移至浮动编辑器窗口。');
+    }
+  }
+
+  private async restoreToMainWindow(): Promise<void> {
+    const activeFloatingWebview = Array.from(this.floatingPanels).find((panel) => panel.active && panel.visible);
+
+    if (!activeFloatingWebview) return;
+
+    try {
+      await vscode.commands.executeCommand(RESTORE_EDITORS_TO_MAIN_WINDOW_COMMAND);
+
+      activeFloatingWebview.reveal(vscode.ViewColumn.Beside);
+    } catch (error) {
+      console.warn('[WebviewAppearancePlugin] restore editor to main window failed.', error);
+      void vscode.window.showWarningMessage('无法将当前 Webview 恢复到主窗口编辑器分栏。');
     }
   }
 

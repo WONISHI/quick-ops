@@ -29,7 +29,7 @@ export class RecentProjectsController implements OnModuleInit {
     this.registerListeners();
     this.registerGitStateWatcher();
     this.updateRevealContext();
-
+    void vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.focusMode, false);
   }
 
   public dispose(): void {
@@ -48,6 +48,7 @@ export class RecentProjectsController implements OnModuleInit {
     this.gitVirtualContentProvider.dispose();
 
     void vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.canRevealInRecent, false);
+    void vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.focusMode, false);
   }
 
   private registerProviders(): void {
@@ -71,6 +72,10 @@ export class RecentProjectsController implements OnModuleInit {
       vscode.commands.registerCommand(RECENT_PROJECTS_COMMANDS.addRecentProject, async () => {
         await this.recentProjectsProvider.showAddProjectQuickPick();
         this.recentProjectsProvider.requestVisibleMetadataSync();
+      }),
+
+      vscode.commands.registerCommand(RECENT_PROJECTS_COMMANDS.showOtherRecentProjects, () => {
+        this.recentProjectsProvider.showOtherProjectsQuickPick();
       }),
 
       vscode.commands.registerCommand(RECENT_PROJECTS_COMMANDS.refreshRecentProjects, async () => {
