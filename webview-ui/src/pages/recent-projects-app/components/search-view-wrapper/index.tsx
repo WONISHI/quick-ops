@@ -500,7 +500,6 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   });
   const resultScrollbarRef = useRef<ScrollbarInstance>(null);
   const resultScrollTopRef = useRef(0);
-  const previousResultSearchKeyRef = useRef('');
 
   /**
    * 只有真正处于“专注模式 + 锁定模式”这一层时，返回按钮才显示锁。
@@ -848,27 +847,43 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   const shouldShowExtensionTags = folderSearchType === 'content' && !isSearchingFolder && !folderSearchError && folderSearchQuery.trim() && extensionTagOptions.length > 0;
   const partialSearchResultCount = folderSearchType === 'content' ? effectiveTotalMatches : fileNameSearchResults.length;
 
+  /**
+   * 只有搜索条件发生变化时才回到顶部。
+   *
+   * folderSearchResults / fileNameSearchResults 会在分片搜索过程中持续追加，
+   * 不能在结果变化时反复恢复旧 scrollTop，否则会和用户滚动产生竞争，
+   * 并且旧的绝对像素位置会随着内容高度增加而逐渐远离底部。
+   */
   useEffect(() => {
-    const searchKey = `${folderSearchType}
-${folderSearchQuery.trim()}
-${searchTargetProject.path || ''}`;
-    const shouldRestoreScroll = previousResultSearchKeyRef.current === searchKey;
+    resultScrollTopRef.current = 0;
 
-    previousResultSearchKeyRef.current = searchKey;
-
-    window.requestAnimationFrame(() => {
+    const frameId = window.requestAnimationFrame(() => {
       const scrollbar = resultScrollbarRef.current;
 
       if (!scrollbar) return;
 
-      if (shouldRestoreScroll) {
-        scrollbar.setScrollTop(resultScrollTopRef.current);
-      } else {
-        resultScrollTopRef.current = 0;
-        scrollbar.setScrollTop(0);
-      }
+      scrollbar.setScrollTop(0);
+      scrollbar.update();
     });
-  }, [folderSearchResults, fileNameSearchResults, folderSearchQuery, folderSearchType, searchTargetProject.path]);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [searchFilterKey]);
+
+  /**
+   * 分片结果追加、筛选或折叠状态变化时，只重新计算滚动条尺寸，
+   * 保留浏览器当前的 scrollTop，不再把用户拉回旧位置。
+   */
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      resultScrollbarRef.current?.update();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [collapsedContentResultKeys, fileNameSearchResults, filteredContentResults, focusTree, folderSearchResults]);
 
   return (
     <div className={styles['search-view-wrapper']}>

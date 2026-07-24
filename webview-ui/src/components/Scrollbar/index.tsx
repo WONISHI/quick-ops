@@ -110,7 +110,6 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     axis: 'vertical' | 'horizontal';
     startClient: number;
     startScroll: number;
-    maxScroll: number;
     maxThumbOffset: number;
   } | null>(null);
 
@@ -243,30 +242,43 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     [direction, handleScroll, native, wheelX],
   );
 
-  const scrollTo = useCallback((options: ScrollToOptions | number, y?: number) => {
-    const wrap = wrapRef.current;
+  const scrollTo = useCallback(
+    (options: ScrollToOptions | number, y?: number) => {
+      const wrap = wrapRef.current;
 
-    if (!wrap) return;
+      if (!wrap) return;
 
-    if (typeof options === 'number') {
-      wrap.scrollTo(options, y || 0);
-      return;
-    }
+      if (typeof options === 'number') {
+        wrap.scrollTo(options, y || 0);
+        scheduleUpdate();
+        return;
+      }
 
-    wrap.scrollTo(options);
-  }, []);
+      wrap.scrollTo(options);
+      scheduleUpdate();
+    },
+    [scheduleUpdate],
+  );
 
-  const setScrollTop = useCallback((value: number) => {
-    if (wrapRef.current) {
-      wrapRef.current.scrollTop = value;
-    }
-  }, []);
+  const setScrollTop = useCallback(
+    (value: number) => {
+      if (wrapRef.current) {
+        wrapRef.current.scrollTop = value;
+        scheduleUpdate();
+      }
+    },
+    [scheduleUpdate],
+  );
 
-  const setScrollLeft = useCallback((value: number) => {
-    if (wrapRef.current) {
-      wrapRef.current.scrollLeft = value;
-    }
-  }, []);
+  const setScrollLeft = useCallback(
+    (value: number) => {
+      if (wrapRef.current) {
+        wrapRef.current.scrollLeft = value;
+        scheduleUpdate();
+      }
+    },
+    [scheduleUpdate],
+  );
 
   useImperativeHandle(
     ref,
@@ -315,7 +327,6 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
         axis,
         startClient: axis === 'vertical' ? event.clientY : event.clientX,
         startScroll: axis === 'vertical' ? wrap.scrollTop : wrap.scrollLeft,
-        maxScroll: axis === 'vertical' ? wrap.scrollHeight - wrap.clientHeight : wrap.scrollWidth - wrap.clientWidth,
         maxThumbOffset: Math.max(1, trackSize - thumbSize),
       };
 
@@ -365,7 +376,8 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
 
       const currentClient = dragState.axis === 'vertical' ? event.clientY : event.clientX;
       const delta = currentClient - dragState.startClient;
-      const scrollDelta = (delta / dragState.maxThumbOffset) * dragState.maxScroll;
+      const maxScroll = dragState.axis === 'vertical' ? wrap.scrollHeight - wrap.clientHeight : wrap.scrollWidth - wrap.clientWidth;
+      const scrollDelta = (delta / dragState.maxThumbOffset) * maxScroll;
 
       if (dragState.axis === 'vertical') {
         wrap.scrollTop = dragState.startScroll + scrollDelta;
@@ -390,8 +402,8 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
   }, [dragging, showScrollbarTemporarily]);
 
   useEffect(() => {
-    update();
-  }, [children, update]);
+    scheduleUpdate();
+  }, [children, scheduleUpdate]);
 
   useEffect(() => {
     if (native || noresize) return undefined;
