@@ -629,18 +629,19 @@ function MenuLevel(props: MenuLevelProps) {
           inline
             ? undefined
             : {
-                left: position.left,
-                top: position.top,
                 minWidth,
                 ...(level === 0 ? menuStyle : null),
 
                 /**
-                 * 首次挂载时先隐藏菜单。
+                 * left / top 不在 React 渲染阶段写入，
+                 * 统一由 updateMenuLayout 在 useLayoutEffect 中设置。
                  *
-                 * position 使用的是预估尺寸计算结果，updateMenuLayout 会在
-                 * useLayoutEffect 中读取真实宽高并完成最终防越界定位。
-                 * 在真实定位完成前保持隐藏，避免菜单先出现在预估位置，
-                 * 随后又向左修正一次。
+                 * 原因是菜单保持挂载并更新 position 时，React 会先把
+                 * 未按真实宽度居中的坐标写入可见菜单，随后布局函数才会
+                 * 减去菜单宽度的一半，因此会看到一次向左移动。
+                 *
+                 * 首次挂载继续保持隐藏；真实尺寸、居中位置和防越界位置
+                 * 会在浏览器绘制前一次性计算完成。
                  */
                 visibility: 'hidden',
               }
