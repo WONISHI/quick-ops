@@ -199,6 +199,18 @@ export default function RecentProjectsApp() {
     }, 0);
   }, [pendingRenameEntity]);
 
+  /**
+   * 新增或重命名期间禁止文件树拖拽，并清理可能遗留的拖拽状态。
+   * 提交或取消输入后，pending 状态清空，拖拽会自动恢复。
+   */
+  useEffect(() => {
+    if (!pendingCreateEntity && !pendingRenameEntity) return;
+
+    setDraggingEntity(null);
+    setDragOverPath('');
+    setInvalidDragOverPath('');
+  }, [pendingCreateEntity, pendingRenameEntity]);
+
   const normalizeFallbackPath = (pathValue: string) => {
     return decodeURIComponent(pathValue.split('?')[0])
       .replace(/^file:\/\//, '')
@@ -665,6 +677,16 @@ export default function RecentProjectsApp() {
 
     return child === parent || child.startsWith(parentWithSlash);
   };
+
+  // const isPathDescendant = (childPath: string, parentPath: string) => {
+  //   if (!childPath || !parentPath) return false;
+
+  //   const child = childPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
+  //   const parent = parentPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
+  //   const parentWithSlash = parent.endsWith('/') ? parent : `${parent}/`;
+
+  //   return child.startsWith(parentWithSlash);
+  // };
 
   const cacheNormalDirChildrenBeforeFocus = (rootPath: string) => {
     const snapshot: Record<string, DirChild[]> = {};
@@ -1973,6 +1995,10 @@ export default function RecentProjectsApp() {
   };
 
   const canDragEntity = (pathValue: string, isActiveProject: boolean) => {
+    if (pendingCreateEntity || pendingRenameEntity) {
+      return false;
+    }
+
     const workspacePath = getCurrentWorkspacePath();
 
     return !!isActiveProject && !!workspacePath && !isRemoteTreePath(pathValue) && isInsideCurrentWorkspacePath(pathValue) && !isSameTreePath(pathValue, workspacePath);
@@ -2034,6 +2060,11 @@ export default function RecentProjectsApp() {
   };
 
   const handleDragOverFolder = (e: React.DragEvent, targetFolderPath: string, isActiveProject: boolean) => {
+    if (pendingCreateEntity || pendingRenameEntity) {
+      e.dataTransfer.dropEffect = 'none';
+      return;
+    }
+
     const entity = getDragEntityFromEvent(e);
     const canDrop = canDropEntityToFolder(entity, targetFolderPath, isActiveProject);
 
@@ -2062,6 +2093,13 @@ export default function RecentProjectsApp() {
   };
 
   const handleDropOnFolder = (e: React.DragEvent, targetFolderPath: string, isActiveProject: boolean) => {
+    if (pendingCreateEntity || pendingRenameEntity) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleDragEnd();
+      return;
+    }
+
     const entity = getDragEntityFromEvent(e);
 
     e.preventDefault();
@@ -2086,6 +2124,10 @@ export default function RecentProjectsApp() {
   };
 
   const getDropClassName = (targetFolderPath: string) => {
+    if (pendingCreateEntity || pendingRenameEntity) {
+      return '';
+    }
+
     if (dragOverPath === targetFolderPath) {
       return styles['drop-target'];
     }
