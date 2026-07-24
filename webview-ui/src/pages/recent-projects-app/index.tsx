@@ -98,14 +98,6 @@ function RecentProjectsSkeleton() {
   );
 }
 
-interface SearchReturnState {
-  isFocusMode: boolean;
-  isFocusLocked: boolean;
-  focusRootPath: string;
-  focusRootName: string;
-  searchTargetProject: ContextMenuPayload | null;
-}
-
 export default function RecentProjectsApp() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentUri, setCurrentUri] = useState('');
