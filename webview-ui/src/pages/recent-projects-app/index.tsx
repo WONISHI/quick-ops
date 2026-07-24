@@ -505,19 +505,86 @@ export default function RecentProjectsApp() {
     return nodes;
   };
 
-  const isSearchNameTextMatched = (textValue: string, query: string = '') => {
-    const value = String(textValue || '').toLowerCase();
-    const tokens = getSearchNameHighlightTokens(query);
+  const normalizeFileNameSearchValue = (value: string) => {
+    return String(value || '')
+      .trim()
+      .replace(/\\/g, '/')
+      .replace(/^\/+|\/+$/g, '')
+      .toLowerCase();
+  };
 
-    if (!value || tokens.length === 0) {
+  /**
+   * @description 获取名称搜索结果相对当前搜索根目录的路径
+   *
+   * 新版扩展端会直接返回 relativePath；这里保留路径推导作为兼容，
+   * 确保只复制当前前端文件时也可以修正旧版扩展端返回的宽泛结果。
+   */
+  const getFileNameSearchRelativePath = (item: DirChild, searchRootPath: string) => {
+    const responseRelativePath = normalizeFileNameSearchValue(String((item as DirChild & { relativePath?: string }).relativePath || ''));
+
+    if (responseRelativePath) {
+      return responseRelativePath;
+    }
+
+    const normalizedItemPath = normalizePatchPath(item.path || '');
+    const normalizedRootPath = normalizePatchPath(searchRootPath || '');
+
+    if (normalizedItemPath && normalizedRootPath) {
+      if (normalizedItemPath === normalizedRootPath) {
+        return normalizeFileNameSearchValue(item.name);
+      }
+
+      const rootPathWithSlash = normalizedRootPath.endsWith('/') ? normalizedRootPath : `${normalizedRootPath}/`;
+
+      if (normalizedItemPath.startsWith(rootPathWithSlash)) {
+        return normalizeFileNameSearchValue(normalizedItemPath.slice(rootPathWithSlash.length));
+      }
+    }
+
+    return normalizeFileNameSearchValue(item.name);
+  };
+
+  /**
+   * @description 判断文件、文件夹名称或路径片段是否真正符合名称搜索
+   *
+   * 单段关键词只匹配当前项名称，避免搜索 `src` 时把 `src` 目录下的
+   * app.module.ts 等所有后代误判为独立搜索结果。
+   *
+   * 包含 `/` 的关键词允许搜索路径片段，但命中范围必须延伸到当前项名称：
+   * - `src/modules` 可以命中 modules 文件夹；
+   * - `modules/app` 可以命中 src/modules/app.module.ts；
+   * - `src` 不会仅因为文件位于 src 目录内就命中 app.module.ts。
+   */
+  const isFileNameSearchResultMatched = (item: DirChild, query: string, searchRootPath: string) => {
+    const normalizedQuery = normalizeFileNameSearchValue(query);
+
+    if (!normalizedQuery) {
+      return false;
+    }
+
+    const normalizedName = normalizeFileNameSearchValue(item.name);
+
+    if (normalizedName.includes(normalizedQuery)) {
       return true;
     }
 
-    return tokens.some((token) => {
-      const lowerToken = token.toLowerCase();
+    if (!normalizedQuery.includes('/')) {
+      return false;
+    }
 
-      return !!lowerToken && value.includes(lowerToken);
-    });
+    const relativePath = getFileNameSearchRelativePath(item, searchRootPath);
+    const currentNameStartIndex = relativePath.lastIndexOf('/') + 1;
+    let matchIndex = relativePath.indexOf(normalizedQuery);
+
+    while (matchIndex !== -1) {
+      if (matchIndex + normalizedQuery.length > currentNameStartIndex) {
+        return true;
+      }
+
+      matchIndex = relativePath.indexOf(normalizedQuery, matchIndex + 1);
+    }
+
+    return false;
   };
 
   const renderDiagnosticsBadge = (item: any) => {
@@ -598,16 +665,6 @@ export default function RecentProjectsApp() {
 
     return child === parent || child.startsWith(parentWithSlash);
   };
-
-  // const isPathDescendant = (childPath: string, parentPath: string) => {
-  //   if (!childPath || !parentPath) return false;
-
-  //   const child = childPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
-  //   const parent = parentPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
-  //   const parentWithSlash = parent.endsWith('/') ? parent : `${parent}/`;
-
-  //   return child.startsWith(parentWithSlash);
-  // };
 
   const cacheNormalDirChildrenBeforeFocus = (rootPath: string) => {
     const snapshot: Record<string, DirChild[]> = {};
@@ -1328,7 +1385,11 @@ export default function RecentProjectsApp() {
         const isDone = msg.done !== false;
         const shouldReset = Boolean(msg.reset);
         const shouldAppend = Boolean(msg.append);
-        const incomingResults = (msg.results as DirChild[]) || [];
+        const searchQuery = folderSearchQueryRef.current;
+        const searchRootPath = searchTargetProjectRef.current?.path || '';
+        const incomingResults = ((msg.results as DirChild[]) || []).filter((item) => {
+          return isFileNameSearchResultMatched(item, searchQuery, searchRootPath);
+        });
 
         if (msg.error) {
           setFolderSearchError(msg.error as string);
@@ -1699,6 +1760,23 @@ export default function RecentProjectsApp() {
 
     return normalizedPath.slice(0, index);
   };
+
+  /**
+   * @description 当前名称搜索中真正匹配的文件夹
+   *
+   * 匹配文件夹作为独立搜索结果展示；用户展开它以后，内部恢复为普通目录树，
+   * 不再继续用搜索词过滤，因此可以正常查看这个文件夹中的全部内容。
+   */
+  const matchedFileNameSearchFolderPaths = useMemo(() => {
+    if (folderSearchType !== 'name' || !folderSearchQuery.trim()) {
+      return [] as string[];
+    }
+
+    return fileNameSearchResults
+      .filter((item) => item.isFolder)
+      .map((item) => normalizeTreePath(item.path))
+      .filter(Boolean);
+  }, [fileNameSearchResults, folderSearchQuery, folderSearchType]);
 
   const isSelectedDirectParentPath = (parentPath: string) => {
     if (!selectedPath || !parentPath) return false;
@@ -2633,7 +2711,18 @@ export default function RecentProjectsApp() {
       return <div className={styles['empty-node']}>（空文件夹/无读取权限）</div>;
     }
 
-    const visibleChildren = highlightQuery ? children.filter((child) => isSearchNameTextMatched(child.name, highlightQuery)) : children;
+    const normalizedParentPath = normalizeTreePath(parentPath);
+    const isInsideMatchedSearchFolder =
+      !!highlightQuery &&
+      matchedFileNameSearchFolderPaths.some((matchedFolderPath) => {
+        return isPathInside(normalizedParentPath, matchedFolderPath);
+      });
+    const visibleChildren =
+      highlightQuery && !isInsideMatchedSearchFolder
+        ? children.filter((child) => {
+            return isFileNameSearchResultMatched(child, highlightQuery, searchTargetProject?.path || parentPath);
+          })
+        : children;
 
     if (visibleChildren.length === 0 && !pendingCreateRow) {
       return <div className={styles['empty-node']}>没有匹配的子项</div>;
