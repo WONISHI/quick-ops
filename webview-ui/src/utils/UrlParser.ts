@@ -1,4 +1,4 @@
-import { isUrlLike } from "./index"
+import { isUrlLike } from "@utils/index"
 
 export default class UrlParser {
   // 识别 Windows 盘符路径 (如 C:\)、Unix 根路径 (如 /)、以及标准的 file:// 协议

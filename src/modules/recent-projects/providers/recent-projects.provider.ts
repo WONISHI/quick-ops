@@ -27,6 +27,10 @@ type GitMetadataContext = {
   statusMap: Map<string, GitFileStatus>;
 };
 
+type RecentProjectQuickPickItem = vscode.QuickPickItem & {
+  project: RecentProjectItem;
+};
+
 export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   public static inject = [ExtensionContextProvider, RecentProjectsService, GitVirtualContentProvider];
 
@@ -93,6 +97,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   public async resolveWebviewView(webviewView: vscode.WebviewView, _context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken): Promise<void> {
     this.view = webviewView;
+    void vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.focusMode, false);
 
     const context = this.extensionContextProvider.getContext();
 
@@ -152,6 +157,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     webviewView.onDidDispose(() => {
       if (this.view === webviewView) {
         this.view = undefined;
+        void vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.focusMode, false);
       }
     });
 
@@ -201,6 +207,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.currentActivePath = '';
     this.revealVisibleProjectPaths = undefined;
     this.revealVisibleInWebview = true;
+
+    void vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.focusMode, false);
   }
 
   public getRecentProjects(): RecentProjectItem[] {
@@ -287,6 +295,87 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       if (selected?.label.includes('填写远程仓库')) {
         await this.addRemoteProject();
       }
+    });
+
+    quickPick.show();
+  }
+
+  public showOtherProjectsQuickPick(): void {
+    const currentWorkspaceUri = vscode.workspace.workspaceFolders?.[0]?.uri.toString() || '';
+    const normalizedCurrentWorkspace = this.normalizeProjectPath(currentWorkspaceUri);
+    const projects = this.getRecentProjects().filter((project) => {
+      if (!normalizedCurrentWorkspace) return true;
+
+      return this.normalizeProjectPath(project.fsPath) !== normalizedCurrentWorkspace;
+    });
+
+    if (projects.length === 0) {
+      void vscode.window.showInformationMessage('没有可打开的其他最近项目');
+      return;
+    }
+
+    const openInCurrentWindowButton: vscode.QuickInputButton = {
+      iconPath: new vscode.ThemeIcon('arrow-right'),
+      tooltip: '在当前窗口打开',
+    };
+    const openInNewWindowButton: vscode.QuickInputButton = {
+      iconPath: new vscode.ThemeIcon('multiple-windows'),
+      tooltip: '在新窗口打开',
+    };
+    const quickPick = vscode.window.createQuickPick<RecentProjectQuickPickItem>();
+
+    quickPick.title = '其他最近项目';
+    quickPick.placeholder = '回车在当前窗口打开，或使用项目右侧按钮';
+    quickPick.matchOnDescription = true;
+    quickPick.matchOnDetail = true;
+    quickPick.items = projects.map((project) => {
+      const projectUri = this.toUri(project.fsPath);
+      const displayPath = projectUri?.scheme === 'file' ? projectUri.fsPath : project.fsPath;
+      const isRemote = this.recentProjectsService.isRemoteProject(project);
+
+      return {
+        label: `$(${isRemote ? 'repo' : 'folder'}) ${project.customName || project.name}`,
+        description: project.branch ? `$(git-branch) ${project.branch}` : undefined,
+        detail: displayPath,
+        project,
+        buttons: [openInCurrentWindowButton, openInNewWindowButton],
+      };
+    });
+
+    let isOpening = false;
+
+    const openQuickPickProject = async (item: RecentProjectQuickPickItem, forceNewWindow: boolean): Promise<void> => {
+      if (isOpening) return;
+
+      isOpening = true;
+      quickPick.hide();
+
+      if (!forceNewWindow) {
+        const projectName = item.project.customName || item.project.name || '该项目';
+        const confirm = await vscode.window.showWarningMessage(`确定要在当前窗口打开 [ ${projectName} ] 吗？\n这将会关闭您当前正在工作的工作区！`, { modal: true }, '确认覆盖打开');
+
+        if (confirm !== '确认覆盖打开') {
+          return;
+        }
+      }
+
+      await this.openProject(item.project.fsPath, forceNewWindow);
+    };
+
+    quickPick.onDidTriggerItemButton((event) => {
+      void openQuickPickProject(event.item, event.button === openInNewWindowButton);
+    });
+
+    quickPick.onDidAccept(() => {
+      const selectedItem = quickPick.selectedItems[0];
+
+      if (selectedItem) {
+        void openQuickPickProject(selectedItem, false);
+      }
+    });
+
+    quickPick.onDidHide(() => {
+      quickPick.dispose();
     });
 
     quickPick.show();
@@ -542,6 +631,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       case 'revealCurrentActive':
         this.revealCurrentActive();
+        break;
+
+      case 'setFocusModeContext':
+        await vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.focusMode, Boolean(message.enabled));
         break;
 
       case 'setFocusLock': {
@@ -1714,6 +1807,52 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     await vscode.env.openExternal(uri);
   }
 
+  /**
+   * @description 判断文件、文件夹名称或路径片段是否符合名称搜索
+   *
+   * 单段关键词只匹配当前项名称，避免搜索 `src` 时把 `src` 下的所有文件
+   * 都因为祖先路径包含 `src` 而误判为命中。
+   *
+   * 包含 `/` 的关键词允许匹配路径片段，但命中范围必须延伸到当前项名称。
+   * 例如：
+   * - `src/modules` 命中 `src/modules` 文件夹；
+   * - `modules/app` 命中 `src/modules/app.module.ts`；
+   * - `src` 不会仅因为路径是 `src/app.module.ts` 就命中该文件。
+   */
+  private isFileNameSearchMatched(name: string, relativePath: string, query: string): boolean {
+    const normalizedQuery = query
+      .trim()
+      .replace(/\\/g, '/')
+      .replace(/^\/+|\/+$/g, '')
+      .toLowerCase();
+
+    if (!normalizedQuery) {
+      return false;
+    }
+
+    if (name.toLowerCase().includes(normalizedQuery)) {
+      return true;
+    }
+
+    if (!normalizedQuery.includes('/')) {
+      return false;
+    }
+
+    const normalizedRelativePath = relativePath.replace(/\\/g, '/').toLowerCase();
+    const currentNameStartIndex = normalizedRelativePath.lastIndexOf('/') + 1;
+    let matchIndex = normalizedRelativePath.indexOf(normalizedQuery);
+
+    while (matchIndex !== -1) {
+      if (matchIndex + normalizedQuery.length > currentNameStartIndex) {
+        return true;
+      }
+
+      matchIndex = normalizedRelativePath.indexOf(normalizedQuery, matchIndex + 1);
+    }
+
+    return false;
+  }
+
   private async handleSearchFileName(fsPath: string, query: string, focusOnly: boolean, requestId?: WebviewRequestId): Promise<void> {
     const uri = this.toUri(fsPath);
     const searchRunId = ++this.searchRunId;
@@ -1732,7 +1871,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const lowerQuery = query.trim().toLowerCase();
     const maxResults = 200;
     const pendingBatch: RecentProjectFileItem[] = [];
     const isCancelled = () => {
@@ -1801,7 +1939,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             const childUri = vscode.Uri.joinPath(dirUri, name);
             const relativePath = path.posix.relative(uri.path, childUri.path);
 
-            if (name.toLowerCase().includes(lowerQuery) || relativePath.toLowerCase().includes(lowerQuery)) {
+            if (this.isFileNameSearchMatched(name, relativePath, query)) {
               pendingBatch.push({
                 path: childUri.toString(),
                 name,

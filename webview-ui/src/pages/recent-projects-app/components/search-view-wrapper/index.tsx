@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import FileIcon from '@/components/FileIcon';
-import HighlightText from '../highlight-text';
+import HighlightText from '@pages/recent-projects-app/components/highlight-text';
 import Tooltip from '@/components/Tooltip';
-import styles from './index.module.css';
+import styles from '@pages/recent-projects-app/components/search-view-wrapper/index.module.css';
 import Scrollbar, { type ScrollbarInstance } from '@/components/Scrollbar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown, faChevronRight, faFolder, faFolderOpen, faSpinner } from '@fortawesome/free-solid-svg-icons';

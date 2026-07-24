@@ -1,4 +1,4 @@
-import { SupportedFileType } from '../constants';
+import { SupportedFileType } from '@core/constants';
 
 export interface IExtensionConfig {
   ignoreList: string[];

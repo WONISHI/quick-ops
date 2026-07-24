@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { renderAsync } from 'docx-preview';
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
-import { vscode } from '../../utils/vscode';
+import { vscode } from '@utils/vscode';
 import wordIcon from 'material-icon-theme/icons/word.svg';
-import styles from './index.module.css';
+import styles from '@pages/doc-preview-app/index.module.css';
 
 interface DocPreviewData {
   fsPath: string;

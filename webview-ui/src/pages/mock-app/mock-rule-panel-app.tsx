@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { vscode } from '../../utils/vscode';
+import { vscode } from '@utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowsRotate, faCheck, faPlus, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { faCopy, faFolderOpen } from '@fortawesome/free-regular-svg-icons';
-import styles from './index.module.css';
+import styles from '@pages/mock-app/index.module.css';
 import MockSkeleton from '@pages/mock-app/components/mock-skeleton';
 
 type MockRuleMode = 'mock' | 'custom' | 'file';

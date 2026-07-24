@@ -1,6 +1,6 @@
 // 🌟 优化 1：使用 type-only import 导入 @babel/types，这在编译为 JS 后会完全消失，零运行时开销！
 import type * as tTypes from '@babel/types';
-import type { ExportItem, ParseResult } from '../core/types/export';
+import type { ExportItem, ParseResult } from '@core/types/export';
 
 // 缓存 Key 改为 fileUri (字符串) + version (或 content hash)，这里简化为 uri 字符串
 const exportsCache = new Map<string, { contentHash: number; result: ParseResult }>();

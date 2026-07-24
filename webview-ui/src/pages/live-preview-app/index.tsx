@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { vscode } from '@utils/vscode';
-import UrlParser from '../../utils/UrlParser';
+import UrlParser from '@utils/UrlParser';
 import BaseContextMenu from '@components/BaseContextMenu';
 import type { BaseContextMenuItem } from '@components/BaseContextMenu';
 import BaseSearch from '@components/BaseSearch';
-import styles from './index.module.css';
+import styles from '@pages/live-preview-app/index.module.css';
 
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {

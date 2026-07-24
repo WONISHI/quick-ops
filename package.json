@@ -592,6 +592,11 @@
         "title": "返回编辑器分栏",
         "category": "Quick Ops",
         "icon": "$(layout)"
+      },
+      {
+        "command": "quickOps.showOtherRecentProjects",
+        "title": "查看其他最近项目",
+        "icon": "$(milestone)"
       }
     ],
     "keybindings": [
@@ -640,6 +645,11 @@
     ],
     "menus": {
       "view/title": [
+        {
+          "command": "quickOps.showOtherRecentProjects",
+          "when": "view == quickOps.recentProjectsView && quickOps.recentProjects.focusMode",
+          "group": "navigation@0"
+        },
         {
           "command": "quickOps.addRecentProject",
           "when": "view == quickOps.recentProjectsView",

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { InlineConstantHintEntry, InlineConstantHintService } from '../inline-constant-hint.service';
+import { InlineConstantHintEntry, InlineConstantHintService } from '@modules/inline-constant-hint/inline-constant-hint.service';
 
 export class InlineConstantHintProvider implements vscode.InlayHintsProvider {
   public static inject = [InlineConstantHintService];

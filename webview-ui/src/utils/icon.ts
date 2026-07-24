@@ -1,9 +1,8 @@
 import type { IconDefinition } from '@fortawesome/fontawesome-svg-core';
-import type { IconTuple } from '../types/AnchorApp';
-import { escapeAttr } from './html';
+import { escapeAttr } from '@utils/html';
 
 export function getIconSvg(iconDef: IconDefinition, className: string = '') {
-  const iconArray = iconDef.icon as unknown as IconTuple;
+  const iconArray = iconDef.icon as any;
   const width = iconArray[0];
   const height = iconArray[1];
   const path = iconArray[4];

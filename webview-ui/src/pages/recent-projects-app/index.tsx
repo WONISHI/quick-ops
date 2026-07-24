@@ -170,6 +170,13 @@ export default function RecentProjectsApp() {
   }, [isFocusMode]);
 
   useEffect(() => {
+    vscode.postMessage({
+      type: 'setFocusModeContext',
+      enabled: isFocusMode,
+    });
+  }, [isFocusMode]);
+
+  useEffect(() => {
     isFocusLockedRef.current = isFocusLocked;
   }, [isFocusLocked]);
 
