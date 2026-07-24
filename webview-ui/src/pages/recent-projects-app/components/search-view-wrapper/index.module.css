@@ -66,11 +66,7 @@
 .search-header {
   padding: 7px 10px 5px;
   border-bottom: 1px solid var(--vscode-panel-border);
-  background: color-mix(
-    in srgb,
-    var(--vscode-sideBar-background, var(--vscode-editor-background)) 96%,
-    var(--vscode-foreground) 4%
-  );
+  background: color-mix(in srgb, var(--vscode-sideBar-background, var(--vscode-editor-background)) 96%, var(--vscode-foreground) 4%);
   box-sizing: border-box;
 }
 
@@ -639,11 +635,7 @@
 .tree-children {
   margin-left: 8px;
   padding-left: 6px;
-  border-left: 1px solid color-mix(
-    in srgb,
-    var(--vscode-tree-indentGuidesStroke) 32%,
-    transparent
-  );
+  border-left: 1px solid color-mix(in srgb, var(--vscode-tree-indentGuidesStroke) 32%, transparent);
 }
 
 .sub-item {
@@ -659,11 +651,7 @@
 }
 
 .sub-item:hover {
-  background-color: color-mix(
-    in srgb,
-    var(--vscode-list-hoverBackground, var(--vscode-list-inactiveSelectionBackground)) 85%,
-    transparent
-  );
+  background-color: color-mix(in srgb, var(--vscode-list-hoverBackground, var(--vscode-list-inactiveSelectionBackground)) 85%, transparent);
 }
 
 .sub-item.selected {
@@ -719,6 +707,31 @@
   text-overflow: ellipsis;
   opacity: 0.9;
   pointer-events: none;
+}
+
+.sub-name.search-name-result-name {
+  flex: 0 1 auto;
+  max-width: 45%;
+}
+
+.search-name-result-path {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  margin-left: 8px;
+  overflow: hidden;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.sub-item.selected .search-name-result-path {
+  color: inherit;
+  opacity: 0.76;
 }
 
 .icon-closed {
