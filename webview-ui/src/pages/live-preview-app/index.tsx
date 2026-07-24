@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { vscode } from '@utils/vscode';
 import UrlParser from '@utils/UrlParser';
 import BaseContextMenu from '@components/BaseContextMenu';
-import type { BaseContextMenuItem } from '@components/BaseContextMenu';
 import BaseSearch from '@components/BaseSearch';
 import styles from '@pages/live-preview-app/index.module.css';
 
@@ -44,6 +43,7 @@ import {
   PREVIEW_ZOOM_MAX,
   PREVIEW_ZOOM_STEP,
 } from '@pages/live-preview-app/src/constants';
+import type { BaseContextMenuItem } from '@components/BaseContextMenu/src/type';
 import type {
   FavoriteItem,
   FavoriteFolder,
