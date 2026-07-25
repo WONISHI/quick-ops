@@ -171,13 +171,14 @@ export default function GitApp() {
       if (!filePath) {
         if (selectedFiles.size > 0) {
           const filesList = listType === 'staged' ? stagedFiles : listType === 'unstaged' ? unstagedFiles : [];
-          if (filesList.length > 0) {
+          const firstSelected = filesList.find((f) => selectedFiles.has(f.file));
+          if (firstSelected) {
             clearSelection();
-            setActiveFile(filesList[0].file);
+            setActiveFile(firstSelected.file);
             vscode.postMessage({
               command: 'diff',
-              file: filesList[0].file,
-              status: filesList[0].status,
+              file: firstSelected.file,
+              status: firstSelected.status,
             });
           }
           return;
@@ -566,6 +567,31 @@ export default function GitApp() {
       window.removeEventListener('focus', handleFocus);
     };
   }, [isRepo, clearCommitDraft, restoreCommitDraft, restoreCommitMessageText]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (selectedFiles.size === 0) return;
+      const target = e.target as HTMLElement;
+      if (target.closest('[class*="file-list"]') || target.closest('[class*="context-menu"]')) return;
+
+      const allFiles = [...unstagedFiles, ...stagedFiles];
+      const firstSelected = allFiles.find((f) => selectedFiles.has(f.file));
+      if (firstSelected) {
+        setSelectedFiles(new Set());
+        setSelectedListType(null);
+        lastClickedIndexRef.current = 0;
+        setActiveFile(firstSelected.file);
+        vscode.postMessage({
+          command: 'diff',
+          file: firstSelected.file,
+          status: firstSelected.status,
+        });
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectedFiles, unstagedFiles, stagedFiles]);
 
   const syncCommitInputValue = (value: string) => {
     const text = value.replace(/\n/g, '').trim();
@@ -1036,27 +1062,7 @@ export default function GitApp() {
           </div>
 
           {isChangesOpen && (
-            <div
-              className={styles['changes-content']}
-              onClick={(e) => {
-                const target = e.target as HTMLElement;
-                if (target.closest('[class*="file-item"]')) return;
-                if (selectedFiles.size > 0) {
-                  const targetList = unstagedFiles.length > 0 ? unstagedFiles : stagedFiles;
-                  if (targetList.length > 0) {
-                    setSelectedFiles(new Set());
-                    setSelectedListType(null);
-                    lastClickedIndexRef.current = 0;
-                    setActiveFile(targetList[0].file);
-                    vscode.postMessage({
-                      command: 'diff',
-                      file: targetList[0].file,
-                      status: targetList[0].status,
-                    });
-                  }
-                }
-              }}
-            >
+            <div className={styles['changes-content']}>
               {stagedFiles.length > 0 && (
                 <div className={`${styles['changes-section']} ${styles['nested-section']}`}>
                   <div className={`${styles['changes-header']} ${styles['subsection-header']}`}>
