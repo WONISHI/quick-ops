@@ -152,8 +152,10 @@ export default function GitApp() {
     return commitMsg.replace(/\n/g, '').trim();
   };
 
+  const isMacPlatform = navigator.platform?.toLowerCase().includes('mac') || false;
+
   const isMultiSelectModifier = (e: React.MouseEvent | MouseEvent): boolean => {
-    return e.metaKey || e.ctrlKey;
+    return isMacPlatform ? e.metaKey : e.ctrlKey;
   };
 
   const clearSelection = useCallback(() => {
@@ -165,6 +167,11 @@ export default function GitApp() {
   const handleFileSelect = useCallback(
     (filePath: string, listType: string, index: number, e: React.MouseEvent) => {
       e.stopPropagation();
+
+      if (!filePath) {
+        clearSelection();
+        return;
+      }
 
       if (selectedListType && selectedListType !== listType) {
         clearSelection();
@@ -214,10 +221,11 @@ export default function GitApp() {
         return;
       }
 
-      clearSelection();
+      setSelectedFiles(new Set());
+      setSelectedListType(listType);
       lastClickedIndexRef.current = index;
     },
-    [selectedListType, clearSelection, stagedFiles, unstagedFiles],
+    [selectedListType, stagedFiles, unstagedFiles],
   );
 
   const clampGraphSectionHeight = (height: number) => {
@@ -1110,6 +1118,7 @@ export default function GitApp() {
 
                             vscode.postMessage({
                               command: 'stash',
+                              selectedFiles: selectedFiles.size > 0 ? Array.from(selectedFiles) : undefined,
                             });
                           }}
                         >

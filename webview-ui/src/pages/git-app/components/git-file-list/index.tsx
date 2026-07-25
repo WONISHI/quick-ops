@@ -28,7 +28,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
   openCompareDiff,
   setContextMenu,
   selectedFiles = new Set(),
-  selectedListType = null,
+
   onFileSelect,
 }) => {
   const getDirScope = () => {
@@ -69,7 +69,11 @@ const GitFileList: React.FC<GitFileListProps> = ({
     return keys;
   };
 
+  const isMacPlatform = navigator.platform?.toLowerCase().includes('mac') || false;
+
   const handleFileClick = (item: GitFile, index: number, e: React.MouseEvent) => {
+    const isMultiKey = (isMacPlatform ? e.metaKey : e.ctrlKey) || e.shiftKey;
+
     setActiveFile(item.file);
 
     if (listType === 'history') {
@@ -94,9 +98,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
       onFileSelect(item.file, listType, index, e);
     }
 
-    const hasSelectedFiles = selectedFiles.size > 0;
-
-    if (!hasSelectedFiles || selectedListType !== listType) {
+    if (!isMultiKey) {
       vscode.postMessage({
         command: 'diff',
         file: item.file,
@@ -106,6 +108,10 @@ const GitFileList: React.FC<GitFileListProps> = ({
   };
 
   const openContextMenu = (e: React.MouseEvent, item: GitFile) => {
+    if (e.metaKey || e.shiftKey) {
+      return;
+    }
+
     e.preventDefault();
 
     setActiveFile(item.file);
@@ -308,11 +314,29 @@ const GitFileList: React.FC<GitFileListProps> = ({
   if (viewMode === 'tree') {
     const treeNodes = buildTree(files);
 
-    return <ul className={styles['file-list']}>{renderTreeNodes(treeNodes, 0)}</ul>;
+    return (
+      <ul
+        className={styles['file-list']}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onFileSelect?.('', listType, -1, { stopPropagation: () => {}, metaKey: false, ctrlKey: false, shiftKey: false } as React.MouseEvent);
+          }
+        }}
+      >
+        {renderTreeNodes(treeNodes, 0)}
+      </ul>
+    );
   }
 
   return (
-    <ul className={styles['file-list']}>
+    <ul
+      className={styles['file-list']}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onFileSelect?.('', listType, -1, { stopPropagation: () => {}, metaKey: false, ctrlKey: false, shiftKey: false } as React.MouseEvent);
+        }
+      }}
+    >
       {files.map((item, idx) => {
         const parts = item.file.split('/');
         const fileName = parts.pop();

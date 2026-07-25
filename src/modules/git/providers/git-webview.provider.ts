@@ -678,6 +678,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           case 'stash': {
+            const selectedFiles = (msg as any).selectedFiles as string[] | undefined;
+
             const options: vscode.QuickPickItem[] = [
               {
                 label: '$(archive) 快速贮藏 (默认备注)',
@@ -712,7 +714,11 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
             await this.executeGitOperation(async () => {
               try {
-                await this.gitService.stashPush(cwd, stashMsg);
+                if (selectedFiles && selectedFiles.length > 0) {
+                  await this.gitService.stashPushFiles(cwd, selectedFiles, stashMsg);
+                } else {
+                  await this.gitService.stashPush(cwd, stashMsg);
+                }
                 vscode.window.showInformationMessage('📦 已成功贮藏工作区更改。');
                 await this.refreshStatus(cwd, false);
               } catch (e: any) {
@@ -2055,6 +2061,50 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'stageFiles': {
+            const files = (msg as any).files as string[];
+
+            if (!files || files.length === 0) break;
+
+            await this.executeGitOperation(async () => {
+              for (const file of files) {
+                await this.gitService.stageFile(cwd, file);
+              }
+
+              await this.closeWorkingTreeDiffTabs(cwd, files);
+              await this.refreshStatus(cwd, false);
+              vscode.window.showInformationMessage(`✅ 已暂存 ${files.length} 个文件`);
+            });
+
+            break;
+          }
+
+          case 'discardFiles': {
+            const files = (msg as any).files as string[];
+
+            if (!files || files.length === 0) break;
+
+            const confirm = await vscode.window.showWarningMessage(
+              `是否确实要放弃 ${files.length} 个文件中的更改?\n\n此操作不可撤销！`,
+              { modal: true },
+              `放弃 ${files.length} 个文件`,
+            );
+
+            if (confirm !== `放弃 ${files.length} 个文件`) return;
+
+            await this.executeGitOperation(async () => {
+              for (const file of files) {
+                await this.gitService.discardFile(cwd, file);
+              }
+
+              await this.closeWorkingTreeDiffTabs(cwd, files);
+              await this.refreshStatus(cwd, false);
+              vscode.window.showInformationMessage(`✅ 已放弃 ${files.length} 个文件的更改`);
+            });
+
+            break;
+          }
+
           case 'unstageAll': {
             await this.executeGitOperation(async () => {
               await this.gitService.unstageAll(cwd);
@@ -2119,6 +2169,23 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'unstageFiles': {
+            const files = (msg as any).files as string[];
+
+            if (!files || files.length === 0) break;
+
+            await this.executeGitOperation(async () => {
+              for (const file of files) {
+                await this.gitService.unstageFile(cwd, file);
+              }
+
+              await this.refreshStatus(cwd, false);
+              vscode.window.showInformationMessage(`✅ 已取消暂存 ${files.length} 个文件`);
+            });
+
+            break;
+          }
+
           case 'deleteWorkingFile': {
             const fileName = msg.file.split('/').pop() || msg.file;
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
@@ -2136,6 +2203,40 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
                 vscode.window.showInformationMessage(`🗑️ 已删除文件: ${fileName}`);
 
+                await this.refreshStatus(cwd, false);
+              } catch (e: any) {
+                vscode.window.showErrorMessage(`删除文件失败: ${e?.message ?? String(e)}`);
+              }
+            });
+
+            break;
+          }
+
+          case 'deleteWorkingFiles': {
+            const files = (msg as any).files as string[];
+
+            if (!files || files.length === 0) break;
+
+            const confirm = await vscode.window.showWarningMessage(
+              `确定要删除 ${files.length} 个文件吗？\n\n文件会被移动到系统回收站/废纸篓。`,
+              { modal: true },
+              `删除 ${files.length} 个文件`,
+            );
+
+            if (confirm !== `删除 ${files.length} 个文件`) return;
+
+            await this.executeGitOperation(async () => {
+              try {
+                for (const file of files) {
+                  const fileUri = vscode.Uri.file(path.join(cwd, file));
+
+                  await vscode.workspace.fs.delete(fileUri, {
+                    recursive: true,
+                    useTrash: true,
+                  });
+                }
+
+                vscode.window.showInformationMessage(`🗑️ 已删除 ${files.length} 个文件`);
                 await this.refreshStatus(cwd, false);
               } catch (e: any) {
                 vscode.window.showErrorMessage(`删除文件失败: ${e?.message ?? String(e)}`);
@@ -2235,6 +2336,23 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             await this.executeGitOperation(async () => {
               await this.gitService.addToGitignore(cwd, msg.file);
               vscode.window.showInformationMessage(`已将 ${msg.file} 添加到 .gitignore`);
+              await this.refreshStatus(cwd, false);
+            });
+
+            break;
+          }
+
+          case 'ignoreFiles': {
+            const files = (msg as any).files as string[];
+
+            if (!files || files.length === 0) break;
+
+            await this.executeGitOperation(async () => {
+              for (const file of files) {
+                await this.gitService.addToGitignore(cwd, file);
+              }
+
+              vscode.window.showInformationMessage(`✅ 已添加 ${files.length} 个文件到 .gitignore`);
               await this.refreshStatus(cwd, false);
             });
 

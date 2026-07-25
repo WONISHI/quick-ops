@@ -1,6 +1,6 @@
 import BaseContextMenu from '@components/BaseContextMenu';
 import { vscode } from '@utils/vscode';
-import type { BaseContextMenuItem } from '@components/BaseContextMenu';
+import type { BaseContextMenuItem } from '@components/BaseContextMenu/src/type';
 import type { GitContextMenuProps, ContextMenuState } from '@pages/git-app/components/git-context-menu/src/type';
 
 function createIcon(icon: string) {
@@ -30,12 +30,9 @@ function createMultiUnstagedItems(contextMenu: ContextMenuState): BaseContextMen
       icon: createIcon('codicon-trash'),
       danger: true,
       onSelect: () => {
-        files.forEach((file) => {
-          vscode.postMessage({
-            command: 'deleteWorkingFile',
-            file,
-            status: contextMenu.file?.status || '',
-          });
+        vscode.postMessage({
+          command: 'deleteWorkingFiles',
+          files,
         });
       },
     },
@@ -45,12 +42,9 @@ function createMultiUnstagedItems(contextMenu: ContextMenuState): BaseContextMen
       icon: createIcon('codicon-discard'),
       danger: true,
       onSelect: () => {
-        files.forEach((file) => {
-          vscode.postMessage({
-            command: 'discard',
-            file,
-            status: contextMenu.file?.status || '',
-          });
+        vscode.postMessage({
+          command: 'discardFiles',
+          files,
         });
       },
     },
@@ -59,12 +53,9 @@ function createMultiUnstagedItems(contextMenu: ContextMenuState): BaseContextMen
       label: `暂存更改 (${files.length})`,
       icon: createIcon('codicon-plus'),
       onSelect: () => {
-        files.forEach((file) => {
-          vscode.postMessage({
-            command: 'stage',
-            file,
-            status: contextMenu.file?.status || '',
-          });
+        vscode.postMessage({
+          command: 'stageFiles',
+          files,
         });
       },
     },
@@ -77,11 +68,9 @@ function createMultiUnstagedItems(contextMenu: ContextMenuState): BaseContextMen
       label: `添加到 .gitignore (${files.length})`,
       icon: createIcon('codicon-eye-closed'),
       onSelect: () => {
-        files.forEach((file) => {
-          vscode.postMessage({
-            command: 'ignore',
-            file,
-          });
+        vscode.postMessage({
+          command: 'ignoreFiles',
+          files,
         });
       },
     },
@@ -112,11 +101,9 @@ function createMultiStagedItems(contextMenu: ContextMenuState): BaseContextMenuI
       label: `取消暂存更改 (${files.length})`,
       icon: createIcon('codicon-remove'),
       onSelect: () => {
-        files.forEach((file) => {
-          vscode.postMessage({
-            command: 'unstage',
-            file,
-          });
+        vscode.postMessage({
+          command: 'unstageFiles',
+          files,
         });
       },
     },
@@ -379,8 +366,6 @@ function createStashFileItems(contextMenu: ContextMenuState): BaseContextMenuIte
     },
   ];
 }
-
-
 
 function createHistoryItems(contextMenu: ContextMenuState): BaseContextMenuItem[] {
   const file = contextMenu.file;
