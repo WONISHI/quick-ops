@@ -16,6 +16,113 @@ function copyFileName(filePath: string): void {
   });
 }
 
+function createMultiUnstagedItems(contextMenu: ContextMenuState): BaseContextMenuItem[] {
+  if (!contextMenu.selectedFiles || contextMenu.selectedFiles.length === 0) {
+    return [];
+  }
+
+  const files = contextMenu.selectedFiles;
+
+  return [
+    {
+      key: 'multi-delete-files',
+      label: `删除文件 (${files.length})`,
+      icon: createIcon('codicon-trash'),
+      danger: true,
+      onSelect: () => {
+        files.forEach((file) => {
+          vscode.postMessage({
+            command: 'deleteWorkingFile',
+            file,
+            status: contextMenu.file?.status || '',
+          });
+        });
+      },
+    },
+    {
+      key: 'multi-discard-changes',
+      label: `放弃更改 (${files.length})`,
+      icon: createIcon('codicon-discard'),
+      danger: true,
+      onSelect: () => {
+        files.forEach((file) => {
+          vscode.postMessage({
+            command: 'discard',
+            file,
+            status: contextMenu.file?.status || '',
+          });
+        });
+      },
+    },
+    {
+      key: 'multi-stage-changes',
+      label: `暂存更改 (${files.length})`,
+      icon: createIcon('codicon-plus'),
+      onSelect: () => {
+        files.forEach((file) => {
+          vscode.postMessage({
+            command: 'stage',
+            file,
+            status: contextMenu.file?.status || '',
+          });
+        });
+      },
+    },
+    {
+      type: 'separator',
+      key: 'multi-unstaged-separator',
+    },
+    {
+      key: 'multi-ignore-files',
+      label: `添加到 .gitignore (${files.length})`,
+      icon: createIcon('codicon-eye-closed'),
+      onSelect: () => {
+        files.forEach((file) => {
+          vscode.postMessage({
+            command: 'ignore',
+            file,
+          });
+        });
+      },
+    },
+    {
+      key: 'multi-stash-changes',
+      label: `贮藏更改 (${files.length})`,
+      icon: createIcon('codicon-archive'),
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'stashFiles',
+          files,
+        });
+      },
+    },
+  ];
+}
+
+function createMultiStagedItems(contextMenu: ContextMenuState): BaseContextMenuItem[] {
+  if (!contextMenu.selectedFiles || contextMenu.selectedFiles.length === 0) {
+    return [];
+  }
+
+  const files = contextMenu.selectedFiles;
+
+  return [
+    {
+      key: 'multi-unstage-files',
+      label: `取消暂存更改 (${files.length})`,
+      icon: createIcon('codicon-remove'),
+      onSelect: () => {
+        files.forEach((file) => {
+          vscode.postMessage({
+            command: 'unstage',
+            file,
+          });
+        });
+      },
+    },
+  ];
+}
+
 function createCommitItems(contextMenu: ContextMenuState): BaseContextMenuItem[] {
   const commit = contextMenu.commit;
 
@@ -322,6 +429,19 @@ function createContextMenuItems(contextMenu: ContextMenuState): BaseContextMenuI
 
   if (contextMenu.type !== 'file') {
     return [];
+  }
+
+  if (contextMenu.selectedFiles && contextMenu.selectedFiles.length > 1) {
+    switch (contextMenu.listType) {
+      case 'unstaged':
+        return createMultiUnstagedItems(contextMenu);
+
+      case 'staged':
+        return createMultiStagedItems(contextMenu);
+
+      default:
+        return [];
+    }
   }
 
   switch (contextMenu.listType) {

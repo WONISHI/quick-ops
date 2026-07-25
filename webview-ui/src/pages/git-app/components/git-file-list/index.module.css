@@ -106,3 +106,10 @@
 .folder-file-item:hover .file-actions {
     opacity: 1;
 }
+.selected {
+  background: color-mix(in srgb, var(--vscode-list-activeSelectionBackground, var(--vscode-focusBorder)) 18%, transparent);
+}
+
+.selected:hover {
+  background: color-mix(in srgb, var(--vscode-list-activeSelectionBackground, var(--vscode-focusBorder)) 24%, transparent);
+}

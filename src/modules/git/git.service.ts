@@ -702,6 +702,19 @@ export class GitService {
     }
   }
 
+  public async stashPushFiles(cwd: string, files: string[], message?: string): Promise<void> {
+    const git = this.createGit(cwd);
+    const args = ['push'];
+
+    if (message) {
+      args.push('-m', message);
+    }
+
+    args.push('--', ...files);
+
+    await git.stash(args);
+  }
+
   public async getStashFiles(
     cwd: string,
     index: number,

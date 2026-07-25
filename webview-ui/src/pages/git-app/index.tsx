@@ -14,9 +14,8 @@ import { GitContextMenu } from '@/pages/git-app/components/git-context-menu';
 import type { GitFile } from '@/pages/git-app/src/type';
 import type { GraphCommit } from '@/pages/git-app/components/git-graph/src/type';
 import type { CommitType } from '@/pages/git-app/components/commit-type-tag/src/type';
-import type {  ContextMenuState } from '@/pages/git-app/components/git-context-menu/src/type';
-import type {RemoteSyncState,CommitDraftSnapshot} from "@pages/git-app/src/type"
-
+import type { ContextMenuState } from '@/pages/git-app/components/git-context-menu/src/type';
+import type { RemoteSyncState, CommitDraftSnapshot } from '@pages/git-app/src/type';
 
 const EMPTY_REMOTE_SYNC: RemoteSyncState = {
   hasRemote: false,
@@ -134,6 +133,10 @@ export default function GitApp() {
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [selectedListType, setSelectedListType] = useState<string | null>(null);
+  const lastClickedIndexRef = useRef<number>(-1);
+
   const [stashes, setStashes] = useState<any[]>([]);
   const [expandedStashIndex, setExpandedStashIndex] = useState<number | null>(null);
   const [stashFilesMap, setStashFilesMap] = useState<Record<number, GitFile[]>>({});
@@ -148,6 +151,74 @@ export default function GitApp() {
   const getNormalizedCommitMessage = () => {
     return commitMsg.replace(/\n/g, '').trim();
   };
+
+  const isMultiSelectModifier = (e: React.MouseEvent | MouseEvent): boolean => {
+    return e.metaKey || e.ctrlKey;
+  };
+
+  const clearSelection = useCallback(() => {
+    setSelectedFiles(new Set());
+    setSelectedListType(null);
+    lastClickedIndexRef.current = -1;
+  }, []);
+
+  const handleFileSelect = useCallback(
+    (filePath: string, listType: string, index: number, e: React.MouseEvent) => {
+      e.stopPropagation();
+
+      if (selectedListType && selectedListType !== listType) {
+        clearSelection();
+      }
+
+      const isMulti = isMultiSelectModifier(e);
+      const isRange = e.shiftKey;
+
+      if (isMulti) {
+        setSelectedFiles((prev) => {
+          const next = new Set(prev);
+
+          if (next.has(filePath)) {
+            next.delete(filePath);
+
+            if (next.size === 0) {
+              setSelectedListType(null);
+            }
+
+            return next;
+          }
+
+          next.add(filePath);
+          setSelectedListType(listType);
+
+          return next;
+        });
+
+        lastClickedIndexRef.current = index;
+
+        return;
+      }
+
+      if (isRange && selectedListType === listType) {
+        const filesList = listType === 'staged' ? stagedFiles : listType === 'unstaged' ? unstagedFiles : [];
+        const lastIdx = lastClickedIndexRef.current;
+        const start = Math.min(lastIdx, index);
+        const end = Math.max(lastIdx, index);
+
+        if (lastIdx >= 0 && lastIdx < filesList.length) {
+          const rangeFiles = filesList.slice(start, end + 1).map((f) => f.file);
+
+          setSelectedFiles(new Set(rangeFiles));
+          setSelectedListType(listType);
+        }
+
+        return;
+      }
+
+      clearSelection();
+      lastClickedIndexRef.current = index;
+    },
+    [selectedListType, clearSelection, stagedFiles, unstagedFiles],
+  );
 
   const clampGraphSectionHeight = (height: number) => {
     return Math.min(70, Math.max(30, height));
@@ -190,49 +261,31 @@ export default function GitApp() {
 
   const canCommit = isRepo && !loading && !!getNormalizedCommitMessage() && stagedFiles.length > 0;
 
+  const setCommitInputValue = useCallback((value: string) => {
+    setCommitMsg(value);
 
-  const setCommitInputValue = useCallback(
-    (value: string) => {
-      setCommitMsg(value);
+    requestAnimationFrame(() => {
+      if (commitInputRef.current) {
+        commitInputRef.current.innerText = value;
+      }
+    });
+  }, []);
 
-      requestAnimationFrame(() => {
-        if (commitInputRef.current) {
-          commitInputRef.current.innerText =
-            value;
-        }
-      });
-    },
-    [],
-  );
+  const clearCommitDraft = useCallback(() => {
+    setCommitMsg('');
 
-  const clearCommitDraft = useCallback(
-    () => {
-      setCommitMsg('');
-
-      requestAnimationFrame(() => {
-        if (commitInputRef.current) {
-          commitInputRef.current.innerText =
-            '';
-        }
-      });
-    },
-    [],
-  );
+    requestAnimationFrame(() => {
+      if (commitInputRef.current) {
+        commitInputRef.current.innerText = '';
+      }
+    });
+  }, []);
 
   const restoreCommitDraft = useCallback(
-    (
-      snapshot:
-        CommitDraftSnapshot,
-    ) => {
-      setCommitType(
-        snapshot.commitType,
-      );
-      setCommitTypeEnabled(
-        snapshot.commitTypeEnabled,
-      );
-      setCommitInputValue(
-        snapshot.message,
-      );
+    (snapshot: CommitDraftSnapshot) => {
+      setCommitType(snapshot.commitType);
+      setCommitTypeEnabled(snapshot.commitTypeEnabled);
+      setCommitInputValue(snapshot.message);
       setJustCommitted(false);
 
       requestAnimationFrame(() => {
@@ -242,40 +295,30 @@ export default function GitApp() {
     [setCommitInputValue],
   );
 
-  const restoreCommitMessageText =
-    useCallback(
-      (value: string) => {
-        const message =
-          value.trim();
+  const restoreCommitMessageText = useCallback(
+    (value: string) => {
+      const message = value.trim();
 
-        if (!message) return;
+      if (!message) return;
 
-        const parsed =
-          parseCommitTypeFromText(
-            message,
-          );
+      const parsed = parseCommitTypeFromText(message);
 
-        if (parsed) {
-          setCommitType(parsed.type);
-          setCommitTypeEnabled(true);
-          setCommitInputValue(
-            parsed.message,
-          );
-        } else {
-          setCommitInputValue(
-            message,
-          );
-        }
+      if (parsed) {
+        setCommitType(parsed.type);
+        setCommitTypeEnabled(true);
+        setCommitInputValue(parsed.message);
+      } else {
+        setCommitInputValue(message);
+      }
 
-        setJustCommitted(false);
+      setJustCommitted(false);
 
-        requestAnimationFrame(() => {
-          commitInputRef.current
-            ?.focus();
-        });
-      },
-      [setCommitInputValue],
-    );
+      requestAnimationFrame(() => {
+        commitInputRef.current?.focus();
+      });
+    },
+    [setCommitInputValue],
+  );
 
   useEffect(() => {
     lastRefreshRef.current = Date.now();
@@ -501,12 +544,7 @@ export default function GitApp() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [
-    isRepo,
-    clearCommitDraft,
-    restoreCommitDraft,
-    restoreCommitMessageText,
-  ]);
+  }, [isRepo, clearCommitDraft, restoreCommitDraft, restoreCommitMessageText]);
 
   const syncCommitInputValue = (value: string) => {
     const text = value.replace(/\n/g, '').trim();
@@ -917,7 +955,11 @@ export default function GitApp() {
         </div>
 
         <button className={styles['commit-btn']} disabled={!canCommit} onClick={handleCommit}>
-          {loading ? <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} /> : <i className={`codicon codicon-check ${styles['icon-right-6']}`} />}
+          {loading ? (
+            <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} />
+          ) : (
+            <i className={`codicon codicon-check ${styles['icon-right-6']}`} />
+          )}
           提交 (Commit)
         </button>
       </div>
@@ -1027,6 +1069,9 @@ export default function GitApp() {
                     openHistoryDiff={openHistoryDiff}
                     openCompareDiff={openCompareDiff}
                     setContextMenu={setContextMenu}
+                    selectedFiles={selectedFiles}
+                    selectedListType={selectedListType}
+                    onFileSelect={handleFileSelect}
                   />
                 </div>
               )}
@@ -1133,6 +1178,9 @@ export default function GitApp() {
                     openHistoryDiff={openHistoryDiff}
                     openCompareDiff={openCompareDiff}
                     setContextMenu={setContextMenu}
+                    selectedFiles={selectedFiles}
+                    selectedListType={selectedListType}
+                    onFileSelect={handleFileSelect}
                   />
                 )}
               </div>
@@ -1158,6 +1206,9 @@ export default function GitApp() {
                     openHistoryDiff={openHistoryDiff}
                     openCompareDiff={openCompareDiff}
                     setContextMenu={setContextMenu}
+                    selectedFiles={selectedFiles}
+                    selectedListType={selectedListType}
+                    onFileSelect={handleFileSelect}
                   />
                 </div>
               )}
@@ -1168,7 +1219,7 @@ export default function GitApp() {
         </div>
 
         {stashes.length > 0 && (
-          <div className={getChangesSectionClassName(isStashesOpen, [styles['section-top-gap'],styles['change-stash']])}>
+          <div className={getChangesSectionClassName(isStashesOpen, [styles['section-top-gap'], styles['change-stash']])}>
             <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsStashesOpen(!isStashesOpen)}>
               <div className={styles['header-flex-title']}>
                 <i className={`codicon ${isStashesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
@@ -1304,7 +1355,7 @@ export default function GitApp() {
           </div>
         )}
 
-        <div className={getChangesSectionClassName(isCompareOpen, [styles['section-top-gap'],styles['change-diff']])}>
+        <div className={getChangesSectionClassName(isCompareOpen, [styles['section-top-gap'], styles['change-diff']])}>
           <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsCompareOpen(!isCompareOpen)}>
             <div className={styles['header-flex-title']}>
               <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />

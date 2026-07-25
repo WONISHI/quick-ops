@@ -17,6 +17,7 @@ export interface ContextMenuState {
   };
   listType?: 'staged' | 'unstaged' | 'history' | 'compare' | 'stash-file';
   historyHash?: string;
+  selectedFiles?: string[];
   commit?: {
     hash: string;
     message: string;

@@ -723,6 +723,24 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'stashFiles': {
+            const files = (msg as any).files as string[];
+
+            if (!files || files.length === 0) break;
+
+            await this.executeGitOperation(async () => {
+              try {
+                await this.gitService.stashPushFiles(cwd, files);
+                vscode.window.showInformationMessage(`📦 已成功贮藏 ${files.length} 个文件。`);
+                await this.refreshStatus(cwd, false);
+              } catch (e: any) {
+                await this.handleGitErrorWithConflictCheck(cwd, '贮藏文件 (Stash)', e.message);
+              }
+            });
+
+            break;
+          }
+
           case 'getStashFiles': {
             await this.withViewProgress(async () => {
               try {
