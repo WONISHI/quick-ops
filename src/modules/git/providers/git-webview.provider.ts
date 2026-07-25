@@ -974,12 +974,26 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 quickPick.matchOnDescription = true;
                 quickPick.ignoreFocusOut = true;
 
-                const items = localBranches.map((branchName) => ({
-                  label: branchName,
-                  description: branchName === currentBranch ? '当前分支' : undefined,
-                  branchName,
-                  buttons: [copyBtn, remoteOpBtn],
-                }));
+                const lastCheckoutSourceBranch = this._lastCheckoutSourceBranchByCwd.get(cwd);
+
+                const items = localBranches.map((branchName) => {
+                  const descriptions: string[] = [];
+
+                  if (branchName === currentBranch) {
+                    descriptions.push('当前分支');
+                  }
+
+                  if (branchName === lastCheckoutSourceBranch && branchName !== currentBranch) {
+                    descriptions.push('上一次切换分支');
+                  }
+
+                  return {
+                    label: branchName,
+                    description: descriptions.length > 0 ? descriptions.join(' · ') : undefined,
+                    branchName,
+                    buttons: [copyBtn, remoteOpBtn],
+                  };
+                });
 
                 quickPick.items = items;
 
@@ -1162,8 +1176,11 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 return;
               }
 
+              const lastCheckoutSourceBranch = this._lastCheckoutSourceBranchByCwd.get(cwd);
+
               const items = mergeableBranches.map((b) => ({
                 label: b,
+                description: b === lastCheckoutSourceBranch ? '上一次切换分支' : undefined,
                 branchName: b,
               }));
 
@@ -1175,7 +1192,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               quickPick.ignoreFocusOut = true;
               quickPick.items = items;
 
-              const lastCheckoutSourceBranch = this._lastCheckoutSourceBranchByCwd.get(cwd);
               const lastCheckoutSourceItem = lastCheckoutSourceBranch ? items.find((item) => item.branchName === lastCheckoutSourceBranch) : undefined;
 
               /**
