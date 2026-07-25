@@ -71,6 +71,7 @@
 
 .name {
   min-width: 0;
+  font-size: 11px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -84,7 +85,7 @@
     var(
       --vscode-descriptionForeground
     );
-  font-size: 11px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -93,22 +94,26 @@
 .method-head,
 .method-options {
   color: #3fb950;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .method-post {
   color:
     rgba(55, 148, 255, 0.75);
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .method-put,
 .method-patch {
   color: #d29922;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .method-delete {
   color: #f85149;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 600;
 }

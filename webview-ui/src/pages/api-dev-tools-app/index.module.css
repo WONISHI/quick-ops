@@ -1056,3 +1056,9 @@
 .response-code-mirror :global(.cm-scroller) {
   height: 100%;
 }
+
+
+/* ---- icon button borderless override ---- */
+.api-devtools :global(button[class*="icon"]) {
+  border-color: transparent;
+}

@@ -15,14 +15,14 @@
 }
 
 .header {
-  height: 24px;
-  padding: 0 2px 0 6px;
+  height: 22px;
+  padding: 0 2px 0 5px;
   display: grid;
   grid-template-columns:
     minmax(0, 1fr)
-    22px
-    22px
-    22px;
+    20px
+    20px
+    20px;
   gap: 1px;
   align-items: center;
   border-bottom: 1px solid var(--vscode-panel-border);
@@ -35,8 +35,8 @@
   border: none;
   color: var(--vscode-foreground);
   background: transparent;
-  font-weight: 700;
-  font-size: 12px;
+  font-weight: 600;
+  font-size: 11px;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;

@@ -748,11 +748,53 @@
       ],
       "editor/title": [
         {
+          "command": "quickOps.apiDevTools.addProject",
+          "when": "quickOps.apiDevTools.floating",
+          "group": "navigation@2"
+        },
+        {
+          "command": "quickOps.apiDevTools.saveInterface",
+          "when": "quickOps.apiDevTools.floating",
+          "group": "navigation@3"
+        },
+        {
+          "command": "quickOps.apiDevTools.shareDocs",
+          "when": "quickOps.apiDevTools.floating",
+          "group": "navigation@4"
+        },
+        {
+          "command": "quickOps.apiDevTools.exportDocs",
+          "when": "quickOps.apiDevTools.floating",
+          "group": "navigation@5"
+        },
+        {
+          "command": "quickOps.apiDevTools.showGlobals",
+          "when": "quickOps.apiDevTools.floating",
+          "group": "navigation@6"
+        },
+        {
+          "command": "quickOps.apiDevTools.clearAll",
+          "when": "quickOps.apiDevTools.floating",
+          "group": "navigation@7"
+        },
+        {
+          "command": "quickOps.apiDevTools.sendRequest",
+          "when": "quickOps.apiDevTools.floating && !quickOps.apiDevTools.loading",
+          "group": "navigation@8"
+        },
+        {
+          "command": "quickOps.apiDevTools.stopRequest",
+          "when": "quickOps.apiDevTools.floating && quickOps.apiDevTools.loading",
+          "group": "navigation@8"
+        },
+        {
           "command": "quickOps.showPackageScripts",
+          "when": "!quickOps.apiDevTools.floating",
           "group": "navigation@1"
         },
         {
           "command": "quickOps.openLivePreview",
+          "when": "!quickOps.apiDevTools.floating",
           "group": "navigation@2"
         },
         {

@@ -3,6 +3,7 @@ import WebviewWorkflow from '@/workflow/webview';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import {
+  API_DEV_TOOLS_FLOATING_CONTEXT,
   API_DEV_TOOLS_LOADING_CONTEXT,
   API_DEV_TOOLS_VIEW_TITLE_ACTION_MESSAGE,
   API_DEV_TOOLS_VIEW_TYPE,
@@ -109,6 +110,7 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
       onDidDispose: () => {
         if (this.floatingPanel === panel) {
           this.floatingPanel = undefined;
+          void vscode.commands.executeCommand('setContext', API_DEV_TOOLS_FLOATING_CONTEXT, false);
         }
 
         if (!this.view) {
@@ -123,6 +125,8 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
     });
 
     this.floatingPanel = panel;
+
+    void vscode.commands.executeCommand('setContext', API_DEV_TOOLS_FLOATING_CONTEXT, true);
 
     /**
      * 等待新建的 WebviewPanel 成为活动编辑器后再执行浮动迁移。

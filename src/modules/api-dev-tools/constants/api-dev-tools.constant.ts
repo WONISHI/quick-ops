@@ -12,6 +12,12 @@ export const API_DEV_TOOLS_LOADING_CONTEXT = 'quickOps.apiDevTools.loading';
 /**
  * @description API DevTools View 标题栏命令
  */
+
+/**
+ * @description API DevTools 浮动编辑器上下文
+ */
+export const API_DEV_TOOLS_FLOATING_CONTEXT = 'quickOps.apiDevTools.floating';
+
 export const API_DEV_TOOLS_COMMANDS = {
   OPEN_FLOATING: 'quickOps.apiDevTools.openFloating',
   ADD_PROJECT: 'quickOps.apiDevTools.addProject',
