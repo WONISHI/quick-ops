@@ -169,6 +169,19 @@ export default function GitApp() {
       e.stopPropagation();
 
       if (!filePath) {
+        if (selectedFiles.size > 0) {
+          const filesList = listType === 'staged' ? stagedFiles : listType === 'unstaged' ? unstagedFiles : [];
+          if (filesList.length > 0) {
+            clearSelection();
+            setActiveFile(filesList[0].file);
+            vscode.postMessage({
+              command: 'diff',
+              file: filesList[0].file,
+              status: filesList[0].status,
+            });
+          }
+          return;
+        }
         clearSelection();
         return;
       }
@@ -225,7 +238,7 @@ export default function GitApp() {
       setSelectedListType(listType);
       lastClickedIndexRef.current = index;
     },
-    [selectedListType, stagedFiles, unstagedFiles],
+    [selectedListType, selectedFiles, stagedFiles, unstagedFiles],
   );
 
   const clampGraphSectionHeight = (height: number) => {
@@ -1023,7 +1036,27 @@ export default function GitApp() {
           </div>
 
           {isChangesOpen && (
-            <div className={styles['changes-content']}>
+            <div
+              className={styles['changes-content']}
+              onClick={(e) => {
+                const target = e.target as HTMLElement;
+                if (target.closest('[class*="file-item"]')) return;
+                if (selectedFiles.size > 0) {
+                  const targetList = unstagedFiles.length > 0 ? unstagedFiles : stagedFiles;
+                  if (targetList.length > 0) {
+                    setSelectedFiles(new Set());
+                    setSelectedListType(null);
+                    lastClickedIndexRef.current = 0;
+                    setActiveFile(targetList[0].file);
+                    vscode.postMessage({
+                      command: 'diff',
+                      file: targetList[0].file,
+                      status: targetList[0].status,
+                    });
+                  }
+                }
+              }}
+            >
               {stagedFiles.length > 0 && (
                 <div className={`${styles['changes-section']} ${styles['nested-section']}`}>
                   <div className={`${styles['changes-header']} ${styles['subsection-header']}`}>

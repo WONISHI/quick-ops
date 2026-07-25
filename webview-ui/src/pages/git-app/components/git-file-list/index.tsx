@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import styles from '@pages/git-app/components/git-file-list/index.module.css';
 import Tooltip from '@/components/Tooltip';
 import FileIcon from '@/components/FileIcon';
@@ -31,6 +31,8 @@ const GitFileList: React.FC<GitFileListProps> = ({
 
   onFileSelect,
 }) => {
+  const ulRef = useRef<HTMLUListElement>(null);
+
   const getDirScope = () => {
     if (historyHash) {
       return `${listType}:${historyHash}`;
@@ -72,6 +74,8 @@ const GitFileList: React.FC<GitFileListProps> = ({
   const isMacPlatform = navigator.platform?.toLowerCase().includes('mac') || false;
 
   const handleFileClick = (item: GitFile, index: number, e: React.MouseEvent) => {
+    ulRef.current?.focus();
+
     const isMultiKey = (isMacPlatform ? e.metaKey : e.ctrlKey) || e.shiftKey;
 
     setActiveFile(item.file);
@@ -311,12 +315,33 @@ const GitFileList: React.FC<GitFileListProps> = ({
     });
   };
 
+
+  const handleListBlur = () => {
+    if (files.length > 0 && selectedFiles.size > 0) {
+      setActiveFile(files[0].file);
+      vscode.postMessage({
+        command: 'diff',
+        file: files[0].file,
+        status: files[0].status,
+      });
+      onFileSelect?.(files[0].file, listType, 0, {
+        stopPropagation: () => {},
+        metaKey: false,
+        ctrlKey: false,
+        shiftKey: false,
+      } as React.MouseEvent);
+    }
+  };
+
   if (viewMode === 'tree') {
     const treeNodes = buildTree(files);
 
     return (
       <ul
+        ref={ulRef}
+        tabIndex={-1}
         className={styles['file-list']}
+        onBlur={handleListBlur}
         onClick={(e) => {
           if (e.target === e.currentTarget) {
             onFileSelect?.('', listType, -1, { stopPropagation: () => {}, metaKey: false, ctrlKey: false, shiftKey: false } as React.MouseEvent);
@@ -330,7 +355,10 @@ const GitFileList: React.FC<GitFileListProps> = ({
 
   return (
     <ul
+      ref={ulRef}
+      tabIndex={-1}
       className={styles['file-list']}
+      onBlur={handleListBlur}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onFileSelect?.('', listType, -1, { stopPropagation: () => {}, metaKey: false, ctrlKey: false, shiftKey: false } as React.MouseEvent);
