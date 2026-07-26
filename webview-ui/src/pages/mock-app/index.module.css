@@ -529,6 +529,10 @@
   text-decoration: underline;
 }
 
+.custom-json-editor {
+  height: 320px;
+}
+
 .custom-json-textarea {
   height: 320px;
   font-family: var(--vscode-editor-font-family, monospace);

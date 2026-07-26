@@ -5,6 +5,7 @@ import { faArrowsRotate, faCheck, faPlus, faTrash, faXmark } from '@fortawesome/
 import { faCopy, faFolderOpen } from '@fortawesome/free-regular-svg-icons';
 import styles from '@pages/mock-app/index.module.css';
 import MockSkeleton from '@pages/mock-app/components/mock-skeleton';
+import BaseCodeEditor from '@components/BaseCodeEditor';
 
 type MockRuleMode = 'mock' | 'custom' | 'file';
 
@@ -1198,7 +1199,14 @@ export default function MockRulePanelApp() {
                 </button>
               </div>
 
-              <textarea value={customJson} onChange={(event) => setCustomJson(event.target.value)} className={styles['custom-json-textarea']} />
+              <div className={styles['custom-json-editor']}>
+                <BaseCodeEditor
+                  value={customJson}
+                  language="json"
+                  editable
+                  onChange={(val) => setCustomJson(val)}
+                />
+              </div>
             </div>
           )}
 

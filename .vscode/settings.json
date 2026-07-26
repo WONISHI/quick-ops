@@ -18,6 +18,19 @@
     "sourceMaps": true
   },
   "workbench.colorCustomizations": {
-   "gitDecoration.ignoredResourceForeground": "#7A8B6F"
+    "gitDecoration.ignoredResourceForeground": "#7A8B6F"
+  },
+  "quick-ops.general": {
+    "mockDir": "/Users/weizhifeng/Desktop/test/接口",
+    "debug": true,
+    "use": {
+      "ElementUI": true,
+      "ElementPlus": true,
+      "Vant": true,
+      "AntDesignVue": true
+    },
+    "inlineConstantHints": true,
+    "anchorViewMode": "mindmap",
+    "excludeConfigFiles": true
   }
 }
