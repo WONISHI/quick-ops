@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { vscode } from '@utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -51,6 +51,11 @@ export default function RecentProjectsApp() {
   const listScrollbarRef = useRef<ScrollbarInstance>(null);
 
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+  const expandedPathsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    expandedPathsRef.current = expandedPaths;
+  }, [expandedPaths]);
+  const collapseRevealGuardUntilRef = useRef(0);
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const [dirChildren, setDirChildren] = useState<Record<string, DirChild[]>>({});
   const dirChildrenRef = useRef<Record<string, DirChild[]>>({});
@@ -59,13 +64,6 @@ export default function RecentProjectsApp() {
   useEffect(() => {
     dirChildrenRef.current = dirChildren;
   }, [dirChildren]);
-
-  const expandedPathsRef = useRef<Set<string>>(new Set());
-  const collapseRevealGuardUntilRef = useRef(0);
-
-  useEffect(() => {
-    expandedPathsRef.current = expandedPaths;
-  }, [expandedPaths]);
 
   const projectsRef = useRef<Project[]>([]);
 
@@ -86,6 +84,7 @@ export default function RecentProjectsApp() {
     y: number;
     type: 'top' | 'sub';
     payload: ContextMenuPayload;
+    selectedItems?: { path: string; name: string; isFolder: boolean }[];
   }>({
     visible: false,
     x: 0,
@@ -93,6 +92,88 @@ export default function RecentProjectsApp() {
     type: 'top',
     payload: { path: '' },
   });
+
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const selectedItemsRef = useRef<Set<string>>(new Set());
+  const lastClickedIndexRef = useRef<number>(-1);
+
+  useEffect(() => {
+    selectedItemsRef.current = selectedItems;
+  }, [selectedItems]);
+
+  const isMacPlatform = navigator.platform?.toLowerCase().includes('mac') || false;
+
+  const getFocusModeFlatItems = useCallback((): { path: string; name: string; isFolder: boolean }[] => {
+    const result: { path: string; name: string; isFolder: boolean }[] = [];
+    const allChildren = dirChildrenRef.current;
+    const expanded = expandedPathsRef.current || new Set<string>();
+    const visited = new Set<string>();
+
+    const collect = (parentPath: string) => {
+      const children = allChildren[parentPath];
+      if (!children) return;
+      children.forEach((child) => {
+        if (visited.has(child.path)) return;
+        visited.add(child.path);
+        result.push({ path: child.path, name: child.name, isFolder: child.isFolder });
+        if (child.isFolder && expanded.has(child.path)) {
+          collect(child.path);
+        }
+      });
+    };
+
+    // Collect from focus root path
+    if (focusRootPathRef.current) {
+      collect(focusRootPathRef.current);
+    }
+
+    return result;
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedItems(new Set());
+    lastClickedIndexRef.current = -1;
+  }, []);
+
+  const handleItemClick = useCallback(
+    (e: React.MouseEvent, childPath: string, childName: string, isFolder: boolean) => {
+      const isMulti = isMacPlatform ? e.metaKey : e.ctrlKey;
+      const isRange = e.shiftKey;
+
+      if (isMulti) {
+        setSelectedItems((prev) => {
+          const next = new Set(prev);
+          if (next.has(childPath)) {
+            next.delete(childPath);
+          } else {
+            next.add(childPath);
+          }
+          return next;
+        });
+        return true;
+      }
+
+      if (isRange) {
+        const flatItems = getFocusModeFlatItems();
+        const idx = flatItems.findIndex((item) => item.path === childPath);
+        const lastIdx = lastClickedIndexRef.current;
+
+        if (lastIdx >= 0 && idx >= 0 && lastIdx < flatItems.length) {
+          const start = Math.min(lastIdx, idx);
+          const end = Math.max(lastIdx, idx);
+          const range = new Set(flatItems.slice(start, end + 1).map((item) => item.path));
+          setSelectedItems(range);
+        }
+
+        return true;
+      }
+
+      clearSelection();
+      lastClickedIndexRef.current = getFocusModeFlatItems().findIndex((item) => item.path === childPath);
+      return false;
+    },
+    [isMacPlatform, getFocusModeFlatItems, clearSelection],
+  );
 
   const [isSearchMode, setIsSearchMode] = useState(false);
   const isSearchModeRef = useRef(false);
@@ -2320,12 +2401,16 @@ export default function RecentProjectsApp() {
 
     setSelectedPath(payload.path);
 
+    const selItems = selectedItemsRef.current;
+    const multiSelected = selItems.size > 1 && selItems.has(payload.path) ? getFocusModeFlatItems().filter((item) => selItems.has(item.path)) : undefined;
+
     setContextMenu({
       visible: true,
       x: e.clientX,
       y: e.clientY,
       type,
       payload,
+      selectedItems: multiSelected,
     });
   };
 
@@ -2795,7 +2880,7 @@ export default function RecentProjectsApp() {
                   id={elementId}
                   data-tree-path={childPath}
                   className={`${styles['sub-item']} ${styles['clickable-sub']} ${
-                    selectedPath === childPath ? styles['selected'] : ''
+                    selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
                   } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
                   draggable={canDragEntity(childPath, isActiveProject)}
                   onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
@@ -2803,7 +2888,10 @@ export default function RecentProjectsApp() {
                   onDragOver={(e) => handleDragOverFolder(e, childPath, isActiveProject)}
                   onDragLeave={(e) => handleDragLeaveFolder(e, childPath)}
                   onDrop={(e) => handleDropOnFolder(e, childPath, isActiveProject)}
-                  onClick={(e) => handleToggleExpand(childPath, projectName, isRemote, e)}
+                  onClick={(e) => {
+                    if (isFocusMode && handleItemClick(e, childPath, child.name, true)) return;
+                    handleToggleExpand(childPath, projectName, isRemote, e);
+                  }}
                   onContextMenu={(e) =>
                     handleContextMenu(e, 'sub', {
                       path: childPath,
@@ -2865,12 +2953,15 @@ export default function RecentProjectsApp() {
                 id={elementId}
                 data-tree-path={childPath}
                 className={`${styles['sub-item']} ${
-                  selectedPath === childPath ? styles['selected'] : ''
+                  selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
                 } ${styles['search-name-sub-item-clickable']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''}`}
                 draggable={canDragEntity(childPath, isActiveProject)}
                 onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
                 onDragEnd={handleDragEnd}
-                onClick={(e) => handleOpenFile(childPath, projectName, isActiveProject, e)}
+                onClick={(e) => {
+                  if (isFocusMode && handleItemClick(e, childPath, child.name, false)) return;
+                  handleOpenFile(childPath, projectName, isActiveProject, e);
+                }}
                 onContextMenu={(e) =>
                   handleContextMenu(e, 'sub', {
                     path: childPath,
@@ -2917,13 +3008,21 @@ export default function RecentProjectsApp() {
   }
 
   return (
-    <div className={styles['app-wrapper']}>
+    <div
+      className={styles['app-wrapper']}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && selectedItems.size > 0) {
+          clearSelection();
+        }
+      }}
+    >
       <RecentProjectContextMenu
         visible={contextMenu.visible}
         x={contextMenu.x}
         y={contextMenu.y}
         type={contextMenu.type}
         payload={contextMenu.payload}
+        selectedItems={contextMenu.selectedItems}
         onClose={() => {
           setContextMenu((current) => ({
             ...current,
