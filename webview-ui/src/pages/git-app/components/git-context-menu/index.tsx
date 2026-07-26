@@ -229,6 +229,21 @@ function createUnstagedItems(contextMenu: ContextMenuState): BaseContextMenuItem
       key: 'working-file-separator-2',
     },
     {
+      key: 'stash-working-change',
+      label: '贮藏更改',
+      icon: createIcon('codicon-archive'),
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'stashFiles',
+          files: [file.file],
+        });
+      },
+    },
+    {
+      type: 'separator',
+      key: 'working-file-separator-3',
+    },
+    {
       key: 'ignore-working-file',
       label: '添加到 .gitignore',
       icon: createIcon('codicon-eye-closed'),
