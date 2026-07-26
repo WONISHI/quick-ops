@@ -154,9 +154,9 @@ export default function GitApp() {
 
   const isMacPlatform = navigator.platform?.toLowerCase().includes('mac') || false;
 
-  const isMultiSelectModifier = (e: React.MouseEvent | MouseEvent): boolean => {
+  const isMultiSelectModifier = useCallback((e: React.MouseEvent | MouseEvent): boolean => {
     return isMacPlatform ? e.metaKey : e.ctrlKey;
-  };
+  }, [isMacPlatform]);
 
   const clearSelection = useCallback(() => {
     setSelectedFiles(new Set());
@@ -239,7 +239,7 @@ export default function GitApp() {
       setSelectedListType(listType);
       lastClickedIndexRef.current = index;
     },
-    [selectedListType, selectedFiles, stagedFiles, unstagedFiles],
+    [clearSelection, isMultiSelectModifier, selectedListType, selectedFiles, stagedFiles, unstagedFiles],
   );
 
   const clampGraphSectionHeight = (height: number) => {
