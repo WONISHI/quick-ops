@@ -728,6 +728,7 @@ export default function MockRulePanelApp() {
   const [filePathSingle, setFilePathSingle] = useState('');
   const [filePathsMultiple, setFilePathsMultiple] = useState<string[]>([]);
   const [fileDisposition, setFileDisposition] = useState('inline');
+  const [uploadDestPath, setUploadDestPath] = useState('');
 
   const [copyStatus, setCopyStatus] = useState<Record<string, boolean>>({});
 
@@ -763,6 +764,10 @@ export default function MockRulePanelApp() {
         setDelay(rule?.delay?.toString() || '0');
         setReqHeaders(rule?.reqHeaders ? JSON.stringify(rule.reqHeaders) : '');
         setFileDisposition(rule?.fileDisposition || 'inline');
+
+        if (rule?.fileDisposition === 'upload') {
+          setUploadDestPath(String(rule?.filePath || ''));
+        }
 
         const paths = String(rule?.filePath || '')
           .split('\n')
@@ -824,6 +829,12 @@ export default function MockRulePanelApp() {
             return updated;
           });
         }
+
+        return;
+      }
+
+      if (msg.type === 'folderReturnPathSelected') {
+        setUploadDestPath(String(msg.path || ''));
 
         return;
       }
@@ -988,14 +999,26 @@ export default function MockRulePanelApp() {
       } else if (mode === 'custom') {
         data = JSON.parse(customJson || '{}');
       } else {
-        filePath = fileMode === 'single' ? filePathSingle.trim() : filePathsMultiple.join('\n');
+        if (fileDisposition === 'upload') {
+          filePath = uploadDestPath.trim();
 
-        if (!filePath) {
-          vscode.postMessage({
-            type: 'error',
-            message: '请选择要返回的文件！',
-          });
-          return;
+          if (!filePath) {
+            vscode.postMessage({
+              type: 'error',
+              message: '请指定文件存入路径！',
+            });
+            return;
+          }
+        } else {
+          filePath = fileMode === 'single' ? filePathSingle.trim() : filePathsMultiple.join('\n');
+
+          if (!filePath) {
+            vscode.postMessage({
+              type: 'error',
+              message: '请选择要返回的文件！',
+            });
+            return;
+          }
         }
       }
 
@@ -1212,70 +1235,111 @@ export default function MockRulePanelApp() {
 
           {mode === 'file' && (
             <div>
-              <div className={styles['form-group']} style={{ marginBottom: '20px' }}>
-                <div className={styles['file-mode-header']}>
-                  <label>选择要作为接口返回的本地文件</label>
-
-                  <select value={fileMode} onChange={(event) => setFileMode(event.target.value)} className={styles['file-mode-select']}>
-                    <option value="single">单文件</option>
-                    <option value="multiple">多文件分发</option>
-                  </select>
-                </div>
-
-                <div className={styles['file-select-row']}>
-                  {fileMode === 'single' ? (
-                    <input
-                      type="text"
-                      value={filePathSingle}
-                      onChange={(event) => setFilePathSingle(event.target.value)}
-                      placeholder="例如: public/logo.png 或绝对路径"
-                      style={{ flex: 1 }}
-                    />
-                  ) : (
-                    <div className={styles['file-tags-container']}>
-                      {filePathsMultiple.length === 0 ? (
-                        <span className={styles['file-empty-text']}>尚未选择文件...</span>
-                      ) : (
-                        filePathsMultiple.map((filePathItem, index) => (
-                          <div key={filePathItem} className={styles['file-tag']}>
-                            <span title={filePathItem}>{filePathItem}</span>
-
-                            <FontAwesomeIcon
-                              icon={faXmark}
-                              className={styles['file-tag-close']}
-                              onClick={() => setFilePathsMultiple(filePathsMultiple.filter((_, itemIndex) => itemIndex !== index))}
-                            />
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    className={styles['btn-sec']}
-                    style={{ height: '28px' }}
-                    onClick={() =>
-                      vscode.postMessage({
-                        type: 'selectFileReturnPath',
-                        currentPath: fileMode === 'single' ? filePathSingle : filePathsMultiple[0] || '',
-                        multiple: fileMode === 'multiple',
-                      })
-                    }
-                  >
-                    <FontAwesomeIcon icon={faFolderOpen} />
-                  </button>
-                </div>
-              </div>
-
               <div className={styles['form-group']}>
                 <label>响应方式 (Content-Disposition)</label>
 
                 <select value={fileDisposition} onChange={(event) => setFileDisposition(event.target.value)}>
                   <option value="inline">浏览器内预览 (Inline)</option>
                   <option value="attachment">作为附件下载 (Attachment)</option>
+                  <option value="upload">文件上传</option>
                 </select>
               </div>
+
+              {fileDisposition !== 'upload' && (
+                <div className={styles['form-group']} style={{ marginTop: '16px' }}>
+                  <div className={styles['file-mode-header']}>
+                    <label>选择要作为接口返回的本地文件</label>
+
+                    <select value={fileMode} onChange={(event) => setFileMode(event.target.value)} className={styles['file-mode-select']}>
+                      <option value="single">单文件</option>
+                      <option value="multiple">多文件分发</option>
+                    </select>
+                  </div>
+
+                  <div className={styles['file-select-row']}>
+                    {fileMode === 'single' ? (
+                      <input
+                        type="text"
+                        value={filePathSingle}
+                        onChange={(event) => setFilePathSingle(event.target.value)}
+                        placeholder="例如: public/logo.png 或绝对路径"
+                        style={{ flex: 1 }}
+                      />
+                    ) : (
+                      <div className={styles['file-tags-container']}>
+                        {filePathsMultiple.length === 0 ? (
+                          <span className={styles['file-empty-text']}>尚未选择文件...</span>
+                        ) : (
+                          filePathsMultiple.map((filePathItem, index) => (
+                            <div key={filePathItem} className={styles['file-tag']}>
+                              <span title={filePathItem}>{filePathItem}</span>
+
+                              <FontAwesomeIcon
+                                icon={faXmark}
+                                className={styles['file-tag-close']}
+                                onClick={() => setFilePathsMultiple(filePathsMultiple.filter((_, itemIndex) => itemIndex !== index))}
+                              />
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className={styles['btn-sec']}
+                      style={{ height: '28px' }}
+                      onClick={() =>
+                        vscode.postMessage({
+                          type: 'selectFileReturnPath',
+                          currentPath: fileMode === 'single' ? filePathSingle : filePathsMultiple[0] || '',
+                          multiple: fileMode === 'multiple',
+                        })
+                      }
+                    >
+                      <FontAwesomeIcon icon={faFolderOpen} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {fileDisposition === 'upload' && method !== 'POST' && (
+                <div className={styles['form-group']} style={{ marginTop: '16px' }}>
+                  <div className={styles['upload-hint']}>
+                    文件上传接口需要将 Method 设置为 <strong>POST</strong>
+                  </div>
+                </div>
+              )}
+
+              {fileDisposition === 'upload' && method === 'POST' && (
+                <div className={styles['form-group']} style={{ marginTop: '16px' }}>
+                  <label>文件存入路径</label>
+
+                  <div className={styles['file-select-row']}>
+                    <input
+                      type="text"
+                      value={uploadDestPath}
+                      onChange={(event) => setUploadDestPath(event.target.value)}
+                      placeholder="上传文件存放路径，例如: uploads/"
+                      style={{ flex: 1 }}
+                    />
+
+                    <button
+                      type="button"
+                      className={styles['btn-sec']}
+                      style={{ height: '28px' }}
+                      onClick={() =>
+                        vscode.postMessage({
+                          type: 'selectFolderReturnPath',
+                          currentPath: uploadDestPath,
+                        })
+                      }
+                    >
+                      <FontAwesomeIcon icon={faFolderOpen} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
