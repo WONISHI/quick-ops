@@ -136,7 +136,7 @@ export default function RecentProjectsApp() {
   }, []);
 
   const handleItemClick = useCallback(
-    (e: React.MouseEvent, childPath: string, childName: string, isFolder: boolean) => {
+    (e: React.MouseEvent, childPath: string) => {
       const isMulti = isMacPlatform ? e.metaKey : e.ctrlKey;
       const isRange = e.shiftKey;
 
@@ -1590,6 +1590,32 @@ export default function RecentProjectsApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (selectedItemsRef.current.size === 0) return;
+      const target = e.target as HTMLElement;
+      // Don't clear if clicking on a tree item or context menu
+      if (target.closest('[data-tree-path]') || target.closest('[data-base-context-menu-root]')) return;
+
+      const firstPath = Array.from(selectedItemsRef.current)[0];
+      const flatItems = getFocusModeFlatItems();
+      const firstItem = flatItems.find((item) => item.path === firstPath);
+      setSelectedItems(new Set());
+      lastClickedIndexRef.current = -1;
+      if (firstItem) {
+        setSelectedPath(firstItem.path);
+        if (firstItem.isFolder) {
+          setExpandedPaths((prev) => new Set(prev).add(firstItem.path));
+        } else {
+          vscode.postMessage({ type: 'openFile', filePath: firstItem.path });
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [getFocusModeFlatItems]);
+
   const findTreeNodeElement = (targetPath: string): HTMLElement | null => {
     const safeId = `tree-node-${encodeURIComponent(targetPath)}`;
     const exactElement = document.getElementById(safeId);
@@ -2889,7 +2915,7 @@ export default function RecentProjectsApp() {
                   onDragLeave={(e) => handleDragLeaveFolder(e, childPath)}
                   onDrop={(e) => handleDropOnFolder(e, childPath, isActiveProject)}
                   onClick={(e) => {
-                    if (isFocusMode && handleItemClick(e, childPath, child.name, true)) return;
+                    if (isFocusMode && handleItemClick(e, childPath)) return;
                     handleToggleExpand(childPath, projectName, isRemote, e);
                   }}
                   onContextMenu={(e) =>
@@ -2959,7 +2985,7 @@ export default function RecentProjectsApp() {
                 onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
                 onDragEnd={handleDragEnd}
                 onClick={(e) => {
-                  if (isFocusMode && handleItemClick(e, childPath, child.name, false)) return;
+                  if (isFocusMode && handleItemClick(e, childPath)) return;
                   handleOpenFile(childPath, projectName, isActiveProject, e);
                 }}
                 onContextMenu={(e) =>
@@ -3010,11 +3036,6 @@ export default function RecentProjectsApp() {
   return (
     <div
       className={styles['app-wrapper']}
-      onClick={(e) => {
-        if (e.target === e.currentTarget && selectedItems.size > 0) {
-          clearSelection();
-        }
-      }}
     >
       <RecentProjectContextMenu
         visible={contextMenu.visible}
