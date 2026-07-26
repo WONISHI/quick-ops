@@ -13,40 +13,10 @@ import { vscode } from '@utils/vscode';
 import { GitContextMenu } from '@/pages/git-app/components/git-context-menu';
 import type { GitFile } from '@/pages/git-app/src/type';
 import type { GraphCommit } from '@/pages/git-app/components/git-graph/src/type';
-import type { CommitType } from '@/pages/git-app/components/commit-type-tag/src/type';
 import type { ContextMenuState } from '@/pages/git-app/components/git-context-menu/src/type';
 import type { RemoteSyncState, CommitDraftSnapshot } from '@pages/git-app/src/type';
-
-const EMPTY_REMOTE_SYNC: RemoteSyncState = {
-  hasRemote: false,
-  hasUpstream: false,
-  branch: '',
-  upstream: '',
-  ahead: 0,
-  behind: 0,
-  needsPull: false,
-  needsPush: false,
-  checkedAt: 0,
-};
-
-const COMMIT_TYPE_ALIAS_MAP: Record<string, CommitType> = {
-  feat: 'feat' as CommitType,
-  feature: 'feat' as CommitType,
-  fix: 'fix' as CommitType,
-  bugfix: 'fix' as CommitType,
-  docs: 'docs' as CommitType,
-  doc: 'docs' as CommitType,
-  style: 'style' as CommitType,
-  refactor: 'refactor' as CommitType,
-  perf: 'perf' as CommitType,
-  performance: 'perf' as CommitType,
-  test: 'test' as CommitType,
-  tests: 'test' as CommitType,
-  chore: 'chore' as CommitType,
-  build: 'build' as CommitType,
-  ci: 'ci' as CommitType,
-  revert: 'revert' as CommitType,
-};
+import type { CommitType } from '@/pages/git-app/components/commit-type-tag/src/type';
+import { EMPTY_REMOTE_SYNC, COMMIT_TYPE_ALIAS_MAP } from '@pages/git-app/src/constants';
 
 const normalizeCommitTypeText = (value: string) => {
   return value.trim().toLowerCase();
