@@ -140,6 +140,22 @@ function createCommitItems(contextMenu: ContextMenuState): BaseContextMenuItem[]
         });
       },
     },
+    {
+      type: 'separator',
+      key: 'commit-separator',
+    },
+    {
+      key: 'revert-commit',
+      label: '回滚提交',
+      icon: createIcon('codicon-discard'),
+      danger: true,
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'revertCommit',
+          hash: commit.hash,
+        });
+      },
+    },
   ];
 }
 

@@ -795,6 +795,32 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'revertCommit': {
+            const hash = (msg as any).hash as string;
+
+            if (!hash) break;
+
+            const confirm = await vscode.window.showWarningMessage(
+              `确定要回滚提交 ${hash.substring(0, 7)} 吗？`,
+              { modal: true },
+              '确定回滚',
+            );
+
+            if (confirm !== '确定回滚') break;
+
+            await this.executeGitOperation(async () => {
+              try {
+                await this.gitService.revertCommit(cwd, hash);
+                vscode.window.showInformationMessage('已回滚提交。');
+                await this.refreshStatus(cwd, false);
+              } catch (e: any) {
+                await this.handleGitErrorWithConflictCheck(cwd, '回滚提交 (Revert)', e.message);
+              }
+            });
+
+            break;
+          }
+
           case 'stashDrop': {
             const confirm = await vscode.window.showWarningMessage(`确定要永久删除贮藏 stash@{${msg.index}} 吗？\n此操作不可撤销！`, { modal: true }, '删除贮藏');
 
