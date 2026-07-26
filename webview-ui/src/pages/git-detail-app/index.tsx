@@ -8,10 +8,8 @@ import FilterPopup, {
   FilterPopupInput,
 } from '@/pages/git-detail-app/components/filter-popup';
 import GitDetailSkeleton from '@/pages/git-detail-app/components/git-detail-skeleton';
-import BaseContextMenu from '@components/BaseContextMenu';
-import type { BaseContextMenuItem } from '@components/BaseContextMenu/src/type';
+import GitDetailContextMenu from '@/pages/git-detail-app/components/git-detail-context-menu';
 import { vscode } from '@utils/vscode';
-import { parseRemoteInfo } from '@utils/index';
 import styles from '@pages/git-detail-app/index.module.css';
 import FileIcon from '@components/FileIcon';
 import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
@@ -633,51 +631,7 @@ export default function GitCommitDetailApp() {
     });
   };
 
-  const getCommitContextMenuItems = (): BaseContextMenuItem[] => {
-    if (!commitContextMenu) return [];
-    const { commit } = commitContextMenu;
-    const items: BaseContextMenuItem[] = [
-      {
-        key: 'copy-commit-message',
-        label: '复制提交信息',
-        icon: <i className="codicon codicon-copy" />,
-        onSelect: () => {
-          vscode.postMessage({ command: 'copy', text: commit.message });
-        },
-      },
-      {
-        key: 'open-commit-changes',
-        label: '打开更改',
-        icon: <i className="codicon codicon-git-compare" />,
-        onSelect: () => {
-          vscode.postMessage({ command: 'openCommitMultiDiff', hash: commit.hash });
-        },
-      },
-      {
-        key: 'revert-commit',
-        label: '回滚提交',
-        icon: <i className="codicon codicon-discard" />,
-        danger: true,
-        onSelect: () => {
-          vscode.postMessage({ command: 'revertCommit', hash: commit.hash });
-        },
-      },
-    ];
-    if (commit.type !== 'stash' && commit.type !== 'uncommitted') {
-      const remoteInfo = parseRemoteInfo(remoteUrl, commit.hash);
-      if (remoteInfo) {
-        items.push({
-          key: 'open-remote-commit',
-          label: `在 ${remoteInfo.platform} 上打开`,
-          icon: <i className="codicon codicon-globe" />,
-          onSelect: () => {
-            vscode.postMessage({ command: 'openExternal', url: remoteInfo.url });
-          },
-        });
-      }
-    }
-    return items;
-  };
+
   const [expandedCommitDirs, setExpandedCommitDirs] = useState<Record<string, boolean>>({});
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1531,13 +1485,9 @@ export default function GitCommitDetailApp() {
         )}
       </div>
 
-      <BaseContextMenu
-        open={commitContextMenu?.visible ?? false}
-        position={commitContextMenu ? { x: commitContextMenu.x, y: commitContextMenu.y } : { x: 0, y: 0 }}
-        showArrow
-        items={getCommitContextMenuItems()}
-        minWidth={168}
-        density="compact"
+      <GitDetailContextMenu
+        contextMenu={commitContextMenu}
+        remoteUrl={remoteUrl}
         onClose={() => setCommitContextMenu(null)}
       />
     </div>
