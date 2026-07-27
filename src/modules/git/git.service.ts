@@ -1151,7 +1151,7 @@ export class GitService {
 
   public async revertCommit(cwd: string, hash: string): Promise<void> {
     const git = this.createGit(cwd);
-    await git.revert([hash, '--no-edit']);
+    await git.revert(hash, ['--no-edit']);
   }
 
   public async addToGitignore(cwd: string, file: string): Promise<void> {
