@@ -13,17 +13,8 @@ import type {
   ApiDocsExportPayload,
   ApiDocsPayload,
   ApiDocsSharePayload,
+  UndiciRequestCreateMessage,
 } from '@modules/api-dev-tools/api-dev-tools.type';
-
-interface UndiciRequestCreateMessage {
-  request?: {
-    method?: string;
-    origin?: string | URL;
-    path?: string;
-    headers?: Array<string | Buffer> | string;
-    contentLength?: number | string | null;
-  };
-}
 
 export class ApiDevToolsService {
   public static inject = [ExtensionContextProvider];
