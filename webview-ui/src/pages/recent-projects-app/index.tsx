@@ -1658,6 +1658,21 @@ export default function RecentProjectsApp() {
   };
 
   const scrollElementIntoVisibleArea = (element: HTMLElement) => {
+    const scrollableEl = getNearestScrollableElement(element);
+
+    if (scrollableEl) {
+      const containerRect = scrollableEl.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const isFullyVisible =
+        elementRect.top >= containerRect.top &&
+        elementRect.bottom <= containerRect.bottom;
+
+      if (isFullyVisible) {
+        autoScrollTarget.current = null;
+        return;
+      }
+    }
+
     element.scrollIntoView({
       behavior: 'auto',
       block: 'center',
