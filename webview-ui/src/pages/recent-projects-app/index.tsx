@@ -192,6 +192,7 @@ export default function RecentProjectsApp() {
   const [currentActiveMatch, setCurrentActiveMatch] = useState(0);
   const [searchRefreshVersion, setSearchRefreshVersion] = useState(0);
   const silentSearchRefreshRef = useRef(false);
+  const pendingSilentResultsRef = useRef<{ results: SearchResult[]; fileNameResults: DirChild[] }>({ results: [], fileNameResults: [] });
   const lastSubmittedSearchKeyRef = useRef('');
   const pendingSearchResponseModeRef = useRef<'normal' | 'silent'>('normal');
   const latestSearchRequestIdRef = useRef(0);
@@ -1468,6 +1469,19 @@ export default function RecentProjectsApp() {
           setFolderSearchError(msg.error as string);
           setFolderSearchResults([]);
           setFolderSearchTotalMatches(0);
+          pendingSilentResultsRef.current.results = [];
+        } else if (responseMode === 'silent') {
+          setFolderSearchError('');
+          if (isDone) {
+            const accumulated = [...pendingSilentResultsRef.current.results, ...incomingResults];
+            setFolderSearchResults(accumulated);
+            setFolderSearchTotalMatches(Number((msg as any).totalMatches) || 0);
+            pendingSilentResultsRef.current.results = [];
+            pendingSearchResponseModeRef.current = 'normal';
+            setIsSearchingFolder(false);
+          } else {
+            pendingSilentResultsRef.current.results = [...pendingSilentResultsRef.current.results, ...incomingResults];
+          }
         } else {
           setFolderSearchError('');
           setFolderSearchResults((prev) => {
@@ -1483,7 +1497,7 @@ export default function RecentProjectsApp() {
           }
         }
 
-        if (isDone) {
+        if (isDone && responseMode !== 'silent') {
           pendingSearchResponseModeRef.current = 'normal';
           setIsSearchingFolder(false);
         }
@@ -1492,6 +1506,7 @@ export default function RecentProjectsApp() {
           return;
         }
 
+        const responseMode = pendingSearchResponseModeRef.current;
         const isDone = msg.done !== false;
         const shouldReset = Boolean(msg.reset);
         const shouldAppend = Boolean(msg.append);
@@ -1504,6 +1519,19 @@ export default function RecentProjectsApp() {
         if (msg.error) {
           setFolderSearchError(msg.error as string);
           setFileNameSearchResults([]);
+          pendingSilentResultsRef.current.fileNameResults = [];
+        } else if (responseMode === 'silent') {
+          setFolderSearchTotalMatches(0);
+          setFolderSearchError('');
+          if (isDone) {
+            const accumulated = [...pendingSilentResultsRef.current.fileNameResults, ...incomingResults];
+            setFileNameSearchResults(accumulated);
+            pendingSilentResultsRef.current.fileNameResults = [];
+            pendingSearchResponseModeRef.current = 'normal';
+            setIsSearchingFolder(false);
+          } else {
+            pendingSilentResultsRef.current.fileNameResults = [...pendingSilentResultsRef.current.fileNameResults, ...incomingResults];
+          }
         } else {
           setFolderSearchTotalMatches(0);
           setFolderSearchError('');
@@ -1515,7 +1543,7 @@ export default function RecentProjectsApp() {
           });
         }
 
-        if (isDone) {
+        if (isDone && responseMode !== 'silent') {
           pendingSearchResponseModeRef.current = 'normal';
           setIsSearchingFolder(false);
         }
