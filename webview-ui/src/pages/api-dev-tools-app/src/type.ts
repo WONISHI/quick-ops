@@ -111,3 +111,67 @@ export type LeaveConfirmDialog = {
  * @description API DevTools 原生 View 标题栏操作
  */
 export type ApiDevToolsViewTitleAction = 'add-project' | 'add-interface' | 'save-interface' | 'share-docs' | 'export-docs' | 'show-globals' | 'clear-all' | 'send-request';
+
+export interface ApiInterfaceGroup {
+  id: string;
+  name: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type GroupedApiInterfaceItem = ApiInterfaceItem & {
+  groupId?: string;
+};
+
+export type GroupedApiProject = Omit<ApiProject, 'interfaces'> & {
+  interfaces: GroupedApiInterfaceItem[];
+  groups?: ApiInterfaceGroup[];
+};
+
+export type GroupedPersistedState = Omit<PersistedState, 'projects'> & {
+  projects: GroupedApiProject[];
+};
+
+export type GroupManageDialog =
+  | {
+      kind: 'group-create';
+      title: string;
+      label: string;
+      value: string;
+      projectId: string;
+    }
+  | {
+      kind: 'group-rename';
+      title: string;
+      label: string;
+      value: string;
+      projectId: string;
+      groupId: string;
+    }
+  | {
+      kind: 'group-delete';
+      title: string;
+      message: string;
+      projectId: string;
+      groupId: string;
+      groupName: string;
+    }
+  | {
+      kind: 'group-interface-create';
+      title: string;
+      label: string;
+      value: string;
+      projectId: string;
+      groupId: string;
+    };
+
+export type ApiManageDialog = ManageDialog | GroupManageDialog;
+
+export interface ApiFormDataPayloadItem {
+  key: string;
+  type: 'text' | 'file';
+  value?: string;
+  fileName?: string;
+  mimeType?: string;
+  fileData?: string;
+}

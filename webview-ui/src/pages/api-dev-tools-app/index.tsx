@@ -29,10 +29,15 @@ import type {
   HistoryItem,
   ApiResponsePayload,
   PersistedState,
-  ManageDialog,
   LeaveConfirmAction,
   LeaveConfirmDialog,
   ApiDevToolsViewTitleAction,
+  ApiInterfaceGroup,
+  GroupedApiInterfaceItem,
+  GroupedApiProject,
+  GroupedPersistedState,
+  ApiManageDialog,
+  ApiFormDataPayloadItem,
 } from '@/pages/api-dev-tools-app/src/type';
 
 import {
@@ -51,70 +56,6 @@ import {
   WORKSPACE_PANE_MAX_WIDTH,
   WORKSPACE_RESIZER_SIZE,
 } from '@/pages/api-dev-tools-app/src/constants';
-
-interface ApiInterfaceGroup {
-  id: string;
-  name: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-type GroupedApiInterfaceItem = ApiInterfaceItem & {
-  groupId?: string;
-};
-
-type GroupedApiProject = Omit<ApiProject, 'interfaces'> & {
-  interfaces: GroupedApiInterfaceItem[];
-  groups?: ApiInterfaceGroup[];
-};
-
-type GroupedPersistedState = Omit<PersistedState, 'projects'> & {
-  projects: GroupedApiProject[];
-};
-
-type GroupManageDialog =
-  | {
-      kind: 'group-create';
-      title: string;
-      label: string;
-      value: string;
-      projectId: string;
-    }
-  | {
-      kind: 'group-rename';
-      title: string;
-      label: string;
-      value: string;
-      projectId: string;
-      groupId: string;
-    }
-  | {
-      kind: 'group-delete';
-      title: string;
-      message: string;
-      projectId: string;
-      groupId: string;
-      groupName: string;
-    }
-  | {
-      kind: 'group-interface-create';
-      title: string;
-      label: string;
-      value: string;
-      projectId: string;
-      groupId: string;
-    };
-
-type ApiManageDialog = ManageDialog | GroupManageDialog;
-
-interface ApiFormDataPayloadItem {
-  key: string;
-  type: 'text' | 'file';
-  value?: string;
-  fileName?: string;
-  mimeType?: string;
-  fileData?: string;
-}
 
 /**
  * @description 创建带指定前缀的唯一标识
