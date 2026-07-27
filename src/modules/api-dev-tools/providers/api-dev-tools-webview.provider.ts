@@ -160,6 +160,14 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
    * @description 执行 API DevTools 原生 View 标题栏操作
    */
   public async executeViewTitleAction(action: ApiDevToolsViewTitleAction): Promise<void> {
+    if (this.floatingPanel?.active) {
+      void this.floatingPanel.webview.postMessage({
+        type: API_DEV_TOOLS_VIEW_TITLE_ACTION_MESSAGE,
+        action,
+      });
+      return;
+    }
+
     if (!this.view) {
       await vscode.commands.executeCommand(`${ApiDevToolsWebviewProvider.viewType}.focus`);
     }
