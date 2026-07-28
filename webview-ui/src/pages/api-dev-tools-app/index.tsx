@@ -9,12 +9,13 @@ import BaseTabs from '@components/BaseTabs';
 import Scrollbar from '@components/Scrollbar';
 import BottomPanels from '@/pages/api-dev-tools-app/components/bottom-panels';
 import InterfaceItem from '@/pages/api-dev-tools-app/components/interface-item';
-import KeyValueEditor, { type KeyValueEditorItem } from '@/pages/api-dev-tools-app/components/key-value-editor';
+import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-editor';
 import ProjectCard from '@/pages/api-dev-tools-app/components/project-card';
 import ShareCard from '@/pages/api-dev-tools-app/components/share-card';
 import ApiDevToolsSkeleton from '@/pages/api-dev-tools-app/components/api-dev-tools-skeleton';
 import { buildApiDocsHtml } from '@/pages/api-dev-tools-app/src/api-docs-builder';
 import { formatSize, safeBase64, clampNumber, tryFormatJson, isJsonLikeText, cloneRequest } from '@/pages/api-dev-tools-app/src/api-dev-tools.utils';
+import type { KeyValueEditorItem } from '@/pages/api-dev-tools-app/components/key-value-editor/src/type';
 import type {
   HttpMethod,
   RequestTab,

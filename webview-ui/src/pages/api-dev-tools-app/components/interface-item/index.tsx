@@ -1,51 +1,8 @@
 import BaseButton from '@components/BaseButton';
 
-import type { ApiInterfaceItem } from '@/pages/api-dev-tools-app/src/type';
+import type { InterfaceItemProps } from '@pages/api-dev-tools-app/components/interface-item/src/type';
 
 import styles from './index.module.css';
-
-export interface InterfaceItemProps {
-  /**
-   * @description 接口数据
-   */
-  api: ApiInterfaceItem;
-
-  /**
-   * @description 是否为当前接口
-   *
-   * @default false
-   */
-  active?: boolean;
-
-  /**
-   * @description 是否处于分享选择模式
-   *
-   * @default false
-   */
-  shareMode?: boolean;
-
-  /**
-   * @description 分享选择状态
-   *
-   * @default false
-   */
-  checked?: boolean;
-
-  /**
-   * @description 切换分享选择状态
-   */
-  onToggleShare?: () => void;
-
-  /**
-   * @description 选择接口
-   */
-  onSelect: () => void;
-
-  /**
-   * @description 删除接口
-   */
-  onRemove: () => void;
-}
 
 /**
  * @description 项目接口列表项
