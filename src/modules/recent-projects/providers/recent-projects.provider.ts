@@ -3499,7 +3499,25 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const position = new vscode.Position(Math.max(0, line - 1), 0);
 
       editor.selection = new vscode.Selection(position, position);
-      editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+
+      const isVisible = editor.visibleRanges.some(
+        (range) => range.start.line <= position.line && position.line <= range.end.line,
+      );
+
+      if (!isVisible) {
+        editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+      }
+
+      const highlightDecoration = vscode.window.createTextEditorDecorationType({
+        backgroundColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
+        isWholeLine: true,
+      });
+
+      editor.setDecorations(highlightDecoration, [new vscode.Range(position, position)]);
+
+      setTimeout(() => {
+        highlightDecoration.dispose();
+      }, 1000);
     } catch (error) {
       vscode.window.showErrorMessage(`打开文件失败：${this.toErrorMessage(error)}`);
     }
