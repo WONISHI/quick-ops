@@ -1492,7 +1492,7 @@ export default function RecentProjectsApp() {
           });
           setFolderSearchTotalMatches(Number((msg as any).totalMatches) || 0);
 
-          if (shouldReset && responseMode !== 'silent') {
+          if (shouldReset) {
             setCurrentActiveMatch(0);
           }
         }
@@ -1691,9 +1691,7 @@ export default function RecentProjectsApp() {
     if (scrollableEl) {
       const containerRect = scrollableEl.getBoundingClientRect();
       const elementRect = element.getBoundingClientRect();
-      const isFullyVisible =
-        elementRect.top >= containerRect.top &&
-        elementRect.bottom <= containerRect.bottom;
+      const isFullyVisible = elementRect.top >= containerRect.top && elementRect.bottom <= containerRect.bottom;
 
       if (isFullyVisible) {
         autoScrollTarget.current = null;
@@ -2994,7 +2992,7 @@ export default function RecentProjectsApp() {
                       <span
                         className={styles['sub-name']}
                         style={{
-                          display: 'inline-flex',
+                          display: 'inline-block',
                           alignItems: 'center',
                           pointerEvents: 'auto',
                         }}
@@ -3052,7 +3050,7 @@ export default function RecentProjectsApp() {
                     <span
                       className={styles['sub-name']}
                       style={{
-                        display: 'inline-flex',
+                        display: 'inline-block',
                         alignItems: 'center',
                         pointerEvents: 'auto',
                       }}
@@ -3077,9 +3075,7 @@ export default function RecentProjectsApp() {
   }
 
   return (
-    <div
-      className={styles['app-wrapper']}
-    >
+    <div className={styles['app-wrapper']}>
       <RecentProjectContextMenu
         visible={contextMenu.visible}
         x={contextMenu.x}
