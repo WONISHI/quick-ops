@@ -115,6 +115,11 @@ export default function GitApp() {
 
   const lastRefreshRef = useRef<number>(0);
   const commitInputRef = useRef<HTMLDivElement>(null);
+  const commitHistoryIndexRef = useRef<number>(-1);
+  const savedCommitMsgRef = useRef<string>('');
+  const isNavigatingHistoryRef = useRef(false);
+  const savedCommitTypeRef = useRef<CommitType>('feat');
+  const savedCommitTypeEnabledRef = useRef(false);
   const graphSectionRef = useRef<HTMLDivElement>(null);
   const graphResizeStartRef = useRef({ y: 0, height: 50 });
   const [graphSectionHeight, setGraphSectionHeight] = useState(50);
@@ -945,13 +950,93 @@ export default function GitApp() {
 
               syncCommitInputValue(el.innerText);
               setJustCommitted(false);
+
+              if (!isNavigatingHistoryRef.current) {
+                commitHistoryIndexRef.current = -1;
+              }
             }}
             onKeyDown={(e) => {
               if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
                 handleCommit();
               }
+
+              if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (graphCommits.length === 0) return;
+
+                if (commitHistoryIndexRef.current === -1) {
+                  savedCommitMsgRef.current = commitMsg;
+                  savedCommitTypeRef.current = commitType;
+                  savedCommitTypeEnabledRef.current = commitTypeEnabled;
+                  commitHistoryIndexRef.current = 0;
+                } else {
+                  commitHistoryIndexRef.current = Math.min(
+                    commitHistoryIndexRef.current + 1,
+                    graphCommits.length - 1,
+                  );
+                }
+
+                const commit = graphCommits[commitHistoryIndexRef.current];
+                if (commit && commitInputRef.current) {
+                  isNavigatingHistoryRef.current = true;
+                  const parsed = commitTypeEnabled ? parseCommitTypeFromText(commit.message) : null;
+                  if (parsed && commitTypeEnabled) {
+                    setCommitType(parsed.type);
+                    commitInputRef.current.innerText = parsed.message;
+                    setCommitMsg(parsed.message);
+                  } else {
+                    commitInputRef.current.innerText = commit.message;
+                    setCommitMsg(commit.message);
+                  }
+                  setTimeout(() => {
+                    isNavigatingHistoryRef.current = false;
+                  }, 0);
+                }
+                return;
+              }
+
+              if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (graphCommits.length === 0) return;
+
+                if (commitHistoryIndexRef.current <= 0) {
+                  commitHistoryIndexRef.current = -1;
+                  isNavigatingHistoryRef.current = true;
+                  setCommitType(savedCommitTypeRef.current);
+                  if (savedCommitTypeEnabledRef.current !== commitTypeEnabled) {
+                    setCommitTypeEnabled(savedCommitTypeEnabledRef.current);
+                  }
+                  if (commitInputRef.current) {
+                    commitInputRef.current.innerText = savedCommitMsgRef.current;
+                  }
+                  setCommitMsg(savedCommitMsgRef.current);
+                  setTimeout(() => {
+                    isNavigatingHistoryRef.current = false;
+                  }, 0);
+                } else {
+                  commitHistoryIndexRef.current--;
+                  const commit = graphCommits[commitHistoryIndexRef.current];
+                  if (commit && commitInputRef.current) {
+                    isNavigatingHistoryRef.current = true;
+                    const parsed = commitTypeEnabled ? parseCommitTypeFromText(commit.message) : null;
+                    if (parsed && commitTypeEnabled) {
+                      setCommitType(parsed.type);
+                      commitInputRef.current.innerText = parsed.message;
+                      setCommitMsg(parsed.message);
+                    } else {
+                      commitInputRef.current.innerText = commit.message;
+                      setCommitMsg(commit.message);
+                    }
+                    setTimeout(() => {
+                      isNavigatingHistoryRef.current = false;
+                    }, 0);
+                  }
+                }
+                return;
+              }
             }}
+
             onPaste={(e) => {
               e.preventDefault();
 
