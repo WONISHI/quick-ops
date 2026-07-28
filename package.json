@@ -120,7 +120,7 @@
             "在左侧拆分出一个新编辑器组显示 (Split editor to the left)",
             "在当前编辑器右侧/旁边显示 (Open beside active editor)"
           ],
-          "default": "mindmap",
+          "default": "menu",
           "description": "锚点视图的展示模式 (思维导图或列表菜单)"
         },
         "quick-ops.logger.template": {
