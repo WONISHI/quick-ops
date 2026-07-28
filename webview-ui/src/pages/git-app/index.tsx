@@ -465,6 +465,8 @@ export default function GitApp() {
         clearCommitDraft();
         justCommittedBranchRef.current = currentBranchRef.current;
         setJustCommitted(true);
+      } else if (msg.type === 'focusCommitInput') {
+        commitInputRef.current?.focus();
       } else if (msg.type === 'undoLastCommitSuccess') {
         const lastCommittedSnapshot = lastCommittedSnapshotRef.current;
         const undoMessage = typeof msg.message === 'string' ? msg.message : '';
