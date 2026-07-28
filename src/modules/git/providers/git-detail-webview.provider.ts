@@ -310,14 +310,14 @@ export class GitDetailWebviewProvider {
   }
 
   private normalizeGraphFilterName(graphFilter: string) {
-    const value = (graphFilter || '全部分支').trim();
+    const value = (graphFilter || this.gitService.CURRENT_BRANCH_FILTER).trim();
 
     if (!value || value === '全部分支') {
       return '全部分支';
     }
 
-    if (value === '当前分支') {
-      return '当前分支';
+    if (value === this.gitService.CURRENT_BRANCH_FILTER || value === '当前分支') {
+      return this.gitService.CURRENT_BRANCH_FILTER;
     }
 
     return this.normalizeRefName(value);
@@ -685,31 +685,199 @@ export class GitDetailWebviewProvider {
   }
 
   private async changeGraphFilter(cwd: string, current: string) {
-    const allOption = '全部分支';
+    type GraphFilterQuickPickItem = vscode.QuickPickItem & {
+      branchName?: string;
+      branchType?: 'local' | 'remote';
+    };
 
-    const quickPick = vscode.window.createQuickPick<vscode.QuickPickItem & { branchName: string }>();
+    interface BranchPickerMeta {
+      author: string;
+      shortHash: string;
+      subject: string;
+      timestamp: number;
+      relativeTime: string;
+    }
 
+    const formatBranchRelativeTime = (timestamp: number) => {
+      if (!timestamp) return '';
+
+      const diffSeconds = Math.max(0, Math.floor((Date.now() - timestamp * 1000) / 1000));
+      const minute = 60;
+      const hour = minute * 60;
+      const day = hour * 24;
+      const month = day * 30;
+      const year = day * 365;
+
+      if (diffSeconds >= year) return `${Math.floor(diffSeconds / year)} 年前`;
+      if (diffSeconds >= month) return `${Math.floor(diffSeconds / month)} 个月前`;
+      if (diffSeconds >= day) return `${Math.floor(diffSeconds / day)} 天前`;
+      if (diffSeconds >= hour) return `${Math.floor(diffSeconds / hour)} 小时前`;
+      if (diffSeconds >= minute) return `${Math.floor(diffSeconds / minute)} 分钟前`;
+
+      return '刚刚';
+    };
+
+    const getBranchPickerMetaMap = async () => {
+      const metaMap = new Map<string, BranchPickerMeta>();
+      const output = await this.runGitSafe(cwd, [
+        'for-each-ref',
+        '--format=%(refname:short)%x1f%(objectname:short)%x1f%(committerdate:unix)%x1f%(authorname)%x1f%(contents:subject)',
+        'refs/heads',
+        'refs/remotes',
+      ]);
+
+      output
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .forEach((line) => {
+          const [rawRefName, shortHash, timestampText, author, ...subjectParts] = line.split('\x1f');
+          const branchName = this.normalizeBranchOptionName(rawRefName || '');
+
+          if (!branchName || branchName.includes('HEAD ->') || /\/HEAD$/i.test(branchName)) {
+            return;
+          }
+
+          const timestamp = Number(timestampText) || 0;
+
+          metaMap.set(branchName, {
+            author: author || '未知作者',
+            shortHash: shortHash || '',
+            subject: subjectParts.join('\x1f') || '',
+            timestamp,
+            relativeTime: formatBranchRelativeTime(timestamp),
+          });
+        });
+
+      return metaMap;
+    };
+
+    const createBranchQuickPickItem = (
+      branchName: string,
+      branchType: 'local' | 'remote',
+      options: {
+        currentFilter: string;
+        currentBranch: string;
+        localBranchSet: Set<string>;
+        metaMap: Map<string, BranchPickerMeta>;
+      },
+    ): GraphFilterQuickPickItem => {
+      const isCurrentBranch = branchType === 'local' && branchName === options.currentBranch;
+      const isCurrentFilter =
+        options.currentFilter === this.gitService.CURRENT_BRANCH_FILTER
+          ? isCurrentBranch
+          : this.normalizeBranchOptionName(branchName) === options.currentFilter;
+
+      const meta = options.metaMap.get(branchName);
+      const localName = branchType === 'remote' ? this.gitService.getLocalNameFromRemoteBranch(branchName) : '';
+      const remoteDescription = branchType === 'remote' && options.localBranchSet.has(localName) ? `本地已存在：${localName}` : undefined;
+
+      return {
+        iconPath: new vscode.ThemeIcon(branchType === 'remote' ? 'cloud' : 'git-branch'),
+        label: branchName,
+        description: meta?.relativeTime || (isCurrentBranch ? '当前分支' : remoteDescription),
+        detail: meta ? `${meta.author} • ${meta.shortHash} • ${meta.subject || '无提交信息'}` : remoteDescription,
+        branchName,
+        branchType,
+      };
+    };
+
+    const quickPick = vscode.window.createQuickPick<GraphFilterQuickPickItem>();
+
+    quickPick.title = '筛选分支';
     quickPick.placeholder = '选择要查看的分支记录 (支持搜索)';
     quickPick.matchOnDescription = true;
+    quickPick.matchOnDetail = true;
+    quickPick.ignoreFocusOut = true;
 
-    const updateQuickPickItems = async () => {
-      const branchNames = await this.gitService.getAllBranches(cwd);
-      const normalizedCurrent = this.normalizeGraphFilterName(current);
+    const currentFilter = this.normalizeGraphFilterName(String(current || this._currentGraphFilter || ''));
 
-      const normalizedBranchNames = Array.from(new Set(branchNames.map((branchName) => this.normalizeBranchOptionName(branchName))));
+    const createItems = async (options: { fetchRemote?: boolean } = {}) => {
+      const localResult = await this.gitService.getLocalBranches(cwd);
+      const remoteBranches = await this.gitService.getRemoteBranches(cwd, {
+        fetch: !!options.fetchRemote,
+      });
 
-      const items = [allOption, ...normalizedBranchNames].map((branchName) => ({
-        label: branchName === normalizedCurrent ? `$(check) ${branchName}` : branchName,
-        description: branchName === normalizedCurrent ? '当前选择' : undefined,
-        branchName,
-      }));
+      const currentBranch = localResult.current;
+      const localBranchSet = new Set(localResult.branches);
+      const metaMap = await getBranchPickerMetaMap();
 
-      quickPick.items = items;
+      const itemOptions = {
+        currentFilter,
+        currentBranch,
+        localBranchSet,
+        metaMap,
+      };
 
-      const currentItem = items.find((item) => item.branchName === normalizedCurrent);
+      const localItems: GraphFilterQuickPickItem[] = localResult.branches.map((branchName) => {
+        return createBranchQuickPickItem(branchName, 'local', itemOptions);
+      });
 
-      if (currentItem) {
-        quickPick.activeItems = [currentItem];
+      const remoteItems: GraphFilterQuickPickItem[] = remoteBranches.map((branchName) => {
+        return createBranchQuickPickItem(branchName, 'remote', itemOptions);
+      });
+
+      const items: GraphFilterQuickPickItem[] = [
+        {
+          iconPath: new vscode.ThemeIcon('list-tree'),
+          label: '全部分支',
+          description: '显示所有分支记录',
+          branchName: '全部分支',
+        },
+        {
+          label: '分支',
+          kind: vscode.QuickPickItemKind.Separator,
+        },
+        ...localItems,
+        {
+          label: '远程分支',
+          kind: vscode.QuickPickItemKind.Separator,
+        },
+        ...remoteItems,
+      ];
+
+      return {
+        items,
+        localItems,
+        remoteItems,
+        currentBranch,
+      };
+    };
+
+    const updateQuickPickItems = async (options: { fetchRemote?: boolean } = {}) => {
+      const prevActiveBranchName = quickPick.activeItems.find((item) => item.branchName)?.branchName;
+      const result = await createItems(options);
+
+      quickPick.items = result.items;
+
+      if (prevActiveBranchName) {
+        const newActive = result.items.find((item) => item.branchName === prevActiveBranchName);
+
+        if (newActive) {
+          quickPick.activeItems = [newActive];
+          return;
+        }
+      }
+
+      if (currentFilter === '全部分支') {
+        const allItem = result.items.find((item) => item.branchName === '全部分支');
+        if (allItem) {
+          quickPick.activeItems = [allItem];
+          return;
+        }
+      }
+
+      const currentLocalItem = result.localItems.find((item) => item.branchName === result.currentBranch);
+
+      if (currentLocalItem) {
+        quickPick.activeItems = [currentLocalItem];
+        return;
+      }
+
+      const firstBranchItem = result.localItems[0] || result.remoteItems[0];
+
+      if (firstBranchItem) {
+        quickPick.activeItems = [firstBranchItem];
       }
     };
 
@@ -720,22 +888,33 @@ export class GitDetailWebviewProvider {
 
     this.gitService
       .fetchAllPrune(cwd)
-      .then(updateQuickPickItems)
+      .then(() => updateQuickPickItems({ fetchRemote: true }))
       .catch(() => {})
       .finally(() => {
         quickPick.busy = false;
       });
 
     const selectedBranch = await new Promise<string | undefined>((resolve) => {
+      let accepted = false;
+
       quickPick.onDidAccept(() => {
-        const selection = quickPick.selectedItems[0];
-        resolve(selection ? selection.branchName : undefined);
+        const selection = quickPick.selectedItems.find((item) => item.branchName);
+
+        if (!selection?.branchName) {
+          return;
+        }
+
+        accepted = true;
+        resolve(selection.branchName);
         quickPick.hide();
       });
 
       quickPick.onDidHide(() => {
+        if (!accepted) {
+          resolve(undefined);
+        }
+
         quickPick.dispose();
-        resolve(undefined);
       });
     });
 

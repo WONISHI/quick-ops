@@ -8,6 +8,7 @@ import FilterPopup, {
   FilterPopupInput,
 } from '@/pages/git-detail-app/components/filter-popup';
 import GitDetailSkeleton from '@/pages/git-detail-app/components/git-detail-skeleton';
+import GitDetailContextMenu from '@/pages/git-detail-app/components/git-detail-context-menu';
 import { vscode } from '@utils/vscode';
 import styles from '@pages/git-detail-app/index.module.css';
 import FileIcon from '@components/FileIcon';
@@ -579,6 +580,7 @@ function renderRefText(ref: string) {
   );
 }
 
+
 export default function GitCommitDetailApp() {
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
   const [displayCount, setDisplayCount] = useState(100);
@@ -608,6 +610,28 @@ export default function GitCommitDetailApp() {
 
   const [commitFilesMap, setCommitFilesMap] = useState<Record<string, CommitFilesState>>({});
   const [commitFilesLoadingMap, setCommitFilesLoadingMap] = useState<Record<string, boolean>>({});
+
+  const [commitContextMenu, setCommitContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    commit: GraphCommit;
+  } | null>(null);
+
+  const handleCommitContextMenu = (e: React.MouseEvent, commit: GraphCommit) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setActiveCommitHash(commit.hash);
+    requestCommitFiles(commit.hash);
+    setCommitContextMenu({
+      visible: true,
+      x: e.clientX,
+      y: e.clientY,
+      commit,
+    });
+  };
+
+
   const [expandedCommitDirs, setExpandedCommitDirs] = useState<Record<string, boolean>>({});
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1356,6 +1380,7 @@ export default function GitCommitDetailApp() {
                   <li key={commit.hash} className={styles['commit-item']} style={{ top: `${yPositions[index]}px` }}>
                     <div
                       className={`${styles['commit-row']} ${isActive ? styles['active'] : ''}`}
+                      onContextMenu={(e) => handleCommitContextMenu(e, commit)}
                       onClick={() => {
                         setActivePopup(null);
 
@@ -1459,6 +1484,12 @@ export default function GitCommitDetailApp() {
           </Scrollbar>
         )}
       </div>
+
+      <GitDetailContextMenu
+        contextMenu={commitContextMenu}
+        remoteUrl={remoteUrl}
+        onClose={() => setCommitContextMenu(null)}
+      />
     </div>
   );
 }

@@ -11,17 +11,20 @@
       "",
       "<script>",
       "export default {",
-      "  name:'[[baseName]]',",
+      "  name: '[[baseName]]',",
+      "",
       "  data() {",
       "    return {",
-      "",
+      "      ${2}",
       "    }",
       "  },",
+      "",
       "  mounted() {",
-      "",
+      "    ${3}",
       "  },",
-      "  methods: {",
       "",
+      "  methods: {",
+      "    ${4}",
       "  },",
       "}",
       "</script>",
@@ -33,17 +36,215 @@
     "description": "vue2代码模版 (quick-ops提供)"
   },
   {
-    "prefix": "watchDeep",
+    "prefix": "vue2full",
     "scope": ["vue", "vue2"],
-    "body": ["${1}:{", "   immediate: true,", "   deep:true,", "   handler(newV){", "     ${0}", "}"],
+    "body": [
+      "<template>",
+      "  <div class=\"[[baseName]]\">",
+      "    ${1}",
+      "  </div>",
+      "</template>",
+      "",
+      "<script>",
+      "export default {",
+      "  name: '[[baseName]]',",
+      "",
+      "  components: {",
+      "    ${2}",
+      "  },",
+      "",
+      "  props: {",
+      "    ${3}",
+      "  },",
+      "",
+      "  data() {",
+      "    return {",
+      "      ${4}",
+      "    }",
+      "  },",
+      "",
+      "  computed: {",
+      "    ${5}",
+      "  },",
+      "",
+      "  watch: {",
+      "    ${6}",
+      "  },",
+      "",
+      "  created() {",
+      "    ${7}",
+      "  },",
+      "",
+      "  mounted() {",
+      "    ${8}",
+      "  },",
+      "",
+      "  beforeDestroy() {",
+      "    ${9}",
+      "  },",
+      "",
+      "  methods: {",
+      "    ${10}",
+      "  },",
+      "}",
+      "</script>",
+      "",
+      "<style lang=\"${0:[[cssLang]]}\" scoped>",
+      ".[[baseName]] {",
+      "}",
+      "</style>"
+    ],
+    "style": "vue",
+    "description": "vue2完整组件模版 (quick-ops提供)"
+  },
+  {
+    "prefix": "props",
+    "scope": ["vue", "vue2"],
+    "body": ["${1:value}: {", "  type: ${2:String},", "  default: ${3:''},", "}"],
     "style": "javascript",
-    "description": "vue2-watch-deep模版 (quick-ops提供)"
+    "description": "vue2-props字段 (quick-ops提供)"
+  },
+  {
+    "prefix": "propObj",
+    "scope": ["vue", "vue2"],
+    "body": ["${1:value}: {", "  type: Object,", "  default: () => ({}),", "}"],
+    "style": "javascript",
+    "description": "vue2-object props字段 (quick-ops提供)"
+  },
+  {
+    "prefix": "propArr",
+    "scope": ["vue", "vue2"],
+    "body": ["${1:list}: {", "  type: Array,", "  default: () => [],", "}"],
+    "style": "javascript",
+    "description": "vue2-array props字段 (quick-ops提供)"
+  },
+  {
+    "prefix": "computed",
+    "scope": ["vue", "vue2"],
+    "body": ["${1:value}() {", "  return ${2}", "}"],
+    "style": "javascript",
+    "description": "vue2-computed字段 (quick-ops提供)"
   },
   {
     "prefix": "watch",
     "scope": ["vue", "vue2"],
-    "body": ["${1}(newV){", "   ${0}", "}"],
+    "body": ["${1:value}(newV, oldV) {", "  ${0}", "}"],
     "style": "javascript",
     "description": "vue2-watch模版 (quick-ops提供)"
+  },
+  {
+    "prefix": "watchDeep",
+    "scope": ["vue", "vue2"],
+    "body": ["${1:value}: {", "  immediate: true,", "  deep: true,", "  handler(newV, oldV) {", "    ${0}", "  }", "}"],
+    "style": "javascript",
+    "description": "vue2-watch-deep模版 (quick-ops提供)"
+  },
+  {
+    "prefix": "method",
+    "scope": ["vue", "vue2"],
+    "body": ["${1:handleClick}() {", "  ${0}", "}"],
+    "style": "javascript",
+    "description": "vue2-method方法 (quick-ops提供)"
+  },
+  {
+    "prefix": "resetForm",
+    "scope": ["vue", "vue2"],
+    "body": ["${1:resetForm}() {", "  this.$refs.${2:formRef} && this.$refs.${2:formRef}.resetFields()", "}"],
+    "style": "javascript",
+    "description": "vue2-重置表单 (quick-ops提供)"
+  },
+  {
+    "prefix": "validateForm",
+    "scope": ["vue", "vue2"],
+    "body": ["${1:submitForm}() {", "  this.$refs.${2:formRef}.validate((valid) => {", "    if (!valid) return", "", "    ${0}", "  })", "}"],
+    "style": "javascript",
+    "description": "vue2-表单校验提交 (quick-ops提供)"
+  },
+  {
+    "prefix": "confirm",
+    "scope": ["vue", "vue2"],
+    "body": [
+      "this.$confirm('${1:确定要删除吗？}', '提示', {",
+      "  confirmButtonText: '确定',",
+      "  cancelButtonText: '取消',",
+      "  type: 'warning',",
+      "})",
+      "  .then(() => {",
+      "    ${2}",
+      "  })",
+      "  .catch(() => {})"
+    ],
+    "style": "javascript",
+    "description": "vue2-element确认弹窗 (quick-ops提供)"
+  },
+  {
+    "prefix": "msgSuccess",
+    "scope": ["vue", "vue2"],
+    "body": ["this.$message.success('${1:操作成功}')"],
+    "style": "javascript",
+    "description": "vue2-成功提示 (quick-ops提供)"
+  },
+  {
+    "prefix": "msgError",
+    "scope": ["vue", "vue2"],
+    "body": ["this.$message.error('${1:操作失败}')"],
+    "style": "javascript",
+    "description": "vue2-失败提示 (quick-ops提供)"
+  },
+  {
+    "prefix": "emit",
+    "scope": ["vue", "vue2"],
+    "body": ["this.$emit('${1:change}', ${2:value})"],
+    "style": "javascript",
+    "description": "vue2-emit事件 (quick-ops提供)"
+  },
+  {
+    "prefix": "nextTick",
+    "scope": ["vue", "vue2"],
+    "body": ["this.$nextTick(() => {", "  ${0}", "})"],
+    "style": "javascript",
+    "description": "vue2-nextTick (quick-ops提供)"
+  },
+  {
+    "prefix": "setTimer",
+    "scope": ["vue", "vue2"],
+    "body": ["this.${1:timer} = setTimeout(() => {", "  ${2}", "}, ${3:300})"],
+    "style": "javascript",
+    "description": "vue2-setTimeout (quick-ops提供)"
+  },
+  {
+    "prefix": "clearTimer",
+    "scope": ["vue", "vue2"],
+    "body": ["if (this.${1:timer}) {", "  clearTimeout(this.${1:timer})", "  this.${1:timer} = null", "}"],
+    "style": "javascript",
+    "description": "vue2-clearTimeout (quick-ops提供)"
+  },
+  {
+    "prefix": "beforeDestroy",
+    "scope": ["vue", "vue2"],
+    "body": ["beforeDestroy() {", "  ${0}", "}"],
+    "style": "javascript",
+    "description": "vue2-beforeDestroy生命周期 (quick-ops提供)"
+  },
+  {
+    "prefix": "vfor",
+    "scope": ["vue", "vue2"],
+    "body": ["<${1:div}", "  v-for=\"${2:item} in ${3:list}\"", "  :key=\"${2:item}.${4:id}\"", ">", "  ${0}", "</${1:div}>"],
+    "style": "vue",
+    "description": "vue2-v-for模版 (quick-ops提供)"
+  },
+  {
+    "prefix": "vif",
+    "scope": ["vue", "vue2"],
+    "body": ["<${1:div} v-if=\"${2:visible}\">", "  ${0}", "</${1:div}>"],
+    "style": "vue",
+    "description": "vue2-v-if模版 (quick-ops提供)"
+  },
+  {
+    "prefix": "slot",
+    "scope": ["vue", "vue2"],
+    "body": ["<template #${1:default}>", "  ${0}", "</template>"],
+    "style": "vue",
+    "description": "vue2-slot模版 (quick-ops提供)"
   }
 ]

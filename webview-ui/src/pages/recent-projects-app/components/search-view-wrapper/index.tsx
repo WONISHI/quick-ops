@@ -581,7 +581,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
     setFolderSearchType(targetType);
     resetSearchData({
-      keepQuery: !!options?.keepQuery,
+      keepQuery: true,
     });
     setCurrentActiveMatch(0);
   };
@@ -969,8 +969,8 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
             onKeyDown={handleSearchInputKeyDown}
             title={
               folderSearchType === 'content'
-                ? '快捷键：Ctrl/Cmd + Enter 切换文件名搜索；Ctrl/Cmd + Shift + F 进入文件名搜索，切换时清空关键词'
-                : '快捷键：Ctrl/Cmd + Enter 切换内容搜索；Ctrl/Cmd + Shift + C 进入内容搜索，切换时清空关键词'
+                ? '快捷键：Ctrl/Cmd + Enter 切换文件名搜索；Ctrl/Cmd + Shift + F 进入文件名搜索'
+                : '快捷键：Ctrl/Cmd + Enter 切换内容搜索；Ctrl/Cmd + Shift + C 进入内容搜索'
             }
           />
 

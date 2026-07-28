@@ -9,12 +9,13 @@ import BaseTabs from '@components/BaseTabs';
 import Scrollbar from '@components/Scrollbar';
 import BottomPanels from '@/pages/api-dev-tools-app/components/bottom-panels';
 import InterfaceItem from '@/pages/api-dev-tools-app/components/interface-item';
-import KeyValueEditor, { type KeyValueEditorItem } from '@/pages/api-dev-tools-app/components/key-value-editor';
+import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-editor';
 import ProjectCard from '@/pages/api-dev-tools-app/components/project-card';
 import ShareCard from '@/pages/api-dev-tools-app/components/share-card';
 import ApiDevToolsSkeleton from '@/pages/api-dev-tools-app/components/api-dev-tools-skeleton';
 import { buildApiDocsHtml } from '@/pages/api-dev-tools-app/src/api-docs-builder';
 import { formatSize, safeBase64, clampNumber, tryFormatJson, isJsonLikeText, cloneRequest } from '@/pages/api-dev-tools-app/src/api-dev-tools.utils';
+import type { KeyValueEditorItem } from '@/pages/api-dev-tools-app/components/key-value-editor/src/type';
 import type {
   HttpMethod,
   RequestTab,
@@ -29,10 +30,15 @@ import type {
   HistoryItem,
   ApiResponsePayload,
   PersistedState,
-  ManageDialog,
   LeaveConfirmAction,
   LeaveConfirmDialog,
   ApiDevToolsViewTitleAction,
+  ApiInterfaceGroup,
+  GroupedApiInterfaceItem,
+  GroupedApiProject,
+  GroupedPersistedState,
+  ApiManageDialog,
+  ApiFormDataPayloadItem,
 } from '@/pages/api-dev-tools-app/src/type';
 
 import {
@@ -51,70 +57,6 @@ import {
   WORKSPACE_PANE_MAX_WIDTH,
   WORKSPACE_RESIZER_SIZE,
 } from '@/pages/api-dev-tools-app/src/constants';
-
-interface ApiInterfaceGroup {
-  id: string;
-  name: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-type GroupedApiInterfaceItem = ApiInterfaceItem & {
-  groupId?: string;
-};
-
-type GroupedApiProject = Omit<ApiProject, 'interfaces'> & {
-  interfaces: GroupedApiInterfaceItem[];
-  groups?: ApiInterfaceGroup[];
-};
-
-type GroupedPersistedState = Omit<PersistedState, 'projects'> & {
-  projects: GroupedApiProject[];
-};
-
-type GroupManageDialog =
-  | {
-      kind: 'group-create';
-      title: string;
-      label: string;
-      value: string;
-      projectId: string;
-    }
-  | {
-      kind: 'group-rename';
-      title: string;
-      label: string;
-      value: string;
-      projectId: string;
-      groupId: string;
-    }
-  | {
-      kind: 'group-delete';
-      title: string;
-      message: string;
-      projectId: string;
-      groupId: string;
-      groupName: string;
-    }
-  | {
-      kind: 'group-interface-create';
-      title: string;
-      label: string;
-      value: string;
-      projectId: string;
-      groupId: string;
-    };
-
-type ApiManageDialog = ManageDialog | GroupManageDialog;
-
-interface ApiFormDataPayloadItem {
-  key: string;
-  type: 'text' | 'file';
-  value?: string;
-  fileName?: string;
-  mimeType?: string;
-  fileData?: string;
-}
 
 /**
  * @description 创建带指定前缀的唯一标识

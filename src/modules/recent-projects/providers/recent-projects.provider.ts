@@ -1678,10 +1678,19 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (answer !== '删除') return;
 
     try {
-      await vscode.workspace.fs.delete(uri, {
-        recursive: true,
-        useTrash: true,
-      });
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `正在删除 ${path.basename(uri.fsPath)}...`,
+          cancellable: false,
+        },
+        async () => {
+          await vscode.workspace.fs.delete(uri, {
+            recursive: true,
+            useTrash: true,
+          });
+        },
+      );
 
       this.refreshTreeAfterFileChange();
     } catch (error) {
@@ -2204,20 +2213,29 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (picked !== confirmText) return;
 
     try {
-      if (isUntracked) {
-        await vscode.workspace.fs.delete(location.uri, {
-          recursive: true,
-          useTrash: false,
-        });
-      } else {
-        await execFileAsync('git', ['reset', '--', location.relativePath], {
-          cwd: location.gitRoot,
-        });
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `正在${confirmText} ${fileName}...`,
+          cancellable: false,
+        },
+        async () => {
+          if (isUntracked) {
+            await vscode.workspace.fs.delete(location.uri, {
+              recursive: true,
+              useTrash: false,
+            });
+          } else {
+            await execFileAsync('git', ['reset', '--', location.relativePath], {
+              cwd: location.gitRoot,
+            });
 
-        await execFileAsync('git', ['checkout', '--', location.relativePath], {
-          cwd: location.gitRoot,
-        });
-      }
+            await execFileAsync('git', ['checkout', '--', location.relativePath], {
+              cwd: location.gitRoot,
+            });
+          }
+        },
+      );
 
       vscode.window.showInformationMessage(`已取消 ${fileName} 的变更`);
       this.refreshTreeAfterFileChange();

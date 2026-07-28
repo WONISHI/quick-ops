@@ -702,6 +702,19 @@ export class GitService {
     }
   }
 
+  public async stashPushFiles(cwd: string, files: string[], message?: string): Promise<void> {
+    const git = this.createGit(cwd);
+    const args = ['push'];
+
+    if (message) {
+      args.push('-m', message);
+    }
+
+    args.push('--', ...files);
+
+    await git.stash(args);
+  }
+
   public async getStashFiles(
     cwd: string,
     index: number,
@@ -1134,6 +1147,11 @@ export class GitService {
         await this.createGit(cwd).fetch();
       },
     );
+  }
+
+  public async revertCommit(cwd: string, hash: string): Promise<void> {
+    const git = this.createGit(cwd);
+    await git.revert(hash, ['--no-edit']);
   }
 
   public async addToGitignore(cwd: string, file: string): Promise<void> {

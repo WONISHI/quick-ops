@@ -64,6 +64,8 @@
    ================================ */
 
 .search-header {
+  display: flex;
+  flex-direction: column;
   padding: 7px 10px 5px;
   border-bottom: 1px solid var(--vscode-panel-border);
   background: color-mix(in srgb, var(--vscode-sideBar-background, var(--vscode-editor-background)) 96%, var(--vscode-foreground) 4%);

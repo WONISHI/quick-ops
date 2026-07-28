@@ -1,38 +1,21 @@
-import type {
-  ButtonHTMLAttributes,
-  ReactNode,
-} from 'react';
+import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 /**
  * @description 按钮视觉类型
  */
-export type BaseButtonType =
-  | 'default'
-  | 'primary'
-  | 'danger'
-  | 'text'
-  | 'icon';
+export type BaseButtonType = 'default' | 'primary' | 'danger' | 'text' | 'icon';
 
 /**
  * @description 按钮尺寸
  */
-export type BaseButtonSize =
-  | 'small'
-  | 'medium'
-  | 'large';
+export type BaseButtonSize = 'small' | 'medium' | 'large';
 
 /**
  * @description 图标位置
  */
-export type BaseButtonIconPosition =
-  | 'left'
-  | 'right';
+export type BaseButtonIconPosition = 'left' | 'right';
 
-export interface BaseButtonProps
-  extends Omit<
-    ButtonHTMLAttributes<HTMLButtonElement>,
-    'type' | 'children'
-  > {
+export interface BaseButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'type' | 'children'> {
   /**
    * @description 按钮视觉类型
    *

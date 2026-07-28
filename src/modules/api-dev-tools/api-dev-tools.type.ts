@@ -71,6 +71,16 @@ export interface ApiDevToolsWebviewMessage {
   payload?: unknown;
 }
 
+export interface UndiciRequestCreateMessage {
+  request?: {
+    method?: string;
+    origin?: string | URL;
+    path?: string;
+    headers?: Array<string | Buffer> | string;
+    contentLength?: number | string | null;
+  };
+}
+
 /**
  * @description API DevTools 原生 View 标题栏操作
  */

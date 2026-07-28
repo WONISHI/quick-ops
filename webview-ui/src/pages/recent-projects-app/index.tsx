@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { vscode } from '@utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -51,6 +51,11 @@ export default function RecentProjectsApp() {
   const listScrollbarRef = useRef<ScrollbarInstance>(null);
 
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+  const expandedPathsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    expandedPathsRef.current = expandedPaths;
+  }, [expandedPaths]);
+  const collapseRevealGuardUntilRef = useRef(0);
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
   const [dirChildren, setDirChildren] = useState<Record<string, DirChild[]>>({});
   const dirChildrenRef = useRef<Record<string, DirChild[]>>({});
@@ -59,13 +64,6 @@ export default function RecentProjectsApp() {
   useEffect(() => {
     dirChildrenRef.current = dirChildren;
   }, [dirChildren]);
-
-  const expandedPathsRef = useRef<Set<string>>(new Set());
-  const collapseRevealGuardUntilRef = useRef(0);
-
-  useEffect(() => {
-    expandedPathsRef.current = expandedPaths;
-  }, [expandedPaths]);
 
   const projectsRef = useRef<Project[]>([]);
 
@@ -86,6 +84,7 @@ export default function RecentProjectsApp() {
     y: number;
     type: 'top' | 'sub';
     payload: ContextMenuPayload;
+    selectedItems?: { path: string; name: string; isFolder: boolean }[];
   }>({
     visible: false,
     x: 0,
@@ -93,6 +92,88 @@ export default function RecentProjectsApp() {
     type: 'top',
     payload: { path: '' },
   });
+
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const selectedItemsRef = useRef<Set<string>>(new Set());
+  const lastClickedIndexRef = useRef<number>(-1);
+
+  useEffect(() => {
+    selectedItemsRef.current = selectedItems;
+  }, [selectedItems]);
+
+  const isMacPlatform = navigator.platform?.toLowerCase().includes('mac') || false;
+
+  const getFocusModeFlatItems = useCallback((): { path: string; name: string; isFolder: boolean }[] => {
+    const result: { path: string; name: string; isFolder: boolean }[] = [];
+    const allChildren = dirChildrenRef.current;
+    const expanded = expandedPathsRef.current || new Set<string>();
+    const visited = new Set<string>();
+
+    const collect = (parentPath: string) => {
+      const children = allChildren[parentPath];
+      if (!children) return;
+      children.forEach((child) => {
+        if (visited.has(child.path)) return;
+        visited.add(child.path);
+        result.push({ path: child.path, name: child.name, isFolder: child.isFolder });
+        if (child.isFolder && expanded.has(child.path)) {
+          collect(child.path);
+        }
+      });
+    };
+
+    // Collect from focus root path
+    if (focusRootPathRef.current) {
+      collect(focusRootPathRef.current);
+    }
+
+    return result;
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedItems(new Set());
+    lastClickedIndexRef.current = -1;
+  }, []);
+
+  const handleItemClick = useCallback(
+    (e: React.MouseEvent, childPath: string) => {
+      const isMulti = isMacPlatform ? e.metaKey : e.ctrlKey;
+      const isRange = e.shiftKey;
+
+      if (isMulti) {
+        setSelectedItems((prev) => {
+          const next = new Set(prev);
+          if (next.has(childPath)) {
+            next.delete(childPath);
+          } else {
+            next.add(childPath);
+          }
+          return next;
+        });
+        return true;
+      }
+
+      if (isRange) {
+        const flatItems = getFocusModeFlatItems();
+        const idx = flatItems.findIndex((item) => item.path === childPath);
+        const lastIdx = lastClickedIndexRef.current;
+
+        if (lastIdx >= 0 && idx >= 0 && lastIdx < flatItems.length) {
+          const start = Math.min(lastIdx, idx);
+          const end = Math.max(lastIdx, idx);
+          const range = new Set(flatItems.slice(start, end + 1).map((item) => item.path));
+          setSelectedItems(range);
+        }
+
+        return true;
+      }
+
+      clearSelection();
+      lastClickedIndexRef.current = getFocusModeFlatItems().findIndex((item) => item.path === childPath);
+      return false;
+    },
+    [isMacPlatform, getFocusModeFlatItems, clearSelection],
+  );
 
   const [isSearchMode, setIsSearchMode] = useState(false);
   const isSearchModeRef = useRef(false);
@@ -111,6 +192,7 @@ export default function RecentProjectsApp() {
   const [currentActiveMatch, setCurrentActiveMatch] = useState(0);
   const [searchRefreshVersion, setSearchRefreshVersion] = useState(0);
   const silentSearchRefreshRef = useRef(false);
+  const pendingSilentResultsRef = useRef<{ results: SearchResult[]; fileNameResults: DirChild[] }>({ results: [], fileNameResults: [] });
   const lastSubmittedSearchKeyRef = useRef('');
   const pendingSearchResponseModeRef = useRef<'normal' | 'silent'>('normal');
   const latestSearchRequestIdRef = useRef(0);
@@ -1387,6 +1469,19 @@ export default function RecentProjectsApp() {
           setFolderSearchError(msg.error as string);
           setFolderSearchResults([]);
           setFolderSearchTotalMatches(0);
+          pendingSilentResultsRef.current.results = [];
+        } else if (responseMode === 'silent') {
+          setFolderSearchError('');
+          if (isDone) {
+            const accumulated = [...pendingSilentResultsRef.current.results, ...incomingResults];
+            setFolderSearchResults(accumulated);
+            setFolderSearchTotalMatches(Number((msg as any).totalMatches) || 0);
+            pendingSilentResultsRef.current.results = [];
+            pendingSearchResponseModeRef.current = 'normal';
+            setIsSearchingFolder(false);
+          } else {
+            pendingSilentResultsRef.current.results = [...pendingSilentResultsRef.current.results, ...incomingResults];
+          }
         } else {
           setFolderSearchError('');
           setFolderSearchResults((prev) => {
@@ -1402,7 +1497,7 @@ export default function RecentProjectsApp() {
           }
         }
 
-        if (isDone) {
+        if (isDone && responseMode !== 'silent') {
           pendingSearchResponseModeRef.current = 'normal';
           setIsSearchingFolder(false);
         }
@@ -1411,6 +1506,7 @@ export default function RecentProjectsApp() {
           return;
         }
 
+        const responseMode = pendingSearchResponseModeRef.current;
         const isDone = msg.done !== false;
         const shouldReset = Boolean(msg.reset);
         const shouldAppend = Boolean(msg.append);
@@ -1423,6 +1519,19 @@ export default function RecentProjectsApp() {
         if (msg.error) {
           setFolderSearchError(msg.error as string);
           setFileNameSearchResults([]);
+          pendingSilentResultsRef.current.fileNameResults = [];
+        } else if (responseMode === 'silent') {
+          setFolderSearchTotalMatches(0);
+          setFolderSearchError('');
+          if (isDone) {
+            const accumulated = [...pendingSilentResultsRef.current.fileNameResults, ...incomingResults];
+            setFileNameSearchResults(accumulated);
+            pendingSilentResultsRef.current.fileNameResults = [];
+            pendingSearchResponseModeRef.current = 'normal';
+            setIsSearchingFolder(false);
+          } else {
+            pendingSilentResultsRef.current.fileNameResults = [...pendingSilentResultsRef.current.fileNameResults, ...incomingResults];
+          }
         } else {
           setFolderSearchTotalMatches(0);
           setFolderSearchError('');
@@ -1434,7 +1543,7 @@ export default function RecentProjectsApp() {
           });
         }
 
-        if (isDone) {
+        if (isDone && responseMode !== 'silent') {
           pendingSearchResponseModeRef.current = 'normal';
           setIsSearchingFolder(false);
         }
@@ -1509,6 +1618,32 @@ export default function RecentProjectsApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (selectedItemsRef.current.size === 0) return;
+      const target = e.target as HTMLElement;
+      // Don't clear if clicking on a tree item or context menu
+      if (target.closest('[data-tree-path]') || target.closest('[data-base-context-menu-root]')) return;
+
+      const firstPath = Array.from(selectedItemsRef.current)[0];
+      const flatItems = getFocusModeFlatItems();
+      const firstItem = flatItems.find((item) => item.path === firstPath);
+      setSelectedItems(new Set());
+      lastClickedIndexRef.current = -1;
+      if (firstItem) {
+        setSelectedPath(firstItem.path);
+        if (firstItem.isFolder) {
+          setExpandedPaths((prev) => new Set(prev).add(firstItem.path));
+        } else {
+          vscode.postMessage({ type: 'openFile', filePath: firstItem.path });
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [getFocusModeFlatItems]);
+
   const findTreeNodeElement = (targetPath: string): HTMLElement | null => {
     const safeId = `tree-node-${encodeURIComponent(targetPath)}`;
     const exactElement = document.getElementById(safeId);
@@ -1551,6 +1686,21 @@ export default function RecentProjectsApp() {
   };
 
   const scrollElementIntoVisibleArea = (element: HTMLElement) => {
+    const scrollableEl = getNearestScrollableElement(element);
+
+    if (scrollableEl) {
+      const containerRect = scrollableEl.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const isFullyVisible =
+        elementRect.top >= containerRect.top &&
+        elementRect.bottom <= containerRect.bottom;
+
+      if (isFullyVisible) {
+        autoScrollTarget.current = null;
+        return;
+      }
+    }
+
     element.scrollIntoView({
       behavior: 'auto',
       block: 'center',
@@ -2320,12 +2470,16 @@ export default function RecentProjectsApp() {
 
     setSelectedPath(payload.path);
 
+    const selItems = selectedItemsRef.current;
+    const multiSelected = selItems.size > 1 && selItems.has(payload.path) ? getFocusModeFlatItems().filter((item) => selItems.has(item.path)) : undefined;
+
     setContextMenu({
       visible: true,
       x: e.clientX,
       y: e.clientY,
       type,
       payload,
+      selectedItems: multiSelected,
     });
   };
 
@@ -2795,7 +2949,7 @@ export default function RecentProjectsApp() {
                   id={elementId}
                   data-tree-path={childPath}
                   className={`${styles['sub-item']} ${styles['clickable-sub']} ${
-                    selectedPath === childPath ? styles['selected'] : ''
+                    selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
                   } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
                   draggable={canDragEntity(childPath, isActiveProject)}
                   onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
@@ -2803,7 +2957,10 @@ export default function RecentProjectsApp() {
                   onDragOver={(e) => handleDragOverFolder(e, childPath, isActiveProject)}
                   onDragLeave={(e) => handleDragLeaveFolder(e, childPath)}
                   onDrop={(e) => handleDropOnFolder(e, childPath, isActiveProject)}
-                  onClick={(e) => handleToggleExpand(childPath, projectName, isRemote, e)}
+                  onClick={(e) => {
+                    if (isFocusMode && handleItemClick(e, childPath)) return;
+                    handleToggleExpand(childPath, projectName, isRemote, e);
+                  }}
                   onContextMenu={(e) =>
                     handleContextMenu(e, 'sub', {
                       path: childPath,
@@ -2865,12 +3022,15 @@ export default function RecentProjectsApp() {
                 id={elementId}
                 data-tree-path={childPath}
                 className={`${styles['sub-item']} ${
-                  selectedPath === childPath ? styles['selected'] : ''
+                  selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
                 } ${styles['search-name-sub-item-clickable']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''}`}
                 draggable={canDragEntity(childPath, isActiveProject)}
                 onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
                 onDragEnd={handleDragEnd}
-                onClick={(e) => handleOpenFile(childPath, projectName, isActiveProject, e)}
+                onClick={(e) => {
+                  if (isFocusMode && handleItemClick(e, childPath)) return;
+                  handleOpenFile(childPath, projectName, isActiveProject, e);
+                }}
                 onContextMenu={(e) =>
                   handleContextMenu(e, 'sub', {
                     path: childPath,
@@ -2917,13 +3077,16 @@ export default function RecentProjectsApp() {
   }
 
   return (
-    <div className={styles['app-wrapper']}>
+    <div
+      className={styles['app-wrapper']}
+    >
       <RecentProjectContextMenu
         visible={contextMenu.visible}
         x={contextMenu.x}
         y={contextMenu.y}
         type={contextMenu.type}
         payload={contextMenu.payload}
+        selectedItems={contextMenu.selectedItems}
         onClose={() => {
           setContextMenu((current) => ({
             ...current,

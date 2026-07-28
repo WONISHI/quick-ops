@@ -839,7 +839,10 @@ const GitGraph: React.FC<GitGraphProps> = ({
                       onClick={() => handleItemClick(c.hash)}
                       onMouseEnter={(e) => handleMouseEnter(e, c)}
                       onMouseLeave={handleMouseLeave}
-                      onContextMenu={(e) => onCommitContextMenu(e, c)}
+                      onContextMenu={(e) => {
+                        onCommitClick(c.hash);
+                        onCommitContextMenu(e, c);
+                      }}
                     >
                       <div className={styles['graph-lane-spacer']} style={{ '--graph-lane-spacer-width': `${paddingWidth}px` } as React.CSSProperties} />
 
