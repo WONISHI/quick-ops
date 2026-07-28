@@ -175,3 +175,16 @@ export interface ApiFormDataPayloadItem {
   mimeType?: string;
   fileData?: string;
 }
+export type DetailSource = 'response' | 'request';
+
+export interface RequestDetailPayload {
+  method: HttpMethod;
+  url: string;
+  headers: Record<string, string>;
+  body?: string;
+  timeout: number;
+}
+
+export interface ApiResponseMessagePayload extends ApiResponsePayload {
+  request?: RequestDetailPayload;
+}

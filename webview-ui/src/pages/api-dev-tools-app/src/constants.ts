@@ -33,3 +33,8 @@ export const RIGHT_PANE_DEFAULT_WIDTH = 480;
 export const RIGHT_PANE_MIN_WIDTH = 280;
 export const RIGHT_PANE_MAX_WIDTH = 900;
 export const RIGHT_RESIZER_SIZE = 6;
+export const REQUEST_DETAIL_TABS: Array<{ key: ResponseTab; label: string }> = [
+  { key: 'body', label: '参数' },
+  { key: 'headers', label: 'Headers' },
+  { key: 'raw', label: 'cURL' },
+];
