@@ -298,7 +298,7 @@ vscode.languages.registerCodeLensProvider(...)
 注册后，VS Code 会在需要展示 CodeLens 时调用：
 
 ```ts
-provideCodeLenses(document)
+provideCodeLenses(document);
 ```
 
 注意：
