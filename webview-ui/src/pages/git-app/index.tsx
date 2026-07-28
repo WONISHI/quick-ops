@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Scrollbar from '@components/Scrollbar';
 import styles from '@pages/git-app/index.module.css';
 import Tooltip from '@components/Tooltip';
 import GitGraph from '@/pages/git-app/components/git-graph';
@@ -983,7 +984,7 @@ export default function GitApp() {
         </button>
       </div>
 
-      <div className={`${styles['changes-scroll-area']} ${styles['changes-scroll-area-expanded']}`}>
+      <Scrollbar className={`${styles['changes-scroll-area']} ${styles['changes-scroll-area-expanded']}`}>
         <div className={getChangesSectionClassName(isChangesOpen)}>
           <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsChangesOpen(!isChangesOpen)}>
             <div className={styles['header-title-row']}>
@@ -1034,7 +1035,7 @@ export default function GitApp() {
           </div>
 
           {isChangesOpen && (
-            <div className={styles['changes-content']}>
+            <Scrollbar viewClassName={styles['changes-content']}>
               {stagedFiles.length > 0 && (
                 <div className={`${styles['changes-section']} ${styles['nested-section']}`}>
                   <div className={`${styles['changes-header']} ${styles['subsection-header']}`}>
@@ -1234,7 +1235,7 @@ export default function GitApp() {
               )}
 
               <LoadingMask visible={changesRefreshing} />
-            </div>
+            </Scrollbar>
           )}
         </div>
 
@@ -1515,7 +1516,7 @@ export default function GitApp() {
             </div>
           )}
         </div>
-      </div>
+      </Scrollbar>
 
       <div
         ref={graphSectionRef}
