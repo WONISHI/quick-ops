@@ -56,6 +56,10 @@ import {
   WORKSPACE_PANE_MIN_WIDTH,
   WORKSPACE_PANE_MAX_WIDTH,
   WORKSPACE_RESIZER_SIZE,
+  RIGHT_PANE_DEFAULT_WIDTH,
+  RIGHT_PANE_MIN_WIDTH,
+  RIGHT_PANE_MAX_WIDTH,
+  RIGHT_RESIZER_SIZE,
 } from '@/pages/api-dev-tools-app/src/constants';
 
 /**
@@ -622,12 +626,14 @@ export default function ApiDevToolsApp() {
   const [isResizingBottomPanel, setIsResizingBottomPanel] = useState(false);
   const [workspacePaneWidth, setWorkspacePaneWidth] = useState(WORKSPACE_PANE_DEFAULT_WIDTH);
   const [isResizingWorkspacePane, setIsResizingWorkspacePane] = useState(false);
+  const [rightPaneWidth, setRightPaneWidth] = useState(RIGHT_PANE_DEFAULT_WIDTH);
+  const [isResizingRightPane, setIsResizingRightPane] = useState(false);
   const [sharedDocUrl, setSharedDocUrl] = useState('');
   const [isShareSelecting, setIsShareSelecting] = useState(false);
   const [shareSelectedInterfaceIds, setShareSelectedInterfaceIds] = useState<string[]>([]);
   const [manageDialog, setManageDialog] = useState<ApiManageDialog>(null);
   const [manageDialogValue, setManageDialogValue] = useState('');
-  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
   const [leaveConfirmDialog, setLeaveConfirmDialog] = useState<LeaveConfirmDialog>(null);
 
   const pendingRequestIdRef = useRef('');
@@ -655,6 +661,10 @@ export default function ApiDevToolsApp() {
   const bottomResizerPointerIdRef = useRef<number | null>(null);
   const workspaceResizerRef = useRef<HTMLDivElement | null>(null);
   const workspaceResizerPointerIdRef = useRef<number | null>(null);
+  const rightPaneWidthRef = useRef(RIGHT_PANE_DEFAULT_WIDTH);
+  const isDraggingRightPaneRef = useRef(false);
+  const rightResizerRef = useRef<HTMLDivElement | null>(null);
+  const rightResizerPointerIdRef = useRef<number | null>(null);
   const loadedStateRef = useRef(false);
   const viewTitleActionRef = useRef<(action: ApiDevToolsViewTitleAction) => void>(() => undefined);
 
@@ -963,6 +973,29 @@ export default function ApiDevToolsApp() {
     document.body.style.userSelect = bodyUserSelectRef.current;
   }, []);
 
+  const stopRightResize = useCallback(() => {
+    isDraggingRightPaneRef.current = false;
+
+    const element = rightResizerRef.current;
+    const pointerId = rightResizerPointerIdRef.current;
+
+    if (element && pointerId !== null) {
+      try {
+        element.releasePointerCapture(pointerId);
+      } catch {
+        // ignore
+      }
+    }
+
+    rightResizerRef.current = null;
+    rightResizerPointerIdRef.current = null;
+
+    document.body.style.cursor = bodyCursorRef.current;
+    document.body.style.userSelect = bodyUserSelectRef.current;
+
+    setIsResizingRightPane(false);
+  }, []);
+
   /**
    * @description 处理项目面板拖拽开始事件
    */
@@ -990,6 +1023,32 @@ export default function ApiDevToolsApp() {
     }
 
     setIsResizingWorkspacePane(true);
+  }, []);
+
+  const handleRightResizerPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    dragStartXRef.current = event.clientX;
+    dragStartWidthRef.current = rightPaneWidthRef.current;
+    isDraggingRightPaneRef.current = true;
+
+    rightResizerRef.current = event.currentTarget;
+    rightResizerPointerIdRef.current = event.pointerId;
+
+    bodyCursorRef.current = document.body.style.cursor;
+    bodyUserSelectRef.current = document.body.style.userSelect;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // VS Code Webview pointer capture may fail
+    }
+
+    setIsResizingRightPane(true);
   }, []);
 
   /**
@@ -1057,6 +1116,61 @@ export default function ApiDevToolsApp() {
       document.documentElement.removeEventListener('mouseleave', handleMouseLeaveWebview);
     };
   }, [isResizingWorkspacePane, setSafeWorkspacePaneWidth, stopWorkspaceResize]);
+
+  /**
+   * @description 监听右侧面板拖拽事件
+   */
+  useEffect(() => {
+    if (!isResizingRightPane) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isDraggingRightPaneRef.current) return;
+
+      event.preventDefault();
+
+      const deltaX = dragStartXRef.current - event.clientX;
+      const nextWidth = clampNumber(dragStartWidthRef.current + deltaX, RIGHT_PANE_MIN_WIDTH, RIGHT_PANE_MAX_WIDTH);
+
+      rightPaneWidthRef.current = nextWidth;
+      setRightPaneWidth(nextWidth);
+    };
+
+    const handlePointerEnd = () => {
+      stopRightResize();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopRightResize();
+      }
+    };
+
+    const handleMouseLeaveWebview = () => {
+      stopRightResize();
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerEnd);
+    window.addEventListener('pointercancel', handlePointerEnd);
+    window.addEventListener('blur', handlePointerEnd);
+
+    document.addEventListener('pointerup', handlePointerEnd);
+    document.addEventListener('pointercancel', handlePointerEnd);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.documentElement.addEventListener('mouseleave', handleMouseLeaveWebview);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
+      window.removeEventListener('blur', handlePointerEnd);
+
+      document.removeEventListener('pointerup', handlePointerEnd);
+      document.removeEventListener('pointercancel', handlePointerEnd);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.documentElement.removeEventListener('mouseleave', handleMouseLeaveWebview);
+    };
+  }, [isResizingRightPane, stopRightResize]);
 
   /**
    * @description 同步当前项目标识引用
@@ -1463,7 +1577,7 @@ export default function ApiDevToolsApp() {
     setGlobals(nextGlobals);
     setHistory([]);
     setProjects([]);
-    setCollapsedGroupIds(new Set());
+    setExpandedGroupIds(new Set());
     setActiveProjectId('');
     setActiveInterfaceId('');
     setRequestDetail(null);
@@ -1909,7 +2023,7 @@ export default function ApiDevToolsApp() {
    * @description 展开或折叠接口分组
    */
   const toggleProjectGroup = (groupId: string) => {
-    setCollapsedGroupIds((current) => {
+    setExpandedGroupIds((current) => {
       const next = new Set(current);
 
       if (next.has(groupId)) {
@@ -2122,7 +2236,7 @@ export default function ApiDevToolsApp() {
 
       projectsRef.current = nextProjects;
       setProjects(nextProjects);
-      setCollapsedGroupIds((current) => {
+      setExpandedGroupIds((current) => {
         const next = new Set(current);
         next.delete(manageDialog.groupId);
         return next;
@@ -2171,7 +2285,7 @@ export default function ApiDevToolsApp() {
       setIsResponseSearchOpen(false);
       setResponse(null);
       setResponseTab('body');
-      setCollapsedGroupIds((current) => {
+      setExpandedGroupIds((current) => {
         const next = new Set(current);
         next.delete(manageDialog.groupId);
         return next;
@@ -2617,6 +2731,8 @@ export default function ApiDevToolsApp() {
           {
             '--api-workspace-width': `${workspacePaneWidth}px`,
             '--api-workspace-resizer-size': `${WORKSPACE_RESIZER_SIZE}px`,
+            '--api-right-pane-width': `${rightPaneWidth}px`,
+            '--api-right-resizer-size': `${RIGHT_RESIZER_SIZE}px`,
           } as React.CSSProperties
         }
       >
@@ -2683,7 +2799,7 @@ export default function ApiDevToolsApp() {
                   >
                     {groups.map((group) => {
                       const groupInterfaces = project.interfaces.filter((api) => api.groupId === group.id);
-                      const collapsed = collapsedGroupIds.has(group.id);
+                      const collapsed = !expandedGroupIds.has(group.id);
 
                       return (
                         <section className={styles['interface-group']} key={group.id}>
@@ -2958,6 +3074,12 @@ export default function ApiDevToolsApp() {
             )}
           </div>
         </section>
+
+        <div
+          className={[styles['right-resizer'], isResizingRightPane ? styles['right-resizer-active'] : ''].filter(Boolean).join(' ')}
+          title="拖拽调整响应面板宽度"
+          onPointerDown={handleRightResizerPointerDown}
+        />
 
         {/* 请求 / 响应详情 */}
         <section ref={rightPaneRef} className={styles['right-pane']}>
