@@ -13,7 +13,7 @@
 
 ## 1. 文件职责划分
 
-![Quick Ops 模块职责拆分](./docs/anchor-module-responsibility.png)
+![Quick Ops 模块职责拆分](./docs/anchor/anchor-module-responsibility.png)
 
 这张图里的五个抽屉对应当前模块的五层职责。线团代表混在一起的入口、业务、状态和 UI 逻辑，重构的目标就是把这些线拆回正确的位置。
 
@@ -183,7 +183,7 @@ mindmap
 
 ## 3. 从 `controller.ts` 开始的启动流程
 
-![AnchorModule 启动与加载流程](./docs/anchor-startup-load.png)
+![AnchorModule 启动与加载流程](./docs/anchor/anchor-startup-load.png)
 
 启动链路可以理解成小黑推着 `ExtensionContext` 依次经过 controller、service，最后从 `workspaceState` 里把历史锚点恢复出来。
 
@@ -442,7 +442,7 @@ quickOps.hasAnchorsInProject = false
 
 ## 4. 数据变更主流程
 
-![save 事件刷新链路](./docs/anchor-save-event-refresh.png)
+![save 事件刷新链路](./docs/anchor/anchor-save-event-refresh.png)
 
 `save()` 是整个模块的数据变化出口。它不是只做持久化，而是先刷新内存结构、立即派发事件，再把数据防抖写回 `workspaceState`。
 
@@ -517,7 +517,7 @@ flowchart TD
 
 ## 6. CodeLens 刷新流程
 
-![CodeLens 刷新与锚点同步](./docs/anchor-codelens-sync.png)
+![CodeLens 刷新与锚点同步](./docs/anchor/anchor-codelens-sync.png)
 
 CodeLens 的刷新不是业务方法手动去改 UI，而是 provider 收到锚点变化后通知 VS Code：这份文档的 CodeLens 需要重新计算。
 
