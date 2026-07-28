@@ -1828,7 +1828,23 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
    * - `modules/app` 命中 `src/modules/app.module.ts`；
    * - `src` 不会仅因为路径是 `src/app.module.ts` 就命中该文件。
    */
+  private tryCreateSearchRegex(query: string, global = false): RegExp | null {
+    try {
+      const trimmed = query.trim();
+      if (!trimmed) return null;
+      const flags = global ? 'gi' : 'i';
+      const regex = new RegExp(trimmed, flags);
+      return regex;
+    } catch {
+      return null;
+    }
+  }
+
   private isFileNameSearchMatched(name: string, relativePath: string, query: string): boolean {
+    const regex = this.tryCreateSearchRegex(query);
+    if (regex) {
+      return regex.test(name) || regex.test(relativePath);
+    }
     const normalizedQuery = query
       .trim()
       .replace(/\\/g, '/')
@@ -3705,6 +3721,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   private countOccurrences(text: string, query: string): number {
     if (!query) return 0;
+
+    const regex = this.tryCreateSearchRegex(query, true);
+    if (regex) {
+      const matches = text.match(regex);
+      return matches ? matches.length : 0;
+    }
 
     let count = 0;
     let fromIndex = 0;
