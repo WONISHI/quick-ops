@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { ConfigurationService } from '@common/services/configuration.service';
 import { DebugConsoleService } from '@modules/debug-console/debug-console.service';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class DebugConsoleController implements OnModuleInit {
   public static inject = [

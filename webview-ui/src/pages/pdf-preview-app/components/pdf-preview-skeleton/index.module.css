@@ -1,0 +1,70 @@
+/* ==================== PDF 骨架屏 ==================== */
+
+.pdf-skeleton {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.pdf-skeleton-page {
+  width: min(760px, calc(100% - 32px));
+  min-height: 980px;
+  margin: 16px;
+  padding: 72px 64px;
+  box-sizing: border-box;
+  background: #ffffff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.pdf-skeleton-content {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.pdf-skeleton-meta {
+  margin-top: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.pdf-skeleton-paragraph {
+  margin-top: 34px;
+  display: grid;
+  gap: 10px;
+}
+
+.pdf-skeleton-image {
+  margin-top: 36px;
+}
+
+.pdf-skeleton :global(.react-loading-skeleton) {
+  vertical-align: middle;
+}
+
+.document-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
+  .pdf-skeleton-page {
+    width: calc(100% - 16px);
+    min-height: calc(100vh - 72px);
+    margin: 8px;
+    padding: 46px 32px;
+  }
+}
+
+@media (max-width: 480px) {
+  .pdf-skeleton-page {
+    padding: 34px 22px;
+  }
+}

@@ -1,17 +1,7 @@
 import * as vscode from 'vscode';
 import { debounce } from 'lodash-es';
 import { ConfigurationService } from '@common/services/configuration.service';
-
-export interface MarkStyle {
-  backgroundColor: string;
-  color?: string;
-  fontWeight?: string;
-  borderRadius?: string;
-}
-
-type DecorationPair = {
-  text: vscode.TextEditorDecorationType;
-};
+import type { MarkStyle, DecorationPair } from '@modules/mark-decoration/mark-decoration.type';
 
 export class MarkDecorationService {
   public static inject = [ConfigurationService];
@@ -20,14 +10,7 @@ export class MarkDecorationService {
   private markRegex: RegExp | null = null;
   private marksConfigCache: Record<string, MarkStyle> = {};
 
-  private readonly commentPatterns: RegExp[] = [
-    /\/\/\s*$/,
-    /\/\*\s*$/,
-    /\*\s*$/,
-    /<!--\s*$/,
-    /#\s*$/,
-    /\{\/\*\s*$/,
-  ];
+  private readonly commentPatterns: RegExp[] = [/\/\/\s*$/, /\/\*\s*$/, /\*\s*$/, /<!--\s*$/, /#\s*$/, /\{\/\*\s*$/];
 
   private readonly debouncedUpdateDecorations = debounce(() => {
     this.triggerUpdateDecorations();
@@ -67,10 +50,7 @@ export class MarkDecorationService {
     this.debouncedUpdateDecorations();
   }
 
-  public provideMarkCompletions(
-    document: vscode.TextDocument,
-    position: vscode.Position,
-  ): vscode.CompletionItem[] | undefined {
+  public provideMarkCompletions(document: vscode.TextDocument, position: vscode.Position): vscode.CompletionItem[] | undefined {
     const lineText = document.lineAt(position).text;
     const prefix = lineText.substring(0, position.character);
     const atIndex = prefix.lastIndexOf('@');
@@ -81,14 +61,9 @@ export class MarkDecorationService {
 
     if (!this.isValidCommentStart(beforeAt)) return undefined;
 
-    const replaceRange = new vscode.Range(
-      position.line,
-      atIndex,
-      position.line,
-      position.character,
-    );
+    const replaceRange = new vscode.Range(position.line, atIndex, position.line, position.character);
 
-    return Object.keys(this.marksConfigCache).map(markText => {
+    return Object.keys(this.marksConfigCache).map((markText) => {
       const item = new vscode.CompletionItem(
         {
           label: markText,
@@ -137,12 +112,7 @@ export class MarkDecorationService {
 
       if (!this.isValidCommentStart(beforeMatch)) continue;
 
-      rangesMap[markKey].push(
-        new vscode.Range(
-          startPos,
-          document.positionAt(match.index + matchedText.length),
-        ),
-      );
+      rangesMap[markKey].push(new vscode.Range(startPos, document.positionAt(match.index + matchedText.length)));
     }
 
     for (const [markText, decos] of this.decorationTypes.entries()) {
@@ -160,9 +130,9 @@ export class MarkDecorationService {
 
     this.markRegex = new RegExp(
       keys
-        .map(key => this.escapeRegExp(key))
+        .map((key) => this.escapeRegExp(key))
         .sort((a, b) => b.length - a.length)
-        .map(key => `${key}:`)
+        .map((key) => `${key}:`)
         .join('|'),
       'g',
     );
@@ -171,19 +141,11 @@ export class MarkDecorationService {
   private isValidCommentStart(text: string): boolean {
     const trimmed = text.trimEnd();
 
-    if (this.commentPatterns.some(pattern => pattern.test(trimmed))) {
+    if (this.commentPatterns.some((pattern) => pattern.test(trimmed))) {
       return true;
     }
 
-    return (
-      Math.max(
-        trimmed.lastIndexOf('//'),
-        trimmed.lastIndexOf('/*'),
-        trimmed.lastIndexOf('{/*'),
-        trimmed.lastIndexOf('<!--'),
-        trimmed.lastIndexOf('#'),
-      ) !== -1
-    );
+    return Math.max(trimmed.lastIndexOf('//'), trimmed.lastIndexOf('/*'), trimmed.lastIndexOf('{/*'), trimmed.lastIndexOf('<!--'), trimmed.lastIndexOf('#')) !== -1;
   }
 
   private escapeRegExp(text: string): string {

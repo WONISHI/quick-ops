@@ -1,8 +1,6 @@
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
-
 import 'react-loading-skeleton/dist/skeleton.css';
-
-import styles from './index.module.css';
+import styles from '@pages/api-dev-tools-app/components/api-dev-tools-skeleton/index.module.css';
 
 import type { ApiDevToolsSkeletonProps } from '@pages/api-dev-tools-app/components/api-dev-tools-skeleton/src/type';
 

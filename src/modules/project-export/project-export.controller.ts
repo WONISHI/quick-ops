@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { ProjectExportService } from '@modules/project-export/project-export.service';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class ProjectExportController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, ProjectExportService];

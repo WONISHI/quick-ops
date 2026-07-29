@@ -1,10 +1,9 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { LivePreviewService } from '@modules/live-preview/live-preview.service';
 import { LivePreviewProvider } from '@modules/live-preview/providers/live-preview.provider';
 import { DevToolsWebviewProvider } from '@modules/live-preview/providers/dev-tools-webview.provider';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class LivePreviewController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, LivePreviewService, LivePreviewProvider, DevToolsWebviewProvider];

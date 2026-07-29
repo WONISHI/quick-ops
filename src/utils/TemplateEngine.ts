@@ -1,4 +1,4 @@
-import type { IWorkspaceContext } from '@core/types/work-space';
+import type { IWorkspaceContext } from '@common/types/common.service.type';
 import type { RenderStatus, TemplateResult } from '@core/types/package-script';
 import { isObject } from 'lodash-es';
 

@@ -2,9 +2,9 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as YAML from 'yaml';
-import { nanoid } from 'nanoid';
 import WebviewWorkflow from '@/workflow/webview';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
+import { nanoid } from 'nanoid';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { ConfigurationService } from '@common/services/configuration.service';
 import type {

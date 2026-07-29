@@ -217,9 +217,7 @@ export class ExtensionContextProvider {
    * - vscode.workspace.getWorkspaceFolder(uri) 可以判断文件真正属于哪个工作区
    * - 如果判断不到，则回退到第一个工作区
    */
-  public getWorkspaceFolderByUri(
-    uri: vscode.Uri,
-  ): vscode.WorkspaceFolder | undefined {
+  public getWorkspaceFolderByUri(uri: vscode.Uri): vscode.WorkspaceFolder | undefined {
     return vscode.workspace.getWorkspaceFolder(uri) || this.workspaceFolder;
   }
 
@@ -307,9 +305,7 @@ export class ExtensionContextProvider {
   /**
    * @description 打开工作区内的文本文件
    */
-  public async openWorkspaceTextDocument(
-    filePath: string,
-  ): Promise<vscode.TextDocument | undefined> {
+  public async openWorkspaceTextDocument(filePath: string): Promise<vscode.TextDocument | undefined> {
     const uri = this.getWorkspaceFileUri(filePath);
 
     if (!uri) return undefined;
@@ -325,11 +321,7 @@ export class ExtensionContextProvider {
    * - vscode.Position 的行号从 0 开始
    * - 所以这里会做 uiLine - 1
    */
-  public async openWorkspaceTextDocumentAtLine(
-    filePath: string,
-    uiLine: number,
-    options: OpenWorkspaceTextDocumentAtLineOptions = {},
-  ): Promise<vscode.TextEditor | undefined> {
+  public async openWorkspaceTextDocumentAtLine(filePath: string, uiLine: number, options: OpenWorkspaceTextDocumentAtLineOptions = {}): Promise<vscode.TextEditor | undefined> {
     const document = await this.openWorkspaceTextDocument(filePath);
 
     if (!document) return undefined;
@@ -345,10 +337,7 @@ export class ExtensionContextProvider {
     const range = new vscode.Range(position, position);
 
     editor.selection = new vscode.Selection(position, position);
-    editor.revealRange(
-      range,
-      options.revealType ?? vscode.TextEditorRevealType.InCenter,
-    );
+    editor.revealRange(range, options.revealType ?? vscode.TextEditorRevealType.InCenter);
 
     return editor;
   }

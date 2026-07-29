@@ -1,148 +1,24 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Vditor from 'vditor';
 import 'vditor/dist/index.css';
-import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { vscode } from '@utils/vscode';
-import styles from './index.module.css';
+import styles from '@pages/vditor-app/index.module.css';
 import { parseFileUriInfo } from '@utils/index';
-
-import { setupPlugins } from './plugins/setupPlugins';
-import VditorMeta from './plugins/vditor-meta';
-import VditorCompat from './plugins/vditor-compat';
-
-interface VditorAppProps {
-  /**
-   * true：作为独立路由页面使用
-   * false：作为其它页面里的组件使用
-   */
-  pageMode?: boolean;
-}
-
-interface VditorSkeletonProps {
-  /**
-   * @description 是否为只读预览模式
-   */
-  readMode: boolean;
-}
-
-/**
- * @description Markdown 阅读器与编辑器加载骨架屏
- */
-function VditorSkeleton({ readMode }: VditorSkeletonProps) {
-  const lineWidths = ['92%', '84%', '96%', '72%', '88%', '64%', '90%', '76%'];
-
-  return (
-    <SkeletonTheme
-      baseColor="var(--vscode-list-inactiveSelectionBackground, rgba(127, 127, 127, 0.12))"
-      highlightColor="var(--vscode-list-hoverBackground, rgba(127, 127, 127, 0.2))"
-      borderRadius={4}
-      duration={1.35}
-    >
-      <div className={styles['vditor-skeleton']}>
-        {!readMode && (
-          <div className={styles['vditor-skeleton-toolbar']}>
-            {Array.from({ length: 12 }).map((_, index) => (
-              <Skeleton key={index} width={22} height={22} />
-            ))}
-          </div>
-        )}
-
-        <div className={styles['vditor-skeleton-body']}>
-          <Skeleton width="46%" height={28} />
-
-          <div className={styles['vditor-skeleton-meta']}>
-            <Skeleton width="28%" height={11} />
-            <Skeleton width="18%" height={11} />
-          </div>
-
-          <div className={styles['vditor-skeleton-paragraph']}>
-            {lineWidths.slice(0, 4).map((width, index) => (
-              <Skeleton key={index} width={width} height={12} />
-            ))}
-          </div>
-
-          <Skeleton className={styles['vditor-skeleton-heading']} width="34%" height={20} />
-
-          <div className={styles['vditor-skeleton-paragraph']}>
-            {lineWidths.slice(4).map((width, index) => (
-              <Skeleton key={index} width={width} height={12} />
-            ))}
-          </div>
-
-          <div className={styles['vditor-skeleton-code']}>
-            {Array.from({ length: 5 }).map((_, index) => (
-              <Skeleton key={index} width={`${88 - index * 8}%`} height={11} />
-            ))}
-          </div>
-
-          <div className={styles['vditor-skeleton-table']}>
-            {Array.from({ length: 12 }).map((_, index) => (
-              <Skeleton key={index} width="100%" height={28} borderRadius={0} />
-            ))}
-          </div>
-        </div>
-      </div>
-    </SkeletonTheme>
-  );
-}
-
-type MetaValueType = 'link' | 'tag' | 'boolean' | 'date' | 'text' | 'empty';
-
-type MetaRole = 'link' | 'copy' | 'icon';
-
-type MetaDomEventName = keyof HTMLElementEventMap | string;
-
-interface MetaActionContext {
-  event: Event;
-  element: HTMLElement;
-  key: string;
-  value: string;
-  type: MetaValueType;
-  role: MetaRole;
-  iconType?: string;
-}
-
-interface MetaActionTools {
-  postMessage: (message: any) => void;
-  copy: (text: string) => Promise<void>;
-  openExternal: (url: string) => Promise<void>;
-  toast: (message: string) => void;
-  emit: (eventName: string, payload?: any) => void;
-}
-
-interface MetaActionTrigger {
-  on: MetaDomEventName;
-  when?: (ctx: MetaActionContext) => boolean;
-  preventDefault?: boolean | ((ctx: MetaActionContext) => boolean);
-  stopPropagation?: boolean | ((ctx: MetaActionContext) => boolean);
-  stopImmediatePropagation?: boolean | ((ctx: MetaActionContext) => boolean);
-  run?: (ctx: MetaActionContext, tools: MetaActionTools) => void | Promise<void>;
-  command?: string;
-  payload?: Record<string, string>;
-}
-
-interface MetaActionNodeConfig {
-  enabled?: boolean;
-  triggers?: MetaActionTrigger[];
-}
-
-interface MetaCopyActionConfig extends MetaActionNodeConfig {
-  visible?: 'hover' | 'always' | 'never';
-  title?: string;
-}
-
-interface MetaIconActionConfig {
-  enabled?: boolean;
-  default?: MetaActionNodeConfig;
-  byType?: Partial<Record<MetaValueType, MetaActionNodeConfig>>;
-}
-
-interface VditorMetaActionConfig {
-  link?: MetaActionNodeConfig;
-  copy?: MetaCopyActionConfig;
-  icon?: MetaIconActionConfig;
-}
+import { setupPlugins } from '@pages/vditor-app/plugins/setupPlugins';
+import VditorSkeleton from '@pages/vditor-app/components/vditor-skeleton';
+import VditorMeta from '@pages/vditor-app/plugins/vditor-meta';
+import VditorCompat from '@pages/vditor-app/plugins/vditor-compat';
+import type {
+  VditorAppProps,
+  MetaValueType,
+  MetaActionContext,
+  MetaActionTools,
+  VditorMetaActionConfig,
+  MetaActionNodeConfig,
+  MetaCopyActionConfig,
+  MetaRole,
+} from '@pages/vditor-app/src/type';
 
 function collectTriggerEventNames(action: VditorMetaActionConfig): string[] {
   const eventNames = new Set<string>();
