@@ -701,6 +701,10 @@ body {
 }
 
 .push-needed {
+  color: var(--vscode-list-warningForeground) !important;
+}
+
+.push-without-upstream {
   color: var(--vscode-textLink-foreground, #3794ff) !important;
 }
 
@@ -730,7 +734,7 @@ body {
   height: 14px;
   padding: 0 4px;
   border-radius: 999px;
-  background: var(--vscode-textLink-foreground, #3794ff);
+  background: var(--vscode-list-warningForeground);
   color: var(--vscode-editor-background);
   font-size: 9px;
   line-height: 14px;
@@ -738,6 +742,10 @@ body {
   text-align: center;
   box-sizing: border-box;
   pointer-events: none;
+}
+
+.push-badge-without-upstream {
+  background: var(--vscode-textLink-foreground, #3794ff);
 }
 
 .graph-content {

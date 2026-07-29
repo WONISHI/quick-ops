@@ -881,6 +881,7 @@ export default function GitApp() {
   };
 
   const hasUnpushedCommit = remoteSync.needsPush && remoteSync.ahead > 0;
+  const isPushWithoutUpstream = remoteSync.needsPush && remoteSync.hasRemote && !remoteSync.hasUpstream;
   const canUndoLastCommit = justCommitted || hasUnpushedCommit;
 
   if (initialLoading || isGitInstalled === null) {
@@ -956,10 +957,19 @@ export default function GitApp() {
               </Tooltip>
 
               <Tooltip content={getPushTooltip()}>
-                <button className={`${styles['icon-btn']} ${remoteSync.needsPush ? styles['push-needed'] : ''}`} onClick={() => vscode.postMessage({ command: 'push' })}>
+                <button
+                  className={[styles['icon-btn'], remoteSync.needsPush ? styles['push-needed'] : '', isPushWithoutUpstream ? styles['push-without-upstream'] : '']
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={() => vscode.postMessage({ command: 'push' })}
+                >
                   <i className="codicon codicon-repo-push" />
 
-                  {remoteSync.needsPush && <span className={styles['push-badge']}>{remoteSync.ahead > 99 ? '99+' : remoteSync.ahead}</span>}
+                  {remoteSync.needsPush && (
+                    <span className={[styles['push-badge'], isPushWithoutUpstream ? styles['push-badge-without-upstream'] : ''].filter(Boolean).join(' ')}>
+                      {remoteSync.ahead > 99 ? '99+' : remoteSync.ahead}
+                    </span>
+                  )}
                 </button>
               </Tooltip>
 
