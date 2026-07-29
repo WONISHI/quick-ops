@@ -580,7 +580,6 @@ function renderRefText(ref: string) {
   );
 }
 
-
 export default function GitCommitDetailApp() {
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
   const [displayCount, setDisplayCount] = useState(100);
@@ -621,8 +620,6 @@ export default function GitCommitDetailApp() {
   const handleCommitContextMenu = (e: React.MouseEvent, commit: GraphCommit) => {
     e.preventDefault();
     e.stopPropagation();
-    setActiveCommitHash(commit.hash);
-    requestCommitFiles(commit.hash);
     setCommitContextMenu({
       visible: true,
       x: e.clientX,
@@ -630,7 +627,6 @@ export default function GitCommitDetailApp() {
       commit,
     });
   };
-
 
   const [expandedCommitDirs, setExpandedCommitDirs] = useState<Record<string, boolean>>({});
 
@@ -1485,11 +1481,7 @@ export default function GitCommitDetailApp() {
         )}
       </div>
 
-      <GitDetailContextMenu
-        contextMenu={commitContextMenu}
-        remoteUrl={remoteUrl}
-        onClose={() => setCommitContextMenu(null)}
-      />
+      <GitDetailContextMenu contextMenu={commitContextMenu} remoteUrl={remoteUrl} onClose={() => setCommitContextMenu(null)} />
     </div>
   );
 }
