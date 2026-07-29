@@ -1417,7 +1417,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     let gitContext: GitMetadataContext | undefined;
 
     /**
-     * 专注模式需要依赖 Git 状态过滤，因此仍需等待元数据。
+     * 专注模式需要展示当前项目树，同时带上 Git 状态。
      * 普通目录展开不在这里读取 Git，避免阻塞首屏结果。
      */
     if (focusOnly && uri.scheme === 'file') {
@@ -1442,17 +1442,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         } as RecentProjectFileItem;
       });
 
-    const result = children
-      .filter((child) => {
-        return !focusOnly || Boolean(child.status);
-      })
-      .sort((a, b) => {
-        if (a.isFolder !== b.isFolder) {
-          return a.isFolder ? -1 : 1;
-        }
+    const result = children.sort((a, b) => {
+      if (a.isFolder !== b.isFolder) {
+        return a.isFolder ? -1 : 1;
+      }
 
-        return a.name.localeCompare(b.name);
-      });
+      return a.name.localeCompare(b.name);
+    });
 
     this.loadedDirChildren.set(uriStr, result);
     this.directoryCache.set(cacheKey, {
@@ -3500,9 +3496,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       editor.selection = new vscode.Selection(position, position);
 
-      const isVisible = editor.visibleRanges.some(
-        (range) => range.start.line <= position.line && position.line <= range.end.line,
-      );
+      const isVisible = editor.visibleRanges.some((range) => range.start.line <= position.line && position.line <= range.end.line);
 
       if (!isVisible) {
         editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
