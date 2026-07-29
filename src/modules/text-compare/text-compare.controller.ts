@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { TextCompareService } from '@modules/text-compare/text-compare.service';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class TextCompareController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, TextCompareService];

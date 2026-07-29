@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { SnippetGeneratorService } from '@modules/snippet-generator/snippet-generator.service';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class SnippetGeneratorController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, SnippetGeneratorService];

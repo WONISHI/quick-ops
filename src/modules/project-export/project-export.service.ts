@@ -4,8 +4,7 @@ import { TextDecoder } from 'util';
 import { ConfigurationService } from '@common/services/configuration.service';
 import { EditorContextService } from '@common/services/editor-context.service';
 import { AstParser } from '@utils/AstParser';
-
-import type { ExportState, ParseResult } from '@core/types/export';
+import type { ExportState, ParseResult } from '@common/types/common.service.type';
 
 export class ProjectExportService {
   public static inject = [ConfigurationService, EditorContextService];

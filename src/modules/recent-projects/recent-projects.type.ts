@@ -115,3 +115,9 @@ export interface RecentProjectsWebviewMessage {
 
   [key: string]: any;
 }
+
+export interface RemoteProjectInfo {
+  platform: RecentProjectPlatform;
+  domain: string;
+  repoFullName: string;
+}
