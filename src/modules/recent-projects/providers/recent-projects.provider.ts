@@ -18,18 +18,11 @@ import type {
   RecentProjectItem,
   RecentProjectsWebviewMessage,
   WebviewRequestId,
+  GitMetadataContext,
+  RecentProjectQuickPickItem,
 } from '@modules/recent-projects/recent-projects.type';
 
 const execFileAsync = promisify(execFile);
-
-type GitMetadataContext = {
-  gitRoot: string;
-  statusMap: Map<string, GitFileStatus>;
-};
-
-type RecentProjectQuickPickItem = vscode.QuickPickItem & {
-  project: RecentProjectItem;
-};
 
 export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   public static inject = [ExtensionContextProvider, RecentProjectsService, GitVirtualContentProvider];
