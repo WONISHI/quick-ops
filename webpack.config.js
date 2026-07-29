@@ -94,6 +94,7 @@ module.exports = (_env, argv = {}) => {
     externals: {
       vscode: 'commonjs vscode',
       bufferutil: 'bufferutil',
+      '@commitlint/config-conventional': '@commitlint/config-conventional',
       'utf-8-validate': 'utf-8-validate',
     },
 
