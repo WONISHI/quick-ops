@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-
 import WebviewWorkflow from '@/workflow/webview';
 import MarkdownWorkflow from '@/workflow/markdown';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';

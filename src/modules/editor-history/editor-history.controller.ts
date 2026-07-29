@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { EditorHistoryService } from '@modules/editor-history/editor-history.service';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class EditorHistoryController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, EditorHistoryService];
