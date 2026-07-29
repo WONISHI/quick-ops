@@ -1,4 +1,4 @@
-import type { CommonCommandItem } from '@modules/debug-console/src/type';
+import type { CommonCommandItem } from '@/modules/debug-console/debug-console.type';
 
 export const COMMON_COMMANDS: CommonCommandItem[] = [
   {

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { ConfigurationService } from '@common/services/configuration.service';
 import { COMMON_COMMANDS } from '@modules/debug-console/constants/debug-console.constant';
-import type { ConsoleType } from '@modules/debug-console/src/type';
+import type { ConsoleType } from '@/modules/debug-console/debug-console.type';
 
 export class DebugConsoleService {
   public static inject = [ConfigurationService];

@@ -1,7 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-import type { HistoryDirection } from '@modules/editor-history/src/type';
-import type { EditorHistoryLocation, EditorHistoryOptions, EditorHistoryRecord, SwitchPreviousEditorOptions } from '@modules/editor-history/editor-history.type';
+import type { EditorHistoryLocation, HistoryDirection, EditorHistoryOptions, EditorHistoryRecord, SwitchPreviousEditorOptions } from '@modules/editor-history/editor-history.type';
 
 export class EditorHistoryService {
   /**

@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { InlineConstantHintService } from '@modules/inline-constant-hint/inline-constant-hint.service';
 import { InlineConstantHintProvider } from '@modules/inline-constant-hint/providers/inline-constant-hint.provider';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class InlineConstantHintController implements OnModuleInit {
   public static inject = [

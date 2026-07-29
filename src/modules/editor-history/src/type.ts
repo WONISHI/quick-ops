@@ -1,1 +1,0 @@
-export type HistoryDirection = -1 | 1;

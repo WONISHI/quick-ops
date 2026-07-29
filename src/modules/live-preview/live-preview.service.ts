@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import type { BuiltinBookmark, FavoriteFolder, FavoriteImportResult, FavoriteItem, FavoriteMetaResult, LocalPreviewFileType } from '@modules/live-preview/live-preview.type';
 import { DEFAULT_FAVORITE_FOLDER_ID, DEFAULT_FAVORITE_FOLDERS, ROOT_FAVORITE_FOLDER_ID } from '@modules/live-preview/live-preview.type';
+import type { BuiltinBookmark, FavoriteFolder, FavoriteImportResult, FavoriteItem, FavoriteMetaResult, LocalPreviewFileType } from '@modules/live-preview/live-preview.type';
 
 export class LivePreviewService {
   public readonly globalFavoritesKey = 'quickOps.globalFavorites';
