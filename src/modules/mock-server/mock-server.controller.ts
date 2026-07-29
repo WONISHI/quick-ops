@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { ConfigurationService } from '@common/services/configuration.service';
 import { MockServerService } from '@modules/mock-server/mock-server.service';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class MockServerController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, ConfigurationService, MockServerService];
