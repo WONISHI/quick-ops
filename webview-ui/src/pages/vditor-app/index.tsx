@@ -4,27 +4,12 @@ import 'vditor/dist/index.css';
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import { vscode } from '@utils/vscode';
-import styles from './index.module.css';
+import styles from '@pages/vditor-app/index.module.css';
 import { parseFileUriInfo } from '@utils/index';
-
-import { setupPlugins } from './plugins/setupPlugins';
-import VditorMeta from './plugins/vditor-meta';
-import VditorCompat from './plugins/vditor-compat';
-
-interface VditorAppProps {
-  /**
-   * true：作为独立路由页面使用
-   * false：作为其它页面里的组件使用
-   */
-  pageMode?: boolean;
-}
-
-interface VditorSkeletonProps {
-  /**
-   * @description 是否为只读预览模式
-   */
-  readMode: boolean;
-}
+import { setupPlugins } from '@pages/vditor-app/plugins/setupPlugins';
+import VditorMeta from '@pages/vditor-app/plugins/vditor-meta';
+import VditorCompat from '@pages/vditor-app/plugins/vditor-compat';
+import type { VditorAppProps, VditorSkeletonProps } from '@pages/vditor-app/src/type';
 
 /**
  * @description Markdown 阅读器与编辑器加载骨架屏
