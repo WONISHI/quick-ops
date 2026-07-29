@@ -47,6 +47,14 @@ const isGitMergeCommitMessage = (value: string) => {
   return /^Merge (branch|remote-tracking branch) ['"][^'"]+['"]/i.test(value.replace(/\r\n/g, '\n').trim());
 };
 
+const isCommitHistoryMessageItem = (commit: GraphCommit) => {
+  if (commit.type === 'uncommitted' || commit.type === 'stash') {
+    return false;
+  }
+
+  return !/^Uncommitted Changes\b/i.test(commit.message || '');
+};
+
 export default function GitApp() {
   const [isRepo, setIsRepo] = useState<boolean>(true);
   const [isGitInstalled, setIsGitInstalled] = useState<boolean | null>(null);
@@ -1010,7 +1018,9 @@ export default function GitApp() {
 
               if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'ArrowUp') {
                 e.preventDefault();
-                if (graphCommits.length === 0) return;
+                const commitHistoryCommits = graphCommits.filter(isCommitHistoryMessageItem);
+
+                if (commitHistoryCommits.length === 0) return;
 
                 if (commitHistoryIndexRef.current === -1) {
                   savedCommitMsgRef.current = commitMsg;
@@ -1018,10 +1028,10 @@ export default function GitApp() {
                   savedCommitTypeEnabledRef.current = commitTypeEnabled;
                   commitHistoryIndexRef.current = 0;
                 } else {
-                  commitHistoryIndexRef.current = Math.min(commitHistoryIndexRef.current + 1, graphCommits.length - 1);
+                  commitHistoryIndexRef.current = Math.min(commitHistoryIndexRef.current + 1, commitHistoryCommits.length - 1);
                 }
 
-                const commit = graphCommits[commitHistoryIndexRef.current];
+                const commit = commitHistoryCommits[commitHistoryIndexRef.current];
                 if (commit && commitInputRef.current) {
                   isNavigatingHistoryRef.current = true;
                   const parsed = commitTypeEnabled ? parseCommitTypeFromText(commit.message) : null;
@@ -1042,7 +1052,9 @@ export default function GitApp() {
 
               if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'ArrowDown') {
                 e.preventDefault();
-                if (graphCommits.length === 0) return;
+                const commitHistoryCommits = graphCommits.filter(isCommitHistoryMessageItem);
+
+                if (commitHistoryCommits.length === 0) return;
 
                 if (commitHistoryIndexRef.current <= 0) {
                   commitHistoryIndexRef.current = -1;
@@ -1060,7 +1072,7 @@ export default function GitApp() {
                   }, 0);
                 } else {
                   commitHistoryIndexRef.current--;
-                  const commit = graphCommits[commitHistoryIndexRef.current];
+                  const commit = commitHistoryCommits[commitHistoryIndexRef.current];
                   if (commit && commitInputRef.current) {
                     isNavigatingHistoryRef.current = true;
                     const parsed = commitTypeEnabled ? parseCommitTypeFromText(commit.message) : null;
