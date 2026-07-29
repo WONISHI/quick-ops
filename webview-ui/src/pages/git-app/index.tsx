@@ -266,15 +266,34 @@ export default function GitApp() {
 
   const canCommit = isRepo && !loading && !!getNormalizedCommitMessage() && stagedFiles.length > 0;
 
-  const setCommitInputValue = useCallback((value: string) => {
-    setCommitMsg(value);
-
-    requestAnimationFrame(() => {
-      if (commitInputRef.current) {
-        commitInputRef.current.innerText = value;
+  const disableCommitTypeForMergeMessage = useCallback(
+    (value: string) => {
+      if (!commitTypeEnabled || !isGitMergeCommitMessage(value)) {
+        return;
       }
-    });
-  }, []);
+
+      setCommitTypeEnabled(false);
+      vscode.postMessage({
+        command: 'toggleCommitTypeEnabled',
+        value: false,
+      });
+    },
+    [commitTypeEnabled],
+  );
+
+  const setCommitInputValue = useCallback(
+    (value: string) => {
+      disableCommitTypeForMergeMessage(value);
+      setCommitMsg(value);
+
+      requestAnimationFrame(() => {
+        if (commitInputRef.current) {
+          commitInputRef.current.innerText = value;
+        }
+      });
+    },
+    [disableCommitTypeForMergeMessage],
+  );
 
   const clearCommitDraft = useCallback(() => {
     setCommitMsg('');
@@ -558,18 +577,6 @@ export default function GitApp() {
   }, [isRepo, clearCommitDraft, restoreCommitDraft, restoreCommitMessageText]);
 
   useEffect(() => {
-    if (!commitTypeEnabled || !isGitMergeCommitMessage(commitMsg)) {
-      return;
-    }
-
-    setCommitTypeEnabled(false);
-    vscode.postMessage({
-      command: 'toggleCommitTypeEnabled',
-      value: false,
-    });
-  }, [commitMsg, commitTypeEnabled]);
-
-  useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (selectedFiles.size === 0) return;
       const target = e.target as HTMLElement;
@@ -606,6 +613,7 @@ export default function GitApp() {
       return;
     }
 
+    disableCommitTypeForMergeMessage(value);
     setCommitMsg(value);
   };
 
