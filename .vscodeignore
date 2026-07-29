@@ -28,6 +28,7 @@ pnpm-lock.yaml
 .turbo/**
 dist/*.map  
 dist/*.txt
+docs/**
 dist/bundle-report.html
 **/*.tsbuildinfo
 PERFORMANCE.md

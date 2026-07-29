@@ -1828,7 +1828,23 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
    * - `modules/app` 命中 `src/modules/app.module.ts`；
    * - `src` 不会仅因为路径是 `src/app.module.ts` 就命中该文件。
    */
+  private tryCreateSearchRegex(query: string, global = false): RegExp | null {
+    try {
+      const trimmed = query.trim();
+      if (!trimmed) return null;
+      const flags = global ? 'gi' : 'i';
+      const regex = new RegExp(trimmed, flags);
+      return regex;
+    } catch {
+      return null;
+    }
+  }
+
   private isFileNameSearchMatched(name: string, relativePath: string, query: string): boolean {
+    const regex = this.tryCreateSearchRegex(query);
+    if (regex) {
+      return regex.test(name) || regex.test(relativePath);
+    }
     const normalizedQuery = query
       .trim()
       .replace(/\\/g, '/')
@@ -3483,7 +3499,25 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const position = new vscode.Position(Math.max(0, line - 1), 0);
 
       editor.selection = new vscode.Selection(position, position);
-      editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+
+      const isVisible = editor.visibleRanges.some(
+        (range) => range.start.line <= position.line && position.line <= range.end.line,
+      );
+
+      if (!isVisible) {
+        editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+      }
+
+      const highlightDecoration = vscode.window.createTextEditorDecorationType({
+        backgroundColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
+        isWholeLine: true,
+      });
+
+      editor.setDecorations(highlightDecoration, [new vscode.Range(position, position)]);
+
+      setTimeout(() => {
+        highlightDecoration.dispose();
+      }, 1000);
     } catch (error) {
       vscode.window.showErrorMessage(`打开文件失败：${this.toErrorMessage(error)}`);
     }
@@ -3705,6 +3739,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   private countOccurrences(text: string, query: string): number {
     if (!query) return 0;
+
+    const regex = this.tryCreateSearchRegex(query, true);
+    if (regex) {
+      const matches = text.match(regex);
+      return matches ? matches.length : 0;
+    }
 
     let count = 0;
     let fromIndex = 0;

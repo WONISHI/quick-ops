@@ -2062,6 +2062,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               await this.closeWorkingTreeDiffTabs(cwd);
 
               await this.refreshStatus(cwd, false);
+              this._view?.webview.postMessage({ type: 'focusCommitInput' });
             });
 
             break;
@@ -2082,6 +2083,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               await this.closeWorkingTreeDiffTabs(cwd, [msg.file]);
 
               await this.refreshStatus(cwd, false);
+              this._view?.webview.postMessage({ type: 'focusCommitInput' });
             });
 
             break;
@@ -2099,6 +2101,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
               await this.closeWorkingTreeDiffTabs(cwd, files);
               await this.refreshStatus(cwd, false);
+              this._view?.webview.postMessage({ type: 'focusCommitInput' });
               vscode.window.showInformationMessage(`✅ 已暂存 ${files.length} 个文件`);
             });
 

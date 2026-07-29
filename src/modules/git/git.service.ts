@@ -211,6 +211,16 @@ export class GitService {
 
       const status = await git.status();
 
+      // 无 upstream 时手动统计领先提交数
+      if (!status.tracking) {
+        try {
+          const aheadCount = await git.raw(['rev-list', '--count', 'HEAD', '--not', '--remotes']);
+          (status as any).ahead = Number(String(aheadCount).trim()) || 0;
+        } catch {
+          // 忽略统计错误
+        }
+      }
+
       return this.createRemoteSync(status, branch, remoteUrl);
     } catch (error: any) {
       return {
