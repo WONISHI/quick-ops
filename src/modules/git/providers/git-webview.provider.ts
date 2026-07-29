@@ -7,7 +7,12 @@ import { GitService } from '@modules/git/git.service';
 import { GIT_VIEW_IDS, GIT_WEBVIEW_ROUTES } from '@/modules/git/constants/git.constant';
 import type { GitFileItem } from '@modules/git/git.type';
 
-const GLOBAL_STATE_COMMIT_TYPE_ENABLED = 'quickOps.git.commitTypeEnabled';
+const WORKSPACE_STATE_GIT_OPTIONS = 'quickOps.git.workspaceOptions';
+
+interface GitWorkspaceOptions {
+  commitTypeEnabled?: boolean;
+  skipVerify?: boolean;
+}
 
 interface GitGraphLikeCommit {
   hash: string;
@@ -146,8 +151,41 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     this._lastWorkingTreeFilesByCwd.clear();
   }
 
-  private getDefaultCommitTypeEnabled(): boolean {
-    return this._context.globalState.get<boolean>(GLOBAL_STATE_COMMIT_TYPE_ENABLED, false);
+  private normalizeWorkspaceStateKey(cwd: string): string {
+    return path.resolve(cwd).replace(/\\/g, '/').toLowerCase();
+  }
+
+  private getWorkspaceGitOptionsMap(): Record<string, GitWorkspaceOptions> {
+    return this._context.workspaceState.get<Record<string, GitWorkspaceOptions>>(WORKSPACE_STATE_GIT_OPTIONS, {});
+  }
+
+  private getWorkspaceGitOptions(cwd: string): Required<GitWorkspaceOptions> {
+    const optionsMap = this.getWorkspaceGitOptionsMap();
+    const options = optionsMap[this.normalizeWorkspaceStateKey(cwd)] || {};
+
+    return {
+      commitTypeEnabled: !!options.commitTypeEnabled,
+      skipVerify: !!options.skipVerify,
+    };
+  }
+
+  private async updateWorkspaceGitOptions(cwd: string, patch: GitWorkspaceOptions): Promise<Required<GitWorkspaceOptions>> {
+    const optionsMap = this.getWorkspaceGitOptionsMap();
+    const key = this.normalizeWorkspaceStateKey(cwd);
+    const nextOptions = {
+      ...(optionsMap[key] || {}),
+      ...patch,
+    };
+
+    await this._context.workspaceState.update(WORKSPACE_STATE_GIT_OPTIONS, {
+      ...optionsMap,
+      [key]: nextOptions,
+    });
+
+    return {
+      commitTypeEnabled: !!nextOptions.commitTypeEnabled,
+      skipVerify: !!nextOptions.skipVerify,
+    };
   }
 
   private async withViewProgress<T>(task: () => Promise<T>): Promise<T> {
@@ -586,21 +624,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       }
     });
 
-    const configListener = vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('quick-ops.git.defaultSkipVerify')) {
-        const config = vscode.workspace.getConfiguration('quick-ops.git');
-        const defaultSkipVerify = config.get<boolean>('defaultSkipVerify') || false;
-
-        this._view?.webview.postMessage({
-          type: 'gitConfigChanged',
-          defaultSkipVerify,
-        });
-      }
-    });
-
     webviewView.onDidDispose(() => {
       editorListener.dispose();
-      configListener.dispose();
 
       this._gitWatchers.forEach((d) => d.dispose());
       this._gitWatchers = [];
@@ -635,14 +660,20 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           return;
         }
 
-        if (command === 'toggleCommitTypeEnabled') {
-          const nextValue = !!msg.value;
+        const cwd = this.getWorkspaceRoot();
 
-          await this._context.globalState.update(GLOBAL_STATE_COMMIT_TYPE_ENABLED, nextValue);
+        if (command === 'toggleCommitTypeEnabled') {
+          if (!cwd) return;
+
+          const nextValue = !!msg.value;
+          const options = await this.updateWorkspaceGitOptions(cwd, {
+            commitTypeEnabled: nextValue,
+          });
 
           this._view?.webview.postMessage({
-            type: 'gitConfigChanged',
-            defaultCommitTypeEnabled: nextValue,
+            type: 'gitWorkspaceOptionsChanged',
+            commitTypeEnabled: options.commitTypeEnabled,
+            skipVerify: options.skipVerify,
           });
 
           return;
@@ -650,22 +681,23 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
         if (command === 'webviewLoaded' || command === 'refresh') {
           const isInstalled = await this.gitService.checkGitInstalled();
-
-          const config = vscode.workspace.getConfiguration('quick-ops.git');
-          const defaultSkipVerify = config.get<boolean>('defaultSkipVerify') || false;
+          const options = cwd
+            ? this.getWorkspaceGitOptions(cwd)
+            : {
+                commitTypeEnabled: false,
+                skipVerify: false,
+              };
 
           this._view?.webview.postMessage({
             type: 'gitInstallationStatus',
             isInstalled,
-            defaultSkipVerify,
-            defaultCommitTypeEnabled: this.getDefaultCommitTypeEnabled(),
+            skipVerify: options.skipVerify,
+            commitTypeEnabled: options.commitTypeEnabled,
             isInit: command === 'webviewLoaded',
           });
 
           if (!isInstalled) return;
         }
-
-        const cwd = this.getWorkspaceRoot();
 
         if (!cwd) {
           if (command === 'webviewLoaded' || command === 'refresh') {
@@ -2434,12 +2466,15 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           case 'toggleSkipVerify': {
-            try {
-              const config = vscode.workspace.getConfiguration('quick-ops.git');
-              await config.update('defaultSkipVerify', msg.value, vscode.ConfigurationTarget.Global);
-            } catch (error: any) {
-              console.error('Failed to update defaultSkipVerify setting:', error);
-            }
+            const options = await this.updateWorkspaceGitOptions(cwd, {
+              skipVerify: !!msg.value,
+            });
+
+            this._view?.webview.postMessage({
+              type: 'gitWorkspaceOptionsChanged',
+              skipVerify: options.skipVerify,
+              commitTypeEnabled: options.commitTypeEnabled,
+            });
 
             break;
           }
@@ -2927,6 +2962,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       }
 
       await this.closeDiffTabsForRemovedWorkingTreeFiles(cwd, [...repoStatus.unstagedFiles, ...repoStatus.conflictedFiles]);
+      const workspaceGitOptions = this.getWorkspaceGitOptions(cwd);
 
       this._view.webview.postMessage({
         type: 'statusData',
@@ -2938,7 +2974,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         folderName: repoStatus.folderName,
         stashes: repoStatus.stashes,
         remoteSync: repoStatus.remoteSync,
-        defaultCommitTypeEnabled: this.getDefaultCommitTypeEnabled(),
+        skipVerify: workspaceGitOptions.skipVerify,
+        commitTypeEnabled: workspaceGitOptions.commitTypeEnabled,
       });
 
       if (repoStatus.remoteUrl) {

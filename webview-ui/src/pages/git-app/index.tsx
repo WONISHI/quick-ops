@@ -377,8 +377,12 @@ export default function GitApp() {
         setRemoteUrl(msg.remoteUrl || '');
         setFolderName(msg.folderName || '');
 
-        if (msg.defaultCommitTypeEnabled !== undefined) {
-          setCommitTypeEnabled(!!msg.defaultCommitTypeEnabled);
+        if (msg.commitTypeEnabled !== undefined) {
+          setCommitTypeEnabled(!!msg.commitTypeEnabled);
+        }
+
+        if (msg.skipVerify !== undefined) {
+          setSkipVerify(!!msg.skipVerify);
         }
 
         if (msg.remoteSync) {
@@ -500,20 +504,20 @@ export default function GitApp() {
           setInitialLoading(false);
         }
 
-        if (msg.isInit && msg.defaultSkipVerify !== undefined) {
-          setSkipVerify(msg.defaultSkipVerify);
+        if (msg.isInit && msg.skipVerify !== undefined) {
+          setSkipVerify(!!msg.skipVerify);
         }
 
-        if (msg.defaultCommitTypeEnabled !== undefined) {
-          setCommitTypeEnabled(!!msg.defaultCommitTypeEnabled);
+        if (msg.commitTypeEnabled !== undefined) {
+          setCommitTypeEnabled(!!msg.commitTypeEnabled);
         }
-      } else if (msg.type === 'gitConfigChanged') {
-        if (msg.defaultSkipVerify !== undefined) {
-          setSkipVerify(msg.defaultSkipVerify);
+      } else if (msg.type === 'gitWorkspaceOptionsChanged') {
+        if (msg.skipVerify !== undefined) {
+          setSkipVerify(!!msg.skipVerify);
         }
 
-        if (msg.defaultCommitTypeEnabled !== undefined) {
-          setCommitTypeEnabled(!!msg.defaultCommitTypeEnabled);
+        if (msg.commitTypeEnabled !== undefined) {
+          setCommitTypeEnabled(!!msg.commitTypeEnabled);
         }
       }
     };
