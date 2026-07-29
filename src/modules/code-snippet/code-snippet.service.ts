@@ -3,7 +3,7 @@ import { TextDecoder } from 'util';
 import { TemplateEngine } from '@utils/TemplateEngine';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { WorkspaceContextService } from '@common/services/workspace-context.service';
-import type { IWorkspaceContext } from '@core/types/work-space';
+import type { IWorkspaceContext } from '@common/types/common.service.type';
 import type { CodeSnippetDependencyScope, CodeSnippetInputInfo, CodeSnippetItem, CodeSnippetLanguageScope } from '@modules/code-snippet/code-snippet.type';
 
 export class CodeSnippetService {

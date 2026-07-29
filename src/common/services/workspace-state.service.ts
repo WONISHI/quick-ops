@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { IService } from '@core/interfaces/service.interface';
-import type { ICurrentFileState } from '@core/types/work-space';
+import type { ICurrentFileState } from '@common/types/common.service.type';
 
 
 export class WorkspaceStateService implements IService {

@@ -5,7 +5,7 @@ import { exec } from 'child_process';
 import { TextDecoder } from 'util';
 import { camelCase, debounce, kebabCase, snakeCase, upperFirst } from 'lodash-es';
 
-import type { IWorkspaceContext } from '@core/types/work-space';
+import type { IWorkspaceContext } from '@common/types/common.service.type';
 
 export class WorkspaceContextService {
   public readonly serviceId = 'WorkspaceContextService';

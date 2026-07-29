@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { ClipboardTransformService } from '@modules/clipboard-transform/clipboard-transform.service';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class ClipboardTransformController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, ClipboardTransformService];
