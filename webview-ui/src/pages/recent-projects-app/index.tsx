@@ -2437,6 +2437,8 @@ export default function RecentProjectsApp() {
   const handleToggleExpand = (pathValue: string, projectName: string, _: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
 
+    setSelectedPath(pathValue);
+
     setContextMenu((prev) => ({
       ...prev,
       visible: false,
