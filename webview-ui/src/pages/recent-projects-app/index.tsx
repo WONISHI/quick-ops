@@ -1919,6 +1919,19 @@ export default function RecentProjectsApp() {
     });
   }, [revealVisibleProjectPathKey, revealVisibleProjectPaths]);
 
+  const watchedTreePathKey = useMemo(() => {
+    return Array.from(expandedPaths).sort().join('\n');
+  }, [expandedPaths]);
+
+  useEffect(() => {
+    vscode.postMessage({
+      type: 'updateWatchedTreePaths',
+      paths: Array.from(expandedPaths),
+      focusMode: isFocusMode,
+      focusRootPath,
+    });
+  }, [watchedTreePathKey, expandedPaths, isFocusMode, focusRootPath]);
+
   const normalizeTreePath = (pathValue: string) => {
     if (!pathValue) return '';
 
