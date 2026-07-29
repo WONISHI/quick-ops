@@ -130,9 +130,12 @@ export default function GitApp() {
 
   const isMacPlatform = navigator.platform?.toLowerCase().includes('mac') || false;
 
-  const isMultiSelectModifier = useCallback((e: React.MouseEvent | MouseEvent): boolean => {
-    return isMacPlatform ? e.metaKey : e.ctrlKey;
-  }, [isMacPlatform]);
+  const isMultiSelectModifier = useCallback(
+    (e: React.MouseEvent | MouseEvent): boolean => {
+      return isMacPlatform ? e.metaKey : e.ctrlKey;
+    },
+    [isMacPlatform],
+  );
 
   const clearSelection = useCallback(() => {
     setSelectedFiles(new Set());
@@ -825,6 +828,22 @@ export default function GitApp() {
     return '拉取 (Pull)';
   };
 
+  const getPushTooltip = () => {
+    if (remoteSync.needsPush && remoteSync.hasRemote && !remoteSync.hasUpstream) {
+      return remoteSync.ahead > 0 ? `当前分支没有对应的远程上游分支，包含 ${remoteSync.ahead} 个本地提交，可 Push 创建/绑定远程分支` : '当前分支没有对应的远程上游分支';
+    }
+
+    if (remoteSync.needsPush) {
+      return `需要 Push：当前分支领先 ${remoteSync.upstream || '远程分支'} ${remoteSync.ahead} 个提交`;
+    }
+
+    if (remoteSync.hasRemote && !remoteSync.hasUpstream) {
+      return '当前分支没有绑定上游分支';
+    }
+
+    return '推送 (Push)';
+  };
+
   const hasUnpushedCommit = remoteSync.needsPush && remoteSync.ahead > 0;
   const canUndoLastCommit = justCommitted || hasUnpushedCommit;
 
@@ -900,11 +919,11 @@ export default function GitApp() {
                 </button>
               </Tooltip>
 
-              <Tooltip content={remoteSync.needsPush ? `需要 Push：当前分支领先远程 ${remoteSync.ahead} 个提交` : '推送 (Push)'}>
+              <Tooltip content={getPushTooltip()}>
                 <button className={`${styles['icon-btn']} ${remoteSync.needsPush ? styles['push-needed'] : ''}`} onClick={() => vscode.postMessage({ command: 'push' })}>
                   <i className="codicon codicon-repo-push" />
 
-                  {remoteSync.needsPush && <span className={styles['pull-badge']}>{remoteSync.ahead > 99 ? '99+' : remoteSync.ahead}</span>}
+                  {remoteSync.needsPush && <span className={styles['push-badge']}>{remoteSync.ahead > 99 ? '99+' : remoteSync.ahead}</span>}
                 </button>
               </Tooltip>
 
@@ -971,10 +990,7 @@ export default function GitApp() {
                   savedCommitTypeEnabledRef.current = commitTypeEnabled;
                   commitHistoryIndexRef.current = 0;
                 } else {
-                  commitHistoryIndexRef.current = Math.min(
-                    commitHistoryIndexRef.current + 1,
-                    graphCommits.length - 1,
-                  );
+                  commitHistoryIndexRef.current = Math.min(commitHistoryIndexRef.current + 1, graphCommits.length - 1);
                 }
 
                 const commit = graphCommits[commitHistoryIndexRef.current];
