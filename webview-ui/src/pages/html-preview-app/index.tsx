@@ -1,20 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import type { RefObject } from 'react';
 import { vscode } from '@utils/vscode';
 import styles from './index.module.css';
-
-interface HtmlPreviewAppProps {
-  fsPath?: string;
-  iframeRef?: RefObject<HTMLIFrameElement | null>;
-  onTitleChange?: (title: string) => void;
-}
-
-interface HtmlPreviewMessage {
-  type?: string;
-  fsPath?: string;
-  content?: string;
-  message?: string;
-}
+import type { HtmlPreviewAppProps, HtmlPreviewMessage } from '@pages/html-preview-app/src/type';
 
 export default function HtmlPreviewApp(props: HtmlPreviewAppProps) {
   const { iframeRef, onTitleChange } = props;
