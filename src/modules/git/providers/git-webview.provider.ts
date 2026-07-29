@@ -457,6 +457,18 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       const conflicts = repoStatus.conflictedFiles || [];
 
       if (conflicts.length > 0) {
+        if (operationName === '合并分支') {
+          const options = await this.updateWorkspaceGitOptions(cwd, {
+            commitTypeEnabled: false,
+          });
+
+          this._view?.webview.postMessage({
+            type: 'gitWorkspaceOptionsChanged',
+            commitTypeEnabled: options.commitTypeEnabled,
+            skipVerify: options.skipVerify,
+          });
+        }
+
         vscode.window.showWarningMessage(`【${operationName}】产生冲突！\n共检测到 ${conflicts.length} 个冲突文件，请在侧边栏的【冲突区】中逐一解决。`);
         vscode.commands.executeCommand('workbench.view.scm');
       } else {

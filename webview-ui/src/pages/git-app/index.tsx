@@ -43,6 +43,10 @@ const parseCommitTypeFromText = (value: string) => {
   };
 };
 
+const isGitMergeCommitMessage = (value: string) => {
+  return /^Merge (branch|remote-tracking branch) ['"][^'"]+['"]/i.test(value.replace(/\r\n/g, '\n').trim());
+};
+
 export default function GitApp() {
   const [isRepo, setIsRepo] = useState<boolean>(true);
   const [isGitInstalled, setIsGitInstalled] = useState<boolean | null>(null);
@@ -552,6 +556,18 @@ export default function GitApp() {
       window.removeEventListener('focus', handleFocus);
     };
   }, [isRepo, clearCommitDraft, restoreCommitDraft, restoreCommitMessageText]);
+
+  useEffect(() => {
+    if (!commitTypeEnabled || !isGitMergeCommitMessage(commitMsg)) {
+      return;
+    }
+
+    setCommitTypeEnabled(false);
+    vscode.postMessage({
+      command: 'toggleCommitTypeEnabled',
+      value: false,
+    });
+  }, [commitMsg, commitTypeEnabled]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
