@@ -127,6 +127,7 @@ export default function GitApp() {
 
   const lastRefreshRef = useRef<number>(0);
   const commitInputRef = useRef<HTMLDivElement>(null);
+  const commitMsgRef = useRef<string>('');
   const commitHistoryIndexRef = useRef<number>(-1);
   const savedCommitMsgRef = useRef<string>('');
   const isNavigatingHistoryRef = useRef(false);
@@ -139,6 +140,10 @@ export default function GitApp() {
   const getNormalizedCommitMessage = () => {
     return commitMsg.replace(/\n/g, '').trim();
   };
+
+  useEffect(() => {
+    commitMsgRef.current = commitMsg;
+  }, [commitMsg]);
 
   const isMacPlatform = navigator.platform?.toLowerCase().includes('mac') || false;
 
@@ -511,6 +516,19 @@ export default function GitApp() {
         setJustCommitted(true);
       } else if (msg.type === 'focusCommitInput') {
         commitInputRef.current?.focus();
+      } else if (msg.type === 'mergeConflictCommitMessage') {
+        const message = typeof msg.message === 'string' ? msg.message.trim() : '';
+        const currentMessage = commitInputRef.current?.innerText.replace(/\n/g, '').trim() || commitMsgRef.current.replace(/\n/g, '').trim();
+
+        if (message && !currentMessage) {
+          setCommitTypeEnabled(false);
+          setCommitInputValue(message);
+          setJustCommitted(false);
+
+          requestAnimationFrame(() => {
+            commitInputRef.current?.focus();
+          });
+        }
       } else if (msg.type === 'undoLastCommitSuccess') {
         const lastCommittedSnapshot = lastCommittedSnapshotRef.current;
         const undoMessage = typeof msg.message === 'string' ? msg.message : '';
@@ -582,7 +600,7 @@ export default function GitApp() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [isRepo, clearCommitDraft, restoreCommitDraft, restoreCommitMessageText]);
+  }, [isRepo, clearCommitDraft, restoreCommitDraft, restoreCommitMessageText, setCommitInputValue]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

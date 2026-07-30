@@ -85,7 +85,7 @@ export class RecentProjectsController implements OnModuleInit {
         this.recentProjectsProvider.requestVisibleMetadataSync();
       }),
 
-      vscode.commands.registerCommand(RECENT_PROJECTS_COMMANDS.refreshCurrentWorkspaceRecentProject, async (targetPath?: string) => {
+      vscode.commands.registerCommand(RECENT_PROJECTS_COMMANDS.refreshCurrentWorkspaceRecentProject, async (targetPath?: string, options?: { collapseTree?: boolean }) => {
         const projectUri = this.resolveProjectUriString(targetPath);
 
         if (!projectUri) return;
@@ -93,8 +93,14 @@ export class RecentProjectsController implements OnModuleInit {
         this.recentProjectsProvider.invalidateDirCache(projectUri);
         this.readOnlyFileSystemProvider.refreshAllWatched();
         await this.recentProjectsProvider.updateSingleBranch(projectUri, true);
-        this.recentProjectsProvider.refresh(false);
-        this.recentProjectsProvider.collapseAllFolders(true);
+
+        if (options?.collapseTree === false) {
+          this.recentProjectsProvider.refresh(true);
+        } else {
+          this.recentProjectsProvider.refresh(false);
+          this.recentProjectsProvider.collapseAllFolders(true);
+        }
+
         this.recentProjectsProvider.requestVisibleMetadataSync();
 
         if (this.recentProjectsProvider.currentActivePath) {

@@ -470,6 +470,18 @@
   text-overflow: ellipsis;
 }
 
+.detail-stats-row {
+  color: var(--vscode-descriptionForeground);
+}
+
+.detail-stats {
+  min-width: 0;
+  color: var(--vscode-descriptionForeground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .detail-message {
   margin-top: 20px;
   color: var(--vscode-foreground);
