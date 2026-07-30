@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 
 export class ColorUtils {
-  // 预定义一组鲜明的颜色 (Hex)
   private static colors = [
     '#e57373', // Red
     '#ba68c8', // Purple

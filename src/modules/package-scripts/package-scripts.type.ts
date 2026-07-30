@@ -72,3 +72,11 @@ export interface PackageScriptExecuteOptions {
   mode: ScriptRunMode;
   item: ScriptItem;
 }
+
+export type RenderStatus = 'success' | 'empty' | 'missing';
+
+export interface TemplateResult {
+  result: string;
+  payload: Record<string, any>;
+  status: RenderStatus;
+}

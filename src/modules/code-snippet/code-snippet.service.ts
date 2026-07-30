@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { TextDecoder } from 'util';
-import { TemplateEngine } from '@utils/TemplateEngine';
+import { TemplateEngine } from '@modules/package-scripts/pack-scripts.util';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { WorkspaceContextService } from '@common/services/workspace-context.service';
 import type { IWorkspaceContext } from '@common/types/common.service.type';

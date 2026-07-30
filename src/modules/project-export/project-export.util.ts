@@ -1,14 +1,12 @@
-// 🌟 优化 1：使用 type-only import 导入 @babel/types，这在编译为 JS 后会完全消失，零运行时开销！
 import type * as tTypes from '@babel/types';
-import type { ExportItem, ParseResult } from '@core/types/export';
+import type { ExportItem, ParseResult } from '@modules/project-export/project-export.type';
 
-// 缓存 Key 改为 fileUri (字符串) + version (或 content hash)，这里简化为 uri 字符串
 const exportsCache = new Map<string, { contentHash: number; result: ParseResult }>();
 const vueNameCache = new Map<string, { contentHash: number; result: string | null }>();
 
 export class AstParser {
   /**
-   * 简单的字符串哈希，用于检测内容是否变化 (替代 mtime)
+   * @description 简单的字符串哈希，用于检测内容是否变化 (替代 mtime)
    */
   private static stringHash(str: string): number {
     let hash = 0;
@@ -16,13 +14,13 @@ export class AstParser {
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
       hash = (hash << 5) - hash + char;
-      hash |= 0; // Convert to 32bit integer
+      hash |= 0; 
     }
     return hash;
   }
 
   /**
-   * 解析代码内容的导出信息 (纯函数，无 I/O)
+   * @description 解析代码内容的导出信息 (纯函数，无 I/O)
    * @param fileKey 文件的唯一标识 (通常是 Uri.toString())，用于缓存
    * @param code 文件内容字符串
    */
@@ -34,12 +32,10 @@ export class AstParser {
       return cached.result;
     }
 
-    // --- 开始解析 ---
     try {
-      // 🌟 优化 2：在这里执行按需引入！只有真正触发解析时，才会加载 Babel
       const { parse: babelParse } = require('@babel/parser');
       const traverseModule = require('@babel/traverse');
-      const traverse = traverseModule.default || traverseModule; // 兼容 Babel 默认导出的特殊情况
+      const traverse = traverseModule.default || traverseModule;
       const t = require('@babel/types');
 
       const ast = babelParse(code, {
@@ -90,8 +86,6 @@ export class AstParser {
       });
 
       const result = { namedExports, defaultExport };
-
-      // 写入缓存
       exportsCache.set(fileKey, { contentHash: currentHash, result });
 
       return result;
@@ -102,7 +96,7 @@ export class AstParser {
   }
 
   /**
-   * 解析 Vue 组件名称 (纯函数，无 I/O)
+   * @description 解析 Vue 组件名称 (纯函数，无 I/O)
    */
   static parseVueComponentName(fileKey: string, code: string): string | null {
     const currentHash = this.stringHash(code);
@@ -113,7 +107,6 @@ export class AstParser {
     }
 
     try {
-      // 🌟 优化 3：同样在这里按需引入 vueParse 和 Babel
       const { parse: vueParse } = require('@vue/compiler-sfc');
       const { parse: babelParse } = require('@babel/parser');
       const traverseModule = require('@babel/traverse');
@@ -171,7 +164,6 @@ export class AstParser {
     }
   }
 
-  // 🌟 优化 4：这里使用前面仅做类型导入的 tTypes
   private static findPropertyByName(node: tTypes.ObjectExpression, keyName: string): string | null {
     const prop = node.properties.find((p) => {
       if (p.type !== 'ObjectProperty') return false;

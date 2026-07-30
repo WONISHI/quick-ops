@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ExtensionContextProvider } from '@/common/providers/extension-context.provider';
-import { ColorUtils } from '@/utils/ColorUtils';
+import { ColorUtils } from '@modules/anchor/anchor.util';
 import { AnchorService } from '@modules/anchor/anchor.service';
 import type { AnchorData } from '@modules/anchor/anchor.type';
 

@@ -1,4 +1,4 @@
-import type { StyleNode } from '@core/types/style-generator';
+import type { StyleNode } from '@modules/style-generator/style-generator.type';
 
 export class StyleStructureParser {
   static async parse(content: string, languageId: string): Promise<string> {
@@ -25,11 +25,9 @@ export class StyleStructureParser {
     if (!htmlContent.trim()) return [];
 
     const cheerio = require('cheerio');
-    
     const $ = cheerio.load(htmlContent, { xmlMode: false, decodeEntities: false });
     const rootNodes: StyleNode[] = [];
 
-    // 使用 any 替代原先满篇的 @ts-ignore，让代码更清爽
     const traverseFlat = (element: any): StyleNode[] => {
       if (element.type !== 'tag') return [];
       const $el = $(element);
@@ -47,18 +45,14 @@ export class StyleStructureParser {
           .join('');
       }
 
-      // 递归获取所有子节点的 StyleNode
       const childStyleNodes: StyleNode[] = [];
       $el.children().each((_: any, child: any) => {
         childStyleNodes.push(...traverseFlat(child));
       });
 
       if (selector) {
-        // 如果当前节点有选择器，它就是一个独立的层级，子节点挂在它下面
         return [{ selector, children: childStyleNodes }];
       } else {
-        // 关键逻辑：如果当前节点没有选择器 (如纯div)，直接把子节点向上返回 (扁平化)
-        // 这样 .child 就能穿透无样式的父级，被爷爷级捕获
         return childStyleNodes;
       }
     };
@@ -72,16 +66,11 @@ export class StyleStructureParser {
     return rootNodes;
   }
 
-  // ==========================================
-  // 2. JSX / TSX 解析 (同样支持透传)
-  // ==========================================
   private static async parseJsx(content: string): Promise<StyleNode[]> {
     const rootNodes: StyleNode[] = [];
     try {
-      // 🌟 优化 3：在这里动态引入 Babel 的巨型 AST 解析库
       const { parse } = require('@babel/parser');
       const traverseModule = require('@babel/traverse');
-      // 兼容 Babel 默认导出的特殊情况
       const traverse = traverseModule.default || traverseModule;
 
       const ast = parse(content, {
@@ -135,7 +124,6 @@ export class StyleStructureParser {
         if (selector) {
           return [{ selector, children: childStyleNodes }];
         } else {
-          // 扁平化：没 className 就返回子节点
           return childStyleNodes;
         }
       };
@@ -153,9 +141,6 @@ export class StyleStructureParser {
     return rootNodes;
   }
 
-  // ==========================================
-  // 3. 生成 SCSS
-  // ==========================================
   private static generateScss(nodes: StyleNode[], level = 0): string {
     const indent = '  '.repeat(level);
     let result = '';
