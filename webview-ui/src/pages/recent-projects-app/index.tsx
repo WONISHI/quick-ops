@@ -3,13 +3,11 @@ import { vscode } from '@utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
   faMagnifyingGlass,
-  faFolderOpen,
   faFolderPlus,
   faCodeBranch,
   faChevronRight,
   faChevronDown,
   faArrowRightToBracket,
-  faFolder,
   faSpinner,
 } from '@fortawesome/free-solid-svg-icons';
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
@@ -2356,7 +2354,7 @@ export default function RecentProjectsApp() {
           <div className={styles['chevron-placeholder']}></div>
 
           {isFolder ? (
-            <FontAwesomeIcon icon={faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']} ${styles['folder-icon']}`} />
+            <FileIcon fileName={pendingCreateName || 'untitled'} isFolder className={`${styles['sub-icon']} ${styles['folder-icon']}`} />
           ) : (
             <FileIcon fileName={pendingCreateName || 'untitled'} className={styles['sub-icon']} />
           )}
@@ -3019,7 +3017,7 @@ export default function RecentProjectsApp() {
                     )}
                   </div>
 
-                  <FontAwesomeIcon icon={isExpanded ? faFolderOpen : faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']} ${styles['folder-icon']}`} />
+                  <FileIcon fileName={child.name} isFolder isExpanded={isExpanded} className={`${styles['sub-icon']} ${styles['folder-icon']}`} />
 
                   <Tooltip content={getTreeTooltipContent(childPath, child, true)} placement="bottom" align="start" delay={2000}>
                     {renameInput || (
@@ -3218,7 +3216,7 @@ export default function RecentProjectsApp() {
                     const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
                     const branch = branchMap[p.fsPath] || p.branch;
                     const isExpanded = expandedPaths.has(rootPath);
-                    const projectIcon = isRemote ? (isGitlab ? faGitlab : faGithub) : isExpanded ? faFolderOpen : faFolder;
+                    const projectIcon = isGitlab ? faGitlab : faGithub;
                     const rootLoading = loadingPaths.has(rootPath) && !dirChildren[rootPath];
                     const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
 
@@ -3266,7 +3264,11 @@ export default function RecentProjectsApp() {
 
                             <div className={styles['info']}>
                               <div className={styles['title']}>
-                                <FontAwesomeIcon icon={projectIcon} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
+                                {isRemote ? (
+                                  <FontAwesomeIcon icon={projectIcon} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
+                                ) : (
+                                  <FileIcon fileName={title} isFolder isExpanded={isExpanded} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
+                                )}
 
                                 <Tooltip content={getRootProjectTooltipContent(rootPath, p)} placement="bottom" align="start" delay={2000}>
                                   <span
@@ -3311,7 +3313,7 @@ export default function RecentProjectsApp() {
                     const displayPath = getDisplayPath(p);
                     const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
                     const isExpanded = expandedPaths.has(rootPath);
-                    const projectIcon = isRemote ? (isGitlab ? faGitlab : faGithub) : isExpanded ? faFolderOpen : faFolder;
+                    const projectIcon = isGitlab ? faGitlab : faGithub;
                     const itemLoading = loadingPaths.has(rootPath) && !dirChildren[rootPath];
                     const branch = branchMap[p.fsPath] || p.branch;
                     const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
@@ -3355,7 +3357,11 @@ export default function RecentProjectsApp() {
 
                             <div className={styles['info']}>
                               <div className={styles['title']}>
-                                <FontAwesomeIcon icon={projectIcon} className={`${styles['project-icon']} ${styles['icon-closed']}`} />
+                                {isRemote ? (
+                                  <FontAwesomeIcon icon={projectIcon} className={`${styles['project-icon']} ${styles['icon-closed']}`} />
+                                ) : (
+                                  <FileIcon fileName={title} isFolder isExpanded={isExpanded} className={`${styles['project-icon']} ${styles['icon-closed']}`} />
+                                )}
 
                                 <Tooltip content={getRootProjectTooltipContent(rootPath, p)} placement="bottom" align="start" delay={2000}>
                                   <span

@@ -5,7 +5,7 @@ import Tooltip from '@/components/Tooltip';
 import styles from '@pages/recent-projects-app/components/search-view-wrapper/index.module.css';
 import Scrollbar, { type ScrollbarInstance } from '@/components/Scrollbar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faChevronDown, faChevronRight, faFolder, faFolderOpen, faSpinner } from '@fortawesome/free-solid-svg-icons';
+import { faChevronDown, faChevronRight, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { vscode } from '@/utils/vscode';
 import { EXTENSION_TAG_PRIORITY, EXTENSION_TAG_COLOR_MAP, EXTENSION_TAG_FALLBACK_COLORS } from '@pages/recent-projects-app/components/search-view-wrapper/src/constants';
 import type { DirChild, SearchMatch, SearchResult } from '@/pages/recent-projects-app/src/type';
@@ -1143,7 +1143,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                               <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
                             </div>
 
-                            <FontAwesomeIcon icon={isExpanded ? faFolderOpen : faFolder} className={`${styles['icon-closed']} ${styles['sub-icon']}`} />
+                            <FileIcon fileName={child.name} isFolder isExpanded={isExpanded} status={child.status} className={styles['sub-icon']} />
 
                             <span
                               className={`${styles['sub-name']} ${styles['search-name-result-name']} ${statusClassName}`}
