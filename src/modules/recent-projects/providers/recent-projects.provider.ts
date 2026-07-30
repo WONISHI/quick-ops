@@ -2679,6 +2679,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private async syncVisibleMetadata(): Promise<void> {
     if (!this.view) return;
 
+    this.gitMetadataCache.clear();
+
     const paths = new Map<string, boolean>();
 
     this.getRecentProjects().forEach((project) => {

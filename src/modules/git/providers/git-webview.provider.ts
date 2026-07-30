@@ -443,9 +443,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async refreshRecentProjectsAfterCheckout(cwd: string): Promise<void> {
+  private async refreshRecentProjectsAfterCheckout(cwd: string, options?: { collapseTree?: boolean }): Promise<void> {
     try {
-      await vscode.commands.executeCommand('quickOps.refreshCurrentWorkspaceRecentProject', cwd);
+      await vscode.commands.executeCommand('quickOps.refreshCurrentWorkspaceRecentProject', cwd, options);
     } catch {
       // Recent Projects 视图未激活或命令尚未注册时，不影响 Git 主流程。
     }
@@ -3075,6 +3075,10 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
     this._view?.webview.postMessage({
       type: 'commitSuccess',
+    });
+
+    await this.refreshRecentProjectsAfterCheckout(cwd, {
+      collapseTree: false,
     });
 
     await this.refreshStatus(cwd, true);
