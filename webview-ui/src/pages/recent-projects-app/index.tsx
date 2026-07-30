@@ -1444,12 +1444,7 @@ export default function RecentProjectsApp() {
         });
 
         expandedList.forEach((itemPath) => {
-          vscode.postMessage({
-            type: 'readDir',
-            fsPath: itemPath,
-            projectName: getProjectNameByPath(itemPath),
-            forceRefresh: true,
-          });
+          requestReadDir(itemPath, getProjectNameByPath(itemPath), true);
         });
       } else if (msg.type === 'searchFolderResult') {
         if (typeof msg.requestId === 'number' && msg.requestId !== activeSearchRequestIdRef.current) {
