@@ -7,62 +7,9 @@ import Scrollbar, { type ScrollbarInstance } from '@/components/Scrollbar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown, faChevronRight, faFolder, faFolderOpen, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { vscode } from '@/utils/vscode';
+import { EXTENSION_TAG_PRIORITY, EXTENSION_TAG_COLOR_MAP, EXTENSION_TAG_FALLBACK_COLORS } from '@pages/recent-projects-app/components/search-view-wrapper/src/constants';
 import type { DirChild, SearchMatch, SearchResult } from '@/pages/recent-projects-app/src/type';
 import type { FolderSearchType, SearchViewWrapperProps, ExtensionTagOption } from '@pages/recent-projects-app/components/search-view-wrapper/src/type';
-
-const EXTENSION_TAG_PRIORITY = [
-  'js',
-  'ts',
-  'json',
-  'jsx',
-  'tsx',
-  'vue',
-  'css',
-  'scss',
-  'less',
-  'html',
-  'htm',
-  'md',
-  'mdx',
-  'yml',
-  'yaml',
-  'xml',
-  'svg',
-  'png',
-  'jpg',
-  'jpeg',
-  'webp',
-  'gif',
-  'txt',
-];
-
-const EXTENSION_TAG_COLOR_MAP: Record<string, string> = {
-  js: '#f1e05a',
-  jsx: '#f1e05a',
-  ts: '#3178c6',
-  tsx: '#3178c6',
-  json: '#cbcb41',
-  vue: '#41b883',
-  css: '#563d7c',
-  scss: '#c6538c',
-  less: '#1d365d',
-  html: '#e34c26',
-  htm: '#e34c26',
-  md: '#5dade2',
-  mdx: '#5dade2',
-  yml: '#cb171e',
-  yaml: '#cb171e',
-  xml: '#e37933',
-  svg: '#ffb13b',
-  png: '#a074c4',
-  jpg: '#a074c4',
-  jpeg: '#a074c4',
-  webp: '#a074c4',
-  gif: '#a074c4',
-  txt: '#8b949e',
-};
-
-const EXTENSION_TAG_FALLBACK_COLORS = ['#007acc', '#4ec9b0', '#c586c0', '#dcdcaa', '#ce9178', '#9cdcfe', '#b5cea8', '#d7ba7d'];
 
 function getFileExtensionTag(fileName: string) {
   const purePath = String(fileName || '')
@@ -572,7 +519,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     onLockFocusMode?.();
   };
 
-  const switchSearchType = (nextType?: FolderSearchType, options?: { keepQuery?: boolean }) => {
+  const switchSearchType = (nextType?: FolderSearchType) => {
     const targetType = nextType || (folderSearchType === 'content' ? 'name' : 'content');
 
     if (targetType === folderSearchType) {
