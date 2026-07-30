@@ -23,6 +23,8 @@ import typeIcon from 'material-icon-theme/icons/folder-typescript.svg';
 import typeOpenIcon from 'material-icon-theme/icons/folder-typescript-open.svg';
 import themeIcon from 'material-icon-theme/icons/folder-theme.svg';
 import themeOpenIcon from 'material-icon-theme/icons/folder-theme-open.svg';
+import templateIcon from 'material-icon-theme/icons/folder-template.svg';
+import templateOpenIcon from 'material-icon-theme/icons/folder-template-open.svg';
 import svgIcon from 'material-icon-theme/icons/folder-svg.svg';
 import svgOpenIcon from 'material-icon-theme/icons/folder-svg-open.svg';
 import srcIcon from 'material-icon-theme/icons/folder-src.svg';
@@ -45,6 +47,10 @@ import pluginIcon from 'material-icon-theme/icons/folder-plugin.svg';
 import pluginOpenIcon from 'material-icon-theme/icons/folder-plugin-open.svg';
 import packagesIcon from 'material-icon-theme/icons/folder-packages.svg';
 import packagesOpenIcon from 'material-icon-theme/icons/folder-packages-open.svg';
+import obsidianIcon from 'material-icon-theme/icons/folder-obsidian.svg';
+import obsidianOpenIcon from 'material-icon-theme/icons/folder-obsidian-open.svg';
+import mobieIcon from 'material-icon-theme/icons/folder-mobile.svg';
+import mobieOpenIcon from 'material-icon-theme/icons/folder-mobile-open.svg';
 import mockIcon from 'material-icon-theme/icons/folder-mock.svg';
 import mockOpenIcon from 'material-icon-theme/icons/folder-mock-open.svg';
 import pdfIcon from 'material-icon-theme/icons/folder-pdf.svg';
@@ -136,6 +142,7 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   types: typeIcon,
   '@types': typeIcon,
   typescript: typeIcon,
+  template: templateIcon,
   svg: svgIcon,
   scss: sassIcon,
   sass: sassIcon,
@@ -150,10 +157,14 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   module: pluginIcon,
   modules: pluginIcon,
   markdown: markdownIcon,
+  mobie: mobieIcon,
+  obsidian: obsidianIcon,
+  '.obsidian': obsidianIcon,
   upload: uploadIcon,
   less: lessIcon,
   layout: layoutIcon,
   lib: libIcon,
+  img: imagesIcon,
   images: imagesIcon,
   icons: imagesIcon,
   i18n: i18nIcon,
@@ -218,6 +229,7 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   type: typeOpenIcon,
   types: typeOpenIcon,
   typescript: typeOpenIcon,
+  template: templateOpenIcon,
   '@types': typeOpenIcon,
   svg: svgOpenIcon,
   scss: sassOpenIcon,
@@ -229,14 +241,18 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   packages: packagesOpenIcon,
   node_modules: nodeOpenIcon,
   mock: mockOpenIcon,
+  mobie: mobieOpenIcon,
   module: pluginOpenIcon,
   modules: pluginOpenIcon,
   markdown: markdownOpenIcon,
+  obsidian: obsidianOpenIcon,
+  '.obsidian': obsidianOpenIcon,
   upload: uploadOpenIcon,
   pdf: pdfOpenIcon,
   less: lessOpenIcon,
   lib: libOpenIcon,
   layout: layoutOpenIcon,
+  img: imagesOpenIcon,
   images: imagesOpenIcon,
   icons: imagesOpenIcon,
   i18n: i18nOpenIcon,
