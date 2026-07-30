@@ -2446,10 +2446,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       '.hg',
       'node_modules',
       'bower_components',
+      '.yarn',
       '.pnpm-store',
       'coverage',
       '.next',
       '.nuxt',
+      '.output',
       '.cache',
       '.turbo',
     ]);
@@ -2617,6 +2619,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       if (resolved) {
         this.pendingMetadataPaths.add(resolved);
+        this.addRelatedVisibleMetadataPaths(resolved, this.pendingMetadataPaths);
       }
     });
 
@@ -2704,6 +2707,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private async syncMetadataForPaths(targets: string[]): Promise<void> {
     if (!this.view || targets.length === 0) return;
 
+    this.gitMetadataCache.clear();
+
     const normalizedTargets = targets.map((item) => this.resolveMetadataTargetPath(item)).filter(Boolean);
     const paths = new Map<string, boolean>();
 
@@ -2750,6 +2755,30 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       type: 'metadataPatch',
       items,
     });
+  }
+
+  private addRelatedVisibleMetadataPaths(targetPath: string, paths: Set<string>): void {
+    if (!targetPath) return;
+
+    this.getRecentProjects().forEach((project) => {
+      if (this.isInsidePath(targetPath, project.fsPath) || this.isInsidePath(project.fsPath, targetPath)) {
+        paths.add(project.fsPath);
+      }
+    });
+
+    for (const [dirPath, children] of this.loadedDirChildren) {
+      if (this.isInsidePath(targetPath, dirPath) || this.isInsidePath(dirPath, targetPath)) {
+        paths.add(dirPath);
+      }
+
+      children.forEach((child) => {
+        const matched = this.normalizeComparePath(targetPath) === this.normalizeComparePath(child.path) || (child.isFolder && this.isInsidePath(targetPath, child.path));
+
+        if (matched) {
+          paths.add(child.path);
+        }
+      });
+    }
   }
 
   private async syncDirtyMetadataForPaths(targets: string[]): Promise<void> {
