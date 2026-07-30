@@ -595,7 +595,7 @@ export default function GitApp() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [isRepo, clearCommitDraft, restoreCommitDraft, restoreCommitMessageText]);
+  }, [isRepo, commitMsg, clearCommitDraft, restoreCommitDraft, restoreCommitMessageText, setCommitInputValue]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
