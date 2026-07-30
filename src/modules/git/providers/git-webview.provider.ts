@@ -451,22 +451,29 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private async handleGitErrorWithConflictCheck(cwd: string, operationName: string, originalErrorMsg: string) {
+  private async handleGitErrorWithConflictCheck(cwd: string, operationName: string, originalErrorMsg: string, options?: { mergeBranchName?: string }) {
     try {
       const repoStatus = await this.gitService.getRepoStatus(cwd);
       const conflicts = repoStatus.conflictedFiles || [];
 
       if (conflicts.length > 0) {
         if (operationName === '合并分支') {
-          const options = await this.updateWorkspaceGitOptions(cwd, {
+          const workspaceOptions = await this.updateWorkspaceGitOptions(cwd, {
             commitTypeEnabled: false,
           });
 
           this._view?.webview.postMessage({
             type: 'gitWorkspaceOptionsChanged',
-            commitTypeEnabled: options.commitTypeEnabled,
-            skipVerify: options.skipVerify,
+            commitTypeEnabled: workspaceOptions.commitTypeEnabled,
+            skipVerify: workspaceOptions.skipVerify,
           });
+
+          if (options?.mergeBranchName) {
+            this._view?.webview.postMessage({
+              type: 'mergeConflictCommitMessage',
+              message: `Merge branch '${options.mergeBranchName}'`,
+            });
+          }
         }
 
         vscode.window.showWarningMessage(`【${operationName}】产生冲突！\n共检测到 ${conflicts.length} 个冲突文件，请在侧边栏的【冲突区】中逐一解决。`);
@@ -1386,7 +1393,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   vscode.window.showInformationMessage(`🎉 已成功将 ${selected.branchName} 合并到 ${current}`);
                   await this.refreshStatus(cwd, true);
                 } catch (e: any) {
-                  await this.handleGitErrorWithConflictCheck(cwd, '合并分支', e.message);
+                  await this.handleGitErrorWithConflictCheck(cwd, '合并分支', e.message, {
+                    mergeBranchName: selected.branchName,
+                  });
                 }
               });
             } catch (e: any) {

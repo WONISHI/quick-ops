@@ -511,6 +511,19 @@ export default function GitApp() {
         setJustCommitted(true);
       } else if (msg.type === 'focusCommitInput') {
         commitInputRef.current?.focus();
+      } else if (msg.type === 'mergeConflictCommitMessage') {
+        const message = typeof msg.message === 'string' ? msg.message.trim() : '';
+        const currentMessage = commitInputRef.current?.innerText.replace(/\n/g, '').trim() || commitMsg.replace(/\n/g, '').trim();
+
+        if (message && !currentMessage) {
+          setCommitTypeEnabled(false);
+          setCommitInputValue(message);
+          setJustCommitted(false);
+
+          requestAnimationFrame(() => {
+            commitInputRef.current?.focus();
+          });
+        }
       } else if (msg.type === 'undoLastCommitSuccess') {
         const lastCommittedSnapshot = lastCommittedSnapshotRef.current;
         const undoMessage = typeof msg.message === 'string' ? msg.message : '';
