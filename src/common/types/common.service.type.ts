@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { SupportedFileType } from '@core/constants';
+import { SupportedFileType } from '@common/types/common.type';
 export interface IWorkspaceContext {
   fileName: string;
   fileNameBase: string;
