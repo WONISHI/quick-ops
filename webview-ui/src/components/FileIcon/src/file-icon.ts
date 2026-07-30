@@ -87,6 +87,7 @@ import tailwindcssIcon from 'material-icon-theme/icons/tailwindcss.svg';
 import prismaIcon from 'material-icon-theme/icons/prisma.svg';
 import obsidianIcon from '@assets/icon/obsidian.svg';
 import sheetIcon from '@assets/icon/sheet.svg';
+import settingsIcon from 'material-icon-theme/icons/settings.svg';
 import nginxIcon from 'material-icon-theme/icons/nginx.svg';
 import netlifyIcon from 'material-icon-theme/icons/netlify.svg';
 import LockIcon from 'material-icon-theme/icons/lock.svg';
@@ -99,9 +100,9 @@ import tsdownIcon from 'material-icon-theme/icons/tsdown.svg';
 import typescriptDefIcon from 'material-icon-theme/icons/typescript-def.svg';
 import testTsIcon from 'material-icon-theme/icons/test-ts.svg';
 import webassemblyIcon from 'material-icon-theme/icons/webassembly.svg';
+import faviconIcon from 'material-icon-theme/icons/favicon.svg';
 
 import type { IconMatchRule } from './type';
-
 
 const EXACT_NAMES: Record<string, string> = {
   'package.json': nodeJsIcon,
@@ -195,6 +196,7 @@ const EXACT_NAMES: Record<string, string> = {
   'tailwind.config.ts': tailwindcssIcon,
   'commit-msg': consoleIcon,
   'pre-commit': consoleIcon,
+  'favicon.ico': faviconIcon,
   'playwright.config.ts': playwrightIcon,
 };
 
@@ -280,6 +282,7 @@ const EXTENSIONS: Record<string, string> = {
   '7z': zipIcon,
   xlsx: xlsxIcon,
   xls: xlsxIcon,
+  properties: settingsIcon,
   'code-snippets': vscodeIcon,
   prisma: prismaIcon,
 };

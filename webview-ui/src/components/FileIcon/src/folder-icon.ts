@@ -9,6 +9,8 @@ import storeIcon from 'material-icon-theme/icons/folder-store.svg';
 import storeOpenIcon from 'material-icon-theme/icons/folder-store-open.svg';
 import vscodeIcon from 'material-icon-theme/icons/folder-vscode.svg';
 import vscodeOpenIcon from 'material-icon-theme/icons/folder-vscode-open.svg';
+import libIcon from 'material-icon-theme/icons/folder-lib.svg';
+import libOpenIcon from 'material-icon-theme/icons/folder-lib-open.svg';
 import viewIcon from 'material-icon-theme/icons/folder-views.svg';
 import viewOpenIcon from 'material-icon-theme/icons/folder-views-open.svg';
 import videoIcon from 'material-icon-theme/icons/folder-video.svg';
@@ -19,6 +21,8 @@ import testIcon from 'material-icon-theme/icons/folder-test.svg';
 import testOpenIcon from 'material-icon-theme/icons/folder-test-open.svg';
 import typeIcon from 'material-icon-theme/icons/folder-typescript.svg';
 import typeOpenIcon from 'material-icon-theme/icons/folder-typescript-open.svg';
+import themeIcon from 'material-icon-theme/icons/folder-theme.svg';
+import themeOpenIcon from 'material-icon-theme/icons/folder-theme-open.svg';
 import svgIcon from 'material-icon-theme/icons/folder-svg.svg';
 import svgOpenIcon from 'material-icon-theme/icons/folder-svg-open.svg';
 import srcIcon from 'material-icon-theme/icons/folder-src.svg';
@@ -47,8 +51,12 @@ import pdfIcon from 'material-icon-theme/icons/folder-pdf.svg';
 import pdfOpenIcon from 'material-icon-theme/icons/folder-pdf-open.svg';
 import nodeIcon from 'material-icon-theme/icons/folder-node.svg';
 import nodeOpenIcon from 'material-icon-theme/icons/folder-node-open.svg';
+import messageIcon from 'material-icon-theme/icons/folder-messages.svg';
+import messageOpenIcon from 'material-icon-theme/icons/folder-messages-open.svg';
 import markdownIcon from 'material-icon-theme/icons/folder-markdown.svg';
 import markdownOpenIcon from 'material-icon-theme/icons/folder-markdown-open.svg';
+import uploadIcon from 'material-icon-theme/icons/folder-update.svg';
+import uploadOpenIcon from 'material-icon-theme/icons/folder-update-open.svg';
 import lessIcon from 'material-icon-theme/icons/folder-less.svg';
 import lessOpenIcon from 'material-icon-theme/icons/folder-less-open.svg';
 import layoutIcon from 'material-icon-theme/icons/folder-layout.svg';
@@ -61,6 +69,8 @@ import huskyIcon from 'material-icon-theme/icons/folder-husky.svg';
 import huskyOpenIcon from 'material-icon-theme/icons/folder-husky-open.svg';
 import hookIcon from 'material-icon-theme/icons/folder-hook.svg';
 import hookOpenIcon from 'material-icon-theme/icons/folder-hook-open.svg';
+import globalIcon from 'material-icon-theme/icons/folder-global.svg';
+import globalOpenIcon from 'material-icon-theme/icons/folder-global-open.svg';
 import gitIcon from 'material-icon-theme/icons/folder-git.svg';
 import gitOpenIcon from 'material-icon-theme/icons/folder-git-open.svg';
 import githubIcon from 'material-icon-theme/icons/folder-github.svg';
@@ -69,6 +79,8 @@ import fontIcon from 'material-icon-theme/icons/folder-font.svg';
 import fontOpenIcon from 'material-icon-theme/icons/folder-font-open.svg';
 import eslintIcon from 'material-icon-theme/icons/folder-eslint.svg';
 import eslintOpenIcon from 'material-icon-theme/icons/folder-eslint-open.svg';
+import directivesIcon from 'material-icon-theme/icons/folder-directive.svg';
+import directivesOpenIcon from 'material-icon-theme/icons/folder-directive-open.svg';
 import docsIcon from 'material-icon-theme/icons/folder-docs.svg';
 import docsOpenIcon from 'material-icon-theme/icons/folder-docs-open.svg';
 import distIcon from 'material-icon-theme/icons/folder-dist.svg';
@@ -96,11 +108,12 @@ import type { IconMatchRule } from './type';
  * @description 文件夹收起状态精确匹配
  */
 const FOLDER_EXACT_NAMES: Record<string, string> = {
-  yarn: yarnIcon,
+  '.yarn': yarnIcon,
   vuex: vuexIcon,
   store: storeIcon,
   src: srcIcon,
   snippet: snippetIcon,
+  static: resourceOpenIcon,
   script: scriptsIcon,
   scripts: scriptsIcon,
   server: serverIcon,
@@ -108,10 +121,12 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   resource: resourceIcon,
   resources: resourceIcon,
   redux: reduxIcon,
+  vendors: libIcon,
   views: viewIcon,
   video: videoIcon,
   utils: utilsIcon,
   test: testIcon,
+  theme: themeIcon,
   type: typeIcon,
   types: typeIcon,
   svg: svgIcon,
@@ -128,15 +143,20 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   module: pluginIcon,
   modules: pluginIcon,
   markdown: markdownIcon,
+  upload: uploadIcon,
   less: lessIcon,
   layout: layoutIcon,
+  lib: libIcon,
   images: imagesIcon,
   i18n: i18nIcon,
   hook: hookIcon,
   hooks: hookIcon,
+  global: globalIcon,
   git: gitIcon,
   font: fontIcon,
   eslint: eslintIcon,
+  directives: directivesIcon,
+  dialog: messageIcon,
   docs: docsIcon,
   dist: distIcon,
   css: cssIcon,
@@ -146,6 +166,8 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   config: configIcon,
   components: componentsIcon,
   asserts: resourceIcon,
+  '.bin': distIcon,
+  bin: distIcon,
   app: appIcon,
   api: apiIcon,
   '.husky': huskyIcon,
@@ -162,7 +184,7 @@ const FOLDER_REGEX_NAMES: IconMatchRule[] = [];
  * @description 文件夹展开状态精确匹配
  */
 const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
-  yarn: yarnOpenIcon,
+  '.yarn': yarnOpenIcon,
   vuex: vuexOpenIcon,
   store: storeOpenIcon,
   server: serverOpenIcon,
@@ -174,10 +196,13 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   src: srcOpenIcon,
   shared: shareOpenIcon,
   snippet: snippetOpenIcon,
+  static: resourceIcon,
   views: viewOpenIcon,
   video: videoOpenIcon,
+  vendors: libOpenIcon,
   utils: utilsOpenIcon,
   test: testOpenIcon,
+  theme: themeOpenIcon,
   type: typeOpenIcon,
   types: typeOpenIcon,
   svg: svgOpenIcon,
@@ -193,15 +218,20 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   module: pluginOpenIcon,
   modules: pluginOpenIcon,
   markdown: markdownOpenIcon,
+  upload: uploadOpenIcon,
   pdf: pdfOpenIcon,
   less: lessOpenIcon,
+  lib: libOpenIcon,
   layout: layoutOpenIcon,
   images: imagesOpenIcon,
   i18n: i18nOpenIcon,
   hook: hookOpenIcon,
   hooks: hookOpenIcon,
+  global: globalOpenIcon,
   git: gitOpenIcon,
   font: fontOpenIcon,
+  dialog: messageOpenIcon,
+  directives: directivesOpenIcon,
   eslint: eslintOpenIcon,
   docs: docsOpenIcon,
   dist: distOpenIcon,
@@ -212,6 +242,8 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   config: configOpenIcon,
   components: componentsOpenIcon,
   asserts: resourceOpenIcon,
+  bin: distIcon,
+  '.bin': distIcon,
   app: appOpenIcon,
   api: apiOpenIcon,
   '.husky': huskyOpenIcon,
