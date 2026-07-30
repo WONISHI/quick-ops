@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { LogHelper } from '@utils/LogHelper';
+import { LogHelper } from '@modules/log-enhancer/log-enhancer.utils';
 import { ConfigurationService } from '@common/services/configuration.service';
 import { WorkspaceStateService } from '@common/services/workspace-state.service';
 

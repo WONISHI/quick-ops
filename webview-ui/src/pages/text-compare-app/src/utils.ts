@@ -1,5 +1,5 @@
 import * as Diff from 'diff';
-import styles from './index.module.css';
+import styles from '@pages/text-compare-app/index.module.css';
 import type { DiffResult } from '@pages/text-compare-app/src/type';
 
 const EMPTY_TOKEN = '___EMPTY_SLOT___';

@@ -64,6 +64,9 @@ import turboIcon from 'material-icon-theme/icons/turborepo_light.svg';
 import rollupIcon from 'material-icon-theme/icons/rollup.svg';
 import readmeIcon from 'material-icon-theme/icons/readme.svg';
 import plopIcon from 'material-icon-theme/icons/plop.svg';
+import angularIcon from 'material-icon-theme/icons/angular.svg';
+import controllerIcon from 'material-icon-theme/icons/controller.svg';
+import serviceIcon from 'material-icon-theme/icons/angular-service.clone.svg';
 import markdownlint from 'material-icon-theme/icons/markdownlint.svg';
 import lintstagedIcon from 'material-icon-theme/icons/lintstaged.svg';
 import commitlintIcon from 'material-icon-theme/icons/commitlint.svg';
@@ -99,7 +102,7 @@ import typescriptDefIcon from 'material-icon-theme/icons/typescript-def.svg';
 import testTsIcon from 'material-icon-theme/icons/test-ts.svg';
 import webassemblyIcon from 'material-icon-theme/icons/webassembly.svg';
 
-export type FileGitStatus = 'u' | 'a' | 'm' | 'd' | 'r' | 'c' | string;
+import type { IconMatchRule, FileIconProps } from '@components/FileIcon/src/type';
 
 const EXACT_NAMES: Record<string, string> = {
   'package.json': nodeJsIcon,
@@ -282,33 +285,277 @@ const EXTENSIONS: Record<string, string> = {
   prisma: prismaIcon,
 };
 
-interface FileIconProps {
-  fileName: string;
-  className?: string;
-  style?: React.CSSProperties;
-  status?: FileGitStatus;
-}
+const REGEX_NAMES: IconMatchRule[] = [
+  {
+    pattern: /^.+\.controller\.ts$/i,
+    icon: controllerIcon,
+  },
+  {
+    pattern: /^.+\.module\.ts$/i,
+    icon: angularIcon,
+  },
+  {
+    pattern: /^.+\.service\.ts$/i,
+    icon: serviceIcon,
+  },
+  {
+    pattern: /^\.env\.[^.]+$/i,
+    icon: tuneIcon,
+  },
+  {
+    pattern: /^vite\.config\.(js|mjs|cjs|ts|mts|cts)$/i,
+    icon: viteConfigIcon,
+  },
+  {
+    pattern: /^webpack\.config\.(js|mjs|cjs|ts|mts|cts)$/i,
+    icon: webpackIcon,
+  },
+  {
+    pattern: /^vue\.config\.(js|mjs|cjs|ts)$/i,
+    icon: vueConfigIcon,
+  },
+  {
+    pattern: /^tailwind\.config\.(js|mjs|cjs|ts)$/i,
+    icon: tailwindcssIcon,
+  },
+  {
+    pattern: /^postcss\.config\.(js|mjs|cjs|ts)$/i,
+    icon: postcssIcon,
+  },
+  {
+    pattern: /^eslint\.config\.(js|mjs|cjs|ts)$/i,
+    icon: eslintIcon,
+  },
+  {
+    pattern: /^stylelint\.config\.(js|mjs|cjs|ts)$/i,
+    icon: stylelintIcon,
+  },
+  {
+    pattern: /^commitlint\.config\.(js|mjs|cjs|ts)$/i,
+    icon: commitlintIcon,
+  },
+  {
+    pattern: /^jest\.config\.(js|mjs|cjs|ts)$/i,
+    icon: jestIcon,
+  },
+  {
+    pattern: /^vitest\.config\.(js|mjs|cjs|ts|mts)$/i,
+    icon: vitestIcon,
+  },
+  {
+    pattern: /^playwright\.config\.(js|mjs|cjs|ts)$/i,
+    icon: playwrightIcon,
+  },
+  {
+    pattern: /^rollup\.config\.(js|mjs|cjs|ts)$/i,
+    icon: rollupIcon,
+  },
+  {
+    pattern: /^gulpfile(\.babel)?\.(js|mjs|cjs|ts)$/i,
+    icon: gulpIcon,
+  },
+  {
+    pattern: /^tsconfig(\.[\w-]+)?\.json$/i,
+    icon: tsconfigIcon,
+  },
+  {
+    pattern: /^jsconfig(\.[\w-]+)?\.json$/i,
+    icon: jsconfigIcon,
+  },
+  {
+    pattern: /^docker-compose\.(ya?ml|json)$/i,
+    icon: dockerIcon,
+  },
+  {
+    pattern: /^dockerfile(\.[\w-]+)?$/i,
+    icon: dockerIcon,
+  },
+  {
+    pattern: /^readme(\.[\w-]+)?\.md$/i,
+    icon: readmeIcon,
+  },
+  {
+    pattern: /^changelog(\.[\w-]+)?(\.md|\.txt)?$/i,
+    icon: changelogIcon,
+  },
+  {
+    pattern: /^license(\.[\w-]+)?(\.md|\.txt)?$/i,
+    icon: licenseIcon,
+  },
+  {
+    pattern: /^licence(\.[\w-]+)?(\.md|\.txt)?$/i,
+    icon: licenseIcon,
+  },
+  {
+    pattern: /^\.prettierrc(\.[\w-]+)?$/i,
+    icon: prettierIcon,
+  },
+  {
+    pattern: /^\.eslintrc(\.[\w-]+)?$/i,
+    icon: eslintIcon,
+  },
+  {
+    pattern: /^\.stylelintrc(\.[\w-]+)?$/i,
+    icon: stylelintIcon,
+  },
+  {
+    pattern: /^\.babelrc(\.[\w-]+)?$/i,
+    icon: babelIcon,
+  },
+  {
+    pattern: /(^|[-_.])test\.(ts|tsx|js|jsx)$/i,
+    icon: testTsIcon,
+  },
+  {
+    pattern: /(^|[-_.])spec\.(ts|tsx|js|jsx)$/i,
+    icon: testTsIcon,
+  },
+  {
+    pattern: /\.d\.ts$/i,
+    icon: typescriptDefIcon,
+  },
+];
 
-export const FileIcon: React.FC<FileIconProps> = ({ fileName, className, style, status }) => {
+const FOLDER_EXACT_NAMES: Record<string, string> = {
+  '.git': gitIcon,
+  '.github': gitIcon,
+  '.gitlab': gitIcon,
+  '.vscode': vscodeIcon,
+  '.claude': claudeIcon,
+  src: typescriptIcon,
+  source: typescriptIcon,
+  app: typescriptIcon,
+  apps: typescriptIcon,
+  pages: reactIcon,
+  components: reactIcon,
+  component: reactIcon,
+  modules: typescriptIcon,
+  module: typescriptIcon,
+  plugins: typescriptIcon,
+  plugin: typescriptIcon,
+  providers: typescriptIcon,
+  provider: typescriptIcon,
+  services: typescriptIcon,
+  service: typescriptIcon,
+  utils: typescriptIcon,
+  util: typescriptIcon,
+  hooks: reactIcon,
+  assets: imageIcon,
+  images: imageIcon,
+  image: imageIcon,
+  icons: imageIcon,
+  icon: imageIcon,
+  styles: cssIcon,
+  style: cssIcon,
+  css: cssIcon,
+  less: lessIcon,
+  scss: sassIcon,
+  sass: sassIcon,
+  public: htmlIcon,
+  static: htmlIcon,
+  resources: htmlIcon,
+  docs: markdownIcon,
+  doc: markdownIcon,
+  test: testTsIcon,
+  tests: testTsIcon,
+  __tests__: testTsIcon,
+  node_modules: nodeJsIcon,
+  dist: webpackIcon,
+  build: webpackIcon,
+};
+
+const FOLDER_REGEX_NAMES: IconMatchRule[] = [
+  {
+    pattern: /^(e2e|unit|integration|__tests__)$/i,
+    icon: testTsIcon,
+  },
+  {
+    pattern: /^(assets?|images?|icons?|media|img)$/i,
+    icon: imageIcon,
+  },
+  {
+    pattern: /^(styles?|css|less|s[ac]ss)$/i,
+    icon: cssIcon,
+  },
+  {
+    pattern: /^(docs?|markdown)$/i,
+    icon: markdownIcon,
+  },
+  {
+    pattern: /^(api|apis|request|requests|http)$/i,
+    icon: consoleIcon,
+  },
+  {
+    pattern: /^(database|db|sql|prisma)$/i,
+    icon: databaseIcon,
+  },
+  {
+    pattern: /^(config|configs|configuration)$/i,
+    icon: tuneIcon,
+  },
+  {
+    pattern: /^(scripts?|shell|bin)$/i,
+    icon: consoleIcon,
+  },
+  {
+    pattern: /^(types?|typings?|interfaces?)$/i,
+    icon: typescriptDefIcon,
+  },
+  {
+    pattern: /^(react|jsx|tsx)$/i,
+    icon: reactIcon,
+  },
+  {
+    pattern: /^(vue|views?)$/i,
+    icon: vueIcon,
+  },
+];
+
+const getMatchedIconFromRules = (name: string, rules: IconMatchRule[]) => {
+  return rules.find((rule) => rule.pattern.test(name))?.icon;
+};
+
+const getFileIconUrl = (fileName: string) => {
+  const lowerName = fileName.toLowerCase();
+
+  if (EXACT_NAMES[lowerName]) {
+    return EXACT_NAMES[lowerName];
+  }
+
+  const regexIcon = getMatchedIconFromRules(fileName, REGEX_NAMES);
+
+  if (regexIcon) {
+    return regexIcon;
+  }
+
+  const ext = lowerName.split('.').pop() || '';
+
+  if (EXTENSIONS[ext]) {
+    return EXTENSIONS[ext];
+  }
+
+  return fileIcon;
+};
+
+const getFolderIconUrl = (folderName: string) => {
+  const lowerName = folderName.toLowerCase();
+
+  if (FOLDER_EXACT_NAMES[lowerName]) {
+    return FOLDER_EXACT_NAMES[lowerName];
+  }
+
+  return getMatchedIconFromRules(folderName, FOLDER_REGEX_NAMES) || fileIcon;
+};
+
+export const FileIcon: React.FC<FileIconProps> = ({ fileName, isFolder = false, className, style, status }) => {
   const finalUrl = useMemo(() => {
-    const lowerName = fileName.toLowerCase();
-
-    if (EXACT_NAMES[lowerName]) {
-      return EXACT_NAMES[lowerName];
-    }
-
-    const ext = lowerName.split('.').pop() || '';
-    if (EXTENSIONS[ext]) {
-      return EXTENSIONS[ext];
-    }
-
-    return fileIcon;
-  }, [fileName]);
+    return isFolder ? getFolderIconUrl(fileName) : getFileIconUrl(fileName);
+  }, [fileName, isFolder]);
 
   return (
     <img
       src={finalUrl}
-      alt="file icon"
+      alt={isFolder ? 'folder icon' : 'file icon'}
       className={className}
       data-status={status || undefined}
       title={status ? `状态: ${status}` : undefined}
