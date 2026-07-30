@@ -77,8 +77,12 @@ import githubIcon from 'material-icon-theme/icons/folder-github.svg';
 import githubOpenIcon from 'material-icon-theme/icons/folder-github-open.svg';
 import fontIcon from 'material-icon-theme/icons/folder-font.svg';
 import fontOpenIcon from 'material-icon-theme/icons/folder-font-open.svg';
+import eventsIcon from 'material-icon-theme/icons/folder-event.svg';
+import eventsOpenIcon from 'material-icon-theme/icons/folder-event-open.svg';
 import eslintIcon from 'material-icon-theme/icons/folder-eslint.svg';
 import eslintOpenIcon from 'material-icon-theme/icons/folder-eslint-open.svg';
+import debugIcon from 'material-icon-theme/icons/folder-debug.svg';
+import debugOpenIcon from 'material-icon-theme/icons/folder-debug-open.svg';
 import directivesIcon from 'material-icon-theme/icons/folder-directive.svg';
 import directivesOpenIcon from 'material-icon-theme/icons/folder-directive-open.svg';
 import docsIcon from 'material-icon-theme/icons/folder-docs.svg';
@@ -130,6 +134,8 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   theme: themeIcon,
   type: typeIcon,
   types: typeIcon,
+  '@types': typeIcon,
+  typescript: typeIcon,
   svg: svgIcon,
   scss: sassIcon,
   sass: sassIcon,
@@ -149,13 +155,14 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   layout: layoutIcon,
   lib: libIcon,
   images: imagesIcon,
-  icons:imagesIcon,
+  icons: imagesIcon,
   i18n: i18nIcon,
   hook: hookIcon,
   hooks: hookIcon,
   global: globalIcon,
   git: gitIcon,
   font: fontIcon,
+  figures: imagesIcon,
   eslint: eslintIcon,
   directives: directivesIcon,
   dialog: messageIcon,
@@ -167,6 +174,8 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   constant: constantIcon,
   config: configIcon,
   components: componentsIcon,
+  debug: debugIcon,
+  events: eventsIcon,
   assets: resourceIcon,
   '.bin': distIcon,
   bin: distIcon,
@@ -199,7 +208,7 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   shared: shareOpenIcon,
   snippet: snippetOpenIcon,
   snippets: snippetOpenIcon,
-  static: resourceIcon,
+  static: resourceOpenIcon,
   views: viewOpenIcon,
   video: videoOpenIcon,
   vendors: libOpenIcon,
@@ -208,6 +217,8 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   theme: themeOpenIcon,
   type: typeOpenIcon,
   types: typeOpenIcon,
+  typescript: typeOpenIcon,
+  '@types': typeOpenIcon,
   svg: svgOpenIcon,
   scss: sassOpenIcon,
   sass: sassOpenIcon,
@@ -227,13 +238,14 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   lib: libOpenIcon,
   layout: layoutOpenIcon,
   images: imagesOpenIcon,
-  icons:imagesIcon,
+  icons: imagesOpenIcon,
   i18n: i18nOpenIcon,
   hook: hookOpenIcon,
   hooks: hookOpenIcon,
   global: globalOpenIcon,
   git: gitOpenIcon,
   font: fontOpenIcon,
+  figures: i18nOpenIcon,
   dialog: messageOpenIcon,
   directives: directivesOpenIcon,
   eslint: eslintOpenIcon,
@@ -246,7 +258,9 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   config: configOpenIcon,
   components: componentsOpenIcon,
   assets: resourceOpenIcon,
-  bin: distIcon,
+  debug: debugOpenIcon,
+  bin: distOpenIcon,
+  events: eventsOpenIcon,
   '.bin': distIcon,
   app: appOpenIcon,
   api: apiOpenIcon,
