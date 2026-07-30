@@ -3101,6 +3101,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       });
 
       this.refresh(false);
+      this.postMessage({
+        type: 'refreshExpandedDirs',
+        forceRefresh: true,
+        activePath: this.currentActivePath || '',
+        lastOpenedPath: this.currentActivePath || '',
+        activeFilePath: this.currentActivePath || '',
+      });
 
       if (choice !== '仅切换标签不打开') {
         await this.openProject(fsPath, choice === '在新窗口打开');

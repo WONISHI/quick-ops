@@ -1,15 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
 import { vscode } from '@utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {
-  faMagnifyingGlass,
-  faFolderPlus,
-  faCodeBranch,
-  faChevronRight,
-  faChevronDown,
-  faArrowRightToBracket,
-  faSpinner,
-} from '@fortawesome/free-solid-svg-icons';
+import { faMagnifyingGlass, faFolderPlus, faCodeBranch, faChevronRight, faChevronDown, faArrowRightToBracket, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
 import styles from '@pages/recent-projects-app/index.module.css';
 import FileIcon from '@components/FileIcon';
@@ -1184,6 +1176,30 @@ export default function RecentProjectsApp() {
         setIsFocusLocked(false);
         exitSearchOrFocusMode();
       } else if (msg.type === 'collapseAllDirs') {
+        if (isFocusModeRef.current && focusRootPathRef.current) {
+          const targetPath = focusRootPathRef.current;
+          const targetTitle = focusRootNameRef.current || getProjectNameByPath(targetPath) || '当前项目';
+          const nextExpandedPaths = new Set([targetPath]);
+          const nextLoadingPaths = new Set([targetPath]);
+
+          collapseRevealGuardUntilRef.current = Date.now() + 800;
+          expandedPathsRef.current = nextExpandedPaths;
+
+          setExpandedPaths(nextExpandedPaths);
+          setLoadingPaths(nextLoadingPaths);
+
+          if ((msg as any).clearChildren !== false) {
+            const nextDirChildren: Record<string, DirChild[]> = {};
+
+            dirChildrenRef.current = nextDirChildren;
+            normalDirChildrenBeforeFocusRef.current = {};
+            setDirChildren(nextDirChildren);
+          }
+
+          requestReadDir(targetPath, targetTitle, true);
+          return;
+        }
+
         collapseAllFolders({
           clearChildren: (msg as any).clearChildren !== false,
         });
@@ -1412,8 +1428,17 @@ export default function RecentProjectsApp() {
       } else if (msg.type === 'refreshExpandedDirs') {
         requestSilentFolderSearchRefresh();
 
-        const expandedList = Array.from(expandedPathsRef.current).filter((itemPath) => {
+        const candidatePaths = Array.from(
+          new Set([...(isFocusModeRef.current && focusRootPathRef.current ? [focusRootPathRef.current] : []), ...Array.from(expandedPathsRef.current)]),
+        );
+        const expandedList = candidatePaths.filter((itemPath) => {
           if (!itemPath) return false;
+
+          const isFocusRoot = isFocusModeRef.current && focusRootPathRef.current && isSameTreePath(itemPath, focusRootPathRef.current);
+
+          if (isFocusRoot) {
+            return true;
+          }
 
           const hasParentLoaded = Object.keys(dirChildrenRef.current).some((parentPath) => {
             const children = dirChildrenRef.current[parentPath] || [];
@@ -1433,9 +1458,10 @@ export default function RecentProjectsApp() {
 
         setLoadingPaths((prev) => {
           const next = new Set(prev);
+          const forceRefresh = (msg as any).forceRefresh !== false;
 
           expandedList.forEach((itemPath) => {
-            if (!dirChildrenRef.current[itemPath]) {
+            if (forceRefresh || !dirChildrenRef.current[itemPath]) {
               next.add(itemPath);
             }
           });
