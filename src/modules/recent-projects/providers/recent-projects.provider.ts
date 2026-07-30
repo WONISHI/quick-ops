@@ -18,18 +18,11 @@ import type {
   RecentProjectItem,
   RecentProjectsWebviewMessage,
   WebviewRequestId,
+  GitMetadataContext,
+  RecentProjectQuickPickItem,
 } from '@modules/recent-projects/recent-projects.type';
 
 const execFileAsync = promisify(execFile);
-
-type GitMetadataContext = {
-  gitRoot: string;
-  statusMap: Map<string, GitFileStatus>;
-};
-
-type RecentProjectQuickPickItem = vscode.QuickPickItem & {
-  project: RecentProjectItem;
-};
 
 export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   public static inject = [ExtensionContextProvider, RecentProjectsService, GitVirtualContentProvider];
@@ -81,13 +74,18 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private pathStatusSyncTimer: NodeJS.Timeout | undefined;
   private dirtyStatusSyncTimer: NodeJS.Timeout | undefined;
   private searchContentChangedTimer: NodeJS.Timeout | undefined;
+  private watchedTreeRefreshTimer: NodeJS.Timeout | undefined;
 
   private readonly pendingMetadataPaths = new Set<string>();
   private readonly pendingDirtyMetadataPaths = new Set<string>();
   private readonly pendingSearchContentChangedPaths = new Set<string>();
+  private readonly treeWatchers = new Map<string, vscode.FileSystemWatcher>();
+  private readonly pendingWatchedTreeRefreshDirs = new Set<string>();
 
   private revealVisibleProjectPaths: string[] | undefined;
   private revealVisibleInWebview = true;
+  private watchedTreeFocusMode = false;
+  private watchedTreeFocusRootPath = '';
 
   constructor(
     private readonly extensionContextProvider: ExtensionContextProvider,
@@ -157,6 +155,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     webviewView.onDidDispose(() => {
       if (this.view === webviewView) {
         this.view = undefined;
+        this.syncTreeWatchers([]);
         void vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.focusMode, false);
       }
     });
@@ -177,7 +176,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   public dispose(): void {
     this.cancelActiveSearch();
 
-    const timers = [this.statusSyncTimer, this.pathStatusSyncTimer, this.dirtyStatusSyncTimer, this.searchContentChangedTimer];
+    const timers = [this.statusSyncTimer, this.pathStatusSyncTimer, this.dirtyStatusSyncTimer, this.searchContentChangedTimer, this.watchedTreeRefreshTimer];
 
     timers.forEach((timer) => {
       if (timer) clearTimeout(timer);
@@ -187,6 +186,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.pathStatusSyncTimer = undefined;
     this.dirtyStatusSyncTimer = undefined;
     this.searchContentChangedTimer = undefined;
+    this.watchedTreeRefreshTimer = undefined;
 
     for (const panel of this.activePanels.values()) {
       panel.dispose();
@@ -201,12 +201,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.pendingMetadataPaths.clear();
     this.pendingDirtyMetadataPaths.clear();
     this.pendingSearchContentChangedPaths.clear();
+    this.pendingWatchedTreeRefreshDirs.clear();
+    this.disposeTreeWatchers();
 
     this.view = undefined;
     this.focusRootPath = '';
     this.currentActivePath = '';
     this.revealVisibleProjectPaths = undefined;
     this.revealVisibleInWebview = true;
+    this.watchedTreeFocusMode = false;
+    this.watchedTreeFocusRootPath = '';
 
     void vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.focusMode, false);
   }
@@ -682,6 +686,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           : undefined;
 
         this.updateRevealContext(this.currentActivePath);
+        break;
+
+      case 'updateWatchedTreePaths':
+        this.watchedTreeFocusMode = Boolean(message.focusMode);
+        this.watchedTreeFocusRootPath = String(message.focusRootPath || '');
+        this.syncTreeWatchers(Array.isArray(message.paths) ? message.paths : []);
         break;
 
       case 'addToHistory':
@@ -1417,7 +1427,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     let gitContext: GitMetadataContext | undefined;
 
     /**
-     * 专注模式需要依赖 Git 状态过滤，因此仍需等待元数据。
+     * 专注模式需要展示当前项目树，同时带上 Git 状态。
      * 普通目录展开不在这里读取 Git，避免阻塞首屏结果。
      */
     if (focusOnly && uri.scheme === 'file') {
@@ -1442,17 +1452,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         } as RecentProjectFileItem;
       });
 
-    const result = children
-      .filter((child) => {
-        return !focusOnly || Boolean(child.status);
-      })
-      .sort((a, b) => {
-        if (a.isFolder !== b.isFolder) {
-          return a.isFolder ? -1 : 1;
-        }
+    const result = children.sort((a, b) => {
+      if (a.isFolder !== b.isFolder) {
+        return a.isFolder ? -1 : 1;
+      }
 
-        return a.name.localeCompare(b.name);
-      });
+      return a.name.localeCompare(b.name);
+    });
 
     this.loadedDirChildren.set(uriStr, result);
     this.directoryCache.set(cacheKey, {
@@ -1678,10 +1684,19 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (answer !== '删除') return;
 
     try {
-      await vscode.workspace.fs.delete(uri, {
-        recursive: true,
-        useTrash: true,
-      });
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `正在删除 ${path.basename(uri.fsPath)}...`,
+          cancellable: false,
+        },
+        async () => {
+          await vscode.workspace.fs.delete(uri, {
+            recursive: true,
+            useTrash: true,
+          });
+        },
+      );
 
       this.refreshTreeAfterFileChange();
     } catch (error) {
@@ -1819,7 +1834,23 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
    * - `modules/app` 命中 `src/modules/app.module.ts`；
    * - `src` 不会仅因为路径是 `src/app.module.ts` 就命中该文件。
    */
+  private tryCreateSearchRegex(query: string, global = false): RegExp | null {
+    try {
+      const trimmed = query.trim();
+      if (!trimmed) return null;
+      const flags = global ? 'gi' : 'i';
+      const regex = new RegExp(trimmed, flags);
+      return regex;
+    } catch {
+      return null;
+    }
+  }
+
   private isFileNameSearchMatched(name: string, relativePath: string, query: string): boolean {
+    const regex = this.tryCreateSearchRegex(query);
+    if (regex) {
+      return regex.test(name) || regex.test(relativePath);
+    }
     const normalizedQuery = query
       .trim()
       .replace(/\\/g, '/')
@@ -2204,20 +2235,29 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (picked !== confirmText) return;
 
     try {
-      if (isUntracked) {
-        await vscode.workspace.fs.delete(location.uri, {
-          recursive: true,
-          useTrash: false,
-        });
-      } else {
-        await execFileAsync('git', ['reset', '--', location.relativePath], {
-          cwd: location.gitRoot,
-        });
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `正在${confirmText} ${fileName}...`,
+          cancellable: false,
+        },
+        async () => {
+          if (isUntracked) {
+            await vscode.workspace.fs.delete(location.uri, {
+              recursive: true,
+              useTrash: false,
+            });
+          } else {
+            await execFileAsync('git', ['reset', '--', location.relativePath], {
+              cwd: location.gitRoot,
+            });
 
-        await execFileAsync('git', ['checkout', '--', location.relativePath], {
-          cwd: location.gitRoot,
-        });
-      }
+            await execFileAsync('git', ['checkout', '--', location.relativePath], {
+              cwd: location.gitRoot,
+            });
+          }
+        },
+      );
 
       vscode.window.showInformationMessage(`已取消 ${fileName} 的变更`);
       this.refreshTreeAfterFileChange();
@@ -2292,6 +2332,131 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         activeFilePath: this.currentActivePath,
       });
     }, 200);
+  }
+
+  private syncTreeWatchers(paths: unknown[]): void {
+    const nextWatchPathMap = new Map<string, vscode.Uri>();
+
+    paths.forEach((item) => {
+      if (typeof item !== 'string' || !item.trim()) return;
+
+      const uri = this.toUri(item);
+
+      if (!uri || uri.scheme !== 'file') return;
+      if (this.shouldIgnoreWatchedTreePath(uri.fsPath)) return;
+
+      const key = this.normalizeComparePath(uri.toString());
+
+      if (!key) return;
+
+      nextWatchPathMap.set(key, uri);
+    });
+
+    const minimizedWatchPathMap = this.minimizeWatchedTreePaths(nextWatchPathMap);
+
+    for (const [key, watcher] of Array.from(this.treeWatchers.entries())) {
+      if (minimizedWatchPathMap.has(key)) continue;
+
+      watcher.dispose();
+      this.treeWatchers.delete(key);
+    }
+
+    for (const [key, uri] of minimizedWatchPathMap.entries()) {
+      if (this.treeWatchers.has(key)) continue;
+
+      const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(uri.fsPath, '*'), false, false, false);
+      const handleChange = (changedUri: vscode.Uri) => {
+        this.handleWatchedTreeFileChanged(changedUri);
+      };
+
+      watcher.onDidCreate(handleChange);
+      watcher.onDidDelete(handleChange);
+      watcher.onDidChange(handleChange);
+
+      this.treeWatchers.set(key, watcher);
+    }
+  }
+
+  private minimizeWatchedTreePaths(paths: Map<string, vscode.Uri>): Map<string, vscode.Uri> {
+    const result = new Map<string, vscode.Uri>();
+
+    Array.from(paths.entries()).forEach(([key, uri]) => {
+      result.set(key, uri);
+    });
+
+    return result;
+  }
+
+  private handleWatchedTreeFileChanged(uri: vscode.Uri): void {
+    if (uri.scheme !== 'file') return;
+    if (this.shouldIgnoreWatchedTreePath(uri.fsPath)) return;
+
+    const parentPath = vscode.Uri.file(path.dirname(uri.fsPath)).toString();
+    const parentKey = this.normalizeComparePath(parentPath);
+    const isWatchedParent = Array.from(this.treeWatchers.keys()).some((watchPath) => {
+      return watchPath === parentKey;
+    });
+
+    if (!isWatchedParent) return;
+
+    this.pendingWatchedTreeRefreshDirs.add(parentPath);
+
+    if (this.watchedTreeRefreshTimer) {
+      clearTimeout(this.watchedTreeRefreshTimer);
+    }
+
+    this.watchedTreeRefreshTimer = setTimeout(() => {
+      this.watchedTreeRefreshTimer = undefined;
+      void this.flushWatchedTreeRefreshDirs();
+    }, 120);
+  }
+
+  private async flushWatchedTreeRefreshDirs(): Promise<void> {
+    const dirs = Array.from(this.pendingWatchedTreeRefreshDirs);
+
+    this.pendingWatchedTreeRefreshDirs.clear();
+
+    await Promise.all(
+      dirs.map(async (dirPath) => {
+        this.invalidateDirCache(dirPath);
+
+        const focusOnly = this.watchedTreeFocusMode && !!this.watchedTreeFocusRootPath && this.isInsidePath(dirPath, this.watchedTreeFocusRootPath);
+
+        await this.handleReadDir(dirPath, undefined, focusOnly, true);
+      }),
+    );
+
+    this.requestVisibleMetadataSync();
+  }
+
+  private disposeTreeWatchers(): void {
+    for (const watcher of this.treeWatchers.values()) {
+      watcher.dispose();
+    }
+
+    this.treeWatchers.clear();
+  }
+
+  private shouldIgnoreWatchedTreePath(fsPath: string): boolean {
+    const normalizedPath = fsPath.replace(/\\/g, '/');
+    const parts = normalizedPath.split('/').filter(Boolean);
+    const ignoredFolderNames = new Set([
+      '.git',
+      '.svn',
+      '.hg',
+      'node_modules',
+      'bower_components',
+      '.yarn',
+      '.pnpm-store',
+      'coverage',
+      '.next',
+      '.nuxt',
+      '.output',
+      '.cache',
+      '.turbo',
+    ]);
+
+    return parts.some((part) => this.shouldIgnoreName(part) || ignoredFolderNames.has(part.toLowerCase()));
   }
 
   private buildParentPaths(targetPath: string, rootPath: string): string[] {
@@ -2454,6 +2619,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       if (resolved) {
         this.pendingMetadataPaths.add(resolved);
+        this.addRelatedVisibleMetadataPaths(resolved, this.pendingMetadataPaths);
       }
     });
 
@@ -2541,6 +2707,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private async syncMetadataForPaths(targets: string[]): Promise<void> {
     if (!this.view || targets.length === 0) return;
 
+    this.gitMetadataCache.clear();
+
     const normalizedTargets = targets.map((item) => this.resolveMetadataTargetPath(item)).filter(Boolean);
     const paths = new Map<string, boolean>();
 
@@ -2587,6 +2755,30 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       type: 'metadataPatch',
       items,
     });
+  }
+
+  private addRelatedVisibleMetadataPaths(targetPath: string, paths: Set<string>): void {
+    if (!targetPath) return;
+
+    this.getRecentProjects().forEach((project) => {
+      if (this.isInsidePath(targetPath, project.fsPath) || this.isInsidePath(project.fsPath, targetPath)) {
+        paths.add(project.fsPath);
+      }
+    });
+
+    for (const [dirPath, children] of this.loadedDirChildren) {
+      if (this.isInsidePath(targetPath, dirPath) || this.isInsidePath(dirPath, targetPath)) {
+        paths.add(dirPath);
+      }
+
+      children.forEach((child) => {
+        const matched = this.normalizeComparePath(targetPath) === this.normalizeComparePath(child.path) || (child.isFolder && this.isInsidePath(targetPath, child.path));
+
+        if (matched) {
+          paths.add(child.path);
+        }
+      });
+    }
   }
 
   private async syncDirtyMetadataForPaths(targets: string[]): Promise<void> {
@@ -3465,7 +3657,23 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       const position = new vscode.Position(Math.max(0, line - 1), 0);
 
       editor.selection = new vscode.Selection(position, position);
-      editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+
+      const isVisible = editor.visibleRanges.some((range) => range.start.line <= position.line && position.line <= range.end.line);
+
+      if (!isVisible) {
+        editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+      }
+
+      const highlightDecoration = vscode.window.createTextEditorDecorationType({
+        backgroundColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
+        isWholeLine: true,
+      });
+
+      editor.setDecorations(highlightDecoration, [new vscode.Range(position, position)]);
+
+      setTimeout(() => {
+        highlightDecoration.dispose();
+      }, 1000);
     } catch (error) {
       vscode.window.showErrorMessage(`打开文件失败：${this.toErrorMessage(error)}`);
     }
@@ -3687,6 +3895,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
   private countOccurrences(text: string, query: string): number {
     if (!query) return 0;
+
+    const regex = this.tryCreateSearchRegex(query, true);
+    if (regex) {
+      const matches = text.match(regex);
+      return matches ? matches.length : 0;
+    }
 
     let count = 0;
     let fromIndex = 0;

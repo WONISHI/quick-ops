@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import Scrollbar from '@components/Scrollbar';
 import styles from '@pages/git-app/index.module.css';
 import Tooltip from '@components/Tooltip';
 import GitGraph from '@/pages/git-app/components/git-graph';
@@ -13,41 +14,10 @@ import { vscode } from '@utils/vscode';
 import { GitContextMenu } from '@/pages/git-app/components/git-context-menu';
 import type { GitFile } from '@/pages/git-app/src/type';
 import type { GraphCommit } from '@/pages/git-app/components/git-graph/src/type';
+import type { ContextMenuState } from '@/pages/git-app/components/git-context-menu/src/type';
+import type { RemoteSyncState, CommitDraftSnapshot } from '@pages/git-app/src/type';
 import type { CommitType } from '@/pages/git-app/components/commit-type-tag/src/type';
-import type {  ContextMenuState } from '@/pages/git-app/components/git-context-menu/src/type';
-import type {RemoteSyncState,CommitDraftSnapshot} from "@pages/git-app/src/type"
-
-
-const EMPTY_REMOTE_SYNC: RemoteSyncState = {
-  hasRemote: false,
-  hasUpstream: false,
-  branch: '',
-  upstream: '',
-  ahead: 0,
-  behind: 0,
-  needsPull: false,
-  needsPush: false,
-  checkedAt: 0,
-};
-
-const COMMIT_TYPE_ALIAS_MAP: Record<string, CommitType> = {
-  feat: 'feat' as CommitType,
-  feature: 'feat' as CommitType,
-  fix: 'fix' as CommitType,
-  bugfix: 'fix' as CommitType,
-  docs: 'docs' as CommitType,
-  doc: 'docs' as CommitType,
-  style: 'style' as CommitType,
-  refactor: 'refactor' as CommitType,
-  perf: 'perf' as CommitType,
-  performance: 'perf' as CommitType,
-  test: 'test' as CommitType,
-  tests: 'test' as CommitType,
-  chore: 'chore' as CommitType,
-  build: 'build' as CommitType,
-  ci: 'ci' as CommitType,
-  revert: 'revert' as CommitType,
-};
+import { EMPTY_REMOTE_SYNC, COMMIT_TYPE_ALIAS_MAP } from '@pages/git-app/src/constants';
 
 const normalizeCommitTypeText = (value: string) => {
   return value.trim().toLowerCase();
@@ -71,6 +41,18 @@ const parseCommitTypeFromText = (value: string) => {
     type,
     message: match[2].replace(/^\s+/, ''),
   };
+};
+
+const isGitMergeCommitMessage = (value: string) => {
+  return /^Merge (branch|remote-tracking branch) ['"][^'"]+['"]/i.test(value.replace(/\r\n/g, '\n').trim());
+};
+
+const isCommitHistoryMessageItem = (commit: GraphCommit) => {
+  if (commit.type === 'uncommitted' || commit.type === 'stash') {
+    return false;
+  }
+
+  return !/^Uncommitted Changes\b/i.test(commit.message || '');
 };
 
 export default function GitApp() {
@@ -134,6 +116,10 @@ export default function GitApp() {
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+  const [selectedListType, setSelectedListType] = useState<string | null>(null);
+  const lastClickedIndexRef = useRef<number>(-1);
+
   const [stashes, setStashes] = useState<any[]>([]);
   const [expandedStashIndex, setExpandedStashIndex] = useState<number | null>(null);
   const [stashFilesMap, setStashFilesMap] = useState<Record<number, GitFile[]>>({});
@@ -141,6 +127,11 @@ export default function GitApp() {
 
   const lastRefreshRef = useRef<number>(0);
   const commitInputRef = useRef<HTMLDivElement>(null);
+  const commitHistoryIndexRef = useRef<number>(-1);
+  const savedCommitMsgRef = useRef<string>('');
+  const isNavigatingHistoryRef = useRef(false);
+  const savedCommitTypeRef = useRef<CommitType>('feat');
+  const savedCommitTypeEnabledRef = useRef(false);
   const graphSectionRef = useRef<HTMLDivElement>(null);
   const graphResizeStartRef = useRef({ y: 0, height: 50 });
   const [graphSectionHeight, setGraphSectionHeight] = useState(50);
@@ -148,6 +139,99 @@ export default function GitApp() {
   const getNormalizedCommitMessage = () => {
     return commitMsg.replace(/\n/g, '').trim();
   };
+
+  const isMacPlatform = navigator.platform?.toLowerCase().includes('mac') || false;
+
+  const isMultiSelectModifier = useCallback(
+    (e: React.MouseEvent | MouseEvent): boolean => {
+      return isMacPlatform ? e.metaKey : e.ctrlKey;
+    },
+    [isMacPlatform],
+  );
+
+  const clearSelection = useCallback(() => {
+    setSelectedFiles(new Set());
+    setSelectedListType(null);
+    lastClickedIndexRef.current = -1;
+  }, []);
+
+  const handleFileSelect = useCallback(
+    (filePath: string, listType: string, index: number, e: React.MouseEvent) => {
+      e.stopPropagation();
+
+      if (!filePath) {
+        if (selectedFiles.size > 0) {
+          const filesList = listType === 'staged' ? stagedFiles : listType === 'unstaged' ? unstagedFiles : [];
+          const firstSelected = filesList.find((f) => selectedFiles.has(f.file));
+          if (firstSelected) {
+            clearSelection();
+            setActiveFile(firstSelected.file);
+            vscode.postMessage({
+              command: 'diff',
+              file: firstSelected.file,
+              status: firstSelected.status,
+            });
+          }
+          return;
+        }
+        clearSelection();
+        return;
+      }
+
+      if (selectedListType && selectedListType !== listType) {
+        clearSelection();
+      }
+
+      const isMulti = isMultiSelectModifier(e);
+      const isRange = e.shiftKey;
+
+      if (isMulti) {
+        setSelectedFiles((prev) => {
+          const next = new Set(prev);
+
+          if (next.has(filePath)) {
+            next.delete(filePath);
+
+            if (next.size === 0) {
+              setSelectedListType(null);
+            }
+
+            return next;
+          }
+
+          next.add(filePath);
+          setSelectedListType(listType);
+
+          return next;
+        });
+
+        lastClickedIndexRef.current = index;
+
+        return;
+      }
+
+      if (isRange && selectedListType === listType) {
+        const filesList = listType === 'staged' ? stagedFiles : listType === 'unstaged' ? unstagedFiles : [];
+        const lastIdx = lastClickedIndexRef.current;
+        const start = Math.min(lastIdx, index);
+        const end = Math.max(lastIdx, index);
+
+        if (lastIdx >= 0 && lastIdx < filesList.length) {
+          const rangeFiles = filesList.slice(start, end + 1).map((f) => f.file);
+
+          setSelectedFiles(new Set(rangeFiles));
+          setSelectedListType(listType);
+        }
+
+        return;
+      }
+
+      setSelectedFiles(new Set());
+      setSelectedListType(listType);
+      lastClickedIndexRef.current = index;
+    },
+    [clearSelection, isMultiSelectModifier, selectedListType, selectedFiles, stagedFiles, unstagedFiles],
+  );
 
   const clampGraphSectionHeight = (height: number) => {
     return Math.min(70, Math.max(30, height));
@@ -190,49 +274,50 @@ export default function GitApp() {
 
   const canCommit = isRepo && !loading && !!getNormalizedCommitMessage() && stagedFiles.length > 0;
 
+  const disableCommitTypeForMergeMessage = useCallback(
+    (value: string) => {
+      if (!commitTypeEnabled || !isGitMergeCommitMessage(value)) {
+        return;
+      }
+
+      setCommitTypeEnabled(false);
+      vscode.postMessage({
+        command: 'toggleCommitTypeEnabled',
+        value: false,
+      });
+    },
+    [commitTypeEnabled],
+  );
 
   const setCommitInputValue = useCallback(
     (value: string) => {
+      disableCommitTypeForMergeMessage(value);
       setCommitMsg(value);
 
       requestAnimationFrame(() => {
         if (commitInputRef.current) {
-          commitInputRef.current.innerText =
-            value;
+          commitInputRef.current.innerText = value;
         }
       });
     },
-    [],
+    [disableCommitTypeForMergeMessage],
   );
 
-  const clearCommitDraft = useCallback(
-    () => {
-      setCommitMsg('');
+  const clearCommitDraft = useCallback(() => {
+    setCommitMsg('');
 
-      requestAnimationFrame(() => {
-        if (commitInputRef.current) {
-          commitInputRef.current.innerText =
-            '';
-        }
-      });
-    },
-    [],
-  );
+    requestAnimationFrame(() => {
+      if (commitInputRef.current) {
+        commitInputRef.current.innerText = '';
+      }
+    });
+  }, []);
 
   const restoreCommitDraft = useCallback(
-    (
-      snapshot:
-        CommitDraftSnapshot,
-    ) => {
-      setCommitType(
-        snapshot.commitType,
-      );
-      setCommitTypeEnabled(
-        snapshot.commitTypeEnabled,
-      );
-      setCommitInputValue(
-        snapshot.message,
-      );
+    (snapshot: CommitDraftSnapshot) => {
+      setCommitType(snapshot.commitType);
+      setCommitTypeEnabled(snapshot.commitTypeEnabled);
+      setCommitInputValue(snapshot.message);
       setJustCommitted(false);
 
       requestAnimationFrame(() => {
@@ -242,40 +327,30 @@ export default function GitApp() {
     [setCommitInputValue],
   );
 
-  const restoreCommitMessageText =
-    useCallback(
-      (value: string) => {
-        const message =
-          value.trim();
+  const restoreCommitMessageText = useCallback(
+    (value: string) => {
+      const message = value.trim();
 
-        if (!message) return;
+      if (!message) return;
 
-        const parsed =
-          parseCommitTypeFromText(
-            message,
-          );
+      const parsed = parseCommitTypeFromText(message);
 
-        if (parsed) {
-          setCommitType(parsed.type);
-          setCommitTypeEnabled(true);
-          setCommitInputValue(
-            parsed.message,
-          );
-        } else {
-          setCommitInputValue(
-            message,
-          );
-        }
+      if (parsed) {
+        setCommitType(parsed.type);
+        setCommitTypeEnabled(true);
+        setCommitInputValue(parsed.message);
+      } else {
+        setCommitInputValue(message);
+      }
 
-        setJustCommitted(false);
+      setJustCommitted(false);
 
-        requestAnimationFrame(() => {
-          commitInputRef.current
-            ?.focus();
-        });
-      },
-      [setCommitInputValue],
-    );
+      requestAnimationFrame(() => {
+        commitInputRef.current?.focus();
+      });
+    },
+    [setCommitInputValue],
+  );
 
   useEffect(() => {
     lastRefreshRef.current = Date.now();
@@ -333,8 +408,12 @@ export default function GitApp() {
         setRemoteUrl(msg.remoteUrl || '');
         setFolderName(msg.folderName || '');
 
-        if (msg.defaultCommitTypeEnabled !== undefined) {
-          setCommitTypeEnabled(!!msg.defaultCommitTypeEnabled);
+        if (msg.commitTypeEnabled !== undefined) {
+          setCommitTypeEnabled(!!msg.commitTypeEnabled);
+        }
+
+        if (msg.skipVerify !== undefined) {
+          setSkipVerify(!!msg.skipVerify);
         }
 
         if (msg.remoteSync) {
@@ -430,6 +509,8 @@ export default function GitApp() {
         clearCommitDraft();
         justCommittedBranchRef.current = currentBranchRef.current;
         setJustCommitted(true);
+      } else if (msg.type === 'focusCommitInput') {
+        commitInputRef.current?.focus();
       } else if (msg.type === 'undoLastCommitSuccess') {
         const lastCommittedSnapshot = lastCommittedSnapshotRef.current;
         const undoMessage = typeof msg.message === 'string' ? msg.message : '';
@@ -454,20 +535,20 @@ export default function GitApp() {
           setInitialLoading(false);
         }
 
-        if (msg.isInit && msg.defaultSkipVerify !== undefined) {
-          setSkipVerify(msg.defaultSkipVerify);
+        if (msg.isInit && msg.skipVerify !== undefined) {
+          setSkipVerify(!!msg.skipVerify);
         }
 
-        if (msg.defaultCommitTypeEnabled !== undefined) {
-          setCommitTypeEnabled(!!msg.defaultCommitTypeEnabled);
+        if (msg.commitTypeEnabled !== undefined) {
+          setCommitTypeEnabled(!!msg.commitTypeEnabled);
         }
-      } else if (msg.type === 'gitConfigChanged') {
-        if (msg.defaultSkipVerify !== undefined) {
-          setSkipVerify(msg.defaultSkipVerify);
+      } else if (msg.type === 'gitWorkspaceOptionsChanged') {
+        if (msg.skipVerify !== undefined) {
+          setSkipVerify(!!msg.skipVerify);
         }
 
-        if (msg.defaultCommitTypeEnabled !== undefined) {
-          setCommitTypeEnabled(!!msg.defaultCommitTypeEnabled);
+        if (msg.commitTypeEnabled !== undefined) {
+          setCommitTypeEnabled(!!msg.commitTypeEnabled);
         }
       }
     };
@@ -501,12 +582,32 @@ export default function GitApp() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [
-    isRepo,
-    clearCommitDraft,
-    restoreCommitDraft,
-    restoreCommitMessageText,
-  ]);
+  }, [isRepo, clearCommitDraft, restoreCommitDraft, restoreCommitMessageText]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (selectedFiles.size === 0) return;
+      const target = e.target as HTMLElement;
+      if (target.closest('[class*="file-list"]') || target.closest('[class*="context-menu"]')) return;
+
+      const allFiles = [...unstagedFiles, ...stagedFiles];
+      const firstSelected = allFiles.find((f) => selectedFiles.has(f.file));
+      if (firstSelected) {
+        setSelectedFiles(new Set());
+        setSelectedListType(null);
+        lastClickedIndexRef.current = 0;
+        setActiveFile(firstSelected.file);
+        vscode.postMessage({
+          command: 'diff',
+          file: firstSelected.file,
+          status: firstSelected.status,
+        });
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [selectedFiles, unstagedFiles, stagedFiles]);
 
   const syncCommitInputValue = (value: string) => {
     const text = value.replace(/\n/g, '').trim();
@@ -520,6 +621,7 @@ export default function GitApp() {
       return;
     }
 
+    disableCommitTypeForMergeMessage(value);
     setCommitMsg(value);
   };
 
@@ -762,7 +864,24 @@ export default function GitApp() {
     return '拉取 (Pull)';
   };
 
+  const getPushTooltip = () => {
+    if (remoteSync.needsPush && remoteSync.hasRemote && !remoteSync.hasUpstream) {
+      return remoteSync.ahead > 0 ? `当前分支没有对应的远程上游分支，包含 ${remoteSync.ahead} 个本地提交，可 Push 创建/绑定远程分支` : '当前分支没有对应的远程上游分支';
+    }
+
+    if (remoteSync.needsPush) {
+      return `需要 Push：当前分支领先 ${remoteSync.upstream || '远程分支'} ${remoteSync.ahead} 个提交`;
+    }
+
+    if (remoteSync.hasRemote && !remoteSync.hasUpstream) {
+      return '当前分支没有绑定上游分支';
+    }
+
+    return '推送 (Push)';
+  };
+
   const hasUnpushedCommit = remoteSync.needsPush && remoteSync.ahead > 0;
+  const isPushWithoutUpstream = remoteSync.needsPush && remoteSync.hasRemote && !remoteSync.hasUpstream;
   const canUndoLastCommit = justCommitted || hasUnpushedCommit;
 
   if (initialLoading || isGitInstalled === null) {
@@ -837,11 +956,20 @@ export default function GitApp() {
                 </button>
               </Tooltip>
 
-              <Tooltip content={remoteSync.needsPush ? `需要 Push：当前分支领先远程 ${remoteSync.ahead} 个提交` : '推送 (Push)'}>
-                <button className={`${styles['icon-btn']} ${remoteSync.needsPush ? styles['push-needed'] : ''}`} onClick={() => vscode.postMessage({ command: 'push' })}>
+              <Tooltip content={getPushTooltip()}>
+                <button
+                  className={[styles['icon-btn'], remoteSync.needsPush ? styles['push-needed'] : '', isPushWithoutUpstream ? styles['push-without-upstream'] : '']
+                    .filter(Boolean)
+                    .join(' ')}
+                  onClick={() => vscode.postMessage({ command: 'push' })}
+                >
                   <i className="codicon codicon-repo-push" />
 
-                  {remoteSync.needsPush && <span className={styles['pull-badge']}>{remoteSync.ahead > 99 ? '99+' : remoteSync.ahead}</span>}
+                  {remoteSync.needsPush && (
+                    <span className={[styles['push-badge'], isPushWithoutUpstream ? styles['push-badge-without-upstream'] : ''].filter(Boolean).join(' ')}>
+                      {remoteSync.ahead > 99 ? '99+' : remoteSync.ahead}
+                    </span>
+                  )}
                 </button>
               </Tooltip>
 
@@ -887,13 +1015,94 @@ export default function GitApp() {
 
               syncCommitInputValue(el.innerText);
               setJustCommitted(false);
+
+              if (!isNavigatingHistoryRef.current) {
+                commitHistoryIndexRef.current = -1;
+              }
             }}
             onKeyDown={(e) => {
               if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
                 handleCommit();
               }
+
+              if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'ArrowUp') {
+                e.preventDefault();
+                const commitHistoryCommits = graphCommits.filter(isCommitHistoryMessageItem);
+
+                if (commitHistoryCommits.length === 0) return;
+
+                if (commitHistoryIndexRef.current === -1) {
+                  savedCommitMsgRef.current = commitMsg;
+                  savedCommitTypeRef.current = commitType;
+                  savedCommitTypeEnabledRef.current = commitTypeEnabled;
+                  commitHistoryIndexRef.current = 0;
+                } else {
+                  commitHistoryIndexRef.current = Math.min(commitHistoryIndexRef.current + 1, commitHistoryCommits.length - 1);
+                }
+
+                const commit = commitHistoryCommits[commitHistoryIndexRef.current];
+                if (commit && commitInputRef.current) {
+                  isNavigatingHistoryRef.current = true;
+                  const parsed = commitTypeEnabled ? parseCommitTypeFromText(commit.message) : null;
+                  if (parsed && commitTypeEnabled) {
+                    setCommitType(parsed.type);
+                    commitInputRef.current.innerText = parsed.message;
+                    setCommitMsg(parsed.message);
+                  } else {
+                    commitInputRef.current.innerText = commit.message;
+                    setCommitMsg(commit.message);
+                  }
+                  setTimeout(() => {
+                    isNavigatingHistoryRef.current = false;
+                  }, 0);
+                }
+                return;
+              }
+
+              if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'ArrowDown') {
+                e.preventDefault();
+                const commitHistoryCommits = graphCommits.filter(isCommitHistoryMessageItem);
+
+                if (commitHistoryCommits.length === 0) return;
+
+                if (commitHistoryIndexRef.current <= 0) {
+                  commitHistoryIndexRef.current = -1;
+                  isNavigatingHistoryRef.current = true;
+                  setCommitType(savedCommitTypeRef.current);
+                  if (savedCommitTypeEnabledRef.current !== commitTypeEnabled) {
+                    setCommitTypeEnabled(savedCommitTypeEnabledRef.current);
+                  }
+                  if (commitInputRef.current) {
+                    commitInputRef.current.innerText = savedCommitMsgRef.current;
+                  }
+                  setCommitMsg(savedCommitMsgRef.current);
+                  setTimeout(() => {
+                    isNavigatingHistoryRef.current = false;
+                  }, 0);
+                } else {
+                  commitHistoryIndexRef.current--;
+                  const commit = commitHistoryCommits[commitHistoryIndexRef.current];
+                  if (commit && commitInputRef.current) {
+                    isNavigatingHistoryRef.current = true;
+                    const parsed = commitTypeEnabled ? parseCommitTypeFromText(commit.message) : null;
+                    if (parsed && commitTypeEnabled) {
+                      setCommitType(parsed.type);
+                      commitInputRef.current.innerText = parsed.message;
+                      setCommitMsg(parsed.message);
+                    } else {
+                      commitInputRef.current.innerText = commit.message;
+                      setCommitMsg(commit.message);
+                    }
+                    setTimeout(() => {
+                      isNavigatingHistoryRef.current = false;
+                    }, 0);
+                  }
+                }
+                return;
+              }
             }}
+
             onPaste={(e) => {
               e.preventDefault();
 
@@ -917,12 +1126,16 @@ export default function GitApp() {
         </div>
 
         <button className={styles['commit-btn']} disabled={!canCommit} onClick={handleCommit}>
-          {loading ? <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} /> : <i className={`codicon codicon-check ${styles['icon-right-6']}`} />}
+          {loading ? (
+            <i className={`codicon codicon-loading codicon-modifier-spin ${styles['icon-right-6']}`} />
+          ) : (
+            <i className={`codicon codicon-check ${styles['icon-right-6']}`} />
+          )}
           提交 (Commit)
         </button>
       </div>
 
-      <div className={`${styles['changes-scroll-area']} ${styles['changes-scroll-area-expanded']}`}>
+      <Scrollbar className={`${styles['changes-scroll-area']} ${styles['changes-scroll-area-expanded']}`}>
         <div className={getChangesSectionClassName(isChangesOpen)}>
           <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsChangesOpen(!isChangesOpen)}>
             <div className={styles['header-title-row']}>
@@ -973,7 +1186,7 @@ export default function GitApp() {
           </div>
 
           {isChangesOpen && (
-            <div className={styles['changes-content']}>
+            <Scrollbar viewClassName={styles['changes-content']}>
               {stagedFiles.length > 0 && (
                 <div className={`${styles['changes-section']} ${styles['nested-section']}`}>
                   <div className={`${styles['changes-header']} ${styles['subsection-header']}`}>
@@ -1027,6 +1240,9 @@ export default function GitApp() {
                     openHistoryDiff={openHistoryDiff}
                     openCompareDiff={openCompareDiff}
                     setContextMenu={setContextMenu}
+                    selectedFiles={selectedFiles}
+                    selectedListType={selectedListType}
+                    onFileSelect={handleFileSelect}
                   />
                 </div>
               )}
@@ -1065,6 +1281,7 @@ export default function GitApp() {
 
                             vscode.postMessage({
                               command: 'stash',
+                              selectedFiles: selectedFiles.size > 0 ? Array.from(selectedFiles) : undefined,
                             });
                           }}
                         >
@@ -1133,6 +1350,9 @@ export default function GitApp() {
                     openHistoryDiff={openHistoryDiff}
                     openCompareDiff={openCompareDiff}
                     setContextMenu={setContextMenu}
+                    selectedFiles={selectedFiles}
+                    selectedListType={selectedListType}
+                    onFileSelect={handleFileSelect}
                   />
                 )}
               </div>
@@ -1158,17 +1378,20 @@ export default function GitApp() {
                     openHistoryDiff={openHistoryDiff}
                     openCompareDiff={openCompareDiff}
                     setContextMenu={setContextMenu}
+                    selectedFiles={selectedFiles}
+                    selectedListType={selectedListType}
+                    onFileSelect={handleFileSelect}
                   />
                 </div>
               )}
 
               <LoadingMask visible={changesRefreshing} />
-            </div>
+            </Scrollbar>
           )}
         </div>
 
         {stashes.length > 0 && (
-          <div className={getChangesSectionClassName(isStashesOpen, [styles['section-top-gap'],styles['change-stash']])}>
+          <div className={getChangesSectionClassName(isStashesOpen, [styles['section-top-gap'], styles['change-stash']])}>
             <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsStashesOpen(!isStashesOpen)}>
               <div className={styles['header-flex-title']}>
                 <i className={`codicon ${isStashesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
@@ -1304,7 +1527,7 @@ export default function GitApp() {
           </div>
         )}
 
-        <div className={getChangesSectionClassName(isCompareOpen, [styles['section-top-gap'],styles['change-diff']])}>
+        <div className={getChangesSectionClassName(isCompareOpen, [styles['section-top-gap'], styles['change-diff']])}>
           <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsCompareOpen(!isCompareOpen)}>
             <div className={styles['header-flex-title']}>
               <i className={`codicon ${isCompareOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron-fixed']}`} />
@@ -1444,7 +1667,7 @@ export default function GitApp() {
             </div>
           )}
         </div>
-      </div>
+      </Scrollbar>
 
       <div
         ref={graphSectionRef}

@@ -2,26 +2,25 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { vscode } from '@utils/vscode';
 import styles from '@pages/api-dev-tools-app/index.module.css';
 import BaseButton from '@components/BaseButton';
-import BaseCodeEditor, { type BaseCodeEditorLanguage } from '@components/BaseCodeEditor';
+import BaseCodeEditor from '@components/BaseCodeEditor';
 import BaseDialog from '@components/BaseDialog';
 import BaseSearch from '@components/BaseSearch';
 import BaseTabs from '@components/BaseTabs';
 import Scrollbar from '@components/Scrollbar';
 import BottomPanels from '@/pages/api-dev-tools-app/components/bottom-panels';
 import InterfaceItem from '@/pages/api-dev-tools-app/components/interface-item';
-import KeyValueEditor, { type KeyValueEditorItem } from '@/pages/api-dev-tools-app/components/key-value-editor';
+import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-editor';
 import ProjectCard from '@/pages/api-dev-tools-app/components/project-card';
 import ShareCard from '@/pages/api-dev-tools-app/components/share-card';
 import ApiDevToolsSkeleton from '@/pages/api-dev-tools-app/components/api-dev-tools-skeleton';
 import { buildApiDocsHtml } from '@/pages/api-dev-tools-app/src/api-docs-builder';
-import { formatSize, safeBase64, clampNumber, tryFormatJson, isJsonLikeText, cloneRequest } from '@/pages/api-dev-tools-app/src/api-dev-tools.utils';
+import { formatSize, safeBase64, clampNumber, cloneRequest } from '@/pages/api-dev-tools-app/src/api-dev-tools.utils';
 import type {
   HttpMethod,
   RequestTab,
   ResponseTab,
   BodyType,
   AuthType,
-  KeyValueItem,
   GlobalVariable,
   ApiRequestConfig,
   ApiInterfaceItem,
@@ -29,10 +28,14 @@ import type {
   HistoryItem,
   ApiResponsePayload,
   PersistedState,
-  ManageDialog,
   LeaveConfirmAction,
   LeaveConfirmDialog,
   ApiDevToolsViewTitleAction,
+  ApiInterfaceGroup,
+  GroupedApiInterfaceItem,
+  GroupedApiProject,
+  ApiManageDialog,
+  ApiFormDataPayloadItem,
 } from '@/pages/api-dev-tools-app/src/type';
 
 import {
@@ -50,606 +53,31 @@ import {
   WORKSPACE_PANE_MIN_WIDTH,
   WORKSPACE_PANE_MAX_WIDTH,
   WORKSPACE_RESIZER_SIZE,
+  RIGHT_PANE_DEFAULT_WIDTH,
+  RIGHT_PANE_MIN_WIDTH,
+  RIGHT_PANE_MAX_WIDTH,
+  RIGHT_RESIZER_SIZE,
+  REQUEST_DETAIL_TABS,
 } from '@/pages/api-dev-tools-app/src/constants';
-
-interface ApiInterfaceGroup {
-  id: string;
-  name: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-type GroupedApiInterfaceItem = ApiInterfaceItem & {
-  groupId?: string;
-};
-
-type GroupedApiProject = Omit<ApiProject, 'interfaces'> & {
-  interfaces: GroupedApiInterfaceItem[];
-  groups?: ApiInterfaceGroup[];
-};
-
-type GroupedPersistedState = Omit<PersistedState, 'projects'> & {
-  projects: GroupedApiProject[];
-};
-
-type GroupManageDialog =
-  | {
-      kind: 'group-create';
-      title: string;
-      label: string;
-      value: string;
-      projectId: string;
-    }
-  | {
-      kind: 'group-rename';
-      title: string;
-      label: string;
-      value: string;
-      projectId: string;
-      groupId: string;
-    }
-  | {
-      kind: 'group-delete';
-      title: string;
-      message: string;
-      projectId: string;
-      groupId: string;
-      groupName: string;
-    }
-  | {
-      kind: 'group-interface-create';
-      title: string;
-      label: string;
-      value: string;
-      projectId: string;
-      groupId: string;
-    };
-
-type ApiManageDialog = ManageDialog | GroupManageDialog;
-
-interface ApiFormDataPayloadItem {
-  key: string;
-  type: 'text' | 'file';
-  value?: string;
-  fileName?: string;
-  mimeType?: string;
-  fileData?: string;
-}
-
-/**
- * @description 创建带指定前缀的唯一标识
- */
-function createId(prefix = 'id') {
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-/**
- * @description 创建键值配置项
- */
-function createKeyValue(key = '', value = '', enabled = true): KeyValueItem {
-  return {
-    id: createId('kv'),
-    enabled,
-    key,
-    value,
-  };
-}
-
-/**
- * @description 创建默认接口请求配置
- */
-function createDefaultRequest(): ApiRequestConfig {
-  return {
-    id: createId('req'),
-    name: '未命名请求',
-    method: 'GET',
-    url: '{{baseUrl}}',
-    params: [createKeyValue()],
-    headers: [createKeyValue('Content-Type', 'application/json', false)],
-    cookies: [createKeyValue()],
-    bodyType: 'json',
-    bodyRaw: '{\n  \n}',
-    bodyForm: [createKeyValue()],
-    auth: {
-      type: 'none',
-      token: '{{token}}',
-      username: '',
-      password: '',
-    },
-    preScript: '// 可修改 request / globals\n// request.headers["X-Debug"] = "1";',
-    postScript: '// 可读取 response / globals\n// console.log(response.status);',
-    timeout: 30000,
-  };
-}
-
-/**
- * @description 创建默认全局变量列表
- */
-function createDefaultGlobals(): GlobalVariable[] {
-  return [createKeyValue('baseUrl', 'http://localhost:3000', true), createKeyValue('token', '', true)];
-}
-
-/**
- * @description 创建接口项目
- */
-function createProject(name = '默认项目'): GroupedApiProject {
-  const now = Date.now();
-
-  return {
-    id: createId('project'),
-    name,
-    description: '',
-    interfaces: [],
-    groups: [],
-    createdAt: now,
-    updatedAt: now,
-  };
-}
-
-/**
- * @description 根据请求配置创建接口记录
- */
-function createInterfaceFromRequest(request: ApiRequestConfig, name?: string, groupId = ''): GroupedApiInterfaceItem {
-  const now = Date.now();
-  const snapshot = cloneRequest<ApiRequestConfig>({
-    ...request,
-    name: name || request.name || request.url || '未命名接口',
-  });
-
-  return {
-    id: createId('api-item'),
-    name: snapshot.name,
-    description: '',
-    method: snapshot.method,
-    url: snapshot.url,
-    request: snapshot,
-    groupId,
-    createdAt: now,
-    updatedAt: now,
-  };
-}
-
-/**
- * @description 规范化键值配置列表
- */
-function normalizeKeyValueList(list: unknown): KeyValueItem[] {
-  if (!Array.isArray(list)) return [createKeyValue()];
-
-  const normalized = list.map((item: any) => ({
-    id: item?.id || createId('kv'),
-    enabled: item?.enabled !== false,
-    key: String(item?.key || ''),
-    value: String(item?.value || ''),
-    description: String(item?.description || ''),
-    valueType: item?.valueType === 'file' ? 'file' : 'text',
-    fileName: String(item?.fileName || ''),
-    fileMimeType: String(item?.fileMimeType || ''),
-    fileData: String(item?.fileData || ''),
-  }));
-
-  return normalized.length > 0 ? normalized : [createKeyValue()];
-}
-
-/**
- * @description 规范化接口请求配置
- */
-function normalizeRequest(raw: unknown): ApiRequestConfig {
-  const def = createDefaultRequest();
-  const item = raw as Partial<ApiRequestConfig> | undefined;
-
-  if (!item || typeof item !== 'object') return def;
-
-  return {
-    ...def,
-    ...item,
-    id: item.id || def.id,
-    name: item.name || def.name,
-    method: HTTP_METHODS.includes(item.method as HttpMethod) ? (item.method as HttpMethod) : def.method,
-    url: String(item.url || ''),
-    params: normalizeKeyValueList(item.params),
-    headers: normalizeKeyValueList(item.headers),
-    cookies: normalizeKeyValueList(item.cookies),
-    bodyType: ['none', 'json', 'raw', 'form-urlencoded', 'form-data'].includes(item.bodyType as string) ? (item.bodyType as BodyType) : def.bodyType,
-    bodyRaw: String(item.bodyRaw ?? def.bodyRaw),
-    bodyForm: normalizeKeyValueList(item.bodyForm),
-    auth: {
-      ...def.auth,
-      ...(item.auth || {}),
-      type: ['none', 'bearer', 'basic'].includes(item.auth?.type as string) ? (item.auth?.type as AuthType) : def.auth.type,
-    },
-    preScript: String(item.preScript ?? def.preScript),
-    postScript: String(item.postScript ?? def.postScript),
-    timeout: Number(item.timeout) || def.timeout,
-  };
-}
-
-/**
- * @description 规范化接口记录
- */
-function normalizeInterface(raw: unknown): GroupedApiInterfaceItem | null {
-  const item = raw as Partial<GroupedApiInterfaceItem> | undefined;
-
-  if (!item || typeof item !== 'object') return null;
-
-  const request = normalizeRequest(item.request || item);
-  const now = Date.now();
-
-  return {
-    id: item.id || createId('api-item'),
-    name: String(item.name || request.name || request.url || '未命名接口'),
-    description: String(item.description || ''),
-    method: HTTP_METHODS.includes(item.method as HttpMethod) ? (item.method as HttpMethod) : request.method,
-    url: String(item.url || request.url || ''),
-    request,
-    groupId: String(item.groupId || ''),
-    createdAt: Number(item.createdAt) || now,
-    updatedAt: Number(item.updatedAt) || now,
-  };
-}
-
-/**
- * @description 规范化接口项目
- */
-function normalizeProject(raw: unknown): GroupedApiProject | null {
-  const item = raw as Partial<GroupedApiProject> | undefined;
-
-  if (!item || typeof item !== 'object') return null;
-
-  const now = Date.now();
-  const groups = Array.isArray(item.groups)
-    ? item.groups
-        .map((group) => ({
-          id: String(group?.id || createId('api-group')),
-          name: String(group?.name || '未命名分组'),
-          createdAt: Number(group?.createdAt) || now,
-          updatedAt: Number(group?.updatedAt) || now,
-        }))
-        .filter((group) => group.id)
-    : [];
-  const groupIdSet = new Set(groups.map((group) => group.id));
-  const interfaces = Array.isArray(item.interfaces)
-    ? (item.interfaces.map(normalizeInterface).filter(Boolean) as GroupedApiInterfaceItem[]).map((api) => ({
-        ...api,
-        groupId: api.groupId && groupIdSet.has(api.groupId) ? api.groupId : '',
-      }))
-    : [];
-
-  return {
-    id: item.id || createId('project'),
-    name: String(item.name || '未命名项目'),
-    description: String(item.description || ''),
-    interfaces,
-    groups,
-    createdAt: Number(item.createdAt) || now,
-    updatedAt: Number(item.updatedAt) || now,
-  };
-}
-
-/**
- * @description 规范化持久化状态
- */
-function normalizePersistedState(raw: unknown): GroupedPersistedState {
-  const state = raw as Partial<PersistedState> | undefined;
-  const projects = Array.isArray(state?.projects) ? (state!.projects.map(normalizeProject).filter(Boolean) as GroupedApiProject[]) : [];
-
-  return {
-    globals: normalizeKeyValueList(state?.globals).map((item) => ({ ...item })),
-    request: normalizeRequest(state?.request),
-    history: Array.isArray(state?.history) ? state!.history.slice(0, 50) : [],
-    projects,
-    activeProjectId: String(state?.activeProjectId || projects[0]?.id || ''),
-    activeInterfaceId: String(state?.activeInterfaceId || ''),
-  };
-}
-
-/**
- * @description 替换文本中的全局变量占位符
- */
-function interpolateVariables(value: string, variables: Record<string, string>) {
-  return String(value || '').replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_, key) => {
-    return Object.prototype.hasOwnProperty.call(variables, key) ? variables[key] : '';
-  });
-}
-
-/**
- * @description 将 GET 地址中的查询字符串拆分到 Params
- */
-function parseGetRequestUrl(value: string): { url: string; params: KeyValueItem[] } | null {
-  const rawUrl = String(value || '').trim();
-  const queryIndex = rawUrl.indexOf('?');
-
-  if (queryIndex < 0) return null;
-
-  const hashIndex = rawUrl.indexOf('#', queryIndex + 1);
-  const query = rawUrl.slice(queryIndex + 1, hashIndex >= 0 ? hashIndex : undefined);
-
-  if (!query) return null;
-
-  const params: KeyValueItem[] = [];
-
-  new URLSearchParams(query).forEach((paramValue, key) => {
-    params.push(createKeyValue(key, paramValue, true));
-  });
-
-  if (params.length === 0) return null;
-
-  const hash = hashIndex >= 0 ? rawUrl.slice(hashIndex) : '';
-
-  return {
-    url: `${rawUrl.slice(0, queryIndex)}${hash}`,
-    params,
-  };
-}
-
-/**
- * @description 将启用的键值项转换为对象
- */
-function getEnabledObject(list: KeyValueItem[], variables: Record<string, string>) {
-  const result: Record<string, string> = {};
-
-  list.forEach((item) => {
-    const key = item.key.trim();
-
-    if (!item.enabled || !key) return;
-
-    result[interpolateVariables(key, variables)] = interpolateVariables(item.value, variables);
-  });
-
-  return result;
-}
-
-/**
- * @description 创建 multipart/form-data 请求字段
- */
-function getFormDataPayload(list: KeyValueItem[], variables: Record<string, string>): ApiFormDataPayloadItem[] {
-  return (list || [])
-    .map((rawItem) => {
-      const item = rawItem as KeyValueEditorItem;
-      const key = interpolateVariables(item.key, variables).trim();
-
-      if (!item.enabled || !key) return null;
-
-      if (item.valueType === 'file') {
-        if (!item.fileData) return null;
-
-        return {
-          key,
-          type: 'file' as const,
-          fileName: item.fileName || 'file',
-          mimeType: item.fileMimeType || 'application/octet-stream',
-          fileData: item.fileData,
-        };
-      }
-
-      return {
-        key,
-        type: 'text' as const,
-        value: interpolateVariables(item.value, variables),
-      };
-    })
-    .filter(Boolean) as ApiFormDataPayloadItem[];
-}
-
-/**
- * @description 获取响应内容类型
- */
-function getResponseContentType(response: ApiResponsePayload | null) {
-  if (!response) return '';
-
-  const key = Object.keys(response.headers || {}).find((item) => item.toLowerCase() === 'content-type');
-
-  return key ? response.headers[key] : '';
-}
-
-/**
- * @description 获取用于展示的响应内容
- */
-function getDisplayResponseBody(response: ApiResponsePayload | null) {
-  if (!response) return '';
-
-  const contentType = getResponseContentType(response).toLowerCase();
-
-  if (contentType.includes('application/json') || /^[{[]/.test(response.body.trim())) {
-    return tryFormatJson(response.body);
-  }
-
-  return response.body || '';
-}
-
-/**
- * @description 获取用于比较的键值列表
- */
-function getComparableKeyValueList(list: KeyValueItem[]) {
-  return (list || []).map((rawItem) => {
-    const item = rawItem as KeyValueEditorItem;
-
-    return {
-      enabled: item.enabled !== false,
-      key: String(item.key || ''),
-      value: String(item.value || ''),
-      description: String(item.description || ''),
-      valueType: item.valueType === 'file' ? 'file' : 'text',
-      fileName: String(item.fileName || ''),
-      fileMimeType: String(item.fileMimeType || ''),
-      fileData: String(item.fileData || ''),
-    };
-  });
-}
-
-/**
- * @description 获取用于比较的请求快照
- */
-function getComparableRequest(request: ApiRequestConfig) {
-  return {
-    name: String(request.name || ''),
-    method: request.method,
-    url: String(request.url || ''),
-    params: getComparableKeyValueList(request.params),
-    headers: getComparableKeyValueList(request.headers),
-    cookies: getComparableKeyValueList(request.cookies),
-    bodyType: request.bodyType,
-    bodyRaw: String(request.bodyRaw || ''),
-    bodyForm: getComparableKeyValueList(request.bodyForm),
-    auth: {
-      type: request.auth?.type || 'none',
-      token: String(request.auth?.token || ''),
-      username: String(request.auth?.username || ''),
-      password: String(request.auth?.password || ''),
-    },
-    preScript: String(request.preScript || ''),
-    postScript: String(request.postScript || ''),
-    timeout: Number(request.timeout) || 30000,
-  };
-}
-
-/**
- * @description 判断两个请求配置是否一致
- */
-function isSameRequest(left: ApiRequestConfig, right: ApiRequestConfig) {
-  return JSON.stringify(getComparableRequest(left)) === JSON.stringify(getComparableRequest(right));
-}
-
-/**
- * @description 判断请求是否为默认配置
- */
-function isDefaultRequestSnapshot(request: ApiRequestConfig) {
-  return isSameRequest(request, createDefaultRequest());
-}
-
-const REQUEST_DETAIL_TABS: Array<{ key: ResponseTab; label: string }> = [
-  { key: 'body', label: '参数' },
-  { key: 'headers', label: 'Headers' },
-  { key: 'raw', label: 'cURL' },
-];
-
-type DetailSource = 'response' | 'request';
-
-interface RequestDetailPayload {
-  method: HttpMethod;
-  url: string;
-  headers: Record<string, string>;
-  body?: string;
-  timeout: number;
-}
-
-interface ApiResponseMessagePayload extends ApiResponsePayload {
-  request?: RequestDetailPayload;
-}
-
-/**
- * @description 获取忽略大小写的请求头值
- */
-function getRequestHeaderValue(headers: Record<string, string>, name: string) {
-  const targetName = name.toLowerCase();
-  const key = Object.keys(headers || {}).find((item) => item.toLowerCase() === targetName);
-
-  return key ? headers[key] : '';
-}
-
-/**
- * @description 将同名参数追加到参数对象
- */
-function appendRequestParameter(target: Record<string, string | string[]>, key: string, value: string) {
-  const current = target[key];
-
-  if (current === undefined) {
-    target[key] = value;
-    return;
-  }
-
-  target[key] = Array.isArray(current) ? [...current, value] : [current, value];
-}
-
-/**
- * @description 获取请求参数内容
- */
-function getRequestParametersContent(request: RequestDetailPayload) {
-  const result: Record<string, unknown> = {};
-  const query: Record<string, string | string[]> = {};
-  const url = new URL(request.url);
-
-  url.searchParams.forEach((value, key) => {
-    appendRequestParameter(query, key, value);
-  });
-
-  if (Object.keys(query).length > 0) {
-    result.query = query;
-  }
-
-  const body = request.body || '';
-
-  if (body) {
-    const contentType = getRequestHeaderValue(request.headers, 'content-type').toLowerCase();
-
-    if (contentType.includes('application/json') || isJsonLikeText(body)) {
-      try {
-        result.body = JSON.parse(body);
-      } catch {
-        result.body = body;
-      }
-    } else if (contentType.includes('application/x-www-form-urlencoded')) {
-      const bodyParameters: Record<string, string | string[]> = {};
-
-      new URLSearchParams(body).forEach((value, key) => {
-        appendRequestParameter(bodyParameters, key, value);
-      });
-
-      result.body = bodyParameters;
-    } else {
-      result.body = body;
-    }
-  }
-
-  return JSON.stringify(result, null, 2);
-}
-
-/**
- * @description 将内容转换成可用于 Shell 的单引号字符串
- */
-function quoteCurlValue(value: string) {
-  return `'${String(value).replace(/'/g, `'"'"'`)}'`;
-}
-
-/**
- * @description 获取请求对应的 cURL 命令
- */
-function getCurlRequestContent(request: RequestDetailPayload) {
-  const ignoredHeaders = new Set(['host', 'content-length', 'connection']);
-  const lines = [`curl --request ${request.method}`, `  --url ${quoteCurlValue(request.url)}`];
-
-  Object.entries(request.headers || {}).forEach(([key, value]) => {
-    if (ignoredHeaders.has(key.toLowerCase())) return;
-
-    lines.push(`  --header ${quoteCurlValue(`${key}: ${value}`)}`);
-  });
-
-  if (request.body) {
-    lines.push(`  --data-raw ${quoteCurlValue(request.body)}`);
-  }
-
-  return lines.join(' \\\n');
-}
-
-/**
- * @description 获取响应编辑器语言
- */
-function getResponseEditorLanguage(response: ApiResponsePayload | null, responseTab: ResponseTab, value: string): BaseCodeEditorLanguage {
-  if (!response || response.error) {
-    return 'plaintext';
-  }
-
-  if (responseTab === 'headers') {
-    return 'json';
-  }
-
-  const contentType = getResponseContentType(response).toLowerCase();
-
-  if (contentType.includes('application/json') || contentType.includes('+json') || isJsonLikeText(value)) {
-    return 'json';
-  }
-
-  return 'plaintext';
-}
+import {
+  createId,
+  createDefaultRequest,
+  createDefaultGlobals,
+  createProject,
+  createInterfaceFromRequest,
+  normalizePersistedState,
+  isDefaultRequestSnapshot,
+  isSameRequest,
+  getRequestParametersContent,
+  getCurlRequestContent,
+  getResponseEditorLanguage,
+  parseGetRequestUrl,
+  interpolateVariables,
+  getEnabledObject,
+  getFormDataPayload,
+  getDisplayResponseBody,
+} from '@/pages/api-dev-tools-app/src/api-dev-tools.utils';
+import type { DetailSource, RequestDetailPayload, ApiResponseMessagePayload } from '@/pages/api-dev-tools-app/src/type';
 
 /**
  * @description 渲染 API 调试工具主页面
@@ -680,12 +108,14 @@ export default function ApiDevToolsApp() {
   const [isResizingBottomPanel, setIsResizingBottomPanel] = useState(false);
   const [workspacePaneWidth, setWorkspacePaneWidth] = useState(WORKSPACE_PANE_DEFAULT_WIDTH);
   const [isResizingWorkspacePane, setIsResizingWorkspacePane] = useState(false);
+  const [rightPaneWidth, setRightPaneWidth] = useState(RIGHT_PANE_DEFAULT_WIDTH);
+  const [isResizingRightPane, setIsResizingRightPane] = useState(false);
   const [sharedDocUrl, setSharedDocUrl] = useState('');
   const [isShareSelecting, setIsShareSelecting] = useState(false);
   const [shareSelectedInterfaceIds, setShareSelectedInterfaceIds] = useState<string[]>([]);
   const [manageDialog, setManageDialog] = useState<ApiManageDialog>(null);
   const [manageDialogValue, setManageDialogValue] = useState('');
-  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
   const [leaveConfirmDialog, setLeaveConfirmDialog] = useState<LeaveConfirmDialog>(null);
 
   const pendingRequestIdRef = useRef('');
@@ -713,6 +143,10 @@ export default function ApiDevToolsApp() {
   const bottomResizerPointerIdRef = useRef<number | null>(null);
   const workspaceResizerRef = useRef<HTMLDivElement | null>(null);
   const workspaceResizerPointerIdRef = useRef<number | null>(null);
+  const rightPaneWidthRef = useRef(RIGHT_PANE_DEFAULT_WIDTH);
+  const isDraggingRightPaneRef = useRef(false);
+  const rightResizerRef = useRef<HTMLDivElement | null>(null);
+  const rightResizerPointerIdRef = useRef<number | null>(null);
   const loadedStateRef = useRef(false);
   const viewTitleActionRef = useRef<(action: ApiDevToolsViewTitleAction) => void>(() => undefined);
 
@@ -1021,6 +455,29 @@ export default function ApiDevToolsApp() {
     document.body.style.userSelect = bodyUserSelectRef.current;
   }, []);
 
+  const stopRightResize = useCallback(() => {
+    isDraggingRightPaneRef.current = false;
+
+    const element = rightResizerRef.current;
+    const pointerId = rightResizerPointerIdRef.current;
+
+    if (element && pointerId !== null) {
+      try {
+        element.releasePointerCapture(pointerId);
+      } catch {
+        // ignore
+      }
+    }
+
+    rightResizerRef.current = null;
+    rightResizerPointerIdRef.current = null;
+
+    document.body.style.cursor = bodyCursorRef.current;
+    document.body.style.userSelect = bodyUserSelectRef.current;
+
+    setIsResizingRightPane(false);
+  }, []);
+
   /**
    * @description 处理项目面板拖拽开始事件
    */
@@ -1048,6 +505,32 @@ export default function ApiDevToolsApp() {
     }
 
     setIsResizingWorkspacePane(true);
+  }, []);
+
+  const handleRightResizerPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    dragStartXRef.current = event.clientX;
+    dragStartWidthRef.current = rightPaneWidthRef.current;
+    isDraggingRightPaneRef.current = true;
+
+    rightResizerRef.current = event.currentTarget;
+    rightResizerPointerIdRef.current = event.pointerId;
+
+    bodyCursorRef.current = document.body.style.cursor;
+    bodyUserSelectRef.current = document.body.style.userSelect;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // VS Code Webview pointer capture may fail
+    }
+
+    setIsResizingRightPane(true);
   }, []);
 
   /**
@@ -1115,6 +598,61 @@ export default function ApiDevToolsApp() {
       document.documentElement.removeEventListener('mouseleave', handleMouseLeaveWebview);
     };
   }, [isResizingWorkspacePane, setSafeWorkspacePaneWidth, stopWorkspaceResize]);
+
+  /**
+   * @description 监听右侧面板拖拽事件
+   */
+  useEffect(() => {
+    if (!isResizingRightPane) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isDraggingRightPaneRef.current) return;
+
+      event.preventDefault();
+
+      const deltaX = dragStartXRef.current - event.clientX;
+      const nextWidth = clampNumber(dragStartWidthRef.current + deltaX, RIGHT_PANE_MIN_WIDTH, RIGHT_PANE_MAX_WIDTH);
+
+      rightPaneWidthRef.current = nextWidth;
+      setRightPaneWidth(nextWidth);
+    };
+
+    const handlePointerEnd = () => {
+      stopRightResize();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopRightResize();
+      }
+    };
+
+    const handleMouseLeaveWebview = () => {
+      stopRightResize();
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerEnd);
+    window.addEventListener('pointercancel', handlePointerEnd);
+    window.addEventListener('blur', handlePointerEnd);
+
+    document.addEventListener('pointerup', handlePointerEnd);
+    document.addEventListener('pointercancel', handlePointerEnd);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.documentElement.addEventListener('mouseleave', handleMouseLeaveWebview);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
+      window.removeEventListener('blur', handlePointerEnd);
+
+      document.removeEventListener('pointerup', handlePointerEnd);
+      document.removeEventListener('pointercancel', handlePointerEnd);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.documentElement.removeEventListener('mouseleave', handleMouseLeaveWebview);
+    };
+  }, [isResizingRightPane, stopRightResize]);
 
   /**
    * @description 同步当前项目标识引用
@@ -1521,7 +1059,7 @@ export default function ApiDevToolsApp() {
     setGlobals(nextGlobals);
     setHistory([]);
     setProjects([]);
-    setCollapsedGroupIds(new Set());
+    setExpandedGroupIds(new Set());
     setActiveProjectId('');
     setActiveInterfaceId('');
     setRequestDetail(null);
@@ -1967,7 +1505,7 @@ export default function ApiDevToolsApp() {
    * @description 展开或折叠接口分组
    */
   const toggleProjectGroup = (groupId: string) => {
-    setCollapsedGroupIds((current) => {
+    setExpandedGroupIds((current) => {
       const next = new Set(current);
 
       if (next.has(groupId)) {
@@ -2180,7 +1718,7 @@ export default function ApiDevToolsApp() {
 
       projectsRef.current = nextProjects;
       setProjects(nextProjects);
-      setCollapsedGroupIds((current) => {
+      setExpandedGroupIds((current) => {
         const next = new Set(current);
         next.delete(manageDialog.groupId);
         return next;
@@ -2229,7 +1767,7 @@ export default function ApiDevToolsApp() {
       setIsResponseSearchOpen(false);
       setResponse(null);
       setResponseTab('body');
-      setCollapsedGroupIds((current) => {
+      setExpandedGroupIds((current) => {
         const next = new Set(current);
         next.delete(manageDialog.groupId);
         return next;
@@ -2675,6 +2213,8 @@ export default function ApiDevToolsApp() {
           {
             '--api-workspace-width': `${workspacePaneWidth}px`,
             '--api-workspace-resizer-size': `${WORKSPACE_RESIZER_SIZE}px`,
+            '--api-right-pane-width': `${rightPaneWidth}px`,
+            '--api-right-resizer-size': `${RIGHT_RESIZER_SIZE}px`,
           } as React.CSSProperties
         }
       >
@@ -2741,7 +2281,7 @@ export default function ApiDevToolsApp() {
                   >
                     {groups.map((group) => {
                       const groupInterfaces = project.interfaces.filter((api) => api.groupId === group.id);
-                      const collapsed = collapsedGroupIds.has(group.id);
+                      const collapsed = !expandedGroupIds.has(group.id);
 
                       return (
                         <section className={styles['interface-group']} key={group.id}>
@@ -3016,6 +2556,12 @@ export default function ApiDevToolsApp() {
             )}
           </div>
         </section>
+
+        <div
+          className={[styles['right-resizer'], isResizingRightPane ? styles['right-resizer-active'] : ''].filter(Boolean).join(' ')}
+          title="拖拽调整响应面板宽度"
+          onPointerDown={handleRightResizerPointerDown}
+        />
 
         {/* 请求 / 响应详情 */}
         <section ref={rightPaneRef} className={styles['right-pane']}>

@@ -1,14 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
-
-import type {
-  EditorHistoryLocation,
-  EditorHistoryOptions,
-  EditorHistoryRecord,
-  SwitchPreviousEditorOptions,
-} from '@modules/editor-history/editor-history.type';
-
-type HistoryDirection = -1 | 1;
+import type { EditorHistoryLocation, HistoryDirection, EditorHistoryOptions, EditorHistoryRecord, SwitchPreviousEditorOptions } from '@modules/editor-history/editor-history.type';
 
 export class EditorHistoryService {
   /**
@@ -57,17 +49,15 @@ export class EditorHistoryService {
 
     const uri = editor.document.uri;
     const uriString = uri.toString();
-    const previousRecord = this.historyStack.find(item => item.uri === uriString);
-    const record = previousRecord
-      ? this.updateRecord(previousRecord, editor)
-      : this.createRecord(editor);
+    const previousRecord = this.historyStack.find((item) => item.uri === uriString);
+    const record = previousRecord ? this.updateRecord(previousRecord, editor) : this.createRecord(editor);
 
     this.pushLocation(record, editor.selection.active);
 
     /**
      * 文件再次访问时不重复添加，而是移动到最近访问位置。
      */
-    this.historyStack = this.historyStack.filter(item => item.uri !== uriString);
+    this.historyStack = this.historyStack.filter((item) => item.uri !== uriString);
     this.historyStack.push(record);
 
     /**
@@ -136,9 +126,9 @@ export class EditorHistoryService {
    * @description 获取文件历史的安全副本
    */
   public getHistory(): EditorHistoryRecord[] {
-    return this.historyStack.map(record => ({
+    return this.historyStack.map((record) => ({
       ...record,
-      locations: record.locations.map(location => ({
+      locations: record.locations.map((location) => ({
         ...location,
       })),
     }));
@@ -152,7 +142,7 @@ export class EditorHistoryService {
   }
 
   public remove(uri: string): void {
-    const removeIndex = this.historyStack.findIndex(item => item.uri === uri);
+    const removeIndex = this.historyStack.findIndex((item) => item.uri === uri);
 
     if (removeIndex < 0) return;
 
@@ -177,10 +167,7 @@ export class EditorHistoryService {
   /**
    * @description 按方向循环切换文件
    */
-  private async switchEditor(
-    direction: HistoryDirection,
-    options: SwitchPreviousEditorOptions,
-  ): Promise<void> {
+  private async switchEditor(direction: HistoryDirection, options: SwitchPreviousEditorOptions): Promise<void> {
     this.flushPendingSelection();
 
     if (this.historyStack.length === 0) {
@@ -191,23 +178,15 @@ export class EditorHistoryService {
 
     for (let attempt = 0; attempt < maxAttempts && this.historyStack.length > 0; attempt++) {
       const activeUri = vscode.window.activeTextEditor?.document.uri.toString();
-      const activeIndex = activeUri
-        ? this.historyStack.findIndex(item => item.uri === activeUri)
-        : -1;
+      const activeIndex = activeUri ? this.historyStack.findIndex((item) => item.uri === activeUri) : -1;
 
       if (activeIndex >= 0) {
         this.currentFileIndex = activeIndex;
-      } else if (
-        this.currentFileIndex < 0 ||
-        this.currentFileIndex >= this.historyStack.length
-      ) {
+      } else if (this.currentFileIndex < 0 || this.currentFileIndex >= this.historyStack.length) {
         this.currentFileIndex = this.historyStack.length - 1;
       }
 
-      const targetIndex = this.wrapIndex(
-        this.currentFileIndex + direction,
-        this.historyStack.length,
-      );
+      const targetIndex = this.wrapIndex(this.currentFileIndex + direction, this.historyStack.length);
       const target = this.historyStack[targetIndex];
 
       try {
@@ -233,14 +212,14 @@ export class EditorHistoryService {
     }
 
     const uriString = activeEditor.document.uri.toString();
-    let recordIndex = this.historyStack.findIndex(item => item.uri === uriString);
+    let recordIndex = this.historyStack.findIndex((item) => item.uri === uriString);
 
     /**
      * 当前文件还没有历史记录时，先记录当前文件和当前位置。
      */
     if (recordIndex < 0) {
       this.pushEditor(activeEditor);
-      recordIndex = this.historyStack.findIndex(item => item.uri === uriString);
+      recordIndex = this.historyStack.findIndex((item) => item.uri === uriString);
     }
 
     if (recordIndex < 0) {
@@ -253,33 +232,20 @@ export class EditorHistoryService {
       return;
     }
 
-    const currentLocationIndex =
-      record.activeLocationIndex >= 0 &&
-      record.activeLocationIndex < record.locations.length
-        ? record.activeLocationIndex
-        : record.locations.length - 1;
+    const currentLocationIndex = record.activeLocationIndex >= 0 && record.activeLocationIndex < record.locations.length ? record.activeLocationIndex : record.locations.length - 1;
 
-    const targetLocationIndex = this.wrapIndex(
-      currentLocationIndex + direction,
-      record.locations.length,
-    );
+    const targetLocationIndex = this.wrapIndex(currentLocationIndex + direction, record.locations.length);
 
     record.activeLocationIndex = targetLocationIndex;
     record.viewColumn = activeEditor.viewColumn;
 
-    await this.revealLocation(
-      activeEditor,
-      record.locations[targetLocationIndex],
-    );
+    await this.revealLocation(activeEditor, record.locations[targetLocationIndex]);
   }
 
   /**
    * @description 打开文件并恢复该文件记忆的聚焦位置
    */
-  private async openRecord(
-    record: EditorHistoryRecord,
-    options: SwitchPreviousEditorOptions,
-  ): Promise<void> {
+  private async openRecord(record: EditorHistoryRecord, options: SwitchPreviousEditorOptions): Promise<void> {
     const uri = vscode.Uri.parse(record.uri);
     const document = await vscode.workspace.openTextDocument(uri);
     const location = this.getActiveLocation(record);
@@ -294,38 +260,26 @@ export class EditorHistoryService {
       });
 
       editor.selection = new vscode.Selection(position, position);
-      editor.revealRange(
-        new vscode.Range(position, position),
-        vscode.TextEditorRevealType.InCenterIfOutsideViewport,
-      );
+      editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
     });
   }
 
   /**
    * @description 在当前编辑器中恢复一个历史位置
    */
-  private async revealLocation(
-    editor: vscode.TextEditor,
-    location: EditorHistoryLocation,
-  ): Promise<void> {
+  private async revealLocation(editor: vscode.TextEditor, location: EditorHistoryLocation): Promise<void> {
     const position = this.resolveDocumentPosition(editor.document, location);
 
     await this.runWithoutRecording(async () => {
       editor.selection = new vscode.Selection(position, position);
-      editor.revealRange(
-        new vscode.Range(position, position),
-        vscode.TextEditorRevealType.InCenterIfOutsideViewport,
-      );
+      editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
     });
   }
 
   /**
    * @description 文件内位置采用 LRU 顺序，最早访问在前，最近访问在后
    */
-  private pushLocation(
-    record: EditorHistoryRecord,
-    position: vscode.Position,
-  ): void {
+  private pushLocation(record: EditorHistoryRecord, position: vscode.Position): void {
     const location: EditorHistoryLocation = {
       line: position.line,
       character: position.character,
@@ -338,14 +292,11 @@ export class EditorHistoryService {
      * - 更新字符位置和访问时间；
      * - 移动到最近访问位置。
      */
-    record.locations = record.locations.filter(item => item.line !== location.line);
+    record.locations = record.locations.filter((item) => item.line !== location.line);
     record.locations.push(location);
 
     if (record.locations.length > this.options.maxLocationsPerFile) {
-      record.locations.splice(
-        0,
-        record.locations.length - this.options.maxLocationsPerFile,
-      );
+      record.locations.splice(0, record.locations.length - this.options.maxLocationsPerFile);
     }
 
     record.activeLocationIndex = record.locations.length - 1;
@@ -367,10 +318,7 @@ export class EditorHistoryService {
     };
   }
 
-  private updateRecord(
-    record: EditorHistoryRecord,
-    editor: vscode.TextEditor,
-  ): EditorHistoryRecord {
+  private updateRecord(record: EditorHistoryRecord, editor: vscode.TextEditor): EditorHistoryRecord {
     const uri = editor.document.uri;
     const fsPath = uri.scheme === 'file' ? uri.fsPath : undefined;
 
@@ -385,9 +333,7 @@ export class EditorHistoryService {
     };
   }
 
-  private getActiveLocation(
-    record: EditorHistoryRecord,
-  ): EditorHistoryLocation {
+  private getActiveLocation(record: EditorHistoryRecord): EditorHistoryLocation {
     if (record.locations.length === 0) {
       return {
         line: 0,
@@ -396,11 +342,7 @@ export class EditorHistoryService {
       };
     }
 
-    const index =
-      record.activeLocationIndex >= 0 &&
-      record.activeLocationIndex < record.locations.length
-        ? record.activeLocationIndex
-        : record.locations.length - 1;
+    const index = record.activeLocationIndex >= 0 && record.activeLocationIndex < record.locations.length ? record.activeLocationIndex : record.locations.length - 1;
 
     return record.locations[index];
   }
@@ -408,17 +350,11 @@ export class EditorHistoryService {
   /**
    * @description 文件内容改变后，确保旧位置不会超过当前文档范围
    */
-  private resolveDocumentPosition(
-    document: vscode.TextDocument,
-    location: EditorHistoryLocation,
-  ): vscode.Position {
+  private resolveDocumentPosition(document: vscode.TextDocument, location: EditorHistoryLocation): vscode.Position {
     const maxLine = Math.max(0, document.lineCount - 1);
     const line = Math.min(Math.max(0, location.line), maxLine);
     const maxCharacter = document.lineAt(line).text.length;
-    const character = Math.min(
-      Math.max(0, location.character),
-      maxCharacter,
-    );
+    const character = Math.min(Math.max(0, location.character), maxCharacter);
 
     return new vscode.Position(line, character);
   }
@@ -428,10 +364,7 @@ export class EditorHistoryService {
 
     if (!activeEditor) return false;
 
-    return (
-      activeEditor.document.uri.toString() === editor.document.uri.toString() &&
-      activeEditor.viewColumn === editor.viewColumn
-    );
+    return activeEditor.document.uri.toString() === editor.document.uri.toString() && activeEditor.viewColumn === editor.viewColumn;
   }
 
   /**
@@ -449,7 +382,7 @@ export class EditorHistoryService {
        * 等待 VS Code 将 active editor / selection 事件派发完成，
        * 避免快捷键跳转被当成新的手动访问。
        */
-      await new Promise<void>(resolve => {
+      await new Promise<void>((resolve) => {
         setTimeout(resolve, 0);
       });
     } finally {

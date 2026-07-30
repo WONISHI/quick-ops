@@ -4,20 +4,18 @@ interface WebviewApi<StateType> {
   setState(newState: StateType): StateType;
 }
 
-
 declare global {
   function acquireVsCodeApi<StateType = unknown>(): WebviewApi<StateType>;
 }
 
-
 class VSCodeAPIWrapper<StateType = unknown> {
-    private readonly vsCodeApi?: WebviewApi<StateType>;
+  private readonly vsCodeApi?: WebviewApi<StateType>;
 
-    constructor() {
-        if (typeof acquireVsCodeApi === 'function') {
-            this.vsCodeApi = acquireVsCodeApi();
-        }
+  constructor() {
+    if (typeof acquireVsCodeApi === 'function') {
+      this.vsCodeApi = acquireVsCodeApi();
     }
+  }
 
   public postMessage<M = unknown>(message: M): void {
     if (this.vsCodeApi) {
@@ -38,9 +36,8 @@ class VSCodeAPIWrapper<StateType = unknown> {
     if (this.vsCodeApi) {
       return this.vsCodeApi.setState(newState);
     }
-    return undefined; // 明确返回 undefined
+    return undefined;
   }
 }
-
 
 export const vscode = new VSCodeAPIWrapper<Record<string, unknown>>();

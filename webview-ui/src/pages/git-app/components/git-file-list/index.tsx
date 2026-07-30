@@ -27,6 +27,9 @@ const GitFileList: React.FC<GitFileListProps> = ({
   openHistoryDiff,
   openCompareDiff,
   setContextMenu,
+  selectedFiles = new Set(),
+
+  onFileSelect,
 }) => {
   const getDirScope = () => {
     if (historyHash) {
@@ -66,7 +69,16 @@ const GitFileList: React.FC<GitFileListProps> = ({
     return keys;
   };
 
-  const handleFileClick = (item: GitFile) => {
+  const isMacPlatform = navigator.platform?.toLowerCase().includes('mac') || false;
+
+  const handleFileClick = (item: GitFile, index: number, e: React.MouseEvent) => {
+    // Ignore right-click and Mac Control+click (handled by onContextMenu)
+    if (e.button !== 0 || (isMacPlatform && e.ctrlKey)) {
+      return;
+    }
+
+    const isMultiKey = (isMacPlatform ? e.metaKey : e.ctrlKey) || e.shiftKey;
+
     setActiveFile(item.file);
 
     if (listType === 'history') {
@@ -87,17 +99,31 @@ const GitFileList: React.FC<GitFileListProps> = ({
       return;
     }
 
-    vscode.postMessage({
-      command: 'diff',
-      file: item.file,
-      status: item.status,
-    });
+    if (onFileSelect) {
+      onFileSelect(item.file, listType, index, e);
+    }
+
+    if (!isMultiKey) {
+      vscode.postMessage({
+        command: 'diff',
+        file: item.file,
+        status: item.status,
+      });
+    }
   };
 
   const openContextMenu = (e: React.MouseEvent, item: GitFile) => {
+    if (e.metaKey || e.shiftKey) {
+      return;
+    }
+
     e.preventDefault();
 
     setActiveFile(item.file);
+
+    const multiSelected = selectedFiles.size > 1 && selectedFiles.has(item.file)
+      ? Array.from(selectedFiles)
+      : undefined;
 
     setContextMenu({
       visible: true,
@@ -107,6 +133,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
       file: item,
       listType: listType as any,
       historyHash,
+      selectedFiles: multiSelected,
     });
   };
 
@@ -267,10 +294,10 @@ const GitFileList: React.FC<GitFileListProps> = ({
       return (
         <li
           key={`${getDirScope()}::${item.file}`}
-          className={`${styles['file-item']} ${activeFile === item.file ? styles['active'] : ''}`}
+          className={`${styles['file-item']} ${activeFile === item.file ? styles['active'] : ''} ${selectedFiles.has(item.file) ? styles['selected'] : ''}`}
           style={{ paddingLeft: `${depth * 12 + 24}px` }}
           title={item.file}
-          onClick={() => handleFileClick(item)}
+          onClick={(e) => handleFileClick(item, -1, e)}
           onContextMenu={(e) => openContextMenu(e, item)}
         >
           <FileIcon fileName={fileName || ''} className={styles['file-icon']} style={{ marginRight: '6px' }} />
@@ -289,14 +316,33 @@ const GitFileList: React.FC<GitFileListProps> = ({
     });
   };
 
+
   if (viewMode === 'tree') {
     const treeNodes = buildTree(files);
 
-    return <ul className={styles['file-list']}>{renderTreeNodes(treeNodes, 0)}</ul>;
+    return (
+      <ul
+        className={styles['file-list']}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onFileSelect?.('', listType, -1, { stopPropagation: () => {}, metaKey: false, ctrlKey: false, shiftKey: false } as React.MouseEvent);
+          }
+        }}
+      >
+        {renderTreeNodes(treeNodes, 0)}
+      </ul>
+    );
   }
 
   return (
-    <ul className={styles['file-list']}>
+    <ul
+      className={styles['file-list']}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onFileSelect?.('', listType, -1, { stopPropagation: () => {}, metaKey: false, ctrlKey: false, shiftKey: false } as React.MouseEvent);
+        }
+      }}
+    >
       {files.map((item, idx) => {
         const parts = item.file.split('/');
         const fileName = parts.pop();
@@ -306,9 +352,9 @@ const GitFileList: React.FC<GitFileListProps> = ({
         return (
           <Tooltip key={`${getDirScope()}::${item.file}::${idx}`} content={item.file} placement="bottom" delay={1000}>
             <li
-              className={`${styles['file-item']} ${activeFile === item.file ? styles['active'] : ''}`}
+              className={`${styles['file-item']} ${activeFile === item.file ? styles['active'] : ''} ${selectedFiles.has(item.file) ? styles['selected'] : ''}`}
               title={item.file}
-              onClick={() => handleFileClick(item)}
+              onClick={(e) => handleFileClick(item, idx, e)}
               onContextMenu={(e) => openContextMenu(e, item)}
             >
               <FileIcon fileName={fileName || ''} className={styles['file-icon']} style={{ marginRight: '6px' }} />

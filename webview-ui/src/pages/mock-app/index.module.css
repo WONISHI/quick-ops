@@ -529,6 +529,20 @@
   text-decoration: underline;
 }
 
+.custom-json-editor {
+  height: 320px;
+}
+
+.upload-hint {
+  padding: 10px 12px;
+  color: var(--vscode-editorWarning-foreground, #cca700);
+  background-color: var(--vscode-editorWarning-background, rgba(255, 204, 0, 0.1));
+  border: 1px solid var(--vscode-editorWarning-border, rgba(255, 204, 0, 0.3));
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .custom-json-textarea {
   height: 320px;
   font-family: var(--vscode-editor-font-family, monospace);

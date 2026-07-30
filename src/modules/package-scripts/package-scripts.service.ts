@@ -5,12 +5,10 @@ import { TextDecoder } from 'util';
 import { spawn, ChildProcessWithoutNullStreams, execFile } from 'child_process';
 import { promisify } from 'util';
 import { camelCase, kebabCase, snakeCase, upperFirst } from 'lodash-es';
-
-import { TemplateEngine } from '@utils/TemplateEngine';
+import { TemplateEngine } from '@modules/package-scripts/pack-scripts.util';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { ConfigurationService } from '@common/services/configuration.service';
-
-import type { IWorkspaceContext } from '@core/types/work-space';
+import type { IWorkspaceContext } from '@common/types/common.service.type';
 import type { PackageJsonInfo, PackageManager, PackageScriptsStatus, RunningCommandInfo, ScriptItem, ShellConfigItem } from '@modules/package-scripts/package-scripts.type';
 
 const execFileAsync = promisify(execFile);

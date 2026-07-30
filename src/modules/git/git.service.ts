@@ -211,6 +211,16 @@ export class GitService {
 
       const status = await git.status();
 
+      // 无 upstream 时手动统计领先提交数
+      if (!status.tracking) {
+        try {
+          const aheadCount = await git.raw(['rev-list', '--count', 'HEAD', '--not', '--remotes']);
+          (status as any).ahead = Number(String(aheadCount).trim()) || 0;
+        } catch {
+          // 忽略统计错误
+        }
+      }
+
       return this.createRemoteSync(status, branch, remoteUrl);
     } catch (error: any) {
       return {
@@ -702,6 +712,19 @@ export class GitService {
     }
   }
 
+  public async stashPushFiles(cwd: string, files: string[], message?: string): Promise<void> {
+    const git = this.createGit(cwd);
+    const args = ['push'];
+
+    if (message) {
+      args.push('-m', message);
+    }
+
+    args.push('--', ...files);
+
+    await git.stash(args);
+  }
+
   public async getStashFiles(
     cwd: string,
     index: number,
@@ -1134,6 +1157,11 @@ export class GitService {
         await this.createGit(cwd).fetch();
       },
     );
+  }
+
+  public async revertCommit(cwd: string, hash: string): Promise<void> {
+    const git = this.createGit(cwd);
+    await git.revert(hash, ['--no-edit']);
   }
 
   public async addToGitignore(cwd: string, file: string): Promise<void> {

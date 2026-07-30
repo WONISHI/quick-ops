@@ -366,11 +366,11 @@ body {
   flex: 0 0 auto;
 }
 
-.changes-section-expanded>.changes-header {
+.changes-section-expanded > .changes-header {
   opacity: 1;
 }
 
-.changes-section-collapsed>.changes-header {
+.changes-section-collapsed > .changes-header {
   opacity: 0.85;
 }
 
@@ -704,6 +704,10 @@ body {
   color: var(--vscode-list-warningForeground) !important;
 }
 
+.push-without-upstream {
+  color: var(--vscode-textLink-foreground, #3794ff) !important;
+}
+
 .pull-badge {
   position: absolute;
   top: -4px;
@@ -720,6 +724,28 @@ body {
   text-align: center;
   box-sizing: border-box;
   pointer-events: none;
+}
+
+.push-badge {
+  position: absolute;
+  top: -4px;
+  right: -5px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--vscode-list-warningForeground);
+  color: var(--vscode-editor-background);
+  font-size: 9px;
+  line-height: 14px;
+  font-weight: 700;
+  text-align: center;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.push-badge-without-upstream {
+  background: var(--vscode-textLink-foreground, #3794ff);
 }
 
 .graph-content {

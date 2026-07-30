@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { API_DEV_TOOLS_COMMANDS, API_DEV_TOOLS_LOADING_CONTEXT } from '@modules/api-dev-tools/constants/api-dev-tools.constant';
 import { ApiDevToolsWebviewProvider } from '@modules/api-dev-tools/providers/api-dev-tools-webview.provider';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import type { ApiDevToolsViewTitleAction } from '@modules/api-dev-tools/api-dev-tools.type';
 
 export class ApiDevToolsController implements OnModuleInit {

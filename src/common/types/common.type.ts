@@ -1,4 +1,5 @@
 import type * as vscode from 'vscode';
+import { SUPPORTED_FILE_TYPES } from '@common/constants/common.constants';
 
 export type MaybePromise<T = void> = T | Promise<T>;
 
@@ -25,9 +26,7 @@ export interface Destroyable {
   onModuleDestroy?(): MaybePromise<void>;
 }
 
-export type VscodeCommandHandler<TArgs extends any[] = any[]> = (
-  ...args: TArgs
-) => MaybePromise<unknown>;
+export type VscodeCommandHandler<TArgs extends any[] = any[]> = (...args: TArgs) => MaybePromise<unknown>;
 
 export interface QuickOpsCommand<TArgs extends any[] = any[]> {
   command: string;
@@ -72,9 +71,7 @@ export interface QuickOpsConfig {
   snippets: unknown[];
 }
 
-export type ConfigurationChangeListener = (
-  config: Readonly<QuickOpsConfig>,
-) => void;
+export type ConfigurationChangeListener = (config: Readonly<QuickOpsConfig>) => void;
 
 export interface PathInfo {
   uri: vscode.Uri;
@@ -112,3 +109,5 @@ export interface CommandRegisterOptions<TArgs extends any[] = any[]> {
 export interface EventRegisterOptions {
   disposable: vscode.Disposable;
 }
+
+export type SupportedFileType = (typeof SUPPORTED_FILE_TYPES)[number];

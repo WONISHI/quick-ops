@@ -94,6 +94,7 @@ module.exports = (_env, argv = {}) => {
     externals: {
       vscode: 'commonjs vscode',
       bufferutil: 'bufferutil',
+      '@commitlint/config-conventional': '@commitlint/config-conventional',
       'utf-8-validate': 'utf-8-validate',
     },
 
@@ -133,6 +134,10 @@ module.exports = (_env, argv = {}) => {
       {
         module: /[\\/]node_modules[\\/](@puppeteer|puppeteer-core|@puppeteer\/browsers)[\\/]/,
         message: /Critical dependency: require function is used in a way/,
+      },
+      {
+        module: /[\\/]node_modules[\\/](?:\.pnpm[\\/][^\\/]+[\\/]node_modules[\\/])?yargs[\\/]lib[\\/]platform-shims[\\/]esm\.mjs/,
+        message: /Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/,
       },
     ],
 

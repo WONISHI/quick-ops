@@ -1,0 +1,138 @@
+/* ==================== 文本对比骨架屏 ==================== */
+
+.skeleton-header {
+  flex-shrink: 0;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  line-height: 1;
+}
+
+.skeleton-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.skeleton-editors {
+  height: 35%;
+  min-height: 150px;
+  flex-shrink: 0;
+  display: flex;
+  gap: 20px;
+}
+
+.skeleton-editor-box {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.skeleton-editor-label {
+  flex-shrink: 0;
+  height: 20px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  line-height: 1;
+}
+
+.skeleton-textarea {
+  flex: 1;
+  min-height: 0;
+  padding: 12px;
+  box-sizing: border-box;
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  overflow: hidden;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 2px;
+  background: var(--vscode-input-background);
+  line-height: 1;
+}
+
+.skeleton-result {
+  flex: 1;
+  min-height: 0;
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  line-height: 1;
+}
+
+.skeleton-result-tools {
+  min-height: 26px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.skeleton-diff-wrapper {
+  flex: 1;
+  min-height: 0;
+  padding: 15px;
+  box-sizing: border-box;
+  overflow: hidden;
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 2px;
+  background: var(--vscode-editor-background);
+}
+
+.skeleton-diff-lines {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.skeleton-divider {
+  width: 100%;
+  height: 1px;
+  margin: 20px 0;
+  border-bottom: 1px dashed var(--vscode-panel-border);
+}
+
+.compare-container :global(.react-loading-skeleton) {
+  vertical-align: middle;
+}
+
+@media (max-width: 720px) {
+  .compare-container {
+    padding: 12px;
+  }
+
+  .skeleton-header {
+    align-items: flex-start;
+  }
+
+  .skeleton-actions {
+    gap: 6px;
+  }
+
+  .skeleton-editors {
+    gap: 10px;
+  }
+}
+
+@media (max-width: 520px) {
+  .skeleton-editors {
+    height: 42%;
+    flex-direction: column;
+  }
+
+  .skeleton-editor-box {
+    min-height: 0;
+  }
+
+  .skeleton-result-tools {
+    gap: 8px;
+  }
+}

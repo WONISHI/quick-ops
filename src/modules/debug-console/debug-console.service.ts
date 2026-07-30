@@ -1,46 +1,7 @@
 import * as vscode from 'vscode';
 import { ConfigurationService } from '@common/services/configuration.service';
-
-interface CommonCommandItem {
-  label: string;
-  icon: string;
-  command: string;
-}
-
-type ConsoleType = 'log' | 'info' | 'warn' | 'error';
-
-const COMMON_COMMANDS: CommonCommandItem[] = [
-  {
-    label: '刷新窗口',
-    icon: 'refresh',
-    command: 'workbench.action.reloadWindow',
-  },
-  {
-    label: '开发者工具',
-    icon: 'terminal',
-    command: 'workbench.action.toggleDevTools',
-  },
-  {
-    label: '输出面板',
-    icon: 'output',
-    command: 'workbench.action.output.toggleOutput',
-  },
-  {
-    label: '重启 TS 服务',
-    icon: 'server-process',
-    command: 'typescript.restartTsServer',
-  },
-  {
-    label: '新建终端',
-    icon: 'add',
-    command: 'workbench.action.terminal.new',
-  },
-  {
-    label: '清空终端',
-    icon: 'clear-all',
-    command: 'workbench.action.terminal.clear',
-  },
-];
+import { COMMON_COMMANDS } from '@modules/debug-console/constants/debug-console.constant';
+import type { ConsoleType } from '@/modules/debug-console/debug-console.type';
 
 export class DebugConsoleService {
   public static inject = [ConfigurationService];
@@ -67,10 +28,7 @@ export class DebugConsoleService {
   public initStatusBar(): void {
     if (this.statusBarItem) return;
 
-    this.statusBarItem = vscode.window.createStatusBarItem(
-      vscode.StatusBarAlignment.Right,
-      100,
-    );
+    this.statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
 
     this.statusBarItem.text = '$(bug) Q-Ops 调试';
     this.statusBarItem.name = 'Q-Ops Debug Console';
@@ -163,7 +121,7 @@ export class DebugConsoleService {
 
     markdown.appendMarkdown('**$(settings) 常用控制**\n\n');
 
-    const commandLinks = COMMON_COMMANDS.map(commandItem => {
+    const commandLinks = COMMON_COMMANDS.map((commandItem) => {
       return `[$(${commandItem.icon}) ${commandItem.label}](command:${commandItem.command})`;
     });
 
@@ -174,7 +132,7 @@ export class DebugConsoleService {
     markdown.appendMarkdown('\n---\n\n');
     markdown.appendMarkdown('**$(debug-console) Console 弹窗拦截器**\n\n');
 
-    const toggleLinks = (['log', 'info', 'warn', 'error'] as ConsoleType[]).map(type => {
+    const toggleLinks = (['log', 'info', 'warn', 'error'] as ConsoleType[]).map((type) => {
       const isChecked = this.activeLogs[type];
       const icon = isChecked ? '$(pass-filled)' : '$(circle-large-outline)';
       const args = encodeURIComponent(JSON.stringify([type]));
@@ -213,7 +171,7 @@ export class DebugConsoleService {
   private stringifyConsoleArgs(args: any[]): string {
     try {
       return args
-        .map(item => {
+        .map((item) => {
           if (typeof item === 'string') {
             return item;
           }

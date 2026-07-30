@@ -105,11 +105,6 @@
           "default": "",
           "description": "Git 提交使用的邮箱 (修改后将提示是否同步到当前本地 Git 仓库)"
         },
-        "quick-ops.git.defaultSkipVerify": {
-          "type": "boolean",
-          "default": false,
-          "description": "Git 提交时默认是否跳过校验 (勾选则相当于提交时附加 --no-verify 参数，面板中盾牌按钮将默认显示为'校验关闭')"
-        },
         "quick-ops.general.anchorViewMode": {
           "type": "string",
           "enum": [
@@ -120,7 +115,7 @@
             "在左侧拆分出一个新编辑器组显示 (Split editor to the left)",
             "在当前编辑器右侧/旁边显示 (Open beside active editor)"
           ],
-          "default": "mindmap",
+          "default": "menu",
           "description": "锚点视图的展示模式 (思维导图或列表菜单)"
         },
         "quick-ops.logger.template": {
@@ -748,11 +743,53 @@
       ],
       "editor/title": [
         {
+          "command": "quickOps.apiDevTools.addProject",
+          "when": "quickOps.apiDevTools.floating",
+          "group": "navigation@2"
+        },
+        {
+          "command": "quickOps.apiDevTools.saveInterface",
+          "when": "quickOps.apiDevTools.floating",
+          "group": "navigation@3"
+        },
+        {
+          "command": "quickOps.apiDevTools.shareDocs",
+          "when": "quickOps.apiDevTools.floating",
+          "group": "navigation@4"
+        },
+        {
+          "command": "quickOps.apiDevTools.exportDocs",
+          "when": "quickOps.apiDevTools.floating",
+          "group": "navigation@5"
+        },
+        {
+          "command": "quickOps.apiDevTools.showGlobals",
+          "when": "quickOps.apiDevTools.floating",
+          "group": "navigation@6"
+        },
+        {
+          "command": "quickOps.apiDevTools.clearAll",
+          "when": "quickOps.apiDevTools.floating",
+          "group": "navigation@7"
+        },
+        {
+          "command": "quickOps.apiDevTools.sendRequest",
+          "when": "quickOps.apiDevTools.floating && !quickOps.apiDevTools.loading",
+          "group": "navigation@8"
+        },
+        {
+          "command": "quickOps.apiDevTools.stopRequest",
+          "when": "quickOps.apiDevTools.floating && quickOps.apiDevTools.loading",
+          "group": "navigation@8"
+        },
+        {
           "command": "quickOps.showPackageScripts",
+          "when": "!quickOps.apiDevTools.floating",
           "group": "navigation@1"
         },
         {
           "command": "quickOps.openLivePreview",
+          "when": "!quickOps.apiDevTools.floating",
           "group": "navigation@2"
         },
         {
@@ -898,12 +935,15 @@
     "watch-tests": "tsc -p . -w --outDir dist",
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "node ./dist/test/extension.test.js"
+    "test": "node ./dist/test/extension.test.js",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@babel/parser": "^7.28.6",
     "@babel/traverse": "^7.28.6",
     "@babel/types": "^7.28.6",
+    "@commitlint/cli": "^21.2.1",
+    "@commitlint/config-conventional": "^21.2.0",
     "@types/babel__core": "^7.20.5",
     "@types/babel__traverse": "^7.28.0",
     "@types/cheerio": "^1.0.0",
@@ -934,6 +974,7 @@
     "express": "^5.2.1",
     "glob": "^13.0.0",
     "http-proxy": "^1.18.1",
+    "husky": "^9.1.7",
     "lodash-es": "^4.17.23",
     "mocha": "^11.7.5",
     "mockjs": "^1.1.0",

@@ -17,9 +17,7 @@ interface GitVirtualContentQuery {
  * Provider 只在 GitModule 中注册一次，其他模块直接通过 GitModule 导出的
  * GitVirtualContentProvider 复用同一个实例。
  */
-export class GitVirtualContentProvider
-  implements vscode.TextDocumentContentProvider
-{
+export class GitVirtualContentProvider implements vscode.TextDocumentContentProvider {
   private readonly changeEmitter = new vscode.EventEmitter<vscode.Uri>();
   private readonly contentMap = new Map<string, string>();
 
@@ -35,9 +33,7 @@ export class GitVirtualContentProvider
     this.gitService = gitService;
   }
 
-  public provideTextDocumentContent(
-    uri: vscode.Uri,
-  ): vscode.ProviderResult<string> {
+  public provideTextDocumentContent(uri: vscode.Uri): vscode.ProviderResult<string> {
     const key = new URLSearchParams(uri.query).get('key');
 
     if (key) {
@@ -50,11 +46,7 @@ export class GitVirtualContentProvider
       return '';
     }
 
-    return this.gitService.getFileContent(
-      query.cwd,
-      query.ref,
-      query.file,
-    );
+    return this.gitService.getFileContent(query.cwd, query.ref, query.file);
   }
 
   public setContent(key: string, content: string): void {
@@ -75,9 +67,7 @@ export class GitVirtualContentProvider
     this.changeEmitter.dispose();
   }
 
-  private parseGitQuery(
-    uri: vscode.Uri,
-  ): GitVirtualContentQuery | undefined {
+  private parseGitQuery(uri: vscode.Uri): GitVirtualContentQuery | undefined {
     if (!uri.query) return undefined;
 
     try {

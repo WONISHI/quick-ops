@@ -23,7 +23,7 @@ import {
 import { faCopy, faSquareCheck, faClone, faFolderOpen as faFolderOpenReg, faWindowRestore, faFileCode } from '@fortawesome/free-regular-svg-icons';
 
 import BaseContextMenu from '@components/BaseContextMenu';
-import type { BaseContextMenuItem } from '@components/BaseContextMenu';
+import type { BaseContextMenuItem } from '@components/BaseContextMenu/src/type';
 import type { ContextMenuPayload } from '@/pages/recent-projects-app/src/type';
 import type {RecentProjectContextMenuProps} from "@pages/recent-projects-app/components/recent-project-context-menu/src/type"
 
@@ -507,13 +507,60 @@ function createSubMenuItems(payload: ContextMenuPayload, onAction: (action: stri
  * 右键切换和键盘操作统一交给 BaseContextMenu。
  */
 export default function RecentProjectContextMenu(props: RecentProjectContextMenuProps) {
-  const { visible, x, y, type, payload, onClose, onAction } = props;
+  const { visible, x, y, type, payload, selectedItems, onClose, onAction } = props;
 
   if (!visible) {
     return null;
   }
 
-  const items = type === 'top' ? createTopMenuItems(payload, onAction) : createSubMenuItems(payload, onAction);
+  let items: BaseContextMenuItem[];
+
+  if (selectedItems && selectedItems.length > 1) {
+    // Multi-select menu
+    const hasFiles = selectedItems.some((item) => !item.isFolder);
+    const hasFolders = selectedItems.some((item) => item.isFolder);
+    const count = selectedItems.length;
+
+    items = [];
+
+    if (hasFiles && !hasFolders) {
+      // Files only
+      items.push({
+        key: 'multi-open-tabs',
+        label: `在新标签页打开 (${count})`,
+        icon: createIcon(faWindowRestore),
+        onSelect: () => {
+          onAction('openSelectedInTabs', JSON.stringify(selectedItems.map((s) => s.path)));
+        },
+      });
+    }
+
+    if (hasFolders && !hasFiles) {
+      // Folders only
+      items.push({
+        key: 'multi-collapse',
+        label: `折叠 (${count})`,
+        icon: createIcon(faFolderMinus),
+        onSelect: () => {
+          onAction('collapseSelectedFolders', JSON.stringify(selectedItems.map((s) => s.path)));
+        },
+      });
+    }
+
+    items.push(createSeparator('multi-separator'));
+
+    items.push({
+      key: 'multi-delete',
+      label: `删除 (${count})`,
+      icon: createIcon(faTrash),
+      danger: true,
+      onSelect: () => {
+        onAction('deleteSelectedItems', JSON.stringify(selectedItems.map((s) => ({ path: s.path, isFolder: s.isFolder }))));
+      },
+    });
+  } else {
+    items = type === 'top' ? createTopMenuItems(payload, onAction) : createSubMenuItems(payload, onAction);
+  }
 
   if (items.length === 0) {
     return null;

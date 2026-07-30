@@ -14,4 +14,7 @@ export interface GitFileListProps {
   openHistoryDiff: (item: GitFile, historyHash?: string) => void;
   openCompareDiff: (item: GitFile) => void;
   setContextMenu: (state: ContextMenuState) => void;
+  selectedFiles?: Set<string>;
+  selectedListType?: string | null;
+  onFileSelect?: (filePath: string, listType: string, index: number, e: React.MouseEvent) => void;
 }

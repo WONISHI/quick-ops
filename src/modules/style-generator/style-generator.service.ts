@@ -14,7 +14,7 @@ export class StyleGeneratorService {
     const langId = document.languageId;
 
     try {
-      const { StyleStructureParser } = await import('../../utils/StyleStructureParser');
+      const { StyleStructureParser } = await import('./style-generator.util');
 
       const scssString = await StyleStructureParser.parse(text, langId);
 

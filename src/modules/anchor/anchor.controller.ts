@@ -1,11 +1,10 @@
 import * as vscode from 'vscode';
-
+import WorkspaceEventsWorkflow from '@workflow/workspace-events';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { AnchorService } from '@modules/anchor/anchor.service';
+import { WORKSPACE_EVENTS } from '@workflow/workspace-events/type';
 import type { AnchorDirection } from '@modules/anchor/anchor.type';
 import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
-import WorkspaceEventsWorkflow from '@workflow/workspace-events';
-import { WORKSPACE_EVENTS } from '@workflow/workspace-events/type';
 
 export class AnchorController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, AnchorService];

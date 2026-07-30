@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { FileNavigationService } from '@modules/file-navigation/file-navigation.service';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class FileNavigationController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, FileNavigationService];

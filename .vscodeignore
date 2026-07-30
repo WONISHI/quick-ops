@@ -12,6 +12,8 @@ packages/**
 dist/test/**
 .zip
 .markdownlint.json
+pnpm-workspace.yaml
+commitlint.config.cjs
 
 .gitignore
 .yarnrc
@@ -28,11 +30,13 @@ pnpm-lock.yaml
 .turbo/**
 dist/*.map  
 dist/*.txt
+docs/**
 dist/bundle-report.html
 **/*.tsbuildinfo
 PERFORMANCE.md
 README_zh.md
 .github/**
+.husky/**
 
 # 忽略 React 源代码
 webview-ui/node_modules/**

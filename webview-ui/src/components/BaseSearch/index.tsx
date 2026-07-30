@@ -401,15 +401,6 @@ export default function BaseSearch({
   }, [autoFocus, open]);
 
   /**
-   * @description 外部关闭搜索框时同步清空内部关键词
-   */
-  useEffect(() => {
-    if (open || !query) return;
-
-    setQuery('');
-  }, [open, query]);
-
-  /**
    * @description 当前结果变化后滚动到可视区域
    */
   useEffect(() => {

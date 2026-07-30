@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { PackageScriptsService } from './package-scripts.service';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class PackageScriptsController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, PackageScriptsService];

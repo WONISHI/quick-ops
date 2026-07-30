@@ -4,15 +4,9 @@ import * as https from 'https';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
-import type { CompareSelection, RecentProjectItem, RecentProjectPlatform, RemoteProjectParseResult } from '@modules/recent-projects/recent-projects.type';
+import type { CompareSelection, RecentProjectItem, RecentProjectPlatform, RemoteProjectParseResult, RemoteProjectInfo } from '@modules/recent-projects/recent-projects.type';
 
 const execFileAsync = promisify(execFile);
-
-interface RemoteProjectInfo {
-  platform: RecentProjectPlatform;
-  domain: string;
-  repoFullName: string;
-}
 
 export class RecentProjectsService {
   public static inject = [ExtensionContextProvider];

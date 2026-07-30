@@ -1,18 +1,12 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { WorkspaceContextService } from '@common/services/workspace-context.service';
 import { ComponentIntellisenseService } from '@modules/component-intellisense/component-intellisense.service';
 import { ComponentCompletionProvider } from '@modules/component-intellisense/providers/component-completion.provider';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class ComponentIntellisenseController implements OnModuleInit {
-  public static inject = [
-    ExtensionContextProvider,
-    WorkspaceContextService,
-    ComponentIntellisenseService,
-    ComponentCompletionProvider,
-  ];
+  public static inject = [ExtensionContextProvider, WorkspaceContextService, ComponentIntellisenseService, ComponentCompletionProvider];
 
   private readonly id = 'ComponentIntellisenseModule';
 
@@ -37,29 +31,12 @@ export class ComponentIntellisenseController implements OnModuleInit {
   }
 
   private registerProviders(): void {
-    const selector: vscode.DocumentSelector = [
-      'vue',
-      'html',
-      'javascriptreact',
-      'typescriptreact',
-    ];
+    const selector: vscode.DocumentSelector = ['vue', 'html', 'javascriptreact', 'typescriptreact'];
 
     this.extensionContextProvider.register(
-      vscode.languages.registerCompletionItemProvider(
-        selector,
-        this.componentCompletionProvider,
-        '<',
-        ' ',
-        '@',
-        ':',
-        '-',
-        '#',
-      ),
+      vscode.languages.registerCompletionItemProvider(selector, this.componentCompletionProvider, '<', ' ', '@', ':', '-', '#'),
 
-      vscode.languages.registerHoverProvider(
-        selector,
-        this.componentCompletionProvider,
-      ),
+      vscode.languages.registerHoverProvider(selector, this.componentCompletionProvider),
     );
   }
 

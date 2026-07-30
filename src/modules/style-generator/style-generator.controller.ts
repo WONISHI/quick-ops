@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { StyleGeneratorService } from '@modules/style-generator/style-generator.service';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class StyleGeneratorController implements OnModuleInit {
   public static inject = [ExtensionContextProvider, StyleGeneratorService];

@@ -1,8 +1,8 @@
 import * as vscode from 'vscode';
-import type { ISnippetItem } from '@core/types/snippet';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { WorkspaceContextService } from '@common/services/workspace-context.service';
 import { ConfigurationService } from '@common/services/configuration.service';
+import type { ISnippetItem } from '@common/types/common.service.type';
 
 export class SnippetGeneratorService {
   public static inject = [

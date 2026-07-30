@@ -1,36 +1,5 @@
 import * as vscode from 'vscode';
-
-export interface InlineConstantHintEntry {
-  /**
-   * 匹配文本：
-   * - 常量：STATUS_SUCCESS
-   * - 枚举/对象成员：Status.Success / STATUS_MAP.SUCCESS
-   */
-  name: string;
-
-  /**
-   * 展示值：
-   * - "success"
-   * - 1
-   * - true
-   */
-  value: string;
-
-  /**
-   * 来源类型
-   */
-  kind: 'const' | 'enum' | 'object';
-
-  /**
-   * 声明所在行，避免在声明行重复提示
-   */
-  declarationLine: number;
-}
-
-interface DocumentCache {
-  version: number;
-  entries: InlineConstantHintEntry[];
-}
+import type { InlineConstantHintEntry, DocumentCache } from '@modules/inline-constant-hint/inline-constant-hint.type';
 
 export class InlineConstantHintService {
   private readonly cache = new Map<string, DocumentCache>();
@@ -60,15 +29,9 @@ export class InlineConstantHintService {
     const config = vscode.workspace.getConfiguration('quick-ops');
     const current = this.isEnabled();
 
-    await config.update(
-      'inlineConstantHint.enabled',
-      !current,
-      vscode.ConfigurationTarget.Global,
-    );
+    await config.update('inlineConstantHint.enabled', !current, vscode.ConfigurationTarget.Global);
 
-    vscode.window.showInformationMessage(
-      !current ? '已开启常量行内提示' : '已关闭常量行内提示',
-    );
+    vscode.window.showInformationMessage(!current ? '已开启常量行内提示' : '已关闭常量行内提示');
   }
 
   public getMaxHintsPerDocument(): number {
@@ -78,13 +41,7 @@ export class InlineConstantHintService {
   }
 
   public getSupportedLanguages(): string[] {
-    return [
-      'javascript',
-      'typescript',
-      'javascriptreact',
-      'typescriptreact',
-      'vue',
-    ];
+    return ['javascript', 'typescript', 'javascriptreact', 'typescriptreact', 'vue'];
   }
 
   public shouldHandleDocument(document: vscode.TextDocument): boolean {
@@ -137,10 +94,7 @@ export class InlineConstantHintService {
     return this.dedupeEntries(entries);
   }
 
-  private parseConstLiteralEntries(
-    document: vscode.TextDocument,
-    text: string,
-  ): InlineConstantHintEntry[] {
+  private parseConstLiteralEntries(document: vscode.TextDocument, text: string): InlineConstantHintEntry[] {
     const entries: InlineConstantHintEntry[] = [];
 
     /**
@@ -150,8 +104,7 @@ export class InlineConstantHintService {
      * const A: string = 'xxx'
      * const A = true as const
      */
-    const reg =
-      /(?:export\s+)?const\s+([A-Z_$][A-Z0-9_$]*)\s*(?::[^=]+)?=\s*([^;\n]+)/g;
+    const reg = /(?:export\s+)?const\s+([A-Z_$][A-Z0-9_$]*)\s*(?::[^=]+)?=\s*([^;\n]+)/g;
 
     let match: RegExpExecArray | null;
 
@@ -176,10 +129,7 @@ export class InlineConstantHintService {
     return entries;
   }
 
-  private parseEnumEntries(
-    document: vscode.TextDocument,
-    text: string,
-  ): InlineConstantHintEntry[] {
+  private parseEnumEntries(document: vscode.TextDocument, text: string): InlineConstantHintEntry[] {
     const entries: InlineConstantHintEntry[] = [];
 
     /**
@@ -199,8 +149,7 @@ export class InlineConstantHintService {
 
       let autoNumber = 0;
 
-      const memberReg =
-        /([A-Za-z_$][\w$]*)\s*(?:=\s*([^,\n]+))?\s*(?:,|$)/g;
+      const memberReg = /([A-Za-z_$][\w$]*)\s*(?:=\s*([^,\n]+))?\s*(?:,|$)/g;
 
       let memberMatch: RegExpExecArray | null;
 
@@ -242,10 +191,7 @@ export class InlineConstantHintService {
     return entries;
   }
 
-  private parseObjectConstEntries(
-    document: vscode.TextDocument,
-    text: string,
-  ): InlineConstantHintEntry[] {
+  private parseObjectConstEntries(document: vscode.TextDocument, text: string): InlineConstantHintEntry[] {
     const entries: InlineConstantHintEntry[] = [];
 
     /**
@@ -255,8 +201,7 @@ export class InlineConstantHintService {
      *   FAILED: 0,
      * } as const
      */
-    const objectReg =
-      /(?:export\s+)?const\s+([A-Z_$][A-Z0-9_$]*)\s*=\s*\{([\s\S]*?)\}\s*(?:as\s+const)?/g;
+    const objectReg = /(?:export\s+)?const\s+([A-Z_$][A-Z0-9_$]*)\s*=\s*\{([\s\S]*?)\}\s*(?:as\s+const)?/g;
 
     let objectMatch: RegExpExecArray | null;
 
@@ -266,8 +211,7 @@ export class InlineConstantHintService {
       const objectStartIndex = objectMatch.index;
       const bodyStartIndex = text.indexOf('{', objectStartIndex) + 1;
 
-      const propReg =
-        /(?:["']?)([A-Za-z_$][\w$-]*)(?:["']?)\s*:\s*([^,\n}]+)/g;
+      const propReg = /(?:["']?)([A-Za-z_$][\w$-]*)(?:["']?)\s*:\s*([^,\n}]+)/g;
 
       let propMatch: RegExpExecArray | null;
 
@@ -471,14 +415,12 @@ export class InlineConstantHintService {
   }
 
   private stripBlockComments(text: string): string {
-    return text.replace(/\/\*[\s\S]*?\*\//g, match => {
+    return text.replace(/\/\*[\s\S]*?\*\//g, (match) => {
       return ' '.repeat(match.length);
     });
   }
 
-  private dedupeEntries(
-    entries: InlineConstantHintEntry[],
-  ): InlineConstantHintEntry[] {
+  private dedupeEntries(entries: InlineConstantHintEntry[]): InlineConstantHintEntry[] {
     const map = new Map<string, InlineConstantHintEntry>();
 
     for (const entry of entries) {

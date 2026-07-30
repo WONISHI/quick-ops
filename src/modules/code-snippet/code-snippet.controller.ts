@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
-
-import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { ConfigurationService } from '@common/services/configuration.service';
 import { CodeSnippetService } from '@modules/code-snippet/code-snippet.service';
+import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class CodeSnippetController implements OnModuleInit {
   public static inject = [

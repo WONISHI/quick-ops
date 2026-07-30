@@ -1,297 +1,13 @@
+import styles from '@pages/mock-app/index.module.css';
+import MockSkeleton from '@pages/mock-app/components/mock-skeleton';
+import BaseCodeEditor from '@components/BaseCodeEditor';
 import { useEffect, useMemo, useState } from 'react';
 import { vscode } from '@utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faArrowsRotate, faCheck, faPlus, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { faCopy, faFolderOpen } from '@fortawesome/free-regular-svg-icons';
-import styles from '@pages/mock-app/index.module.css';
-import MockSkeleton from '@pages/mock-app/components/mock-skeleton';
-
-type MockRuleMode = 'mock' | 'custom' | 'file';
-
-type MockFieldType = 'Basic' | 'Image' | 'Color' | 'Text' | 'Name' | 'Web' | 'Address' | 'Helper' | 'Miscellaneous' | 'Object' | 'Array';
-
-type MockGeneratorType =
-  | 'boolean'
-  | 'natural'
-  | 'integer'
-  | 'float'
-  | 'character'
-  | 'string'
-  | 'range'
-  | 'date'
-  | 'time'
-  | 'datetime'
-  | 'now'
-  | 'image'
-  | 'dataImage'
-  | 'color'
-  | 'paragraph'
-  | 'sentence'
-  | 'word'
-  | 'title'
-  | 'cparagraph'
-  | 'csentence'
-  | 'cword'
-  | 'ctitle'
-  | 'first'
-  | 'last'
-  | 'name'
-  | 'cfirst'
-  | 'clast'
-  | 'cname'
-  | 'url'
-  | 'domain'
-  | 'email'
-  | 'ip'
-  | 'tld'
-  | 'area'
-  | 'region'
-  | 'capitalize'
-  | 'upper'
-  | 'lower'
-  | 'pick'
-  | 'shuffle'
-  | 'guid'
-  | 'id';
-
-interface MockFieldConfig {
-  id: string;
-  fieldName: string;
-  fieldType: MockFieldType;
-  generatorType?: MockGeneratorType;
-  arguments?: string;
-  length?: number;
-  children?: MockFieldConfig[];
-}
-
-interface MockGeneratorOption {
-  value: MockGeneratorType;
-  label: string;
-  defaultArguments?: string;
-  argumentsPlaceholder?: string;
-}
-
-interface MockGeneratorGroup {
-  label: Exclude<MockFieldType, 'Object' | 'Array'>;
-  options: MockGeneratorOption[];
-}
-
-interface MockTemplateBuildResult {
-  template: Record<string, unknown>;
-  templateText: string;
-  error: string;
-}
-
-interface MockFieldEditorProps {
-  field: MockFieldConfig;
-  depth: number;
-  onPatch: (fieldId: string, patch: Partial<MockFieldConfig>) => void;
-  onTypeChange: (fieldId: string, fieldType: MockFieldType) => void;
-  onAddChild: (fieldId: string) => void;
-  onRemove: (fieldId: string) => void;
-}
-
-const MOCK_GENERATOR_GROUPS: MockGeneratorGroup[] = [
-  {
-    label: 'Basic',
-    options: [
-      { value: 'boolean', label: 'boolean' },
-      {
-        value: 'natural',
-        label: 'natural',
-        defaultArguments: '1, 10000',
-        argumentsPlaceholder: '最小值, 最大值',
-      },
-      {
-        value: 'integer',
-        label: 'integer',
-        defaultArguments: '-100, 100',
-        argumentsPlaceholder: '最小值, 最大值',
-      },
-      {
-        value: 'float',
-        label: 'float',
-        defaultArguments: '0, 100, 2, 2',
-        argumentsPlaceholder: '最小值, 最大值, 最少小数位, 最多小数位',
-      },
-      {
-        value: 'character',
-        label: 'character',
-        argumentsPlaceholder: '可选字符池，例如 "lower"',
-      },
-      {
-        value: 'string',
-        label: 'string',
-        defaultArguments: '5, 20',
-        argumentsPlaceholder: '最小长度, 最大长度',
-      },
-      {
-        value: 'range',
-        label: 'range',
-        defaultArguments: '1, 10',
-        argumentsPlaceholder: '起始值, 结束值, 步长',
-      },
-      {
-        value: 'date',
-        label: 'date',
-        argumentsPlaceholder: '可选格式，例如 "yyyy-MM-dd"',
-      },
-      {
-        value: 'time',
-        label: 'time',
-        argumentsPlaceholder: '可选格式，例如 "HH:mm:ss"',
-      },
-      {
-        value: 'datetime',
-        label: 'datetime',
-        argumentsPlaceholder: '可选格式，例如 "yyyy-MM-dd HH:mm:ss"',
-      },
-      {
-        value: 'now',
-        label: 'now',
-        argumentsPlaceholder: '可选单位或格式',
-      },
-    ],
-  },
-  {
-    label: 'Image',
-    options: [
-      {
-        value: 'image',
-        label: 'image',
-        defaultArguments: '"200x100"',
-        argumentsPlaceholder: '尺寸, 背景色, 前景色, 格式, 文本',
-      },
-      {
-        value: 'dataImage',
-        label: 'dataImage',
-        defaultArguments: '"200x100"',
-        argumentsPlaceholder: '尺寸, 文本',
-      },
-    ],
-  },
-  {
-    label: 'Color',
-    options: [{ value: 'color', label: 'color' }],
-  },
-  {
-    label: 'Text',
-    options: [
-      {
-        value: 'paragraph',
-        label: 'paragraph',
-        defaultArguments: '1, 3',
-        argumentsPlaceholder: '最少句数, 最多句数',
-      },
-      {
-        value: 'sentence',
-        label: 'sentence',
-        defaultArguments: '3, 8',
-        argumentsPlaceholder: '最少单词数, 最多单词数',
-      },
-      { value: 'word', label: 'word' },
-      {
-        value: 'title',
-        label: 'title',
-        defaultArguments: '3, 5',
-        argumentsPlaceholder: '最少单词数, 最多单词数',
-      },
-      {
-        value: 'cparagraph',
-        label: 'cparagraph',
-        defaultArguments: '1, 3',
-        argumentsPlaceholder: '最少句数, 最多句数',
-      },
-      {
-        value: 'csentence',
-        label: 'csentence',
-        defaultArguments: '3, 8',
-        argumentsPlaceholder: '最少汉字数, 最多汉字数',
-      },
-      {
-        value: 'cword',
-        label: 'cword',
-        argumentsPlaceholder: '可选字符池或长度',
-      },
-      {
-        value: 'ctitle',
-        label: 'ctitle',
-        defaultArguments: '3, 5',
-        argumentsPlaceholder: '最少汉字数, 最多汉字数',
-      },
-    ],
-  },
-  {
-    label: 'Name',
-    options: [
-      { value: 'first', label: 'first' },
-      { value: 'last', label: 'last' },
-      { value: 'name', label: 'name' },
-      { value: 'cfirst', label: 'cfirst' },
-      { value: 'clast', label: 'clast' },
-      { value: 'cname', label: 'cname' },
-    ],
-  },
-  {
-    label: 'Web',
-    options: [
-      { value: 'url', label: 'url' },
-      { value: 'domain', label: 'domain' },
-      { value: 'email', label: 'email' },
-      { value: 'ip', label: 'ip' },
-      { value: 'tld', label: 'tld' },
-    ],
-  },
-  {
-    label: 'Address',
-    options: [
-      { value: 'area', label: 'area' },
-      { value: 'region', label: 'region' },
-    ],
-  },
-  {
-    label: 'Helper',
-    options: [
-      {
-        value: 'capitalize',
-        label: 'capitalize',
-        defaultArguments: '"hello world"',
-        argumentsPlaceholder: '待处理文本',
-      },
-      {
-        value: 'upper',
-        label: 'upper',
-        defaultArguments: '"hello world"',
-        argumentsPlaceholder: '待处理文本',
-      },
-      {
-        value: 'lower',
-        label: 'lower',
-        defaultArguments: '"HELLO WORLD"',
-        argumentsPlaceholder: '待处理文本',
-      },
-      {
-        value: 'pick',
-        label: 'pick',
-        defaultArguments: '"A", "B", "C"',
-        argumentsPlaceholder: '候选值，使用逗号分隔',
-      },
-      {
-        value: 'shuffle',
-        label: 'shuffle',
-        defaultArguments: '"A", "B", "C"',
-        argumentsPlaceholder: '待打乱值，使用逗号分隔',
-      },
-    ],
-  },
-  {
-    label: 'Miscellaneous',
-    options: [
-      { value: 'guid', label: 'guid' },
-      { value: 'id', label: 'id' },
-    ],
-  },
-];
+import { MOCK_GENERATOR_GROUPS } from '@pages/mock-app/src/constants';
+import type { MockRuleMode, MockFieldType, MockGeneratorType, MockFieldConfig, MockGeneratorGroup, MockTemplateBuildResult, MockFieldEditorProps } from '@pages/mock-app/src/type';
 
 const MOCK_FIELD_TYPES: MockFieldType[] = ['Basic', 'Image', 'Color', 'Text', 'Name', 'Web', 'Address', 'Helper', 'Miscellaneous', 'Object', 'Array'];
 
@@ -727,6 +443,7 @@ export default function MockRulePanelApp() {
   const [filePathSingle, setFilePathSingle] = useState('');
   const [filePathsMultiple, setFilePathsMultiple] = useState<string[]>([]);
   const [fileDisposition, setFileDisposition] = useState('inline');
+  const [uploadDestPath, setUploadDestPath] = useState('');
 
   const [copyStatus, setCopyStatus] = useState<Record<string, boolean>>({});
 
@@ -762,6 +479,10 @@ export default function MockRulePanelApp() {
         setDelay(rule?.delay?.toString() || '0');
         setReqHeaders(rule?.reqHeaders ? JSON.stringify(rule.reqHeaders) : '');
         setFileDisposition(rule?.fileDisposition || 'inline');
+
+        if (rule?.fileDisposition === 'upload') {
+          setUploadDestPath(String(rule?.filePath || ''));
+        }
 
         const paths = String(rule?.filePath || '')
           .split('\n')
@@ -823,6 +544,12 @@ export default function MockRulePanelApp() {
             return updated;
           });
         }
+
+        return;
+      }
+
+      if (msg.type === 'folderReturnPathSelected') {
+        setUploadDestPath(String(msg.path || ''));
 
         return;
       }
@@ -987,14 +714,26 @@ export default function MockRulePanelApp() {
       } else if (mode === 'custom') {
         data = JSON.parse(customJson || '{}');
       } else {
-        filePath = fileMode === 'single' ? filePathSingle.trim() : filePathsMultiple.join('\n');
+        if (fileDisposition === 'upload') {
+          filePath = uploadDestPath.trim();
 
-        if (!filePath) {
-          vscode.postMessage({
-            type: 'error',
-            message: '请选择要返回的文件！',
-          });
-          return;
+          if (!filePath) {
+            vscode.postMessage({
+              type: 'error',
+              message: '请指定文件存入路径！',
+            });
+            return;
+          }
+        } else {
+          filePath = fileMode === 'single' ? filePathSingle.trim() : filePathsMultiple.join('\n');
+
+          if (!filePath) {
+            vscode.postMessage({
+              type: 'error',
+              message: '请选择要返回的文件！',
+            });
+            return;
+          }
         }
       }
 
@@ -1198,76 +937,119 @@ export default function MockRulePanelApp() {
                 </button>
               </div>
 
-              <textarea value={customJson} onChange={(event) => setCustomJson(event.target.value)} className={styles['custom-json-textarea']} />
+              <div className={styles['custom-json-editor']}>
+                <BaseCodeEditor value={customJson} language="json" editable onChange={(val) => setCustomJson(val)} />
+              </div>
             </div>
           )}
 
           {mode === 'file' && (
             <div>
-              <div className={styles['form-group']} style={{ marginBottom: '20px' }}>
-                <div className={styles['file-mode-header']}>
-                  <label>选择要作为接口返回的本地文件</label>
-
-                  <select value={fileMode} onChange={(event) => setFileMode(event.target.value)} className={styles['file-mode-select']}>
-                    <option value="single">单文件</option>
-                    <option value="multiple">多文件分发</option>
-                  </select>
-                </div>
-
-                <div className={styles['file-select-row']}>
-                  {fileMode === 'single' ? (
-                    <input
-                      type="text"
-                      value={filePathSingle}
-                      onChange={(event) => setFilePathSingle(event.target.value)}
-                      placeholder="例如: public/logo.png 或绝对路径"
-                      style={{ flex: 1 }}
-                    />
-                  ) : (
-                    <div className={styles['file-tags-container']}>
-                      {filePathsMultiple.length === 0 ? (
-                        <span className={styles['file-empty-text']}>尚未选择文件...</span>
-                      ) : (
-                        filePathsMultiple.map((filePathItem, index) => (
-                          <div key={filePathItem} className={styles['file-tag']}>
-                            <span title={filePathItem}>{filePathItem}</span>
-
-                            <FontAwesomeIcon
-                              icon={faXmark}
-                              className={styles['file-tag-close']}
-                              onClick={() => setFilePathsMultiple(filePathsMultiple.filter((_, itemIndex) => itemIndex !== index))}
-                            />
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    className={styles['btn-sec']}
-                    style={{ height: '28px' }}
-                    onClick={() =>
-                      vscode.postMessage({
-                        type: 'selectFileReturnPath',
-                        currentPath: fileMode === 'single' ? filePathSingle : filePathsMultiple[0] || '',
-                        multiple: fileMode === 'multiple',
-                      })
-                    }
-                  >
-                    <FontAwesomeIcon icon={faFolderOpen} />
-                  </button>
-                </div>
-              </div>
-
               <div className={styles['form-group']}>
                 <label>响应方式 (Content-Disposition)</label>
 
                 <select value={fileDisposition} onChange={(event) => setFileDisposition(event.target.value)}>
                   <option value="inline">浏览器内预览 (Inline)</option>
                   <option value="attachment">作为附件下载 (Attachment)</option>
+                  <option value="upload">文件上传</option>
                 </select>
               </div>
+
+              {fileDisposition !== 'upload' && (
+                <div className={styles['form-group']} style={{ marginTop: '16px' }}>
+                  <div className={styles['file-mode-header']}>
+                    <label>选择要作为接口返回的本地文件</label>
+
+                    <select value={fileMode} onChange={(event) => setFileMode(event.target.value)} className={styles['file-mode-select']}>
+                      <option value="single">单文件</option>
+                      <option value="multiple">多文件分发</option>
+                    </select>
+                  </div>
+
+                  <div className={styles['file-select-row']}>
+                    {fileMode === 'single' ? (
+                      <input
+                        type="text"
+                        value={filePathSingle}
+                        onChange={(event) => setFilePathSingle(event.target.value)}
+                        placeholder="例如: public/logo.png 或绝对路径"
+                        style={{ flex: 1 }}
+                      />
+                    ) : (
+                      <div className={styles['file-tags-container']}>
+                        {filePathsMultiple.length === 0 ? (
+                          <span className={styles['file-empty-text']}>尚未选择文件...</span>
+                        ) : (
+                          filePathsMultiple.map((filePathItem, index) => (
+                            <div key={filePathItem} className={styles['file-tag']}>
+                              <span title={filePathItem}>{filePathItem}</span>
+
+                              <FontAwesomeIcon
+                                icon={faXmark}
+                                className={styles['file-tag-close']}
+                                onClick={() => setFilePathsMultiple(filePathsMultiple.filter((_, itemIndex) => itemIndex !== index))}
+                              />
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      className={styles['btn-sec']}
+                      style={{ height: '28px' }}
+                      onClick={() =>
+                        vscode.postMessage({
+                          type: 'selectFileReturnPath',
+                          currentPath: fileMode === 'single' ? filePathSingle : filePathsMultiple[0] || '',
+                          multiple: fileMode === 'multiple',
+                        })
+                      }
+                    >
+                      <FontAwesomeIcon icon={faFolderOpen} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {fileDisposition === 'upload' && method !== 'POST' && (
+                <div className={styles['form-group']} style={{ marginTop: '16px' }}>
+                  <div className={styles['upload-hint']}>
+                    文件上传接口需要将 Method 设置为 <strong>POST</strong>
+                  </div>
+                </div>
+              )}
+
+              {fileDisposition === 'upload' && method === 'POST' && (
+                <div className={styles['form-group']} style={{ marginTop: '16px' }}>
+                  <label>文件存入路径</label>
+
+                  <div className={styles['file-select-row']}>
+                    <input
+                      type="text"
+                      value={uploadDestPath}
+                      onChange={(event) => setUploadDestPath(event.target.value)}
+                      placeholder="上传文件存放路径，例如: uploads/"
+                      style={{ flex: 1 }}
+                    />
+
+                    <button
+                      type="button"
+                      className={styles['btn-sec']}
+                      style={{ height: '28px' }}
+                      onClick={() =>
+                        vscode.postMessage({
+                          type: 'selectFolderReturnPath',
+                          currentPath: uploadDestPath,
+                        })
+                      }
+                    >
+                      <FontAwesomeIcon icon={faFolderOpen} />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -393,7 +393,6 @@
   left: 120px;
   right: 0;
   display: flex;
-  border-top: 1px solid var(--vscode-panel-border);
   border-bottom: 1px solid var(--vscode-panel-border);
   background: var(--vscode-editor-background);
   box-sizing: border-box;

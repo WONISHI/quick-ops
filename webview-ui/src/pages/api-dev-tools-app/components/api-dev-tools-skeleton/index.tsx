@@ -1,25 +1,8 @@
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
-
 import 'react-loading-skeleton/dist/skeleton.css';
+import styles from '@pages/api-dev-tools-app/components/api-dev-tools-skeleton/index.module.css';
 
-import styles from './index.module.css';
-
-export interface ApiDevToolsSkeletonProps {
-  /**
-   * @description 项目接口面板宽度
-   */
-  workspacePaneWidth: number;
-
-  /**
-   * @description 项目接口拖拽条宽度
-   */
-  workspaceResizerSize: number;
-
-  /**
-   * @description 历史记录和日志面板高度
-   */
-  bottomPanelSize: number;
-}
+import type { ApiDevToolsSkeletonProps } from '@pages/api-dev-tools-app/components/api-dev-tools-skeleton/src/type';
 
 /**
  * @description 渲染项目接口列表骨架

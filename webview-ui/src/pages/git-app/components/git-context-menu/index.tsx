@@ -1,6 +1,6 @@
 import BaseContextMenu from '@components/BaseContextMenu';
 import { vscode } from '@utils/vscode';
-import type { BaseContextMenuItem } from '@components/BaseContextMenu';
+import type { BaseContextMenuItem } from '@components/BaseContextMenu/src/type';
 import type { GitContextMenuProps, ContextMenuState } from '@pages/git-app/components/git-context-menu/src/type';
 
 function createIcon(icon: string) {
@@ -14,6 +14,100 @@ function copyFileName(filePath: string): void {
     command: 'copy',
     text: fileName,
   });
+}
+
+function createMultiUnstagedItems(contextMenu: ContextMenuState): BaseContextMenuItem[] {
+  if (!contextMenu.selectedFiles || contextMenu.selectedFiles.length === 0) {
+    return [];
+  }
+
+  const files = contextMenu.selectedFiles;
+
+  return [
+    {
+      key: 'multi-delete-files',
+      label: `删除文件 (${files.length})`,
+      icon: createIcon('codicon-trash'),
+      danger: true,
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'deleteWorkingFiles',
+          files,
+        });
+      },
+    },
+    {
+      key: 'multi-discard-changes',
+      label: `放弃更改 (${files.length})`,
+      icon: createIcon('codicon-discard'),
+      danger: true,
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'discardFiles',
+          files,
+        });
+      },
+    },
+    {
+      key: 'multi-stage-changes',
+      label: `暂存更改 (${files.length})`,
+      icon: createIcon('codicon-plus'),
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'stageFiles',
+          files,
+        });
+      },
+    },
+    {
+      type: 'separator',
+      key: 'multi-unstaged-separator',
+    },
+    {
+      key: 'multi-ignore-files',
+      label: `添加到 .gitignore (${files.length})`,
+      icon: createIcon('codicon-eye-closed'),
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'ignoreFiles',
+          files,
+        });
+      },
+    },
+    {
+      key: 'multi-stash-changes',
+      label: `贮藏更改 (${files.length})`,
+      icon: createIcon('codicon-archive'),
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'stashFiles',
+          files,
+        });
+      },
+    },
+  ];
+}
+
+function createMultiStagedItems(contextMenu: ContextMenuState): BaseContextMenuItem[] {
+  if (!contextMenu.selectedFiles || contextMenu.selectedFiles.length === 0) {
+    return [];
+  }
+
+  const files = contextMenu.selectedFiles;
+
+  return [
+    {
+      key: 'multi-unstage-files',
+      label: `取消暂存更改 (${files.length})`,
+      icon: createIcon('codicon-remove'),
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'unstageFiles',
+          files,
+        });
+      },
+    },
+  ];
 }
 
 function createCommitItems(contextMenu: ContextMenuState): BaseContextMenuItem[] {
@@ -42,6 +136,22 @@ function createCommitItems(contextMenu: ContextMenuState): BaseContextMenuItem[]
       onSelect: () => {
         vscode.postMessage({
           command: 'openCommitMultiDiff',
+          hash: commit.hash,
+        });
+      },
+    },
+    {
+      type: 'separator',
+      key: 'commit-separator',
+    },
+    {
+      key: 'revert-commit',
+      label: '回滚提交',
+      icon: createIcon('codicon-discard'),
+      danger: true,
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'revertCommit',
           hash: commit.hash,
         });
       },
@@ -133,6 +243,21 @@ function createUnstagedItems(contextMenu: ContextMenuState): BaseContextMenuItem
     {
       type: 'separator',
       key: 'working-file-separator-2',
+    },
+    {
+      key: 'stash-working-change',
+      label: '贮藏更改',
+      icon: createIcon('codicon-archive'),
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'stashFiles',
+          files: [file.file],
+        });
+      },
+    },
+    {
+      type: 'separator',
+      key: 'working-file-separator-3',
     },
     {
       key: 'ignore-working-file',
@@ -273,8 +398,6 @@ function createStashFileItems(contextMenu: ContextMenuState): BaseContextMenuIte
   ];
 }
 
-
-
 function createHistoryItems(contextMenu: ContextMenuState): BaseContextMenuItem[] {
   const file = contextMenu.file;
 
@@ -292,6 +415,14 @@ function createHistoryItems(contextMenu: ContextMenuState): BaseContextMenuItem[
           command: 'open',
           file: file.file,
         });
+      },
+    },
+    {
+      key: 'copy-history-file-name',
+      label: '复制文件名称',
+      icon: createIcon('codicon-copy'),
+      onSelect: () => {
+        copyFileName(file.file);
       },
     },
   ];
@@ -322,6 +453,19 @@ function createContextMenuItems(contextMenu: ContextMenuState): BaseContextMenuI
 
   if (contextMenu.type !== 'file') {
     return [];
+  }
+
+  if (contextMenu.selectedFiles && contextMenu.selectedFiles.length > 1) {
+    switch (contextMenu.listType) {
+      case 'unstaged':
+        return createMultiUnstagedItems(contextMenu);
+
+      case 'staged':
+        return createMultiStagedItems(contextMenu);
+
+      default:
+        return [];
+    }
   }
 
   switch (contextMenu.listType) {

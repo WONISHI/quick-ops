@@ -1,9 +1,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
+import * as fs from 'fs';
 import * as YAML from 'yaml';
-import { nanoid } from 'nanoid';
 import WebviewWorkflow from '@/workflow/webview';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
+import { nanoid } from 'nanoid';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { ConfigurationService } from '@common/services/configuration.service';
 import type {
@@ -236,6 +237,10 @@ export class MockServerService implements vscode.WebviewViewProvider {
         await this.handleSelectFileReturnPath(data);
         break;
 
+      case 'selectFolderReturnPath':
+        await this.handleSelectFolderReturnPath(data);
+        break;
+
       case 'openProxyPanel':
         await this.showProxyPanel(data.id);
         break;
@@ -403,6 +408,27 @@ export class MockServerService implements vscode.WebviewViewProvider {
     this.rulePanel?.webview.postMessage({
       type: 'fileReturnPathSelected',
       path: paths.join('\n'),
+    });
+  }
+
+  private async handleSelectFolderReturnPath(data: MockWebviewMessage): Promise<void> {
+    const defaultUri = this.getDefaultUri(data.currentPath);
+
+    const uris = await vscode.window.showOpenDialog({
+      canSelectFiles: false,
+      canSelectFolders: true,
+      canSelectMany: false,
+      defaultUri,
+      openLabel: '选择文件夹',
+    });
+
+    if (!uris?.length) return;
+
+    const folderPath = this.yamlStore.pathForConfig(uris[0]);
+
+    this.rulePanel?.webview.postMessage({
+      type: 'folderReturnPathSelected',
+      path: folderPath,
     });
   }
 
@@ -640,6 +666,11 @@ export class MockServerService implements vscode.WebviewViewProvider {
       return;
     }
 
+    if (data.type === 'selectFolderReturnPath') {
+      await this.handleSelectFolderReturnPath(data);
+      return;
+    }
+
     if (data.type !== 'saveRule') return;
 
     await this.handleSaveRule(data.payload);
@@ -861,6 +892,11 @@ export class MockServerService implements vscode.WebviewViewProvider {
   }
 
   private async sendMockFile(req: any, res: any, matchedRule: MockRuleConfig, statusCode: number): Promise<any> {
+    // 文件上传模式：接收文件并存入指定目录
+    if (matchedRule.fileDisposition === 'upload') {
+      return this.handleFileUpload(req, res, matchedRule, statusCode);
+    }
+
     if (!matchedRule.filePath) {
       return res.status(400).json({
         error: '文件路径未配置',
@@ -946,6 +982,150 @@ export class MockServerService implements vscode.WebviewViewProvider {
         });
       }
     }
+  }
+
+  /**
+   * @description 处理文件上传 mock：接收 multipart/form-data 并存入目标目录
+   */
+  private async handleFileUpload(req: any, res: any, matchedRule: MockRuleConfig, statusCode: number): Promise<any> {
+    const destDir = (matchedRule.filePath || '').trim();
+
+    if (!destDir) {
+      return res.status(400).json({ error: '文件存入路径未配置' });
+    }
+
+    // 确保目标目录存在
+    const destDirPath = path.isAbsolute(destDir) ? destDir : path.join(this.getWorkspaceRootUri()?.fsPath || process.cwd(), destDir);
+
+    if (!fs.existsSync(destDirPath)) {
+      fs.mkdirSync(destDirPath, { recursive: true });
+    }
+
+    const contentType = req.headers['content-type'] || '';
+
+    if (!contentType.includes('multipart/form-data')) {
+      return res.status(400).json({ error: 'Content-Type 必须为 multipart/form-data' });
+    }
+
+    const boundaryMatch = contentType.match(/boundary=(.+)$/);
+
+    if (!boundaryMatch) {
+      return res.status(400).json({ error: '缺少 boundary 参数' });
+    }
+
+    const boundary = boundaryMatch[1].trim();
+
+    // 读取原始 body
+    const buffers: Buffer[] = [];
+
+    req.on('data', (chunk: Buffer) => {
+      buffers.push(chunk);
+    });
+
+    req.on('end', () => {
+      try {
+        const rawBody = Buffer.concat(buffers);
+        const files = this.parseMultipart(rawBody, boundary, destDirPath);
+
+        if (files.length === 0) {
+          return res.status(400).json({ error: '未接收到上传文件' });
+        }
+
+        console.log(`[MockServer:${matchedRule.port}] 文件上传成功, 存入: ${destDirPath}, 文件数: ${files.length}`);
+
+        return res.status(statusCode).json({
+          success: true,
+          message: '文件上传成功',
+          path: destDirPath,
+          files: files.map((item) => item.fileName),
+        });
+      } catch (error: any) {
+        console.error('[MockServer] 文件上传处理失败:', error);
+
+        if (!res.headersSent) {
+          return res.status(500).json({ error: '文件上传处理失败: ' + error.message });
+        }
+      }
+    });
+  }
+
+  /**
+   * @description 手动解析 multipart/form-data 数据
+   */
+  private parseMultipart(rawBody: Buffer, boundary: string, destDir: string): Array<{ fileName: string; filePath: string; size: number }> {
+    const results: Array<{ fileName: string; filePath: string; size: number }> = [];
+    const boundaryBuffer = Buffer.from('--' + boundary);
+    const endBoundaryBuffer = Buffer.from('--' + boundary + '--');
+
+    let pos = 0;
+
+    while (pos < rawBody.length) {
+      // 查找下一个 boundary
+      const nextBoundary = rawBody.indexOf(boundaryBuffer, pos);
+
+      if (nextBoundary === -1) break;
+
+      // 检查是否为结束 boundary
+      if (rawBody.indexOf(endBoundaryBuffer, nextBoundary) === nextBoundary) break;
+
+      // 跳过 boundary 和 \r\n
+      pos = nextBoundary + boundaryBuffer.length;
+      if (rawBody[pos] === 0x0d) pos++;
+      if (rawBody[pos] === 0x0a) pos++;
+
+      // 读取 headers
+      const headerEnd = rawBody.indexOf(Buffer.from('\r\n\r\n'), pos);
+      if (headerEnd === -1) break;
+
+      const headerText = rawBody.slice(pos, headerEnd).toString('utf-8');
+
+      // 提取 filename
+      const filenameMatch = headerText.match(/filename="([^"]+)"/);
+      const fileName = filenameMatch ? filenameMatch[1] : 'unnamed_file';
+
+      // body 开始位置
+      pos = headerEnd + 4;
+
+      // 查找下一个 boundary 作为 body 结束
+      const bodyEnd = rawBody.indexOf(boundaryBuffer, pos);
+
+      if (bodyEnd === -1) break;
+
+      // 去掉末尾的 \r\n
+      let bodyData = rawBody.slice(pos, bodyEnd);
+
+      if (bodyData.length >= 2 && bodyData[bodyData.length - 2] === 0x0d && bodyData[bodyData.length - 1] === 0x0a) {
+        bodyData = bodyData.slice(0, bodyData.length - 2);
+      }
+
+      if (bodyData.length > 0) {
+        // 确保文件名唯一
+        let finalFileName = fileName;
+        let filePath = path.join(destDir, finalFileName);
+        let counter = 1;
+
+        while (fs.existsSync(filePath)) {
+          const dotIndex = fileName.lastIndexOf('.');
+          finalFileName = dotIndex > 0
+            ? `${fileName.slice(0, dotIndex)}_${counter}${fileName.slice(dotIndex)}`
+            : `${fileName}_${counter}`;
+          filePath = path.join(destDir, finalFileName);
+          counter++;
+        }
+
+        fs.writeFileSync(filePath, bodyData);
+
+        results.push({
+          fileName: finalFileName,
+          filePath,
+          size: bodyData.length,
+        });
+      }
+
+      pos = bodyEnd;
+    }
+
+    return results;
   }
 
   /**

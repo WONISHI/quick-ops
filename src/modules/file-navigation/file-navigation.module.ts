@@ -1,7 +1,7 @@
-import type { QuickOpsModule } from '@core/module/quick-ops-module.interface';
 import { CommonModule } from '@common/common.module';
 import { FileNavigationController } from '@modules/file-navigation/file-navigation.controller';
 import { FileNavigationService } from '@modules/file-navigation/file-navigation.service';
+import type { QuickOpsModule } from '@core/module/quick-ops-module.interface';
 
 export const FileNavigationModule: QuickOpsModule = {
   imports: [CommonModule],

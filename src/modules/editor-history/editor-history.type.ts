@@ -63,3 +63,5 @@ export interface SwitchPreviousEditorOptions {
   preview?: boolean;
   viewColumn?: vscode.ViewColumn;
 }
+
+export type HistoryDirection = -1 | 1;
