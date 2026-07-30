@@ -303,6 +303,15 @@
     line-height: 16px;
 }
 
+.commit-message-merge {
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.86;
+}
+
+.commit-message-merge .commit-author {
+    opacity: 0.72;
+}
+
 .commit-message-text {
     flex: 1;
     min-width: 0;

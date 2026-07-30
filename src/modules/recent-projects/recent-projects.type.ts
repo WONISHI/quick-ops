@@ -1,12 +1,8 @@
+import * as vscode from 'vscode';
+
 export type WebviewRequestId = string | number;
 
-export type RecentProjectPlatform =
-  | 'local'
-  | 'github'
-  | 'gitlab'
-  | 'gitee'
-  | 'remote'
-  | string;
+export type RecentProjectPlatform = 'local' | 'github' | 'gitlab' | 'gitee' | 'remote' | string;
 
 export type GitFileStatus = 'M' | 'U' | 'A' | 'D' | 'R' | 'C';
 
@@ -121,3 +117,12 @@ export interface RemoteProjectInfo {
   domain: string;
   repoFullName: string;
 }
+
+export type GitMetadataContext = {
+  gitRoot: string;
+  statusMap: Map<string, GitFileStatus>;
+};
+
+export type RecentProjectQuickPickItem = vscode.QuickPickItem & {
+  project: RecentProjectItem;
+};

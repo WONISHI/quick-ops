@@ -288,6 +288,14 @@ function getCommitDisplayMessage(commit: GraphCommit) {
   return commit.message;
 }
 
+function isMergeCommit(commit: GraphCommit) {
+  if ((commit.parents || []).length > 1) {
+    return true;
+  }
+
+  return /^Merge\s+(branch|remote-tracking branch|pull request)\b/i.test(commit.message || '');
+}
+
 const GitGraph: React.FC<GitGraphProps> = ({
   graphCommits,
   displayCount,
@@ -829,6 +837,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
                 const isExpanded = expandedCommitHashes.includes(c.hash);
                 const isLoading = !!commitFilesLoadingMap[c.hash];
                 const files = commitFilesMap[c.hash] || [];
+                const isMergeMessage = isMergeCommit(c);
 
                 const { localRef, isRemotePush } = getCommitRefInfo(c);
 
@@ -840,7 +849,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
                       onMouseEnter={(e) => handleMouseEnter(e, c)}
                       onMouseLeave={handleMouseLeave}
                       onContextMenu={(e) => {
-                        onCommitClick(c.hash);
+                        e.stopPropagation();
                         onCommitContextMenu(e, c);
                       }}
                     >
@@ -848,7 +857,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
                       <div className={styles['commit-content']}>
                         <div className={styles['commit-message-wrap']}>
-                          <div className={styles['commit-message']}>
+                          <div className={`${styles['commit-message']} ${isMergeMessage ? styles['commit-message-merge'] : ''}`}>
                             {isSearchOpen ? highlightText(getCommitDisplayMessage(c), searchQuery, isActiveMatch) : getCommitDisplayMessage(c)}
                             <span className={styles['commit-author']}> {c.author}</span>
                           </div>

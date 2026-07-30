@@ -580,7 +580,6 @@ function renderRefText(ref: string) {
   );
 }
 
-
 export default function GitCommitDetailApp() {
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([]);
   const [displayCount, setDisplayCount] = useState(100);
@@ -590,6 +589,7 @@ export default function GitCommitDetailApp() {
   const [folderName, setFolderName] = useState('');
   const [branch, setBranch] = useState('');
   const [remoteUrl, setRemoteUrl] = useState('');
+  const [projectFaviconUri, setProjectFaviconUri] = useState('');
   const [loading, setLoading] = useState(true);
 
   const [detailHeight, setDetailHeight] = useState(DEFAULT_DETAIL_HEIGHT);
@@ -621,8 +621,6 @@ export default function GitCommitDetailApp() {
   const handleCommitContextMenu = (e: React.MouseEvent, commit: GraphCommit) => {
     e.preventDefault();
     e.stopPropagation();
-    setActiveCommitHash(commit.hash);
-    requestCommitFiles(commit.hash);
     setCommitContextMenu({
       visible: true,
       x: e.clientX,
@@ -630,7 +628,6 @@ export default function GitCommitDetailApp() {
       commit,
     });
   };
-
 
   const [expandedCommitDirs, setExpandedCommitDirs] = useState<Record<string, boolean>>({});
 
@@ -868,6 +865,7 @@ export default function GitCommitDetailApp() {
         setFolderName(msg.folderName || '');
         setBranch(msg.branch || '');
         setRemoteUrl(msg.remoteUrl || '');
+        setProjectFaviconUri(msg.projectFaviconUri || '');
         return;
       }
 
@@ -913,6 +911,10 @@ export default function GitCommitDetailApp() {
           setRemoteUrl(msg.remoteUrl || '');
         }
 
+        if (msg.projectFaviconUri !== undefined) {
+          setProjectFaviconUri(msg.projectFaviconUri || '');
+        }
+
         setResizeVersion((prev) => prev + 1);
         setLoading(false);
         return;
@@ -922,6 +924,7 @@ export default function GitCommitDetailApp() {
         setGraphCommits([]);
         setTotalCommits(0);
         setActiveCommitHash(null);
+        setProjectFaviconUri('');
         setResizeVersion((prev) => prev + 1);
         setLoading(false);
       }
@@ -1151,6 +1154,43 @@ export default function GitCommitDetailApp() {
     <div className={styles['git-detail-page']}>
       <div className={styles['git-detail-toolbar']}>
         <div className={styles['git-detail-title']}>
+          {projectFaviconUri && (
+            <button
+              type="button"
+              title="项目 favicon"
+              aria-label="项目 favicon"
+              style={{
+                width: 20,
+                height: 20,
+                padding: 0,
+                border: 'none',
+                borderRadius: 3,
+                background: 'transparent',
+                color: 'inherit',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flex: '0 0 auto',
+                cursor: 'default',
+              }}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+              }}
+            >
+              <img
+                src={projectFaviconUri}
+                alt=""
+                style={{
+                  width: 16,
+                  height: 16,
+                  display: 'block',
+                  objectFit: 'contain',
+                }}
+              />
+            </button>
+          )}
+
           <span>{folderName || 'quick-ops'}</span>
           <span className={styles['branch-name']}>{branch}</span>
 
@@ -1485,11 +1525,7 @@ export default function GitCommitDetailApp() {
         )}
       </div>
 
-      <GitDetailContextMenu
-        contextMenu={commitContextMenu}
-        remoteUrl={remoteUrl}
-        onClose={() => setCommitContextMenu(null)}
-      />
+      <GitDetailContextMenu contextMenu={commitContextMenu} remoteUrl={remoteUrl} onClose={() => setCommitContextMenu(null)} />
     </div>
   );
 }

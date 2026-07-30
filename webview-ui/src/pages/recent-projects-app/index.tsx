@@ -890,9 +890,7 @@ export default function RecentProjectsApp() {
       const next = new Set(prev);
 
       focusRefreshPaths.forEach((itemPath) => {
-        if (!dirChildrenRef.current[itemPath]) {
-          next.add(itemPath);
-        }
+        next.add(itemPath);
       });
 
       return next;
@@ -900,9 +898,10 @@ export default function RecentProjectsApp() {
 
     focusRefreshPaths.forEach((itemPath) => {
       vscode.postMessage({
-        type: 'readDir',
+        type: 'readFocusDir',
         fsPath: itemPath,
         projectName: title,
+        focusOnly: true,
         forceRefresh: true,
       });
     });
@@ -1920,6 +1919,19 @@ export default function RecentProjectsApp() {
     });
   }, [revealVisibleProjectPathKey, revealVisibleProjectPaths]);
 
+  const watchedTreePathKey = useMemo(() => {
+    return Array.from(expandedPaths).sort().join('\n');
+  }, [expandedPaths]);
+
+  useEffect(() => {
+    vscode.postMessage({
+      type: 'updateWatchedTreePaths',
+      paths: Array.from(expandedPaths),
+      focusMode: isFocusMode,
+      focusRootPath,
+    });
+  }, [watchedTreePathKey, expandedPaths, isFocusMode, focusRootPath]);
+
   const normalizeTreePath = (pathValue: string) => {
     if (!pathValue) return '';
 
@@ -1969,10 +1981,13 @@ export default function RecentProjectsApp() {
   };
 
   const requestReadDir = (pathValue: string, projectName: string, forceRefresh: boolean = false) => {
+    const focusOnly = isFocusModeRef.current && !!focusRootPathRef.current && isPathInside(pathValue, focusRootPathRef.current);
+
     vscode.postMessage({
-      type: 'readDir',
+      type: focusOnly ? 'readFocusDir' : 'readDir',
       fsPath: pathValue,
       projectName,
+      focusOnly,
       forceRefresh,
     });
   };
@@ -2434,6 +2449,8 @@ export default function RecentProjectsApp() {
 
   const handleToggleExpand = (pathValue: string, projectName: string, _: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
+
+    setSelectedPath(pathValue);
 
     setContextMenu((prev) => ({
       ...prev,
@@ -2904,7 +2921,24 @@ export default function RecentProjectsApp() {
       );
     }
 
-    if (!children) return null;
+    if (!children) {
+      if (isFocusModeRef.current && focusRootPathRef.current && isPathInside(parentPath, focusRootPathRef.current)) {
+        return (
+          <div className={styles['empty-node']}>
+            <FontAwesomeIcon
+              icon={faSpinner}
+              spin
+              style={{
+                marginRight: '6px',
+              }}
+            />
+            正在读取目录...
+          </div>
+        );
+      }
+
+      return null;
+    }
 
     const pendingCreateRow = renderPendingCreateRow(parentPath, projectName, isActiveProject);
 

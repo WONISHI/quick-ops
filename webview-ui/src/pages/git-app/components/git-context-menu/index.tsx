@@ -417,6 +417,14 @@ function createHistoryItems(contextMenu: ContextMenuState): BaseContextMenuItem[
         });
       },
     },
+    {
+      key: 'copy-history-file-name',
+      label: '复制文件名称',
+      icon: createIcon('codicon-copy'),
+      onSelect: () => {
+        copyFileName(file.file);
+      },
+    },
   ];
 
   if (contextMenu.listType === 'history' && contextMenu.historyHash) {

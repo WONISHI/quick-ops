@@ -50,6 +50,8 @@ export class GitDetailWebviewProvider {
     fetchRemote: boolean;
   } | null = null;
 
+  private readonly projectFaviconFileNames = ['favicon.ico', 'favicon.icon', 'favicon.png', 'favicon.svg', 'favicon.jpeg', 'favicon.jpg'];
+
   constructor(
     extensionContextProvider: ExtensionContextProvider,
     private readonly gitService: GitService,
@@ -59,6 +61,26 @@ export class GitDetailWebviewProvider {
 
   private getWorkspaceRoot(): string | undefined {
     return this.gitService.getCurrentWorkingDir() || undefined;
+  }
+
+  private async getProjectFaviconUri(cwd: string): Promise<string> {
+    if (!this._panel) return '';
+
+    for (const fileName of this.projectFaviconFileNames) {
+      const faviconUri = vscode.Uri.file(path.join(cwd, 'public', fileName));
+
+      try {
+        const stat = await vscode.workspace.fs.stat(faviconUri);
+
+        if (stat.type === vscode.FileType.File) {
+          return this._panel.webview.asWebviewUri(faviconUri).toString();
+        }
+      } catch {
+        // 当前项目没有这个 favicon 文件时继续查找其他后缀。
+      }
+    }
+
+    return '';
   }
 
   public async open(_workingDir?: string): Promise<void> {
@@ -74,6 +96,9 @@ export class GitDetailWebviewProvider {
       return;
     }
 
+    const currentCwdForResources = this.getWorkspaceRoot();
+    const workspaceResourceRoots = vscode.workspace.workspaceFolders?.map((folder) => folder.uri) || [];
+
     this._panel = await this.webviewWorkflow.createWebview<any, WebviewEnhancerOptions>({
       key: 'quickOps.gitDetail',
       viewType: 'quickOps.gitDetail',
@@ -84,7 +109,7 @@ export class GitDetailWebviewProvider {
       options: {
         enableScripts: true,
         retainContextWhenHidden: true,
-        localResourceRoots: [this._extensionUri],
+        localResourceRoots: [...workspaceResourceRoots, ...(currentCwdForResources ? [vscode.Uri.file(currentCwdForResources)] : []), this._extensionUri],
       },
       htmlFactory: async (webview) => {
         return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
@@ -651,6 +676,7 @@ export class GitDetailWebviewProvider {
       const repoStatus = await this.gitService.getRepoStatus(cwd);
       const graphData = await this.getGitGraphLikeData(cwd, this._currentGraphFilter);
       const graphState = await this.getGraphState(cwd);
+      const projectFaviconUri = await this.getProjectFaviconUri(cwd);
 
       if (graphState) {
         this._lastGraphState = graphState;
@@ -664,6 +690,7 @@ export class GitDetailWebviewProvider {
         folderName: path.basename(cwd),
         branch: repoStatus.branch,
         remoteUrl: repoStatus.remoteUrl,
+        projectFaviconUri,
       });
     } catch (error: any) {
       this._panel?.webview.postMessage({
@@ -764,9 +791,7 @@ export class GitDetailWebviewProvider {
     ): GraphFilterQuickPickItem => {
       const isCurrentBranch = branchType === 'local' && branchName === options.currentBranch;
       const isCurrentFilter =
-        options.currentFilter === this.gitService.CURRENT_BRANCH_FILTER
-          ? isCurrentBranch
-          : this.normalizeBranchOptionName(branchName) === options.currentFilter;
+        options.currentFilter === this.gitService.CURRENT_BRANCH_FILTER ? isCurrentBranch : this.normalizeBranchOptionName(branchName) === options.currentFilter;
 
       const meta = options.metaMap.get(branchName);
       const localName = branchType === 'remote' ? this.gitService.getLocalNameFromRemoteBranch(branchName) : '';

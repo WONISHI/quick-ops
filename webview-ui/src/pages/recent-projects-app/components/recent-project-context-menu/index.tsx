@@ -23,7 +23,7 @@ import {
 import { faCopy, faSquareCheck, faClone, faFolderOpen as faFolderOpenReg, faWindowRestore, faFileCode } from '@fortawesome/free-regular-svg-icons';
 
 import BaseContextMenu from '@components/BaseContextMenu';
-import type { BaseContextMenuItem } from '@components/BaseContextMenu';
+import type { BaseContextMenuItem } from '@components/BaseContextMenu/src/type';
 import type { ContextMenuPayload } from '@/pages/recent-projects-app/src/type';
 import type {RecentProjectContextMenuProps} from "@pages/recent-projects-app/components/recent-project-context-menu/src/type"
 

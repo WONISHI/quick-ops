@@ -7,7 +7,12 @@ import { GitService } from '@modules/git/git.service';
 import { GIT_VIEW_IDS, GIT_WEBVIEW_ROUTES } from '@/modules/git/constants/git.constant';
 import type { GitFileItem } from '@modules/git/git.type';
 
-const GLOBAL_STATE_COMMIT_TYPE_ENABLED = 'quickOps.git.commitTypeEnabled';
+const WORKSPACE_STATE_GIT_OPTIONS = 'quickOps.git.workspaceOptions';
+
+interface GitWorkspaceOptions {
+  commitTypeEnabled?: boolean;
+  skipVerify?: boolean;
+}
 
 interface GitGraphLikeCommit {
   hash: string;
@@ -61,6 +66,14 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
    * - 那么在 dev 点击“合并本地分支”时，默认选中 feature/0.0.1
    */
   private readonly _lastCheckoutSourceBranchByCwd = new Map<string, string>();
+
+  /**
+   * 记录每个仓库上一次刷新时的工作区文件集合。
+   *
+   * 用于判断工作区文件是否减少：如果某个文件从 unstaged/conflicted 中消失，
+   * 且它正打开着工作区 diff tab，就自动关闭对应 tab，避免继续显示旧对比。
+   */
+  private readonly _lastWorkingTreeFilesByCwd = new Map<string, Set<string>>();
 
   private _currentGraphFilter = '当前分支';
 
@@ -135,10 +148,44 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     this._pendingRefresh = null;
     this._pendingRemoteSyncFetch = false;
     this._lastCheckoutSourceBranchByCwd.clear();
+    this._lastWorkingTreeFilesByCwd.clear();
   }
 
-  private getDefaultCommitTypeEnabled(): boolean {
-    return this._context.globalState.get<boolean>(GLOBAL_STATE_COMMIT_TYPE_ENABLED, false);
+  private normalizeWorkspaceStateKey(cwd: string): string {
+    return path.resolve(cwd).replace(/\\/g, '/').toLowerCase();
+  }
+
+  private getWorkspaceGitOptionsMap(): Record<string, GitWorkspaceOptions> {
+    return this._context.workspaceState.get<Record<string, GitWorkspaceOptions>>(WORKSPACE_STATE_GIT_OPTIONS, {});
+  }
+
+  private getWorkspaceGitOptions(cwd: string): Required<GitWorkspaceOptions> {
+    const optionsMap = this.getWorkspaceGitOptionsMap();
+    const options = optionsMap[this.normalizeWorkspaceStateKey(cwd)] || {};
+
+    return {
+      commitTypeEnabled: !!options.commitTypeEnabled,
+      skipVerify: !!options.skipVerify,
+    };
+  }
+
+  private async updateWorkspaceGitOptions(cwd: string, patch: GitWorkspaceOptions): Promise<Required<GitWorkspaceOptions>> {
+    const optionsMap = this.getWorkspaceGitOptionsMap();
+    const key = this.normalizeWorkspaceStateKey(cwd);
+    const nextOptions = {
+      ...(optionsMap[key] || {}),
+      ...patch,
+    };
+
+    await this._context.workspaceState.update(WORKSPACE_STATE_GIT_OPTIONS, {
+      ...optionsMap,
+      [key]: nextOptions,
+    });
+
+    return {
+      commitTypeEnabled: !!nextOptions.commitTypeEnabled,
+      skipVerify: !!nextOptions.skipVerify,
+    };
   }
 
   private async withViewProgress<T>(task: () => Promise<T>): Promise<T> {
@@ -269,6 +316,32 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     return uris;
   }
 
+  private getQuickOpsGitUriMeta(uri: vscode.Uri): { cwd?: string; ref?: string } | null {
+    if (uri.scheme !== 'quickops-git') {
+      return null;
+    }
+
+    try {
+      return JSON.parse(decodeURIComponent(uri.query || ''));
+    } catch {
+      return null;
+    }
+  }
+
+  private isWorkingTreeDiffTab(cwd: string, inputUris: vscode.Uri[]): boolean {
+    const gitMetas = inputUris.map((uri) => this.getQuickOpsGitUriMeta(uri)).filter((meta): meta is { cwd?: string; ref?: string } => !!meta && meta.cwd === cwd);
+
+    if (gitMetas.length === 0) {
+      return false;
+    }
+
+    const hasWorkingBase = gitMetas.some((meta) => meta.ref === 'HEAD' || meta.ref === 'empty');
+    const hasIndexSide = gitMetas.some((meta) => meta.ref === 'index');
+    const hasWorkingSide = gitMetas.some((meta) => meta.ref === 'working') || inputUris.some((uri) => uri.scheme === 'file' && this.getRelativePathFromUri(cwd, uri));
+
+    return hasWorkingBase && !hasIndexSide && hasWorkingSide;
+  }
+
   private async closeWorkingTreeDiffTabs(cwd: string, files?: string[]): Promise<void> {
     const normalizedFiles = files?.map((file) => this.normalizeGitRelativePath(file));
     const closeAllWorkingTreeDiffTabs = !normalizedFiles || normalizedFiles.length === 0;
@@ -280,16 +353,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
         if (inputUris.length === 0) return;
 
-        const isWorkingTreeDiff = inputUris.some((uri) => {
-          if (uri.scheme !== 'quickops-git') return false;
-
-          try {
-            const params = JSON.parse(decodeURIComponent(uri.query || ''));
-            return params.cwd === cwd && (params.ref === 'HEAD' || params.ref === 'empty');
-          } catch {
-            return false;
-          }
-        });
+        const isWorkingTreeDiff = this.isWorkingTreeDiffTab(cwd, inputUris);
 
         if (!isWorkingTreeDiff) return;
 
@@ -312,6 +376,29 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     if (tabsToClose.length > 0) {
       await vscode.window.tabGroups.close(tabsToClose, true);
     }
+  }
+
+  private getWorkingTreeFileSet(files: GitFileItem[]): Set<string> {
+    return new Set(files.map((file) => this.normalizeGitRelativePath(file.file)).filter(Boolean));
+  }
+
+  private async closeDiffTabsForRemovedWorkingTreeFiles(cwd: string, files: GitFileItem[]): Promise<void> {
+    const nextFiles = this.getWorkingTreeFileSet(files);
+    const prevFiles = this._lastWorkingTreeFilesByCwd.get(cwd);
+
+    this._lastWorkingTreeFilesByCwd.set(cwd, nextFiles);
+
+    if (!prevFiles) {
+      return;
+    }
+
+    const removedFiles = Array.from(prevFiles).filter((file) => !nextFiles.has(file));
+
+    if (removedFiles.length === 0) {
+      return;
+    }
+
+    await this.closeWorkingTreeDiffTabs(cwd, removedFiles);
   }
 
   private async executeGitOperation(operation: () => Promise<void> | void) {
@@ -370,6 +457,18 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       const conflicts = repoStatus.conflictedFiles || [];
 
       if (conflicts.length > 0) {
+        if (operationName === '合并分支') {
+          const options = await this.updateWorkspaceGitOptions(cwd, {
+            commitTypeEnabled: false,
+          });
+
+          this._view?.webview.postMessage({
+            type: 'gitWorkspaceOptionsChanged',
+            commitTypeEnabled: options.commitTypeEnabled,
+            skipVerify: options.skipVerify,
+          });
+        }
+
         vscode.window.showWarningMessage(`【${operationName}】产生冲突！\n共检测到 ${conflicts.length} 个冲突文件，请在侧边栏的【冲突区】中逐一解决。`);
         vscode.commands.executeCommand('workbench.view.scm');
       } else {
@@ -537,21 +636,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       }
     });
 
-    const configListener = vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('quick-ops.git.defaultSkipVerify')) {
-        const config = vscode.workspace.getConfiguration('quick-ops.git');
-        const defaultSkipVerify = config.get<boolean>('defaultSkipVerify') || false;
-
-        this._view?.webview.postMessage({
-          type: 'gitConfigChanged',
-          defaultSkipVerify,
-        });
-      }
-    });
-
     webviewView.onDidDispose(() => {
       editorListener.dispose();
-      configListener.dispose();
 
       this._gitWatchers.forEach((d) => d.dispose());
       this._gitWatchers = [];
@@ -586,14 +672,20 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           return;
         }
 
-        if (command === 'toggleCommitTypeEnabled') {
-          const nextValue = !!msg.value;
+        const cwd = this.getWorkspaceRoot();
 
-          await this._context.globalState.update(GLOBAL_STATE_COMMIT_TYPE_ENABLED, nextValue);
+        if (command === 'toggleCommitTypeEnabled') {
+          if (!cwd) return;
+
+          const nextValue = !!msg.value;
+          const options = await this.updateWorkspaceGitOptions(cwd, {
+            commitTypeEnabled: nextValue,
+          });
 
           this._view?.webview.postMessage({
-            type: 'gitConfigChanged',
-            defaultCommitTypeEnabled: nextValue,
+            type: 'gitWorkspaceOptionsChanged',
+            commitTypeEnabled: options.commitTypeEnabled,
+            skipVerify: options.skipVerify,
           });
 
           return;
@@ -601,22 +693,23 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
         if (command === 'webviewLoaded' || command === 'refresh') {
           const isInstalled = await this.gitService.checkGitInstalled();
-
-          const config = vscode.workspace.getConfiguration('quick-ops.git');
-          const defaultSkipVerify = config.get<boolean>('defaultSkipVerify') || false;
+          const options = cwd
+            ? this.getWorkspaceGitOptions(cwd)
+            : {
+                commitTypeEnabled: false,
+                skipVerify: false,
+              };
 
           this._view?.webview.postMessage({
             type: 'gitInstallationStatus',
             isInstalled,
-            defaultSkipVerify,
-            defaultCommitTypeEnabled: this.getDefaultCommitTypeEnabled(),
+            skipVerify: options.skipVerify,
+            commitTypeEnabled: options.commitTypeEnabled,
             isInit: command === 'webviewLoaded',
           });
 
           if (!isInstalled) return;
         }
-
-        const cwd = this.getWorkspaceRoot();
 
         if (!cwd) {
           if (command === 'webviewLoaded' || command === 'refresh') {
@@ -800,11 +893,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
             if (!hash) break;
 
-            const confirm = await vscode.window.showWarningMessage(
-              `确定要回滚提交 ${hash.substring(0, 7)} 吗？`,
-              { modal: true },
-              '确定回滚',
-            );
+            const confirm = await vscode.window.showWarningMessage(`确定要回滚提交 ${hash.substring(0, 7)} 吗？`, { modal: true }, '确定回滚');
 
             if (confirm !== '确定回滚') break;
 
@@ -2389,12 +2478,15 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           }
 
           case 'toggleSkipVerify': {
-            try {
-              const config = vscode.workspace.getConfiguration('quick-ops.git');
-              await config.update('defaultSkipVerify', msg.value, vscode.ConfigurationTarget.Global);
-            } catch (error: any) {
-              console.error('Failed to update defaultSkipVerify setting:', error);
-            }
+            const options = await this.updateWorkspaceGitOptions(cwd, {
+              skipVerify: !!msg.value,
+            });
+
+            this._view?.webview.postMessage({
+              type: 'gitWorkspaceOptionsChanged',
+              skipVerify: options.skipVerify,
+              commitTypeEnabled: options.commitTypeEnabled,
+            });
 
             break;
           }
@@ -2868,6 +2960,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       const repoStatus = await this.gitService.getRepoStatus(cwd);
 
       if (!repoStatus.isRepo) {
+        this._lastWorkingTreeFilesByCwd.delete(cwd);
+
         this._view.webview.postMessage({
           type: 'notRepo',
         });
@@ -2879,6 +2973,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         return;
       }
 
+      await this.closeDiffTabsForRemovedWorkingTreeFiles(cwd, [...repoStatus.unstagedFiles, ...repoStatus.conflictedFiles]);
+      const workspaceGitOptions = this.getWorkspaceGitOptions(cwd);
+
       this._view.webview.postMessage({
         type: 'statusData',
         stagedFiles: repoStatus.stagedFiles,
@@ -2889,7 +2986,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         folderName: repoStatus.folderName,
         stashes: repoStatus.stashes,
         remoteSync: repoStatus.remoteSync,
-        defaultCommitTypeEnabled: this.getDefaultCommitTypeEnabled(),
+        skipVerify: workspaceGitOptions.skipVerify,
+        commitTypeEnabled: workspaceGitOptions.commitTypeEnabled,
       });
 
       if (repoStatus.remoteUrl) {
@@ -2917,6 +3015,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         }
       }
     } catch {
+      this._lastWorkingTreeFilesByCwd.delete(cwd);
+
       this._view.webview.postMessage({
         type: 'notRepo',
       });
