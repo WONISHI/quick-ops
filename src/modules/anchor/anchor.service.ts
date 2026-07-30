@@ -5,7 +5,7 @@ import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { debounce, isFunction, isNumber } from 'lodash-es';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { AnchorCodeLensProvider } from '@modules/anchor/prooviders/anchor-code-lens.provider';
-import { ColorUtils } from '@utils/ColorUtils';
+import { ColorUtils } from '@modules/anchor/anchor.util';
 import { ConfigurationService } from '@common/services/configuration.service';
 import { ANCHOR_TOOLTIPS } from '@modules/anchor/constants/anchor.constant';
 import type { WebviewEnhancerOptions } from '@plugins/webview-enhancer/type';
