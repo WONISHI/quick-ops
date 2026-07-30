@@ -325,6 +325,50 @@ export class GitDetailWebviewProvider {
     }
   }
 
+  private async getCommitChangeStats(cwd: string, hash: string): Promise<{ filesChanged: number; insertions: number; deletions: number }> {
+    if (!hash || hash === '__WORKING_TREE__') {
+      return {
+        filesChanged: 0,
+        insertions: 0,
+        deletions: 0,
+      };
+    }
+
+    const output = await this.runGitSafe(cwd, ['show', '--numstat', '--format=', '--find-renames', hash]);
+    let filesChanged = 0;
+    let insertions = 0;
+    let deletions = 0;
+
+    output
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => {
+        const parts = line.split(/\s+/);
+
+        if (parts.length < 3) return;
+
+        filesChanged += 1;
+
+        const added = Number(parts[0]);
+        const removed = Number(parts[1]);
+
+        if (Number.isFinite(added)) {
+          insertions += added;
+        }
+
+        if (Number.isFinite(removed)) {
+          deletions += removed;
+        }
+      });
+
+    return {
+      filesChanged,
+      insertions,
+      deletions,
+    };
+  }
+
   private normalizeRefName(ref: string) {
     return ref
       .replace(/^refs\/heads\//, '')
@@ -962,17 +1006,22 @@ export class GitDetailWebviewProvider {
         hash,
         parentHash: 'HEAD',
         files: [],
+        filesChanged: 0,
+        insertions: 0,
+        deletions: 0,
       });
       return;
     }
 
     const result = await this.gitService.getCommitFiles(cwd, hash);
+    const stats = await this.getCommitChangeStats(cwd, hash);
 
     this._panel?.webview.postMessage({
       type: 'gitDetailCommitFilesData',
       hash: result.hash || hash,
       parentHash: result.parentHash,
       files: result.files || [],
+      ...stats,
     });
   }
 

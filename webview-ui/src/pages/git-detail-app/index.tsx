@@ -553,6 +553,18 @@ function isMergeCommit(commit: GraphCommit) {
   return (commit.parents?.length || 0) > 1 || isMergeCommitMessage(getCommitDisplayMessage(commit));
 }
 
+function formatCommitStats(stats?: { filesChanged?: number; insertions?: number; deletions?: number }) {
+  if (!stats) return '';
+
+  const filesChanged = Number(stats.filesChanged || 0);
+  const insertions = Number(stats.insertions || 0);
+  const deletions = Number(stats.deletions || 0);
+
+  if (filesChanged <= 0 && insertions <= 0 && deletions <= 0) return '';
+
+  return `已更改 ${filesChanged} 个文件, ${insertions} 行插入 (+), ${deletions} 行删除 (-)`;
+}
+
 function renderRefText(ref: string) {
   if (ref.endsWith(' origin')) {
     const localName = ref.replace(/\s+origin$/, '');
@@ -610,6 +622,7 @@ export default function GitCommitDetailApp() {
 
   const [commitFilesMap, setCommitFilesMap] = useState<Record<string, CommitFilesState>>({});
   const [commitFilesLoadingMap, setCommitFilesLoadingMap] = useState<Record<string, boolean>>({});
+  const [commitStatsMap, setCommitStatsMap] = useState<Record<string, { filesChanged: number; insertions: number; deletions: number }>>({});
 
   const [commitContextMenu, setCommitContextMenu] = useState<{
     visible: boolean;
@@ -621,6 +634,8 @@ export default function GitCommitDetailApp() {
   const handleCommitContextMenu = (e: React.MouseEvent, commit: GraphCommit) => {
     e.preventDefault();
     e.stopPropagation();
+    setActiveCommitHash(commit.hash);
+    requestCommitFiles(commit.hash);
     setCommitContextMenu({
       visible: true,
       x: e.clientX,
@@ -869,12 +884,21 @@ export default function GitCommitDetailApp() {
         return;
       }
 
-      if (msg.type === 'gitDetailCommitFilesData') {
+      if (msg.type === 'gitDetailCommitFilesData' || msg.type === 'commitFilesData') {
         setCommitFilesMap((prev) => ({
           ...prev,
           [msg.hash]: {
             files: msg.files || [],
             parentHash: msg.parentHash,
+          },
+        }));
+
+        setCommitStatsMap((prev) => ({
+          ...prev,
+          [msg.hash]: {
+            filesChanged: Number(msg.filesChanged || 0),
+            insertions: Number(msg.insertions || 0),
+            deletions: Number(msg.deletions || 0),
           },
         }));
 
@@ -889,7 +913,6 @@ export default function GitCommitDetailApp() {
       if (msg.type === 'gitDetailGraphData' || msg.type === 'graphData') {
         const commits = msg.graphCommits || [];
 
-        setCommitFilesMap({});
         setCommitFilesLoadingMap({});
         setExpandedCommitDirs({});
 
@@ -897,7 +920,7 @@ export default function GitCommitDetailApp() {
         setTotalCommits(msg.totalCommits ?? commits.length);
         setSelectedGraphFilter(msg.graphFilter || '全部分支');
         setDisplayCount(100);
-        setActiveCommitHash(null);
+        setActiveCommitHash((prev) => (prev && commits.some((commit: GraphCommit) => commit.hash === prev) ? prev : null));
 
         if (msg.folderName !== undefined) {
           setFolderName(msg.folderName || '');
@@ -1191,8 +1214,8 @@ export default function GitCommitDetailApp() {
             </button>
           )}
 
-          <span>{folderName || 'quick-ops'}</span>
-          <span className={styles['branch-name']}>{branch}</span>
+          {folderName && <span>{folderName}</span>}
+          {branch && <span className={styles['branch-name']}>{branch}</span>}
 
           {totalCommits > 0 && (
             <span className={styles['total-badge']}>{filteredCommits.length === totalCommits ? totalCommits : `${filteredCommits.length} / ${totalCommits}`}</span>
@@ -1493,6 +1516,13 @@ export default function GitCommitDetailApp() {
                             <span className={styles['detail-label']}>远程:</span>
                             <span className={styles['detail-value']}>{remoteUrl}</span>
                           </div>
+
+                          {formatCommitStats(commitStatsMap[commit.hash]) && (
+                            <div className={`${styles['detail-row']} ${styles['detail-stats-row']}`}>
+                              <span className={styles['detail-label']}>变更:</span>
+                              <span className={styles['detail-stats']}>{formatCommitStats(commitStatsMap[commit.hash])}</span>
+                            </div>
+                          )}
 
                           <div className={styles['detail-message']}>{getCommitDisplayMessage(commit)}</div>
                         </div>
