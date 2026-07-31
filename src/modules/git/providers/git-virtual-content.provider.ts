@@ -1,11 +1,6 @@
 import * as vscode from 'vscode';
 import type { GitService } from '@modules/git/git.service';
-
-interface GitVirtualContentQuery {
-  cwd: string;
-  ref: string;
-  file: string;
-}
+import type { GitVirtualContentQuery } from '@modules/git/git.type';
 
 /**
  * @description Git 虚拟文本内容 Provider

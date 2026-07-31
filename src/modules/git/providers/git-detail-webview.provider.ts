@@ -7,28 +7,7 @@ import { ExtensionContextProvider } from '@common/providers/extension-context.pr
 import { GitService } from '@modules/git/git.service';
 import { GIT_WEBVIEW_ROUTES } from '@/modules/git/constants/git.constant';
 import type { WebviewEnhancerOptions } from '@plugins/webview-enhancer/type';
-
-interface GitGraphLikeCommit {
-  hash: string;
-  parents?: string[];
-  author: string;
-  email?: string;
-  message: string;
-  timestamp?: number;
-  refs?: string;
-  type?: 'commit' | 'uncommitted' | 'stash';
-}
-
-interface GitGraphLikeData {
-  graphCommits: GitGraphLikeCommit[];
-  graphFilter: string;
-  totalCommits: number;
-}
-
-interface RefreshOptions {
-  silent?: boolean;
-  fetchRemote?: boolean;
-}
+import type { GitGraphLikeCommit, GitGraphLikeData, RefreshOptions } from '@modules/git/git.type';
 
 export class GitDetailWebviewProvider {
   public static inject = [ExtensionContextProvider, GitService];

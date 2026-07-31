@@ -5,36 +5,9 @@ import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 import { GitService } from '@modules/git/git.service';
 import { GIT_VIEW_IDS, GIT_WEBVIEW_ROUTES } from '@/modules/git/constants/git.constant';
-import type { GitFileItem } from '@modules/git/git.type';
+import type { GitFileItem, GitWorkspaceOptions, GitGraphLikeCommit, GitGraphLikeData } from '@modules/git/git.type';
 
 const WORKSPACE_STATE_GIT_OPTIONS = 'quickOps.git.workspaceOptions';
-
-interface GitWorkspaceOptions {
-  commitTypeEnabled?: boolean;
-  skipVerify?: boolean;
-}
-
-interface GitGraphLikeCommit {
-  hash: string;
-  parents?: string[];
-  author: string;
-  email?: string;
-  message: string;
-  timestamp?: number;
-  refs?: string;
-  type?: 'commit' | 'uncommitted' | 'stash';
-
-  /**
-   * @description 当前提交是否存在于远程跟踪分支历史中
-   */
-  isRemote?: boolean;
-}
-
-interface GitGraphLikeData {
-  graphCommits: GitGraphLikeCommit[];
-  graphFilter: string;
-  totalCommits: number;
-}
 
 export class GitWebviewProvider implements vscode.WebviewViewProvider {
   public static inject = [ExtensionContextProvider, GitService];

@@ -197,3 +197,47 @@ export interface GitOpenFileOptions {
   preview?: boolean;
   viewColumn?: vscode.ViewColumn;
 }
+
+export interface GitGraphLikeData {
+  graphCommits: GitGraphLikeCommit[];
+  graphFilter: string;
+  totalCommits: number;
+}
+
+export interface RefreshOptions {
+  silent?: boolean;
+  fetchRemote?: boolean;
+}
+
+export interface GitWorkspaceOptions {
+  commitTypeEnabled?: boolean;
+  skipVerify?: boolean;
+}
+
+export interface GitGraphLikeCommit {
+  hash: string;
+  parents?: string[];
+  author: string;
+  email?: string;
+  message: string;
+  timestamp?: number;
+  refs?: string;
+  type?: 'commit' | 'uncommitted' | 'stash';
+
+  /**
+   * @description 当前提交是否存在于远程跟踪分支历史中
+   */
+  isRemote?: boolean;
+}
+
+export interface GitGraphLikeData {
+  graphCommits: GitGraphLikeCommit[];
+  graphFilter: string;
+  totalCommits: number;
+}
+
+export interface GitVirtualContentQuery {
+  cwd: string;
+  ref: string;
+  file: string;
+}
