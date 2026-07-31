@@ -23,6 +23,7 @@ import { TextCompareModule } from '@modules/text-compare/text-compare.module';
 import { GitModule } from '@modules/git/git.module';
 import { InlineConstantHintModule } from '@modules/inline-constant-hint/inline-constant-hint.module';
 import { ApiDevToolsModule } from '@modules/api-dev-tools/api-dev-tools.module';
+import { ApiProxyModule } from '@modules/api-proxy/api-proxy.module';
 
 export const AppModule: QuickOpsModule = {
   imports: [
@@ -49,6 +50,7 @@ export const AppModule: QuickOpsModule = {
     TextCompareModule,
     GitModule,
     InlineConstantHintModule,
-    ApiDevToolsModule
+    ApiDevToolsModule,
+    ApiProxyModule,
   ],
 };

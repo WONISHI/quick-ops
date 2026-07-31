@@ -249,6 +249,12 @@
           "type": "webview"
         },
         {
+          "id": "quickOpsApiProxyList",
+          "name": "接口代理",
+          "type": "webview",
+          "icon":"$(symbol-interface)"
+        },
+        {
           "id": "quickOps.recentProjectsView",
           "name": "项目资源管理器",
           "type": "webview",

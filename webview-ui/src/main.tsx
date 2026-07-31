@@ -18,6 +18,8 @@ import HtmlPreviewApp from '@pages/html-preview-app';
 import DocPreviewApp from '@pages/doc-preview-app';
 import ApiDevToolsApp from '@pages/api-dev-tools-app';
 import DevToolsApp from '@pages/dev-tools-app';
+import ApiProxyApp from '@pages/api-proxy-app';
+import ApiProxyEditorApp from '@/pages/api-proxy-editor-app';
 import '@/index.css';
 import '@vscode/codicons/dist/codicon.css';
 
@@ -35,6 +37,8 @@ ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
         <Route path="/html-preview" element={<HtmlPreviewApp />} />
         <Route path="/devtools" element={<DevToolsApp />} />
         <Route path="/api-fox" element={<ApiDevToolsApp />} />
+        <Route path="/api-proxy" element={<ApiProxyApp />} />
+        <Route path="//api-proxy-editor" element={<ApiProxyEditorApp />} />
         <Route path="/git-detail" element={<GitDetailApp />} />
         <Route path="/mock" element={<MockSidebarApp />} />
         <Route path="/mock/proxy" element={<MockProxyPanelApp />} />

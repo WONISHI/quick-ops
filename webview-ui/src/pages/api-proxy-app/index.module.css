@@ -1,0 +1,131 @@
+.api-proxy-list {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: var(--vscode-foreground);
+  background: var(--vscode-sideBar-background);
+  font-size: 12px;
+}
+
+.header {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.title {
+  font-weight: 700;
+}
+
+.summary {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--vscode-descriptionForeground);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px;
+  box-sizing: border-box;
+}
+
+.empty {
+  padding: 18px 8px;
+  color: var(--vscode-descriptionForeground);
+  text-align: center;
+}
+
+.proxy-item {
+  min-width: 0;
+  height: 34px;
+  padding: 0 4px 0 7px;
+  margin-bottom: 4px;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  border-radius: 4px;
+  background: transparent;
+}
+
+.proxy-item:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.proxy-running {
+  background: color-mix(in srgb, var(--vscode-testing-iconPassed) 8%, transparent);
+}
+
+.proxy-icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vscode-textLink-foreground);
+  font-size: 15px;
+}
+
+.proxy-icon-running {
+  color: var(--vscode-testing-iconPassed);
+}
+
+.proxy-main {
+  min-width: 0;
+  padding: 0;
+  border: none;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proxy-name {
+  display: block;
+  min-width: 0;
+  color: var(--vscode-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.icon-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  color: var(--vscode-icon-foreground);
+  background: transparent;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+}
+
+.icon-btn.danger {
+  color: var(--vscode-errorForeground);
+}
