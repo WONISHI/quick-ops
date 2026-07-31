@@ -1,0 +1,122 @@
+.base-input {
+  --base-input-bg: var(--vscode-input-background, #0d1117);
+  --base-input-border: var(--vscode-panel-border, #30363d);
+  --base-input-text: var(--vscode-input-foreground, var(--vscode-foreground, #c9d1d9));
+  --base-input-muted: var(--vscode-descriptionForeground, #8b949e);
+  --base-input-blue: var(--vscode-textLink-foreground, #2f81f7);
+  --base-input-green: var(--vscode-testing-iconPassed, #3fb950);
+  --base-input-yellow: var(--vscode-list-warningForeground, #d29922);
+  --base-input-red: var(--vscode-errorForeground, #f85149);
+
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--base-input-border);
+  border-radius: 5px;
+  color: var(--base-input-text);
+  background: var(--base-input-bg);
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease,
+    background 0.12s ease;
+}
+
+.base-input:hover {
+  border-color: color-mix(in srgb, var(--base-input-blue) 40%, var(--base-input-border));
+}
+
+.base-input:focus-within {
+  border-color: var(--base-input-blue);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--base-input-blue) 26%, transparent);
+}
+
+.base-input input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 8px;
+  border: none !important;
+  outline: none !important;
+  color: inherit;
+  background: transparent !important;
+  font-size: 12px;
+  font-family: inherit;
+  box-shadow: none !important;
+}
+
+.base-input input::placeholder {
+  color: var(--base-input-muted);
+}
+
+.base-input-small {
+  height: 24px;
+}
+
+.base-input-middle {
+  height: 28px;
+}
+
+.base-input-large {
+  height: 32px;
+}
+
+.base-input-prefix,
+.base-input-suffix,
+.base-input-clear {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--base-input-muted);
+}
+
+.base-input-prefix {
+  padding-left: 8px;
+}
+
+.base-input-suffix {
+  padding-right: 8px;
+}
+
+.base-input-clear {
+  width: 22px;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.base-input-clear:hover {
+  color: var(--base-input-text);
+}
+
+.base-input-success {
+  border-color: color-mix(in srgb, var(--base-input-green) 52%, var(--base-input-border));
+}
+
+.base-input-warning {
+  border-color: color-mix(in srgb, var(--base-input-yellow) 58%, var(--base-input-border));
+}
+
+.base-input-error {
+  border-color: color-mix(in srgb, var(--base-input-red) 58%, var(--base-input-border));
+}
+
+.base-input-error:focus-within {
+  border-color: var(--base-input-red);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--base-input-red) 24%, transparent);
+}
+
+.base-input-disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.base-input-disabled input,
+.base-input-disabled .base-input-clear {
+  cursor: not-allowed;
+}

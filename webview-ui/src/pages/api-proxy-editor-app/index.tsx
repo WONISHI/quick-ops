@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { vscode } from '@utils/vscode';
 import { BaseForm, BaseFormItem } from '@components/BaseForm';
+import BaseInput from '@components/BaseInput';
+import BaseSelect from '@components/BaseSelection';
 import styles from '@pages/api-proxy-editor-app/index.module.css';
 
 type ApiProxyMatchType = 'exact' | 'regex';
@@ -181,14 +183,30 @@ export default function ApiProxyEditorApp() {
                 </BaseFormItem>
 
                 <BaseFormItem label="名称" required validateStatus={activeRule.name.trim() ? undefined : 'error'} help={activeRule.name.trim() ? undefined : '请输入代理名称'}>
-                  <input value={activeRule.name} onChange={(event) => updateRule({ name: event.target.value })} placeholder="例如：监控" />
+                  <BaseInput
+                    value={activeRule.name}
+                    status={activeRule.name.trim() ? undefined : 'error'}
+                    allowClear
+                    onValueChange={(value) => updateRule({ name: value })}
+                    placeholder="例如：监控"
+                  />
                 </BaseFormItem>
 
                 <BaseFormItem label="匹配方式">
-                  <select value={activeRule.matchType} onChange={(event) => updateRule({ matchType: event.target.value as ApiProxyMatchType })}>
-                    <option value="regex">正则匹配</option>
-                    <option value="exact">精确匹配</option>
-                  </select>
+                  <BaseSelect
+                    value={activeRule.matchType}
+                    options={[
+                      {
+                        label: '正则匹配',
+                        value: 'regex',
+                      },
+                      {
+                        label: '精确匹配',
+                        value: 'exact',
+                      },
+                    ]}
+                    onChange={(value) => updateRule({ matchType: value as ApiProxyMatchType })}
+                  />
                 </BaseFormItem>
 
                 <BaseFormItem
@@ -197,7 +215,13 @@ export default function ApiProxyEditorApp() {
                   validateStatus={activeRule.match.trim() ? undefined : 'error'}
                   help={activeRule.match.trim() ? undefined : '请输入匹配地址'}
                 >
-                  <input value={activeRule.match} onChange={(event) => updateRule({ match: event.target.value })} placeholder="^/ISAPI(?:/.*)?$" />
+                  <BaseInput
+                    value={activeRule.match}
+                    status={activeRule.match.trim() ? undefined : 'error'}
+                    allowClear
+                    onValueChange={(value) => updateRule({ match: value })}
+                    placeholder="^/ISAPI(?:/.*)?$"
+                  />
                 </BaseFormItem>
 
                 <BaseFormItem
@@ -206,11 +230,17 @@ export default function ApiProxyEditorApp() {
                   validateStatus={activeRule.target.trim() ? undefined : 'error'}
                   help={activeRule.target.trim() ? undefined : '请输入转发目标'}
                 >
-                  <input value={activeRule.target} onChange={(event) => updateRule({ target: event.target.value })} placeholder="http://172.24.10.27:80" />
+                  <BaseInput
+                    value={activeRule.target}
+                    status={activeRule.target.trim() ? undefined : 'error'}
+                    allowClear
+                    onValueChange={(value) => updateRule({ target: value })}
+                    placeholder="http://172.24.10.27:80"
+                  />
                 </BaseFormItem>
 
                 <BaseFormItem label="重写地址" extra="留空则保持原路径">
-                  <input value={activeRule.rewrite || ''} onChange={(event) => updateRule({ rewrite: event.target.value })} placeholder="/ISAPI/$1" />
+                  <BaseInput value={activeRule.rewrite || ''} allowClear onValueChange={(value) => updateRule({ rewrite: value })} placeholder="/ISAPI/$1" />
                 </BaseFormItem>
 
                 <BaseFormItem label="保留 Query">
@@ -221,7 +251,7 @@ export default function ApiProxyEditorApp() {
               <section className={styles['tester']}>
                 <div className={styles['tester-title']}>测试命中</div>
 
-                <input value={testUrl} onChange={(event) => setTestUrl(event.target.value)} placeholder="/ISAPI/Security/sessionLogin" />
+                <BaseInput value={testUrl} allowClear onValueChange={setTestUrl} placeholder="/ISAPI/Security/sessionLogin" />
 
                 <div className={[styles['preview'], previewTarget ? styles['hit'] : ''].filter(Boolean).join(' ')}>{previewTarget || '未命中代理规则'}</div>
               </section>

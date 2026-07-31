@@ -1,0 +1,115 @@
+.base-select {
+  --base-select-bg: var(--vscode-input-background, #0d1117);
+  --base-select-border: var(--vscode-panel-border, #30363d);
+  --base-select-text: var(--vscode-input-foreground, var(--vscode-foreground, #c9d1d9));
+  --base-select-muted: var(--vscode-descriptionForeground, #8b949e);
+  --base-select-blue: var(--vscode-textLink-foreground, #2f81f7);
+  --base-select-green: var(--vscode-testing-iconPassed, #3fb950);
+  --base-select-yellow: var(--vscode-list-warningForeground, #d29922);
+  --base-select-red: var(--vscode-errorForeground, #f85149);
+
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--base-select-border);
+  border-radius: 5px;
+  color: var(--base-select-text);
+  background: var(--base-select-bg);
+  transition:
+    border-color 0.12s ease,
+    box-shadow 0.12s ease,
+    background 0.12s ease;
+}
+
+.base-select:hover {
+  border-color: color-mix(in srgb, var(--base-select-blue) 40%, var(--base-select-border));
+}
+
+.base-select:focus-within {
+  border-color: var(--base-select-blue);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--base-select-blue) 26%, transparent);
+}
+
+.base-select select {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  padding: 0 28px 0 8px;
+  border: none !important;
+  outline: none !important;
+  appearance: none;
+  color: inherit;
+  background: transparent !important;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: inherit;
+  box-shadow: none !important;
+}
+
+.base-select-small {
+  height: 24px;
+}
+
+.base-select-middle {
+  height: 28px;
+}
+
+.base-select-large {
+  height: 32px;
+}
+
+.base-select-arrow,
+.base-select-clear {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 26px;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--base-select-muted);
+  pointer-events: none;
+  font-size: 12px;
+}
+
+.base-select-clear {
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.base-select-clear:hover {
+  color: var(--base-select-text);
+}
+
+.base-select-success {
+  border-color: color-mix(in srgb, var(--base-select-green) 52%, var(--base-select-border));
+}
+
+.base-select-warning {
+  border-color: color-mix(in srgb, var(--base-select-yellow) 58%, var(--base-select-border));
+}
+
+.base-select-error {
+  border-color: color-mix(in srgb, var(--base-select-red) 58%, var(--base-select-border));
+}
+
+.base-select-error:focus-within {
+  border-color: var(--base-select-red);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--base-select-red) 24%, transparent);
+}
+
+.base-select-disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.base-select-disabled select {
+  cursor: not-allowed;
+}
