@@ -1,0 +1,109 @@
+.proxy-item {
+  min-width: 0;
+  min-height: 38px;
+  padding: 4px 5px 4px 8px;
+  margin-bottom: 6px;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--proxy-border);
+  border-radius: 6px;
+  background: var(--proxy-panel);
+}
+
+.proxy-item:hover {
+  border-color: color-mix(in srgb, var(--proxy-blue) 55%, var(--proxy-border));
+  background: color-mix(in srgb, var(--proxy-blue) 8%, var(--proxy-panel));
+}
+
+.proxy-running {
+  border-color: color-mix(in srgb, var(--proxy-green) 58%, var(--proxy-border));
+  background: color-mix(in srgb, var(--proxy-green) 8%, var(--proxy-panel));
+}
+
+.proxy-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--proxy-blue) 45%, var(--proxy-border));
+  border-radius: 5px;
+  color: var(--proxy-blue);
+  background: color-mix(in srgb, var(--proxy-blue) 12%, transparent);
+  font-size: 14px;
+}
+
+.proxy-icon-running {
+  border-color: color-mix(in srgb, var(--proxy-green) 54%, var(--proxy-border));
+  color: var(--proxy-green);
+  background: color-mix(in srgb, var(--proxy-green) 12%, transparent);
+}
+
+.proxy-main {
+  min-width: 0;
+  padding: 0;
+  border: none;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.proxy-name {
+  display: block;
+  min-width: 0;
+  color: var(--proxy-text);
+  line-height: 20px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-meta {
+  display: block;
+  min-width: 0;
+  margin-top: 1px;
+  color: var(--proxy-muted);
+  font-size: 11px;
+  line-height: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.icon-btn {
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 5px;
+  color: var(--proxy-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.icon-btn:hover {
+  color: var(--proxy-blue);
+  background: color-mix(in srgb, var(--proxy-blue) 12%, transparent);
+}
+
+.icon-btn.danger {
+  color: var(--proxy-red);
+}
+
+.icon-btn.danger:hover {
+  background: color-mix(in srgb, var(--proxy-red) 12%, transparent);
+}

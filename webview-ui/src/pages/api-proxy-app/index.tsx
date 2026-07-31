@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { vscode } from '@utils/vscode';
+import ProxyGroup from '@pages/api-proxy-app/components/proxy-group';
+import ProxyItem from '@pages/api-proxy-app/components/proxy-item';
 import styles from '@pages/api-proxy-app/index.module.css';
 
 type ApiProxyMatchType = 'exact' | 'regex';
@@ -22,6 +24,10 @@ interface ApiProxyGroup {
   ruleIds: string[];
 }
 
+interface ApiProxyVisibleGroup extends ApiProxyGroup {
+  rules: ApiProxyRule[];
+}
+
 interface ApiProxyServerState {
   running: boolean;
   port: number;
@@ -39,6 +45,23 @@ const DEFAULT_SERVER: ApiProxyServerState = {
   running: false,
   port: 0,
   origin: '',
+};
+
+const createId = (prefix: string) => {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+};
+
+const createDefaultProxyRule = (name: string): ApiProxyRule => {
+  return {
+    id: createId('proxy'),
+    name,
+    enabled: false,
+    matchType: 'regex',
+    match: '/ISAPI/(.*)',
+    target: 'http://127.0.0.1:80',
+    rewrite: '/ISAPI/$1',
+    preserveQuery: true,
+  };
 };
 
 export default function ApiProxyListApp() {
@@ -66,7 +89,7 @@ export default function ApiProxyListApp() {
   }, []);
 
   const enabledCount = useMemo(() => rules.filter((rule) => rule.enabled).length, [rules]);
-  const visibleGroups = useMemo(() => {
+  const visibleGroups = useMemo<ApiProxyVisibleGroup[]>(() => {
     if (rules.length === 0) return [];
 
     const ruleMap = new Map(rules.map((rule) => [rule.id, rule]));
@@ -161,6 +184,91 @@ export default function ApiProxyListApp() {
     );
   };
 
+  const createProxyInGroup = (group: ApiProxyVisibleGroup) => {
+    const name = window.prompt('请输入代理名称', '新建代理')?.trim();
+
+    if (!name) return;
+
+    const rule = createDefaultProxyRule(name);
+    const nextRules = [...rules, rule];
+    const exists = groups.some((item) => item.id === group.id);
+
+    if (group.id !== 'ungrouped') {
+      const nextGroups = exists
+        ? groups.map((item) =>
+            item.id === group.id
+              ? {
+                  ...item,
+                  ruleIds: [...new Set([...(item.ruleIds || []), rule.id])],
+                }
+              : item,
+          )
+        : [
+            ...groups,
+            {
+              id: group.id,
+              name: group.name || '默认分组',
+              collapsed: false,
+              ruleIds: [...new Set([...(group.ruleIds || []), rule.id])],
+            },
+          ];
+
+      saveGroups(nextGroups);
+    }
+
+    saveRules(nextRules);
+
+    vscode.postMessage({
+      type: 'openApiProxyEditor',
+      ruleId: rule.id,
+    });
+  };
+
+  const renameGroup = (group: ApiProxyVisibleGroup) => {
+    if (group.id === 'ungrouped') return;
+
+    const name = window.prompt('请输入新的分组名称', group.name || '默认分组')?.trim();
+
+    if (!name || name === group.name) return;
+
+    const exists = groups.some((item) => item.id === group.id);
+
+    if (!exists) {
+      saveGroups([
+        ...groups,
+        {
+          id: group.id,
+          name,
+          collapsed: !!group.collapsed,
+          ruleIds: group.ruleIds || [],
+        },
+      ]);
+      return;
+    }
+
+    saveGroups(
+      groups.map((item) =>
+        item.id === group.id
+          ? {
+              ...item,
+              name,
+            }
+          : item,
+      ),
+    );
+  };
+
+  const deleteGroup = (group: ApiProxyVisibleGroup) => {
+    if (group.id === 'ungrouped') return;
+    if (!groups.some((item) => item.id === group.id)) return;
+
+    const confirmed = window.confirm(`确定删除分组「${group.name || '未命名分组'}」吗？分组里的代理会移动到未分组。`);
+
+    if (!confirmed) return;
+
+    saveGroups(groups.filter((item) => item.id !== group.id));
+  };
+
   const startRule = (rule: ApiProxyRule) => {
     const nextRules = rules.map((item) =>
       item.id === rule.id
@@ -238,69 +346,54 @@ export default function ApiProxyListApp() {
         ) : (
           visibleGroups.map((group) => {
             const groupEnabledCount = group.rules.filter((rule) => rule.enabled).length;
-            const collapsed = !!group.collapsed;
+            const canManageGroup = group.id !== 'ungrouped';
+            const canDeleteGroup = canManageGroup && groups.some((item) => item.id === group.id);
 
             return (
-              <section key={group.id} className={styles['proxy-group']}>
-                <button type="button" className={styles['group-header']} onClick={() => toggleGroupCollapse(group.id)}>
-                  <span className="codicon codicon-chevron-down" data-collapsed={collapsed} />
-                  <span className="codicon codicon-folder" />
-                  <span className={styles['group-name']} title={group.name || '未命名分组'}>
-                    {group.name || '未命名分组'}
-                  </span>
-                  <span className={styles['group-count']}>
-                    {group.rules.length} 个代理{groupEnabledCount > 0 ? ` · ${groupEnabledCount} 个启用` : ''}
-                  </span>
-                </button>
-
-                {!collapsed && (
-                  <div className={styles['group-body']}>
-                    {group.rules.map((rule) => {
-                      const running = server.running && rule.enabled;
-
-                      return (
-                        <div key={rule.id} className={[styles['proxy-item'], running ? styles['proxy-running'] : ''].filter(Boolean).join(' ')}>
-                          <span className={[styles['proxy-icon'], running ? styles['proxy-icon-running'] : ''].filter(Boolean).join(' ')}>
-                            <span className="codicon codicon-symbol-interface" />
-                          </span>
-
-                          <button type="button" className={styles['proxy-main']} title={rule.name || '未命名代理'} onClick={() => editRule(rule)}>
-                            <span className={styles['proxy-name']}>{rule.name || '未命名代理'}</span>
-                            <span className={styles['proxy-meta']}>
-                              {rule.matchType === 'regex' ? '正则' : '精确'} · {rule.match || '未配置匹配地址'}
-                            </span>
-                          </button>
-
-                          <div className={styles['proxy-actions']}>
-                            <button
-                              type="button"
-                              className={styles['icon-btn']}
-                              title={running ? '停止代理' : '启动代理'}
-                              onClick={() => {
-                                if (running) {
-                                  stopRule(rule);
-                                } else {
-                                  startRule(rule);
-                                }
-                              }}
-                            >
-                              <span className={`codicon ${running ? 'codicon-debug-disconnect' : 'codicon-rocket'}`} />
-                            </button>
-
-                            <button type="button" className={styles['icon-btn']} title="修改代理" onClick={() => editRule(rule)}>
-                              <span className="codicon codicon-edit" />
-                            </button>
-
-                            <button type="button" className={[styles['icon-btn'], styles['danger']].join(' ')} title="删除代理" onClick={() => deleteRule(rule)}>
-                              <span className="codicon codicon-trash" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
+              <ProxyGroup
+                key={group.id}
+                name={group.name}
+                count={group.rules.length}
+                enabledCount={groupEnabledCount}
+                collapsed={!!group.collapsed}
+                contextMenuProps={{
+                  minWidth: 150,
+                  density: 'compact',
+                  items: [
+                    {
+                      key: 'create-proxy',
+                      label: '新建代理',
+                      icon: <span className="codicon codicon-add" />,
+                      onSelect: () => createProxyInGroup(group),
+                    },
+                    {
+                      type: 'separator',
+                      key: 'group-separator',
+                      hidden: !canManageGroup,
+                    },
+                    {
+                      key: 'rename-group',
+                      label: '分组重命名',
+                      icon: <span className="codicon codicon-edit" />,
+                      hidden: !canManageGroup,
+                      onSelect: () => renameGroup(group),
+                    },
+                    {
+                      key: 'delete-group',
+                      label: '删除分组',
+                      icon: <span className="codicon codicon-trash" />,
+                      danger: true,
+                      hidden: !canDeleteGroup,
+                      onSelect: () => deleteGroup(group),
+                    },
+                  ],
+                }}
+                onToggle={() => toggleGroupCollapse(group.id)}
+              >
+                {group.rules.map((rule) => (
+                  <ProxyItem key={rule.id} rule={rule} running={server.running && rule.enabled} onStart={startRule} onStop={stopRule} onEdit={editRule} onDelete={deleteRule} />
+                ))}
+              </ProxyGroup>
             );
           })
         )}
