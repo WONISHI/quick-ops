@@ -74,6 +74,66 @@
   text-align: center;
 }
 
+.proxy-group {
+  min-width: 0;
+  margin-bottom: 8px;
+}
+
+.group-header {
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px;
+  display: grid;
+  grid-template-columns: 16px 16px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  border-radius: 6px;
+  color: var(--proxy-muted);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.group-header:hover {
+  color: var(--proxy-text);
+  background: color-mix(in srgb, var(--proxy-blue) 9%, transparent);
+}
+
+.group-header :global(.codicon-chevron-down) {
+  transition: transform 0.12s ease;
+}
+
+.group-header :global(.codicon-chevron-down)[data-collapsed='true'] {
+  transform: rotate(-90deg);
+}
+
+.group-header :global(.codicon-folder) {
+  color: var(--proxy-blue);
+}
+
+.group-name {
+  min-width: 0;
+  color: var(--proxy-text);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-count {
+  color: var(--proxy-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.group-body {
+  min-width: 0;
+  padding-left: 10px;
+  border-left: 1px solid color-mix(in srgb, var(--proxy-border) 82%, transparent);
+}
+
 .proxy-item {
   min-width: 0;
   min-height: 38px;
@@ -133,6 +193,18 @@
   color: var(--proxy-text);
   line-height: 20px;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-meta {
+  display: block;
+  min-width: 0;
+  margin-top: 1px;
+  color: var(--proxy-muted);
+  font-size: 11px;
+  line-height: 15px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

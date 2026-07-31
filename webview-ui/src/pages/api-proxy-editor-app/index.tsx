@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { vscode } from '@utils/vscode';
+import { BaseForm, BaseFormItem } from '@components/BaseForm';
 import styles from '@pages/api-proxy-editor-app/index.module.css';
 
 type ApiProxyMatchType = 'exact' | 'regex';
@@ -15,6 +16,13 @@ interface ApiProxyRule {
   preserveQuery: boolean;
 }
 
+interface ApiProxyGroup {
+  id: string;
+  name: string;
+  collapsed?: boolean;
+  ruleIds: string[];
+}
+
 interface ApiProxyLogItem {
   id: string;
   time: number;
@@ -27,6 +35,7 @@ interface ApiProxyLogItem {
 interface ApiProxyStateMessage {
   type: string;
   rules?: ApiProxyRule[];
+  groups?: ApiProxyGroup[];
   logs?: ApiProxyLogItem[];
   activeRuleId?: string;
 }
@@ -78,6 +87,7 @@ function resolvePreview(rule: ApiProxyRule | null, testUrl: string) {
 
 export default function ApiProxyEditorApp() {
   const [rules, setRules] = useState<ApiProxyRule[]>([]);
+  const [groups, setGroups] = useState<ApiProxyGroup[]>([]);
   const [logs, setLogs] = useState<ApiProxyLogItem[]>([]);
   const [activeId, setActiveId] = useState('');
   const [testUrl, setTestUrl] = useState('/ISAPI/Security/sessionLogin');
@@ -92,6 +102,7 @@ export default function ApiProxyEditorApp() {
       const nextActiveId = message.activeRuleId && nextRules.some((rule) => rule.id === message.activeRuleId) ? message.activeRuleId : nextRules[0]?.id || '';
 
       setRules(nextRules);
+      setGroups(Array.isArray(message.groups) ? message.groups : []);
       setLogs(Array.isArray(message.logs) ? message.logs : []);
       setActiveId(nextActiveId);
     };
@@ -105,6 +116,7 @@ export default function ApiProxyEditorApp() {
   }, []);
 
   const activeRule = rules.find((rule) => rule.id === activeId) || null;
+  const activeGroup = activeRule ? groups.find((group) => (group.ruleIds || []).includes(activeRule.id)) : null;
   const previewTarget = useMemo(() => resolvePreview(activeRule, testUrl), [activeRule, testUrl]);
 
   const saveRules = (nextRules: ApiProxyRule[]) => {
@@ -152,7 +164,10 @@ export default function ApiProxyEditorApp() {
               <div className={styles['form-head']}>
                 <div>
                   <div className={styles['form-title']}>{activeRule.name || '未命名代理'}</div>
-                  <div className={styles['form-subtitle']}>命中请求后会转发到配置的目标地址</div>
+                  <div className={styles['form-subtitle']}>
+                    {activeGroup?.name ? `所属分组：${activeGroup.name} · ` : ''}
+                    命中请求后会转发到配置的目标地址
+                  </div>
                 </div>
 
                 <span className={[styles['form-status'], activeRule.enabled ? styles['form-status-enabled'] : ''].filter(Boolean).join(' ')}>
@@ -160,52 +175,55 @@ export default function ApiProxyEditorApp() {
                 </span>
               </div>
 
-              <div className={styles['form-row']}>
-                <label>启用</label>
-                <input type="checkbox" checked={activeRule.enabled} onChange={(event) => updateRule({ enabled: event.target.checked })} />
-              </div>
+              <BaseForm labelWidth={76}>
+                <BaseFormItem label="启用">
+                  <input type="checkbox" checked={activeRule.enabled} onChange={(event) => updateRule({ enabled: event.target.checked })} />
+                </BaseFormItem>
 
-              <div className={styles['form-row']}>
-                <label>名称</label>
-                <input value={activeRule.name} onChange={(event) => updateRule({ name: event.target.value })} placeholder="例如：监控" />
-              </div>
+                <BaseFormItem label="名称" required validateStatus={activeRule.name.trim() ? undefined : 'error'} help={activeRule.name.trim() ? undefined : '请输入代理名称'}>
+                  <input value={activeRule.name} onChange={(event) => updateRule({ name: event.target.value })} placeholder="例如：监控" />
+                </BaseFormItem>
 
-              <div className={styles['form-row']}>
-                <label>匹配方式</label>
-                <select value={activeRule.matchType} onChange={(event) => updateRule({ matchType: event.target.value as ApiProxyMatchType })}>
-                  <option value="regex">正则匹配</option>
-                  <option value="exact">精确匹配</option>
-                </select>
-              </div>
+                <BaseFormItem label="匹配方式">
+                  <select value={activeRule.matchType} onChange={(event) => updateRule({ matchType: event.target.value as ApiProxyMatchType })}>
+                    <option value="regex">正则匹配</option>
+                    <option value="exact">精确匹配</option>
+                  </select>
+                </BaseFormItem>
 
-              <div className={styles['form-row']}>
-                <label>匹配地址</label>
-                <input value={activeRule.match} onChange={(event) => updateRule({ match: event.target.value })} placeholder="^/ISAPI(?:/.*)?$" />
-              </div>
+                <BaseFormItem
+                  label="匹配地址"
+                  required
+                  validateStatus={activeRule.match.trim() ? undefined : 'error'}
+                  help={activeRule.match.trim() ? undefined : '请输入匹配地址'}
+                >
+                  <input value={activeRule.match} onChange={(event) => updateRule({ match: event.target.value })} placeholder="^/ISAPI(?:/.*)?$" />
+                </BaseFormItem>
 
-              <div className={styles['form-row']}>
-                <label>转发目标</label>
-                <input value={activeRule.target} onChange={(event) => updateRule({ target: event.target.value })} placeholder="http://172.24.10.27:80" />
-              </div>
+                <BaseFormItem
+                  label="转发目标"
+                  required
+                  validateStatus={activeRule.target.trim() ? undefined : 'error'}
+                  help={activeRule.target.trim() ? undefined : '请输入转发目标'}
+                >
+                  <input value={activeRule.target} onChange={(event) => updateRule({ target: event.target.value })} placeholder="http://172.24.10.27:80" />
+                </BaseFormItem>
 
-              <div className={styles['form-row']}>
-                <label>重写地址</label>
-                <input value={activeRule.rewrite || ''} onChange={(event) => updateRule({ rewrite: event.target.value })} placeholder="留空则保持原路径" />
-              </div>
+                <BaseFormItem label="重写地址" extra="留空则保持原路径">
+                  <input value={activeRule.rewrite || ''} onChange={(event) => updateRule({ rewrite: event.target.value })} placeholder="/ISAPI/$1" />
+                </BaseFormItem>
 
-              <div className={styles['form-row']}>
-                <label>保留 Query</label>
-                <input type="checkbox" checked={activeRule.preserveQuery} onChange={(event) => updateRule({ preserveQuery: event.target.checked })} />
-              </div>
+                <BaseFormItem label="保留 Query">
+                  <input type="checkbox" checked={activeRule.preserveQuery} onChange={(event) => updateRule({ preserveQuery: event.target.checked })} />
+                </BaseFormItem>
+              </BaseForm>
 
               <section className={styles['tester']}>
                 <div className={styles['tester-title']}>测试命中</div>
 
                 <input value={testUrl} onChange={(event) => setTestUrl(event.target.value)} placeholder="/ISAPI/Security/sessionLogin" />
 
-                <div className={[styles['preview'], previewTarget ? styles['hit'] : ''].filter(Boolean).join(' ')}>
-                  {previewTarget || '未命中代理规则'}
-                </div>
+                <div className={[styles['preview'], previewTarget ? styles['hit'] : ''].filter(Boolean).join(' ')}>{previewTarget || '未命中代理规则'}</div>
               </section>
             </section>
 
