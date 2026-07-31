@@ -11,17 +11,19 @@
 
 .header {
   flex: 0 0 auto;
-  height: 34px;
-  padding: 0 8px;
+  height: 38px;
+  padding: 0 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
   border-bottom: 1px solid var(--vscode-panel-border);
+  background: color-mix(in srgb, var(--vscode-sideBar-background) 92%, var(--vscode-focusBorder) 8%);
 }
 
 .title {
   font-weight: 700;
+  letter-spacing: 0;
 }
 
 .summary {
@@ -34,53 +36,74 @@
   white-space: nowrap;
 }
 
+.summary span {
+  height: 18px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+}
+
 .list {
   flex: 1 1 0;
   min-height: 0;
   overflow: auto;
-  padding: 6px;
+  padding: 8px 7px;
   box-sizing: border-box;
 }
 
 .empty {
+  margin: 8px 2px;
   padding: 18px 8px;
+  border: 1px dashed color-mix(in srgb, var(--vscode-foreground) 18%, transparent);
+  border-radius: 6px;
   color: var(--vscode-descriptionForeground);
   text-align: center;
 }
 
 .proxy-item {
   min-width: 0;
-  height: 34px;
-  padding: 0 4px 0 7px;
-  margin-bottom: 4px;
+  min-height: 38px;
+  padding: 4px 5px 4px 8px;
+  margin-bottom: 6px;
   display: grid;
-  grid-template-columns: 20px minmax(0, 1fr) auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 6px;
-  border-radius: 4px;
-  background: transparent;
+  gap: 7px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
+  transition:
+    background 120ms ease,
+    border-color 120ms ease;
 }
 
 .proxy-item:hover {
   background: var(--vscode-list-hoverBackground);
+  border-color: color-mix(in srgb, var(--vscode-focusBorder) 28%, transparent);
 }
 
 .proxy-running {
-  background: color-mix(in srgb, var(--vscode-testing-iconPassed) 8%, transparent);
+  background: color-mix(in srgb, var(--vscode-testing-iconPassed) 10%, transparent);
+  border-color: color-mix(in srgb, var(--vscode-testing-iconPassed) 24%, transparent);
 }
 
 .proxy-icon {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border-radius: 5px;
   color: var(--vscode-textLink-foreground);
-  font-size: 15px;
+  background: color-mix(in srgb, var(--vscode-textLink-foreground) 14%, transparent);
+  font-size: 14px;
 }
 
 .proxy-icon-running {
   color: var(--vscode-testing-iconPassed);
+  background: color-mix(in srgb, var(--vscode-testing-iconPassed) 16%, transparent);
 }
 
 .proxy-main {
@@ -97,6 +120,8 @@
   display: block;
   min-width: 0;
   color: var(--vscode-foreground);
+  line-height: 20px;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -105,12 +130,12 @@
 .proxy-actions {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
 }
 
 .icon-btn {
-  width: 24px;
-  height: 24px;
+  width: 25px;
+  height: 25px;
   padding: 0;
   display: inline-flex;
   align-items: center;
@@ -120,10 +145,12 @@
   color: var(--vscode-icon-foreground);
   background: transparent;
   cursor: pointer;
+  font-size: 13px;
 }
 
 .icon-btn:hover {
   background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+  color: var(--vscode-foreground);
 }
 
 .icon-btn.danger {

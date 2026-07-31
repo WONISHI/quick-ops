@@ -149,6 +149,17 @@ export default function ApiProxyEditorApp() {
         ) : (
           <>
             <section className={styles['form']}>
+              <div className={styles['form-head']}>
+                <div>
+                  <div className={styles['form-title']}>{activeRule.name || '未命名代理'}</div>
+                  <div className={styles['form-subtitle']}>命中请求后会转发到配置的目标地址</div>
+                </div>
+
+                <span className={[styles['form-status'], activeRule.enabled ? styles['form-status-enabled'] : ''].filter(Boolean).join(' ')}>
+                  {activeRule.enabled ? '已启用' : '未启用'}
+                </span>
+              </div>
+
               <div className={styles['form-row']}>
                 <label>启用</label>
                 <input type="checkbox" checked={activeRule.enabled} onChange={(event) => updateRule({ enabled: event.target.checked })} />
