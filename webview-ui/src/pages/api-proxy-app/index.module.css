@@ -1,11 +1,21 @@
 .api-proxy-list {
+  --proxy-bg: var(--vscode-sideBar-background, #0d1117);
+  --proxy-panel: var(--vscode-sideBarSectionHeader-background, #161b22);
+  --proxy-panel-soft: color-mix(in srgb, var(--vscode-foreground, #c9d1d9) 5%, transparent);
+  --proxy-border: var(--vscode-panel-border, #30363d);
+  --proxy-text: var(--vscode-foreground, #c9d1d9);
+  --proxy-muted: var(--vscode-descriptionForeground, #8b949e);
+  --proxy-blue: var(--vscode-textLink-foreground, #2f81f7);
+  --proxy-green: var(--vscode-testing-iconPassed, #3fb950);
+  --proxy-red: var(--vscode-errorForeground, #f85149);
+
   width: 100vw;
   height: 100vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  color: var(--vscode-foreground);
-  background: var(--vscode-sideBar-background);
+  color: var(--proxy-text);
+  background: var(--proxy-bg);
   font-size: 12px;
 }
 
@@ -17,12 +27,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  border-bottom: 1px solid var(--vscode-panel-border);
-  background: color-mix(in srgb, var(--vscode-sideBar-background) 92%, var(--vscode-focusBorder) 8%);
+  border-bottom: 1px solid var(--proxy-border);
+  background: var(--proxy-panel);
 }
 
 .title {
-  font-weight: 700;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
@@ -31,34 +41,36 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--proxy-muted);
   font-size: 11px;
   white-space: nowrap;
 }
 
 .summary span {
   height: 18px;
-  padding: 0 6px;
+  padding: 0 7px;
   display: inline-flex;
   align-items: center;
+  border: 1px solid var(--proxy-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+  background: var(--proxy-bg);
 }
 
 .list {
   flex: 1 1 0;
   min-height: 0;
   overflow: auto;
-  padding: 8px 7px;
+  padding: 8px;
   box-sizing: border-box;
 }
 
 .empty {
-  margin: 8px 2px;
+  margin: 8px 0;
   padding: 18px 8px;
-  border: 1px dashed color-mix(in srgb, var(--vscode-foreground) 18%, transparent);
+  border: 1px dashed var(--proxy-border);
   border-radius: 6px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--proxy-muted);
+  background: var(--proxy-panel-soft);
   text-align: center;
 }
 
@@ -68,25 +80,22 @@
   padding: 4px 5px 4px 8px;
   margin-bottom: 6px;
   display: grid;
-  grid-template-columns: 22px minmax(0, 1fr) auto;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;
-  border: 1px solid transparent;
+  border: 1px solid var(--proxy-border);
   border-radius: 6px;
-  background: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
-  transition:
-    background 120ms ease,
-    border-color 120ms ease;
+  background: var(--proxy-panel);
 }
 
 .proxy-item:hover {
-  background: var(--vscode-list-hoverBackground);
-  border-color: color-mix(in srgb, var(--vscode-focusBorder) 28%, transparent);
+  border-color: color-mix(in srgb, var(--proxy-blue) 55%, var(--proxy-border));
+  background: color-mix(in srgb, var(--proxy-blue) 8%, var(--proxy-panel));
 }
 
 .proxy-running {
-  background: color-mix(in srgb, var(--vscode-testing-iconPassed) 10%, transparent);
-  border-color: color-mix(in srgb, var(--vscode-testing-iconPassed) 24%, transparent);
+  border-color: color-mix(in srgb, var(--proxy-green) 58%, var(--proxy-border));
+  background: color-mix(in srgb, var(--proxy-green) 8%, var(--proxy-panel));
 }
 
 .proxy-icon {
@@ -95,15 +104,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--proxy-blue) 45%, var(--proxy-border));
   border-radius: 5px;
-  color: var(--vscode-textLink-foreground);
-  background: color-mix(in srgb, var(--vscode-textLink-foreground) 14%, transparent);
+  color: var(--proxy-blue);
+  background: color-mix(in srgb, var(--proxy-blue) 12%, transparent);
   font-size: 14px;
 }
 
 .proxy-icon-running {
-  color: var(--vscode-testing-iconPassed);
-  background: color-mix(in srgb, var(--vscode-testing-iconPassed) 16%, transparent);
+  border-color: color-mix(in srgb, var(--proxy-green) 54%, var(--proxy-border));
+  color: var(--proxy-green);
+  background: color-mix(in srgb, var(--proxy-green) 12%, transparent);
 }
 
 .proxy-main {
@@ -119,7 +130,7 @@
 .proxy-name {
   display: block;
   min-width: 0;
-  color: var(--vscode-foreground);
+  color: var(--proxy-text);
   line-height: 20px;
   font-weight: 600;
   overflow: hidden;
@@ -141,18 +152,22 @@
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 4px;
-  color: var(--vscode-icon-foreground);
+  border-radius: 5px;
+  color: var(--proxy-muted);
   background: transparent;
   cursor: pointer;
   font-size: 13px;
 }
 
 .icon-btn:hover {
-  background: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
-  color: var(--vscode-foreground);
+  color: var(--proxy-blue);
+  background: color-mix(in srgb, var(--proxy-blue) 12%, transparent);
 }
 
 .icon-btn.danger {
-  color: var(--vscode-errorForeground);
+  color: var(--proxy-red);
+}
+
+.icon-btn.danger:hover {
+  background: color-mix(in srgb, var(--proxy-red) 12%, transparent);
 }

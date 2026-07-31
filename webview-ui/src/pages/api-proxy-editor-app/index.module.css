@@ -1,11 +1,21 @@
 .api-proxy-editor {
+  --proxy-bg: var(--vscode-editor-background, #0d1117);
+  --proxy-panel: var(--vscode-sideBar-background, #161b22);
+  --proxy-panel-soft: color-mix(in srgb, var(--vscode-foreground, #c9d1d9) 5%, transparent);
+  --proxy-border: var(--vscode-panel-border, #30363d);
+  --proxy-text: var(--vscode-foreground, #c9d1d9);
+  --proxy-muted: var(--vscode-descriptionForeground, #8b949e);
+  --proxy-blue: var(--vscode-textLink-foreground, #2f81f7);
+  --proxy-green: var(--vscode-testing-iconPassed, #3fb950);
+  --proxy-red: var(--vscode-errorForeground, #f85149);
+
   width: 100vw;
   height: 100vh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  color: var(--vscode-foreground);
-  background: var(--vscode-editor-background);
+  color: var(--proxy-text);
+  background: var(--proxy-bg);
   font-size: 12px;
 }
 
@@ -17,13 +27,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  border-bottom: 1px solid var(--vscode-panel-border);
-  background: color-mix(in srgb, var(--vscode-sideBar-background) 92%, var(--vscode-focusBorder) 8%);
+  border-bottom: 1px solid var(--proxy-border);
+  background: var(--proxy-panel);
 }
 
 .title {
   min-width: 0;
-  font-weight: 700;
+  font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -38,6 +48,7 @@
   flex-direction: column;
   gap: 10px;
   overflow: hidden;
+  background: var(--proxy-bg);
 }
 
 .form {
@@ -45,9 +56,9 @@
   min-width: 0;
   padding: 10px;
   box-sizing: border-box;
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--vscode-sideBar-background) 74%, transparent);
+  border: 1px solid var(--proxy-border);
+  border-radius: 6px;
+  background: var(--proxy-panel);
 }
 
 .form-head {
@@ -58,13 +69,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  border-bottom: 1px solid color-mix(in srgb, var(--vscode-panel-border) 78%, transparent);
+  border-bottom: 1px solid var(--proxy-border);
 }
 
 .form-title {
   max-width: 100%;
-  color: var(--vscode-foreground);
-  font-weight: 700;
+  color: var(--proxy-text);
+  font-weight: 600;
   line-height: 18px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -73,7 +84,7 @@
 
 .form-subtitle {
   margin-top: 2px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--proxy-muted);
   font-size: 11px;
   line-height: 16px;
 }
@@ -81,18 +92,20 @@
 .form-status {
   flex: 0 0 auto;
   height: 20px;
-  padding: 0 7px;
+  padding: 0 8px;
   display: inline-flex;
   align-items: center;
+  border: 1px solid var(--proxy-border);
   border-radius: 999px;
-  color: var(--vscode-descriptionForeground);
-  background: color-mix(in srgb, var(--vscode-foreground) 9%, transparent);
+  color: var(--proxy-muted);
+  background: var(--proxy-bg);
   font-size: 11px;
 }
 
 .form-status-enabled {
-  color: var(--vscode-testing-iconPassed);
-  background: color-mix(in srgb, var(--vscode-testing-iconPassed) 14%, transparent);
+  color: var(--proxy-green);
+  border-color: color-mix(in srgb, var(--proxy-green) 44%, var(--proxy-border));
+  background: color-mix(in srgb, var(--proxy-green) 10%, transparent);
 }
 
 .form-row {
@@ -104,7 +117,7 @@
 }
 
 .form-row label {
-  color: var(--vscode-descriptionForeground);
+  color: var(--proxy-muted);
 }
 
 .form-row input,
@@ -115,11 +128,11 @@
   height: 28px;
   box-sizing: border-box;
   padding: 0 8px;
-  border: 1px solid var(--vscode-input-border, var(--vscode-panel-border));
+  border: 1px solid var(--proxy-border);
   border-radius: 5px;
   outline: none;
-  color: var(--vscode-input-foreground);
-  background: var(--vscode-input-background);
+  color: var(--proxy-text);
+  background: var(--vscode-input-background, #0d1117);
   font-size: 12px;
 }
 
@@ -127,25 +140,32 @@
   width: 15px;
   height: 15px;
   padding: 0;
-  accent-color: var(--vscode-button-background);
+  accent-color: var(--proxy-blue);
+}
+
+.form-row input:hover,
+.form-row select:hover,
+.tester input:hover {
+  border-color: color-mix(in srgb, var(--proxy-blue) 40%, var(--proxy-border));
 }
 
 .form-row input:focus,
 .form-row select:focus,
 .tester input:focus {
-  border-color: var(--vscode-focusBorder);
+  border-color: var(--proxy-blue);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--proxy-blue) 26%, transparent);
 }
 
 .tester {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid color-mix(in srgb, var(--vscode-panel-border) 78%, transparent);
+  border-top: 1px solid var(--proxy-border);
 }
 
 .tester-title {
   margin-bottom: 7px;
-  color: var(--vscode-descriptionForeground);
-  font-weight: 700;
+  color: var(--proxy-muted);
+  font-weight: 600;
 }
 
 .preview {
@@ -153,17 +173,17 @@
   padding: 8px;
   min-height: 30px;
   box-sizing: border-box;
-  border: 1px solid transparent;
+  border: 1px solid var(--proxy-border);
   border-radius: 6px;
-  color: var(--vscode-descriptionForeground);
-  background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
+  color: var(--proxy-muted);
+  background: var(--proxy-bg);
   word-break: break-all;
 }
 
 .preview.hit {
-  color: var(--vscode-textLink-foreground);
-  border-color: color-mix(in srgb, var(--vscode-textLink-foreground) 28%, transparent);
-  background: color-mix(in srgb, var(--vscode-textLink-foreground) 8%, transparent);
+  color: var(--proxy-blue);
+  border-color: color-mix(in srgb, var(--proxy-blue) 48%, var(--proxy-border));
+  background: color-mix(in srgb, var(--proxy-blue) 9%, transparent);
 }
 
 .log-panel {
@@ -172,9 +192,9 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 8px;
-  background: var(--vscode-sideBar-background);
+  border: 1px solid var(--proxy-border);
+  border-radius: 6px;
+  background: var(--proxy-panel);
 }
 
 .log-header {
@@ -185,23 +205,25 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  border-bottom: 1px solid var(--vscode-panel-border);
-  font-weight: 700;
+  border-bottom: 1px solid var(--proxy-border);
+  font-weight: 600;
 }
 
 .ghost-button {
   height: 24px;
   padding: 0 9px;
-  border: 1px solid var(--vscode-panel-border);
-  border-radius: 4px;
-  color: var(--vscode-foreground);
-  background: transparent;
+  border: 1px solid var(--proxy-border);
+  border-radius: 5px;
+  color: var(--proxy-text);
+  background: var(--proxy-bg);
   cursor: pointer;
   font-size: 12px;
 }
 
 .ghost-button:hover {
-  background: var(--vscode-list-hoverBackground);
+  color: var(--proxy-blue);
+  border-color: color-mix(in srgb, var(--proxy-blue) 45%, var(--proxy-border));
+  background: color-mix(in srgb, var(--proxy-blue) 9%, transparent);
 }
 
 .log-list {
@@ -215,9 +237,10 @@
 .log-item {
   padding: 7px 8px;
   margin-bottom: 6px;
-  border-left: 3px solid transparent;
+  border: 1px solid var(--proxy-border);
+  border-left-width: 3px;
   border-radius: 6px;
-  background: var(--vscode-editorWidget-background, rgba(127, 127, 127, 0.12));
+  background: var(--proxy-bg);
 }
 
 .log-main {
@@ -229,7 +252,7 @@
 }
 
 .log-time {
-  color: var(--vscode-descriptionForeground);
+  color: var(--proxy-muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
@@ -244,38 +267,38 @@
 .log-detail {
   margin-top: 5px;
   padding-left: 71px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--proxy-muted);
   font-size: 11px;
   line-height: 16px;
   word-break: break-all;
 }
 
 .log-success {
-  border-left-color: var(--vscode-testing-iconPassed);
+  border-left-color: var(--proxy-green);
 }
 
 .log-success .log-message {
-  color: var(--vscode-testing-iconPassed);
+  color: var(--proxy-green);
 }
 
 .log-error {
-  border-left-color: var(--vscode-errorForeground);
+  border-left-color: var(--proxy-red);
 }
 
 .log-error .log-message {
-  color: var(--vscode-errorForeground);
+  color: var(--proxy-red);
 }
 
 .log-info {
-  border-left-color: var(--vscode-textLink-foreground);
+  border-left-color: var(--proxy-blue);
 }
 
 .log-info .log-message {
-  color: var(--vscode-foreground);
+  color: var(--proxy-text);
 }
 
 .empty {
   padding: 18px 8px;
-  color: var(--vscode-descriptionForeground);
+  color: var(--proxy-muted);
   text-align: center;
 }
