@@ -69,6 +69,23 @@ function getRuleMatchItems(rule: ApiProxyRule) {
   return matches.filter((item) => String(item.match || '').trim());
 }
 
+function sanitizeRuleForSave(rule: ApiProxyRule): ApiProxyRule {
+  const matches = getRuleMatchItems(rule).map((item) => ({
+    ...item,
+    match: item.match.trim(),
+    target: String(item.target || '').trim(),
+  }));
+
+  return {
+    ...rule,
+    name: rule.name.trim(),
+    target: rule.target.trim(),
+    rewrite: String(rule.rewrite || '').trim(),
+    match: matches[0]?.match || '',
+    matches,
+  };
+}
+
 function getStartValidationMessage(rule: ApiProxyRule, server: ApiProxyServerState) {
   if (!String(server.listenHost || '').trim()) {
     return '请先选择监听地址。';
@@ -260,7 +277,8 @@ export default function ApiProxyListApp() {
   };
 
   const startRule = (rule: ApiProxyRule) => {
-    const validationMessage = getStartValidationMessage(rule, server);
+    const sanitizedRule = sanitizeRuleForSave(rule);
+    const validationMessage = getStartValidationMessage(sanitizedRule, server);
 
     if (validationMessage) {
       vscode.postMessage({
@@ -274,7 +292,7 @@ export default function ApiProxyListApp() {
     const nextRules = rules.map((item) =>
       item.id === rule.id
         ? {
-            ...item,
+            ...sanitizedRule,
             enabled: true,
           }
         : item,
@@ -284,6 +302,7 @@ export default function ApiProxyListApp() {
 
     vscode.postMessage({
       type: 'startApiProxyServer',
+      rules: nextRules,
       listenHost: server.listenHost,
       listenPort: server.listenPort,
       devServerOrigin: server.devServerOrigin,

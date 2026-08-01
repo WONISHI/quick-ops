@@ -1,5 +1,6 @@
-import { useEffect, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { vscode } from '@utils/vscode';
+import BaseButton from '@components/BaseButton';
 import { BaseForm, BaseFormItem } from '@components/BaseForm';
 import BaseInput from '@components/BaseInput';
 import BaseSelect from '@components/BaseSelection';
@@ -123,12 +124,63 @@ function syncRuleMatches(rule: ApiProxyRule, matches: ApiProxyMatchItem[]): ApiP
   };
 }
 
+function sanitizeRuleForSave(rule: ApiProxyRule): ApiProxyRule {
+  const matches = getMatchItems(rule)
+    .filter((item) => item.match.trim())
+    .map((item) => ({
+      ...item,
+      match: item.match.trim(),
+      target: String(item.target || '').trim(),
+    }));
+
+  return {
+    ...rule,
+    name: rule.name.trim(),
+    target: rule.target.trim(),
+    rewrite: String(rule.rewrite || '').trim(),
+    match: matches[0]?.match || '',
+    matches,
+  };
+}
+
+function getRuleValidationMessage(rule: ApiProxyRule, server: ApiProxyServerState) {
+  if (!String(server.listenHost || '').trim()) {
+    return '请先选择监听地址。';
+  }
+
+  const listenPort = Number(server.listenPort);
+
+  if (!Number.isFinite(listenPort) || listenPort <= 0 || listenPort > 65535) {
+    return '请填写有效的监听端口。';
+  }
+
+  if (!String(server.devServerOrigin || '').trim()) {
+    return '请填写前端服务地址。';
+  }
+
+  if (!String(rule.name || '').trim()) {
+    return '请填写代理名称。';
+  }
+
+  if (!String(rule.target || '').trim()) {
+    return '请填写公共转发目标。';
+  }
+
+  if (getMatchItems(rule).filter((item) => item.match.trim()).length === 0) {
+    return '请至少填写一个匹配地址。';
+  }
+
+  return '';
+}
+
 export default function ApiProxyEditorApp() {
   const [rules, setRules] = useState<ApiProxyRule[]>([]);
   const [groups, setGroups] = useState<ApiProxyGroup[]>([]);
   const [logs, setLogs] = useState<ApiProxyLogItem[]>([]);
   const [server, setServer] = useState<ApiProxyServerState>(DEFAULT_SERVER);
   const [activeId, setActiveId] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const saveTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent<ApiProxyStateMessage>) => {
@@ -151,6 +203,10 @@ export default function ApiProxyEditorApp() {
 
     return () => {
       window.removeEventListener('message', handleMessage);
+      if (saveTimerRef.current !== null) {
+        window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
     };
   }, []);
 
@@ -169,6 +225,44 @@ export default function ApiProxyEditorApp() {
       type: 'saveApiProxyRules',
       rules: nextRules,
     });
+  };
+
+  const saveActiveRuleConfig = () => {
+    if (!activeRule) return false;
+
+    const sanitizedRule = sanitizeRuleForSave(activeRule);
+    const validationMessage = getRuleValidationMessage(sanitizedRule, server);
+
+    if (validationMessage) {
+      vscode.postMessage({
+        type: 'showApiProxyValidationError',
+        message: validationMessage,
+        ruleId: activeRule.id,
+      });
+      return false;
+    }
+
+    saveRules(rules.map((rule) => (rule.id === activeRule.id ? sanitizedRule : rule)));
+    return true;
+  };
+
+  const handleSaveConfig = () => {
+    if (isSaving) return;
+
+    const saved = saveActiveRuleConfig();
+
+    if (!saved) return;
+
+    setIsSaving(true);
+
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = window.setTimeout(() => {
+      setIsSaving(false);
+      saveTimerRef.current = null;
+    }, 1000);
   };
 
   const updateRule = (patch: Partial<ApiProxyRule>) => {
@@ -266,6 +360,12 @@ export default function ApiProxyEditorApp() {
     <div className={styles['api-proxy-editor']}>
       <header className={styles['header']}>
         <div className={styles['title']}>接口代理配置</div>
+
+        <div className={styles['header-actions']}>
+          <BaseButton type="primary" size="medium" className={styles['save-button']} disabled={!activeRule || isEditingLocked} loading={isSaving} onClick={handleSaveConfig}>
+            {isSaving ? '保存中' : '保存'}
+          </BaseButton>
+        </div>
       </header>
 
       <main className={styles['content']}>
@@ -400,22 +500,28 @@ export default function ApiProxyEditorApp() {
                           placeholder="转发地址，可不填"
                         />
 
-                        <button
-                          type="button"
+                        <BaseButton
+                          type="icon"
+                          size="medium"
                           className={styles['match-remove-button']}
                           disabled={isEditingLocked || activeMatchItems.length <= 1}
+                          icon={<span className="codicon codicon-trash" />}
                           title={activeMatchItems.length <= 1 ? '至少保留一条匹配地址' : '删除匹配地址'}
                           onClick={() => removeMatchItem(item.id)}
-                        >
-                          <span className="codicon codicon-trash" />
-                        </button>
+                        />
                       </div>
                     ))}
 
-                    <button type="button" className={styles['match-add-button']} disabled={isEditingLocked} onClick={addMatchItem}>
-                      <span className="codicon codicon-add" />
+                    <BaseButton
+                      type="default"
+                      size="medium"
+                      className={styles['match-add-button']}
+                      disabled={isEditingLocked}
+                      icon={<span className="codicon codicon-add" />}
+                      onClick={addMatchItem}
+                    >
                       新增匹配地址
-                    </button>
+                    </BaseButton>
                   </div>
                 </BaseFormItem>
 
@@ -444,15 +550,15 @@ export default function ApiProxyEditorApp() {
                     {proxyHomeUrl}
                   </div>
 
-                  <button
-                    type="button"
+                  <BaseButton
+                    type="icon"
+                    size="large"
                     className={styles['open-browser-button']}
                     disabled={!canOpenBrowserEntry}
+                    icon={<span className="codicon codicon-globe" />}
                     title={canOpenBrowserEntry ? '在浏览器打开' : '代理启动后才能打开'}
                     onClick={openBrowserEntry}
-                  >
-                    <span className="codicon codicon-globe" />
-                  </button>
+                  />
                 </div>
               </section>
             </section>
@@ -461,9 +567,9 @@ export default function ApiProxyEditorApp() {
               <div className={styles['log-header']}>
                 <span>代理日志</span>
 
-                <button type="button" className={styles['ghost-button']} onClick={clearLogs}>
+                <BaseButton type="default" size="small" className={styles['ghost-button']} onClick={clearLogs}>
                   清空
-                </button>
+                </BaseButton>
               </div>
 
               <div className={styles['log-list']}>

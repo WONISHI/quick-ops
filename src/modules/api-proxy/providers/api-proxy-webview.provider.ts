@@ -70,7 +70,7 @@ type ApiProxyWebviewMessage =
   | { type: 'deleteApiProxyRule'; ruleId: string; ruleName?: string }
   | { type: 'showApiProxyValidationError'; message?: string; ruleId?: string }
   | { type: 'saveApiProxyServerOptions'; listenHost?: string; listenPort?: number | string; devServerOrigin?: string }
-  | { type: 'startApiProxyServer'; listenHost?: string; listenPort?: number | string; devServerOrigin?: string }
+  | { type: 'startApiProxyServer'; rules?: ApiProxyRule[]; listenHost?: string; listenPort?: number | string; devServerOrigin?: string }
   | { type: 'stopApiProxyServer' }
   | { type: 'openApiProxyExternal'; url?: string }
   | { type: 'clearApiProxyLogs' };
@@ -596,8 +596,15 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     this.postState();
   }
 
-  private async startServer(options?: { listenHost?: string; listenPort?: number | string; devServerOrigin?: string }): Promise<void> {
+  private async startServer(options?: { rules?: ApiProxyRule[]; listenHost?: string; listenPort?: number | string; devServerOrigin?: string }): Promise<void> {
     this.applyServerOptions(options);
+
+    if (Array.isArray(options?.rules)) {
+      this.rules = options.rules;
+      this.syncGroupsWithRules();
+    }
+
+    this.rules = this.rules.map((rule) => (rule.enabled ? this.sanitizeRuleForSave(rule) : rule));
 
     const invalidRule = this.rules.find((rule) => rule.enabled && this.getRuleValidationMessage(rule));
 
@@ -636,6 +643,8 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     if (this.isListenSameAsDevServer()) {
       const message = `代理监听地址不能和前端服务地址相同：${this.createProxyOrigin(this.proxyHost, this.proxyPort)}`;
 
+      this.disableEnabledRules();
+      await this.persistState();
       this.addLog('error', message);
       void vscode.window.showErrorMessage(message);
       this.serverState = this.createStoppedServerState();
@@ -670,6 +679,8 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
 
+      this.disableEnabledRules();
+      await this.persistState();
       this.addLog('error', `代理服务启动失败：${message}`);
       void vscode.window.showErrorMessage(`接口代理服务启动失败：${message}`);
 
@@ -704,6 +715,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       devServerOrigin: this.devServerOrigin,
     };
 
+    this.logs = [];
     this.addLog('success', `代理服务已启动：${this.serverState.origin}`);
     this.postState();
   }
@@ -996,6 +1008,34 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     const matches = Array.isArray(rule.matches) && rule.matches.length > 0 ? rule.matches : [{ id: `${rule.id}-legacy`, match: rule.match, target: '' }];
 
     return matches.filter((item) => String(item.match || '').trim());
+  }
+
+  private sanitizeRuleForSave(rule: ApiProxyRule): ApiProxyRule {
+    const matches = this.getRuleMatchItems(rule).map((item) => ({
+      ...item,
+      match: item.match.trim(),
+      target: String(item.target || '').trim(),
+    }));
+
+    return {
+      ...rule,
+      name: rule.name.trim(),
+      target: rule.target.trim(),
+      rewrite: String(rule.rewrite || '').trim(),
+      match: matches[0]?.match || '',
+      matches,
+    };
+  }
+
+  private disableEnabledRules(): void {
+    this.rules = this.rules.map((rule) =>
+      rule.enabled
+        ? {
+            ...rule,
+            enabled: false,
+          }
+        : rule,
+    );
   }
 
   private getRuleValidationMessage(rule: ApiProxyRule): string {
