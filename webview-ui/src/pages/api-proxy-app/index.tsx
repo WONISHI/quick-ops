@@ -6,12 +6,19 @@ import styles from '@pages/api-proxy-app/index.module.css';
 
 type ApiProxyMatchType = 'exact' | 'regex';
 
+interface ApiProxyMatchItem {
+  id: string;
+  match: string;
+  target?: string;
+}
+
 interface ApiProxyRule {
   id: string;
   name: string;
   enabled: boolean;
   matchType: ApiProxyMatchType;
   match: string;
+  matches?: ApiProxyMatchItem[];
   target: string;
   rewrite?: string;
   preserveQuery: boolean;
@@ -33,6 +40,7 @@ interface ApiProxyServerState {
   port: number;
   origin: string;
   listenHost: string;
+  listenHosts?: string[];
   listenPort: number;
   devServerOrigin: string;
 }
@@ -50,9 +58,46 @@ const DEFAULT_SERVER: ApiProxyServerState = {
   port: 0,
   origin: '',
   listenHost: '127.0.0.1',
+  listenHosts: ['127.0.0.1', '0.0.0.0'],
   listenPort: 57197,
   devServerOrigin: 'http://localhost:8081',
 };
+
+function getRuleMatchItems(rule: ApiProxyRule) {
+  const matches = Array.isArray(rule.matches) && rule.matches.length > 0 ? rule.matches : [{ id: `${rule.id}-legacy`, match: rule.match, target: '' }];
+
+  return matches.filter((item) => String(item.match || '').trim());
+}
+
+function getStartValidationMessage(rule: ApiProxyRule, server: ApiProxyServerState) {
+  if (!String(server.listenHost || '').trim()) {
+    return '请先选择监听地址。';
+  }
+
+  const listenPort = Number(server.listenPort);
+
+  if (!Number.isFinite(listenPort) || listenPort <= 0 || listenPort > 65535) {
+    return '请填写有效的监听端口。';
+  }
+
+  if (!String(server.devServerOrigin || '').trim()) {
+    return '请填写前端服务地址。';
+  }
+
+  if (!String(rule.name || '').trim()) {
+    return '请填写代理名称。';
+  }
+
+  if (!String(rule.target || '').trim()) {
+    return '请填写公共转发目标。';
+  }
+
+  if (getRuleMatchItems(rule).length === 0) {
+    return '请至少填写一个匹配地址。';
+  }
+
+  return '';
+}
 
 export default function ApiProxyListApp() {
   const [rules, setRules] = useState<ApiProxyRule[]>([]);
@@ -74,6 +119,7 @@ export default function ApiProxyListApp() {
       setRules(Array.isArray(message.rules) ? message.rules : []);
       setGroups(Array.isArray(message.groups) ? message.groups : []);
       setServer(message.server || DEFAULT_SERVER);
+      setActiveRuleId(message.activeRuleId || '');
     };
 
     window.addEventListener('message', handleMessage);
@@ -214,6 +260,17 @@ export default function ApiProxyListApp() {
   };
 
   const startRule = (rule: ApiProxyRule) => {
+    const validationMessage = getStartValidationMessage(rule, server);
+
+    if (validationMessage) {
+      vscode.postMessage({
+        type: 'showApiProxyValidationError',
+        message: validationMessage,
+        ruleId: rule.id,
+      });
+      return;
+    }
+
     const nextRules = rules.map((item) =>
       item.id === rule.id
         ? {

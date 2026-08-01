@@ -158,6 +158,7 @@ export default function ApiProxyEditorApp() {
   const activeGroup = activeRule ? groups.find((group) => (group.ruleIds || []).includes(activeRule.id)) : null;
   const isEditingLocked = server.running || !!activeRule?.enabled;
   const proxyHomeUrl = resolveProxyHomeUrl(server);
+  const canOpenBrowserEntry = server.running && !!server.origin;
   const listenHosts = Array.from(new Set([...(server.listenHosts || []), server.listenHost].filter(Boolean)));
   const activeMatchItems = getMatchItems(activeRule);
 
@@ -253,7 +254,7 @@ export default function ApiProxyEditorApp() {
     event?.preventDefault();
     event?.stopPropagation();
 
-    if (!proxyHomeUrl) return;
+    if (!canOpenBrowserEntry || !proxyHomeUrl) return;
 
     vscode.postMessage({
       type: 'openApiProxyExternal',
@@ -439,9 +440,17 @@ export default function ApiProxyEditorApp() {
                 <div className={styles['preview-label']}>浏览器入口</div>
 
                 <div className={styles['preview-with-action']}>
-                  <div className={[styles['preview'], styles['hit'], styles['preview-action-content']].join(' ')}>{proxyHomeUrl}</div>
+                  <div className={[styles['preview'], canOpenBrowserEntry ? styles['hit'] : styles['preview-disabled'], styles['preview-action-content']].join(' ')}>
+                    {proxyHomeUrl}
+                  </div>
 
-                  <button type="button" className={styles['open-browser-button']} title="在浏览器打开" onClick={openBrowserEntry}>
+                  <button
+                    type="button"
+                    className={styles['open-browser-button']}
+                    disabled={!canOpenBrowserEntry}
+                    title={canOpenBrowserEntry ? '在浏览器打开' : '代理启动后才能打开'}
+                    onClick={openBrowserEntry}
+                  >
                     <span className="codicon codicon-globe" />
                   </button>
                 </div>

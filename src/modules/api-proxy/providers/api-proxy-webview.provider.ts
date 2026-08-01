@@ -3,7 +3,7 @@ import * as os from 'os';
 import * as vscode from 'vscode';
 import httpProxy = require('http-proxy');
 import type { IncomingMessage, ServerResponse } from 'http';
-import type { Socket } from 'net';
+import type { Duplex } from 'stream';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 
@@ -68,6 +68,7 @@ type ApiProxyWebviewMessage =
   | { type: 'renameApiProxyGroup'; groupId: string; groupName?: string; collapsed?: boolean; ruleIds?: string[] }
   | { type: 'deleteApiProxyGroup'; groupId: string; groupName?: string }
   | { type: 'deleteApiProxyRule'; ruleId: string; ruleName?: string }
+  | { type: 'showApiProxyValidationError'; message?: string; ruleId?: string }
   | { type: 'saveApiProxyServerOptions'; listenHost?: string; listenPort?: number | string; devServerOrigin?: string }
   | { type: 'startApiProxyServer'; listenHost?: string; listenPort?: number | string; devServerOrigin?: string }
   | { type: 'stopApiProxyServer' }
@@ -472,6 +473,10 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
         await this.deleteRule(message);
         break;
 
+      case 'showApiProxyValidationError':
+        await this.showValidationError(message);
+        break;
+
       case 'saveApiProxyServerOptions':
         await this.saveServerOptions(message);
         break;
@@ -527,6 +532,19 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     await vscode.env.openExternal(uri);
   }
 
+  private async showValidationError(message: Extract<ApiProxyWebviewMessage, { type: 'showApiProxyValidationError' }>): Promise<void> {
+    const text = message.message || '代理配置校验未通过，不能启动。';
+
+    if (message.ruleId) {
+      this.activeRuleId = message.ruleId;
+      await this.persistState();
+      this.postActiveRuleChanged();
+      await this.openEditor(message.ruleId);
+    }
+
+    void vscode.window.showWarningMessage(text);
+  }
+
   private restoreState(): void {
     const context = this.extensionContextProvider.getContext();
     const state = context.workspaceState.get<{
@@ -579,6 +597,31 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
   }
 
   private async startServer(options?: { listenHost?: string; listenPort?: number | string; devServerOrigin?: string }): Promise<void> {
+    this.applyServerOptions(options);
+
+    const invalidRule = this.rules.find((rule) => rule.enabled && this.getRuleValidationMessage(rule));
+
+    if (invalidRule) {
+      const message = this.getRuleValidationMessage(invalidRule) || '代理配置校验未通过，不能启动。';
+
+      this.rules = this.rules.map((rule) =>
+        rule.id === invalidRule.id
+          ? {
+              ...rule,
+              enabled: false,
+            }
+          : rule,
+      );
+      this.activeRuleId = invalidRule.id;
+      await this.persistState();
+      this.addLog('error', message);
+      void vscode.window.showWarningMessage(message);
+      this.postState();
+      this.postActiveRuleChanged();
+      await this.openEditor(invalidRule.id);
+      return;
+    }
+
     if (this.server) {
       this.serverState = {
         ...this.serverState,
@@ -588,7 +631,6 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       return;
     }
 
-    this.applyServerOptions(options);
     await this.persistState();
 
     if (this.isListenSameAsDevServer()) {
@@ -855,7 +897,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     });
   }
 
-  private handleProxyUpgrade(req: IncomingMessage, socket: Socket, head: Buffer): void {
+  private handleProxyUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void {
     const sourceUrl = this.getRequestUrl(req);
     const proxyTarget = this.resolveProxyTarget(sourceUrl);
 
@@ -954,6 +996,30 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     const matches = Array.isArray(rule.matches) && rule.matches.length > 0 ? rule.matches : [{ id: `${rule.id}-legacy`, match: rule.match, target: '' }];
 
     return matches.filter((item) => String(item.match || '').trim());
+  }
+
+  private getRuleValidationMessage(rule: ApiProxyRule): string {
+    if (!String(this.proxyHost || '').trim()) {
+      return '请先选择监听地址。';
+    }
+
+    if (!String(this.devServerOrigin || '').trim()) {
+      return '请填写前端服务地址。';
+    }
+
+    if (!String(rule.name || '').trim()) {
+      return '请填写代理名称。';
+    }
+
+    if (!String(rule.target || '').trim()) {
+      return '请填写公共转发目标。';
+    }
+
+    if (this.getRuleMatchItems(rule).length === 0) {
+      return '请至少填写一个匹配地址。';
+    }
+
+    return '';
   }
 
   private findMatchedRule(sourceUrl: URL): ApiProxyMatchedRule | null {
