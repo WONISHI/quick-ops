@@ -12,14 +12,24 @@
   background: var(--proxy-panel);
 }
 
-.proxy-item:hover {
+.proxy-item:hover,
+.proxy-active {
   border-color: color-mix(in srgb, var(--proxy-blue) 55%, var(--proxy-border));
   background: color-mix(in srgb, var(--proxy-blue) 8%, var(--proxy-panel));
+}
+
+.proxy-active .proxy-name {
+  color: var(--proxy-blue);
 }
 
 .proxy-running {
   border-color: color-mix(in srgb, var(--proxy-green) 58%, var(--proxy-border));
   background: color-mix(in srgb, var(--proxy-green) 8%, var(--proxy-panel));
+}
+
+.proxy-running.proxy-active {
+  border-color: color-mix(in srgb, var(--proxy-blue) 55%, var(--proxy-border));
+  background: color-mix(in srgb, var(--proxy-blue) 8%, var(--proxy-panel));
 }
 
 .proxy-icon {

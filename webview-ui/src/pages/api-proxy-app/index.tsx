@@ -47,13 +47,13 @@ const DEFAULT_SERVER: ApiProxyServerState = {
   origin: '',
 };
 
-const createId = (prefix: string) => {
+const createApiProxyId = (prefix: string) => {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
 const createDefaultProxyRule = (name: string): ApiProxyRule => {
   return {
-    id: createId('proxy'),
+    id: createApiProxyId('proxy'),
     name,
     enabled: false,
     matchType: 'regex',
@@ -68,6 +68,7 @@ export default function ApiProxyListApp() {
   const [rules, setRules] = useState<ApiProxyRule[]>([]);
   const [groups, setGroups] = useState<ApiProxyGroup[]>([]);
   const [server, setServer] = useState<ApiProxyServerState>(DEFAULT_SERVER);
+  const [activeRuleId, setActiveRuleId] = useState('');
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent<ApiProxyStateMessage>) => {
@@ -217,6 +218,7 @@ export default function ApiProxyListApp() {
     }
 
     saveRules(nextRules);
+    setActiveRuleId(rule.id);
 
     vscode.postMessage({
       type: 'openApiProxyEditor',
@@ -306,6 +308,8 @@ export default function ApiProxyListApp() {
   };
 
   const editRule = (rule: ApiProxyRule) => {
+    setActiveRuleId(rule.id);
+
     vscode.postMessage({
       type: 'openApiProxyEditor',
       ruleId: rule.id,
@@ -321,6 +325,10 @@ export default function ApiProxyListApp() {
 
     saveGroups(nextGroups);
     saveRules(nextRules);
+
+    if (activeRuleId === rule.id) {
+      setActiveRuleId('');
+    }
 
     if (!nextRules.some((item) => item.enabled)) {
       vscode.postMessage({
@@ -391,7 +399,16 @@ export default function ApiProxyListApp() {
                 onToggle={() => toggleGroupCollapse(group.id)}
               >
                 {group.rules.map((rule) => (
-                  <ProxyItem key={rule.id} rule={rule} running={server.running && rule.enabled} onStart={startRule} onStop={stopRule} onEdit={editRule} onDelete={deleteRule} />
+                  <ProxyItem
+                    key={rule.id}
+                    rule={rule}
+                    active={activeRuleId === rule.id}
+                    running={server.running && rule.enabled}
+                    onStart={startRule}
+                    onStop={stopRule}
+                    onEdit={editRule}
+                    onDelete={deleteRule}
+                  />
                 ))}
               </ProxyGroup>
             );

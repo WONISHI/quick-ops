@@ -15,6 +15,7 @@ export interface ProxyItemRule {
 
 export interface ProxyItemProps {
   rule: ProxyItemRule;
+  active?: boolean;
   running?: boolean;
   onStart?: (rule: ProxyItemRule) => void;
   onStop?: (rule: ProxyItemRule) => void;
@@ -22,11 +23,11 @@ export interface ProxyItemProps {
   onDelete?: (rule: ProxyItemRule) => void;
 }
 
-export default function ProxyItem({ rule, running = false, onStart, onStop, onEdit, onDelete }: ProxyItemProps) {
+export default function ProxyItem({ rule, active = false, running = false, onStart, onStop, onEdit, onDelete }: ProxyItemProps) {
   const title = rule.name || '未命名代理';
 
   return (
-    <div className={[styles['proxy-item'], running ? styles['proxy-running'] : ''].filter(Boolean).join(' ')}>
+    <div className={[styles['proxy-item'], active ? styles['proxy-active'] : '', running ? styles['proxy-running'] : ''].filter(Boolean).join(' ')}>
       <span className={[styles['proxy-icon'], running ? styles['proxy-icon-running'] : ''].filter(Boolean).join(' ')}>
         <span className="codicon codicon-symbol-interface" />
       </span>
