@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { vscode } from '@utils/vscode';
 import { BaseForm, BaseFormItem } from '@components/BaseForm';
 import BaseInput from '@components/BaseInput';
@@ -7,12 +7,19 @@ import styles from '@pages/api-proxy-editor-app/index.module.css';
 
 type ApiProxyMatchType = 'exact' | 'regex';
 
+interface ApiProxyMatchItem {
+  id: string;
+  match: string;
+  target?: string;
+}
+
 interface ApiProxyRule {
   id: string;
   name: string;
   enabled: boolean;
   matchType: ApiProxyMatchType;
   match: string;
+  matches?: ApiProxyMatchItem[];
   target: string;
   rewrite?: string;
   preserveQuery: boolean;
@@ -34,65 +41,94 @@ interface ApiProxyLogItem {
   to?: string;
 }
 
+interface ApiProxyServerState {
+  running: boolean;
+  port: number;
+  origin: string;
+  listenHost: string;
+  listenHosts: string[];
+  listenPort: number;
+  devServerOrigin: string;
+}
+
 interface ApiProxyStateMessage {
   type: string;
   rules?: ApiProxyRule[];
   groups?: ApiProxyGroup[];
   logs?: ApiProxyLogItem[];
+  server?: ApiProxyServerState;
   activeRuleId?: string;
+}
+
+const DEFAULT_SERVER: ApiProxyServerState = {
+  running: false,
+  port: 0,
+  origin: '',
+  listenHost: '127.0.0.1',
+  listenHosts: ['127.0.0.1', '0.0.0.0'],
+  listenPort: 57197,
+  devServerOrigin: 'http://localhost:8081',
+};
+
+let localMatchIdSeed = 0;
+
+function createLocalMatchId() {
+  localMatchIdSeed += 1;
+
+  return `match-local-${localMatchIdSeed}`;
 }
 
 function formatTime(time: number) {
   return time ? new Date(time).toLocaleTimeString() : '';
 }
 
-function resolvePreview(rule: ApiProxyRule | null, testUrl: string) {
-  if (!rule || !testUrl.trim()) return '';
+function createProxyOrigin(host: string, port: number) {
+  const listenHost = String(host || '').trim() || DEFAULT_SERVER.listenHost;
+  const listenPort = Number(port) || DEFAULT_SERVER.listenPort;
+  const originHost = listenHost === '0.0.0.0' || listenHost === '::' ? '127.0.0.1' : listenHost;
+  const normalizedHost = originHost.includes(':') && !originHost.startsWith('[') ? `[${originHost}]` : originHost;
 
-  try {
-    const source = new URL(testUrl.trim(), 'http://127.0.0.1');
-    const pathname = source.pathname;
-    const fullUrl = source.toString();
+  return `http://${normalizedHost}:${listenPort}`;
+}
 
-    const matched =
-      rule.matchType === 'exact'
-        ? rule.match === pathname || rule.match === fullUrl
-        : (() => {
-            const regex = new RegExp(rule.match);
-            return regex.test(pathname) || regex.test(fullUrl);
-          })();
+function resolveProxyHomeUrl(server: ApiProxyServerState) {
+  return server.running && server.origin ? server.origin : createProxyOrigin(server.listenHost, server.listenPort);
+}
 
-    if (!matched) return '';
+function getMatchItems(rule: ApiProxyRule | null): ApiProxyMatchItem[] {
+  if (!rule) return [];
 
-    const rewriteValue = (() => {
-      if (!rule.rewrite) return pathname;
-
-      if (rule.matchType === 'regex') {
-        const regex = new RegExp(rule.match);
-        return regex.test(pathname) ? pathname.replace(regex, rule.rewrite) : fullUrl.replace(regex, rule.rewrite);
-      }
-
-      return rule.rewrite;
-    })();
-
-    const targetUrl = /^https?:\/\//i.test(rewriteValue) ? new URL(rewriteValue) : new URL(rewriteValue || pathname, rule.target);
-
-    if (rule.preserveQuery && !targetUrl.search) {
-      targetUrl.search = source.search;
-    }
-
-    return targetUrl.toString();
-  } catch {
-    return '';
+  if (Array.isArray(rule.matches) && rule.matches.length > 0) {
+    return rule.matches.map((item, index) => ({
+      id: item.id || `${rule.id}-match-${index}`,
+      match: item.match || '',
+      target: item.target || '',
+    }));
   }
+
+  return [
+    {
+      id: `${rule.id}-legacy`,
+      match: rule.match || '',
+      target: '',
+    },
+  ];
+}
+
+function syncRuleMatches(rule: ApiProxyRule, matches: ApiProxyMatchItem[]): ApiProxyRule {
+  return {
+    ...rule,
+    match: matches[0]?.match || '',
+    matches,
+  };
 }
 
 export default function ApiProxyEditorApp() {
   const [rules, setRules] = useState<ApiProxyRule[]>([]);
   const [groups, setGroups] = useState<ApiProxyGroup[]>([]);
   const [logs, setLogs] = useState<ApiProxyLogItem[]>([]);
+  const [server, setServer] = useState<ApiProxyServerState>(DEFAULT_SERVER);
   const [activeId, setActiveId] = useState('');
-  const [testUrl, setTestUrl] = useState('/ISAPI/Security/sessionLogin');
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent<ApiProxyStateMessage>) => {
@@ -106,6 +142,7 @@ export default function ApiProxyEditorApp() {
       setRules(nextRules);
       setGroups(Array.isArray(message.groups) ? message.groups : []);
       setLogs(Array.isArray(message.logs) ? message.logs : []);
+      setServer(message.server || DEFAULT_SERVER);
       setActiveId(nextActiveId);
     };
 
@@ -119,7 +156,10 @@ export default function ApiProxyEditorApp() {
 
   const activeRule = rules.find((rule) => rule.id === activeId) || null;
   const activeGroup = activeRule ? groups.find((group) => (group.ruleIds || []).includes(activeRule.id)) : null;
-  const previewTarget = useMemo(() => resolvePreview(activeRule, testUrl), [activeRule, testUrl]);
+  const isEditingLocked = server.running || !!activeRule?.enabled;
+  const proxyHomeUrl = resolveProxyHomeUrl(server);
+  const listenHosts = Array.from(new Set([...(server.listenHosts || []), server.listenHost].filter(Boolean)));
+  const activeMatchItems = getMatchItems(activeRule);
 
   const saveRules = (nextRules: ApiProxyRule[]) => {
     setRules(nextRules);
@@ -132,6 +172,7 @@ export default function ApiProxyEditorApp() {
 
   const updateRule = (patch: Partial<ApiProxyRule>) => {
     if (!activeRule) return;
+    if (isEditingLocked) return;
 
     saveRules(
       rules.map((rule) =>
@@ -145,9 +186,78 @@ export default function ApiProxyEditorApp() {
     );
   };
 
+  const updateMatchItems = (nextMatches: ApiProxyMatchItem[]) => {
+    if (!activeRule) return;
+    if (isEditingLocked) return;
+
+    const normalizedMatches = nextMatches.length > 0 ? nextMatches : [{ id: createLocalMatchId(), match: '', target: '' }];
+    const nextRule = syncRuleMatches(activeRule, normalizedMatches);
+
+    saveRules(rules.map((rule) => (rule.id === activeRule.id ? nextRule : rule)));
+  };
+
+  const updateMatchItem = (matchId: string, patch: Partial<ApiProxyMatchItem>) => {
+    updateMatchItems(
+      activeMatchItems.map((item) =>
+        item.id === matchId
+          ? {
+              ...item,
+              ...patch,
+            }
+          : item,
+      ),
+    );
+  };
+
+  const addMatchItem = () => {
+    updateMatchItems([
+      ...activeMatchItems,
+      {
+        id: createLocalMatchId(),
+        match: '',
+        target: '',
+      },
+    ]);
+  };
+
+  const removeMatchItem = (matchId: string) => {
+    if (activeMatchItems.length <= 1) return;
+
+    updateMatchItems(activeMatchItems.filter((item) => item.id !== matchId));
+  };
+
+  const updateServerOptions = (patch: Partial<Pick<ApiProxyServerState, 'listenHost' | 'listenPort' | 'devServerOrigin'>>) => {
+    if (isEditingLocked) return;
+
+    const nextServer = {
+      ...server,
+      ...patch,
+    };
+
+    setServer(nextServer);
+    vscode.postMessage({
+      type: 'saveApiProxyServerOptions',
+      listenHost: nextServer.listenHost,
+      listenPort: nextServer.listenPort,
+      devServerOrigin: nextServer.devServerOrigin,
+    });
+  };
+
   const clearLogs = () => {
     vscode.postMessage({
       type: 'clearApiProxyLogs',
+    });
+  };
+
+  const openBrowserEntry = (event?: MouseEvent<HTMLButtonElement>) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+
+    if (!proxyHomeUrl) return;
+
+    vscode.postMessage({
+      type: 'openApiProxyExternal',
+      url: proxyHomeUrl,
     });
   };
 
@@ -168,7 +278,7 @@ export default function ApiProxyEditorApp() {
                   <div className={styles['form-title']}>{activeRule.name || '未命名代理'}</div>
                   <div className={styles['form-subtitle']}>
                     {activeGroup?.name ? `所属分组：${activeGroup.name} · ` : ''}
-                    命中请求后会转发到配置的目标地址
+                    {isEditingLocked ? '代理运行中，配置已锁定' : '命中请求后会转发到配置的目标地址'}
                   </div>
                 </div>
 
@@ -178,10 +288,50 @@ export default function ApiProxyEditorApp() {
               </div>
 
               <BaseForm labelWidth={76}>
+                <BaseFormItem
+                  label="监听地址"
+                  required
+                  validateStatus={server.listenHost.trim() ? undefined : 'error'}
+                  help={server.listenHost.trim() ? undefined : '请选择监听地址'}
+                  extra="代理服务监听的主机，前端请求需要访问这个地址"
+                >
+                  <BaseSelect
+                    value={server.listenHost}
+                    disabled={isEditingLocked}
+                    status={server.listenHost.trim() ? undefined : 'error'}
+                    options={listenHosts.map((host) => ({
+                      label: host,
+                      value: host,
+                    }))}
+                    onChange={(value) => updateServerOptions({ listenHost: value })}
+                  />
+                </BaseFormItem>
+
+                <BaseFormItem label="监听端口" extra="不能和 Vue dev server 使用同一个端口">
+                  <BaseInput
+                    type="number"
+                    value={server.listenPort}
+                    disabled={isEditingLocked}
+                    onValueChange={(value) => updateServerOptions({ listenPort: Number(value) || DEFAULT_SERVER.listenPort })}
+                    placeholder="57197"
+                  />
+                </BaseFormItem>
+
+                <BaseFormItem label="前端服务" extra="未命中接口代理规则的页面、JS、CSS、HMR 会转发到这里">
+                  <BaseInput
+                    value={server.devServerOrigin}
+                    disabled={isEditingLocked}
+                    allowClear
+                    onValueChange={(value) => updateServerOptions({ devServerOrigin: value })}
+                    placeholder="http://localhost:8081"
+                  />
+                </BaseFormItem>
+
                 <BaseFormItem label="名称" required validateStatus={activeRule.name.trim() ? undefined : 'error'} help={activeRule.name.trim() ? undefined : '请输入代理名称'}>
                   <BaseInput
                     value={activeRule.name}
                     status={activeRule.name.trim() ? undefined : 'error'}
+                    disabled={isEditingLocked}
                     allowClear
                     onValueChange={(value) => updateRule({ name: value })}
                     placeholder="例如：监控"
@@ -201,22 +351,8 @@ export default function ApiProxyEditorApp() {
                         value: 'exact',
                       },
                     ]}
+                    disabled={isEditingLocked}
                     onChange={(value) => updateRule({ matchType: value as ApiProxyMatchType })}
-                  />
-                </BaseFormItem>
-
-                <BaseFormItem
-                  label="匹配地址"
-                  required
-                  validateStatus={activeRule.match.trim() ? undefined : 'error'}
-                  help={activeRule.match.trim() ? undefined : '请输入匹配地址'}
-                >
-                  <BaseInput
-                    value={activeRule.match}
-                    status={activeRule.match.trim() ? undefined : 'error'}
-                    allowClear
-                    onValueChange={(value) => updateRule({ match: value })}
-                    placeholder="^/ISAPI(?:/.*)?$"
                   />
                 </BaseFormItem>
 
@@ -229,27 +365,86 @@ export default function ApiProxyEditorApp() {
                   <BaseInput
                     value={activeRule.target}
                     status={activeRule.target.trim() ? undefined : 'error'}
+                    disabled={isEditingLocked}
                     allowClear
                     onValueChange={(value) => updateRule({ target: value })}
                     placeholder="http://172.24.10.27:80"
                   />
                 </BaseFormItem>
 
+                <BaseFormItem
+                  label="匹配地址"
+                  required
+                  validateStatus={activeMatchItems.some((item) => item.match.trim()) ? undefined : 'error'}
+                  help={activeMatchItems.some((item) => item.match.trim()) ? undefined : '至少填写一个匹配地址'}
+                  extra="左侧填匹配地址或正则；右侧转发地址可不填，不填时使用上面的公共转发目标"
+                >
+                  <div className={styles['match-list']}>
+                    {activeMatchItems.map((item) => (
+                      <div key={item.id} className={styles['match-row']}>
+                        <BaseInput
+                          value={item.match}
+                          status={item.match.trim() ? undefined : 'error'}
+                          disabled={isEditingLocked}
+                          allowClear
+                          onValueChange={(value) => updateMatchItem(item.id, { match: value })}
+                          placeholder={activeRule.matchType === 'regex' ? '/ISAPI/(.*)' : '/ISAPI/Security/sessionLogin'}
+                        />
+
+                        <BaseInput
+                          value={item.target || ''}
+                          disabled={isEditingLocked}
+                          allowClear
+                          onValueChange={(value) => updateMatchItem(item.id, { target: value })}
+                          placeholder="转发地址，可不填"
+                        />
+
+                        <button
+                          type="button"
+                          className={styles['match-remove-button']}
+                          disabled={isEditingLocked || activeMatchItems.length <= 1}
+                          title={activeMatchItems.length <= 1 ? '至少保留一条匹配地址' : '删除匹配地址'}
+                          onClick={() => removeMatchItem(item.id)}
+                        >
+                          <span className="codicon codicon-trash" />
+                        </button>
+                      </div>
+                    ))}
+
+                    <button type="button" className={styles['match-add-button']} disabled={isEditingLocked} onClick={addMatchItem}>
+                      <span className="codicon codicon-add" />
+                      新增匹配地址
+                    </button>
+                  </div>
+                </BaseFormItem>
+
                 <BaseFormItem label="重写地址" extra="留空则保持原路径">
-                  <BaseInput value={activeRule.rewrite || ''} allowClear onValueChange={(value) => updateRule({ rewrite: value })} placeholder="/ISAPI/$1" />
+                  <BaseInput
+                    value={activeRule.rewrite || ''}
+                    disabled={isEditingLocked}
+                    allowClear
+                    onValueChange={(value) => updateRule({ rewrite: value })}
+                    placeholder="/ISAPI/$1"
+                  />
                 </BaseFormItem>
 
                 <BaseFormItem label="保留 Query">
-                  <input type="checkbox" checked={activeRule.preserveQuery} onChange={(event) => updateRule({ preserveQuery: event.target.checked })} />
+                  <input type="checkbox" checked={activeRule.preserveQuery} disabled={isEditingLocked} onChange={(event) => updateRule({ preserveQuery: event.target.checked })} />
                 </BaseFormItem>
               </BaseForm>
 
               <section className={styles['tester']}>
                 <div className={styles['tester-title']}>测试命中</div>
 
-                <BaseInput value={testUrl} allowClear onValueChange={setTestUrl} placeholder="/ISAPI/Security/sessionLogin" />
+                <div className={styles['preview-label']}>浏览器入口</div>
 
-                <div className={[styles['preview'], previewTarget ? styles['hit'] : ''].filter(Boolean).join(' ')}>{previewTarget || '未命中代理规则'}</div>
+                <div className={styles['preview-with-action']}>
+                  <div className={[styles['preview'], styles['hit'], styles['preview-action-content']].join(' ')}>{proxyHomeUrl}</div>
+
+                  <button type="button" className={styles['open-browser-button']} title="在浏览器打开" onClick={openBrowserEntry}>
+                    <span className="codicon codicon-globe" />
+                  </button>
+                </div>
               </section>
             </section>
 

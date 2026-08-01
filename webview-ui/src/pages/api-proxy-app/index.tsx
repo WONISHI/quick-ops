@@ -32,6 +32,9 @@ interface ApiProxyServerState {
   running: boolean;
   port: number;
   origin: string;
+  listenHost: string;
+  listenPort: number;
+  devServerOrigin: string;
 }
 
 interface ApiProxyStateMessage {
@@ -46,12 +49,15 @@ const DEFAULT_SERVER: ApiProxyServerState = {
   running: false,
   port: 0,
   origin: '',
+  listenHost: '127.0.0.1',
+  listenPort: 57197,
+  devServerOrigin: 'http://localhost:8081',
 };
 
 export default function ApiProxyListApp() {
   const [rules, setRules] = useState<ApiProxyRule[]>([]);
   const [groups, setGroups] = useState<ApiProxyGroup[]>([]);
-  const [, setServer] = useState<ApiProxyServerState>(DEFAULT_SERVER);
+  const [server, setServer] = useState<ApiProxyServerState>(DEFAULT_SERVER);
   const [activeRuleId, setActiveRuleId] = useState('');
 
   useEffect(() => {
@@ -221,6 +227,9 @@ export default function ApiProxyListApp() {
 
     vscode.postMessage({
       type: 'startApiProxyServer',
+      listenHost: server.listenHost,
+      listenPort: server.listenPort,
+      devServerOrigin: server.devServerOrigin,
     });
   };
 

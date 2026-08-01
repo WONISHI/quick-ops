@@ -1,11 +1,19 @@
 import * as http from 'http';
+import * as os from 'os';
 import * as vscode from 'vscode';
 import httpProxy = require('http-proxy');
 import type { IncomingMessage, ServerResponse } from 'http';
+import type { Socket } from 'net';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
 
 type ApiProxyMatchType = 'exact' | 'regex';
+
+interface ApiProxyMatchItem {
+  id: string;
+  match: string;
+  target?: string;
+}
 
 interface ApiProxyRule {
   id: string;
@@ -13,9 +21,16 @@ interface ApiProxyRule {
   enabled: boolean;
   matchType: ApiProxyMatchType;
   match: string;
+  matches?: ApiProxyMatchItem[];
   target: string;
   rewrite?: string;
   preserveQuery: boolean;
+}
+
+interface ApiProxyMatchedRule {
+  rule: ApiProxyRule;
+  match: string;
+  target?: string;
 }
 
 interface ApiProxyGroup {
@@ -38,6 +53,10 @@ interface ApiProxyServerState {
   running: boolean;
   port: number;
   origin: string;
+  listenHost: string;
+  listenHosts: string[];
+  listenPort: number;
+  devServerOrigin: string;
 }
 
 type ApiProxyWebviewMessage =
@@ -49,19 +68,27 @@ type ApiProxyWebviewMessage =
   | { type: 'renameApiProxyGroup'; groupId: string; groupName?: string; collapsed?: boolean; ruleIds?: string[] }
   | { type: 'deleteApiProxyGroup'; groupId: string; groupName?: string }
   | { type: 'deleteApiProxyRule'; ruleId: string; ruleName?: string }
-  | { type: 'startApiProxyServer' }
+  | { type: 'saveApiProxyServerOptions'; listenHost?: string; listenPort?: number | string; devServerOrigin?: string }
+  | { type: 'startApiProxyServer'; listenHost?: string; listenPort?: number | string; devServerOrigin?: string }
   | { type: 'stopApiProxyServer' }
+  | { type: 'openApiProxyExternal'; url?: string }
   | { type: 'clearApiProxyLogs' };
 
 const API_PROXY_LIST_WEBVIEW_ROUTE = '/api-proxy';
 const API_PROXY_EDITOR_WEBVIEW_ROUTE = '/api-proxy-editor';
 const API_PROXY_STORAGE_KEY = 'quickOps.apiProxy.state';
 const API_PROXY_EDITOR_PANEL_TYPE = 'quickOps.apiProxyEditor';
+const API_PROXY_DEFAULT_PORT = 57197;
+const API_PROXY_DEFAULT_DEV_SERVER_ORIGIN = 'http://localhost:8081';
 
 const DEFAULT_SERVER: ApiProxyServerState = {
   running: false,
   port: 0,
   origin: '',
+  listenHost: '127.0.0.1',
+  listenHosts: ['127.0.0.1', '0.0.0.0'],
+  listenPort: API_PROXY_DEFAULT_PORT,
+  devServerOrigin: API_PROXY_DEFAULT_DEV_SERVER_ORIGIN,
 };
 
 export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
@@ -80,10 +107,15 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
   });
 
   private server?: http.Server;
+  private readonly apiProxyRequests = new WeakSet<IncomingMessage>();
+  private readonly apiProxyRequestTargets = new WeakMap<IncomingMessage, { source: string; target: string }>();
   private rules: ApiProxyRule[] = [];
   private groups: ApiProxyGroup[] = [];
   private logs: ApiProxyLogItem[] = [];
   private activeRuleId = '';
+  private proxyHost = DEFAULT_SERVER.listenHost;
+  private proxyPort = API_PROXY_DEFAULT_PORT;
+  private devServerOrigin = API_PROXY_DEFAULT_DEV_SERVER_ORIGIN;
   private serverState: ApiProxyServerState = DEFAULT_SERVER;
 
   constructor(private readonly extensionContextProvider: ExtensionContextProvider) {
@@ -164,6 +196,13 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       enabled: false,
       matchType: 'regex',
       match: '/ISAPI/(.*)',
+      matches: [
+        {
+          id: this.createId('match'),
+          match: '/ISAPI/(.*)',
+          target: '',
+        },
+      ],
       target: 'http://127.0.0.1:80',
       rewrite: '/ISAPI/$1',
       preserveQuery: true,
@@ -208,6 +247,13 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       enabled: false,
       matchType: 'regex',
       match: '/ISAPI/(.*)',
+      matches: [
+        {
+          id: this.createId('match'),
+          match: '/ISAPI/(.*)',
+          target: '',
+        },
+      ],
       target: 'http://127.0.0.1:80',
       rewrite: '/ISAPI/$1',
       preserveQuery: true,
@@ -426,12 +472,20 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
         await this.deleteRule(message);
         break;
 
+      case 'saveApiProxyServerOptions':
+        await this.saveServerOptions(message);
+        break;
+
       case 'startApiProxyServer':
-        await this.startServer();
+        await this.startServer(message);
         break;
 
       case 'stopApiProxyServer':
         this.stopServer();
+        break;
+
+      case 'openApiProxyExternal':
+        await this.openExternalWithConfirm(message.url);
         break;
 
       case 'clearApiProxyLogs':
@@ -445,6 +499,34 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     }
   }
 
+  private async openExternalWithConfirm(url?: string): Promise<void> {
+    const value = String(url || '').trim();
+
+    if (!value) return;
+
+    this.addLog('info', `准备在浏览器打开：${value}`, value);
+
+    let uri: vscode.Uri;
+
+    try {
+      uri = vscode.Uri.parse(value);
+    } catch {
+      void vscode.window.showWarningMessage(`无法打开无效地址：${value}`);
+      return;
+    }
+
+    if (uri.scheme !== 'http' && uri.scheme !== 'https') {
+      void vscode.window.showWarningMessage(`只支持打开 http/https 地址：${value}`);
+      return;
+    }
+
+    const confirmed = await vscode.window.showWarningMessage(`是否在浏览器打开：${value}`, { modal: true }, '打开');
+
+    if (confirmed !== '打开') return;
+
+    await vscode.env.openExternal(uri);
+  }
+
   private restoreState(): void {
     const context = this.extensionContextProvider.getContext();
     const state = context.workspaceState.get<{
@@ -452,12 +534,19 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       groups?: ApiProxyGroup[];
       logs?: ApiProxyLogItem[];
       activeRuleId?: string;
+      proxyHost?: string;
+      proxyPort?: number;
+      devServerOrigin?: string;
     }>(API_PROXY_STORAGE_KEY);
 
     this.rules = Array.isArray(state?.rules) ? state.rules : [];
     this.groups = Array.isArray(state?.groups) ? state.groups : [];
     this.logs = Array.isArray(state?.logs) ? state.logs : [];
     this.activeRuleId = state?.activeRuleId || this.rules[0]?.id || '';
+    this.proxyHost = this.normalizeListenHost(state?.proxyHost);
+    this.proxyPort = Number(state?.proxyPort) || API_PROXY_DEFAULT_PORT;
+    this.devServerOrigin = this.normalizeHttpOrigin(state?.devServerOrigin, API_PROXY_DEFAULT_DEV_SERVER_ORIGIN);
+    this.serverState = this.createStoppedServerState();
 
     this.syncGroupsWithRules();
   }
@@ -470,10 +559,26 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       groups: this.groups,
       logs: this.logs.slice(-300),
       activeRuleId: this.activeRuleId,
+      proxyHost: this.proxyHost,
+      proxyPort: this.proxyPort,
+      devServerOrigin: this.devServerOrigin,
     });
   }
 
-  private async startServer(): Promise<void> {
+  private async saveServerOptions(options: { listenHost?: string; listenPort?: number | string; devServerOrigin?: string }): Promise<void> {
+    if (this.serverState.running) {
+      this.postState();
+      return;
+    }
+
+    this.applyServerOptions(options);
+    this.serverState = this.createStoppedServerState();
+
+    await this.persistState();
+    this.postState();
+  }
+
+  private async startServer(options?: { listenHost?: string; listenPort?: number | string; devServerOrigin?: string }): Promise<void> {
     if (this.server) {
       this.serverState = {
         ...this.serverState,
@@ -483,27 +588,78 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       return;
     }
 
-    this.server = http.createServer((req, res) => {
+    this.applyServerOptions(options);
+    await this.persistState();
+
+    if (this.isListenSameAsDevServer()) {
+      const message = `代理监听地址不能和前端服务地址相同：${this.createProxyOrigin(this.proxyHost, this.proxyPort)}`;
+
+      this.addLog('error', message);
+      void vscode.window.showErrorMessage(message);
+      this.serverState = this.createStoppedServerState();
+      this.postState();
+      return;
+    }
+
+    const server = http.createServer((req, res) => {
       this.handleProxyRequest(req, res);
     });
 
-    this.server.on('error', (error) => {
-      this.addLog('error', `代理服务启动失败：${error.message}`);
-      this.stopServer();
+    server.on('upgrade', (req, socket, head) => {
+      this.handleProxyUpgrade(req, socket, head);
     });
 
-    await new Promise<void>((resolve, reject) => {
-      this.server?.listen(0, '127.0.0.1', () => resolve());
-      this.server?.once('error', reject);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const handleError = (error: NodeJS.ErrnoException) => {
+          server.off('listening', handleListening);
+          reject(error);
+        };
+
+        const handleListening = () => {
+          server.off('error', handleError);
+          resolve();
+        };
+
+        server.once('error', handleError);
+        server.once('listening', handleListening);
+        server.listen(this.proxyPort, this.proxyHost);
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      this.addLog('error', `代理服务启动失败：${message}`);
+      void vscode.window.showErrorMessage(`接口代理服务启动失败：${message}`);
+
+      try {
+        server.close();
+      } catch {
+        // ignore close errors from a server that failed before listening
+      }
+
+      this.serverState = this.createStoppedServerState();
+      this.postState();
+      return;
+    }
+
+    this.server = server;
+    this.server.on('error', (error) => {
+      this.addLog('error', `代理服务运行异常：${error.message}`);
+      this.stopServer();
     });
 
     const address = this.server.address();
     const port = typeof address === 'object' && address ? address.port : 0;
+    this.proxyPort = port || this.proxyPort;
 
     this.serverState = {
       running: true,
       port,
-      origin: port ? `http://127.0.0.1:${port}` : '',
+      origin: port ? this.createProxyOrigin(this.proxyHost, port) : '',
+      listenHost: this.proxyHost,
+      listenHosts: this.getListenHostOptions(),
+      listenPort: this.proxyPort,
+      devServerOrigin: this.devServerOrigin,
     };
 
     this.addLog('success', `代理服务已启动：${this.serverState.origin}`);
@@ -520,46 +676,177 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       this.addLog('info', '代理服务已停止');
     }
 
-    this.serverState = DEFAULT_SERVER;
+    this.serverState = this.createStoppedServerState();
     this.postState();
   }
 
-  private handleProxyRequest(req: IncomingMessage, res: ServerResponse): void {
-    const sourceUrl = this.getRequestUrl(req);
-    const matched = this.findMatchedRule(sourceUrl);
+  private applyServerOptions(options?: { listenHost?: string; listenPort?: number | string; devServerOrigin?: string }): void {
+    if (!options) return;
 
-    if (!matched) {
-      res.statusCode = 404;
-      res.setHeader('content-type', 'application/json; charset=utf-8');
-      res.end(
-        JSON.stringify({
-          message: '未命中代理规则',
-          url: sourceUrl.toString(),
-        }),
-      );
-      this.addLog('error', '未命中代理规则', sourceUrl.toString());
+    if (options.listenHost !== undefined) {
+      this.proxyHost = this.normalizeListenHost(options.listenHost);
+    }
+
+    if (options.listenPort !== undefined) {
+      this.proxyPort = this.normalizeListenPort(options.listenPort);
+    }
+
+    if (options.devServerOrigin !== undefined) {
+      this.devServerOrigin = this.normalizeHttpOrigin(options.devServerOrigin, this.devServerOrigin);
+    }
+  }
+
+  private normalizeListenHost(host?: string): string {
+    const value = String(host || '').trim();
+
+    if (!value) {
+      return DEFAULT_SERVER.listenHost;
+    }
+
+    try {
+      if (/^https?:\/\//i.test(value)) {
+        return new URL(value).hostname || DEFAULT_SERVER.listenHost;
+      }
+    } catch {
+      return DEFAULT_SERVER.listenHost;
+    }
+
+    return (
+      value
+        .replace(/^https?:\/\//i, '')
+        .replace(/\/.*$/, '')
+        .split(':')[0] || DEFAULT_SERVER.listenHost
+    );
+  }
+
+  private normalizeListenPort(port?: number | string): number {
+    const value = typeof port === 'number' ? port : Number(String(port || '').trim());
+
+    if (!Number.isFinite(value)) {
+      return API_PROXY_DEFAULT_PORT;
+    }
+
+    const normalizedPort = Math.floor(value);
+
+    if (normalizedPort <= 0 || normalizedPort > 65535) {
+      return API_PROXY_DEFAULT_PORT;
+    }
+
+    return normalizedPort;
+  }
+
+  private normalizeHttpOrigin(origin?: string, fallback: string = API_PROXY_DEFAULT_DEV_SERVER_ORIGIN): string {
+    const value = String(origin || '').trim();
+
+    if (!value) {
+      return fallback;
+    }
+
+    try {
+      const url = new URL(/^https?:\/\//i.test(value) ? value : `http://${value}`);
+
+      return `${url.protocol}//${url.host}`;
+    } catch {
+      return fallback;
+    }
+  }
+
+  private createStoppedServerState(): ApiProxyServerState {
+    return {
+      running: false,
+      port: 0,
+      origin: '',
+      listenHost: this.proxyHost,
+      listenHosts: this.getListenHostOptions(),
+      listenPort: this.proxyPort,
+      devServerOrigin: this.devServerOrigin,
+    };
+  }
+
+  private getListenHostOptions(): string[] {
+    const hosts = new Set<string>(['127.0.0.1', '0.0.0.0']);
+    const interfaces = os.networkInterfaces();
+
+    Object.values(interfaces).forEach((addresses) => {
+      (addresses || []).forEach((address) => {
+        if (!address || address.family !== 'IPv4' || address.internal) {
+          return;
+        }
+
+        hosts.add(address.address);
+      });
+    });
+
+    if (this.proxyHost) {
+      hosts.add(this.proxyHost);
+    }
+
+    return Array.from(hosts);
+  }
+
+  private createProxyOrigin(host: string, port: number): string {
+    const originHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host;
+    const normalizedHost = originHost.includes(':') && !originHost.startsWith('[') ? `[${originHost}]` : originHost;
+
+    return `http://${normalizedHost}:${port}`;
+  }
+
+  private isListenSameAsDevServer(): boolean {
+    try {
+      const devServerUrl = new URL(this.devServerOrigin);
+      const devServerPort = Number(devServerUrl.port || (devServerUrl.protocol === 'https:' ? 443 : 80));
+
+      if (devServerPort !== this.proxyPort) {
+        return false;
+      }
+
+      const listenHost = this.proxyHost.toLowerCase();
+      const devServerHost = devServerUrl.hostname.toLowerCase();
+      const localHosts = new Set(['127.0.0.1', 'localhost', '0.0.0.0', '::1', '::']);
+
+      return listenHost === devServerHost || (localHosts.has(listenHost) && localHosts.has(devServerHost));
+    } catch {
+      return false;
+    }
+  }
+
+  private handleProxyRequest(req: IncomingMessage, res: ServerResponse): void {
+    this.setCorsHeaders(res);
+
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      res.end();
       return;
     }
 
-    const targetUrl = this.resolveTargetUrl(matched, sourceUrl);
+    const sourceUrl = this.getRequestUrl(req);
+    const proxyTarget = this.resolveProxyTarget(sourceUrl);
 
-    if (!targetUrl) {
+    if (!proxyTarget?.targetUrl) {
       res.statusCode = 500;
       res.setHeader('content-type', 'application/json; charset=utf-8');
       res.end(
         JSON.stringify({
           message: '代理目标地址无效',
-          rule: matched.name,
+          url: sourceUrl.toString(),
         }),
       );
-      this.addLog('error', `代理目标地址无效：${matched.name}`, sourceUrl.toString());
+      this.addLog('error', '代理目标地址无效', sourceUrl.toString());
       return;
     }
 
+    const { targetUrl, matched } = proxyTarget;
     const targetOrigin = `${targetUrl.protocol}//${targetUrl.host}`;
     req.url = `${targetUrl.pathname}${targetUrl.search}`;
 
-    this.addLog('info', `${req.method || 'GET'} ${sourceUrl.pathname} -> ${targetUrl.toString()}`, sourceUrl.toString(), targetUrl.toString());
+    if (matched) {
+      this.apiProxyRequests.add(req);
+      this.apiProxyRequestTargets.set(req, {
+        source: sourceUrl.toString(),
+        target: targetUrl.toString(),
+      });
+      this.addLog('info', `${req.method || 'GET'} ${sourceUrl.pathname} -> ${targetUrl.toString()}`, sourceUrl.toString(), targetUrl.toString());
+    }
 
     this.proxy.web(req, res, {
       target: targetOrigin,
@@ -568,18 +855,78 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     });
   }
 
+  private handleProxyUpgrade(req: IncomingMessage, socket: Socket, head: Buffer): void {
+    const sourceUrl = this.getRequestUrl(req);
+    const proxyTarget = this.resolveProxyTarget(sourceUrl);
+
+    if (!proxyTarget?.targetUrl) {
+      socket.destroy();
+      return;
+    }
+
+    const { targetUrl } = proxyTarget;
+    const targetOrigin = `${targetUrl.protocol}//${targetUrl.host}`;
+    req.url = `${targetUrl.pathname}${targetUrl.search}`;
+
+    this.proxy.ws(req, socket, head, {
+      target: targetOrigin,
+      changeOrigin: true,
+      secure: false,
+    });
+  }
+
   private registerProxyEvents(): void {
     this.proxy.on('proxyRes', (proxyRes, req) => {
-      const statusCode = proxyRes.statusCode || 0;
-      const level = statusCode >= 400 ? 'error' : 'success';
+      proxyRes.headers['access-control-allow-origin'] = '*';
+      proxyRes.headers['access-control-allow-methods'] = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
+      proxyRes.headers['access-control-allow-headers'] = '*';
 
-      this.addLog(level, `${req.method || 'GET'} ${req.url || ''} 响应 ${statusCode}`);
+      if (!this.apiProxyRequests.has(req)) {
+        return;
+      }
+
+      const targetInfo = this.apiProxyRequestTargets.get(req);
+      const chunks: Buffer[] = [];
+      let receivedSize = 0;
+      const maxLogBodySize = 4096;
+
+      proxyRes.on('data', (chunk: Buffer) => {
+        if (receivedSize >= maxLogBodySize) {
+          return;
+        }
+
+        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        const nextChunk = buffer.subarray(0, Math.max(0, maxLogBodySize - receivedSize));
+
+        chunks.push(nextChunk);
+        receivedSize += nextChunk.length;
+      });
+
+      proxyRes.on('end', () => {
+        const statusCode = proxyRes.statusCode || 0;
+        const level = statusCode >= 400 ? 'error' : 'success';
+        const responseBody = Buffer.concat(chunks).toString('utf8').trim();
+        const detail = [
+          targetInfo?.target ? `target: ${targetInfo.target}` : '',
+          responseBody ? `response: ${responseBody}${receivedSize >= maxLogBodySize ? '\n...响应内容过长，已截断' : ''}` : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+
+        this.addLog(level, `${req.method || 'GET'} ${targetInfo?.source || req.url || ''} 响应 ${statusCode}`, targetInfo?.source, detail || targetInfo?.target);
+        this.apiProxyRequestTargets.delete(req);
+      });
     });
 
     this.proxy.on('error', (error, req, res) => {
-      this.addLog('error', `代理转发失败：${error.message}`, this.getRequestUrl(req).toString());
+      const targetInfo = this.apiProxyRequestTargets.get(req);
+
+      this.addLog('error', `代理转发失败：${error.message}`, targetInfo?.source || this.getRequestUrl(req).toString(), targetInfo?.target);
+      this.apiProxyRequestTargets.delete(req);
 
       if (!this.isServerResponse(res) || res.headersSent) return;
+
+      this.setCorsHeaders(res);
 
       res.writeHead(502, {
         'content-type': 'application/json; charset=utf-8',
@@ -593,38 +940,94 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     });
   }
 
+  private setCorsHeaders(res: ServerResponse): void {
+    res.setHeader('access-control-allow-origin', '*');
+    res.setHeader('access-control-allow-methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
+    res.setHeader('access-control-allow-headers', '*');
+  }
+
   private isServerResponse(res: unknown): res is ServerResponse {
     return !!res && typeof (res as ServerResponse).writeHead === 'function';
   }
 
-  private findMatchedRule(sourceUrl: URL): ApiProxyRule | null {
-    const enabledRules = this.rules.filter((rule) => rule.enabled && rule.match.trim());
+  private getRuleMatchItems(rule: ApiProxyRule): ApiProxyMatchItem[] {
+    const matches = Array.isArray(rule.matches) && rule.matches.length > 0 ? rule.matches : [{ id: `${rule.id}-legacy`, match: rule.match, target: '' }];
+
+    return matches.filter((item) => String(item.match || '').trim());
+  }
+
+  private findMatchedRule(sourceUrl: URL): ApiProxyMatchedRule | null {
+    const enabledRules = this.rules.filter((rule) => rule.enabled && this.getRuleMatchItems(rule).length > 0);
     const pathname = sourceUrl.pathname;
     const fullUrl = sourceUrl.toString();
 
-    return (
-      enabledRules.find((rule) => {
-        if (rule.matchType === 'exact') {
-          return rule.match === pathname || rule.match === fullUrl;
+    for (const rule of enabledRules) {
+      for (const matchItem of this.getRuleMatchItems(rule)) {
+        const matchValue = matchItem.match.trim();
+
+        if (rule.matchType === 'exact' && (matchValue === pathname || matchValue === fullUrl)) {
+          return {
+            rule,
+            match: matchValue,
+            target: matchItem.target,
+          };
+        }
+
+        if (rule.matchType !== 'regex') {
+          continue;
         }
 
         try {
-          const regex = new RegExp(rule.match);
+          const regex = new RegExp(matchValue);
 
-          return regex.test(pathname) || regex.test(fullUrl);
+          if (regex.test(pathname) || regex.test(fullUrl)) {
+            return {
+              rule,
+              match: matchValue,
+              target: matchItem.target,
+            };
+          }
         } catch {
-          return false;
+          // Invalid regex rules are ignored while matching.
         }
-      }) || null
-    );
+      }
+    }
+
+    return null;
   }
 
-  private resolveTargetUrl(rule: ApiProxyRule, sourceUrl: URL): URL | null {
+  private resolveProxyTarget(sourceUrl: URL): { targetUrl: URL; matched: ApiProxyMatchedRule | null } | null {
+    const matched = this.findMatchedRule(sourceUrl);
+
+    if (matched) {
+      const targetUrl = this.resolveTargetUrl(matched.rule, sourceUrl, matched.match, matched.target);
+
+      return targetUrl
+        ? {
+            targetUrl,
+            matched,
+          }
+        : null;
+    }
+
+    return {
+      targetUrl: this.resolveDevServerTargetUrl(sourceUrl),
+      matched: null,
+    };
+  }
+
+  private resolveDevServerTargetUrl(sourceUrl: URL): URL {
+    return new URL(`${sourceUrl.pathname}${sourceUrl.search}`, this.devServerOrigin);
+  }
+
+  private resolveTargetUrl(rule: ApiProxyRule, sourceUrl: URL, matchValue: string = rule.match, targetOverride?: string): URL | null {
     try {
       const pathname = sourceUrl.pathname;
       const fullUrl = sourceUrl.toString();
-      const rewriteValue = this.resolveRewriteValue(rule, pathname, fullUrl);
-      const targetUrl = /^https?:\/\//i.test(rewriteValue) ? new URL(rewriteValue) : new URL(rewriteValue || pathname, this.ensureTargetOrigin(rule.target));
+      const rewriteValue = this.resolveRewriteValue(rule, pathname, fullUrl, matchValue);
+      const targetUrl = /^https?:\/\//i.test(rewriteValue)
+        ? new URL(rewriteValue)
+        : new URL(rewriteValue || pathname, this.ensureTargetOrigin(String(targetOverride || '').trim() || rule.target));
 
       if (rule.preserveQuery && !targetUrl.search) {
         targetUrl.search = sourceUrl.search;
@@ -636,7 +1039,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     }
   }
 
-  private resolveRewriteValue(rule: ApiProxyRule, pathname: string, fullUrl: string): string {
+  private resolveRewriteValue(rule: ApiProxyRule, pathname: string, fullUrl: string, matchValue: string = rule.match): string {
     if (!rule.rewrite?.trim()) {
       return pathname;
     }
@@ -645,7 +1048,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       return rule.rewrite.trim();
     }
 
-    const regex = new RegExp(rule.match);
+    const regex = new RegExp(matchValue);
 
     if (regex.test(pathname)) {
       return pathname.replace(regex, rule.rewrite.trim());
