@@ -45,6 +45,10 @@ type ApiProxyWebviewMessage =
   | { type: 'saveApiProxyRules'; rules: ApiProxyRule[] }
   | { type: 'saveApiProxyGroups'; groups: ApiProxyGroup[] }
   | { type: 'openApiProxyEditor'; ruleId?: string }
+  | { type: 'createApiProxyInGroup'; groupId?: string; groupName?: string; collapsed?: boolean; ruleIds?: string[] }
+  | { type: 'renameApiProxyGroup'; groupId: string; groupName?: string; collapsed?: boolean; ruleIds?: string[] }
+  | { type: 'deleteApiProxyGroup'; groupId: string; groupName?: string }
+  | { type: 'deleteApiProxyRule'; ruleId: string; ruleName?: string }
   | { type: 'startApiProxyServer' }
   | { type: 'stopApiProxyServer' }
   | { type: 'clearApiProxyLogs' };
@@ -185,6 +189,150 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     await this.openEditor(rule.id);
   }
 
+  private async createProxyInGroup(message: Extract<ApiProxyWebviewMessage, { type: 'createApiProxyInGroup' }>): Promise<void> {
+    const name = await vscode.window.showInputBox({
+      title: '新建代理',
+      prompt: '请输入代理名称',
+      placeHolder: '例如：登录接口',
+      value: '新建代理',
+      ignoreFocusOut: true,
+    });
+
+    const proxyName = name?.trim();
+
+    if (!proxyName) return;
+
+    const rule: ApiProxyRule = {
+      id: this.createId('proxy'),
+      name: proxyName,
+      enabled: false,
+      matchType: 'regex',
+      match: '/ISAPI/(.*)',
+      target: 'http://127.0.0.1:80',
+      rewrite: '/ISAPI/$1',
+      preserveQuery: true,
+    };
+
+    this.rules = [...this.rules, rule];
+
+    if (message.groupId && message.groupId !== 'ungrouped') {
+      const exists = this.groups.some((group) => group.id === message.groupId);
+
+      this.groups = exists
+        ? this.groups.map((group) =>
+            group.id === message.groupId
+              ? {
+                  ...group,
+                  ruleIds: [...new Set([...(group.ruleIds || []), rule.id])],
+                }
+              : group,
+          )
+        : [
+            ...this.groups,
+            {
+              id: message.groupId,
+              name: message.groupName || '默认分组',
+              collapsed: !!message.collapsed,
+              ruleIds: [...new Set([...(message.ruleIds || []), rule.id])],
+            },
+          ];
+    }
+
+    this.activeRuleId = rule.id;
+    this.syncGroupsWithRules();
+    await this.persistState();
+    this.postState();
+    await this.openEditor(rule.id);
+  }
+
+  private async renameGroup(message: Extract<ApiProxyWebviewMessage, { type: 'renameApiProxyGroup' }>): Promise<void> {
+    if (!message.groupId || message.groupId === 'ungrouped') return;
+
+    const name = await vscode.window.showInputBox({
+      title: '分组重命名',
+      prompt: '请输入新的分组名称',
+      value: message.groupName || '默认分组',
+      ignoreFocusOut: true,
+    });
+
+    const groupName = name?.trim();
+
+    if (!groupName || groupName === message.groupName) return;
+
+    const exists = this.groups.some((group) => group.id === message.groupId);
+
+    this.groups = exists
+      ? this.groups.map((group) =>
+          group.id === message.groupId
+            ? {
+                ...group,
+                name: groupName,
+              }
+            : group,
+        )
+      : [
+          ...this.groups,
+          {
+            id: message.groupId,
+            name: groupName,
+            collapsed: !!message.collapsed,
+            ruleIds: message.ruleIds || [],
+          },
+        ];
+
+    this.syncGroupsWithRules();
+    await this.persistState();
+    this.postState();
+  }
+
+  private async deleteGroup(message: Extract<ApiProxyWebviewMessage, { type: 'deleteApiProxyGroup' }>): Promise<void> {
+    if (!message.groupId || message.groupId === 'ungrouped') return;
+    if (!this.groups.some((group) => group.id === message.groupId)) return;
+
+    const groupName = message.groupName || '未命名分组';
+    const confirmed = await vscode.window.showWarningMessage(`确定删除分组「${groupName}」吗？分组里的代理会移动到未分组。`, { modal: true }, '删除分组');
+
+    if (confirmed !== '删除分组') return;
+
+    this.groups = this.groups.filter((group) => group.id !== message.groupId);
+    this.syncGroupsWithRules();
+    await this.persistState();
+    this.postState();
+  }
+
+  private async deleteRule(message: Extract<ApiProxyWebviewMessage, { type: 'deleteApiProxyRule' }>): Promise<void> {
+    if (!message.ruleId) return;
+
+    const rule = this.rules.find((item) => item.id === message.ruleId);
+
+    if (!rule) return;
+
+    if (rule.enabled) {
+      await vscode.window.showWarningMessage(`代理「${rule.name || message.ruleName || '未命名代理'}」正在启用，不能删除。请先停止代理后再删除。`);
+      return;
+    }
+
+    const ruleName = rule.name || message.ruleName || '未命名代理';
+    const confirmed = await vscode.window.showWarningMessage(`确定删除代理「${ruleName}」吗？`, { modal: true }, '删除代理');
+
+    if (confirmed !== '删除代理') return;
+
+    this.rules = this.rules.filter((item) => item.id !== rule.id);
+    this.groups = this.groups.map((group) => ({
+      ...group,
+      ruleIds: (group.ruleIds || []).filter((ruleId) => ruleId !== rule.id),
+    }));
+
+    if (this.activeRuleId === rule.id) {
+      this.activeRuleId = '';
+      this.postActiveRuleChanged();
+    }
+
+    this.syncGroupsWithRules();
+    await this.persistState();
+    this.postState();
+  }
+
   public async openEditor(ruleId?: string): Promise<void> {
     const context = this.extensionContextProvider.getContext();
 
@@ -196,6 +344,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     if (this.editorPanel) {
       this.editorPanel.reveal(vscode.ViewColumn.One);
       this.postState();
+      this.postActiveRuleChanged();
       return;
     }
 
@@ -225,6 +374,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     );
 
     this.postState();
+    this.postActiveRuleChanged();
   }
 
   public dispose(): void {
@@ -258,6 +408,22 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
 
       case 'openApiProxyEditor':
         await this.openEditor(message.ruleId);
+        break;
+
+      case 'createApiProxyInGroup':
+        await this.createProxyInGroup(message);
+        break;
+
+      case 'renameApiProxyGroup':
+        await this.renameGroup(message);
+        break;
+
+      case 'deleteApiProxyGroup':
+        await this.deleteGroup(message);
+        break;
+
+      case 'deleteApiProxyRule':
+        await this.deleteRule(message);
         break;
 
       case 'startApiProxyServer':
@@ -575,6 +741,13 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
 
     void this.view?.webview.postMessage(message);
     void this.editorPanel?.webview.postMessage(message);
+  }
+
+  private postActiveRuleChanged(): void {
+    void this.view?.webview.postMessage({
+      type: 'apiProxyActiveRuleChanged',
+      activeRuleId: this.activeRuleId,
+    });
   }
 
   private createId(prefix: string): string {

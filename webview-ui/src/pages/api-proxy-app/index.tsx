@@ -39,6 +39,7 @@ interface ApiProxyStateMessage {
   rules?: ApiProxyRule[];
   groups?: ApiProxyGroup[];
   server?: ApiProxyServerState;
+  activeRuleId?: string;
 }
 
 const DEFAULT_SERVER: ApiProxyServerState = {
@@ -47,32 +48,20 @@ const DEFAULT_SERVER: ApiProxyServerState = {
   origin: '',
 };
 
-const createApiProxyId = (prefix: string) => {
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-};
-
-const createDefaultProxyRule = (name: string): ApiProxyRule => {
-  return {
-    id: createApiProxyId('proxy'),
-    name,
-    enabled: false,
-    matchType: 'regex',
-    match: '/ISAPI/(.*)',
-    target: 'http://127.0.0.1:80',
-    rewrite: '/ISAPI/$1',
-    preserveQuery: true,
-  };
-};
-
 export default function ApiProxyListApp() {
   const [rules, setRules] = useState<ApiProxyRule[]>([]);
   const [groups, setGroups] = useState<ApiProxyGroup[]>([]);
-  const [server, setServer] = useState<ApiProxyServerState>(DEFAULT_SERVER);
+  const [, setServer] = useState<ApiProxyServerState>(DEFAULT_SERVER);
   const [activeRuleId, setActiveRuleId] = useState('');
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent<ApiProxyStateMessage>) => {
       const message = event.data;
+
+      if (message?.type === 'apiProxyActiveRuleChanged') {
+        setActiveRuleId(message.activeRuleId || '');
+        return;
+      }
 
       if (message?.type !== 'apiProxyState') return;
 
@@ -186,89 +175,36 @@ export default function ApiProxyListApp() {
   };
 
   const createProxyInGroup = (group: ApiProxyVisibleGroup) => {
-    const name = window.prompt('请输入代理名称', '新建代理')?.trim();
-
-    if (!name) return;
-
-    const rule = createDefaultProxyRule(name);
-    const nextRules = [...rules, rule];
-    const exists = groups.some((item) => item.id === group.id);
-
-    if (group.id !== 'ungrouped') {
-      const nextGroups = exists
-        ? groups.map((item) =>
-            item.id === group.id
-              ? {
-                  ...item,
-                  ruleIds: [...new Set([...(item.ruleIds || []), rule.id])],
-                }
-              : item,
-          )
-        : [
-            ...groups,
-            {
-              id: group.id,
-              name: group.name || '默认分组',
-              collapsed: false,
-              ruleIds: [...new Set([...(group.ruleIds || []), rule.id])],
-            },
-          ];
-
-      saveGroups(nextGroups);
-    }
-
-    saveRules(nextRules);
-    setActiveRuleId(rule.id);
-
     vscode.postMessage({
-      type: 'openApiProxyEditor',
-      ruleId: rule.id,
+      type: 'createApiProxyInGroup',
+      groupId: group.id,
+      groupName: group.name,
+      collapsed: !!group.collapsed,
+      ruleIds: group.ruleIds || [],
     });
   };
 
   const renameGroup = (group: ApiProxyVisibleGroup) => {
     if (group.id === 'ungrouped') return;
 
-    const name = window.prompt('请输入新的分组名称', group.name || '默认分组')?.trim();
-
-    if (!name || name === group.name) return;
-
-    const exists = groups.some((item) => item.id === group.id);
-
-    if (!exists) {
-      saveGroups([
-        ...groups,
-        {
-          id: group.id,
-          name,
-          collapsed: !!group.collapsed,
-          ruleIds: group.ruleIds || [],
-        },
-      ]);
-      return;
-    }
-
-    saveGroups(
-      groups.map((item) =>
-        item.id === group.id
-          ? {
-              ...item,
-              name,
-            }
-          : item,
-      ),
-    );
+    vscode.postMessage({
+      type: 'renameApiProxyGroup',
+      groupId: group.id,
+      groupName: group.name,
+      collapsed: !!group.collapsed,
+      ruleIds: group.ruleIds || [],
+    });
   };
 
   const deleteGroup = (group: ApiProxyVisibleGroup) => {
     if (group.id === 'ungrouped') return;
     if (!groups.some((item) => item.id === group.id)) return;
 
-    const confirmed = window.confirm(`确定删除分组「${group.name || '未命名分组'}」吗？分组里的代理会移动到未分组。`);
-
-    if (!confirmed) return;
-
-    saveGroups(groups.filter((item) => item.id !== group.id));
+    vscode.postMessage({
+      type: 'deleteApiProxyGroup',
+      groupId: group.id,
+      groupName: group.name,
+    });
   };
 
   const startRule = (rule: ApiProxyRule) => {
@@ -317,24 +253,11 @@ export default function ApiProxyListApp() {
   };
 
   const deleteRule = (rule: ApiProxyRule) => {
-    const nextRules = rules.filter((item) => item.id !== rule.id);
-    const nextGroups = groups.map((group) => ({
-      ...group,
-      ruleIds: (group.ruleIds || []).filter((ruleId) => ruleId !== rule.id),
-    }));
-
-    saveGroups(nextGroups);
-    saveRules(nextRules);
-
-    if (activeRuleId === rule.id) {
-      setActiveRuleId('');
-    }
-
-    if (!nextRules.some((item) => item.enabled)) {
-      vscode.postMessage({
-        type: 'stopApiProxyServer',
-      });
-    }
+    vscode.postMessage({
+      type: 'deleteApiProxyRule',
+      ruleId: rule.id,
+      ruleName: rule.name,
+    });
   };
 
   return (
@@ -403,7 +326,7 @@ export default function ApiProxyListApp() {
                     key={rule.id}
                     rule={rule}
                     active={activeRuleId === rule.id}
-                    running={server.running && rule.enabled}
+                    running={rule.enabled}
                     onStart={startRule}
                     onStop={stopRule}
                     onEdit={editRule}

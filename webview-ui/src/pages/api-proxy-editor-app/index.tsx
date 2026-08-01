@@ -178,10 +178,6 @@ export default function ApiProxyEditorApp() {
               </div>
 
               <BaseForm labelWidth={76}>
-                <BaseFormItem label="启用">
-                  <input type="checkbox" checked={activeRule.enabled} onChange={(event) => updateRule({ enabled: event.target.checked })} />
-                </BaseFormItem>
-
                 <BaseFormItem label="名称" required validateStatus={activeRule.name.trim() ? undefined : 'error'} help={activeRule.name.trim() ? undefined : '请输入代理名称'}>
                   <BaseInput
                     value={activeRule.name}
