@@ -568,7 +568,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
         }))
       : [];
     this.groups = Array.isArray(state?.groups) ? state.groups : [];
-    this.logs = Array.isArray(state?.logs) ? state.logs : [];
+    this.logs = [];
     this.activeRuleId = state?.activeRuleId || this.rules[0]?.id || '';
     this.proxyHost = this.normalizeListenHost(state?.proxyHost);
     this.proxyPort = Number(state?.proxyPort) || API_PROXY_DEFAULT_PORT;
@@ -739,11 +739,8 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       this.server = undefined;
     }
 
-    if (this.serverState.running) {
-      this.addLog('info', '代理服务已停止');
-    }
-
     this.disableEnabledRules();
+    this.logs = [];
     this.serverState = this.createStoppedServerState();
     await this.persistState();
     this.postState();

@@ -80,7 +80,7 @@
 .log-message-arrow {
   margin: 0 6px;
   color: var(--proxy-muted);
-  font-size: 12px;
+  font: 12px / 1 codicon !important;
   vertical-align: -1px;
 }
 
