@@ -59,6 +59,16 @@ interface ApiProxyServerState {
   devServerOrigin: string;
 }
 
+interface ApiProxyPersistedState {
+  rules?: ApiProxyRule[];
+  groups?: ApiProxyGroup[];
+  logs?: ApiProxyLogItem[];
+  activeRuleId?: string;
+  proxyHost?: string;
+  proxyPort?: number;
+  devServerOrigin?: string;
+}
+
 type ApiProxyWebviewMessage =
   | { type: 'apiProxyReady' }
   | { type: 'saveApiProxyRules'; rules: ApiProxyRule[] }
@@ -424,8 +434,8 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     this.postActiveRuleChanged();
   }
 
-  public dispose(): void {
-    this.stopServer();
+  public async dispose(): Promise<void> {
+    await this.shutdownServerOnDispose();
     this.proxy.close();
 
     while (this.disposables.length > 0) {
@@ -486,7 +496,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
         break;
 
       case 'stopApiProxyServer':
-        this.stopServer();
+        await this.stopServer();
         break;
 
       case 'openApiProxyExternal':
@@ -547,17 +557,16 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
 
   private restoreState(): void {
     const context = this.extensionContextProvider.getContext();
-    const state = context.workspaceState.get<{
-      rules?: ApiProxyRule[];
-      groups?: ApiProxyGroup[];
-      logs?: ApiProxyLogItem[];
-      activeRuleId?: string;
-      proxyHost?: string;
-      proxyPort?: number;
-      devServerOrigin?: string;
-    }>(API_PROXY_STORAGE_KEY);
+    const globalState = context.globalState.get<ApiProxyPersistedState>(API_PROXY_STORAGE_KEY);
+    const workspaceState = context.workspaceState.get<ApiProxyPersistedState>(API_PROXY_STORAGE_KEY);
+    const state = globalState || workspaceState;
 
-    this.rules = Array.isArray(state?.rules) ? state.rules : [];
+    this.rules = Array.isArray(state?.rules)
+      ? state.rules.map((rule) => ({
+          ...rule,
+          enabled: false,
+        }))
+      : [];
     this.groups = Array.isArray(state?.groups) ? state.groups : [];
     this.logs = Array.isArray(state?.logs) ? state.logs : [];
     this.activeRuleId = state?.activeRuleId || this.rules[0]?.id || '';
@@ -567,12 +576,13 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     this.serverState = this.createStoppedServerState();
 
     this.syncGroupsWithRules();
+
+    void this.persistState();
   }
 
   private async persistState(): Promise<void> {
     const context = this.extensionContextProvider.getContext();
-
-    await context.workspaceState.update(API_PROXY_STORAGE_KEY, {
+    const state = {
       rules: this.rules,
       groups: this.groups,
       logs: this.logs.slice(-300),
@@ -580,7 +590,10 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       proxyHost: this.proxyHost,
       proxyPort: this.proxyPort,
       devServerOrigin: this.devServerOrigin,
-    });
+    };
+
+    await context.globalState.update(API_PROXY_STORAGE_KEY, state);
+    await context.workspaceState.update(API_PROXY_STORAGE_KEY, undefined);
   }
 
   private async saveServerOptions(options: { listenHost?: string; listenPort?: number | string; devServerOrigin?: string }): Promise<void> {
@@ -698,7 +711,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     this.server = server;
     this.server.on('error', (error) => {
       this.addLog('error', `代理服务运行异常：${error.message}`);
-      this.stopServer();
+      void this.stopServer();
     });
 
     const address = this.server.address();
@@ -720,7 +733,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     this.postState();
   }
 
-  private stopServer(): void {
+  private async stopServer(): Promise<void> {
     if (this.server) {
       this.server.close();
       this.server = undefined;
@@ -730,8 +743,22 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       this.addLog('info', '代理服务已停止');
     }
 
+    this.disableEnabledRules();
     this.serverState = this.createStoppedServerState();
+    await this.persistState();
     this.postState();
+  }
+
+  private async shutdownServerOnDispose(): Promise<void> {
+    if (this.server) {
+      this.server.close();
+      this.server = undefined;
+    }
+
+    this.disableEnabledRules();
+    this.serverState = this.createStoppedServerState();
+
+    await this.persistState();
   }
 
   private applyServerOptions(options?: { listenHost?: string; listenPort?: number | string; devServerOrigin?: string }): void {
@@ -974,8 +1001,10 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
 
     this.proxy.on('error', (error, req, res) => {
       const targetInfo = this.apiProxyRequestTargets.get(req);
+      const proxyErrorMessage = this.getProxyErrorMessage(error, targetInfo?.target);
+      const proxyErrorDetail = this.getProxyErrorDetail(error, targetInfo?.target);
 
-      this.addLog('error', `代理转发失败：${error.message}`, targetInfo?.source || this.getRequestUrl(req).toString(), targetInfo?.target);
+      this.addLog('error', proxyErrorMessage, targetInfo?.source || this.getRequestUrl(req).toString(), proxyErrorDetail);
       this.apiProxyRequestTargets.delete(req);
 
       if (!this.isServerResponse(res) || res.headersSent) return;
@@ -989,9 +1018,51 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
         JSON.stringify({
           message: '代理转发失败',
           error: error.message,
+          target: targetInfo?.target,
+          suggestion: this.getProxyErrorSuggestion(error),
         }),
       );
     });
+  }
+
+  private getProxyErrorMessage(error: Error, target?: string): string {
+    const code = (error as NodeJS.ErrnoException).code;
+
+    if (code === 'ECONNREFUSED') {
+      return `代理转发失败：目标服务未启动或端口不可达`;
+    }
+
+    if (code === 'ENOTFOUND') {
+      return `代理转发失败：目标主机无法解析`;
+    }
+
+    if (code === 'ETIMEDOUT' || code === 'ECONNRESET') {
+      return `代理转发失败：目标服务连接超时或连接被重置`;
+    }
+
+    return `代理转发失败：${error.message || target || '未知错误'}`;
+  }
+
+  private getProxyErrorSuggestion(error: Error): string {
+    const code = (error as NodeJS.ErrnoException).code;
+
+    if (code === 'ECONNREFUSED') {
+      return '请确认转发目标服务已经启动，并且端口和地址填写正确。';
+    }
+
+    if (code === 'ENOTFOUND') {
+      return '请确认转发目标的域名或主机地址填写正确。';
+    }
+
+    if (code === 'ETIMEDOUT' || code === 'ECONNRESET') {
+      return '请确认目标服务网络可达，或目标服务没有主动断开连接。';
+    }
+
+    return '请查看代理日志中的 from/to 地址确认请求是否转发到预期服务。';
+  }
+
+  private getProxyErrorDetail(error: Error, target?: string): string {
+    return [target ? `target: ${target}` : '', error.message ? `error: ${error.message}` : '', `suggestion: ${this.getProxyErrorSuggestion(error)}`].filter(Boolean).join('\n');
   }
 
   private setCorsHeaders(res: ServerResponse): void {

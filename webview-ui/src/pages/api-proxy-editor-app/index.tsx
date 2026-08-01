@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type MouseEvent } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { vscode } from '@utils/vscode';
 import BaseButton from '@components/BaseButton';
 import { BaseForm, BaseFormItem } from '@components/BaseForm';
 import BaseInput from '@components/BaseInput';
 import BaseSelect from '@components/BaseSelection';
+import ApiProxyLogList from '@pages/api-proxy-editor-app/components/api-proxy-log-list';
 import styles from '@pages/api-proxy-editor-app/index.module.css';
 
 type ApiProxyMatchType = 'exact' | 'regex';
@@ -77,10 +78,6 @@ function createLocalMatchId() {
   localMatchIdSeed += 1;
 
   return `match-local-${localMatchIdSeed}`;
-}
-
-function formatTime(time: number) {
-  return time ? new Date(time).toLocaleTimeString() : '';
 }
 
 function createProxyOrigin(host: string, port: number) {
@@ -180,6 +177,8 @@ export default function ApiProxyEditorApp() {
   const [server, setServer] = useState<ApiProxyServerState>(DEFAULT_SERVER);
   const [activeId, setActiveId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [expandedLogIds, setExpandedLogIds] = useState<Set<string>>(new Set());
+  const [logPanelWidth, setLogPanelWidth] = useState(510);
   const saveTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -196,6 +195,18 @@ export default function ApiProxyEditorApp() {
       setLogs(Array.isArray(message.logs) ? message.logs : []);
       setServer(message.server || DEFAULT_SERVER);
       setActiveId(nextActiveId);
+      setExpandedLogIds((prev) => {
+        const nextLogIds = new Set((message.logs || []).map((log) => log.id));
+        const next = new Set<string>();
+
+        prev.forEach((id) => {
+          if (nextLogIds.has(id)) {
+            next.add(id);
+          }
+        });
+
+        return next;
+      });
     };
 
     window.addEventListener('message', handleMessage);
@@ -339,9 +350,54 @@ export default function ApiProxyEditorApp() {
   };
 
   const clearLogs = () => {
+    setExpandedLogIds(new Set());
     vscode.postMessage({
       type: 'clearApiProxyLogs',
     });
+  };
+
+  const toggleLogDetail = (logId: string) => {
+    setExpandedLogIds((prev) => {
+      const next = new Set(prev);
+
+      if (next.has(logId)) {
+        next.delete(logId);
+      } else {
+        next.add(logId);
+      }
+
+      return next;
+    });
+  };
+
+  const handleLogPanelResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+
+    const startX = event.clientX;
+    const startWidth = logPanelWidth;
+    const minWidth = 320;
+    const maxWidth = Math.max(420, Math.floor(window.innerWidth * 0.62));
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const nextWidth = Math.min(maxWidth, Math.max(minWidth, startWidth + startX - moveEvent.clientX));
+
+      setLogPanelWidth(nextWidth);
+    };
+
+    const handlePointerUp = () => {
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
   };
 
   const openBrowserEntry = (event?: MouseEvent<HTMLButtonElement>) => {
@@ -563,7 +619,9 @@ export default function ApiProxyEditorApp() {
               </section>
             </section>
 
-            <section className={styles['log-panel']}>
+            <section className={styles['log-panel']} style={{ width: logPanelWidth }}>
+              <div className={styles['log-resize-handle']} title="拖拽调整日志宽度" onPointerDown={handleLogPanelResizePointerDown} />
+
               <div className={styles['log-header']}>
                 <span>代理日志</span>
 
@@ -572,30 +630,7 @@ export default function ApiProxyEditorApp() {
                 </BaseButton>
               </div>
 
-              <div className={styles['log-list']}>
-                {logs.length === 0 ? (
-                  <div className={styles['empty']}>暂无日志</div>
-                ) : (
-                  logs
-                    .slice()
-                    .reverse()
-                    .map((log) => (
-                      <div key={log.id} className={[styles['log-item'], styles[`log-${log.level}`]].filter(Boolean).join(' ')}>
-                        <div className={styles['log-main']}>
-                          <span className={styles['log-time']}>{formatTime(log.time)}</span>
-                          <span className={styles['log-message']}>{log.message}</span>
-                        </div>
-
-                        {(log.from || log.to) && (
-                          <div className={styles['log-detail']}>
-                            {log.from && <div>from: {log.from}</div>}
-                            {log.to && <div>to: {log.to}</div>}
-                          </div>
-                        )}
-                      </div>
-                    ))
-                )}
-              </div>
+              <ApiProxyLogList logs={logs} expandedLogIds={expandedLogIds} onToggleLogDetail={toggleLogDetail} />
             </section>
           </>
         )}
