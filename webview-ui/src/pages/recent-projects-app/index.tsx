@@ -37,6 +37,7 @@ export default function RecentProjectsApp() {
   const [searchQuery, setSearchQuery] = useState<string>(getInitialSearchQuery);
 
   const [selectedPath, setSelectedPath] = useState<string>('');
+  const selectedPathRef = useRef('');
   const autoScrollTarget = useRef<string | null>(null);
   const listScrollbarRef = useRef<ScrollbarInstance>(null);
 
@@ -60,6 +61,10 @@ export default function RecentProjectsApp() {
   useEffect(() => {
     projectsRef.current = projects;
   }, [projects]);
+
+  useEffect(() => {
+    selectedPathRef.current = selectedPath;
+  }, [selectedPath]);
 
   const currentWorkspaceRef = useRef<Project | null>(null);
 
@@ -1205,6 +1210,10 @@ export default function RecentProjectsApp() {
         });
       } else if (msg.type === 'activeEditorChanged') {
         setSelectedPath(msg.fsPath as string);
+      } else if (msg.type === 'beginCreateFileInFocusMode') {
+        beginCreateEntityFromFocusSelection('file');
+      } else if (msg.type === 'beginCreateFolderInFocusMode') {
+        beginCreateEntityFromFocusSelection('folder');
       } else if (msg.type === 'searchContentChanged') {
         const changedPaths = ((msg.paths as string[]) || []).filter(Boolean);
 
@@ -2096,6 +2105,44 @@ export default function RecentProjectsApp() {
         ...prev,
         [parentPath]: [],
       };
+    });
+  };
+
+  const getLoadedTreeItemByPath = (pathValue: string) => {
+    const normalizedPath = normalizePatchPath(pathValue);
+
+    if (!normalizedPath) return null;
+
+    for (const children of Object.values(dirChildrenRef.current)) {
+      const matched = children.find((child) => normalizePatchPath(child.path) === normalizedPath);
+
+      if (matched) {
+        return matched;
+      }
+    }
+
+    return null;
+  };
+
+  const beginCreateEntityFromFocusSelection = (type: 'file' | 'folder') => {
+    const rootPath = focusRootPathRef.current || getCurrentWorkspacePath();
+
+    if (!rootPath) return;
+
+    const currentSelectedPath = selectedPathRef.current;
+    const selectedTargetPath = currentSelectedPath && isPathInside(currentSelectedPath, rootPath) ? currentSelectedPath : rootPath;
+    const selectedTreeItem = getLoadedTreeItemByPath(selectedTargetPath);
+    const selectedIsFolder = isSameTreePath(selectedTargetPath, rootPath) || !!dirChildrenRef.current[selectedTargetPath] || !!selectedTreeItem?.isFolder;
+    const parentPath = selectedIsFolder ? selectedTargetPath : getParentUriString(selectedTargetPath);
+    const projectName = focusRootNameRef.current || getProjectNameByPath(parentPath) || '当前项目';
+
+    beginCreateEntity(type, {
+      path: parentPath,
+      name: projectName,
+      isFolder: true,
+      projectName,
+      isActiveProject: true,
+      isRemote: isRemoteTreePath(parentPath),
     });
   };
 

@@ -3,9 +3,10 @@ export const RECENT_PROJECTS_VIEW_ID = 'quickOps.recentProjectsView';
 export const RECENT_PROJECTS_COMMANDS = {
   addRecentProject: 'quickOps.addRecentProject',
   showOtherRecentProjects: 'quickOps.showOtherRecentProjects',
+  createFileInFocusMode: 'quickOps.recentProjects.createFileInFocusMode',
+  createFolderInFocusMode: 'quickOps.recentProjects.createFolderInFocusMode',
   refreshRecentProjects: 'quickOps.refreshRecentProjects',
-  refreshCurrentWorkspaceRecentProject:
-    'quickOps.refreshCurrentWorkspaceRecentProject',
+  refreshCurrentWorkspaceRecentProject: 'quickOps.refreshCurrentWorkspaceRecentProject',
   clearRecentProjects: 'quickOps.clearRecentProjects',
   syncBranches: 'quickOps.syncBranches',
   revealInRecentProjects: 'quickOps.revealInRecentProjects',

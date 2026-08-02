@@ -77,6 +77,14 @@ export class RecentProjectsController implements OnModuleInit {
         this.recentProjectsProvider.showOtherProjectsQuickPick();
       }),
 
+      vscode.commands.registerCommand(RECENT_PROJECTS_COMMANDS.createFileInFocusMode, () => {
+        this.recentProjectsProvider.beginCreateFileInFocusMode();
+      }),
+
+      vscode.commands.registerCommand(RECENT_PROJECTS_COMMANDS.createFolderInFocusMode, () => {
+        this.recentProjectsProvider.beginCreateFolderInFocusMode();
+      }),
+
       vscode.commands.registerCommand(RECENT_PROJECTS_COMMANDS.refreshRecentProjects, async () => {
         this.recentProjectsProvider.invalidateDirCache();
         this.recentProjectsProvider.refresh(true);

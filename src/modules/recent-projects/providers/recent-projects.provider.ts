@@ -385,6 +385,18 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     quickPick.show();
   }
 
+  public beginCreateFileInFocusMode(): void {
+    this.postMessage({
+      type: 'beginCreateFileInFocusMode',
+    });
+  }
+
+  public beginCreateFolderInFocusMode(): void {
+    this.postMessage({
+      type: 'beginCreateFolderInFocusMode',
+    });
+  }
+
   public refresh(refreshExpandedTree = true): void {
     const projects = this.getRecentProjects();
     const currentWorkspace = this.getCurrentWorkspaceProject(projects);
