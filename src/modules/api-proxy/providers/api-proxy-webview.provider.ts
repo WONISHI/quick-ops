@@ -6,119 +6,27 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import type { Socket } from 'net';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
-
-type ApiProxyMatchType = 'exact' | 'regex';
-
-interface ApiProxyMatchItem {
-  id: string;
-  match: string;
-  target?: string;
-}
-
-interface ApiProxyRule {
-  id: string;
-  name: string;
-  enabled: boolean;
-  matchType: ApiProxyMatchType;
-  match: string;
-  matches?: ApiProxyMatchItem[];
-  target: string;
-  rewrite?: string;
-  preserveQuery: boolean;
-  listenHost?: string;
-  listenPort?: number | string;
-  devServerOrigin?: string;
-}
-
-interface ApiProxyMatchedRule {
-  rule: ApiProxyRule;
-  match: string;
-  target?: string;
-}
-
-interface ApiProxyRequestMeta {
-  matched: boolean;
-  ruleId?: string;
-  source: string;
-  target: string;
-}
-
-interface ApiProxyServerEntry {
-  server: http.Server;
-  listenHost: string;
-  listenPort: number;
-  origin: string;
-}
-
-interface ApiProxyGroup {
-  id: string;
-  name: string;
-  collapsed?: boolean;
-  ruleIds: string[];
-}
-
-interface ApiProxyLogItem {
-  id: string;
-  time: number;
-  level: 'info' | 'success' | 'error';
-  message: string;
-  from?: string;
-  to?: string;
-  ruleId?: string;
-}
-
-interface ApiProxyServerState {
-  running: boolean;
-  port: number;
-  origin: string;
-  listenHost: string;
-  listenHosts: string[];
-  listenPort: number;
-  devServerOrigin: string;
-}
-
-interface ApiProxyPersistedState {
-  rules?: ApiProxyRule[];
-  groups?: ApiProxyGroup[];
-  logs?: ApiProxyLogItem[];
-  activeRuleId?: string;
-  proxyHost?: string;
-  proxyPort?: number;
-  devServerOrigin?: string;
-}
-
-type ApiProxyWebviewMessage =
-  | { type: 'apiProxyReady' }
-  | { type: 'saveApiProxyRules'; rules: ApiProxyRule[] }
-  | { type: 'saveApiProxyGroups'; groups: ApiProxyGroup[] }
-  | { type: 'openApiProxyEditor'; ruleId?: string }
-  | { type: 'createApiProxyInGroup'; groupId?: string; groupName?: string; collapsed?: boolean; ruleIds?: string[] }
-  | { type: 'renameApiProxyGroup'; groupId: string; groupName?: string; collapsed?: boolean; ruleIds?: string[] }
-  | { type: 'deleteApiProxyGroup'; groupId: string; groupName?: string }
-  | { type: 'deleteApiProxyRule'; ruleId: string; ruleName?: string }
-  | { type: 'showApiProxyValidationError'; message?: string; ruleId?: string }
-  | { type: 'saveApiProxyServerOptions'; listenHost?: string; listenPort?: number | string; devServerOrigin?: string }
-  | { type: 'startApiProxyServer'; rules?: ApiProxyRule[]; listenHost?: string; listenPort?: number | string; devServerOrigin?: string }
-  | { type: 'stopApiProxyServer' }
-  | { type: 'openApiProxyExternal'; url?: string }
-  | { type: 'clearApiProxyLogs' };
-
-const API_PROXY_LIST_WEBVIEW_ROUTE = '/api-proxy';
-const API_PROXY_EDITOR_WEBVIEW_ROUTE = '/api-proxy-editor';
-const API_PROXY_STORAGE_KEY = 'quickOps.apiProxy.state';
-const API_PROXY_EDITOR_PANEL_TYPE = 'quickOps.apiProxyEditor';
-const API_PROXY_DEFAULT_PORT = 57197;
-const API_PROXY_DEFAULT_DEV_SERVER_ORIGIN = 'http://localhost:8081';
-
-const DEFAULT_SERVER: ApiProxyServerState = {
-  running: false,
-  port: 0,
-  origin: '',
-  listenHost: '127.0.0.1',
-  listenHosts: ['127.0.0.1', '0.0.0.0'],
-  listenPort: API_PROXY_DEFAULT_PORT,
-  devServerOrigin: API_PROXY_DEFAULT_DEV_SERVER_ORIGIN,
-};
+import {
+  API_PROXY_LIST_WEBVIEW_ROUTE,
+  API_PROXY_EDITOR_WEBVIEW_ROUTE,
+  API_PROXY_STORAGE_KEY,
+  API_PROXY_EDITOR_PANEL_TYPE,
+  API_PROXY_DEFAULT_PORT,
+  API_PROXY_DEFAULT_DEV_SERVER_ORIGIN,
+  DEFAULT_SERVER,
+} from '@modules/api-proxy/constants/api-proxy.constant';
+import type {
+  ApiProxyServerState,
+  ApiProxyServerEntry,
+  ApiProxyRequestMeta,
+  ApiProxyRule,
+  ApiProxyGroup,
+  ApiProxyLogItem,
+  ApiProxyWebviewAction,
+  ApiProxyPersistedState,
+  ApiProxyMatchItem,
+  ApiProxyMatchedRule,
+} from '@modules/api-proxy/api-proxy.type';
 
 export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   public static readonly listViewType = 'quickOpsApiProxyList';
@@ -167,7 +75,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     });
 
     this.disposables.push(
-      webviewView.webview.onDidReceiveMessage(async (message: ApiProxyWebviewMessage) => {
+      webviewView.webview.onDidReceiveMessage(async (message: ApiProxyWebviewAction) => {
         await this.handleMessage(message);
       }),
       webviewView.onDidDispose(() => {
@@ -244,7 +152,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     await this.openEditor(rule.id);
   }
 
-  private async createProxyInGroup(message: Extract<ApiProxyWebviewMessage, { type: 'createApiProxyInGroup' }>): Promise<void> {
+  private async createProxyInGroup(message: Extract<ApiProxyWebviewAction, { type: 'createApiProxyInGroup' }>): Promise<void> {
     const name = await vscode.window.showInputBox({
       title: '新建代理',
       prompt: '请输入代理名称',
@@ -291,7 +199,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     await this.openEditor(rule.id);
   }
 
-  private async renameGroup(message: Extract<ApiProxyWebviewMessage, { type: 'renameApiProxyGroup' }>): Promise<void> {
+  private async renameGroup(message: Extract<ApiProxyWebviewAction, { type: 'renameApiProxyGroup' }>): Promise<void> {
     if (!message.groupId || message.groupId === 'ungrouped') return;
 
     const name = await vscode.window.showInputBox({
@@ -334,7 +242,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     this.postState();
   }
 
-  private async deleteGroup(message: Extract<ApiProxyWebviewMessage, { type: 'deleteApiProxyGroup' }>): Promise<void> {
+  private async deleteGroup(message: Extract<ApiProxyWebviewAction, { type: 'deleteApiProxyGroup' }>): Promise<void> {
     if (!message.groupId || message.groupId === 'ungrouped') return;
     if (!this.groups.some((group) => group.id === message.groupId)) return;
 
@@ -349,7 +257,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     this.postState();
   }
 
-  private async deleteRule(message: Extract<ApiProxyWebviewMessage, { type: 'deleteApiProxyRule' }>): Promise<void> {
+  private async deleteRule(message: Extract<ApiProxyWebviewAction, { type: 'deleteApiProxyRule' }>): Promise<void> {
     if (!message.ruleId) return;
 
     const rule = this.rules.find((item) => item.id === message.ruleId);
@@ -412,7 +320,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     });
 
     this.disposables.push(
-      panel.webview.onDidReceiveMessage(async (message: ApiProxyWebviewMessage) => {
+      panel.webview.onDidReceiveMessage(async (message: ApiProxyWebviewAction) => {
         await this.handleMessage(message);
       }),
       panel.onDidDispose(() => {
@@ -435,7 +343,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     }
   }
 
-  private async handleMessage(message: ApiProxyWebviewMessage): Promise<void> {
+  private async handleMessage(message: ApiProxyWebviewAction): Promise<void> {
     switch (message.type) {
       case 'apiProxyReady':
         this.postState();
@@ -534,7 +442,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     await vscode.env.openExternal(uri);
   }
 
-  private async showValidationError(message: Extract<ApiProxyWebviewMessage, { type: 'showApiProxyValidationError' }>): Promise<void> {
+  private async showValidationError(message: Extract<ApiProxyWebviewAction, { type: 'showApiProxyValidationError' }>): Promise<void> {
     const text = message.message || '代理配置校验未通过，不能启动。';
 
     if (message.ruleId) {
