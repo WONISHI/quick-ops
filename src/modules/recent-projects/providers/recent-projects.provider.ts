@@ -845,6 +845,31 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
         break;
 
+      case 'confirmCreateEntityOnBlur': {
+        const entityType = message.entityType === 'folder' ? '文件夹' : '文件';
+        const name = String(message.name || '').trim();
+        const picked = await vscode.window.showWarningMessage(`是否新建${entityType}「${name}」？`, { modal: true }, '确认', '继续输入');
+
+        this.postMessage({
+          type: 'pendingCreateBlurConfirmResult',
+          action: picked === '确认' ? 'confirm' : picked === '继续输入' ? 'continue' : 'cancel',
+        });
+        break;
+      }
+
+      case 'confirmRenameEntityOnBlur': {
+        const entityType = message.isFolder ? '文件夹' : '文件';
+        const oldName = String(message.oldName || '').trim();
+        const newName = String(message.newName || '').trim();
+        const picked = await vscode.window.showWarningMessage(`是否将${entityType}「${oldName}」重命名为「${newName}」？`, { modal: true }, '确认', '继续输入');
+
+        this.postMessage({
+          type: 'pendingRenameBlurConfirmResult',
+          action: picked === '确认' ? 'confirm' : picked === '继续输入' ? 'continue' : 'cancel',
+        });
+        break;
+      }
+
       case 'createFile':
         if (targetPath && message.name) {
           await this.createFile(targetPath, message.name);
@@ -1729,9 +1754,18 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (!nextUri) return;
 
     try {
-      await vscode.workspace.fs.rename(oldUri, nextUri, {
-        overwrite: false,
-      });
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `正在重命名 ${path.basename(oldUri.fsPath)}...`,
+          cancellable: false,
+        },
+        async () => {
+          await vscode.workspace.fs.rename(oldUri, nextUri, {
+            overwrite: false,
+          });
+        },
+      );
 
       this.refreshTreeAfterFileChange();
     } catch (error: any) {
@@ -1746,9 +1780,18 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
         if (answer !== '覆盖') return;
 
-        await vscode.workspace.fs.rename(oldUri, nextUri, {
-          overwrite: true,
-        });
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `正在重命名 ${path.basename(oldUri.fsPath)}...`,
+            cancellable: false,
+          },
+          async () => {
+            await vscode.workspace.fs.rename(oldUri, nextUri, {
+              overwrite: true,
+            });
+          },
+        );
 
         this.refreshTreeAfterFileChange();
 
