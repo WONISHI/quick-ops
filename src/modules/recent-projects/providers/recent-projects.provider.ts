@@ -887,6 +887,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         if (targetPath) await this.deletePath(targetPath);
         break;
 
+      case 'deleteSelectedFileEntities':
+        await this.deleteSelectedPaths(message.items);
+        break;
+
       case 'renamePath':
       case 'renameFileEntity': {
         const oldPath = message.oldPath || message.fsPath || message.path || targetPath;
@@ -1732,6 +1736,56 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
             recursive: true,
             useTrash: true,
           });
+        },
+      );
+
+      this.refreshTreeAfterFileChange();
+    } catch (error) {
+      vscode.window.showErrorMessage(`删除失败：${this.toErrorMessage(error)}`);
+    }
+  }
+
+  private async deleteSelectedPaths(items: unknown): Promise<void> {
+    const entries = Array.isArray(items)
+      ? items
+          .map((item) => {
+            const fsPath = String((item as any)?.path || '');
+            const uri = this.toUri(fsPath);
+
+            return uri && uri.scheme === 'file' ? uri : null;
+          })
+          .filter((item): item is vscode.Uri => !!item)
+      : [];
+
+    if (entries.length === 0) {
+      vscode.window.showWarningMessage('当前只支持删除本地文件');
+      return;
+    }
+
+    const answer = await vscode.window.showWarningMessage(
+      `确认删除 ${entries.length} 个项目吗？`,
+      {
+        modal: true,
+      },
+      '删除',
+    );
+
+    if (answer !== '删除') return;
+
+    try {
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `正在删除 ${entries.length} 个项目...`,
+          cancellable: false,
+        },
+        async () => {
+          for (const uri of entries) {
+            await vscode.workspace.fs.delete(uri, {
+              recursive: true,
+              useTrash: true,
+            });
+          }
         },
       );
 

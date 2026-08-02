@@ -2708,6 +2708,61 @@ export default function RecentProjectsApp() {
     });
   };
 
+  const parseSelectedPathsArg = (argValue?: string) => {
+    try {
+      const value = JSON.parse(argValue || '[]');
+
+      return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && !!item) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const parseSelectedEntitiesArg = (argValue?: string) => {
+    try {
+      const value = JSON.parse(argValue || '[]');
+
+      return Array.isArray(value)
+        ? value
+            .map((item) => ({
+              path: String(item?.path || ''),
+              isFolder: !!item?.isFolder,
+            }))
+            .filter((item) => !!item.path)
+        : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const openFileInNewTab = (pathValue: string, projectName: string, isActiveProject: boolean) => {
+    if (isImageFile(pathValue)) {
+      vscode.postMessage({
+        type: 'openImageNative',
+        fsPath: pathValue,
+      });
+    } else if (isExcelFile(pathValue)) {
+      vscode.postMessage({
+        type: 'previewWithExcel',
+        fsPath: pathValue,
+        projectName: projectName || '未知项目',
+        isActiveProject,
+      });
+    } else if (isPdfFile(pathValue)) {
+      vscode.postMessage({
+        type: 'previewWithPdf',
+        fsPath: pathValue,
+        projectName: projectName || '未知项目',
+      });
+    } else {
+      vscode.postMessage({
+        type: isActiveProject ? 'openFileNormalInNewTab' : 'openFileInNewTab',
+        fsPath: pathValue,
+        projectName,
+      });
+    }
+  };
+
   const executeMenuAction = (action: string, arg?: string) => {
     setContextMenu((prev) => ({
       ...prev,
@@ -2821,6 +2876,66 @@ export default function RecentProjectsApp() {
           isFolder: !!payload.isFolder,
         });
         break;
+
+      case 'openSelectedInTabs': {
+        const paths = parseSelectedPathsArg(arg);
+
+        paths.forEach((pathValue) => {
+          openFileInNewTab(pathValue, payload.projectName || getProjectNameByPath(pathValue), !!payload.isActiveProject);
+        });
+
+        clearSelection();
+        break;
+      }
+
+      case 'collapseSelectedFolders': {
+        const paths = parseSelectedPathsArg(arg);
+
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+
+          paths.forEach((targetPath) => {
+            Array.from(next).forEach((itemPath) => {
+              if (isPathInside(itemPath, targetPath)) {
+                next.delete(itemPath);
+              }
+            });
+          });
+
+          return next;
+        });
+
+        setLoadingPaths((prev) => {
+          const next = new Set(prev);
+
+          paths.forEach((targetPath) => {
+            Array.from(next).forEach((itemPath) => {
+              if (isPathInside(itemPath, targetPath)) {
+                next.delete(itemPath);
+              }
+            });
+          });
+
+          return next;
+        });
+
+        clearSelection();
+        break;
+      }
+
+      case 'deleteSelectedItems': {
+        const items = parseSelectedEntitiesArg(arg);
+
+        if (items.length > 0) {
+          vscode.postMessage({
+            type: 'deleteSelectedFileEntities',
+            items,
+          });
+        }
+
+        clearSelection();
+        break;
+      }
 
       case 'openLink':
         vscode.postMessage({
