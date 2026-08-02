@@ -192,6 +192,32 @@ export class EmbeddedBrowserService extends EventEmitter {
     };
   }
 
+  /**
+   * @description Webview 标签页重新激活后唤醒页面截图流。
+   *
+   * 部分页面在 VS Code Webview 隐藏后，CDP screencast 可能不再继续推帧。
+   * 这时前端还保留最后一张截图，看起来像“页面变成一张图”。
+   * 标签页重新显示时主动 bringToFront 并重启 screencast，可以恢复滚动、
+   * 点击、刷新后的实时画面。
+   */
+  public async resumeScreencast(): Promise<BrowserSnapshot> {
+    if (!this.page || this.page.isClosed()) {
+      return this.getSnapshot();
+    }
+
+    const page = await this.ensurePage();
+
+    await page.bringToFront().catch(() => undefined);
+    await this.ensureClient();
+    await this.restartScreencast();
+
+    if (this.lastFramePayload) {
+      this.emit('frame', this.lastFramePayload);
+    }
+
+    return this.getSnapshot();
+  }
+
   public async navigate(url: string): Promise<void>;
   public async navigate(options: EmbeddedBrowserNavigateOptions): Promise<EmbeddedBrowserNavigateResult>;
   public async navigate(input: string | EmbeddedBrowserNavigateOptions): Promise<void | EmbeddedBrowserNavigateResult> {
