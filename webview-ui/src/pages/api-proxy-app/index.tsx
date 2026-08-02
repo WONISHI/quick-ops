@@ -22,6 +22,9 @@ interface ApiProxyRule {
   target: string;
   rewrite?: string;
   preserveQuery: boolean;
+  listenHost?: string;
+  listenPort?: number | string;
+  devServerOrigin?: string;
 }
 
 interface ApiProxyGroup {
@@ -41,7 +44,7 @@ interface ApiProxyServerState {
   origin: string;
   listenHost: string;
   listenHosts?: string[];
-  listenPort: number;
+  listenPort: number | string;
   devServerOrigin: string;
 }
 
@@ -81,23 +84,37 @@ function sanitizeRuleForSave(rule: ApiProxyRule): ApiProxyRule {
     name: rule.name.trim(),
     target: rule.target.trim(),
     rewrite: String(rule.rewrite || '').trim(),
+    listenHost: String(rule.listenHost || '').trim(),
+    listenPort: Number(rule.listenPort) || undefined,
+    devServerOrigin: String(rule.devServerOrigin || '').trim(),
     match: matches[0]?.match || '',
     matches,
   };
 }
 
+function getRuleServer(rule: ApiProxyRule, server: ApiProxyServerState): ApiProxyServerState {
+  return {
+    ...server,
+    listenHost: String(rule.listenHost || ''),
+    listenPort: rule.listenPort || '',
+    devServerOrigin: String(rule.devServerOrigin || ''),
+  };
+}
+
 function getStartValidationMessage(rule: ApiProxyRule, server: ApiProxyServerState) {
-  if (!String(server.listenHost || '').trim()) {
+  const ruleServer = getRuleServer(rule, server);
+
+  if (!String(ruleServer.listenHost || '').trim()) {
     return '请先选择监听地址。';
   }
 
-  const listenPort = Number(server.listenPort);
+  const listenPort = Number(ruleServer.listenPort);
 
   if (!Number.isFinite(listenPort) || listenPort <= 0 || listenPort > 65535) {
     return '请填写有效的监听端口。';
   }
 
-  if (!String(server.devServerOrigin || '').trim()) {
+  if (!String(ruleServer.devServerOrigin || '').trim()) {
     return '请填写前端服务地址。';
   }
 
@@ -303,9 +320,6 @@ export default function ApiProxyListApp() {
     vscode.postMessage({
       type: 'startApiProxyServer',
       rules: nextRules,
-      listenHost: server.listenHost,
-      listenPort: server.listenPort,
-      devServerOrigin: server.devServerOrigin,
     });
   };
 
@@ -324,6 +338,11 @@ export default function ApiProxyListApp() {
     if (!nextRules.some((item) => item.enabled)) {
       vscode.postMessage({
         type: 'stopApiProxyServer',
+      });
+    } else {
+      vscode.postMessage({
+        type: 'startApiProxyServer',
+        rules: nextRules,
       });
     }
   };

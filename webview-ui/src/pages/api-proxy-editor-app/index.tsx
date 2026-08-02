@@ -25,6 +25,9 @@ interface ApiProxyRule {
   target: string;
   rewrite?: string;
   preserveQuery: boolean;
+  listenHost?: string;
+  listenPort?: number | string;
+  devServerOrigin?: string;
 }
 
 interface ApiProxyGroup {
@@ -49,7 +52,7 @@ interface ApiProxyServerState {
   origin: string;
   listenHost: string;
   listenHosts: string[];
-  listenPort: number;
+  listenPort: number | string;
   devServerOrigin: string;
 }
 
@@ -80,9 +83,14 @@ function createLocalMatchId() {
   return `match-local-${localMatchIdSeed}`;
 }
 
-function createProxyOrigin(host: string, port: number) {
-  const listenHost = String(host || '').trim() || DEFAULT_SERVER.listenHost;
-  const listenPort = Number(port) || DEFAULT_SERVER.listenPort;
+function createProxyOrigin(host: string, port: number | string) {
+  const listenHost = String(host || '').trim();
+  const listenPort = Number(port);
+
+  if (!listenHost || !Number.isFinite(listenPort) || listenPort <= 0) {
+    return '';
+  }
+
   const originHost = listenHost === '0.0.0.0' || listenHost === '::' ? '127.0.0.1' : listenHost;
   const normalizedHost = originHost.includes(':') && !originHost.startsWith('[') ? `[${originHost}]` : originHost;
 
@@ -135,23 +143,42 @@ function sanitizeRuleForSave(rule: ApiProxyRule): ApiProxyRule {
     name: rule.name.trim(),
     target: rule.target.trim(),
     rewrite: String(rule.rewrite || '').trim(),
+    listenHost: String(rule.listenHost || '').trim(),
+    listenPort: Number(rule.listenPort) || undefined,
+    devServerOrigin: String(rule.devServerOrigin || '').trim(),
     match: matches[0]?.match || '',
     matches,
   };
 }
 
+function getRuleServer(rule: ApiProxyRule | null, server: ApiProxyServerState): ApiProxyServerState {
+  const listenHost = rule ? String(rule.listenHost || '') : String(server.listenHost || DEFAULT_SERVER.listenHost);
+  const listenPort = rule ? rule.listenPort || '' : server.listenPort || DEFAULT_SERVER.listenPort;
+
+  return {
+    ...server,
+    port: Number(listenPort) || 0,
+    origin: server.running ? createProxyOrigin(listenHost, listenPort) : '',
+    listenHost,
+    listenPort,
+    devServerOrigin: rule ? String(rule.devServerOrigin || '') : String(server.devServerOrigin || DEFAULT_SERVER.devServerOrigin),
+  };
+}
+
 function getRuleValidationMessage(rule: ApiProxyRule, server: ApiProxyServerState) {
-  if (!String(server.listenHost || '').trim()) {
+  const ruleServer = getRuleServer(rule, server);
+
+  if (!String(ruleServer.listenHost || '').trim()) {
     return '请先选择监听地址。';
   }
 
-  const listenPort = Number(server.listenPort);
+  const listenPort = Number(ruleServer.listenPort);
 
   if (!Number.isFinite(listenPort) || listenPort <= 0 || listenPort > 65535) {
     return '请填写有效的监听端口。';
   }
 
-  if (!String(server.devServerOrigin || '').trim()) {
+  if (!String(ruleServer.devServerOrigin || '').trim()) {
     return '请填写前端服务地址。';
   }
 
@@ -223,10 +250,11 @@ export default function ApiProxyEditorApp() {
 
   const activeRule = rules.find((rule) => rule.id === activeId) || null;
   const activeGroup = activeRule ? groups.find((group) => (group.ruleIds || []).includes(activeRule.id)) : null;
-  const isEditingLocked = server.running || !!activeRule?.enabled;
-  const proxyHomeUrl = resolveProxyHomeUrl(server);
-  const canOpenBrowserEntry = server.running && !!server.origin;
-  const listenHosts = Array.from(new Set([...(server.listenHosts || []), server.listenHost].filter(Boolean)));
+  const activeRuleServer = getRuleServer(activeRule, server);
+  const isEditingLocked = !!activeRule?.enabled;
+  const proxyHomeUrl = resolveProxyHomeUrl(activeRuleServer);
+  const canOpenBrowserEntry = !!activeRule?.enabled && server.running && !!proxyHomeUrl;
+  const listenHosts = Array.from(new Set([...(server.listenHosts || []), activeRuleServer.listenHost].filter(Boolean)));
   const activeMatchItems = getMatchItems(activeRule);
 
   const saveRules = (nextRules: ApiProxyRule[]) => {
@@ -333,20 +361,30 @@ export default function ApiProxyEditorApp() {
   };
 
   const updateServerOptions = (patch: Partial<Pick<ApiProxyServerState, 'listenHost' | 'listenPort' | 'devServerOrigin'>>) => {
+    if (!activeRule) return;
     if (isEditingLocked) return;
 
     const nextServer = {
       ...server,
       ...patch,
     };
+    const nextRulePatch: Partial<ApiProxyRule> = {
+      ...(patch.listenHost !== undefined ? { listenHost: patch.listenHost } : {}),
+      ...(patch.listenPort !== undefined ? { listenPort: patch.listenPort } : {}),
+      ...(patch.devServerOrigin !== undefined ? { devServerOrigin: patch.devServerOrigin } : {}),
+    };
 
     setServer(nextServer);
-    vscode.postMessage({
-      type: 'saveApiProxyServerOptions',
-      listenHost: nextServer.listenHost,
-      listenPort: nextServer.listenPort,
-      devServerOrigin: nextServer.devServerOrigin,
-    });
+    saveRules(
+      rules.map((rule) =>
+        rule.id === activeRule.id
+          ? {
+              ...rule,
+              ...nextRulePatch,
+            }
+          : rule,
+      ),
+    );
   };
 
   const clearLogs = () => {
@@ -448,14 +486,14 @@ export default function ApiProxyEditorApp() {
                 <BaseFormItem
                   label="监听地址"
                   required
-                  validateStatus={server.listenHost.trim() ? undefined : 'error'}
-                  help={server.listenHost.trim() ? undefined : '请选择监听地址'}
+                  validateStatus={activeRuleServer.listenHost.trim() ? undefined : 'error'}
+                  help={activeRuleServer.listenHost.trim() ? undefined : '请选择监听地址'}
                   extra="代理服务监听的主机，前端请求需要访问这个地址"
                 >
                   <BaseSelect
-                    value={server.listenHost}
+                    value={activeRuleServer.listenHost}
                     disabled={isEditingLocked}
-                    status={server.listenHost.trim() ? undefined : 'error'}
+                    status={activeRuleServer.listenHost.trim() ? undefined : 'error'}
                     options={listenHosts.map((host) => ({
                       label: host,
                       value: host,
@@ -464,20 +502,34 @@ export default function ApiProxyEditorApp() {
                   />
                 </BaseFormItem>
 
-                <BaseFormItem label="监听端口" extra="不能和 Vue dev server 使用同一个端口">
+                <BaseFormItem
+                  label="监听端口"
+                  required
+                  validateStatus={Number(activeRuleServer.listenPort) > 0 ? undefined : 'error'}
+                  help={Number(activeRuleServer.listenPort) > 0 ? undefined : '请输入监听端口'}
+                  extra="不能和 Vue dev server 使用同一个端口"
+                >
                   <BaseInput
                     type="number"
-                    value={server.listenPort}
+                    value={activeRuleServer.listenPort}
                     disabled={isEditingLocked}
-                    onValueChange={(value) => updateServerOptions({ listenPort: Number(value) || DEFAULT_SERVER.listenPort })}
+                    status={Number(activeRuleServer.listenPort) > 0 ? undefined : 'error'}
+                    onValueChange={(value) => updateServerOptions({ listenPort: value })}
                     placeholder="57197"
                   />
                 </BaseFormItem>
 
-                <BaseFormItem label="前端服务" extra="未命中接口代理规则的页面、JS、CSS、HMR 会转发到这里">
+                <BaseFormItem
+                  label="前端服务"
+                  required
+                  validateStatus={activeRuleServer.devServerOrigin.trim() ? undefined : 'error'}
+                  help={activeRuleServer.devServerOrigin.trim() ? undefined : '请输入前端服务地址'}
+                  extra="未命中接口代理规则的页面、JS、CSS、HMR 会转发到这里"
+                >
                   <BaseInput
-                    value={server.devServerOrigin}
+                    value={activeRuleServer.devServerOrigin}
                     disabled={isEditingLocked}
+                    status={activeRuleServer.devServerOrigin.trim() ? undefined : 'error'}
                     allowClear
                     onValueChange={(value) => updateServerOptions({ devServerOrigin: value })}
                     placeholder="http://localhost:8081"

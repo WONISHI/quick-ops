@@ -75,6 +75,138 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (requestUrl.pathname === '/ISAPI/System/deviceInfo') {
+    const body = await readBody(req);
+
+    sendJson(res, 200, {
+      code: 200,
+      message: 'Node 服务命中成功：设备信息',
+      method: req.method,
+      path: requestUrl.pathname,
+      query: Object.fromEntries(requestUrl.searchParams.entries()),
+      body,
+      data: {
+        deviceName: '测试设备',
+        serialNo: 'QOPS-20260802-001',
+        status: 'online',
+      },
+      time: new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (requestUrl.pathname === '/ISAPI/User/list') {
+    const body = await readBody(req);
+
+    sendJson(res, 200, {
+      code: 200,
+      message: 'Node 服务命中成功：用户列表',
+      method: req.method,
+      path: requestUrl.pathname,
+      query: Object.fromEntries(requestUrl.searchParams.entries()),
+      body,
+      data: [
+        { id: 1, name: '张三', role: 'admin' },
+        { id: 2, name: '李四', role: 'viewer' },
+      ],
+      time: new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (requestUrl.pathname === '/ISAPI/User/detail') {
+    const body = await readBody(req);
+
+    sendJson(res, 200, {
+      code: 200,
+      message: 'Node 服务命中成功：用户详情',
+      method: req.method,
+      path: requestUrl.pathname,
+      query: Object.fromEntries(requestUrl.searchParams.entries()),
+      body,
+      data: {
+        id: requestUrl.searchParams.get('id') || '1',
+        name: '测试用户',
+        email: 'test@example.com',
+      },
+      time: new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (requestUrl.pathname === '/ISAPI/Auth/logout') {
+    const body = await readBody(req);
+
+    sendJson(res, 200, {
+      code: 200,
+      message: 'Node 服务命中成功：退出登录',
+      method: req.method,
+      path: requestUrl.pathname,
+      query: Object.fromEntries(requestUrl.searchParams.entries()),
+      body,
+      time: new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (requestUrl.pathname === '/api/product/list') {
+    const body = await readBody(req);
+
+    sendJson(res, 200, {
+      code: 200,
+      message: 'Node 服务命中成功：产品列表',
+      method: req.method,
+      path: requestUrl.pathname,
+      query: Object.fromEntries(requestUrl.searchParams.entries()),
+      body,
+      data: [
+        { id: 101, name: '接口代理工具', price: 99 },
+        { id: 102, name: 'Mock 服务', price: 49 },
+      ],
+      time: new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (requestUrl.pathname === '/api/order/create') {
+    const body = await readBody(req);
+
+    sendJson(res, 200, {
+      code: 200,
+      message: 'Node 服务命中成功：创建订单',
+      method: req.method,
+      path: requestUrl.pathname,
+      query: Object.fromEntries(requestUrl.searchParams.entries()),
+      body,
+      data: {
+        orderNo: `ORDER-${Date.now()}`,
+        status: 'created',
+      },
+      time: new Date().toISOString(),
+    });
+    return;
+  }
+
+  if (requestUrl.pathname === '/mock/user/profile') {
+    const body = await readBody(req);
+
+    sendJson(res, 200, {
+      code: 200,
+      message: 'Node 服务命中成功：用户资料',
+      method: req.method,
+      path: requestUrl.pathname,
+      query: Object.fromEntries(requestUrl.searchParams.entries()),
+      body,
+      data: {
+        username: 'quick-ops-user',
+        nickname: '接口代理测试用户',
+        theme: 'dark',
+      },
+      time: new Date().toISOString(),
+    });
+    return;
+  }
+
   sendJson(res, 404, {
     code: 404,
     message: '接口不存在',
