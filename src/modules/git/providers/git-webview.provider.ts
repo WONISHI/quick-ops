@@ -2194,7 +2194,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
             await this.executeGitOperation(async () => {
               for (const file of files) {
-                await this.gitService.discardFile(cwd, file);
+                await this.gitService.discardFile(cwd, file, undefined, {
+                  skipConfirm: true,
+                });
               }
 
               await this.closeWorkingTreeDiffTabs(cwd, files);
@@ -2250,7 +2252,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   useTrash: true,
                 });
               } else {
-                await this.gitService.discardFile(cwd, msg.file, msg.status);
+                await this.gitService.discardFile(cwd, msg.file, msg.status, {
+                  skipConfirm: true,
+                });
               }
 
               await this.closeWorkingTreeDiffTabs(cwd, [msg.file]);
