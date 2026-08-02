@@ -17,6 +17,7 @@
   "debug.javascript.terminalOptions": {
     "sourceMaps": true
   },
+  "json.schemaDownload.enable": false,
   "workbench.colorCustomizations": {
     "gitDecoration.ignoredResourceForeground": "#7A8B6F"
   }

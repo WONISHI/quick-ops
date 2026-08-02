@@ -1,0 +1,75 @@
+.api-proxy-list {
+  --proxy-bg: var(--vscode-sideBar-background, #0d1117);
+  --proxy-panel: var(--vscode-sideBarSectionHeader-background, #161b22);
+  --proxy-panel-soft: color-mix(in srgb, var(--vscode-foreground, #c9d1d9) 5%, transparent);
+  --proxy-border: var(--vscode-panel-border, #30363d);
+  --proxy-text: var(--vscode-foreground, #c9d1d9);
+  --proxy-muted: var(--vscode-descriptionForeground, #8b949e);
+  --proxy-blue: var(--vscode-textLink-foreground, #2f81f7);
+  --proxy-green: var(--vscode-testing-iconPassed, #3fb950);
+  --proxy-red: var(--vscode-errorForeground, #f85149);
+
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  color: var(--proxy-text);
+  background: var(--proxy-bg);
+  font-size: 12px;
+}
+
+.header {
+  flex: 0 0 auto;
+  height: 38px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--proxy-border);
+  background: var(--proxy-panel);
+}
+
+.title {
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.summary {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--proxy-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.summary span {
+  height: 18px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--proxy-border);
+  border-radius: 999px;
+  background: var(--proxy-bg);
+}
+
+.list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.empty {
+  margin: 8px 0;
+  padding: 18px 8px;
+  border: 1px dashed var(--proxy-border);
+  border-radius: 6px;
+  color: var(--proxy-muted);
+  background: var(--proxy-panel-soft);
+  text-align: center;
+}

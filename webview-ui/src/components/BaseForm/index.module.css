@@ -1,0 +1,154 @@
+.base-form {
+  --base-form-bg: var(--vscode-editor-background, #0d1117);
+  --base-form-control-bg: var(--vscode-input-background, #0d1117);
+  --base-form-border: var(--vscode-panel-border, #30363d);
+  --base-form-text: var(--vscode-foreground, #c9d1d9);
+  --base-form-muted: var(--vscode-descriptionForeground, #8b949e);
+  --base-form-blue: var(--vscode-textLink-foreground, #2f81f7);
+  --base-form-green: var(--vscode-testing-iconPassed, #3fb950);
+  --base-form-yellow: var(--vscode-list-warningForeground, #d29922);
+  --base-form-red: var(--vscode-errorForeground, #f85149);
+
+  min-width: 0;
+}
+
+.base-form-item {
+  min-width: 0;
+  margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: var(--base-form-label-width, 76px) minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+}
+
+.base-form-vertical .base-form-item {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+}
+
+.base-form-label {
+  min-width: 0;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--base-form-muted);
+  line-height: 18px;
+  user-select: none;
+}
+
+.base-form-label-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.base-form-required {
+  margin-right: 3px;
+  color: var(--base-form-red);
+  font-weight: 600;
+}
+
+.base-form-colon {
+  margin-left: 1px;
+}
+
+.base-form-control {
+  min-width: 0;
+}
+
+.base-form-control :where(input, select, textarea) {
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 1px solid var(--base-form-border);
+  border-radius: 5px;
+  outline: none;
+  color: var(--base-form-text);
+  background: var(--base-form-control-bg);
+  font-size: 12px;
+  font-family: inherit;
+}
+
+.base-form-control :where(textarea) {
+  min-height: 68px;
+  padding: 7px 8px;
+  resize: vertical;
+}
+
+.base-form-control :where(select) {
+  cursor: pointer;
+}
+
+.base-form-control :where(input[type='checkbox']) {
+  width: 15px;
+  min-width: 15px;
+  height: 15px;
+  min-height: 15px;
+  padding: 0;
+  accent-color: var(--base-form-blue);
+  cursor: pointer;
+}
+
+.base-form-control :where(input:hover, select:hover, textarea:hover) {
+  border-color: color-mix(in srgb, var(--base-form-blue) 40%, var(--base-form-border));
+}
+
+.base-form-control :where(input:focus, select:focus, textarea:focus) {
+  border-color: var(--base-form-blue);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--base-form-blue) 26%, transparent);
+}
+
+.base-form-disabled {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.base-form-help,
+.base-form-extra {
+  margin-top: 5px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.base-form-help {
+  color: var(--base-form-muted);
+}
+
+.base-form-extra {
+  color: var(--base-form-muted);
+}
+
+.base-form-item-success .base-form-control :where(input, select, textarea) {
+  border-color: color-mix(in srgb, var(--base-form-green) 52%, var(--base-form-border));
+}
+
+.base-form-item-success .base-form-help {
+  color: var(--base-form-green);
+}
+
+.base-form-item-warning .base-form-control :where(input, select, textarea) {
+  border-color: color-mix(in srgb, var(--base-form-yellow) 58%, var(--base-form-border));
+}
+
+.base-form-item-warning .base-form-help {
+  color: var(--base-form-yellow);
+}
+
+.base-form-item-error .base-form-control :where(input, select, textarea) {
+  border-color: color-mix(in srgb, var(--base-form-red) 58%, var(--base-form-border));
+}
+
+.base-form-item-error .base-form-control :where(input:focus, select:focus, textarea:focus) {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--base-form-red) 24%, transparent);
+}
+
+.base-form-item-error .base-form-help {
+  color: var(--base-form-red);
+}
+
+.base-form-item-validating .base-form-help {
+  color: var(--base-form-blue);
+}

@@ -249,6 +249,12 @@
           "type": "webview"
         },
         {
+          "id": "quickOpsApiProxyList",
+          "name": "接口代理",
+          "type": "webview",
+          "icon": "$(symbol-interface)"
+        },
+        {
           "id": "quickOps.recentProjectsView",
           "name": "项目资源管理器",
           "type": "webview",
@@ -587,6 +593,16 @@
         "command": "quickOps.showOtherRecentProjects",
         "title": "查看其他最近项目",
         "icon": "$(milestone)"
+      },
+      {
+        "command": "quickOps.apiProxy.addGroup",
+        "title": "接口代理: 新建分组",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "quickOps.apiProxy.addProxy",
+        "title": "接口代理: 新建代理",
+        "icon": "$(add)"
       }
     ],
     "keybindings": [
@@ -739,6 +755,16 @@
           "command": "quickOps.apiDevTools.stopRequest",
           "when": "view == quickOpsApiDevTools && quickOps.apiDevTools.loading",
           "group": "navigation@8"
+        },
+        {
+          "command": "quickOps.apiProxy.addGroup",
+          "when": "view == quickOpsApiProxyList",
+          "group": "navigation@1"
+        },
+        {
+          "command": "quickOps.apiProxy.addProxy",
+          "when": "view == quickOpsApiProxyList",
+          "group": "navigation@2"
         }
       ],
       "editor/title": [

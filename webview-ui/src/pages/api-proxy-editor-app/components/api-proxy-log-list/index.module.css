@@ -1,0 +1,151 @@
+.log-list {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.log-item {
+  padding: 7px 8px;
+  margin-bottom: 6px;
+  border: 1px solid var(--proxy-border);
+  border-left-width: 3px;
+  border-radius: 6px;
+  background: var(--proxy-bg);
+}
+
+.log-main {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: none;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 14px 132px minmax(0, 1fr);
+  gap: 5px;
+  align-items: center;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+}
+
+.log-main:disabled {
+  cursor: default;
+}
+
+.log-main-clickable {
+  cursor: pointer;
+}
+
+.log-main-clickable:hover .log-message {
+  color: var(--proxy-blue);
+}
+
+.log-main :global(.codicon) {
+  color: var(--proxy-muted);
+  font-size: 13px;
+  transition: transform 0.14s ease;
+}
+
+.log-main :global(.codicon[data-expanded='true']) {
+  transform: rotate(90deg);
+}
+
+.log-chevron-placeholder {
+  width: 13px;
+  height: 13px;
+}
+
+.log-time {
+  color: var(--proxy-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.log-message {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-message-source,
+.log-message-target {
+  font-weight: 600;
+}
+
+.log-message-arrow {
+  margin: 0 6px;
+  color: var(--proxy-muted);
+  font: 12px / 1 codicon !important;
+  vertical-align: -1px;
+}
+
+.log-detail {
+  margin-top: 5px;
+  padding-left: 0;
+  color: var(--proxy-muted);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-detail-row {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+
+.log-detail-label {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--proxy-text);
+}
+
+.log-detail-value {
+  min-width: 0;
+  word-break: break-all;
+}
+
+.log-code-editor {
+  height: 180px;
+  margin-top: 6px;
+  overflow: hidden;
+  border: 1px solid var(--proxy-border);
+  border-radius: 6px;
+  background: var(--vscode-editor-background);
+}
+
+.log-success {
+  border-left-color: var(--proxy-green);
+}
+
+.log-success .log-message {
+  color: var(--proxy-green);
+}
+
+.log-error {
+  border-left-color: var(--proxy-red);
+}
+
+.log-error .log-message {
+  color: var(--proxy-red);
+}
+
+.log-info {
+  border-left-color: var(--proxy-blue);
+}
+
+.log-info .log-message {
+  color: var(--proxy-text);
+}
+
+.empty {
+  padding: 18px 8px;
+  color: var(--proxy-muted);
+  text-align: center;
+}

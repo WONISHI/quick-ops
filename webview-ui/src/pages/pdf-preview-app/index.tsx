@@ -9,7 +9,7 @@ import styles from '@pages/pdf-preview-app/index.module.css';
 import PdfPreviewSkeleton from '@pages/pdf-preview-app/components/pdf-preview-skeleton';
 import type { PdfPreviewAppProps } from '@pages/pdf-preview-app/src/type';
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL('https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs', import.meta.url).toString();
+pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@5.4.296/build/pdf.worker.min.mjs'
 
 export default function PdfPreviewApp({ initialScale = 1.2 }: PdfPreviewAppProps) {
   const [loading, setLoading] = useState(true);
