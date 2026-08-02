@@ -3,68 +3,8 @@ import { vscode } from '@utils/vscode';
 import ProxyGroup from '@pages/api-proxy-app/components/proxy-group';
 import ProxyItem from '@pages/api-proxy-app/components/proxy-item';
 import styles from '@pages/api-proxy-app/index.module.css';
-
-type ApiProxyMatchType = 'exact' | 'regex';
-
-interface ApiProxyMatchItem {
-  id: string;
-  match: string;
-  target?: string;
-}
-
-interface ApiProxyRule {
-  id: string;
-  name: string;
-  enabled: boolean;
-  matchType: ApiProxyMatchType;
-  match: string;
-  matches?: ApiProxyMatchItem[];
-  target: string;
-  rewrite?: string;
-  preserveQuery: boolean;
-  listenHost?: string;
-  listenPort?: number | string;
-  devServerOrigin?: string;
-}
-
-interface ApiProxyGroup {
-  id: string;
-  name: string;
-  collapsed?: boolean;
-  ruleIds: string[];
-}
-
-interface ApiProxyVisibleGroup extends ApiProxyGroup {
-  rules: ApiProxyRule[];
-}
-
-interface ApiProxyServerState {
-  running: boolean;
-  port: number;
-  origin: string;
-  listenHost: string;
-  listenHosts?: string[];
-  listenPort: number | string;
-  devServerOrigin: string;
-}
-
-interface ApiProxyStateMessage {
-  type: string;
-  rules?: ApiProxyRule[];
-  groups?: ApiProxyGroup[];
-  server?: ApiProxyServerState;
-  activeRuleId?: string;
-}
-
-const DEFAULT_SERVER: ApiProxyServerState = {
-  running: false,
-  port: 0,
-  origin: '',
-  listenHost: '127.0.0.1',
-  listenHosts: ['127.0.0.1', '0.0.0.0'],
-  listenPort: 57197,
-  devServerOrigin: 'http://localhost:8081',
-};
+import { DEFAULT_SERVER } from '@pages/api-proxy-app/src/constants';
+import type { ApiProxyServerState, ApiProxyRule, ApiProxyGroup, ApiProxyStateMessage, ApiProxyVisibleGroup } from '@pages/api-proxy-app/src/type';
 
 function getRuleMatchItems(rule: ApiProxyRule) {
   const matches = Array.isArray(rule.matches) && rule.matches.length > 0 ? rule.matches : [{ id: `${rule.id}-legacy`, match: rule.match, target: '' }];

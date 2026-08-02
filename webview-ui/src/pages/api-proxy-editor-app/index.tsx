@@ -6,76 +6,16 @@ import BaseInput from '@components/BaseInput';
 import BaseSelect from '@components/BaseSelection';
 import ApiProxyLogList from '@pages/api-proxy-editor-app/components/api-proxy-log-list';
 import styles from '@pages/api-proxy-editor-app/index.module.css';
-
-type ApiProxyMatchType = 'exact' | 'regex';
-
-interface ApiProxyMatchItem {
-  id: string;
-  match: string;
-  target?: string;
-}
-
-interface ApiProxyRule {
-  id: string;
-  name: string;
-  enabled: boolean;
-  matchType: ApiProxyMatchType;
-  match: string;
-  matches?: ApiProxyMatchItem[];
-  target: string;
-  rewrite?: string;
-  preserveQuery: boolean;
-  listenHost?: string;
-  listenPort?: number | string;
-  devServerOrigin?: string;
-}
-
-interface ApiProxyGroup {
-  id: string;
-  name: string;
-  collapsed?: boolean;
-  ruleIds: string[];
-}
-
-interface ApiProxyLogItem {
-  id: string;
-  time: number;
-  level: 'info' | 'success' | 'error';
-  message: string;
-  from?: string;
-  to?: string;
-  ruleId?: string;
-}
-
-interface ApiProxyServerState {
-  running: boolean;
-  port: number;
-  origin: string;
-  listenHost: string;
-  listenHosts: string[];
-  listenPort: number | string;
-  devServerOrigin: string;
-}
-
-interface ApiProxyStateMessage {
-  type: string;
-  rules?: ApiProxyRule[];
-  groups?: ApiProxyGroup[];
-  logs?: ApiProxyLogItem[];
-  server?: ApiProxyServerState;
-  activeRuleId?: string;
-  validationRuleId?: string;
-}
-
-const DEFAULT_SERVER: ApiProxyServerState = {
-  running: false,
-  port: 0,
-  origin: '',
-  listenHost: '127.0.0.1',
-  listenHosts: ['127.0.0.1', '0.0.0.0'],
-  listenPort: 57197,
-  devServerOrigin: 'http://localhost:8081',
-};
+import { DEFAULT_SERVER } from '@pages/api-proxy-editor-app/src/constants';
+import type {
+  ApiProxyServerState,
+  ApiProxyRule,
+  ApiProxyMatchItem,
+  ApiProxyGroup,
+  ApiProxyStateMessage,
+  ApiProxyLogItem,
+  ApiProxyMatchType,
+} from '@pages/api-proxy-editor-app/src/type';
 
 let localMatchIdSeed = 0;
 

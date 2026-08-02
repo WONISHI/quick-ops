@@ -28,8 +28,14 @@ export interface ApiProxyGroup {
   ruleIds: string[];
 }
 
-export interface ApiProxyVisibleGroup extends ApiProxyGroup {
-  rules: ApiProxyRule[];
+export interface ApiProxyLogItem {
+  id: string;
+  time: number;
+  level: 'info' | 'success' | 'error';
+  message: string;
+  from?: string;
+  to?: string;
+  ruleId?: string;
 }
 
 export interface ApiProxyServerState {
@@ -37,7 +43,7 @@ export interface ApiProxyServerState {
   port: number;
   origin: string;
   listenHost: string;
-  listenHosts?: string[];
+  listenHosts: string[];
   listenPort: number | string;
   devServerOrigin: string;
 }
@@ -46,6 +52,8 @@ export interface ApiProxyStateMessage {
   type: string;
   rules?: ApiProxyRule[];
   groups?: ApiProxyGroup[];
+  logs?: ApiProxyLogItem[];
   server?: ApiProxyServerState;
   activeRuleId?: string;
+  validationRuleId?: string;
 }

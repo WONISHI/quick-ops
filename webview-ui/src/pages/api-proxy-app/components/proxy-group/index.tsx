@@ -1,20 +1,8 @@
-import React from 'react';
 import BaseButton from '@components/BaseButton';
 import BaseContextMenu from '@components/BaseContextMenu';
-import type { BaseContextMenuProps } from '@components/BaseContextMenu/src/type';
+import type { ProxyGroupProps } from '@pages/api-proxy-app/components/proxy-group/src/type';
+
 import styles from './index.module.css';
-
-export type ProxyGroupContextMenuProps = Omit<BaseContextMenuProps, 'children'>;
-
-export interface ProxyGroupProps {
-  name: string;
-  count: number;
-  enabledCount?: number;
-  collapsed?: boolean;
-  children?: React.ReactNode;
-  contextMenuProps?: ProxyGroupContextMenuProps;
-  onToggle?: () => void;
-}
 
 export default function ProxyGroup({ name, count, enabledCount = 0, collapsed = false, children, contextMenuProps, onToggle }: ProxyGroupProps) {
   const title = name || '未命名分组';
