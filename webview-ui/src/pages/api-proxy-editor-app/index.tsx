@@ -64,6 +64,7 @@ interface ApiProxyStateMessage {
   logs?: ApiProxyLogItem[];
   server?: ApiProxyServerState;
   activeRuleId?: string;
+  validationRuleId?: string;
 }
 
 const DEFAULT_SERVER: ApiProxyServerState = {
@@ -144,7 +145,7 @@ function sanitizeRuleForSave(rule: ApiProxyRule): ApiProxyRule {
     name: rule.name.trim(),
     target: rule.target.trim(),
     rewrite: String(rule.rewrite || '').trim(),
-    listenHost: String(rule.listenHost || '').trim(),
+    listenHost: String(rule.listenHost || DEFAULT_SERVER.listenHost).trim(),
     listenPort: Number(rule.listenPort) || undefined,
     devServerOrigin: String(rule.devServerOrigin || '').trim(),
     match: matches[0]?.match || '',
@@ -153,7 +154,7 @@ function sanitizeRuleForSave(rule: ApiProxyRule): ApiProxyRule {
 }
 
 function getRuleServer(rule: ApiProxyRule | null, server: ApiProxyServerState): ApiProxyServerState {
-  const listenHost = rule ? String(rule.listenHost || '') : String(server.listenHost || DEFAULT_SERVER.listenHost);
+  const listenHost = rule ? String(rule.listenHost || DEFAULT_SERVER.listenHost) : String(server.listenHost || DEFAULT_SERVER.listenHost);
   const listenPort = rule ? rule.listenPort || '' : server.listenPort || DEFAULT_SERVER.listenPort;
 
   return {
@@ -205,8 +206,10 @@ export default function ApiProxyEditorApp() {
   const [server, setServer] = useState<ApiProxyServerState>(DEFAULT_SERVER);
   const [activeId, setActiveId] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isValidationVisible, setIsValidationVisible] = useState(false);
   const [expandedLogIds, setExpandedLogIds] = useState<Set<string>>(new Set());
   const [logPanelWidth, setLogPanelWidth] = useState(510);
+  const activeIdRef = useRef('');
   const saveTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -217,6 +220,14 @@ export default function ApiProxyEditorApp() {
 
       const nextRules = Array.isArray(message.rules) ? message.rules : [];
       const nextActiveId = message.activeRuleId && nextRules.some((rule) => rule.id === message.activeRuleId) ? message.activeRuleId : nextRules[0]?.id || '';
+      const shouldShowValidation = !!message.validationRuleId && message.validationRuleId === nextActiveId;
+
+      if (activeIdRef.current !== nextActiveId) {
+        activeIdRef.current = nextActiveId;
+        setIsValidationVisible(shouldShowValidation);
+      } else if (shouldShowValidation) {
+        setIsValidationVisible(true);
+      }
 
       setRules(nextRules);
       setGroups(Array.isArray(message.groups) ? message.groups : []);
@@ -258,6 +269,8 @@ export default function ApiProxyEditorApp() {
   const listenHosts = Array.from(new Set([...(server.listenHosts || []), activeRuleServer.listenHost].filter(Boolean)));
   const activeMatchItems = getMatchItems(activeRule);
   const activeLogs = activeRule?.enabled ? logs.filter((log) => log.ruleId === activeRule.id) : [];
+  const getValidateStatus = (isInvalid: boolean) => (isValidationVisible && isInvalid ? 'error' : undefined);
+  const getValidateHelp = (isInvalid: boolean, message: string) => (isValidationVisible && isInvalid ? message : undefined);
 
   const saveRules = (nextRules: ApiProxyRule[]) => {
     setRules(nextRules);
@@ -270,6 +283,8 @@ export default function ApiProxyEditorApp() {
 
   const saveActiveRuleConfig = () => {
     if (!activeRule) return false;
+
+    setIsValidationVisible(true);
 
     const sanitizedRule = sanitizeRuleForSave(activeRule);
     const validationMessage = getRuleValidationMessage(sanitizedRule, server);
@@ -488,14 +503,14 @@ export default function ApiProxyEditorApp() {
                 <BaseFormItem
                   label="监听地址"
                   required
-                  validateStatus={activeRuleServer.listenHost.trim() ? undefined : 'error'}
-                  help={activeRuleServer.listenHost.trim() ? undefined : '请选择监听地址'}
+                  validateStatus={getValidateStatus(!activeRuleServer.listenHost.trim())}
+                  help={getValidateHelp(!activeRuleServer.listenHost.trim(), '请选择监听地址')}
                   extra="代理服务监听的主机，前端请求需要访问这个地址"
                 >
                   <BaseSelect
                     value={activeRuleServer.listenHost}
                     disabled={isEditingLocked}
-                    status={activeRuleServer.listenHost.trim() ? undefined : 'error'}
+                    status={getValidateStatus(!activeRuleServer.listenHost.trim())}
                     options={listenHosts.map((host) => ({
                       label: host,
                       value: host,
@@ -507,15 +522,15 @@ export default function ApiProxyEditorApp() {
                 <BaseFormItem
                   label="监听端口"
                   required
-                  validateStatus={Number(activeRuleServer.listenPort) > 0 ? undefined : 'error'}
-                  help={Number(activeRuleServer.listenPort) > 0 ? undefined : '请输入监听端口'}
+                  validateStatus={getValidateStatus(!(Number(activeRuleServer.listenPort) > 0))}
+                  help={getValidateHelp(!(Number(activeRuleServer.listenPort) > 0), '请输入监听端口')}
                   extra="不能和 Vue dev server 使用同一个端口"
                 >
                   <BaseInput
                     type="number"
                     value={activeRuleServer.listenPort}
                     disabled={isEditingLocked}
-                    status={Number(activeRuleServer.listenPort) > 0 ? undefined : 'error'}
+                    status={getValidateStatus(!(Number(activeRuleServer.listenPort) > 0))}
                     onValueChange={(value) => updateServerOptions({ listenPort: value })}
                     placeholder="57197"
                   />
@@ -524,24 +539,24 @@ export default function ApiProxyEditorApp() {
                 <BaseFormItem
                   label="前端服务"
                   required
-                  validateStatus={activeRuleServer.devServerOrigin.trim() ? undefined : 'error'}
-                  help={activeRuleServer.devServerOrigin.trim() ? undefined : '请输入前端服务地址'}
+                  validateStatus={getValidateStatus(!activeRuleServer.devServerOrigin.trim())}
+                  help={getValidateHelp(!activeRuleServer.devServerOrigin.trim(), '请输入前端服务地址')}
                   extra="未命中接口代理规则的页面、JS、CSS、HMR 会转发到这里"
                 >
                   <BaseInput
                     value={activeRuleServer.devServerOrigin}
                     disabled={isEditingLocked}
-                    status={activeRuleServer.devServerOrigin.trim() ? undefined : 'error'}
+                    status={getValidateStatus(!activeRuleServer.devServerOrigin.trim())}
                     allowClear
                     onValueChange={(value) => updateServerOptions({ devServerOrigin: value })}
                     placeholder="http://localhost:8081"
                   />
                 </BaseFormItem>
 
-                <BaseFormItem label="名称" required validateStatus={activeRule.name.trim() ? undefined : 'error'} help={activeRule.name.trim() ? undefined : '请输入代理名称'}>
+                <BaseFormItem label="名称" required validateStatus={getValidateStatus(!activeRule.name.trim())} help={getValidateHelp(!activeRule.name.trim(), '请输入代理名称')}>
                   <BaseInput
                     value={activeRule.name}
-                    status={activeRule.name.trim() ? undefined : 'error'}
+                    status={getValidateStatus(!activeRule.name.trim())}
                     disabled={isEditingLocked}
                     allowClear
                     onValueChange={(value) => updateRule({ name: value })}
@@ -570,12 +585,12 @@ export default function ApiProxyEditorApp() {
                 <BaseFormItem
                   label="转发目标"
                   required
-                  validateStatus={activeRule.target.trim() ? undefined : 'error'}
-                  help={activeRule.target.trim() ? undefined : '请输入转发目标'}
+                  validateStatus={getValidateStatus(!activeRule.target.trim())}
+                  help={getValidateHelp(!activeRule.target.trim(), '请输入转发目标')}
                 >
                   <BaseInput
                     value={activeRule.target}
-                    status={activeRule.target.trim() ? undefined : 'error'}
+                    status={getValidateStatus(!activeRule.target.trim())}
                     disabled={isEditingLocked}
                     allowClear
                     onValueChange={(value) => updateRule({ target: value })}
@@ -586,8 +601,8 @@ export default function ApiProxyEditorApp() {
                 <BaseFormItem
                   label="匹配地址"
                   required
-                  validateStatus={activeMatchItems.some((item) => item.match.trim()) ? undefined : 'error'}
-                  help={activeMatchItems.some((item) => item.match.trim()) ? undefined : '至少填写一个匹配地址'}
+                  validateStatus={getValidateStatus(!activeMatchItems.some((item) => item.match.trim()))}
+                  help={getValidateHelp(!activeMatchItems.some((item) => item.match.trim()), '至少填写一个匹配地址')}
                   extra="左侧填匹配地址或正则；右侧转发地址可不填，不填时使用上面的公共转发目标"
                 >
                   <div className={styles['match-list']}>
@@ -595,7 +610,7 @@ export default function ApiProxyEditorApp() {
                       <div key={item.id} className={styles['match-row']}>
                         <BaseInput
                           value={item.match}
-                          status={item.match.trim() ? undefined : 'error'}
+                          status={getValidateStatus(!item.match.trim())}
                           disabled={isEditingLocked}
                           allowClear
                           onValueChange={(value) => updateMatchItem(item.id, { match: value })}

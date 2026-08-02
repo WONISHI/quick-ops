@@ -628,9 +628,11 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       await this.persistState();
       this.addLog('error', message);
       void vscode.window.showWarningMessage(message);
-      this.postState();
       this.postActiveRuleChanged();
       await this.openEditor(invalidRule.id);
+      this.postState({
+        validationRuleId: invalidRule.id,
+      });
       return;
     }
 
@@ -1409,7 +1411,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     this.postState();
   }
 
-  private postState(): void {
+  private postState(options?: { validationRuleId?: string }): void {
     const message = {
       type: 'apiProxyState',
       rules: this.rules,
@@ -1417,6 +1419,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       logs: this.logs,
       server: this.serverState,
       activeRuleId: this.activeRuleId,
+      validationRuleId: options?.validationRuleId,
     };
 
     void this.view?.webview.postMessage(message);
@@ -1503,7 +1506,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       target: '',
       rewrite: '',
       preserveQuery: true,
-      listenHost: '',
+      listenHost: DEFAULT_SERVER.listenHost,
       listenPort: undefined,
       devServerOrigin: '',
     };
