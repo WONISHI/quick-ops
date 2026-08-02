@@ -22,10 +22,6 @@
   color: var(--proxy-blue);
 }
 
-.proxy-running .proxy-name {
-  color: var(--proxy-green);
-}
-
 .proxy-running {
   border-color: color-mix(in srgb, var(--proxy-green) 58%, var(--proxy-border));
   background: color-mix(in srgb, var(--proxy-green) 8%, var(--proxy-panel));

@@ -8,6 +8,7 @@ interface ApiProxyLogItem {
   message: string;
   from?: string;
   to?: string;
+  ruleId?: string;
 }
 
 interface ApiProxyLogListProps {

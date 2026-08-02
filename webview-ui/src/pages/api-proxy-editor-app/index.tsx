@@ -44,6 +44,7 @@ interface ApiProxyLogItem {
   message: string;
   from?: string;
   to?: string;
+  ruleId?: string;
 }
 
 interface ApiProxyServerState {
@@ -256,6 +257,7 @@ export default function ApiProxyEditorApp() {
   const canOpenBrowserEntry = !!activeRule?.enabled && server.running && !!proxyHomeUrl;
   const listenHosts = Array.from(new Set([...(server.listenHosts || []), activeRuleServer.listenHost].filter(Boolean)));
   const activeMatchItems = getMatchItems(activeRule);
+  const activeLogs = activeRule?.enabled ? logs.filter((log) => log.ruleId === activeRule.id) : [];
 
   const saveRules = (nextRules: ApiProxyRule[]) => {
     setRules(nextRules);
@@ -682,7 +684,7 @@ export default function ApiProxyEditorApp() {
                 </BaseButton>
               </div>
 
-              <ApiProxyLogList logs={logs} expandedLogIds={expandedLogIds} onToggleLogDetail={toggleLogDetail} />
+              <ApiProxyLogList logs={activeLogs} expandedLogIds={expandedLogIds} onToggleLogDetail={toggleLogDetail} />
             </section>
           </>
         )}

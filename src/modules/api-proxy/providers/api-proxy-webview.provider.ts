@@ -36,6 +36,13 @@ interface ApiProxyMatchedRule {
   target?: string;
 }
 
+interface ApiProxyRequestMeta {
+  matched: boolean;
+  ruleId?: string;
+  source: string;
+  target: string;
+}
+
 interface ApiProxyServerEntry {
   server: http.Server;
   listenHost: string;
@@ -57,6 +64,7 @@ interface ApiProxyLogItem {
   message: string;
   from?: string;
   to?: string;
+  ruleId?: string;
 }
 
 interface ApiProxyServerState {
@@ -128,8 +136,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
   });
 
   private readonly servers = new Map<string, ApiProxyServerEntry>();
-  private readonly apiProxyRequests = new WeakSet<IncomingMessage>();
-  private readonly apiProxyRequestTargets = new WeakMap<IncomingMessage, { source: string; target: string }>();
+  private readonly apiProxyRequestMeta = new WeakMap<IncomingMessage, ApiProxyRequestMeta>();
   private rules: ApiProxyRule[] = [];
   private groups: ApiProxyGroup[] = [];
   private logs: ApiProxyLogItem[] = [];
@@ -954,6 +961,8 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     const proxyTarget = this.resolveProxyTarget(serverKey, sourceUrl);
 
     if (!proxyTarget?.targetUrl) {
+      const matchedRule = this.findMatchedRule(serverKey, sourceUrl);
+
       res.statusCode = 500;
       res.setHeader('content-type', 'application/json; charset=utf-8');
       res.end(
@@ -962,8 +971,9 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
           url: sourceUrl.toString(),
         }),
       );
-      if (this.findMatchedRule(serverKey, sourceUrl)) {
-        this.addLog('error', '代理目标地址无效', sourceUrl.toString());
+
+      if (matchedRule) {
+        this.addLog('error', '代理目标地址无效', sourceUrl.toString(), undefined, matchedRule.rule.id);
       }
       return;
     }
@@ -971,14 +981,15 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     const { targetUrl, matched } = proxyTarget;
     const targetOrigin = `${targetUrl.protocol}//${targetUrl.host}`;
     req.url = `${targetUrl.pathname}${targetUrl.search}`;
+    this.apiProxyRequestMeta.set(req, {
+      matched: !!matched,
+      ruleId: matched?.rule.id,
+      source: sourceUrl.toString(),
+      target: targetUrl.toString(),
+    });
 
     if (matched) {
-      this.apiProxyRequests.add(req);
-      this.apiProxyRequestTargets.set(req, {
-        source: sourceUrl.toString(),
-        target: targetUrl.toString(),
-      });
-      this.addLog('info', `${req.method || 'GET'} ${sourceUrl.pathname} -> ${targetUrl.toString()}`, sourceUrl.toString(), targetUrl.toString());
+      this.addLog('info', `${req.method || 'GET'} ${sourceUrl.pathname} -> ${targetUrl.toString()}`, sourceUrl.toString(), targetUrl.toString(), matched.rule.id);
     }
 
     this.proxy.web(req, res, {
@@ -1014,11 +1025,13 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       proxyRes.headers['access-control-allow-methods'] = 'GET,POST,PUT,PATCH,DELETE,OPTIONS';
       proxyRes.headers['access-control-allow-headers'] = '*';
 
-      if (!this.apiProxyRequests.has(req)) {
+      const requestMeta = this.apiProxyRequestMeta.get(req);
+
+      if (!requestMeta?.matched) {
+        this.apiProxyRequestMeta.delete(req);
         return;
       }
 
-      const targetInfo = this.apiProxyRequestTargets.get(req);
       const chunks: Buffer[] = [];
       let receivedSize = 0;
       const maxLogBodySize = 4096;
@@ -1040,28 +1053,34 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
         const level = statusCode >= 400 ? 'error' : 'success';
         const responseBody = Buffer.concat(chunks).toString('utf8').trim();
         const detail = [
-          targetInfo?.target ? `target: ${targetInfo.target}` : '',
+          requestMeta.target ? `target: ${requestMeta.target}` : '',
           responseBody ? `response: ${responseBody}${receivedSize >= maxLogBodySize ? '\n...响应内容过长，已截断' : ''}` : '',
         ]
           .filter(Boolean)
           .join('\n');
 
-        this.addLog(level, `${req.method || 'GET'} ${targetInfo?.source || req.url || ''} 响应 ${statusCode}`, targetInfo?.source, detail || targetInfo?.target);
-        this.apiProxyRequestTargets.delete(req);
+        this.addLog(
+          level,
+          `${req.method || 'GET'} ${requestMeta.source || req.url || ''} 响应 ${statusCode}`,
+          requestMeta.source,
+          detail || requestMeta.target,
+          requestMeta.ruleId,
+        );
+        this.apiProxyRequestMeta.delete(req);
       });
     });
 
     this.proxy.on('error', (error, req, res) => {
-      const isApiProxyRequest = this.apiProxyRequests.has(req);
-      const targetInfo = this.apiProxyRequestTargets.get(req);
+      const requestMeta = this.apiProxyRequestMeta.get(req);
 
-      if (isApiProxyRequest) {
-        const proxyErrorMessage = this.getProxyErrorMessage(error, targetInfo?.target);
-        const proxyErrorDetail = this.getProxyErrorDetail(error, targetInfo?.target);
+      if (requestMeta?.matched) {
+        const proxyErrorMessage = this.getProxyErrorMessage(error, requestMeta.target);
+        const proxyErrorDetail = this.getProxyErrorDetail(error, requestMeta.target);
 
-        this.addLog('error', proxyErrorMessage, targetInfo?.source || this.getRequestUrl(req).toString(), proxyErrorDetail);
-        this.apiProxyRequestTargets.delete(req);
+        this.addLog('error', proxyErrorMessage, requestMeta.source || this.getRequestUrl(req).toString(), proxyErrorDetail, requestMeta.ruleId);
       }
+
+      this.apiProxyRequestMeta.delete(req);
 
       if (!this.isServerResponse(res) || res.headersSent) return;
 
@@ -1074,7 +1093,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
         JSON.stringify({
           message: '代理转发失败',
           error: error.message,
-          target: targetInfo?.target,
+          target: requestMeta?.target,
           suggestion: this.getProxyErrorSuggestion(error),
         }),
       );
@@ -1372,7 +1391,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
     }
   }
 
-  private addLog(level: ApiProxyLogItem['level'], message: string, from?: string, to?: string): void {
+  private addLog(level: ApiProxyLogItem['level'], message: string, from?: string, to?: string, ruleId?: string): void {
     this.logs = [
       ...this.logs.slice(-299),
       {
@@ -1382,6 +1401,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
         message,
         from,
         to,
+        ruleId,
       },
     ];
 
