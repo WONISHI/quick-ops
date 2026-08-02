@@ -2716,6 +2716,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     normalizedTargets.forEach((target) => {
       paths.set(target, false);
+      this.addAncestorMetadataPaths(target, paths);
     });
 
     this.getRecentProjects().forEach((project) => {
@@ -2762,6 +2763,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private addRelatedVisibleMetadataPaths(targetPath: string, paths: Set<string>): void {
     if (!targetPath) return;
 
+    const ancestorPaths = new Map<string, boolean>();
+    this.addAncestorMetadataPaths(targetPath, ancestorPaths);
+
+    ancestorPaths.forEach((_, ancestorPath) => {
+      paths.add(ancestorPath);
+    });
+
     this.getRecentProjects().forEach((project) => {
       if (this.isInsidePath(targetPath, project.fsPath) || this.isInsidePath(project.fsPath, targetPath)) {
         paths.add(project.fsPath);
@@ -2780,6 +2788,43 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           paths.add(child.path);
         }
       });
+    }
+  }
+
+  private addAncestorMetadataPaths(targetPath: string, paths: Map<string, boolean>): void {
+    const uri = this.toUri(targetPath);
+
+    if (!uri || uri.scheme !== 'file') return;
+
+    const metadataRootUri = this.getMetadataRootUri(targetPath);
+
+    if (!metadataRootUri || metadataRootUri.scheme !== 'file') return;
+
+    const rootPath = this.normalizeComparePath(metadataRootUri.toString());
+    let currentFsPath = path.dirname(uri.fsPath);
+    const visited = new Set<string>();
+
+    while (currentFsPath && currentFsPath !== path.dirname(currentFsPath)) {
+      const currentUri = vscode.Uri.file(currentFsPath);
+      const currentPath = this.normalizeComparePath(currentUri.toString());
+
+      if (!currentPath || visited.has(currentPath)) {
+        break;
+      }
+
+      visited.add(currentPath);
+
+      if (!this.isInsidePath(currentUri.toString(), metadataRootUri.toString())) {
+        break;
+      }
+
+      paths.set(currentUri.toString(), true);
+
+      if (currentPath === rootPath) {
+        break;
+      }
+
+      currentFsPath = path.dirname(currentFsPath);
     }
   }
 
@@ -2802,6 +2847,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     targets.forEach((target) => {
       pushPatch(target, false);
+
+      const ancestorPaths = new Map<string, boolean>();
+      this.addAncestorMetadataPaths(target, ancestorPaths);
+
+      ancestorPaths.forEach((isFolder, ancestorPath) => {
+        pushPatch(ancestorPath, isFolder);
+      });
     });
 
     this.getRecentProjects().forEach((project) => {
