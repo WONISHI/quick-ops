@@ -4,8 +4,10 @@ import * as vscode from 'vscode';
 import httpProxy = require('http-proxy');
 import type { IncomingMessage, ServerResponse } from 'http';
 import type { Socket } from 'net';
+import WebviewWorkflow from '@/workflow/webview';
 import ReactWebviewHtmlWorkflow from '@/workflow/react-webview-html';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
+import type { WebviewEnhancerOptions } from '@plugins/webview-enhancer/type';
 import {
   API_PROXY_LIST_WEBVIEW_ROUTE,
   API_PROXY_EDITOR_WEBVIEW_ROUTE,
@@ -33,6 +35,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
 
   public static inject = [ExtensionContextProvider];
 
+  private readonly webviewWorkflow = new WebviewWorkflow();
   private readonly reactWebviewHtmlWorkflow = new ReactWebviewHtmlWorkflow();
   private view?: vscode.WebviewView;
   private editorPanel?: vscode.WebviewPanel;
@@ -305,30 +308,41 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       return;
     }
 
-    const panel = vscode.window.createWebviewPanel(API_PROXY_EDITOR_PANEL_TYPE, '接口代理配置', vscode.ViewColumn.One, {
-      enableScripts: true,
-      retainContextWhenHidden: true,
-      localResourceRoots: [context.extensionUri],
-    });
+    let panel: vscode.WebviewPanel | undefined;
 
-    this.editorPanel = panel;
-
-    panel.webview.html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+    panel = await this.webviewWorkflow.createWebview<unknown, WebviewEnhancerOptions>({
+      key: API_PROXY_EDITOR_PANEL_TYPE,
+      viewType: API_PROXY_EDITOR_PANEL_TYPE,
+      title: '接口代理配置',
+      column: vscode.ViewColumn.One,
       extensionUri: context.extensionUri,
-      webview: panel.webview,
-      routeName: API_PROXY_EDITOR_WEBVIEW_ROUTE,
-    });
-
-    this.disposables.push(
-      panel.webview.onDidReceiveMessage(async (message: ApiProxyWebviewAction) => {
-        await this.handleMessage(message);
-      }),
-      panel.onDidDispose(() => {
+      icon: 'resources/icons/api-proxy-editor.svg',
+      fullscreen: false,
+      floating: false,
+      revealIfExists: false,
+      options: {
+        enableScripts: true,
+        retainContextWhenHidden: true,
+        localResourceRoots: [context.extensionUri],
+      },
+      htmlFactory: async (webview) => {
+        return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+          extensionUri: context.extensionUri,
+          webview,
+          routeName: API_PROXY_EDITOR_WEBVIEW_ROUTE,
+        });
+      },
+      onDidReceiveMessage: async (message) => {
+        await this.handleMessage(message as ApiProxyWebviewAction);
+      },
+      onDidDispose: () => {
         if (this.editorPanel === panel) {
           this.editorPanel = undefined;
         }
-      }),
-    );
+      },
+    });
+
+    this.editorPanel = panel;
 
     this.postState();
     this.postActiveRuleChanged();
