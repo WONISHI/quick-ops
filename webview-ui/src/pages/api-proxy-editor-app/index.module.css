@@ -110,6 +110,24 @@
   background: color-mix(in srgb, var(--proxy-green) 10%, transparent);
 }
 
+.address-conflict-alert {
+  margin: -2px 0 10px;
+  padding: 7px 9px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--proxy-red) 58%, var(--proxy-border));
+  border-radius: 6px;
+  color: var(--proxy-red);
+  background: color-mix(in srgb, var(--proxy-red) 10%, transparent);
+  line-height: 18px;
+}
+
+.address-conflict-alert :global(.codicon) {
+  flex: 0 0 auto;
+  font-size: 14px;
+}
+
 .form-row {
   display: grid;
   grid-template-columns: 76px minmax(0, 1fr);
