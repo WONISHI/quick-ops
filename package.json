@@ -299,7 +299,7 @@
       {
         "command": "quickOps.addRecentProject",
         "title": "添加项目",
-        "icon": "$(new-folder)"
+        "icon": "$(new-collection)"
       },
       {
         "command": "quickOps.syncBranches",
@@ -595,6 +595,16 @@
         "icon": "$(milestone)"
       },
       {
+        "command": "quickOps.recentProjects.createFileInFocusMode",
+        "title": "新建文件",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "quickOps.recentProjects.createFolderInFocusMode",
+        "title": "新建文件夹",
+        "icon": "$(new-folder)"
+      },
+      {
         "command": "quickOps.apiProxy.addGroup",
         "title": "接口代理: 新建分组",
         "icon": "$(new-folder)"
@@ -657,29 +667,39 @@
           "group": "navigation@0"
         },
         {
-          "command": "quickOps.addRecentProject",
-          "when": "view == quickOps.recentProjectsView",
+          "command": "quickOps.recentProjects.createFileInFocusMode",
+          "when": "view == quickOps.recentProjectsView && quickOps.recentProjects.focusMode",
           "group": "navigation@1"
+        },
+        {
+          "command": "quickOps.recentProjects.createFolderInFocusMode",
+          "when": "view == quickOps.recentProjectsView && quickOps.recentProjects.focusMode",
+          "group": "navigation@2"
+        },
+        {
+          "command": "quickOps.addRecentProject",
+          "when": "view == quickOps.recentProjectsView && !quickOps.recentProjects.focusMode",
+          "group": "navigation@3"
         },
         {
           "command": "quickOps.revealInRecentProjects",
           "when": "view == quickOps.recentProjectsView && quickOps.canRevealInRecent",
-          "group": "navigation@2"
+          "group": "navigation@4"
         },
         {
           "command": "quickOps.syncBranches",
-          "when": "view == quickOps.recentProjectsView",
-          "group": "navigation@3"
+          "when": "view == quickOps.recentProjectsView && !quickOps.recentProjects.focusMode",
+          "group": "navigation@5"
         },
         {
           "command": "quickOps.refreshRecentProjects",
           "when": "view == quickOps.recentProjectsView",
-          "group": "navigation@4"
+          "group": "navigation@6"
         },
         {
           "command": "quickOps.clearRecentProjects",
-          "when": "view == quickOps.recentProjectsView",
-          "group": "navigation@5"
+          "when": "view == quickOps.recentProjectsView && !quickOps.recentProjects.focusMode",
+          "group": "navigation@7"
         },
         {
           "command": "quickOps.returnToWorkspace",

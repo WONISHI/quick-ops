@@ -385,6 +385,18 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     quickPick.show();
   }
 
+  public beginCreateFileInFocusMode(): void {
+    this.postMessage({
+      type: 'beginCreateFileInFocusMode',
+    });
+  }
+
+  public beginCreateFolderInFocusMode(): void {
+    this.postMessage({
+      type: 'beginCreateFolderInFocusMode',
+    });
+  }
+
   public refresh(refreshExpandedTree = true): void {
     const projects = this.getRecentProjects();
     const currentWorkspace = this.getCurrentWorkspaceProject(projects);
@@ -833,6 +845,31 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
         break;
 
+      case 'confirmCreateEntityOnBlur': {
+        const entityType = message.entityType === 'folder' ? '文件夹' : '文件';
+        const name = String(message.name || '').trim();
+        const picked = await vscode.window.showWarningMessage(`是否新建${entityType}「${name}」？`, { modal: true }, '确认', '继续输入');
+
+        this.postMessage({
+          type: 'pendingCreateBlurConfirmResult',
+          action: picked === '确认' ? 'confirm' : picked === '继续输入' ? 'continue' : 'cancel',
+        });
+        break;
+      }
+
+      case 'confirmRenameEntityOnBlur': {
+        const entityType = message.isFolder ? '文件夹' : '文件';
+        const oldName = String(message.oldName || '').trim();
+        const newName = String(message.newName || '').trim();
+        const picked = await vscode.window.showWarningMessage(`是否将${entityType}「${oldName}」重命名为「${newName}」？`, { modal: true }, '确认', '继续输入');
+
+        this.postMessage({
+          type: 'pendingRenameBlurConfirmResult',
+          action: picked === '确认' ? 'confirm' : picked === '继续输入' ? 'continue' : 'cancel',
+        });
+        break;
+      }
+
       case 'createFile':
         if (targetPath && message.name) {
           await this.createFile(targetPath, message.name);
@@ -848,6 +885,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       case 'deletePath':
       case 'deleteFileEntity':
         if (targetPath) await this.deletePath(targetPath);
+        break;
+
+      case 'deleteSelectedFileEntities':
+        await this.deleteSelectedPaths(message.items);
         break;
 
       case 'renamePath':
@@ -1704,6 +1745,56 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  private async deleteSelectedPaths(items: unknown): Promise<void> {
+    const entries = Array.isArray(items)
+      ? items
+          .map((item) => {
+            const fsPath = String((item as any)?.path || '');
+            const uri = this.toUri(fsPath);
+
+            return uri && uri.scheme === 'file' ? uri : null;
+          })
+          .filter((item): item is vscode.Uri => !!item)
+      : [];
+
+    if (entries.length === 0) {
+      vscode.window.showWarningMessage('当前只支持删除本地文件');
+      return;
+    }
+
+    const answer = await vscode.window.showWarningMessage(
+      `确认删除 ${entries.length} 个项目吗？`,
+      {
+        modal: true,
+      },
+      '删除',
+    );
+
+    if (answer !== '删除') return;
+
+    try {
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `正在删除 ${entries.length} 个项目...`,
+          cancellable: false,
+        },
+        async () => {
+          for (const uri of entries) {
+            await vscode.workspace.fs.delete(uri, {
+              recursive: true,
+              useTrash: true,
+            });
+          }
+        },
+      );
+
+      this.refreshTreeAfterFileChange();
+    } catch (error) {
+      vscode.window.showErrorMessage(`删除失败：${this.toErrorMessage(error)}`);
+    }
+  }
+
   private async renamePath(oldPath: string, newNameOrPath: string): Promise<void> {
     const oldUri = this.toUri(oldPath);
 
@@ -1717,9 +1808,18 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (!nextUri) return;
 
     try {
-      await vscode.workspace.fs.rename(oldUri, nextUri, {
-        overwrite: false,
-      });
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `正在重命名 ${path.basename(oldUri.fsPath)}...`,
+          cancellable: false,
+        },
+        async () => {
+          await vscode.workspace.fs.rename(oldUri, nextUri, {
+            overwrite: false,
+          });
+        },
+      );
 
       this.refreshTreeAfterFileChange();
     } catch (error: any) {
@@ -1734,9 +1834,18 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
         if (answer !== '覆盖') return;
 
-        await vscode.workspace.fs.rename(oldUri, nextUri, {
-          overwrite: true,
-        });
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: `正在重命名 ${path.basename(oldUri.fsPath)}...`,
+            cancellable: false,
+          },
+          async () => {
+            await vscode.workspace.fs.rename(oldUri, nextUri, {
+              overwrite: true,
+            });
+          },
+        );
 
         this.refreshTreeAfterFileChange();
 
@@ -2716,6 +2825,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     normalizedTargets.forEach((target) => {
       paths.set(target, false);
+      this.addAncestorMetadataPaths(target, paths);
     });
 
     this.getRecentProjects().forEach((project) => {
@@ -2762,6 +2872,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private addRelatedVisibleMetadataPaths(targetPath: string, paths: Set<string>): void {
     if (!targetPath) return;
 
+    const ancestorPaths = new Map<string, boolean>();
+    this.addAncestorMetadataPaths(targetPath, ancestorPaths);
+
+    ancestorPaths.forEach((_, ancestorPath) => {
+      paths.add(ancestorPath);
+    });
+
     this.getRecentProjects().forEach((project) => {
       if (this.isInsidePath(targetPath, project.fsPath) || this.isInsidePath(project.fsPath, targetPath)) {
         paths.add(project.fsPath);
@@ -2780,6 +2897,43 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
           paths.add(child.path);
         }
       });
+    }
+  }
+
+  private addAncestorMetadataPaths(targetPath: string, paths: Map<string, boolean>): void {
+    const uri = this.toUri(targetPath);
+
+    if (!uri || uri.scheme !== 'file') return;
+
+    const metadataRootUri = this.getMetadataRootUri(targetPath);
+
+    if (!metadataRootUri || metadataRootUri.scheme !== 'file') return;
+
+    const rootPath = this.normalizeComparePath(metadataRootUri.toString());
+    let currentFsPath = path.dirname(uri.fsPath);
+    const visited = new Set<string>();
+
+    while (currentFsPath && currentFsPath !== path.dirname(currentFsPath)) {
+      const currentUri = vscode.Uri.file(currentFsPath);
+      const currentPath = this.normalizeComparePath(currentUri.toString());
+
+      if (!currentPath || visited.has(currentPath)) {
+        break;
+      }
+
+      visited.add(currentPath);
+
+      if (!this.isInsidePath(currentUri.toString(), metadataRootUri.toString())) {
+        break;
+      }
+
+      paths.set(currentUri.toString(), true);
+
+      if (currentPath === rootPath) {
+        break;
+      }
+
+      currentFsPath = path.dirname(currentFsPath);
     }
   }
 
@@ -2802,6 +2956,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     targets.forEach((target) => {
       pushPatch(target, false);
+
+      const ancestorPaths = new Map<string, boolean>();
+      this.addAncestorMetadataPaths(target, ancestorPaths);
+
+      ancestorPaths.forEach((isFolder, ancestorPath) => {
+        pushPatch(ancestorPath, isFolder);
+      });
     });
 
     this.getRecentProjects().forEach((project) => {

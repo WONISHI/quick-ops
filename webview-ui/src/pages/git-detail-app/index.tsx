@@ -18,8 +18,8 @@ import type { GitFileItem, CommitFilesState, CommitFileTreeNode, GraphCommit } f
 const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];
 const LANE_WIDTH = 14;
 const ROW_HEIGHT = 28;
-const DEFAULT_DETAIL_HEIGHT = 206;
-const MIN_DETAIL_HEIGHT = 140;
+const DEFAULT_DETAIL_HEIGHT = 260;
+const MIN_DETAIL_HEIGHT = 180;
 const MAX_DETAIL_HEIGHT = 520;
 const CY = 14;
 
@@ -565,6 +565,25 @@ function formatCommitStats(stats?: { filesChanged?: number; insertions?: number;
   return `已更改 ${filesChanged} 个文件, ${insertions} 行插入 (+), ${deletions} 行删除 (-)`;
 }
 
+function renderCommitStats(stats?: { filesChanged?: number; insertions?: number; deletions?: number }) {
+  if (!stats) return null;
+
+  const filesChanged = Number(stats.filesChanged || 0);
+  const insertions = Number(stats.insertions || 0);
+  const deletions = Number(stats.deletions || 0);
+
+  if (filesChanged <= 0 && insertions <= 0 && deletions <= 0) return null;
+
+  return (
+    <span className={styles['detail-stats']}>
+      <span>已更改 {filesChanged} 个文件, </span>
+      <span className={styles['detail-stats-insertions']}>{insertions} 行插入 (+)</span>
+      <span>, </span>
+      <span className={styles['detail-stats-deletions']}>{deletions} 行删除 (-)</span>
+    </span>
+  );
+}
+
 function renderRefText(ref: string) {
   if (ref.endsWith(' origin')) {
     const localName = ref.replace(/\s+origin$/, '');
@@ -634,8 +653,6 @@ export default function GitCommitDetailApp() {
   const handleCommitContextMenu = (e: React.MouseEvent, commit: GraphCommit) => {
     e.preventDefault();
     e.stopPropagation();
-    setActiveCommitHash(commit.hash);
-    requestCommitFiles(commit.hash);
     setCommitContextMenu({
       visible: true,
       x: e.clientX,
@@ -1520,7 +1537,7 @@ export default function GitCommitDetailApp() {
                           {formatCommitStats(commitStatsMap[commit.hash]) && (
                             <div className={`${styles['detail-row']} ${styles['detail-stats-row']}`}>
                               <span className={styles['detail-label']}>变更:</span>
-                              <span className={styles['detail-stats']}>{formatCommitStats(commitStatsMap[commit.hash])}</span>
+                              {renderCommitStats(commitStatsMap[commit.hash])}
                             </div>
                           )}
 

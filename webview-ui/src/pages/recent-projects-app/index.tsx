@@ -37,6 +37,7 @@ export default function RecentProjectsApp() {
   const [searchQuery, setSearchQuery] = useState<string>(getInitialSearchQuery);
 
   const [selectedPath, setSelectedPath] = useState<string>('');
+  const selectedPathRef = useRef('');
   const autoScrollTarget = useRef<string | null>(null);
   const listScrollbarRef = useRef<ScrollbarInstance>(null);
 
@@ -60,6 +61,10 @@ export default function RecentProjectsApp() {
   useEffect(() => {
     projectsRef.current = projects;
   }, [projects]);
+
+  useEffect(() => {
+    selectedPathRef.current = selectedPath;
+  }, [selectedPath]);
 
   const currentWorkspaceRef = useRef<Project | null>(null);
 
@@ -207,10 +212,16 @@ export default function RecentProjectsApp() {
 
   const [pendingCreateEntity, setPendingCreateEntity] = useState<PendingCreateEntity | null>(null);
   const [pendingCreateName, setPendingCreateName] = useState('');
+  const pendingCreateEntityRef = useRef<PendingCreateEntity | null>(null);
+  const pendingCreateNameRef = useRef('');
+  const pendingCreateBlurConfirmingRef = useRef(false);
   const pendingCreateInputRef = useRef<HTMLInputElement>(null);
 
   const [pendingRenameEntity, setPendingRenameEntity] = useState<PendingRenameEntity | null>(null);
   const [pendingRenameName, setPendingRenameName] = useState('');
+  const pendingRenameEntityRef = useRef<PendingRenameEntity | null>(null);
+  const pendingRenameNameRef = useRef('');
+  const pendingRenameBlurConfirmingRef = useRef(false);
   const pendingRenameInputRef = useRef<HTMLInputElement>(null);
 
   const [draggingEntity, setDraggingEntity] = useState<DraggingEntity | null>(null);
@@ -270,6 +281,14 @@ export default function RecentProjectsApp() {
   }, [pendingCreateEntity]);
 
   useEffect(() => {
+    pendingCreateEntityRef.current = pendingCreateEntity;
+  }, [pendingCreateEntity]);
+
+  useEffect(() => {
+    pendingCreateNameRef.current = pendingCreateName;
+  }, [pendingCreateName]);
+
+  useEffect(() => {
     if (!pendingRenameEntity) return;
 
     window.setTimeout(() => {
@@ -277,6 +296,14 @@ export default function RecentProjectsApp() {
       pendingRenameInputRef.current?.select();
     }, 0);
   }, [pendingRenameEntity]);
+
+  useEffect(() => {
+    pendingRenameEntityRef.current = pendingRenameEntity;
+  }, [pendingRenameEntity]);
+
+  useEffect(() => {
+    pendingRenameNameRef.current = pendingRenameName;
+  }, [pendingRenameName]);
 
   /**
    * 新增或重命名期间禁止文件树拖拽，并清理可能遗留的拖拽状态。
@@ -1205,6 +1232,14 @@ export default function RecentProjectsApp() {
         });
       } else if (msg.type === 'activeEditorChanged') {
         setSelectedPath(msg.fsPath as string);
+      } else if (msg.type === 'beginCreateFileInFocusMode') {
+        beginCreateEntityFromFocusSelection('file');
+      } else if (msg.type === 'beginCreateFolderInFocusMode') {
+        beginCreateEntityFromFocusSelection('folder');
+      } else if (msg.type === 'pendingCreateBlurConfirmResult') {
+        handlePendingCreateBlurConfirmResult(msg.action as string);
+      } else if (msg.type === 'pendingRenameBlurConfirmResult') {
+        handlePendingRenameBlurConfirmResult(msg.action as string);
       } else if (msg.type === 'searchContentChanged') {
         const changedPaths = ((msg.paths as string[]) || []).filter(Boolean);
 
@@ -2079,13 +2114,16 @@ export default function RecentProjectsApp() {
     }
 
     const projectName = payload.projectName || getProjectNameByPath(parentPath) || '当前项目';
-
-    setPendingCreateEntity({
+    const nextCreateEntity: PendingCreateEntity = {
       parentPath,
       type,
       projectName,
       isActiveProject: true,
-    });
+    };
+
+    pendingCreateEntityRef.current = nextCreateEntity;
+    pendingCreateNameRef.current = '';
+    setPendingCreateEntity(nextCreateEntity);
     setPendingCreateName('');
     setSelectedPath(parentPath);
     setExpandedPaths((prev) => new Set(prev).add(parentPath));
@@ -2099,15 +2137,56 @@ export default function RecentProjectsApp() {
     });
   };
 
+  const getLoadedTreeItemByPath = (pathValue: string) => {
+    const normalizedPath = normalizePatchPath(pathValue);
+
+    if (!normalizedPath) return null;
+
+    for (const children of Object.values(dirChildrenRef.current)) {
+      const matched = children.find((child) => normalizePatchPath(child.path) === normalizedPath);
+
+      if (matched) {
+        return matched;
+      }
+    }
+
+    return null;
+  };
+
+  const beginCreateEntityFromFocusSelection = (type: 'file' | 'folder') => {
+    const rootPath = focusRootPathRef.current || getCurrentWorkspacePath();
+
+    if (!rootPath) return;
+
+    const currentSelectedPath = selectedPathRef.current;
+    const selectedTargetPath = currentSelectedPath && isPathInside(currentSelectedPath, rootPath) ? currentSelectedPath : rootPath;
+    const selectedTreeItem = getLoadedTreeItemByPath(selectedTargetPath);
+    const selectedIsFolder = isSameTreePath(selectedTargetPath, rootPath) || !!dirChildrenRef.current[selectedTargetPath] || !!selectedTreeItem?.isFolder;
+    const parentPath = selectedIsFolder ? selectedTargetPath : getParentUriString(selectedTargetPath);
+    const projectName = focusRootNameRef.current || getProjectNameByPath(parentPath) || '当前项目';
+
+    beginCreateEntity(type, {
+      path: parentPath,
+      name: projectName,
+      isFolder: true,
+      projectName,
+      isActiveProject: true,
+      isRemote: isRemoteTreePath(parentPath),
+    });
+  };
+
   const cancelPendingCreateEntity = () => {
+    pendingCreateBlurConfirmingRef.current = false;
+    pendingCreateEntityRef.current = null;
+    pendingCreateNameRef.current = '';
     setPendingCreateEntity(null);
     setPendingCreateName('');
   };
 
-  const commitPendingCreateEntity = () => {
-    if (!pendingCreateEntity) return;
+  const commitPendingCreateEntity = (entity: PendingCreateEntity | null = pendingCreateEntityRef.current, rawName: string = pendingCreateNameRef.current) => {
+    if (!entity) return;
 
-    const name = pendingCreateName.trim();
+    const name = rawName.trim();
 
     if (!name) {
       cancelPendingCreateEntity();
@@ -2115,13 +2194,62 @@ export default function RecentProjectsApp() {
     }
 
     vscode.postMessage({
-      type: pendingCreateEntity.type === 'file' ? 'createFile' : 'createFolder',
-      fsPath: pendingCreateEntity.parentPath,
+      type: entity.type === 'file' ? 'createFile' : 'createFolder',
+      fsPath: entity.parentPath,
       name,
     });
 
+    pendingCreateBlurConfirmingRef.current = false;
+    pendingCreateEntityRef.current = null;
+    pendingCreateNameRef.current = '';
     setPendingCreateEntity(null);
     setPendingCreateName('');
+  };
+
+  const focusPendingCreateInput = () => {
+    window.setTimeout(() => {
+      pendingCreateInputRef.current?.focus();
+    }, 0);
+  };
+
+  const requestPendingCreateBlurConfirm = () => {
+    const entity = pendingCreateEntityRef.current;
+    const name = pendingCreateNameRef.current.trim();
+
+    if (!entity) return;
+
+    if (!name) {
+      cancelPendingCreateEntity();
+      return;
+    }
+
+    if (pendingCreateBlurConfirmingRef.current) return;
+
+    pendingCreateBlurConfirmingRef.current = true;
+
+    vscode.postMessage({
+      type: 'confirmCreateEntityOnBlur',
+      entityType: entity.type,
+      name,
+    });
+  };
+
+  const handlePendingCreateBlurConfirmResult = (action: string) => {
+    if (!pendingCreateEntityRef.current) return;
+
+    pendingCreateBlurConfirmingRef.current = false;
+
+    if (action === 'confirm') {
+      commitPendingCreateEntity();
+      return;
+    }
+
+    if (action === 'continue') {
+      focusPendingCreateInput();
+      return;
+    }
+
+    cancelPendingCreateEntity();
   };
 
   const canRenameEntity = (payload: ContextMenuPayload) => {
@@ -2146,41 +2274,98 @@ export default function RecentProjectsApp() {
     setPendingCreateEntity(null);
     setPendingCreateName('');
 
-    setPendingRenameEntity({
+    const nextRenameEntity: PendingRenameEntity = {
       path: payload.path,
       name: payload.name || '',
       isFolder: !!payload.isFolder,
       projectName: payload.projectName || getProjectNameByPath(payload.path) || '当前项目',
       isActiveProject: true,
-    });
+    };
+
+    pendingRenameEntityRef.current = nextRenameEntity;
+    pendingRenameNameRef.current = payload.name || '';
+    setPendingRenameEntity(nextRenameEntity);
     setPendingRenameName(payload.name || '');
     setSelectedPath(payload.path);
   };
 
   const cancelPendingRenameEntity = () => {
+    pendingRenameBlurConfirmingRef.current = false;
+    pendingRenameEntityRef.current = null;
+    pendingRenameNameRef.current = '';
     setPendingRenameEntity(null);
     setPendingRenameName('');
   };
 
-  const commitPendingRenameEntity = () => {
-    if (!pendingRenameEntity) return;
+  const commitPendingRenameEntity = (entity: PendingRenameEntity | null = pendingRenameEntityRef.current, rawName: string = pendingRenameNameRef.current) => {
+    if (!entity) return;
 
-    const name = pendingRenameName.trim();
+    const name = rawName.trim();
 
-    if (!name || name === pendingRenameEntity.name) {
+    if (!name || name === entity.name) {
       cancelPendingRenameEntity();
       return;
     }
 
     vscode.postMessage({
       type: 'renameFileEntity',
-      fsPath: pendingRenameEntity.path,
+      fsPath: entity.path,
       newName: name,
-      isFolder: pendingRenameEntity.isFolder,
+      isFolder: entity.isFolder,
     });
 
+    pendingRenameBlurConfirmingRef.current = false;
+    pendingRenameEntityRef.current = null;
+    pendingRenameNameRef.current = '';
     setPendingRenameEntity(null);
     setPendingRenameName('');
+  };
+
+  const focusPendingRenameInput = () => {
+    window.setTimeout(() => {
+      pendingRenameInputRef.current?.focus();
+    }, 0);
+  };
+
+  const requestPendingRenameBlurConfirm = () => {
+    const entity = pendingRenameEntityRef.current;
+    const name = pendingRenameNameRef.current.trim();
+
+    if (!entity) return;
+
+    if (!name || name === entity.name) {
+      cancelPendingRenameEntity();
+      return;
+    }
+
+    if (pendingRenameBlurConfirmingRef.current) return;
+
+    pendingRenameBlurConfirmingRef.current = true;
+
+    vscode.postMessage({
+      type: 'confirmRenameEntityOnBlur',
+      oldName: entity.name,
+      newName: name,
+      isFolder: entity.isFolder,
+    });
+  };
+
+  const handlePendingRenameBlurConfirmResult = (action: string) => {
+    if (!pendingRenameEntityRef.current) return;
+
+    pendingRenameBlurConfirmingRef.current = false;
+
+    if (action === 'confirm') {
+      commitPendingRenameEntity();
+      return;
+    }
+
+    if (action === 'continue') {
+      focusPendingRenameInput();
+      return;
+    }
+
+    cancelPendingRenameEntity();
   };
 
   const canDragEntity = (pathValue: string, isActiveProject: boolean) => {
@@ -2340,11 +2525,14 @@ export default function RecentProjectsApp() {
         value={pendingRenameName}
         autoComplete="off"
         spellCheck={false}
-        onChange={(e) => setPendingRenameName(e.target.value)}
+        onChange={(e) => {
+          pendingRenameNameRef.current = e.target.value;
+          setPendingRenameName(e.target.value);
+        }}
         onClick={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
         onDoubleClick={(e) => e.stopPropagation()}
-        onBlur={commitPendingRenameEntity}
+        onBlur={requestPendingRenameBlurConfirm}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault();
@@ -2387,10 +2575,13 @@ export default function RecentProjectsApp() {
             placeholder={isFolder ? '新建文件夹' : '新建文件'}
             autoComplete="off"
             spellCheck={false}
-            onChange={(e) => setPendingCreateName(e.target.value)}
+            onChange={(e) => {
+              pendingCreateNameRef.current = e.target.value;
+              setPendingCreateName(e.target.value);
+            }}
             onClick={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
-            onBlur={cancelPendingCreateEntity}
+            onBlur={requestPendingCreateBlurConfirm}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -2517,6 +2708,61 @@ export default function RecentProjectsApp() {
     });
   };
 
+  const parseSelectedPathsArg = (argValue?: string) => {
+    try {
+      const value = JSON.parse(argValue || '[]');
+
+      return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && !!item) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const parseSelectedEntitiesArg = (argValue?: string) => {
+    try {
+      const value = JSON.parse(argValue || '[]');
+
+      return Array.isArray(value)
+        ? value
+            .map((item) => ({
+              path: String(item?.path || ''),
+              isFolder: !!item?.isFolder,
+            }))
+            .filter((item) => !!item.path)
+        : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const openFileInNewTab = (pathValue: string, projectName: string, isActiveProject: boolean) => {
+    if (isImageFile(pathValue)) {
+      vscode.postMessage({
+        type: 'openImageNative',
+        fsPath: pathValue,
+      });
+    } else if (isExcelFile(pathValue)) {
+      vscode.postMessage({
+        type: 'previewWithExcel',
+        fsPath: pathValue,
+        projectName: projectName || '未知项目',
+        isActiveProject,
+      });
+    } else if (isPdfFile(pathValue)) {
+      vscode.postMessage({
+        type: 'previewWithPdf',
+        fsPath: pathValue,
+        projectName: projectName || '未知项目',
+      });
+    } else {
+      vscode.postMessage({
+        type: isActiveProject ? 'openFileNormalInNewTab' : 'openFileInNewTab',
+        fsPath: pathValue,
+        projectName,
+      });
+    }
+  };
+
   const executeMenuAction = (action: string, arg?: string) => {
     setContextMenu((prev) => ({
       ...prev,
@@ -2630,6 +2876,66 @@ export default function RecentProjectsApp() {
           isFolder: !!payload.isFolder,
         });
         break;
+
+      case 'openSelectedInTabs': {
+        const paths = parseSelectedPathsArg(arg);
+
+        paths.forEach((pathValue) => {
+          openFileInNewTab(pathValue, payload.projectName || getProjectNameByPath(pathValue), !!payload.isActiveProject);
+        });
+
+        clearSelection();
+        break;
+      }
+
+      case 'collapseSelectedFolders': {
+        const paths = parseSelectedPathsArg(arg);
+
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+
+          paths.forEach((targetPath) => {
+            Array.from(next).forEach((itemPath) => {
+              if (isPathInside(itemPath, targetPath)) {
+                next.delete(itemPath);
+              }
+            });
+          });
+
+          return next;
+        });
+
+        setLoadingPaths((prev) => {
+          const next = new Set(prev);
+
+          paths.forEach((targetPath) => {
+            Array.from(next).forEach((itemPath) => {
+              if (isPathInside(itemPath, targetPath)) {
+                next.delete(itemPath);
+              }
+            });
+          });
+
+          return next;
+        });
+
+        clearSelection();
+        break;
+      }
+
+      case 'deleteSelectedItems': {
+        const items = parseSelectedEntitiesArg(arg);
+
+        if (items.length > 0) {
+          vscode.postMessage({
+            type: 'deleteSelectedFileEntities',
+            items,
+          });
+        }
+
+        clearSelection();
+        break;
+      }
 
       case 'openLink':
         vscode.postMessage({

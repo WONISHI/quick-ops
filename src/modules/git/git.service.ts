@@ -970,19 +970,21 @@ export class GitService {
     await git.clean('f', ['-d']);
   }
 
-  public async discardFile(fileOrCwd: string, workingDirOrFile?: string, status?: string): Promise<void> {
+  public async discardFile(fileOrCwd: string, workingDirOrFile?: string, status?: string, options?: { skipConfirm?: boolean }): Promise<void> {
     const { cwd, file } = this.resolveCwdFileArgs(fileOrCwd, workingDirOrFile);
     const finalStatus = status || '';
 
-    const answer = await vscode.window.showWarningMessage(
-      `确认放弃文件变更吗？\n${file}`,
-      {
-        modal: true,
-      },
-      '放弃变更',
-    );
+    if (!options?.skipConfirm) {
+      const answer = await vscode.window.showWarningMessage(
+        `确认放弃文件变更吗？\n${file}`,
+        {
+          modal: true,
+        },
+        '放弃变更',
+      );
 
-    if (answer !== '放弃变更') return;
+      if (answer !== '放弃变更') return;
+    }
 
     if (finalStatus === 'U' || finalStatus === '?' || finalStatus === 'A') {
       try {
