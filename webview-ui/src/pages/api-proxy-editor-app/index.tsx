@@ -17,6 +17,11 @@ import type {
   ApiProxyMatchType,
 } from '@pages/api-proxy-editor-app/src/type';
 
+interface ApiProxyAddressConflict {
+  message: string;
+  fields: string[];
+}
+
 let localMatchIdSeed = 0;
 
 function createLocalMatchId() {
@@ -37,6 +42,27 @@ function createProxyOrigin(host: string, port: number | string) {
   const normalizedHost = originHost.includes(':') && !originHost.startsWith('[') ? `[${originHost}]` : originHost;
 
   return `http://${normalizedHost}:${listenPort}`;
+}
+
+function normalizeComparableOrigin(value: string) {
+  const rawValue = String(value || '').trim();
+
+  if (!rawValue) return '';
+
+  const valueWithProtocol = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(rawValue) ? rawValue : `http://${rawValue}`;
+
+  try {
+    const url = new URL(valueWithProtocol);
+    const protocol = url.protocol || 'http:';
+    const rawHost = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+    const host = rawHost === 'localhost' || rawHost === '0.0.0.0' || rawHost === '::' ? '127.0.0.1' : rawHost;
+    const port = url.port || (protocol === 'https:' ? '443' : '80');
+    const normalizedHost = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+
+    return `${protocol}//${normalizedHost}:${port}`;
+  } catch {
+    return rawValue.replace(/\/+$/, '').toLowerCase();
+  }
 }
 
 function resolveProxyHomeUrl(server: ApiProxyServerState) {
@@ -107,6 +133,61 @@ function getRuleServer(rule: ApiProxyRule | null, server: ApiProxyServerState): 
   };
 }
 
+function getRuleAddressConflict(rule: ApiProxyRule, server: ApiProxyServerState): ApiProxyAddressConflict | null {
+  const ruleServer = getRuleServer(rule, server);
+  const entries: Array<{ key: string; label: string; value: string }> = [
+    {
+      key: 'listen',
+      label: '监听地址',
+      value: createProxyOrigin(ruleServer.listenHost, ruleServer.listenPort),
+    },
+    {
+      key: 'target',
+      label: '转发目标',
+      value: rule.target,
+    },
+    {
+      key: 'devServer',
+      label: '前端服务',
+      value: ruleServer.devServerOrigin,
+    },
+  ];
+
+  getMatchItems(rule).forEach((item, index) => {
+    if (!String(item.target || '').trim()) return;
+
+    entries.push({
+      key: `matchTarget:${item.id}`,
+      label: `匹配地址 ${index + 1} 的转发地址`,
+      value: item.target || '',
+    });
+  });
+
+  const seen = new Map<string, { key: string; label: string }>();
+
+  for (const entry of entries) {
+    const normalizedValue = normalizeComparableOrigin(entry.value);
+
+    if (!normalizedValue) continue;
+
+    const previous = seen.get(normalizedValue);
+
+    if (previous) {
+      return {
+        message: `${previous.label}不能和${entry.label}相同。`,
+        fields: [previous.key, entry.key],
+      };
+    }
+
+    seen.set(normalizedValue, {
+      key: entry.key,
+      label: entry.label,
+    });
+  }
+
+  return null;
+}
+
 function getRuleValidationMessage(rule: ApiProxyRule, server: ApiProxyServerState) {
   const ruleServer = getRuleServer(rule, server);
 
@@ -134,6 +215,12 @@ function getRuleValidationMessage(rule: ApiProxyRule, server: ApiProxyServerStat
 
   if (getMatchItems(rule).filter((item) => item.match.trim()).length === 0) {
     return '请至少填写一个匹配地址。';
+  }
+
+  const addressConflict = getRuleAddressConflict(rule, server);
+
+  if (addressConflict) {
+    return addressConflict.message;
   }
 
   return '';
@@ -209,6 +296,8 @@ export default function ApiProxyEditorApp() {
   const listenHosts = Array.from(new Set([...(server.listenHosts || []), activeRuleServer.listenHost].filter(Boolean)));
   const activeMatchItems = getMatchItems(activeRule);
   const activeLogs = activeRule?.enabled ? logs.filter((log) => log.ruleId === activeRule.id) : [];
+  const addressConflict = activeRule ? getRuleAddressConflict(activeRule, server) : null;
+  const isAddressConflictField = (field: string) => !!addressConflict?.fields.includes(field);
   const getValidateStatus = (isInvalid: boolean) => (isValidationVisible && isInvalid ? 'error' : undefined);
   const getValidateHelp = (isInvalid: boolean, message: string) => (isValidationVisible && isInvalid ? message : undefined);
 
@@ -439,18 +528,25 @@ export default function ApiProxyEditorApp() {
                 </span>
               </div>
 
+              {isValidationVisible && addressConflict && (
+                <div className={styles['address-conflict-alert']}>
+                  <span className="codicon codicon-warning" />
+                  <span>{addressConflict.message}</span>
+                </div>
+              )}
+
               <BaseForm labelWidth={76}>
                 <BaseFormItem
                   label="监听地址"
                   required
-                  validateStatus={getValidateStatus(!activeRuleServer.listenHost.trim())}
-                  help={getValidateHelp(!activeRuleServer.listenHost.trim(), '请选择监听地址')}
+                  validateStatus={getValidateStatus(!activeRuleServer.listenHost.trim() || isAddressConflictField('listen'))}
+                  help={getValidateHelp(!activeRuleServer.listenHost.trim() || isAddressConflictField('listen'), !activeRuleServer.listenHost.trim() ? '请选择监听地址' : addressConflict?.message || '')}
                   extra="代理服务监听的主机，前端请求需要访问这个地址"
                 >
                   <BaseSelect
                     value={activeRuleServer.listenHost}
                     disabled={isEditingLocked}
-                    status={getValidateStatus(!activeRuleServer.listenHost.trim())}
+                    status={getValidateStatus(!activeRuleServer.listenHost.trim() || isAddressConflictField('listen'))}
                     options={listenHosts.map((host) => ({
                       label: host,
                       value: host,
@@ -462,15 +558,18 @@ export default function ApiProxyEditorApp() {
                 <BaseFormItem
                   label="监听端口"
                   required
-                  validateStatus={getValidateStatus(!(Number(activeRuleServer.listenPort) > 0))}
-                  help={getValidateHelp(!(Number(activeRuleServer.listenPort) > 0), '请输入监听端口')}
+                  validateStatus={getValidateStatus(!(Number(activeRuleServer.listenPort) > 0) || isAddressConflictField('listen'))}
+                  help={getValidateHelp(
+                    !(Number(activeRuleServer.listenPort) > 0) || isAddressConflictField('listen'),
+                    !(Number(activeRuleServer.listenPort) > 0) ? '请输入监听端口' : addressConflict?.message || '',
+                  )}
                   extra="不能和 Vue dev server 使用同一个端口"
                 >
                   <BaseInput
                     type="number"
                     value={activeRuleServer.listenPort}
                     disabled={isEditingLocked}
-                    status={getValidateStatus(!(Number(activeRuleServer.listenPort) > 0))}
+                    status={getValidateStatus(!(Number(activeRuleServer.listenPort) > 0) || isAddressConflictField('listen'))}
                     onValueChange={(value) => updateServerOptions({ listenPort: value })}
                     placeholder="57197"
                   />
@@ -479,14 +578,17 @@ export default function ApiProxyEditorApp() {
                 <BaseFormItem
                   label="前端服务"
                   required
-                  validateStatus={getValidateStatus(!activeRuleServer.devServerOrigin.trim())}
-                  help={getValidateHelp(!activeRuleServer.devServerOrigin.trim(), '请输入前端服务地址')}
+                  validateStatus={getValidateStatus(!activeRuleServer.devServerOrigin.trim() || isAddressConflictField('devServer'))}
+                  help={getValidateHelp(
+                    !activeRuleServer.devServerOrigin.trim() || isAddressConflictField('devServer'),
+                    !activeRuleServer.devServerOrigin.trim() ? '请输入前端服务地址' : addressConflict?.message || '',
+                  )}
                   extra="未命中接口代理规则的页面、JS、CSS、HMR 会转发到这里"
                 >
                   <BaseInput
                     value={activeRuleServer.devServerOrigin}
                     disabled={isEditingLocked}
-                    status={getValidateStatus(!activeRuleServer.devServerOrigin.trim())}
+                    status={getValidateStatus(!activeRuleServer.devServerOrigin.trim() || isAddressConflictField('devServer'))}
                     allowClear
                     onValueChange={(value) => updateServerOptions({ devServerOrigin: value })}
                     placeholder="http://localhost:8081"
@@ -525,12 +627,12 @@ export default function ApiProxyEditorApp() {
                 <BaseFormItem
                   label="转发目标"
                   required
-                  validateStatus={getValidateStatus(!activeRule.target.trim())}
-                  help={getValidateHelp(!activeRule.target.trim(), '请输入转发目标')}
+                  validateStatus={getValidateStatus(!activeRule.target.trim() || isAddressConflictField('target'))}
+                  help={getValidateHelp(!activeRule.target.trim() || isAddressConflictField('target'), !activeRule.target.trim() ? '请输入转发目标' : addressConflict?.message || '')}
                 >
                   <BaseInput
                     value={activeRule.target}
-                    status={getValidateStatus(!activeRule.target.trim())}
+                    status={getValidateStatus(!activeRule.target.trim() || isAddressConflictField('target'))}
                     disabled={isEditingLocked}
                     allowClear
                     onValueChange={(value) => updateRule({ target: value })}
@@ -559,6 +661,7 @@ export default function ApiProxyEditorApp() {
 
                         <BaseInput
                           value={item.target || ''}
+                          status={getValidateStatus(isAddressConflictField(`matchTarget:${item.id}`))}
                           disabled={isEditingLocked}
                           allowClear
                           onValueChange={(value) => updateMatchItem(item.id, { target: value })}
@@ -606,8 +709,6 @@ export default function ApiProxyEditorApp() {
               </BaseForm>
 
               <section className={styles['tester']}>
-                <div className={styles['tester-title']}>测试命中</div>
-
                 <div className={styles['preview-label']}>浏览器入口</div>
 
                 <div className={styles['preview-with-action']}>
