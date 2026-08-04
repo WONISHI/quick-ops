@@ -89,6 +89,7 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
       title: 'Q-ops Api',
       column: vscode.ViewColumn.Active,
       extensionUri: context.extensionUri,
+      icon: 'resources/favicon/api-dev.svg',
       floating: true,
       revealIfExists: false,
       options: {
