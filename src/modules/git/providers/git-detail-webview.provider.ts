@@ -84,7 +84,7 @@ export class GitDetailWebviewProvider {
       title: 'Git 提交详情',
       column: vscode.ViewColumn.Active,
       extensionUri: this._extensionUri,
-      icon: 'resources/icons/git.svg',
+      icon: 'resources/favicon/git.svg',
       options: {
         enableScripts: true,
         retainContextWhenHidden: true,
