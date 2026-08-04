@@ -56,15 +56,7 @@ const GitDetailContextMenu: React.FC<GitDetailContextMenuProps> = ({ contextMenu
   }
 
   return (
-    <BaseContextMenu
-      open={contextMenu.visible}
-      position={{ x: contextMenu.x, y: contextMenu.y }}
-      showArrow
-      items={items}
-      minWidth={168}
-      density="compact"
-      onClose={onClose}
-    />
+    <BaseContextMenu open={contextMenu.visible} showArrow position={{ x: contextMenu.x, y: contextMenu.y }} items={items} minWidth={168} density="compact" onClose={onClose} />
   );
 };
 

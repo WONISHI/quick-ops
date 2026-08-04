@@ -13,6 +13,7 @@ import type { WebviewEnhancerOptions } from '@plugins/webview-enhancer/type';
 interface PreviewTabRecord {
   id: string;
   panel: vscode.WebviewPanel;
+  browserService: EmbeddedBrowserService;
   title: string;
   url: string;
   isMain: boolean;
@@ -105,7 +106,7 @@ export class LivePreviewProvider {
       title: '网页预览 (Preview)',
       column: vscode.ViewColumn.Beside,
       extensionUri: context.extensionUri,
-      icon: 'resources/icons/livepreview.svg',
+      icon: 'resources/favicon/live-preview.svg',
       fullscreen: true,
       floating: true,
       options: {
@@ -144,6 +145,7 @@ export class LivePreviewProvider {
     this.registerPreviewTab({
       id: this.mainPreviewTabId,
       panel,
+      browserService: this.embeddedBrowserService,
       title: this.createPreviewTabTitle('', this.pendingInitialUrl),
       url: this.pendingInitialUrl,
       isMain: true,
@@ -152,6 +154,7 @@ export class LivePreviewProvider {
     panel.onDidChangeViewState((event) => {
       if (event.webviewPanel.visible) {
         void this.syncFavoritesToPanel();
+        void this.resumePreviewTab(this.mainPreviewTabId);
       }
 
       this.broadcastPreviewTabs();
@@ -233,7 +236,7 @@ export class LivePreviewProvider {
         break;
 
       case 'switchPreviewTab':
-        this.switchPreviewTab(String(message.tabId || ''));
+        await this.switchPreviewTab(String(message.tabId || ''));
         break;
 
       case 'saveDevice':
@@ -569,30 +572,34 @@ export class LivePreviewProvider {
   private async postBrowserSnapshot(): Promise<boolean> {
     if (!this.panel) return false;
 
-    const snapshot = await this.embeddedBrowserService.getSnapshot();
+    return this.postBrowserSnapshotToPanel(this.panel, this.embeddedBrowserService, this.mainPreviewTabId);
+  }
+
+  private async postBrowserSnapshotToPanel(panel: vscode.WebviewPanel, browserService: EmbeddedBrowserService, tabId: string): Promise<boolean> {
+    const snapshot = await browserService.getSnapshot();
 
     if (!snapshot.hasPage && !snapshot.frame) return false;
 
     if (snapshot.frame) {
-      this.panel.webview.postMessage({
+      panel.webview.postMessage({
         type: 'browserFrame',
         ...snapshot.frame,
       });
     }
 
     if (snapshot.url) {
-      this.updatePreviewTab(this.mainPreviewTabId, {
+      this.updatePreviewTab(tabId, {
         title: snapshot.title || snapshot.url,
         url: snapshot.url,
       });
-      this.updatePreviewPanelIcon(this.panel, snapshot.faviconUrl);
+      this.updatePreviewPanelIcon(panel, snapshot.faviconUrl);
 
-      this.panel.webview.postMessage({
+      panel.webview.postMessage({
         type: 'browserUrlChanged',
         url: snapshot.url,
       });
 
-      this.panel.webview.postMessage({
+      panel.webview.postMessage({
         type: 'browserPageLoaded',
         url: snapshot.url,
         title: snapshot.title || snapshot.url,
@@ -629,7 +636,7 @@ export class LivePreviewProvider {
       title: '网页预览 (Preview)',
       column: this.panel?.viewColumn || vscode.ViewColumn.Active,
       extensionUri: context.extensionUri,
-      icon: 'resources/icons/livepreview.svg',
+      icon: 'resources/favicon/live-preview.svg',
       fullscreen: true,
       floating: true,
       revealIfExists: false,
@@ -660,12 +667,17 @@ export class LivePreviewProvider {
     this.registerPreviewTab({
       id: tabId,
       panel,
+      browserService,
       title: this.createPreviewTabTitle('', initialUrl),
       url: initialUrl,
       isMain: false,
     });
 
-    panel.onDidChangeViewState(() => {
+    panel.onDidChangeViewState((event) => {
+      if (event.webviewPanel.visible) {
+        void this.resumePreviewTab(tabId);
+      }
+
       this.broadcastPreviewTabs();
     });
 
@@ -695,15 +707,18 @@ export class LivePreviewProvider {
     };
 
     switch (message.type || message.command) {
-      case 'ready':
+      case 'ready': {
+        const restored = await this.postBrowserSnapshotToPanel(panel, browserService, tabId);
+
         panel.webview.postMessage({
           type: 'init',
-          url: initialUrl,
+          url: restored ? '' : initialUrl,
           device: initialDevice || String(context.workspaceState.get('quickOps.lastPreviewDevice') || 'device-responsive'),
         });
         await this.postFavoritesToPanel(panel);
         this.postPreviewTabsToPanel(panel, tabId);
         break;
+      }
 
       case 'saveUrl':
         await context.workspaceState.update('quickOps.lastPreviewUrl', message.url || '');
@@ -717,7 +732,7 @@ export class LivePreviewProvider {
         break;
 
       case 'switchPreviewTab':
-        this.switchPreviewTab(String(message.tabId || ''));
+        await this.switchPreviewTab(String(message.tabId || ''));
         break;
 
       case 'saveDevice':
@@ -1027,16 +1042,35 @@ export class LivePreviewProvider {
   /**
    * @description 激活指定的 VS Code Live Preview 标签页
    */
-  private switchPreviewTab(tabId: string): void {
+  private async switchPreviewTab(tabId: string): Promise<void> {
     const record = this.previewTabs.get(tabId);
 
     if (!record) return;
 
     record.panel.reveal(record.panel.viewColumn || vscode.ViewColumn.Active, false);
 
-    setTimeout(() => {
-      this.broadcastPreviewTabs();
-    }, 0);
+    await this.resumePreviewTab(tabId);
+    this.broadcastPreviewTabs();
+  }
+
+  /**
+   * @description 切回 Live Preview 标签页时恢复截图流并同步当前快照。
+   */
+  private async resumePreviewTab(tabId: string): Promise<void> {
+    const record = this.previewTabs.get(tabId);
+
+    if (!record) return;
+
+    try {
+      await record.browserService.resumeScreencast();
+      await this.postBrowserSnapshotToPanel(record.panel, record.browserService, tabId);
+    } catch (error) {
+      record.panel.webview.postMessage({
+        type: 'browserPageError',
+        url: record.url,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 
   private async loadPendingLocalFile(): Promise<void> {

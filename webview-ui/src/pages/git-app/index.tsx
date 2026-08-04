@@ -429,6 +429,9 @@ export default function GitApp() {
 
         if (msg.stashes) {
           setStashes(msg.stashes);
+          setExpandedStashIndex(null);
+          setStashFilesMap({});
+          setStashFilesLoading({});
         }
 
         setLoading(false);
@@ -438,6 +441,9 @@ export default function GitApp() {
         setIsGraphLoading(false);
       } else if (msg.type === 'stashData') {
         setStashes(msg.stashes || []);
+        setExpandedStashIndex(null);
+        setStashFilesMap({});
+        setStashFilesLoading({});
       } else if (msg.type === 'stashFilesData') {
         setStashFilesMap((prev) => ({ ...prev, [msg.index]: msg.files || [] }));
         setStashFilesLoading((prev) => ({ ...prev, [msg.index]: false }));

@@ -177,7 +177,7 @@ export class FileNavigationService {
         viewType: 'vditorPreviewReact',
         title: `${projectName}: ${fileName}`,
         column: vscode.ViewColumn.Active,
-        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'markdown.svg'),
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'favicon', 'markdown.svg'),
         options: {
           enableScripts: true,
           retainContextWhenHidden: true,
@@ -274,7 +274,7 @@ export class FileNavigationService {
         viewType: 'pdfPreviewReact',
         title: `${projectName}: ${fileName}`,
         column: vscode.ViewColumn.Active,
-        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'pdf.svg'),
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'favicon', 'pdf.svg'),
         options: {
           enableScripts: true,
           retainContextWhenHidden: true,
@@ -335,7 +335,7 @@ export class FileNavigationService {
         viewType: 'excelPreviewReact',
         title: `${projectName}: ${fileName}`,
         column: vscode.ViewColumn.Active,
-        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'table.svg'),
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'favicon', 'table.svg'),
         options: {
           enableScripts: true,
           retainContextWhenHidden: true,
@@ -386,7 +386,7 @@ export class FileNavigationService {
         viewType: 'docPreviewReact',
         title: `${projectName}: ${fileName}`,
         column: vscode.ViewColumn.Active,
-        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'word.svg'),
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'favicon', 'word.svg'),
         options: {
           enableScripts: true,
           retainContextWhenHidden: true,

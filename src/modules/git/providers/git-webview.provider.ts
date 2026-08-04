@@ -807,9 +807,41 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
             if (!files || files.length === 0) break;
 
+            const options: vscode.QuickPickItem[] = [
+              {
+                label: '$(archive) 快速贮藏 (默认备注)',
+                description: '直接贮藏所选文件，使用系统自动生成的 WIP 备注',
+                alwaysShow: true,
+              },
+              {
+                label: '$(edit) 自定义备注贮藏...',
+                description: '为所选文件手动输入贮藏备注信息',
+                alwaysShow: true,
+              },
+            ];
+
+            const selected = await vscode.window.showQuickPick(options, {
+              placeHolder: '请选择所选文件的贮藏方式',
+            });
+
+            if (!selected) return;
+
+            let stashMsg = '';
+
+            if (selected.label.includes('自定义备注贮藏')) {
+              const input = await vscode.window.showInputBox({
+                prompt: '请输入贮藏备注',
+                placeHolder: '例如: 暂存当前文件修改',
+              });
+
+              if (input === undefined) return;
+
+              stashMsg = input.trim();
+            }
+
             await this.executeGitOperation(async () => {
               try {
-                await this.gitService.stashPushFiles(cwd, files);
+                await this.gitService.stashPushFiles(cwd, files, stashMsg);
                 vscode.window.showInformationMessage(`📦 已成功贮藏 ${files.length} 个文件。`);
                 await this.refreshStatus(cwd, false);
               } catch (e: any) {
@@ -2194,7 +2226,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
             await this.executeGitOperation(async () => {
               for (const file of files) {
-                await this.gitService.discardFile(cwd, file);
+                await this.gitService.discardFile(cwd, file, undefined, {
+                  skipConfirm: true,
+                });
               }
 
               await this.closeWorkingTreeDiffTabs(cwd, files);
@@ -2250,7 +2284,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   useTrash: true,
                 });
               } else {
-                await this.gitService.discardFile(cwd, msg.file, msg.status);
+                await this.gitService.discardFile(cwd, msg.file, msg.status, {
+                  skipConfirm: true,
+                });
               }
 
               await this.closeWorkingTreeDiffTabs(cwd, [msg.file]);

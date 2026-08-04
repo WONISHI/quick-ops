@@ -387,7 +387,6 @@
   background: rgba(255, 255, 255, 0.16);
 }
 
-
 .commit-detail-box {
   position: absolute;
   left: 120px;
@@ -396,7 +395,7 @@
   border-bottom: 1px solid var(--vscode-panel-border);
   background: var(--vscode-editor-background);
   box-sizing: border-box;
-  min-height: 140px;
+  min-height: 180px;
   overflow: hidden;
 }
 
@@ -436,7 +435,7 @@
 .detail-info {
   flex: 1;
   min-width: 0;
-  padding: 10px 14px;
+  padding: 12px 14px;
   box-sizing: border-box;
 }
 
@@ -482,13 +481,23 @@
   text-overflow: ellipsis;
 }
 
+.detail-stats-insertions {
+  color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950);
+}
+
+.detail-stats-deletions {
+  color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149);
+}
+
 .detail-message {
-  margin-top: 20px;
+  margin-top: 16px;
   color: var(--vscode-foreground);
   line-height: 22px;
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 .detail-actions {

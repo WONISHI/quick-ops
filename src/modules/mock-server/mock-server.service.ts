@@ -488,6 +488,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
       viewType: 'quickOps.mockProxyPanel',
       title: proxyId ? '编辑 Mock 服务' : '新增 Mock 服务',
       column: vscode.ViewColumn.One,
+      icon: 'resources/favicon/mock-serve.svg',
       extensionUri,
       options: {
         enableScripts: true,
@@ -609,6 +610,7 @@ export class MockServerService implements vscode.WebviewViewProvider {
       viewType: 'quickOps.mockRulePanel',
       title: ruleId ? '编辑规则' : '新增规则',
       column: vscode.ViewColumn.One,
+      icon: 'resources/favicon/mock-edit.svg',
       extensionUri,
       options: {
         enableScripts: true,

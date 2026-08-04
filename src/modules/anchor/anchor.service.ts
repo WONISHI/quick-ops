@@ -917,7 +917,7 @@ export class AnchorService {
        * 如果你的 WebviewAppearancePlugin 使用的是 icon 字段，就用 icon。
        * 如果你的 WebviewWorkflow 仍然使用 iconPath，也可以保留 iconPath。
        */
-      icon: 'resources/icons/anchor-mindmap.svg',
+      icon: 'resources/favicon/anchor-mindmap.svg',
 
       options: {
         enableScripts: true,
