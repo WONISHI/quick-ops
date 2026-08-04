@@ -71,7 +71,7 @@ export class TextCompareService {
       title: '文本差异对比',
       column: vscode.ViewColumn.Beside,
       extensionUri: context.extensionUri,
-      icon: 'resources/icons/text-compare.svg',
+      icon: 'resources/favicon/text-compare.svg',
       fullscreen: true,
       options: {
         enableScripts: true,

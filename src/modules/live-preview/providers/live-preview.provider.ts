@@ -106,7 +106,7 @@ export class LivePreviewProvider {
       title: '网页预览 (Preview)',
       column: vscode.ViewColumn.Beside,
       extensionUri: context.extensionUri,
-      icon: 'resources/icons/livepreview.svg',
+      icon: 'resources/favicon/live-preview.svg',
       fullscreen: true,
       floating: true,
       options: {
@@ -636,7 +636,7 @@ export class LivePreviewProvider {
       title: '网页预览 (Preview)',
       column: this.panel?.viewColumn || vscode.ViewColumn.Active,
       extensionUri: context.extensionUri,
-      icon: 'resources/icons/livepreview.svg',
+      icon: 'resources/favicon/live-preview.svg',
       fullscreen: true,
       floating: true,
       revealIfExists: false,

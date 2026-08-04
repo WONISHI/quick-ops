@@ -316,7 +316,7 @@ export class ApiProxyWebviewProvider implements vscode.WebviewViewProvider, vsco
       title: '接口代理配置',
       column: vscode.ViewColumn.One,
       extensionUri: context.extensionUri,
-      icon: 'resources/icons/api-proxy-editor.svg',
+      icon: 'resources/favicon/api-proxy.svg',
       fullscreen: false,
       floating: false,
       revealIfExists: false,
