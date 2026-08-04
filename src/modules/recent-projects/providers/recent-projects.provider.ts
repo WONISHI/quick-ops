@@ -3378,7 +3378,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         viewType: 'vditorPreviewReact',
         title: `${projectName}: ${fileName}`,
         column: vscode.ViewColumn.Active,
-        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'markdown.svg'),
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'favicon', 'markdown.svg'),
         options: {
           enableScripts: true,
           retainContextWhenHidden: true,
@@ -3474,7 +3474,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         viewType: 'excelPreviewReact',
         title: `${projectName}: ${fileName}`,
         column: viewColumn,
-        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'table.svg'),
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'favicon', 'table.svg'),
         options: {
           enableScripts: true,
           retainContextWhenHidden: true,
@@ -3529,7 +3529,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         viewType: 'pdfPreviewReact',
         title: `${projectName}: ${fileName}`,
         column: viewColumn,
-        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'pdf.svg'),
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'favicon', 'pdf.svg'),
         options: {
           enableScripts: true,
           localResourceRoots: [context.extensionUri],
@@ -3584,7 +3584,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         viewType: 'docPreviewReact',
         title: `${projectName}: ${fileName}`,
         column: viewColumn,
-        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'word.svg'),
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'favicon', 'word.svg'),
         options: {
           enableScripts: true,
           retainContextWhenHidden: true,
@@ -3663,7 +3663,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         viewType: 'htmlPreviewReact',
         title: `${projectName}: ${fileName}`,
         column: viewColumn,
-        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'icons', 'html.svg'),
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'favicon', 'html.svg'),
         options: {
           enableScripts: true,
           retainContextWhenHidden: true,
