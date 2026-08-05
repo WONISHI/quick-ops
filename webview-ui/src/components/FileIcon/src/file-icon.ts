@@ -138,6 +138,7 @@ const EXACT_NAMES: Record<string, string> = {
   'eslint.config.js': eslintIcon,
   '.eslintignore': eslintIcon,
   '.eslintcache': eslintIcon,
+  'eslint.config.cjs': eslintIcon,
   '.prettierrc': prettierIcon,
   '.prettierrc.js': prettierIcon,
   '.prettierignore': prettierIcon,
