@@ -307,7 +307,7 @@ const REGEX_NAMES: IconMatchRule[] = [
     icon: tuneIcon,
   },
   {
-    pattern: /^webpack\..+\.(js|cjs)$/i,
+    pattern: /^webpack(?:\..+)?\.(?:js|cjs)$/i,
     icon: webpackIcon,
   },
 ];
