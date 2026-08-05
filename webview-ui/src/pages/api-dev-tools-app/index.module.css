@@ -9,6 +9,70 @@
   font-size: 12px;
 }
 
+.floating-toolbar {
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1px solid var(--vscode-panel-border);
+  background: var(--vscode-sideBar-background);
+}
+
+.toolbar-btn {
+  height: 24px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--vscode-descriptionForeground);
+  background: transparent;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.toolbar-btn:hover {
+  color: var(--vscode-foreground);
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.toolbar-btn i {
+  font-size: 14px;
+}
+
+.toolbar-btn span {
+  font-size: 11px;
+}
+
+.toolbar-btn-primary {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+  border-color: var(--vscode-button-background);
+}
+
+.toolbar-btn-primary:hover {
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-hoverBackground);
+  border-color: var(--vscode-button-hoverBackground);
+}
+
+.toolbar-btn-danger {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+}
+
+.toolbar-btn-danger:hover {
+  color: var(--vscode-editorWarning-foreground, #cca700);
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.toolbar-spacer {
+  flex: 1 1 auto;
+}
+
 .main {
   flex: 1 1 auto;
   height: 100vh;

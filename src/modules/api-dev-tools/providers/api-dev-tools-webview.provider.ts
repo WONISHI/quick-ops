@@ -99,11 +99,15 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
         localResourceRoots: [context.extensionUri],
       },
       htmlFactory: async (webview) => {
-        return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+        let html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
           extensionUri: context.extensionUri,
           webview,
           routeName: API_DEV_TOOLS_WEBVIEW_ROUTE,
         });
+
+        html = html.replace('</head>', '<script>window.__IS_FLOATING__=true</script></head>');
+
+        return html;
       },
       onDidReceiveMessage: async (message) => {
         await this.handleIncomingMessage(message);
@@ -301,6 +305,14 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
 
       case 'openExternalUrl':
         await this.apiDevToolsService.openExternalUrl(message.payload as { url?: string });
+        break;
+
+      case 'stopApiRequest':
+        if (this.activeRequestId) {
+          this.apiDevToolsService.stopApiRequest(this.activeRequestId);
+          this.activeRequestId = '';
+          await this.setRequestLoading(false);
+        }
         break;
 
       default:
