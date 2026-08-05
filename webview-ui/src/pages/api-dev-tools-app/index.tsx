@@ -13,6 +13,7 @@ import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-edito
 import ProjectCard from '@/pages/api-dev-tools-app/components/project-card';
 import ShareCard from '@/pages/api-dev-tools-app/components/share-card';
 import ApiDevToolsSkeleton from '@/pages/api-dev-tools-app/components/api-dev-tools-skeleton';
+import WelcomePage from '@/pages/api-dev-tools-app/components/welcome-page';
 import { buildApiDocsHtml } from '@/pages/api-dev-tools-app/src/api-docs-builder';
 import { formatSize, safeBase64, clampNumber, cloneRequest } from '@/pages/api-dev-tools-app/src/api-dev-tools.utils';
 import type {
@@ -97,6 +98,7 @@ export default function ApiDevToolsApp() {
   const [response, setResponse] = useState<ApiResponsePayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [isFloating] = useState(() => Boolean((window as any).__IS_FLOATING__));
+  const [floatingEditorOpen, setFloatingEditorOpen] = useState(false);
 
   /**
    * @description 是否正在加载 Extension Host 中持久化的初始状态
@@ -842,6 +844,11 @@ export default function ApiDevToolsApp() {
 
       if (message?.type === 'apiDocsExported') {
         setLog(`接口文档已导出：${message.payload?.path || ''}`);
+        return;
+      }
+
+      if (message?.type === 'floatingEditorStateChanged') {
+        setFloatingEditorOpen(Boolean(message.open));
         return;
       }
 
@@ -2210,6 +2217,14 @@ export default function ApiDevToolsApp() {
 
   if (initializing) {
     return <ApiDevToolsSkeleton workspacePaneWidth={workspacePaneWidth} workspaceResizerSize={WORKSPACE_RESIZER_SIZE} bottomPanelSize={bottomPanelSize} />;
+  }
+
+  if (!isFloating && floatingEditorOpen) {
+    return (
+      <div className={styles['api-devtools']}>
+        <WelcomePage />
+      </div>
+    );
   }
 
   return (

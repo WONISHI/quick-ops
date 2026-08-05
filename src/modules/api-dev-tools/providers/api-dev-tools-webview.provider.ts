@@ -116,6 +116,11 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
         if (this.floatingPanel === panel) {
           this.floatingPanel = undefined;
           void vscode.commands.executeCommand('setContext', API_DEV_TOOLS_FLOATING_CONTEXT, false);
+
+          this.view?.webview.postMessage({
+            type: 'floatingEditorStateChanged',
+            open: false,
+          });
         }
 
         if (!this.view) {
@@ -132,6 +137,11 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
     this.floatingPanel = panel;
 
     void vscode.commands.executeCommand('setContext', API_DEV_TOOLS_FLOATING_CONTEXT, true);
+
+    this.view?.webview.postMessage({
+      type: 'floatingEditorStateChanged',
+      open: true,
+    });
 
     /**
      * 等待新建的 WebviewPanel 成为活动编辑器后再执行浮动迁移。
