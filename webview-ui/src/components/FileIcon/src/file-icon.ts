@@ -306,6 +306,10 @@ const REGEX_NAMES: IconMatchRule[] = [
     pattern: /^\.env\.[^.]+$/i,
     icon: tuneIcon,
   },
+  {
+    pattern: /^webpack\..+\.(js|cjs)$/i,
+    icon: webpackIcon,
+  },
 ];
 
 const getMatchedIconFromRules = (name: string, rules: IconMatchRule[]) => {
