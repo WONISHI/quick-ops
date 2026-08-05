@@ -18,6 +18,11 @@ export const API_DEV_TOOLS_LOADING_CONTEXT = 'quickOps.apiDevTools.loading';
  */
 export const API_DEV_TOOLS_FLOATING_CONTEXT = 'quickOps.apiDevTools.floating';
 
+/**
+ * @description API DevTools 欢迎页显示上下文（悬浮编辑器打开时侧边栏显示欢迎页）
+ */
+export const API_DEV_TOOLS_WELCOME_VISIBLE_CONTEXT = 'quickOps.apiDevTools.welcomeVisible';
+
 export const API_DEV_TOOLS_COMMANDS = {
   OPEN_FLOATING: 'quickOps.apiDevTools.openFloating',
   ADD_PROJECT: 'quickOps.apiDevTools.addProject',

@@ -5,6 +5,7 @@ import { ExtensionContextProvider } from '@common/providers/extension-context.pr
 import {
   API_DEV_TOOLS_FLOATING_CONTEXT,
   API_DEV_TOOLS_LOADING_CONTEXT,
+  API_DEV_TOOLS_WELCOME_VISIBLE_CONTEXT,
   API_DEV_TOOLS_VIEW_TITLE_ACTION_MESSAGE,
   API_DEV_TOOLS_VIEW_TYPE,
   API_DEV_TOOLS_WEBVIEW_ROUTE,
@@ -116,6 +117,7 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
         if (this.floatingPanel === panel) {
           this.floatingPanel = undefined;
           void vscode.commands.executeCommand('setContext', API_DEV_TOOLS_FLOATING_CONTEXT, false);
+          void vscode.commands.executeCommand('setContext', API_DEV_TOOLS_WELCOME_VISIBLE_CONTEXT, false);
 
           this.view?.webview.postMessage({
             type: 'floatingEditorStateChanged',
@@ -137,6 +139,7 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
     this.floatingPanel = panel;
 
     void vscode.commands.executeCommand('setContext', API_DEV_TOOLS_FLOATING_CONTEXT, true);
+    void vscode.commands.executeCommand('setContext', API_DEV_TOOLS_WELCOME_VISIBLE_CONTEXT, true);
 
     this.view?.webview.postMessage({
       type: 'floatingEditorStateChanged',
