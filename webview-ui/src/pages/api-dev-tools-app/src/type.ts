@@ -110,7 +110,7 @@ export type LeaveConfirmDialog = {
 /**
  * @description API DevTools 原生 View 标题栏操作
  */
-export type ApiDevToolsViewTitleAction = 'add-project' | 'add-interface' | 'save-interface' | 'share-docs' | 'export-docs' | 'show-globals' | 'clear-all' | 'send-request';
+export type ApiDevToolsViewTitleAction = 'add-project' | 'add-interface' | 'save-interface' | 'share-docs' | 'export-docs' | 'show-globals' | 'clear-all' | 'send-request' | 'stop-request';
 
 export interface ApiInterfaceGroup {
   id: string;

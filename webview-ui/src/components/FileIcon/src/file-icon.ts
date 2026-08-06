@@ -138,6 +138,7 @@ const EXACT_NAMES: Record<string, string> = {
   'eslint.config.js': eslintIcon,
   '.eslintignore': eslintIcon,
   '.eslintcache': eslintIcon,
+  'eslint.config.cjs': eslintIcon,
   '.prettierrc': prettierIcon,
   '.prettierrc.js': prettierIcon,
   '.prettierignore': prettierIcon,
@@ -304,6 +305,10 @@ const REGEX_NAMES: IconMatchRule[] = [
   {
     pattern: /^\.env\.[^.]+$/i,
     icon: tuneIcon,
+  },
+  {
+    pattern: /^webpack(?:\..+)?\.(?:js|cjs)$/i,
+    icon: webpackIcon,
   },
 ];
 

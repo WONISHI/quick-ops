@@ -13,6 +13,7 @@ import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-edito
 import ProjectCard from '@/pages/api-dev-tools-app/components/project-card';
 import ShareCard from '@/pages/api-dev-tools-app/components/share-card';
 import ApiDevToolsSkeleton from '@/pages/api-dev-tools-app/components/api-dev-tools-skeleton';
+import WelcomePage from '@/pages/api-dev-tools-app/components/welcome-page';
 import { buildApiDocsHtml } from '@/pages/api-dev-tools-app/src/api-docs-builder';
 import { formatSize, safeBase64, clampNumber, cloneRequest } from '@/pages/api-dev-tools-app/src/api-dev-tools.utils';
 import type {
@@ -96,6 +97,8 @@ export default function ApiDevToolsApp() {
   const [requestDetail, setRequestDetail] = useState<RequestDetailPayload | null>(null);
   const [response, setResponse] = useState<ApiResponsePayload | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isFloating] = useState(() => Boolean((window as any).__IS_FLOATING__));
+  const [floatingEditorOpen, setFloatingEditorOpen] = useState(false);
 
   /**
    * @description 是否正在加载 Extension Host 中持久化的初始状态
@@ -841,7 +844,14 @@ export default function ApiDevToolsApp() {
 
       if (message?.type === 'apiDocsExported') {
         setLog(`接口文档已导出：${message.payload?.path || ''}`);
+        return;
       }
+
+      if (message?.type === 'floatingEditorStateChanged') {
+        setFloatingEditorOpen(Boolean(message.open));
+        return;
+      }
+
     };
 
     window.addEventListener('message', handleMessage);
@@ -2193,6 +2203,10 @@ export default function ApiDevToolsApp() {
         }
         break;
 
+      case 'stop-request':
+        vscode?.postMessage({ type: 'stopApiRequest' });
+        break;
+
       default:
         break;
     }
@@ -2205,8 +2219,56 @@ export default function ApiDevToolsApp() {
     return <ApiDevToolsSkeleton workspacePaneWidth={workspacePaneWidth} workspaceResizerSize={WORKSPACE_RESIZER_SIZE} bottomPanelSize={bottomPanelSize} />;
   }
 
+  if (!isFloating && floatingEditorOpen) {
+    return (
+      <div className={styles['api-devtools']}>
+        <WelcomePage />
+      </div>
+    );
+  }
+
   return (
     <div className={styles['api-devtools']}>
+      {isFloating && (
+        <div className={styles['floating-toolbar']}>
+          <button className={styles['toolbar-btn']} title="添加项目" onClick={addProject}>
+            <i className="codicon codicon-folder-opened" />
+            <span>项目</span>
+          </button>
+          <button className={styles['toolbar-btn']} title="保存接口" onClick={saveInterface}>
+            <i className="codicon codicon-save" />
+            <span>保存</span>
+          </button>
+          <button className={styles['toolbar-btn']} title="分享文档" onClick={shareDocs}>
+            <i className="codicon codicon-globe" />
+            <span>分享</span>
+          </button>
+          <button className={styles['toolbar-btn']} title="导出文档" onClick={exportDocs}>
+            <i className="codicon codicon-export" />
+            <span>导出</span>
+          </button>
+          <button className={styles['toolbar-btn']} title="全局变量" onClick={() => setShowGlobals(true)}>
+            <i className="codicon codicon-symbol-variable" />
+            <span>变量</span>
+          </button>
+          <button className={styles['toolbar-btn']} title="清空全部" onClick={clearAll}>
+            <i className="codicon codicon-clear-all" />
+            <span>清空</span>
+          </button>
+          <div className={styles['toolbar-spacer']} />
+          {loading ? (
+            <button className={[styles['toolbar-btn'], styles['toolbar-btn-danger']].join(' ')} title="停止请求" onClick={() => vscode?.postMessage({ type: 'stopApiRequest' })}>
+              <i className="codicon codicon-debug-stop" />
+              <span>停止</span>
+            </button>
+          ) : (
+            <button className={[styles['toolbar-btn'], styles['toolbar-btn-primary']].join(' ')} title="发送请求" onClick={sendRequest}>
+              <i className="codicon codicon-send" />
+              <span>发送</span>
+            </button>
+          )}
+        </div>
+      )}
       <main
         className={styles['main']}
         style={

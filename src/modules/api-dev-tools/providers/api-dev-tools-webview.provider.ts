@@ -5,6 +5,7 @@ import { ExtensionContextProvider } from '@common/providers/extension-context.pr
 import {
   API_DEV_TOOLS_FLOATING_CONTEXT,
   API_DEV_TOOLS_LOADING_CONTEXT,
+  API_DEV_TOOLS_WELCOME_VISIBLE_CONTEXT,
   API_DEV_TOOLS_VIEW_TITLE_ACTION_MESSAGE,
   API_DEV_TOOLS_VIEW_TYPE,
   API_DEV_TOOLS_WEBVIEW_ROUTE,
@@ -99,11 +100,15 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
         localResourceRoots: [context.extensionUri],
       },
       htmlFactory: async (webview) => {
-        return this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
+        let html = await this.reactWebviewHtmlWorkflow.createReactWebviewHtml({
           extensionUri: context.extensionUri,
           webview,
           routeName: API_DEV_TOOLS_WEBVIEW_ROUTE,
         });
+
+        html = html.replace('</head>', '<script>window.__IS_FLOATING__=true</script></head>');
+
+        return html;
       },
       onDidReceiveMessage: async (message) => {
         await this.handleIncomingMessage(message);
@@ -112,6 +117,12 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
         if (this.floatingPanel === panel) {
           this.floatingPanel = undefined;
           void vscode.commands.executeCommand('setContext', API_DEV_TOOLS_FLOATING_CONTEXT, false);
+          void vscode.commands.executeCommand('setContext', API_DEV_TOOLS_WELCOME_VISIBLE_CONTEXT, false);
+
+          this.view?.webview.postMessage({
+            type: 'floatingEditorStateChanged',
+            open: false,
+          });
         }
 
         if (!this.view) {
@@ -128,6 +139,12 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
     this.floatingPanel = panel;
 
     void vscode.commands.executeCommand('setContext', API_DEV_TOOLS_FLOATING_CONTEXT, true);
+    void vscode.commands.executeCommand('setContext', API_DEV_TOOLS_WELCOME_VISIBLE_CONTEXT, true);
+
+    this.view?.webview.postMessage({
+      type: 'floatingEditorStateChanged',
+      open: true,
+    });
 
     /**
      * 等待新建的 WebviewPanel 成为活动编辑器后再执行浮动迁移。
@@ -301,6 +318,14 @@ export class ApiDevToolsWebviewProvider implements vscode.WebviewViewProvider {
 
       case 'openExternalUrl':
         await this.apiDevToolsService.openExternalUrl(message.payload as { url?: string });
+        break;
+
+      case 'stopApiRequest':
+        if (this.activeRequestId) {
+          this.apiDevToolsService.stopApiRequest(this.activeRequestId);
+          this.activeRequestId = '';
+          await this.setRequestLoading(false);
+        }
         break;
 
       default:
