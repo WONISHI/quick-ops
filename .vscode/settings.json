@@ -1,4 +1,4 @@
-// Place your settings in this file to overwrite default and user settings.
+
 {
   "files.exclude": {
     "out": false,
@@ -11,7 +11,8 @@
     ".vscode-test": true,
     "bundle-report.html": true
   },
-  "typescript.tsc.autoDetect": "off",
+  "js/ts.tsc.autoDetect": "off",
+  "npm.packageManager": "npm",
   "debug.javascript.usePreview": true,
   "debug.javascript.autoAttachFilter": "disabled",
   "debug.javascript.terminalOptions": {
