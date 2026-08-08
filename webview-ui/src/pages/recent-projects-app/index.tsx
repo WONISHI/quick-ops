@@ -38,6 +38,8 @@ export default function RecentProjectsApp() {
 
   const [selectedPath, setSelectedPath] = useState<string>('');
   const selectedPathRef = useRef('');
+  /** 当前编辑器真正打开的文件路径，不能被目录树上的普通选中覆盖。 */
+  const activeFilePathRef = useRef('');
   const autoScrollTarget = useRef<string | null>(null);
   const listScrollbarRef = useRef<ScrollbarInstance>(null);
 
@@ -192,6 +194,7 @@ export default function RecentProjectsApp() {
   const pendingSearchResponseModeRef = useRef<'normal' | 'silent'>('normal');
   const latestSearchRequestIdRef = useRef(0);
   const activeSearchRequestIdRef = useRef(0);
+  const hasFocusSearchQueryRef = useRef(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isFocusLocked, setIsFocusLocked] = useState(false);
   const [focusRootPath, setFocusRootPath] = useState('');
@@ -292,8 +295,16 @@ export default function RecentProjectsApp() {
     if (!pendingRenameEntity) return;
 
     window.setTimeout(() => {
-      pendingRenameInputRef.current?.focus();
-      pendingRenameInputRef.current?.select();
+      const input = pendingRenameInputRef.current;
+
+      if (!input) return;
+
+      const fileName = pendingRenameEntity.name || '';
+      const extensionIndex = pendingRenameEntity.isFolder ? -1 : fileName.lastIndexOf('.');
+      const selectionEnd = extensionIndex > 0 ? extensionIndex : fileName.length;
+
+      input.focus();
+      input.setSelectionRange(0, selectionEnd);
     }, 0);
   }, [pendingRenameEntity]);
 
@@ -350,6 +361,39 @@ export default function RecentProjectsApp() {
     }
 
     return normalizeFallbackPath(pathValue);
+  };
+
+  /**
+   * @description 按文件路径合并内容搜索结果
+   *
+   * 文件变化会触发静默重新搜索。若前一次搜索尚未结束，多个批次可能在很短
+   * 时间内交错返回，因此这里以完整文件路径为唯一键，保证同一个文件只出现一次。
+   */
+  const mergeContentSearchResults = (previous: SearchResult[], incoming: SearchResult[]) => {
+    const resultMap = new Map<string, SearchResult>();
+
+    [...previous, ...incoming].forEach((item, index) => {
+      const key = normalizePatchPath(item.fullPath || item.file || '') || `__content_search_result_${index}`;
+
+      resultMap.set(key, item);
+    });
+
+    return Array.from(resultMap.values());
+  };
+
+  /**
+   * @description 按文件路径合并文件名搜索结果
+   */
+  const mergeFileNameSearchResults = (previous: DirChild[], incoming: DirChild[]) => {
+    const resultMap = new Map<string, DirChild>();
+
+    [...previous, ...incoming].forEach((item, index) => {
+      const key = normalizePatchPath(item.path || '') || `__file_name_search_result_${index}`;
+
+      resultMap.set(key, item);
+    });
+
+    return Array.from(resultMap.values());
   };
 
   const applyMetadataPatchToItem = <T extends Record<string, any>>(item: T, patchMap: Map<string, MetadataPatchItem>): T => {
@@ -1119,7 +1163,11 @@ export default function RecentProjectsApp() {
         setIsInitLoading(false);
 
         if (msg.activeFilePath) {
-          setSelectedPath(msg.activeFilePath as string);
+          const activeFilePath = msg.activeFilePath as string;
+
+          activeFilePathRef.current = activeFilePath;
+          selectedPathRef.current = activeFilePath;
+          setSelectedPath(activeFilePath);
         }
 
         if (focusLock?.enabled && focusLock.active && currentWorkspaceValue?.fsPath) {
@@ -1231,7 +1279,11 @@ export default function RecentProjectsApp() {
           clearChildren: (msg as any).clearChildren !== false,
         });
       } else if (msg.type === 'activeEditorChanged') {
-        setSelectedPath(msg.fsPath as string);
+        const activeFilePath = msg.fsPath as string;
+
+        activeFilePathRef.current = activeFilePath;
+        selectedPathRef.current = activeFilePath;
+        setSelectedPath(activeFilePath);
       } else if (msg.type === 'beginCreateFileInFocusMode') {
         beginCreateEntityFromFocusSelection('file');
       } else if (msg.type === 'beginCreateFolderInFocusMode') {
@@ -1526,22 +1578,22 @@ export default function RecentProjectsApp() {
         } else if (responseMode === 'silent') {
           setFolderSearchError('');
           if (isDone) {
-            const accumulated = [...pendingSilentResultsRef.current.results, ...incomingResults];
+            const accumulated = mergeContentSearchResults(pendingSilentResultsRef.current.results, incomingResults);
             setFolderSearchResults(accumulated);
             setFolderSearchTotalMatches(Number((msg as any).totalMatches) || 0);
             pendingSilentResultsRef.current.results = [];
             pendingSearchResponseModeRef.current = 'normal';
             setIsSearchingFolder(false);
           } else {
-            pendingSilentResultsRef.current.results = [...pendingSilentResultsRef.current.results, ...incomingResults];
+            pendingSilentResultsRef.current.results = mergeContentSearchResults(pendingSilentResultsRef.current.results, incomingResults);
           }
         } else {
           setFolderSearchError('');
           setFolderSearchResults((prev) => {
-            if (shouldReset) return incomingResults;
-            if (shouldAppend) return [...prev, ...incomingResults];
+            if (shouldReset) return mergeContentSearchResults([], incomingResults);
+            if (shouldAppend) return mergeContentSearchResults(prev, incomingResults);
 
-            return incomingResults;
+            return mergeContentSearchResults([], incomingResults);
           });
           setFolderSearchTotalMatches(Number((msg as any).totalMatches) || 0);
 
@@ -1577,22 +1629,22 @@ export default function RecentProjectsApp() {
           setFolderSearchTotalMatches(0);
           setFolderSearchError('');
           if (isDone) {
-            const accumulated = [...pendingSilentResultsRef.current.fileNameResults, ...incomingResults];
+            const accumulated = mergeFileNameSearchResults(pendingSilentResultsRef.current.fileNameResults, incomingResults);
             setFileNameSearchResults(accumulated);
             pendingSilentResultsRef.current.fileNameResults = [];
             pendingSearchResponseModeRef.current = 'normal';
             setIsSearchingFolder(false);
           } else {
-            pendingSilentResultsRef.current.fileNameResults = [...pendingSilentResultsRef.current.fileNameResults, ...incomingResults];
+            pendingSilentResultsRef.current.fileNameResults = mergeFileNameSearchResults(pendingSilentResultsRef.current.fileNameResults, incomingResults);
           }
         } else {
           setFolderSearchTotalMatches(0);
           setFolderSearchError('');
           setFileNameSearchResults((prev) => {
-            if (shouldReset) return incomingResults;
-            if (shouldAppend) return [...prev, ...incomingResults];
+            if (shouldReset) return mergeFileNameSearchResults([], incomingResults);
+            if (shouldAppend) return mergeFileNameSearchResults(prev, incomingResults);
 
-            return incomingResults;
+            return mergeFileNameSearchResults([], incomingResults);
           });
         }
 
@@ -1611,6 +1663,8 @@ export default function RecentProjectsApp() {
 
         const { targetPath, parentPaths, projectName } = msg as any;
 
+        activeFilePathRef.current = targetPath;
+        selectedPathRef.current = targetPath;
         setSelectedPath(targetPath);
         autoScrollTarget.current = targetPath;
 
@@ -1825,11 +1879,17 @@ export default function RecentProjectsApp() {
 
   useEffect(() => {
     activeSearchRequestIdRef.current = 0;
+    pendingSilentResultsRef.current = {
+      results: [],
+      fileNameResults: [],
+    };
+
     vscode.postMessage({
       type: 'cancelSearch',
     });
 
     if (!isSearchMode || !searchTargetProject) {
+      hasFocusSearchQueryRef.current = false;
       setIsSearchingFolder(false);
       return;
     }
@@ -1844,8 +1904,39 @@ export default function RecentProjectsApp() {
       pendingSearchResponseModeRef.current = 'normal';
       lastSubmittedSearchKeyRef.current = '';
       activeSearchRequestIdRef.current = 0;
-      return;
+
+      if (!isFocusMode || !hasFocusSearchQueryRef.current) {
+        return;
+      }
+
+      const revealTimeoutId = window.setTimeout(() => {
+        if (!isFocusModeRef.current || folderSearchQueryRef.current.trim()) {
+          return;
+        }
+
+        const activeFilePath = activeFilePathRef.current;
+
+        if (!activeFilePath) {
+          return;
+        }
+
+        hasFocusSearchQueryRef.current = false;
+        selectedPathRef.current = activeFilePath;
+        autoScrollTarget.current = activeFilePath;
+        setSelectedPath(activeFilePath);
+
+        vscode.postMessage({
+          type: 'revealCurrentActive',
+          targetPath: activeFilePath,
+        });
+      }, 300);
+
+      return () => {
+        window.clearTimeout(revealTimeoutId);
+      };
     }
+
+    hasFocusSearchQueryRef.current = isFocusMode;
 
     const searchKey = [searchTargetProject.path, folderSearchType, folderSearchQuery.trim(), searchTargetProject.isRemote ? 'remote' : 'local'].join('\n');
     const isSilentRefresh = silentSearchRefreshRef.current && lastSubmittedSearchKeyRef.current === searchKey;
@@ -2616,6 +2707,8 @@ export default function RecentProjectsApp() {
   const handleOpenFile = (pathValue: string, projectName: string, isActiveProject: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
 
+    activeFilePathRef.current = pathValue;
+    selectedPathRef.current = pathValue;
     setSelectedPath(pathValue);
     setContextMenu((prev) => ({
       ...prev,
@@ -3163,6 +3256,26 @@ export default function RecentProjectsApp() {
 
   const exitSearchOrFocusMode = () => {
     const searchReturnState = searchReturnStateRef.current;
+    const shouldRevealActiveFile = isSearchModeRef.current && !isFocusModeRef.current;
+
+    const revealCurrentActiveTreeItem = () => {
+      if (!shouldRevealActiveFile) return;
+
+      const activeFilePath = activeFilePathRef.current;
+
+      if (!activeFilePath) return;
+
+      selectedPathRef.current = activeFilePath;
+      autoScrollTarget.current = activeFilePath;
+      setSelectedPath(activeFilePath);
+
+      window.setTimeout(() => {
+        vscode.postMessage({
+          type: 'revealCurrentActive',
+          targetPath: activeFilePath,
+        });
+      }, 0);
+    };
 
     if (searchReturnState) {
       searchReturnStateRef.current = null;
@@ -3187,6 +3300,7 @@ export default function RecentProjectsApp() {
       setFolderSearchError('');
       setIsSearchingFolder(false);
       setCurrentActiveMatch(0);
+      revealCurrentActiveTreeItem();
       return;
     }
 
@@ -3212,6 +3326,7 @@ export default function RecentProjectsApp() {
 
     if (!exitingFocusMode || !exitingFocusRootPath) {
       normalDirChildrenBeforeFocusRef.current = {};
+      revealCurrentActiveTreeItem();
       return;
     }
 

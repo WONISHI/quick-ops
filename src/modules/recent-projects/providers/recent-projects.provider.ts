@@ -497,10 +497,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.setActivePath(editor.document.uri.toString());
   }
 
-  public revealCurrentActive(): void {
+  public revealCurrentActive(preferredPath = ''): void {
     const editor = vscode.window.activeTextEditor;
+    const explicitPath = String(preferredPath || '').trim();
 
-    if (editor && editor.document.uri.scheme === 'file') {
+    if (explicitPath) {
+      this.currentActivePath = explicitPath;
+    } else if (editor && editor.document.uri.scheme === 'file') {
       this.currentActivePath = editor.document.uri.toString();
     }
 
@@ -646,7 +649,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         break;
 
       case 'revealCurrentActive':
-        this.revealCurrentActive();
+        this.revealCurrentActive(targetPath);
         break;
 
       case 'setFocusModeContext':
