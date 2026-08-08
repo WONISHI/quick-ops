@@ -155,7 +155,6 @@ const EXACT_NAMES: Record<string, string> = {
   '.markdownlint.json': markdownlint,
   'postcss.config.js': postcssIcon,
   '.lintstagedrc': lintstagedIcon,
-  'commitlint.config.js': commitlintIcon,
   '.browserslistrc': browserlistIcon,
   'stylelint.config.js': stylelintIcon,
   '.stylelintignore': stylelintIcon,
@@ -305,6 +304,7 @@ const REGEX_NAMES: IconMatchRule[] = [
     icon: webpackIcon,
   },
   { pattern: /^(?:\.eslintrc\.(?:js|json)|eslint\.config\.(?:js|cjs|mjs)|\.eslint(?:ignore|cache))$/i, icon: eslintIcon },
+  { pattern: /^(?:\.commitlintrc(?:\.(?:json|ya?ml|[cm]?[jt]s))?|commitlint\.config\.(?:[cm]?[jt]s))$/i, icon: commitlintIcon },
 ];
 
 const getMatchedIconFromRules = (name: string, rules: IconMatchRule[]) => {
