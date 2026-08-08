@@ -18,6 +18,7 @@ import {
   faFolderPlus,
   faBullseye,
   faFolderMinus,
+  faFolderOpen,
   faTerminal,
 } from '@fortawesome/free-solid-svg-icons';
 import { faCopy, faSquareCheck, faClone, faFolderOpen as faFolderOpenReg, faWindowRestore, faFileCode } from '@fortawesome/free-regular-svg-icons';
@@ -376,24 +377,36 @@ function createSubMenuItems(payload: ContextMenuPayload, onAction: (action: stri
       createSeparator('sub-compare-separator'),
     );
   } else {
-    items.push(
-      {
-        key: 'search-in-sub-folder',
-        label: '查找文件内容...',
-        icon: createIcon(faMagnifyingGlass),
-        onSelect: () => {
-          onAction('searchInFolder');
-        },
+    items.push({
+      key: 'search-in-sub-folder',
+      label: '查找文件内容...',
+      icon: createIcon(faMagnifyingGlass),
+      onSelect: () => {
+        onAction('searchInFolder');
       },
-      {
+    });
+
+    const isExpanded = Boolean((payload as ContextMenuPayload & { isExpanded?: boolean }).isExpanded);
+
+    if (isExpanded) {
+      items.push({
         key: 'collapse-folder-children',
         label: '折叠',
         icon: createIcon(faFolderMinus),
         onSelect: () => {
           onAction('collapseFolderChildren');
         },
-      },
-    );
+      });
+    } else {
+      items.push({
+        key: 'expand-folder-children',
+        label: '展开',
+        icon: createIcon(faFolderOpen),
+        onSelect: () => {
+          onAction('expandFolderChildren');
+        },
+      });
+    }
 
     if (!payload.isRemote) {
       items.push(

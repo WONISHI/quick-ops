@@ -45,6 +45,16 @@ export default function RecentProjectsApp() {
 
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const expandedPathsRef = useRef<Set<string>>(new Set());
+  const recursiveFolderExpandStatesRef = useRef<
+    Map<
+      string,
+      {
+        projectName: string;
+        pendingPaths: Set<string>;
+        processedPaths: Set<string>;
+      }
+    >
+  >(new Map());
   useEffect(() => {
     expandedPathsRef.current = expandedPaths;
   }, [expandedPaths]);
@@ -1323,6 +1333,7 @@ export default function RecentProjectsApp() {
             ...prev,
             [pathKey]: children,
           }));
+          continueRecursiveFolderExpand(pathKey, children);
 
           return;
         }
@@ -1331,6 +1342,7 @@ export default function RecentProjectsApp() {
           ...prev,
           [pathKey]: children,
         }));
+        continueRecursiveFolderExpand(pathKey, children);
       } else if (msg.type === 'deleteFileEntityResult') {
         const deletedPath = msg.fsPath as string;
         const parentPath = msg.parentPath as string;
@@ -2137,6 +2149,91 @@ export default function RecentProjectsApp() {
     });
   };
 
+  const applyRecursiveExpandedPaths = (paths: Set<string>) => {
+    if (paths.size === 0) return;
+
+    const next = new Set(expandedPathsRef.current);
+    paths.forEach((pathValue) => next.add(pathValue));
+    expandedPathsRef.current = next;
+    setExpandedPaths(next);
+  };
+
+  const collectRecursiveFolderExpand = (
+    state: {
+      projectName: string;
+      pendingPaths: Set<string>;
+      processedPaths: Set<string>;
+    },
+    folderPath: string,
+    pathsToExpand: Set<string>,
+    loadedChildren?: DirChild[],
+  ) => {
+    if (state.processedPaths.has(folderPath)) return;
+
+    pathsToExpand.add(folderPath);
+
+    const children = loadedChildren || dirChildrenRef.current[folderPath];
+
+    if (!children) {
+      if (!state.pendingPaths.has(folderPath)) {
+        state.pendingPaths.add(folderPath);
+        setLoadingPaths((prev) => new Set(prev).add(folderPath));
+        requestReadDir(folderPath, state.projectName);
+      }
+
+      return;
+    }
+
+    state.pendingPaths.delete(folderPath);
+    state.processedPaths.add(folderPath);
+
+    children.forEach((child) => {
+      if (!child.isFolder) return;
+
+      collectRecursiveFolderExpand(state, child.path, pathsToExpand);
+    });
+  };
+
+  const startRecursiveFolderExpand = (folderPath: string, projectName: string) => {
+    const state = {
+      projectName,
+      pendingPaths: new Set<string>(),
+      processedPaths: new Set<string>(),
+    };
+    const pathsToExpand = new Set<string>();
+
+    recursiveFolderExpandStatesRef.current.set(folderPath, state);
+    collectRecursiveFolderExpand(state, folderPath, pathsToExpand);
+    applyRecursiveExpandedPaths(pathsToExpand);
+
+    if (state.pendingPaths.size === 0) {
+      recursiveFolderExpandStatesRef.current.delete(folderPath);
+    }
+  };
+
+  const continueRecursiveFolderExpand = (folderPath: string, children: DirChild[]) => {
+    recursiveFolderExpandStatesRef.current.forEach((state, rootPath) => {
+      if (!state.pendingPaths.has(folderPath)) return;
+
+      const pathsToExpand = new Set<string>();
+
+      collectRecursiveFolderExpand(state, folderPath, pathsToExpand, children);
+      applyRecursiveExpandedPaths(pathsToExpand);
+
+      if (state.pendingPaths.size === 0) {
+        recursiveFolderExpandStatesRef.current.delete(rootPath);
+      }
+    });
+  };
+
+  const cancelRecursiveFolderExpand = (folderPath: string) => {
+    recursiveFolderExpandStatesRef.current.forEach((_, rootPath) => {
+      if (isPathInside(rootPath, folderPath) || isPathInside(folderPath, rootPath)) {
+        recursiveFolderExpandStatesRef.current.delete(rootPath);
+      }
+    });
+  };
+
   const isSameTreePath = (leftPath: string, rightPath: string) => {
     return normalizePatchPath(leftPath) === normalizePatchPath(rightPath);
   };
@@ -2766,6 +2863,7 @@ export default function RecentProjectsApp() {
     if (isExpanding) {
       next.add(pathValue);
     } else {
+      cancelRecursiveFolderExpand(pathValue);
       next.delete(pathValue);
     }
 
@@ -3151,6 +3249,7 @@ export default function RecentProjectsApp() {
 
       case 'collapseFolderChildren': {
         const targetPath = payload.path;
+        cancelRecursiveFolderExpand(targetPath);
 
         setExpandedPaths((prev) => {
           const next = new Set(prev);
@@ -3160,6 +3259,8 @@ export default function RecentProjectsApp() {
               next.delete(itemPath);
             }
           });
+
+          expandedPathsRef.current = next;
 
           return next;
         });
@@ -3178,6 +3279,10 @@ export default function RecentProjectsApp() {
 
         break;
       }
+
+      case 'expandFolderChildren':
+        startRecursiveFolderExpand(payload.path, payload.projectName || getProjectNameByPath(payload.path));
+        break;
 
       case 'searchInFolder':
         /**
@@ -3438,9 +3543,10 @@ export default function RecentProjectsApp() {
                       path: childPath,
                       name: child.name,
                       isFolder: true,
+                      isExpanded,
                       projectName,
                       isActiveProject,
-                    })
+                    } as ContextMenuPayload)
                   }
                 >
                   <div className={styles['tree-chevron']}>
