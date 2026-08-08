@@ -133,12 +133,6 @@ const EXACT_NAMES: Record<string, string> = {
   '.gitkeep': gitIcon,
   '.gitmodules': gitIcon,
   '.git-blame-ignore-revs': gitIcon,
-  '.eslintrc.js': eslintIcon,
-  '.eslintrc.json': eslintIcon,
-  'eslint.config.js': eslintIcon,
-  '.eslintignore': eslintIcon,
-  '.eslintcache': eslintIcon,
-  'eslint.config.cjs': eslintIcon,
   '.prettierrc': prettierIcon,
   '.prettierrc.js': prettierIcon,
   '.prettierignore': prettierIcon,
@@ -310,6 +304,7 @@ const REGEX_NAMES: IconMatchRule[] = [
     pattern: /^webpack(?:\..+)?\.(?:js|cjs)$/i,
     icon: webpackIcon,
   },
+  { pattern: /^(?:\.eslintrc\.(?:js|json)|eslint\.config\.(?:js|cjs|mjs)|\.eslint(?:ignore|cache))$/i, icon: eslintIcon },
 ];
 
 const getMatchedIconFromRules = (name: string, rules: IconMatchRule[]) => {
