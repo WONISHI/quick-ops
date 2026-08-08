@@ -318,13 +318,19 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const openInCurrentWindowButton: vscode.QuickInputButton = {
+    type ProjectOpenButton = vscode.QuickInputButton & {
+      action: 'openInCurrentWindow' | 'openInNewWindow';
+    };
+
+    const openInCurrentWindowButton: ProjectOpenButton = {
       iconPath: new vscode.ThemeIcon('open-in-product'),
       tooltip: '在当前窗口打开',
+      action: 'openInCurrentWindow',
     };
-    const openInNewWindowButton: vscode.QuickInputButton = {
+    const openInNewWindowButton: ProjectOpenButton = {
       iconPath: new vscode.ThemeIcon('open-in-window'),
       tooltip: '在新窗口打开',
+      action: 'openInNewWindow',
     };
     const quickPick = vscode.window.createQuickPick<RecentProjectQuickPickItem>();
 
@@ -332,14 +338,15 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     quickPick.placeholder = '回车在当前窗口打开，或使用项目右侧按钮';
     quickPick.matchOnDescription = true;
     quickPick.matchOnDetail = true;
-    quickPick.items = projects.map((project) => {
+    quickPick.items = projects.map((project, index) => {
       const projectUri = this.toUri(project.fsPath);
       const displayPath = projectUri?.scheme === 'file' ? projectUri.fsPath : project.fsPath;
       const isRemote = this.recentProjectsService.isRemoteProject(project);
+      const descriptionParts = [index === 0 ? '上一次打开' : '', project.branch ? `$(git-branch) ${project.branch}` : ''].filter(Boolean);
 
       return {
         label: `$(${isRemote ? 'repo' : 'folder'}) ${project.customName || project.name}`,
-        description: project.branch ? `$(git-branch) ${project.branch}` : undefined,
+        description: descriptionParts.join('  ') || undefined,
         detail: displayPath,
         project,
         buttons: [openInCurrentWindowButton, openInNewWindowButton],
@@ -368,7 +375,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     };
 
     quickPick.onDidTriggerItemButton((event) => {
-      void openQuickPickProject(event.item, event.button === openInNewWindowButton);
+      const action = (event.button as ProjectOpenButton).action;
+
+      void openQuickPickProject(event.item, action === 'openInNewWindow');
     });
 
     quickPick.onDidAccept(() => {
@@ -1145,7 +1154,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     await this.recentProjectsService.touchProject(fsPath);
 
     try {
-      await vscode.commands.executeCommand('workbench.view.explorer');
       await vscode.commands.executeCommand('vscode.openFolder', uri, forceNewWindow);
     } catch (error) {
       vscode.window.showErrorMessage(`无法打开该项目：${this.toErrorMessage(error)}`);
