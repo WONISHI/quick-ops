@@ -345,6 +345,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         buttons: [openInCurrentWindowButton, openInNewWindowButton],
       };
     });
+    quickPick.activeItems = quickPick.items.slice(0, 1);
 
     let isOpening = false;
 
