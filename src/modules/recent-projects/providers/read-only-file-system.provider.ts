@@ -7,10 +7,8 @@ interface ReadonlyTargetRefreshEvent {
 }
 
 export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
-  private readonly changeEmitter =
-    new vscode.EventEmitter<vscode.FileChangeEvent[]>();
-  private readonly refreshTargetEmitter =
-    new vscode.EventEmitter<ReadonlyTargetRefreshEvent>();
+  private readonly changeEmitter = new vscode.EventEmitter<vscode.FileChangeEvent[]>();
+  private readonly refreshTargetEmitter = new vscode.EventEmitter<ReadonlyTargetRefreshEvent>();
 
   private readonly watchedDocuments = new Set<string>();
   private readonly debounceTimers = new Map<string, NodeJS.Timeout>();
@@ -94,9 +92,7 @@ export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
   public refreshByTargetPath(targetPath: string): void {
     if (!targetPath) return;
 
-    const targetUri = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(targetPath)
-      ? vscode.Uri.parse(targetPath)
-      : vscode.Uri.file(targetPath);
+    const targetUri = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(targetPath) ? vscode.Uri.parse(targetPath) : vscode.Uri.file(targetPath);
 
     this.refreshByTargetUri(targetUri);
   }
@@ -117,9 +113,7 @@ export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
     return vscode.workspace.fs.stat(targetUri);
   }
 
-  public async readDirectory(
-    uri: vscode.Uri,
-  ): Promise<[string, vscode.FileType][]> {
+  public async readDirectory(uri: vscode.Uri): Promise<[string, vscode.FileType][]> {
     const targetUri = this.getTargetUri(uri);
 
     if (!targetUri) {
@@ -155,10 +149,7 @@ export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
     throw vscode.FileSystemError.NoPermissions('quickops-ro 是只读文件系统');
   }
 
-  public createReadOnlyUri(
-    targetUri: vscode.Uri,
-    projectName = '只读预览',
-  ): vscode.Uri {
+  public createReadOnlyUri(targetUri: vscode.Uri, projectName = '只读预览'): vscode.Uri {
     const fileName = targetUri.path.split(/[\\/]/).pop() || 'unknown';
 
     return vscode.Uri.from({
@@ -181,9 +172,7 @@ export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
   }
 
   private normalizeReadonlyUri(uri: vscode.Uri): vscode.Uri {
-    return uri.scheme === 'quickops-ro'
-      ? uri
-      : vscode.Uri.parse(uri.toString());
+    return uri.scheme === 'quickops-ro' ? uri : vscode.Uri.parse(uri.toString());
   }
 
   private getTargetUri(uri: vscode.Uri): vscode.Uri | undefined {
@@ -217,10 +206,6 @@ export class ReadOnlyFileSystemProvider implements vscode.FileSystemProvider {
       return uri.fsPath.replace(/\\/g, '/').replace(/\/+$/, '');
     }
 
-    return uri
-      .toString()
-      .split('?')[0]
-      .replace(/\\/g, '/')
-      .replace(/\/+$/, '');
+    return uri.toString().split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
   }
 }
