@@ -48,6 +48,9 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
    */
   private readonly _lastWorkingTreeFilesByCwd = new Map<string, Set<string>>();
 
+  /** 记录每个仓库上一次刷新时的暂存区文件集合，用于关闭已离开暂存区文件的 Diff 标签页。 */
+  private readonly _lastStagedFilesByCwd = new Map<string, Set<string>>();
+
   private _currentGraphFilter = '当前分支';
 
   private readonly _context: vscode.ExtensionContext;
@@ -122,6 +125,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     this._pendingRemoteSyncFetch = false;
     this._lastCheckoutSourceBranchByCwd.clear();
     this._lastWorkingTreeFilesByCwd.clear();
+    this._lastStagedFilesByCwd.clear();
   }
 
   private normalizeWorkspaceStateKey(cwd: string): string {
@@ -174,8 +178,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     );
   }
 
-  private createGitContentUri(cwd: string, ref: string, file: string): vscode.Uri {
-    const query = encodeURIComponent(JSON.stringify({ cwd, ref }));
+  private createGitContentUri(cwd: string, ref: string, file: string, diffKind?: 'working' | 'staged'): vscode.Uri {
+    const query = encodeURIComponent(JSON.stringify({ cwd, ref, diffKind }));
     return vscode.Uri.parse(`quickops-git:///${file}?${query}`);
   }
 
@@ -203,18 +207,18 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
         rightRef = 'empty';
       }
 
-      const leftUri = this.createGitContentUri(cwd, leftRef, f.file);
+      const leftUri = this.createGitContentUri(cwd, leftRef, f.file, mode);
 
       let rightUri: vscode.Uri;
 
       if (mode === 'working') {
         if (rightRef === 'empty') {
-          rightUri = this.createGitContentUri(cwd, 'empty', f.file);
+          rightUri = this.createGitContentUri(cwd, 'empty', f.file, mode);
         } else {
-          rightUri = isCurrentWorkspace ? fileUri : this.createGitContentUri(cwd, 'working', f.file);
+          rightUri = isCurrentWorkspace ? fileUri : this.createGitContentUri(cwd, 'working', f.file, mode);
         }
       } else {
-        rightUri = this.createGitContentUri(cwd, rightRef || 'index', f.file);
+        rightUri = this.createGitContentUri(cwd, rightRef || 'index', f.file, mode);
       }
 
       return [fileUri, leftUri, rightUri];
@@ -289,7 +293,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     return uris;
   }
 
-  private getQuickOpsGitUriMeta(uri: vscode.Uri): { cwd?: string; ref?: string } | null {
+  private getQuickOpsGitUriMeta(uri: vscode.Uri): { cwd?: string; ref?: string; diffKind?: 'working' | 'staged' } | null {
     if (uri.scheme !== 'quickops-git') {
       return null;
     }
@@ -302,9 +306,15 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
   }
 
   private isWorkingTreeDiffTab(cwd: string, inputUris: vscode.Uri[]): boolean {
-    const gitMetas = inputUris.map((uri) => this.getQuickOpsGitUriMeta(uri)).filter((meta): meta is { cwd?: string; ref?: string } => !!meta && meta.cwd === cwd);
+    const gitMetas = inputUris
+      .map((uri) => this.getQuickOpsGitUriMeta(uri))
+      .filter((meta): meta is { cwd?: string; ref?: string; diffKind?: 'working' | 'staged' } => !!meta && meta.cwd === cwd);
 
     if (gitMetas.length === 0) {
+      return false;
+    }
+
+    if (gitMetas.some((meta) => meta.diffKind === 'staged')) {
       return false;
     }
 
@@ -315,32 +325,51 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     return hasWorkingBase && !hasIndexSide && hasWorkingSide;
   }
 
-  private async closeWorkingTreeDiffTabs(cwd: string, files?: string[]): Promise<void> {
+  private isStagedDiffTab(cwd: string, inputUris: vscode.Uri[]): boolean {
+    const gitMetas = inputUris
+      .map((uri) => this.getQuickOpsGitUriMeta(uri))
+      .filter((meta): meta is { cwd?: string; ref?: string; diffKind?: 'working' | 'staged' } => !!meta && meta.cwd === cwd);
+
+    if (gitMetas.length === 0) {
+      return false;
+    }
+
+    if (gitMetas.some((meta) => meta.diffKind === 'staged')) {
+      return true;
+    }
+
+    if (gitMetas.some((meta) => meta.diffKind === 'working')) {
+      return false;
+    }
+
+    const hasStagedBase = gitMetas.some((meta) => meta.ref === 'HEAD' || meta.ref === 'empty');
+    const hasIndexSide = gitMetas.some((meta) => meta.ref === 'index');
+
+    return hasStagedBase && hasIndexSide;
+  }
+
+  private async closeMatchingDiffTabs(cwd: string, isTargetDiff: (inputUris: vscode.Uri[]) => boolean, files?: string[]): Promise<void> {
     const normalizedFiles = files?.map((file) => this.normalizeGitRelativePath(file));
-    const closeAllWorkingTreeDiffTabs = !normalizedFiles || normalizedFiles.length === 0;
+    const closeAllMatchingDiffTabs = !normalizedFiles || normalizedFiles.length === 0;
     const tabsToClose: vscode.Tab[] = [];
 
     vscode.window.tabGroups.all.forEach((group) => {
       group.tabs.forEach((tab) => {
         const inputUris = this.collectTabInputUris(tab.input);
 
-        if (inputUris.length === 0) return;
+        if (inputUris.length === 0 || !isTargetDiff(inputUris)) return;
 
-        const isWorkingTreeDiff = this.isWorkingTreeDiffTab(cwd, inputUris);
-
-        if (!isWorkingTreeDiff) return;
-
-        if (closeAllWorkingTreeDiffTabs) {
+        if (closeAllMatchingDiffTabs) {
           tabsToClose.push(tab);
           return;
         }
 
-        const hasDiscardedFile = inputUris.some((uri) => {
+        const hasTargetFile = inputUris.some((uri) => {
           const relativePath = this.getRelativePathFromUri(cwd, uri);
           return !!relativePath && normalizedFiles!.includes(relativePath);
         });
 
-        if (hasDiscardedFile) {
+        if (hasTargetFile) {
           tabsToClose.push(tab);
         }
       });
@@ -351,12 +380,20 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private getWorkingTreeFileSet(files: GitFileItem[]): Set<string> {
+  private async closeWorkingTreeDiffTabs(cwd: string, files?: string[]): Promise<void> {
+    await this.closeMatchingDiffTabs(cwd, (inputUris) => this.isWorkingTreeDiffTab(cwd, inputUris), files);
+  }
+
+  private async closeStagedDiffTabs(cwd: string, files?: string[]): Promise<void> {
+    await this.closeMatchingDiffTabs(cwd, (inputUris) => this.isStagedDiffTab(cwd, inputUris), files);
+  }
+
+  private getGitFileSet(files: GitFileItem[]): Set<string> {
     return new Set(files.map((file) => this.normalizeGitRelativePath(file.file)).filter(Boolean));
   }
 
   private async closeDiffTabsForRemovedWorkingTreeFiles(cwd: string, files: GitFileItem[]): Promise<void> {
-    const nextFiles = this.getWorkingTreeFileSet(files);
+    const nextFiles = this.getGitFileSet(files);
     const prevFiles = this._lastWorkingTreeFilesByCwd.get(cwd);
 
     this._lastWorkingTreeFilesByCwd.set(cwd, nextFiles);
@@ -372,6 +409,25 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     }
 
     await this.closeWorkingTreeDiffTabs(cwd, removedFiles);
+  }
+
+  private async closeDiffTabsForRemovedStagedFiles(cwd: string, files: GitFileItem[]): Promise<void> {
+    const nextFiles = this.getGitFileSet(files);
+    const prevFiles = this._lastStagedFilesByCwd.get(cwd);
+
+    this._lastStagedFilesByCwd.set(cwd, nextFiles);
+
+    if (!prevFiles) {
+      return;
+    }
+
+    const removedFiles = Array.from(prevFiles).filter((file) => !nextFiles.has(file));
+
+    if (removedFiles.length === 0) {
+      return;
+    }
+
+    await this.closeStagedDiffTabs(cwd, removedFiles);
   }
 
   private async executeGitOperation(operation: () => Promise<void> | void) {
@@ -2099,17 +2155,25 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
             const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
             const isCurrentWorkspace = defaultWorkspace && cwd === defaultWorkspace;
+            const status = String(msg.status || '').charAt(0);
 
-            if (msg.status === 'C') {
+            if (msg.listType === 'staged') {
+              const leftRef = status === 'A' || status === 'U' || status === '?' ? 'empty' : 'HEAD';
+              const rightRef = status === 'D' ? 'empty' : 'index';
+              const leftUri = this.createGitContentUri(cwd, leftRef, msg.file, 'staged');
+              const rightUri = this.createGitContentUri(cwd, rightRef, msg.file, 'staged');
+
+              vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, `${msg.file} (暂存区)`);
+            } else if (msg.status === 'C') {
               vscode.commands.executeCommand('vscode.open', fileUri);
             } else if (msg.status === 'U' || msg.status === 'A') {
-              const emptyUri = this.createGitContentUri(cwd, 'empty', msg.file);
-              const rightUri = isCurrentWorkspace ? fileUri : this.createGitContentUri(cwd, 'working', msg.file);
+              const emptyUri = this.createGitContentUri(cwd, 'empty', msg.file, 'working');
+              const rightUri = isCurrentWorkspace ? fileUri : this.createGitContentUri(cwd, 'working', msg.file, 'working');
 
               vscode.commands.executeCommand('vscode.diff', emptyUri, rightUri, `${msg.file} (未跟踪)`);
             } else {
-              const originalUri = this.createGitContentUri(cwd, 'HEAD', msg.file);
-              const rightUri = isCurrentWorkspace ? fileUri : this.createGitContentUri(cwd, 'working', msg.file);
+              const originalUri = this.createGitContentUri(cwd, 'HEAD', msg.file, 'working');
+              const rightUri = isCurrentWorkspace ? fileUri : this.createGitContentUri(cwd, 'working', msg.file, 'working');
 
               vscode.commands.executeCommand('vscode.diff', originalUri, rightUri, `${msg.file} (工作树)`);
             }
@@ -3035,6 +3099,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
       if (!repoStatus.isRepo) {
         this._lastWorkingTreeFilesByCwd.delete(cwd);
+        this._lastStagedFilesByCwd.delete(cwd);
 
         this._view.webview.postMessage({
           type: 'notRepo',
@@ -3048,6 +3113,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       }
 
       await this.closeDiffTabsForRemovedWorkingTreeFiles(cwd, [...repoStatus.unstagedFiles, ...repoStatus.conflictedFiles]);
+      await this.closeDiffTabsForRemovedStagedFiles(cwd, repoStatus.stagedFiles);
       const workspaceGitOptions = this.getWorkspaceGitOptions(cwd);
 
       this._view.webview.postMessage({
@@ -3090,6 +3156,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
       }
     } catch {
       this._lastWorkingTreeFilesByCwd.delete(cwd);
+      this._lastStagedFilesByCwd.delete(cwd);
 
       this._view.webview.postMessage({
         type: 'notRepo',

@@ -199,6 +199,7 @@ function createUnstagedItems(contextMenu: ContextMenuState): BaseContextMenuItem
           command: 'diff',
           file: file.file,
           status: file.status,
+          listType: 'unstaged',
         });
       },
     },
@@ -324,6 +325,7 @@ function createStagedItems(contextMenu: ContextMenuState): BaseContextMenuItem[]
           command: 'diff',
           file: file.file,
           status: file.status,
+          listType: 'staged',
         });
       },
     },
