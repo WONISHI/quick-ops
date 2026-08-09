@@ -659,17 +659,75 @@ ul {
 }
 
 .dragging {
-  opacity: 0.45;
+  background-color: var(--vscode-list-activeSelectionBackground, #094771) !important;
+  color: var(--vscode-list-activeSelectionForeground, #ffffff) !important;
+  opacity: 0.72;
 }
 
 .drop-target {
-  background-color: var(--vscode-list-dropBackground, var(--vscode-list-hoverBackground)) !important;
-  outline: 1px solid var(--vscode-focusBorder);
+  background-color: var(--vscode-list-activeSelectionBackground, #094771) !important;
+  color: var(--vscode-list-activeSelectionForeground, #ffffff) !important;
+  outline: 1px solid var(--vscode-list-focusOutline, var(--vscode-focusBorder));
   outline-offset: -1px;
 }
 
-.drop-target-invalid {
-  background-color: color-mix(in srgb, var(--vscode-errorForeground, #f14c4c) 14%, transparent) !important;
-  outline: 1px dashed var(--vscode-errorForeground, #f14c4c);
+.drop-target-tree {
+  background-color: var(--vscode-list-activeSelectionBackground, #094771) !important;
+  color: var(--vscode-list-activeSelectionForeground, #ffffff) !important;
+  outline: 1px solid var(--vscode-list-focusOutline, var(--vscode-focusBorder));
   outline-offset: -1px;
+}
+
+.drop-target-tree .sub-item,
+.drop-target-tree .sub-item:hover,
+.drop-target-tree .tree-children,
+.drop-target-tree .empty-node,
+.drop-target-tree .top-divider {
+  background-color: transparent !important;
+  color: var(--vscode-list-activeSelectionForeground, #ffffff) !important;
+}
+
+.drop-target-tree .tree-children {
+  border-left-color: color-mix(in srgb, var(--vscode-list-activeSelectionForeground, #ffffff) 48%, transparent);
+}
+
+.drop-target-tree > .drop-target {
+  outline: none;
+}
+
+.drop-target .tree-chevron,
+.drop-target .sub-name,
+.drop-target .sub-icon,
+.drop-target .folder-icon,
+.active-top-project.drop-target .title,
+.active-top-project.drop-target .project-name,
+.active-top-project.drop-target .project-icon,
+.active-top-project.drop-target .path {
+  color: var(--vscode-list-activeSelectionForeground, #ffffff) !important;
+  opacity: 1 !important;
+}
+
+.drop-target-invalid {
+  background-color: transparent !important;
+  outline: none;
+  cursor: not-allowed;
+}
+
+.drag-preview {
+  width: max-content;
+  max-width: 280px;
+  height: 22px;
+  padding: 0 8px;
+  overflow: hidden;
+  color: var(--vscode-list-activeSelectionForeground, #ffffff);
+  font-family: var(--vscode-font-family);
+  font-size: 12px;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  background: var(--vscode-list-activeSelectionBackground, #094771);
+  border: 1px solid var(--vscode-focusBorder, #007fd4);
+  border-radius: 2px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
