@@ -1166,6 +1166,10 @@ export class GitService {
     await git.revert(hash, ['--no-edit']);
   }
 
+  public async cherryPickCommit(cwd: string, hash: string): Promise<void> {
+    await this.createGit(cwd).raw(['cherry-pick', hash]);
+  }
+
   public async addToGitignore(cwd: string, file: string): Promise<void> {
     const gitignoreUri = vscode.Uri.file(path.join(cwd, '.gitignore'));
 

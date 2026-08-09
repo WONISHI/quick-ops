@@ -55,6 +55,15 @@ const isCommitHistoryMessageItem = (commit: GraphCommit) => {
   return !/^Uncommitted Changes\b/i.test(commit.message || '');
 };
 
+const getStashDisplayMessage = (message: unknown) => {
+  if (typeof message !== 'string') return '';
+
+  const normalizedMessage = message.trim();
+  const displayMessage = normalizedMessage.replace(/^(?:WIP on|On)\s+[^:]+:\s*/i, '').trim();
+
+  return displayMessage || normalizedMessage;
+};
+
 export default function GitApp() {
   const [isRepo, setIsRepo] = useState<boolean>(true);
   const [isGitInstalled, setIsGitInstalled] = useState<boolean | null>(null);
@@ -121,7 +130,7 @@ export default function GitApp() {
   const lastClickedIndexRef = useRef<number>(-1);
 
   const [stashes, setStashes] = useState<any[]>([]);
-  const [expandedStashIndex, setExpandedStashIndex] = useState<number | null>(null);
+  const [expandedStashIndexes, setExpandedStashIndexes] = useState<Set<number>>(new Set());
   const [stashFilesMap, setStashFilesMap] = useState<Record<number, GitFile[]>>({});
   const [stashFilesLoading, setStashFilesLoading] = useState<Record<number, boolean>>({});
 
@@ -388,7 +397,7 @@ export default function GitApp() {
         setStashes([]);
         setStashFilesMap({});
         setStashFilesLoading({});
-        setExpandedStashIndex(null);
+        setExpandedStashIndexes(new Set());
         setRemoteSync(EMPTY_REMOTE_SYNC);
         currentBranchRef.current = '';
         justCommittedBranchRef.current = '';
@@ -429,7 +438,7 @@ export default function GitApp() {
 
         if (msg.stashes) {
           setStashes(msg.stashes);
-          setExpandedStashIndex(null);
+          setExpandedStashIndexes(new Set());
           setStashFilesMap({});
           setStashFilesLoading({});
         }
@@ -441,7 +450,7 @@ export default function GitApp() {
         setIsGraphLoading(false);
       } else if (msg.type === 'stashData') {
         setStashes(msg.stashes || []);
-        setExpandedStashIndex(null);
+        setExpandedStashIndexes(new Set());
         setStashFilesMap({});
         setStashFilesLoading({});
       } else if (msg.type === 'stashFilesData') {
@@ -1428,92 +1437,98 @@ export default function GitApp() {
               <div className={styles['panel-scroll']}>
                 <ul className={styles['file-list']}>
                   {stashes.map((stash, idx) => {
-                    const isExpanded = expandedStashIndex === stash.index;
+                    const isExpanded = expandedStashIndexes.has(stash.index);
                     const isLoading = stashFilesLoading[stash.index];
                     const files = stashFilesMap[stash.index] || [];
+                    const displayMessage = getStashDisplayMessage(stash.message);
 
                     return (
-                      <React.Fragment key={idx}>
-                        <Tooltip content={stash.message} placement="bottom" delay={1000}>
-                          <li
-                            className={`${styles['file-item']} ${styles['stash-row']}`}
-                            onClick={() => {
-                              if (isExpanded) {
-                                setExpandedStashIndex(null);
-                              } else {
-                                setExpandedStashIndex(stash.index);
+                      <React.Fragment key={stash.index ?? idx}>
+                        <li
+                          className={styles['stash-row']}
+                          aria-expanded={isExpanded}
+                          onClick={() => {
+                            setExpandedStashIndexes((prev) => {
+                              const next = new Set(prev);
 
-                                if (!stashFilesMap[stash.index]) {
-                                  setStashFilesLoading((prev) => ({
-                                    ...prev,
-                                    [stash.index]: true,
-                                  }));
+                              if (next.has(stash.index)) {
+                                next.delete(stash.index);
+                              } else {
+                                next.add(stash.index);
+                              }
+
+                              return next;
+                            });
+
+                            if (!isExpanded && !stashFilesMap[stash.index]) {
+                              setStashFilesLoading((prev) => ({
+                                ...prev,
+                                [stash.index]: true,
+                              }));
+
+                              vscode.postMessage({
+                                command: 'getStashFiles',
+                                index: stash.index,
+                              });
+                            }
+                          }}
+                        >
+                          <i className={`codicon ${isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['stash-chevron']}`} />
+                          <i className={`codicon codicon-archive ${styles['stash-icon']}`} />
+                          <div className={styles['file-name']} title={displayMessage}>
+                            {displayMessage}
+                          </div>
+
+                          <div className={styles['file-actions']}>
+                            <Tooltip content="应用贮藏并保留 (Apply)">
+                              <button
+                                className={styles['action-btn']}
+                                onClick={(e) => {
+                                  e.stopPropagation();
 
                                   vscode.postMessage({
-                                    command: 'getStashFiles',
+                                    command: 'stashApply',
                                     index: stash.index,
                                   });
-                                }
-                              }
-                            }}
-                          >
-                            <i className={`codicon ${isExpanded ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['stash-chevron']}`} />
-                            <i className={`codicon codicon-archive ${styles['stash-icon']}`} />
-                            <div className={styles['file-name']} title={stash.message}>
-                              {stash.message}
-                            </div>
+                                }}
+                              >
+                                <i className="codicon codicon-git-stash-apply" />
+                              </button>
+                            </Tooltip>
 
-                            <div className={styles['file-actions']}>
-                              <Tooltip content="应用贮藏并保留 (Apply)">
-                                <button
-                                  className={styles['action-btn']}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
+                            <Tooltip content="应用并删除贮藏 (Pop)">
+                              <button
+                                className={styles['action-btn']}
+                                onClick={(e) => {
+                                  e.stopPropagation();
 
-                                    vscode.postMessage({
-                                      command: 'stashApply',
-                                      index: stash.index,
-                                    });
-                                  }}
-                                >
-                                  <i className="codicon codicon-git-stash-apply" />
-                                </button>
-                              </Tooltip>
+                                  vscode.postMessage({
+                                    command: 'stashPop',
+                                    index: stash.index,
+                                  });
+                                }}
+                              >
+                                <i className="codicon codicon-git-stash-pop" />
+                              </button>
+                            </Tooltip>
 
-                              <Tooltip content="应用并删除贮藏 (Pop)">
-                                <button
-                                  className={styles['action-btn']}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
+                            <Tooltip content="删除此贮藏 (Drop)">
+                              <button
+                                className={styles['action-btn']}
+                                onClick={(e) => {
+                                  e.stopPropagation();
 
-                                    vscode.postMessage({
-                                      command: 'stashPop',
-                                      index: stash.index,
-                                    });
-                                  }}
-                                >
-                                  <i className="codicon codicon-git-stash-pop" />
-                                </button>
-                              </Tooltip>
-
-                              <Tooltip content="删除此贮藏 (Drop)">
-                                <button
-                                  className={styles['action-btn']}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-
-                                    vscode.postMessage({
-                                      command: 'stashDrop',
-                                      index: stash.index,
-                                    });
-                                  }}
-                                >
-                                  <i className="codicon codicon-trash" />
-                                </button>
-                              </Tooltip>
-                            </div>
-                          </li>
-                        </Tooltip>
+                                  vscode.postMessage({
+                                    command: 'stashDrop',
+                                    index: stash.index,
+                                  });
+                                }}
+                              >
+                                <i className="codicon codicon-trash" />
+                              </button>
+                            </Tooltip>
+                          </div>
+                        </li>
 
                         {isExpanded && (
                           <div className={styles['stash-expanded']}>
