@@ -624,6 +624,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleMessage(message: RecentProjectsWebviewMessage & Record<string, any>): Promise<void> {
+    if (message.type === 'moveFileEntities' || message.type === 'moveSelectedFileEntities') {
+      const targetFolderPath = message.targetFolderFsPath || message.targetFolderPath || message.targetPath;
+
+      if (targetFolderPath) {
+        await this.moveFileEntities(message.items || message.entities, targetFolderPath);
+      }
+
+      return;
+    }
+
     const targetPath = this.getMessagePath(message);
     const projectName = message.projectName || message.name || '未知项目';
 
@@ -922,16 +932,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
         if (sourcePath && targetFolderPath) {
           await this.moveFileEntity(sourcePath, targetFolderPath, Boolean(message.isFolder));
-        }
-        break;
-      }
-
-      case 'moveSelectedFileEntities':
-      case 'moveFileEntities': {
-        const targetFolderPath = message.targetFolderFsPath || message.targetFolderPath || message.targetPath;
-
-        if (targetFolderPath) {
-          await this.moveFileEntities(message.items || message.entities, targetFolderPath);
         }
         break;
       }
@@ -1698,9 +1698,25 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const targetUri = vscode.Uri.joinPath(parentUri, ...this.toPathParts(name));
 
     try {
+      try {
+        await vscode.workspace.fs.stat(targetUri);
+        vscode.window.showWarningMessage(`文件已存在：${name}`);
+        this.refreshTreeAfterFileChange();
+        return;
+      } catch {
+        // 目标不存在，可以继续创建。
+      }
+
       await this.ensureParentDirectory(targetUri);
       await vscode.workspace.fs.writeFile(targetUri, new Uint8Array());
       await this.openFile(targetUri.toString());
+
+      this.postMessage({
+        type: 'createFileEntityResult',
+        fsPath: targetUri.toString(),
+        parentPath: parentUri.toString(),
+        name,
+      });
 
       this.refreshTreeAfterFileChange();
     } catch (error) {
@@ -1720,7 +1736,25 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const targetUri = vscode.Uri.joinPath(parentUri, ...this.toPathParts(name));
 
     try {
+      try {
+        await vscode.workspace.fs.stat(targetUri);
+        vscode.window.showWarningMessage(`文件夹已存在：${name}`);
+        this.invalidateDirCache(parentUri.toString());
+        await this.handleReadDir(parentUri.toString(), undefined, false, true);
+        return;
+      } catch {
+        // 目标不存在，可以继续创建。
+      }
+
       await vscode.workspace.fs.createDirectory(targetUri);
+
+      this.invalidateDirCache(parentUri.toString());
+      this.postMessage({
+        type: 'createFolderEntityResult',
+        fsPath: targetUri.toString(),
+        parentPath: parentUri.toString(),
+        name,
+      });
 
       this.refreshTreeAfterFileChange();
     } catch (error) {

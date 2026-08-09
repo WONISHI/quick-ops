@@ -1387,6 +1387,54 @@ export default function RecentProjectsApp() {
     });
   };
 
+  const replaceDirectoryChildren = (pathKey: string, children: DirChild[]) => {
+    const previousChildren = dirChildrenRef.current[pathKey] || [];
+    const currentChildPaths = new Set(children.map((child) => normalizePatchPath(child.path)));
+    const removedFolderPaths = previousChildren
+      .filter((child) => child.isFolder && !currentChildPaths.has(normalizePatchPath(child.path)))
+      .map((child) => child.path);
+    const next = {
+      ...dirChildrenRef.current,
+      [pathKey]: children,
+    };
+
+    if (removedFolderPaths.length > 0) {
+      Object.keys(next).forEach((cachedPath) => {
+        if (removedFolderPaths.some((removedPath) => isPathInside(cachedPath, removedPath))) {
+          delete next[cachedPath];
+        }
+      });
+
+      setExpandedPaths((prev) => {
+        const nextExpanded = new Set(prev);
+
+        Array.from(nextExpanded).forEach((expandedPath) => {
+          if (removedFolderPaths.some((removedPath) => isPathInside(expandedPath, removedPath))) {
+            nextExpanded.delete(expandedPath);
+          }
+        });
+
+        expandedPathsRef.current = nextExpanded;
+        return nextExpanded;
+      });
+
+      setLoadingPaths((prev) => {
+        const nextLoading = new Set(prev);
+
+        Array.from(nextLoading).forEach((loadingPath) => {
+          if (removedFolderPaths.some((removedPath) => isPathInside(loadingPath, removedPath))) {
+            nextLoading.delete(loadingPath);
+          }
+        });
+
+        return nextLoading;
+      });
+    }
+
+    dirChildrenRef.current = next;
+    setDirChildren(next);
+  };
+
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       const msg = e.data as Record<string, unknown>;
@@ -1568,19 +1616,13 @@ export default function RecentProjectsApp() {
             return;
           }
 
-          setDirChildren((prev) => ({
-            ...prev,
-            [pathKey]: children,
-          }));
+          replaceDirectoryChildren(pathKey, children);
           continueRecursiveFolderExpand(pathKey, children);
 
           return;
         }
 
-        setDirChildren((prev) => ({
-          ...prev,
-          [pathKey]: children,
-        }));
+        replaceDirectoryChildren(pathKey, children);
         continueRecursiveFolderExpand(pathKey, children);
       } else if (msg.type === 'deleteFileEntityResult') {
         const deletedPath = msg.fsPath as string;
@@ -1636,12 +1678,54 @@ export default function RecentProjectsApp() {
       } else if (msg.type === 'createFileEntityResult' || msg.type === 'createFolderEntityResult') {
         const createdPath = msg.fsPath as string;
         const parentPath = msg.parentPath as string;
+        const createdFolder = msg.type === 'createFolderEntityResult';
 
         setPendingCreateEntity(null);
         setPendingCreateName('');
         setSelectedPath(createdPath);
-        setExpandedPaths((prev) => new Set(prev).add(parentPath));
-        setLoadingPaths((prev) => new Set(prev).add(parentPath));
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+
+          if (createdFolder) {
+            Array.from(next).forEach((itemPath) => {
+              if (isPathInside(itemPath, createdPath)) {
+                next.delete(itemPath);
+              }
+            });
+          }
+
+          next.add(parentPath);
+          expandedPathsRef.current = next;
+          return next;
+        });
+        setLoadingPaths((prev) => {
+          const next = new Set(prev);
+
+          if (createdFolder) {
+            Array.from(next).forEach((itemPath) => {
+              if (isPathInside(itemPath, createdPath)) {
+                next.delete(itemPath);
+              }
+            });
+          }
+
+          next.add(parentPath);
+          return next;
+        });
+        setDirChildren((prev) => {
+          if (!createdFolder) return prev;
+
+          const next = { ...prev };
+
+          Object.keys(next).forEach((pathKey) => {
+            if (isPathInside(pathKey, createdPath)) {
+              delete next[pathKey];
+            }
+          });
+
+          dirChildrenRef.current = next;
+          return next;
+        });
 
         vscode.postMessage({
           type: 'readDir',
@@ -2586,9 +2670,10 @@ export default function RecentProjectsApp() {
     if (!rootPath) return;
 
     const currentSelectedPath = selectedPathRef.current;
-    const selectedTargetPath = currentSelectedPath && isPathInside(currentSelectedPath, rootPath) ? currentSelectedPath : rootPath;
-    const selectedTreeItem = getLoadedTreeItemByPath(selectedTargetPath);
-    const selectedIsFolder = isSameTreePath(selectedTargetPath, rootPath) || !!dirChildrenRef.current[selectedTargetPath] || !!selectedTreeItem?.isFolder;
+    const selectedTreeItem = currentSelectedPath && isPathInside(currentSelectedPath, rootPath) ? getLoadedTreeItemByPath(currentSelectedPath) : null;
+    const hasExplicitTreeSelection = !!selectedTreeItem;
+    const selectedTargetPath = hasExplicitTreeSelection ? currentSelectedPath : rootPath;
+    const selectedIsFolder = isSameTreePath(selectedTargetPath, rootPath) || !!selectedTreeItem?.isFolder;
     const parentPath = selectedIsFolder ? selectedTargetPath : getParentUriString(selectedTargetPath);
     const projectName = focusRootNameRef.current || getProjectNameByPath(parentPath) || '当前项目';
 
@@ -4017,7 +4102,22 @@ export default function RecentProjectsApp() {
           onLockFocusMode={lockCurrentFocusMode}
           onExitLockedFocusMode={exitLockedFocusMode}
           focusTree={
-            isFocusMode && focusRootPath ? <div className={styles['focus-tree-wrapper']}>{renderTreeChildren(focusRootPath, focusRootName || '当前项目', true)}</div> : null
+            isFocusMode && focusRootPath ? (
+              <TreeDragDropContainer
+                path={focusRootPath}
+                className={`${styles['focus-tree-wrapper']} ${getDropTreeClassName(focusRootPath)}`}
+                draggableEnabled={false}
+                dropTargetEnabled
+                canDrop={(entity) => canDropDraggingEntityToFolder(entity, focusRootPath, true)}
+                onDragStart={() => undefined}
+                onDragOver={(entity) => handleDragOverFolder(entity, focusRootPath, true)}
+                onDragLeave={() => handleDragLeaveFolder(focusRootPath)}
+                onDrop={(entity) => handleDropOnFolder(entity, focusRootPath, true)}
+                onDragEnd={handleDragEnd}
+              >
+                {renderTreeChildren(focusRootPath, focusRootName || '当前项目', true)}
+              </TreeDragDropContainer>
+            ) : null
           }
           onBack={exitSearchOrFocusMode}
           folderSearchQuery={folderSearchQuery}
@@ -4300,6 +4400,23 @@ export default function RecentProjectsApp() {
                 </ul>
 
                 {searchQuery && filteredOtherProjects.length === 0 && !isCurrentVisible && <div className={styles['no-match-msg']}>没有找到匹配的项目...</div>}
+
+                {isCurrentVisible && activeProjectToRender && (
+                  <TreeDragDropContainer
+                    path={activeProjectToRender.fsPath}
+                    className={`${styles['root-drop-spacer']} ${getDropTreeClassName(activeProjectToRender.fsPath)}`}
+                    draggableEnabled={false}
+                    dropTargetEnabled
+                    canDrop={(entity) => canDropDraggingEntityToFolder(entity, activeProjectToRender.fsPath, true)}
+                    onDragStart={() => undefined}
+                    onDragOver={(entity) => handleDragOverFolder(entity, activeProjectToRender.fsPath, true)}
+                    onDragLeave={() => handleDragLeaveFolder(activeProjectToRender.fsPath)}
+                    onDrop={(entity) => handleDropOnFolder(entity, activeProjectToRender.fsPath, true)}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <div className={styles['root-drop-spacer-inner']} />
+                  </TreeDragDropContainer>
+                )}
               </>
             )}
           </Scrollbar>
