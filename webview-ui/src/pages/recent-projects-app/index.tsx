@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo, useCallback, useLayoutEffect } from 'react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
+import { setCustomNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview';
 import { vscode } from '@utils/vscode';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faMagnifyingGlass, faFolderPlus, faCodeBranch, faChevronRight, faChevronDown, faArrowRightToBracket, faSpinner } from '@fortawesome/free-solid-svg-icons';
@@ -37,7 +38,7 @@ type TreeDragDropContainerProps = {
   onDragLeave: () => void;
   onDrop: (entity: TreeDraggingEntity) => void;
   onDragEnd: () => void;
-  children: (dragHandleRef: React.RefObject<HTMLDivElement | null>) => React.ReactNode;
+  children: React.ReactNode;
 };
 
 const parsePragmaticDraggingEntity = (value: unknown): DraggingEntity | null => {
@@ -73,7 +74,6 @@ const getPragmaticDraggingEntity = (data: Record<string | symbol, unknown>): Tre
 
 function TreeDragDropContainer(props: TreeDragDropContainerProps) {
   const dropTargetRef = useRef<HTMLDivElement>(null);
-  const dragHandleRef = useRef<HTMLDivElement>(null);
   const propsRef = useRef(props);
 
   useLayoutEffect(() => {
@@ -82,8 +82,8 @@ function TreeDragDropContainer(props: TreeDragDropContainerProps) {
 
   useEffect(() => {
     const cleanups: (() => void)[] = [];
-    const dragElement = dragHandleRef.current;
     const dropElement = dropTargetRef.current;
+    const dragElement = dropElement?.querySelector<HTMLElement>(':scope > [data-tree-drag-handle="true"]') || null;
     const currentEntity = propsRef.current.entity;
 
     if (dragElement && currentEntity && propsRef.current.draggableEnabled) {
@@ -103,7 +103,45 @@ function TreeDragDropContainer(props: TreeDragDropContainerProps) {
               ...activeDraggingEntity,
             };
           },
+          onGenerateDragPreview({ nativeSetDragImage }) {
+            activeDraggingEntity = propsRef.current.resolveDraggingEntity?.(currentEntity) || activeDraggingEntity;
+
+            if (activeDraggingEntity.entities.length <= 1) return;
+
+            setCustomNativeDragPreview({
+              nativeSetDragImage,
+              render({ container }) {
+                const preview = document.createElement('div');
+                const visibleEntities = activeDraggingEntity.entities.slice(0, 4);
+
+                preview.className = styles['multi-drag-preview'];
+
+                visibleEntities.forEach((item) => {
+                  const row = document.createElement('div');
+
+                  row.className = styles['multi-drag-preview-item'];
+                  row.textContent = item.name;
+                  preview.appendChild(row);
+                });
+
+                if (activeDraggingEntity.entities.length > visibleEntities.length) {
+                  const more = document.createElement('div');
+
+                  more.className = styles['multi-drag-preview-more'];
+                  more.textContent = `还有 ${activeDraggingEntity.entities.length - visibleEntities.length} 个项目`;
+                  preview.appendChild(more);
+                }
+
+                container.appendChild(preview);
+
+                return () => {
+                  preview.remove();
+                };
+              },
+            });
+          },
           onDragStart() {
+            activeDraggingEntity = propsRef.current.resolveDraggingEntity?.(currentEntity) || activeDraggingEntity;
             propsRef.current.onDragStart(activeDraggingEntity);
           },
           onDrop() {
@@ -169,7 +207,7 @@ function TreeDragDropContainer(props: TreeDragDropContainerProps) {
 
   return (
     <div ref={dropTargetRef} className={props.className}>
-      {props.children(dragHandleRef)}
+      {props.children}
     </div>
   );
 }
@@ -271,8 +309,6 @@ export default function RecentProjectsApp() {
     selectedItemsRef.current = selectedItems;
   }, [selectedItems]);
 
-  const isMacPlatform = navigator.platform?.toLowerCase().includes('mac') || false;
-
   const getFocusModeFlatItems = useCallback((): { path: string; name: string; isFolder: boolean }[] => {
     const result: { path: string; name: string; isFolder: boolean }[] = [];
     const allChildren = dirChildrenRef.current;
@@ -311,10 +347,11 @@ export default function RecentProjectsApp() {
 
   const handleItemClick = useCallback(
     (e: React.MouseEvent, childPath: string) => {
-      const isMulti = isMacPlatform ? e.metaKey : e.ctrlKey;
-      const isRange = e.shiftKey;
+      const isMulti = e.metaKey || e.ctrlKey;
+      const isRange = e.shiftKey && !isMulti;
 
       if (isMulti) {
+        e.preventDefault();
         const next = new Set(selectedItemsRef.current);
         const currentSelectedPath = selectedPathRef.current;
 
@@ -369,7 +406,7 @@ export default function RecentProjectsApp() {
       lastClickedIndexRef.current = getFocusModeFlatItems().findIndex((item) => item.path === childPath);
       return false;
     },
-    [isMacPlatform, getFocusModeFlatItems, clearSelection],
+    [getFocusModeFlatItems, clearSelection],
   );
 
   const [isSearchMode, setIsSearchMode] = useState(false);
@@ -2921,13 +2958,13 @@ export default function RecentProjectsApp() {
       setLoadingPaths((prev) => new Set(prev).add(targetFolderPath));
     }
 
-    movableEntities.forEach((movableEntity) => {
-      vscode.postMessage({
-        type: 'moveFileEntity',
-        sourceFsPath: movableEntity.path,
-        targetFolderFsPath: targetFolderPath,
-        isFolder: movableEntity.isFolder,
-      });
+    vscode.postMessage({
+      type: 'moveFileEntities',
+      targetFolderFsPath: targetFolderPath,
+      items: movableEntities.map((item) => ({
+        path: item.path,
+        isFolder: item.isFolder,
+      })),
     });
 
     clearSelection();
@@ -3812,12 +3849,11 @@ export default function RecentProjectsApp() {
                 onDrop={(entity) => handleDropOnFolder(entity, childPath, isActiveProject)}
                 onDragEnd={handleDragEnd}
               >
-                {(dragHandleRef) => (
-                  <>
+                <>
                     <div
-                      ref={dragHandleRef}
                       id={elementId}
                       data-tree-path={childPath}
+                      data-tree-drag-handle="true"
                       className={`${styles['sub-item']} ${styles['clickable-sub']} ${
                         selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
                       } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
@@ -3878,8 +3914,7 @@ export default function RecentProjectsApp() {
                         {renderTreeChildren(childPath, projectName, isActiveProject, highlightQuery)}
                       </div>
                     )}
-                  </>
-                )}
+                </>
               </TreeDragDropContainer>
             );
           }
@@ -3899,54 +3934,52 @@ export default function RecentProjectsApp() {
               onDrop={() => undefined}
               onDragEnd={handleDragEnd}
             >
-              {(dragHandleRef) => (
-                <div
-                  ref={dragHandleRef}
-                  id={elementId}
-                  data-tree-path={childPath}
-                  className={`${styles['sub-item']} ${
-                    selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
-                  } ${styles['search-name-sub-item-clickable']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''}`}
-                  onClick={(e) => {
-                    if (isActiveProject && handleItemClick(e, childPath)) return;
-                    handleOpenFile(childPath, projectName, isActiveProject, e);
-                  }}
-                  onContextMenu={(e) =>
-                    handleContextMenu(e, 'sub', {
-                      path: childPath,
-                      name: child.name,
-                      isFolder: false,
-                      projectName,
-                      isActiveProject,
-                      isRemote: childPath.startsWith('vscode-vfs://') || /^https?:\/\//i.test(childPath),
-                      status: child.status,
-                    } as any)
-                  }
-                >
-                  <div className={styles['chevron-placeholder']}></div>
+              <div
+                id={elementId}
+                data-tree-path={childPath}
+                data-tree-drag-handle="true"
+                className={`${styles['sub-item']} ${
+                  selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
+                } ${styles['search-name-sub-item-clickable']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''}`}
+                onClick={(e) => {
+                  if (isActiveProject && handleItemClick(e, childPath)) return;
+                  handleOpenFile(childPath, projectName, isActiveProject, e);
+                }}
+                onContextMenu={(e) =>
+                  handleContextMenu(e, 'sub', {
+                    path: childPath,
+                    name: child.name,
+                    isFolder: false,
+                    projectName,
+                    isActiveProject,
+                    isRemote: childPath.startsWith('vscode-vfs://') || /^https?:\/\//i.test(childPath),
+                    status: child.status,
+                  } as any)
+                }
+              >
+                <div className={styles['chevron-placeholder']}></div>
 
-                  <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
+                <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
 
-                  {renderDragAwareTooltip(
-                    getTreeTooltipContent(childPath, child, false),
-                    renameInput || (
-                      <span
-                        className={styles['sub-name']}
-                        style={{
-                          display: 'inline-block',
-                          alignItems: 'center',
-                          pointerEvents: 'auto',
-                        }}
-                      >
-                        {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
-                      </span>
-                    ),
-                  )}
+                {renderDragAwareTooltip(
+                  getTreeTooltipContent(childPath, child, false),
+                  renameInput || (
+                    <span
+                      className={styles['sub-name']}
+                      style={{
+                        display: 'inline-block',
+                        alignItems: 'center',
+                        pointerEvents: 'auto',
+                      }}
+                    >
+                      {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
+                    </span>
+                  ),
+                )}
 
-                  <FileGitStatusBadge status={child.status} />
-                  {renderDiagnosticsBadge(child)}
-                </div>
-              )}
+                <FileGitStatusBadge status={child.status} />
+                {renderDiagnosticsBadge(child)}
+              </div>
             </TreeDragDropContainer>
           );
         })}
@@ -4086,8 +4119,7 @@ export default function RecentProjectsApp() {
                         onDrop={(entity) => handleDropOnFolder(entity, rootPath, true)}
                         onDragEnd={handleDragEnd}
                       >
-                        {() => (
-                          <>
+                        <>
                             <div
                               id={elementId}
                               data-tree-path={rootPath}
@@ -4163,8 +4195,7 @@ export default function RecentProjectsApp() {
                             {isExpanded && <div className={getTreeChildrenClassName(rootPath, styles['root-tree-children'])}>{renderTreeChildren(rootPath, title, true)}</div>}
 
                             <div className={styles['top-divider']}></div>
-                          </>
-                        )}
+                        </>
                       </TreeDragDropContainer>
                     );
                   })()}

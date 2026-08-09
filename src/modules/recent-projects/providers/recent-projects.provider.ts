@@ -926,6 +926,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         break;
       }
 
+      case 'moveSelectedFileEntities':
+      case 'moveFileEntities': {
+        const targetFolderPath = message.targetFolderFsPath || message.targetFolderPath || message.targetPath;
+
+        if (targetFolderPath) {
+          await this.moveFileEntities(message.items || message.entities, targetFolderPath);
+        }
+        break;
+      }
+
       case 'discardFileChanges':
         if (targetPath) {
           await this.discardFileChanges(targetPath, message.status);
@@ -1905,6 +1915,109 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       vscode.window.showErrorMessage(`移动失败：${this.toErrorMessage(error)}`);
     }
+  }
+
+  private async moveFileEntities(items: unknown, targetFolderFsPath: string): Promise<void> {
+    const targetFolderUri = this.toUri(targetFolderFsPath);
+
+    if (!targetFolderUri || targetFolderUri.scheme !== 'file') {
+      vscode.window.showWarningMessage('当前只支持移动本地文件。');
+      return;
+    }
+
+    const seenPaths = new Set<string>();
+    const entries = (Array.isArray(items) ? items : [])
+      .map((item) => {
+        const sourcePath = String((item as any)?.path || '');
+        const sourceUri = this.toUri(sourcePath);
+        const normalizedPath = sourceUri?.scheme === 'file' ? this.normalizeComparePath(sourceUri.toString()) : '';
+
+        if (!sourceUri || sourceUri.scheme !== 'file' || !normalizedPath || seenPaths.has(normalizedPath)) {
+          return null;
+        }
+
+        seenPaths.add(normalizedPath);
+
+        return {
+          sourceUri,
+          normalizedPath,
+          isFolder: Boolean((item as any)?.isFolder),
+        };
+      })
+      .filter((item): item is { sourceUri: vscode.Uri; normalizedPath: string; isFolder: boolean } => !!item)
+      .filter((item, _index, allItems) => {
+        return !allItems.some((parentItem) => {
+          return parentItem.isFolder && parentItem.normalizedPath !== item.normalizedPath && this.isInsidePath(item.normalizedPath, parentItem.normalizedPath);
+        });
+      })
+      .filter((item) => path.dirname(item.sourceUri.fsPath) !== targetFolderUri.fsPath);
+
+    if (entries.length === 0) {
+      this.postMessage({
+        type: 'moveFileEntitiesResult',
+        targetFolderPath: targetFolderFsPath,
+        requestedCount: Array.isArray(items) ? items.length : 0,
+        movedCount: 0,
+        failedNames: [],
+      });
+      return;
+    }
+
+    let movedCount = 0;
+    const failedNames: string[] = [];
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `正在移动 ${entries.length} 个项目...`,
+        cancellable: false,
+      },
+      async () => {
+        for (const entry of entries) {
+          const sourceName = path.basename(entry.sourceUri.fsPath);
+          const targetUri = vscode.Uri.file(path.join(targetFolderUri.fsPath, sourceName));
+          let overwrite = false;
+
+          try {
+            try {
+              await vscode.workspace.fs.stat(targetUri);
+
+              const picked = await vscode.window.showWarningMessage(`目标位置已存在 ${sourceName}，是否覆盖？`, { modal: true }, '覆盖');
+
+              if (picked !== '覆盖') continue;
+
+              overwrite = true;
+            } catch {
+              overwrite = false;
+            }
+
+            await vscode.workspace.fs.rename(entry.sourceUri, targetUri, {
+              overwrite,
+            });
+            movedCount++;
+          } catch {
+            failedNames.push(sourceName);
+          }
+        }
+      },
+    );
+
+    if (movedCount > 0) {
+      vscode.window.showInformationMessage(`已移动 ${movedCount} 个项目`);
+      this.refreshTreeAfterFileChange();
+    }
+
+    if (failedNames.length > 0) {
+      vscode.window.showErrorMessage(`以下项目移动失败：${failedNames.join('、')}`);
+    }
+
+    this.postMessage({
+      type: 'moveFileEntitiesResult',
+      targetFolderPath: targetFolderFsPath,
+      requestedCount: entries.length,
+      movedCount,
+      failedNames,
+    });
   }
 
   private async openInExplorer(fsPath: string): Promise<void> {
