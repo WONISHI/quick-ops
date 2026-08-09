@@ -949,6 +949,35 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'restoreFileFromCommit': {
+            const hash = String(msg.hash || '').trim();
+            const file = String(msg.file || '').trim();
+
+            if (!hash || !file) break;
+
+            const shortHash = hash.substring(0, 7);
+            const fileName = path.basename(file);
+            const confirm = await vscode.window.showWarningMessage(
+              `确定要从提交 ${shortHash} 恢复文件 ${fileName} 吗？\n\n当前工作区中该文件的未提交更改将被覆盖。`,
+              { modal: true },
+              '确定恢复',
+            );
+
+            if (confirm !== '确定恢复') break;
+
+            await this.executeGitOperation(async () => {
+              try {
+                await this.gitService.restoreFileFromCommit(cwd, hash, file);
+                vscode.window.showInformationMessage(`已从提交 ${shortHash} 恢复文件 ${fileName}。`);
+                await this.refreshStatus(cwd, false);
+              } catch (e: any) {
+                vscode.window.showErrorMessage(`恢复文件失败: ${e.message}`);
+              }
+            });
+
+            break;
+          }
+
           case 'stashDrop': {
             const confirm = await vscode.window.showWarningMessage(`确定要永久删除贮藏 stash@{${msg.index}} 吗？\n此操作不可撤销！`, { modal: true }, '删除贮藏');
 

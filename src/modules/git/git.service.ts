@@ -1170,6 +1170,10 @@ export class GitService {
     await this.createGit(cwd).raw(['cherry-pick', hash]);
   }
 
+  public async restoreFileFromCommit(cwd: string, hash: string, file: string): Promise<void> {
+    await this.createGit(cwd).raw(['restore', `--source=${hash}`, '--', file]);
+  }
+
   public async addToGitignore(cwd: string, file: string): Promise<void> {
     const gitignoreUri = vscode.Uri.file(path.join(cwd, '.gitignore'));
 
