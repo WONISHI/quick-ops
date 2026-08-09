@@ -133,12 +133,6 @@ const EXACT_NAMES: Record<string, string> = {
   '.gitkeep': gitIcon,
   '.gitmodules': gitIcon,
   '.git-blame-ignore-revs': gitIcon,
-  '.eslintrc.js': eslintIcon,
-  '.eslintrc.json': eslintIcon,
-  'eslint.config.js': eslintIcon,
-  '.eslintignore': eslintIcon,
-  '.eslintcache': eslintIcon,
-  'eslint.config.cjs': eslintIcon,
   '.prettierrc': prettierIcon,
   '.prettierrc.js': prettierIcon,
   '.prettierignore': prettierIcon,
@@ -161,7 +155,6 @@ const EXACT_NAMES: Record<string, string> = {
   '.markdownlint.json': markdownlint,
   'postcss.config.js': postcssIcon,
   '.lintstagedrc': lintstagedIcon,
-  'commitlint.config.js': commitlintIcon,
   '.browserslistrc': browserlistIcon,
   'stylelint.config.js': stylelintIcon,
   '.stylelintignore': stylelintIcon,
@@ -310,6 +303,8 @@ const REGEX_NAMES: IconMatchRule[] = [
     pattern: /^webpack(?:\..+)?\.(?:js|cjs)$/i,
     icon: webpackIcon,
   },
+  { pattern: /^(?:\.eslintrc\.(?:js|json)|eslint\.config\.(?:js|cjs|mjs)|\.eslint(?:ignore|cache))$/i, icon: eslintIcon },
+  { pattern: /^(?:\.commitlintrc(?:\.(?:json|ya?ml|[cm]?[jt]s))?|commitlint\.config\.(?:[cm]?[jt]s))$/i, icon: commitlintIcon },
 ];
 
 const getMatchedIconFromRules = (name: string, rules: IconMatchRule[]) => {

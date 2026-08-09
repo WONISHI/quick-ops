@@ -117,7 +117,7 @@ function createCommitItems(contextMenu: ContextMenuState): BaseContextMenuItem[]
     return [];
   }
 
-  return [
+  const items: BaseContextMenuItem[] = [
     {
       key: 'copy-commit-message',
       label: '复制提交信息',
@@ -140,6 +140,27 @@ function createCommitItems(contextMenu: ContextMenuState): BaseContextMenuItem[]
         });
       },
     },
+  ];
+
+  items.push(
+    {
+      type: 'separator',
+      key: 'commit-cherry-pick-separator',
+    },
+    {
+      key: 'cherry-pick-commit',
+      label: '摘取此提交',
+      icon: createIcon('codicon-git-commit'),
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'cherryPickCommit',
+          hash: commit.hash,
+        });
+      },
+    },
+  );
+
+  items.push(
     {
       type: 'separator',
       key: 'commit-separator',
@@ -156,7 +177,9 @@ function createCommitItems(contextMenu: ContextMenuState): BaseContextMenuItem[]
         });
       },
     },
-  ];
+  );
+
+  return items;
 }
 
 function createUnstagedItems(contextMenu: ContextMenuState): BaseContextMenuItem[] {

@@ -8,6 +8,7 @@ import FileIcon from '@components/FileIcon';
 import RecentProjectContextMenu from '@pages/recent-projects-app/components/recent-project-context-menu';
 import RecentProjectsSkeleton from '@pages/recent-projects-app/components/recent-projects-skeleton';
 import SearchViewWrapper from '@pages/recent-projects-app/components/search-view-wrapper';
+import TreeDragDropContainer, { type TreeDraggingEntity } from '@pages/recent-projects-app/components/tree-drag-drop-container';
 import Tooltip from '@components/Tooltip';
 import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
 import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '@/utils';
@@ -19,10 +20,15 @@ import type { DiagnosticSummary, MetadataPatchItem, PendingCreateEntity, Pending
 export default function RecentProjectsApp() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [currentUri, setCurrentUri] = useState('');
+  const currentUriRef = useRef('');
   const [currentWorkspace, setCurrentWorkspace] = useState<Project | null>(null);
   const [isInitLoading, setIsInitLoading] = useState(true);
 
   const [lastOpenedPath, setLastOpenedPath] = useState('');
+
+  useEffect(() => {
+    currentUriRef.current = currentUri;
+  }, [currentUri]);
 
   const getInitialSearchQuery = () => {
     const state = vscode.getState() as { searchQuery?: string } | undefined;
@@ -38,11 +44,23 @@ export default function RecentProjectsApp() {
 
   const [selectedPath, setSelectedPath] = useState<string>('');
   const selectedPathRef = useRef('');
+  /** 当前编辑器真正打开的文件路径，不能被目录树上的普通选中覆盖。 */
+  const activeFilePathRef = useRef('');
   const autoScrollTarget = useRef<string | null>(null);
   const listScrollbarRef = useRef<ScrollbarInstance>(null);
 
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const expandedPathsRef = useRef<Set<string>>(new Set());
+  const recursiveFolderExpandStatesRef = useRef<
+    Map<
+      string,
+      {
+        projectName: string;
+        pendingPaths: Set<string>;
+        processedPaths: Set<string>;
+      }
+    >
+  >(new Map());
   useEffect(() => {
     expandedPathsRef.current = expandedPaths;
   }, [expandedPaths]);
@@ -96,8 +114,6 @@ export default function RecentProjectsApp() {
     selectedItemsRef.current = selectedItems;
   }, [selectedItems]);
 
-  const isMacPlatform = navigator.platform?.toLowerCase().includes('mac') || false;
-
   const getFocusModeFlatItems = useCallback((): { path: string; name: string; isFolder: boolean }[] => {
     const result: { path: string; name: string; isFolder: boolean }[] = [];
     const allChildren = dirChildrenRef.current;
@@ -117,34 +133,58 @@ export default function RecentProjectsApp() {
       });
     };
 
-    // Collect from focus root path
-    if (focusRootPathRef.current) {
-      collect(focusRootPathRef.current);
+    const treeRootPath = focusRootPathRef.current || currentWorkspaceRef.current?.fsPath || currentUriRef.current;
+
+    if (treeRootPath) {
+      collect(treeRootPath);
     }
 
     return result;
   }, []);
 
   const clearSelection = useCallback(() => {
-    setSelectedItems(new Set());
+    const next = new Set<string>();
+
+    selectedItemsRef.current = next;
+    setSelectedItems(next);
     lastClickedIndexRef.current = -1;
   }, []);
 
   const handleItemClick = useCallback(
     (e: React.MouseEvent, childPath: string) => {
-      const isMulti = isMacPlatform ? e.metaKey : e.ctrlKey;
-      const isRange = e.shiftKey;
+      const isMulti = e.metaKey || e.ctrlKey;
+      const isRange = e.shiftKey && !isMulti;
 
       if (isMulti) {
-        setSelectedItems((prev) => {
-          const next = new Set(prev);
-          if (next.has(childPath)) {
-            next.delete(childPath);
-          } else {
-            next.add(childPath);
-          }
-          return next;
-        });
+        e.preventDefault();
+        const next = new Set(selectedItemsRef.current);
+        const currentSelectedPath = selectedPathRef.current;
+
+        if (next.size === 0 && currentSelectedPath) {
+          next.add(currentSelectedPath);
+        }
+
+        const isRemoving = next.has(childPath);
+
+        if (isRemoving) {
+          next.delete(childPath);
+        } else {
+          next.add(childPath);
+        }
+
+        let nextSelectedPath = currentSelectedPath;
+
+        if (!isRemoving) {
+          nextSelectedPath = childPath;
+        } else if (currentSelectedPath === childPath) {
+          nextSelectedPath = next.values().next().value || '';
+        }
+
+        selectedItemsRef.current = next;
+        setSelectedItems(next);
+        selectedPathRef.current = nextSelectedPath;
+        setSelectedPath(nextSelectedPath);
+        lastClickedIndexRef.current = getFocusModeFlatItems().findIndex((item) => item.path === childPath);
         return true;
       }
 
@@ -157,7 +197,11 @@ export default function RecentProjectsApp() {
           const start = Math.min(lastIdx, idx);
           const end = Math.max(lastIdx, idx);
           const range = new Set(flatItems.slice(start, end + 1).map((item) => item.path));
+
+          selectedItemsRef.current = range;
           setSelectedItems(range);
+          selectedPathRef.current = childPath;
+          setSelectedPath(childPath);
         }
 
         return true;
@@ -167,7 +211,7 @@ export default function RecentProjectsApp() {
       lastClickedIndexRef.current = getFocusModeFlatItems().findIndex((item) => item.path === childPath);
       return false;
     },
-    [isMacPlatform, getFocusModeFlatItems, clearSelection],
+    [getFocusModeFlatItems, clearSelection],
   );
 
   const [isSearchMode, setIsSearchMode] = useState(false);
@@ -192,6 +236,7 @@ export default function RecentProjectsApp() {
   const pendingSearchResponseModeRef = useRef<'normal' | 'silent'>('normal');
   const latestSearchRequestIdRef = useRef(0);
   const activeSearchRequestIdRef = useRef(0);
+  const hasFocusSearchQueryRef = useRef(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
   const [isFocusLocked, setIsFocusLocked] = useState(false);
   const [focusRootPath, setFocusRootPath] = useState('');
@@ -227,6 +272,17 @@ export default function RecentProjectsApp() {
   const [draggingEntity, setDraggingEntity] = useState<DraggingEntity | null>(null);
   const [dragOverPath, setDragOverPath] = useState('');
   const [invalidDragOverPath, setInvalidDragOverPath] = useState('');
+  const dragExpandTimerRef = useRef<number | null>(null);
+  const dragExpandTargetPathRef = useRef('');
+
+  const clearDragExpandTimer = () => {
+    if (dragExpandTimerRef.current !== null) {
+      window.clearTimeout(dragExpandTimerRef.current);
+      dragExpandTimerRef.current = null;
+    }
+
+    dragExpandTargetPathRef.current = '';
+  };
 
   useEffect(() => {
     isSearchModeRef.current = isSearchMode;
@@ -292,8 +348,16 @@ export default function RecentProjectsApp() {
     if (!pendingRenameEntity) return;
 
     window.setTimeout(() => {
-      pendingRenameInputRef.current?.focus();
-      pendingRenameInputRef.current?.select();
+      const input = pendingRenameInputRef.current;
+
+      if (!input) return;
+
+      const fileName = pendingRenameEntity.name || '';
+      const extensionIndex = pendingRenameEntity.isFolder ? -1 : fileName.lastIndexOf('.');
+      const selectionEnd = extensionIndex > 0 ? extensionIndex : fileName.length;
+
+      input.focus();
+      input.setSelectionRange(0, selectionEnd);
     }, 0);
   }, [pendingRenameEntity]);
 
@@ -312,6 +376,7 @@ export default function RecentProjectsApp() {
   useEffect(() => {
     if (!pendingCreateEntity && !pendingRenameEntity) return;
 
+    clearDragExpandTimer();
     setDraggingEntity(null);
     setDragOverPath('');
     setInvalidDragOverPath('');
@@ -350,6 +415,39 @@ export default function RecentProjectsApp() {
     }
 
     return normalizeFallbackPath(pathValue);
+  };
+
+  /**
+   * @description 按文件路径合并内容搜索结果
+   *
+   * 文件变化会触发静默重新搜索。若前一次搜索尚未结束，多个批次可能在很短
+   * 时间内交错返回，因此这里以完整文件路径为唯一键，保证同一个文件只出现一次。
+   */
+  const mergeContentSearchResults = (previous: SearchResult[], incoming: SearchResult[]) => {
+    const resultMap = new Map<string, SearchResult>();
+
+    [...previous, ...incoming].forEach((item, index) => {
+      const key = normalizePatchPath(item.fullPath || item.file || '') || `__content_search_result_${index}`;
+
+      resultMap.set(key, item);
+    });
+
+    return Array.from(resultMap.values());
+  };
+
+  /**
+   * @description 按文件路径合并文件名搜索结果
+   */
+  const mergeFileNameSearchResults = (previous: DirChild[], incoming: DirChild[]) => {
+    const resultMap = new Map<string, DirChild>();
+
+    [...previous, ...incoming].forEach((item, index) => {
+      const key = normalizePatchPath(item.path || '') || `__file_name_search_result_${index}`;
+
+      resultMap.set(key, item);
+    });
+
+    return Array.from(resultMap.values());
   };
 
   const applyMetadataPatchToItem = <T extends Record<string, any>>(item: T, patchMap: Map<string, MetadataPatchItem>): T => {
@@ -1094,6 +1192,54 @@ export default function RecentProjectsApp() {
     });
   };
 
+  const replaceDirectoryChildren = (pathKey: string, children: DirChild[]) => {
+    const previousChildren = dirChildrenRef.current[pathKey] || [];
+    const currentChildPaths = new Set(children.map((child) => normalizePatchPath(child.path)));
+    const removedFolderPaths = previousChildren
+      .filter((child) => child.isFolder && !currentChildPaths.has(normalizePatchPath(child.path)))
+      .map((child) => child.path);
+    const next = {
+      ...dirChildrenRef.current,
+      [pathKey]: children,
+    };
+
+    if (removedFolderPaths.length > 0) {
+      Object.keys(next).forEach((cachedPath) => {
+        if (removedFolderPaths.some((removedPath) => isPathInside(cachedPath, removedPath))) {
+          delete next[cachedPath];
+        }
+      });
+
+      setExpandedPaths((prev) => {
+        const nextExpanded = new Set(prev);
+
+        Array.from(nextExpanded).forEach((expandedPath) => {
+          if (removedFolderPaths.some((removedPath) => isPathInside(expandedPath, removedPath))) {
+            nextExpanded.delete(expandedPath);
+          }
+        });
+
+        expandedPathsRef.current = nextExpanded;
+        return nextExpanded;
+      });
+
+      setLoadingPaths((prev) => {
+        const nextLoading = new Set(prev);
+
+        Array.from(nextLoading).forEach((loadingPath) => {
+          if (removedFolderPaths.some((removedPath) => isPathInside(loadingPath, removedPath))) {
+            nextLoading.delete(loadingPath);
+          }
+        });
+
+        return nextLoading;
+      });
+    }
+
+    dirChildrenRef.current = next;
+    setDirChildren(next);
+  };
+
   useEffect(() => {
     const handleMessage = (e: MessageEvent) => {
       const msg = e.data as Record<string, unknown>;
@@ -1119,7 +1265,11 @@ export default function RecentProjectsApp() {
         setIsInitLoading(false);
 
         if (msg.activeFilePath) {
-          setSelectedPath(msg.activeFilePath as string);
+          const activeFilePath = msg.activeFilePath as string;
+
+          activeFilePathRef.current = activeFilePath;
+          selectedPathRef.current = activeFilePath;
+          setSelectedPath(activeFilePath);
         }
 
         if (focusLock?.enabled && focusLock.active && currentWorkspaceValue?.fsPath) {
@@ -1231,7 +1381,11 @@ export default function RecentProjectsApp() {
           clearChildren: (msg as any).clearChildren !== false,
         });
       } else if (msg.type === 'activeEditorChanged') {
-        setSelectedPath(msg.fsPath as string);
+        const activeFilePath = msg.fsPath as string;
+
+        activeFilePathRef.current = activeFilePath;
+        selectedPathRef.current = activeFilePath;
+        setSelectedPath(activeFilePath);
       } else if (msg.type === 'beginCreateFileInFocusMode') {
         beginCreateEntityFromFocusSelection('file');
       } else if (msg.type === 'beginCreateFolderInFocusMode') {
@@ -1267,18 +1421,14 @@ export default function RecentProjectsApp() {
             return;
           }
 
-          setDirChildren((prev) => ({
-            ...prev,
-            [pathKey]: children,
-          }));
+          replaceDirectoryChildren(pathKey, children);
+          continueRecursiveFolderExpand(pathKey, children);
 
           return;
         }
 
-        setDirChildren((prev) => ({
-          ...prev,
-          [pathKey]: children,
-        }));
+        replaceDirectoryChildren(pathKey, children);
+        continueRecursiveFolderExpand(pathKey, children);
       } else if (msg.type === 'deleteFileEntityResult') {
         const deletedPath = msg.fsPath as string;
         const parentPath = msg.parentPath as string;
@@ -1333,12 +1483,54 @@ export default function RecentProjectsApp() {
       } else if (msg.type === 'createFileEntityResult' || msg.type === 'createFolderEntityResult') {
         const createdPath = msg.fsPath as string;
         const parentPath = msg.parentPath as string;
+        const createdFolder = msg.type === 'createFolderEntityResult';
 
         setPendingCreateEntity(null);
         setPendingCreateName('');
         setSelectedPath(createdPath);
-        setExpandedPaths((prev) => new Set(prev).add(parentPath));
-        setLoadingPaths((prev) => new Set(prev).add(parentPath));
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+
+          if (createdFolder) {
+            Array.from(next).forEach((itemPath) => {
+              if (isPathInside(itemPath, createdPath)) {
+                next.delete(itemPath);
+              }
+            });
+          }
+
+          next.add(parentPath);
+          expandedPathsRef.current = next;
+          return next;
+        });
+        setLoadingPaths((prev) => {
+          const next = new Set(prev);
+
+          if (createdFolder) {
+            Array.from(next).forEach((itemPath) => {
+              if (isPathInside(itemPath, createdPath)) {
+                next.delete(itemPath);
+              }
+            });
+          }
+
+          next.add(parentPath);
+          return next;
+        });
+        setDirChildren((prev) => {
+          if (!createdFolder) return prev;
+
+          const next = { ...prev };
+
+          Object.keys(next).forEach((pathKey) => {
+            if (isPathInside(pathKey, createdPath)) {
+              delete next[pathKey];
+            }
+          });
+
+          dirChildrenRef.current = next;
+          return next;
+        });
 
         vscode.postMessage({
           type: 'readDir',
@@ -1526,22 +1718,22 @@ export default function RecentProjectsApp() {
         } else if (responseMode === 'silent') {
           setFolderSearchError('');
           if (isDone) {
-            const accumulated = [...pendingSilentResultsRef.current.results, ...incomingResults];
+            const accumulated = mergeContentSearchResults(pendingSilentResultsRef.current.results, incomingResults);
             setFolderSearchResults(accumulated);
             setFolderSearchTotalMatches(Number((msg as any).totalMatches) || 0);
             pendingSilentResultsRef.current.results = [];
             pendingSearchResponseModeRef.current = 'normal';
             setIsSearchingFolder(false);
           } else {
-            pendingSilentResultsRef.current.results = [...pendingSilentResultsRef.current.results, ...incomingResults];
+            pendingSilentResultsRef.current.results = mergeContentSearchResults(pendingSilentResultsRef.current.results, incomingResults);
           }
         } else {
           setFolderSearchError('');
           setFolderSearchResults((prev) => {
-            if (shouldReset) return incomingResults;
-            if (shouldAppend) return [...prev, ...incomingResults];
+            if (shouldReset) return mergeContentSearchResults([], incomingResults);
+            if (shouldAppend) return mergeContentSearchResults(prev, incomingResults);
 
-            return incomingResults;
+            return mergeContentSearchResults([], incomingResults);
           });
           setFolderSearchTotalMatches(Number((msg as any).totalMatches) || 0);
 
@@ -1577,22 +1769,22 @@ export default function RecentProjectsApp() {
           setFolderSearchTotalMatches(0);
           setFolderSearchError('');
           if (isDone) {
-            const accumulated = [...pendingSilentResultsRef.current.fileNameResults, ...incomingResults];
+            const accumulated = mergeFileNameSearchResults(pendingSilentResultsRef.current.fileNameResults, incomingResults);
             setFileNameSearchResults(accumulated);
             pendingSilentResultsRef.current.fileNameResults = [];
             pendingSearchResponseModeRef.current = 'normal';
             setIsSearchingFolder(false);
           } else {
-            pendingSilentResultsRef.current.fileNameResults = [...pendingSilentResultsRef.current.fileNameResults, ...incomingResults];
+            pendingSilentResultsRef.current.fileNameResults = mergeFileNameSearchResults(pendingSilentResultsRef.current.fileNameResults, incomingResults);
           }
         } else {
           setFolderSearchTotalMatches(0);
           setFolderSearchError('');
           setFileNameSearchResults((prev) => {
-            if (shouldReset) return incomingResults;
-            if (shouldAppend) return [...prev, ...incomingResults];
+            if (shouldReset) return mergeFileNameSearchResults([], incomingResults);
+            if (shouldAppend) return mergeFileNameSearchResults(prev, incomingResults);
 
-            return incomingResults;
+            return mergeFileNameSearchResults([], incomingResults);
           });
         }
 
@@ -1611,6 +1803,8 @@ export default function RecentProjectsApp() {
 
         const { targetPath, parentPaths, projectName } = msg as any;
 
+        activeFilePathRef.current = targetPath;
+        selectedPathRef.current = targetPath;
         setSelectedPath(targetPath);
         autoScrollTarget.current = targetPath;
 
@@ -1825,11 +2019,17 @@ export default function RecentProjectsApp() {
 
   useEffect(() => {
     activeSearchRequestIdRef.current = 0;
+    pendingSilentResultsRef.current = {
+      results: [],
+      fileNameResults: [],
+    };
+
     vscode.postMessage({
       type: 'cancelSearch',
     });
 
     if (!isSearchMode || !searchTargetProject) {
+      hasFocusSearchQueryRef.current = false;
       setIsSearchingFolder(false);
       return;
     }
@@ -1844,8 +2044,39 @@ export default function RecentProjectsApp() {
       pendingSearchResponseModeRef.current = 'normal';
       lastSubmittedSearchKeyRef.current = '';
       activeSearchRequestIdRef.current = 0;
-      return;
+
+      if (!isFocusMode || !hasFocusSearchQueryRef.current) {
+        return;
+      }
+
+      const revealTimeoutId = window.setTimeout(() => {
+        if (!isFocusModeRef.current || folderSearchQueryRef.current.trim()) {
+          return;
+        }
+
+        const activeFilePath = activeFilePathRef.current;
+
+        if (!activeFilePath) {
+          return;
+        }
+
+        hasFocusSearchQueryRef.current = false;
+        selectedPathRef.current = activeFilePath;
+        autoScrollTarget.current = activeFilePath;
+        setSelectedPath(activeFilePath);
+
+        vscode.postMessage({
+          type: 'revealCurrentActive',
+          targetPath: activeFilePath,
+        });
+      }, 300);
+
+      return () => {
+        window.clearTimeout(revealTimeoutId);
+      };
     }
+
+    hasFocusSearchQueryRef.current = isFocusMode;
 
     const searchKey = [searchTargetProject.path, folderSearchType, folderSearchQuery.trim(), searchTargetProject.isRemote ? 'remote' : 'local'].join('\n');
     const isSilentRefresh = silentSearchRefreshRef.current && lastSubmittedSearchKeyRef.current === searchKey;
@@ -2046,6 +2277,91 @@ export default function RecentProjectsApp() {
     });
   };
 
+  const applyRecursiveExpandedPaths = (paths: Set<string>) => {
+    if (paths.size === 0) return;
+
+    const next = new Set(expandedPathsRef.current);
+    paths.forEach((pathValue) => next.add(pathValue));
+    expandedPathsRef.current = next;
+    setExpandedPaths(next);
+  };
+
+  const collectRecursiveFolderExpand = (
+    state: {
+      projectName: string;
+      pendingPaths: Set<string>;
+      processedPaths: Set<string>;
+    },
+    folderPath: string,
+    pathsToExpand: Set<string>,
+    loadedChildren?: DirChild[],
+  ) => {
+    if (state.processedPaths.has(folderPath)) return;
+
+    pathsToExpand.add(folderPath);
+
+    const children = loadedChildren || dirChildrenRef.current[folderPath];
+
+    if (!children) {
+      if (!state.pendingPaths.has(folderPath)) {
+        state.pendingPaths.add(folderPath);
+        setLoadingPaths((prev) => new Set(prev).add(folderPath));
+        requestReadDir(folderPath, state.projectName);
+      }
+
+      return;
+    }
+
+    state.pendingPaths.delete(folderPath);
+    state.processedPaths.add(folderPath);
+
+    children.forEach((child) => {
+      if (!child.isFolder) return;
+
+      collectRecursiveFolderExpand(state, child.path, pathsToExpand);
+    });
+  };
+
+  const startRecursiveFolderExpand = (folderPath: string, projectName: string) => {
+    const state = {
+      projectName,
+      pendingPaths: new Set<string>(),
+      processedPaths: new Set<string>(),
+    };
+    const pathsToExpand = new Set<string>();
+
+    recursiveFolderExpandStatesRef.current.set(folderPath, state);
+    collectRecursiveFolderExpand(state, folderPath, pathsToExpand);
+    applyRecursiveExpandedPaths(pathsToExpand);
+
+    if (state.pendingPaths.size === 0) {
+      recursiveFolderExpandStatesRef.current.delete(folderPath);
+    }
+  };
+
+  const continueRecursiveFolderExpand = (folderPath: string, children: DirChild[]) => {
+    recursiveFolderExpandStatesRef.current.forEach((state, rootPath) => {
+      if (!state.pendingPaths.has(folderPath)) return;
+
+      const pathsToExpand = new Set<string>();
+
+      collectRecursiveFolderExpand(state, folderPath, pathsToExpand, children);
+      applyRecursiveExpandedPaths(pathsToExpand);
+
+      if (state.pendingPaths.size === 0) {
+        recursiveFolderExpandStatesRef.current.delete(rootPath);
+      }
+    });
+  };
+
+  const cancelRecursiveFolderExpand = (folderPath: string) => {
+    recursiveFolderExpandStatesRef.current.forEach((_, rootPath) => {
+      if (isPathInside(rootPath, folderPath) || isPathInside(folderPath, rootPath)) {
+        recursiveFolderExpandStatesRef.current.delete(rootPath);
+      }
+    });
+  };
+
   const isSameTreePath = (leftPath: string, rightPath: string) => {
     return normalizePatchPath(leftPath) === normalizePatchPath(rightPath);
   };
@@ -2159,9 +2475,10 @@ export default function RecentProjectsApp() {
     if (!rootPath) return;
 
     const currentSelectedPath = selectedPathRef.current;
-    const selectedTargetPath = currentSelectedPath && isPathInside(currentSelectedPath, rootPath) ? currentSelectedPath : rootPath;
-    const selectedTreeItem = getLoadedTreeItemByPath(selectedTargetPath);
-    const selectedIsFolder = isSameTreePath(selectedTargetPath, rootPath) || !!dirChildrenRef.current[selectedTargetPath] || !!selectedTreeItem?.isFolder;
+    const selectedTreeItem = currentSelectedPath && isPathInside(currentSelectedPath, rootPath) ? getLoadedTreeItemByPath(currentSelectedPath) : null;
+    const hasExplicitTreeSelection = !!selectedTreeItem;
+    const selectedTargetPath = hasExplicitTreeSelection ? currentSelectedPath : rootPath;
+    const selectedIsFolder = isSameTreePath(selectedTargetPath, rootPath) || !!selectedTreeItem?.isFolder;
     const parentPath = selectedIsFolder ? selectedTargetPath : getParentUriString(selectedTargetPath);
     const projectName = focusRootNameRef.current || getProjectNameByPath(parentPath) || '当前项目';
 
@@ -2378,15 +2695,35 @@ export default function RecentProjectsApp() {
     return !!isActiveProject && !!workspacePath && !isRemoteTreePath(pathValue) && isInsideCurrentWorkspacePath(pathValue) && !isSameTreePath(pathValue, workspacePath);
   };
 
-  const getDragEntityFromEvent = (e: React.DragEvent): DraggingEntity | null => {
-    if (draggingEntity) return draggingEntity;
+  const resolveTreeDraggingEntity = (entity: DraggingEntity): TreeDraggingEntity => {
+    const selected = selectedItemsRef.current;
 
-    try {
-      const raw = e.dataTransfer.getData('application/quickops-tree-item');
-      return raw ? (JSON.parse(raw) as DraggingEntity) : null;
-    } catch {
-      return null;
+    if (selected.size <= 1 || !selected.has(entity.path)) {
+      return {
+        ...entity,
+        entities: [entity],
+      };
     }
+
+    const selectedEntities = getFocusModeFlatItems()
+      .filter((item) => selected.has(item.path))
+      .map((item) => ({
+        path: item.path,
+        name: item.name,
+        isFolder: item.isFolder,
+        projectName: entity.projectName,
+      }));
+
+    const topLevelEntities = selectedEntities.filter((item) => {
+      return !selectedEntities.some((parentItem) => {
+        return parentItem.isFolder && !isSameTreePath(parentItem.path, item.path) && isPathInside(item.path, parentItem.path);
+      });
+    });
+
+    return {
+      ...entity,
+      entities: topLevelEntities.length > 0 ? topLevelEntities : [entity],
+    };
   };
 
   const canDropEntityToFolder = (entity: DraggingEntity | null, targetFolderPath: string, isActiveProject: boolean) => {
@@ -2408,93 +2745,121 @@ export default function RecentProjectsApp() {
     return true;
   };
 
-  const handleDragStart = (e: React.DragEvent, child: DirChild, projectName: string, isActiveProject: boolean) => {
-    if (!canDragEntity(child.path, isActiveProject)) {
-      e.preventDefault();
-      return;
+  const getMovableDraggingEntities = (entity: TreeDraggingEntity, targetFolderPath: string, isActiveProject: boolean) => {
+    const resolvedEntity = resolveTreeDraggingEntity(entity);
+
+    return resolvedEntity.entities.filter((item) => canDropEntityToFolder(item, targetFolderPath, isActiveProject));
+  };
+
+  const canDropDraggingEntityToFolder = (entity: TreeDraggingEntity, targetFolderPath: string, isActiveProject: boolean) => {
+    const targetInsideDraggingFolder = entity.entities.some((item) => {
+      return item.isFolder && isPathInside(normalizePatchPath(targetFolderPath), normalizePatchPath(item.path));
+    });
+
+    if (targetInsideDraggingFolder) return false;
+
+    return getMovableDraggingEntities(entity, targetFolderPath, isActiveProject).length > 0;
+  };
+
+  const handleDragStart = (entity: TreeDraggingEntity) => {
+    clearDragExpandTimer();
+    setDraggingEntity(entity);
+
+    if (entity.entities.length === 1 && !selectedItemsRef.current.has(entity.path)) {
+      clearSelection();
     }
 
-    const entity: DraggingEntity = {
-      path: child.path,
-      name: child.name,
-      isFolder: !!child.isFolder,
-      projectName,
-    };
-
-    setDraggingEntity(entity);
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('application/quickops-tree-item', JSON.stringify(entity));
-    e.dataTransfer.setData('text/plain', child.path);
+    selectedPathRef.current = entity.path;
+    setSelectedPath(entity.path);
   };
 
   const handleDragEnd = () => {
+    clearDragExpandTimer();
     setDraggingEntity(null);
     setDragOverPath('');
     setInvalidDragOverPath('');
   };
 
-  const handleDragOverFolder = (e: React.DragEvent, targetFolderPath: string, isActiveProject: boolean) => {
-    if (pendingCreateEntity || pendingRenameEntity) {
-      e.dataTransfer.dropEffect = 'none';
-      return;
-    }
-
-    const entity = getDragEntityFromEvent(e);
-    const canDrop = canDropEntityToFolder(entity, targetFolderPath, isActiveProject);
-
-    if (!entity) return;
-
-    e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = canDrop ? 'move' : 'none';
+  const handleDragOverFolder = (entity: TreeDraggingEntity, targetFolderPath: string, isActiveProject: boolean) => {
+    const canDrop = canDropDraggingEntityToFolder(entity, targetFolderPath, isActiveProject);
 
     if (canDrop) {
       setDragOverPath(targetFolderPath);
       setInvalidDragOverPath('');
+
+      if (!expandedPathsRef.current.has(targetFolderPath) && dragExpandTargetPathRef.current !== targetFolderPath) {
+        clearDragExpandTimer();
+        dragExpandTargetPathRef.current = targetFolderPath;
+        dragExpandTimerRef.current = window.setTimeout(() => {
+          const next = new Set(expandedPathsRef.current);
+
+          next.add(targetFolderPath);
+          expandedPathsRef.current = next;
+          setExpandedPaths(next);
+
+          if (!dirChildrenRef.current[targetFolderPath]) {
+            setLoadingPaths((prev) => new Set(prev).add(targetFolderPath));
+            requestReadDir(targetFolderPath, getProjectNameByPath(targetFolderPath));
+          }
+
+          dragExpandTimerRef.current = null;
+          dragExpandTargetPathRef.current = '';
+        }, 600);
+      }
     } else {
+      clearDragExpandTimer();
       setDragOverPath('');
       setInvalidDragOverPath(targetFolderPath);
     }
   };
 
-  const handleDragLeaveFolder = (e: React.DragEvent, targetFolderPath: string) => {
-    if (e.currentTarget.contains(e.relatedTarget as Node | null)) {
-      return;
+  const handleDragLeaveFolder = (targetFolderPath: string) => {
+    if (dragExpandTargetPathRef.current === targetFolderPath) {
+      clearDragExpandTimer();
     }
 
     setDragOverPath((prev) => (prev === targetFolderPath ? '' : prev));
     setInvalidDragOverPath((prev) => (prev === targetFolderPath ? '' : prev));
   };
 
-  const handleDropOnFolder = (e: React.DragEvent, targetFolderPath: string, isActiveProject: boolean) => {
+  const handleDropOnFolder = (entity: TreeDraggingEntity, targetFolderPath: string, isActiveProject: boolean) => {
     if (pendingCreateEntity || pendingRenameEntity) {
-      e.preventDefault();
-      e.stopPropagation();
       handleDragEnd();
       return;
     }
 
-    const entity = getDragEntityFromEvent(e);
-
-    e.preventDefault();
-    e.stopPropagation();
-
+    clearDragExpandTimer();
     setDragOverPath('');
     setInvalidDragOverPath('');
 
-    if (!canDropEntityToFolder(entity, targetFolderPath, isActiveProject) || !entity) {
+    if (!canDropDraggingEntityToFolder(entity, targetFolderPath, isActiveProject)) {
       return;
     }
 
-    setExpandedPaths((prev) => new Set(prev).add(targetFolderPath));
-    setLoadingPaths((prev) => new Set(prev).add(targetFolderPath));
+    const movableEntities = getMovableDraggingEntities(entity, targetFolderPath, isActiveProject);
+
+    const nextExpandedPaths = new Set(expandedPathsRef.current);
+
+    nextExpandedPaths.add(targetFolderPath);
+    expandedPathsRef.current = nextExpandedPaths;
+    setExpandedPaths(nextExpandedPaths);
+
+    if (!dirChildrenRef.current[targetFolderPath]) {
+      setLoadingPaths((prev) => new Set(prev).add(targetFolderPath));
+    }
 
     vscode.postMessage({
-      type: 'moveFileEntity',
-      sourceFsPath: entity.path,
+      type: 'moveFileEntities',
       targetFolderFsPath: targetFolderPath,
-      isFolder: entity.isFolder,
+      items: movableEntities.map((item) => ({
+        path: item.path,
+        isFolder: item.isFolder,
+      })),
     });
+
+    clearSelection();
+    selectedPathRef.current = targetFolderPath;
+    setSelectedPath(targetFolderPath);
   };
 
   const getDropClassName = (targetFolderPath: string) => {
@@ -2511,6 +2876,26 @@ export default function RecentProjectsApp() {
     }
 
     return '';
+  };
+
+  const getDropTreeClassName = (targetFolderPath: string) => {
+    if (pendingCreateEntity || pendingRenameEntity) {
+      return '';
+    }
+
+    return dragOverPath === targetFolderPath ? styles['drop-target-tree'] : '';
+  };
+
+  const renderDragAwareTooltip = (content: React.ReactNode, children: React.ReactElement) => {
+    if (draggingEntity) {
+      return children;
+    }
+
+    return (
+      <Tooltip content={content} placement="bottom" align="start" delay={2000}>
+        {children}
+      </Tooltip>
+    );
   };
 
   const renderRenameInput = (entityPath: string) => {
@@ -2616,6 +3001,8 @@ export default function RecentProjectsApp() {
   const handleOpenFile = (pathValue: string, projectName: string, isActiveProject: boolean, e: React.MouseEvent) => {
     e.stopPropagation();
 
+    activeFilePathRef.current = pathValue;
+    selectedPathRef.current = pathValue;
     setSelectedPath(pathValue);
     setContextMenu((prev) => ({
       ...prev,
@@ -2673,6 +3060,7 @@ export default function RecentProjectsApp() {
     if (isExpanding) {
       next.add(pathValue);
     } else {
+      cancelRecursiveFolderExpand(pathValue);
       next.delete(pathValue);
     }
 
@@ -3058,6 +3446,7 @@ export default function RecentProjectsApp() {
 
       case 'collapseFolderChildren': {
         const targetPath = payload.path;
+        cancelRecursiveFolderExpand(targetPath);
 
         setExpandedPaths((prev) => {
           const next = new Set(prev);
@@ -3067,6 +3456,8 @@ export default function RecentProjectsApp() {
               next.delete(itemPath);
             }
           });
+
+          expandedPathsRef.current = next;
 
           return next;
         });
@@ -3085,6 +3476,10 @@ export default function RecentProjectsApp() {
 
         break;
       }
+
+      case 'expandFolderChildren':
+        startRecursiveFolderExpand(payload.path, payload.projectName || getProjectNameByPath(payload.path));
+        break;
 
       case 'searchInFolder':
         /**
@@ -3163,6 +3558,26 @@ export default function RecentProjectsApp() {
 
   const exitSearchOrFocusMode = () => {
     const searchReturnState = searchReturnStateRef.current;
+    const shouldRevealActiveFile = isSearchModeRef.current && !isFocusModeRef.current;
+
+    const revealCurrentActiveTreeItem = () => {
+      if (!shouldRevealActiveFile) return;
+
+      const activeFilePath = activeFilePathRef.current;
+
+      if (!activeFilePath) return;
+
+      selectedPathRef.current = activeFilePath;
+      autoScrollTarget.current = activeFilePath;
+      setSelectedPath(activeFilePath);
+
+      window.setTimeout(() => {
+        vscode.postMessage({
+          type: 'revealCurrentActive',
+          targetPath: activeFilePath,
+        });
+      }, 0);
+    };
 
     if (searchReturnState) {
       searchReturnStateRef.current = null;
@@ -3187,6 +3602,7 @@ export default function RecentProjectsApp() {
       setFolderSearchError('');
       setIsSearchingFolder(false);
       setCurrentActiveMatch(0);
+      revealCurrentActiveTreeItem();
       return;
     }
 
@@ -3212,6 +3628,7 @@ export default function RecentProjectsApp() {
 
     if (!exitingFocusMode || !exitingFocusRootPath) {
       normalDirChildrenBeforeFocusRef.current = {};
+      revealCurrentActiveTreeItem();
       return;
     }
 
@@ -3298,94 +3715,124 @@ export default function RecentProjectsApp() {
           const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
           const elementId = `tree-node-${encodeURIComponent(childPath)}`;
           const renameInput = renderRenameInput(childPath);
+          const dragEntity: DraggingEntity = {
+            path: childPath,
+            name: child.name,
+            isFolder: !!child.isFolder,
+            projectName,
+          };
 
           if (child.isFolder) {
             return (
-              <div key={childPath}>
-                <div
-                  id={elementId}
-                  data-tree-path={childPath}
-                  className={`${styles['sub-item']} ${styles['clickable-sub']} ${
-                    selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
-                  } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
-                  draggable={canDragEntity(childPath, isActiveProject)}
-                  onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={(e) => handleDragOverFolder(e, childPath, isActiveProject)}
-                  onDragLeave={(e) => handleDragLeaveFolder(e, childPath)}
-                  onDrop={(e) => handleDropOnFolder(e, childPath, isActiveProject)}
-                  onClick={(e) => {
-                    if (isFocusMode && handleItemClick(e, childPath)) return;
-                    handleToggleExpand(childPath, projectName, isRemote, e);
-                  }}
-                  onContextMenu={(e) =>
-                    handleContextMenu(e, 'sub', {
-                      path: childPath,
-                      name: child.name,
-                      isFolder: true,
-                      projectName,
-                      isActiveProject,
-                    })
-                  }
-                >
-                  <div className={styles['tree-chevron']}>
-                    {childLoading ? (
-                      <FontAwesomeIcon
-                        icon={faSpinner}
-                        spin
-                        className={styles['chevron-icon']}
-                        style={{
-                          opacity: 1,
-                          color: 'var(--vscode-textLink-foreground)',
-                        }}
-                      />
-                    ) : (
-                      <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+              <TreeDragDropContainer
+                key={childPath}
+                path={childPath}
+                className={getDropTreeClassName(childPath)}
+                entity={dragEntity}
+                draggableEnabled={canDragEntity(childPath, isActiveProject)}
+                dropTargetEnabled={isActiveProject}
+                resolveDraggingEntity={resolveTreeDraggingEntity}
+                canDrop={(entity) => canDropDraggingEntityToFolder(entity, childPath, isActiveProject)}
+                onDragStart={handleDragStart}
+                onDragOver={(entity) => handleDragOverFolder(entity, childPath, isActiveProject)}
+                onDragLeave={() => handleDragLeaveFolder(childPath)}
+                onDrop={(entity) => handleDropOnFolder(entity, childPath, isActiveProject)}
+                onDragEnd={handleDragEnd}
+              >
+                <>
+                    <div
+                      id={elementId}
+                      data-tree-path={childPath}
+                      data-tree-drag-handle="true"
+                      className={`${styles['sub-item']} ${styles['clickable-sub']} ${
+                        selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
+                      } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
+                      onClick={(e) => {
+                        if (isActiveProject && handleItemClick(e, childPath)) return;
+                        handleToggleExpand(childPath, projectName, isRemote, e);
+                      }}
+                      onContextMenu={(e) =>
+                        handleContextMenu(e, 'sub', {
+                          path: childPath,
+                          name: child.name,
+                          isFolder: true,
+                          isExpanded,
+                          projectName,
+                          isActiveProject,
+                        } as ContextMenuPayload)
+                      }
+                    >
+                      <div className={styles['tree-chevron']}>
+                        {childLoading ? (
+                          <FontAwesomeIcon
+                            icon={faSpinner}
+                            spin
+                            className={styles['chevron-icon']}
+                            style={{
+                              opacity: 1,
+                              color: 'var(--vscode-textLink-foreground)',
+                            }}
+                          />
+                        ) : (
+                          <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+                        )}
+                      </div>
+
+                      <FileIcon fileName={child.name} isFolder isExpanded={isExpanded} className={`${styles['sub-icon']} ${styles['folder-icon']}`} />
+
+                      {renderDragAwareTooltip(
+                        getTreeTooltipContent(childPath, child, true),
+                        renameInput || (
+                          <span
+                            className={styles['sub-name']}
+                            style={{
+                              display: 'inline-block',
+                              alignItems: 'center',
+                              pointerEvents: 'auto',
+                            }}
+                          >
+                            {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
+                          </span>
+                        ),
+                      )}
+
+                      <FolderGitStatusDot status={child.status} />
+                    </div>
+
+                    {isExpanded && (
+                      <div className={getTreeChildrenClassName(childPath, styles['search-name-tree-children'])}>
+                        {renderTreeChildren(childPath, projectName, isActiveProject, highlightQuery)}
+                      </div>
                     )}
-                  </div>
-
-                  <FileIcon fileName={child.name} isFolder isExpanded={isExpanded} className={`${styles['sub-icon']} ${styles['folder-icon']}`} />
-
-                  <Tooltip content={getTreeTooltipContent(childPath, child, true)} placement="bottom" align="start" delay={2000}>
-                    {renameInput || (
-                      <span
-                        className={styles['sub-name']}
-                        style={{
-                          display: 'inline-block',
-                          alignItems: 'center',
-                          pointerEvents: 'auto',
-                        }}
-                      >
-                        {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
-                      </span>
-                    )}
-                  </Tooltip>
-
-                  <FolderGitStatusDot status={child.status} />
-                </div>
-
-                {isExpanded && (
-                  <div className={getTreeChildrenClassName(childPath, styles['search-name-tree-children'])}>
-                    {renderTreeChildren(childPath, projectName, isActiveProject, highlightQuery)}
-                  </div>
-                )}
-              </div>
+                </>
+              </TreeDragDropContainer>
             );
           }
 
           return (
-            <div key={childPath}>
+            <TreeDragDropContainer
+              key={childPath}
+              path={childPath}
+              entity={dragEntity}
+              draggableEnabled={canDragEntity(childPath, isActiveProject)}
+              dropTargetEnabled={false}
+              resolveDraggingEntity={resolveTreeDraggingEntity}
+              canDrop={() => false}
+              onDragStart={handleDragStart}
+              onDragOver={() => undefined}
+              onDragLeave={() => undefined}
+              onDrop={() => undefined}
+              onDragEnd={handleDragEnd}
+            >
               <div
                 id={elementId}
                 data-tree-path={childPath}
+                data-tree-drag-handle="true"
                 className={`${styles['sub-item']} ${
                   selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
                 } ${styles['search-name-sub-item-clickable']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''}`}
-                draggable={canDragEntity(childPath, isActiveProject)}
-                onDragStart={(e) => handleDragStart(e, child, projectName, isActiveProject)}
-                onDragEnd={handleDragEnd}
                 onClick={(e) => {
-                  if (isFocusMode && handleItemClick(e, childPath)) return;
+                  if (isActiveProject && handleItemClick(e, childPath)) return;
                   handleOpenFile(childPath, projectName, isActiveProject, e);
                 }}
                 onContextMenu={(e) =>
@@ -3404,8 +3851,9 @@ export default function RecentProjectsApp() {
 
                 <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
 
-                <Tooltip content={getTreeTooltipContent(childPath, child, false)} placement="bottom" align="start" delay={2000}>
-                  {renameInput || (
+                {renderDragAwareTooltip(
+                  getTreeTooltipContent(childPath, child, false),
+                  renameInput || (
                     <span
                       className={styles['sub-name']}
                       style={{
@@ -3416,13 +3864,13 @@ export default function RecentProjectsApp() {
                     >
                       {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
                     </span>
-                  )}
-                </Tooltip>
+                  ),
+                )}
 
                 <FileGitStatusBadge status={child.status} />
                 {renderDiagnosticsBadge(child)}
               </div>
-            </div>
+            </TreeDragDropContainer>
           );
         })}
       </>
@@ -3459,7 +3907,22 @@ export default function RecentProjectsApp() {
           onLockFocusMode={lockCurrentFocusMode}
           onExitLockedFocusMode={exitLockedFocusMode}
           focusTree={
-            isFocusMode && focusRootPath ? <div className={styles['focus-tree-wrapper']}>{renderTreeChildren(focusRootPath, focusRootName || '当前项目', true)}</div> : null
+            isFocusMode && focusRootPath ? (
+              <TreeDragDropContainer
+                path={focusRootPath}
+                className={`${styles['focus-tree-wrapper']} ${getDropTreeClassName(focusRootPath)}`}
+                draggableEnabled={false}
+                dropTargetEnabled
+                canDrop={(entity) => canDropDraggingEntityToFolder(entity, focusRootPath, true)}
+                onDragStart={() => undefined}
+                onDragOver={(entity) => handleDragOverFolder(entity, focusRootPath, true)}
+                onDragLeave={() => handleDragLeaveFolder(focusRootPath)}
+                onDrop={(entity) => handleDropOnFolder(entity, focusRootPath, true)}
+                onDragEnd={handleDragEnd}
+              >
+                {renderTreeChildren(focusRootPath, focusRootName || '当前项目', true)}
+              </TreeDragDropContainer>
+            ) : null
           }
           onBack={exitSearchOrFocusMode}
           folderSearchQuery={folderSearchQuery}
@@ -3548,85 +4011,97 @@ export default function RecentProjectsApp() {
                     const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
 
                     return (
-                      <div key={rootPath}>
-                        <div
-                          id={elementId}
-                          data-tree-path={rootPath}
-                          className={`${styles['active-top-project']} ${
-                            selectedPath === rootPath ? styles['selected'] : ''
-                          } ${inHistory ? styles['in-history'] : styles['not-in-history']} ${getDropClassName(rootPath)}`}
-                          onDragOver={(e) => handleDragOverFolder(e, rootPath, true)}
-                          onDragLeave={(e) => handleDragLeaveFolder(e, rootPath)}
-                          onDrop={(e) => handleDropOnFolder(e, rootPath, true)}
-                          onContextMenu={(e) =>
-                            handleContextMenu(e, 'top', {
-                              path: rootPath,
-                              isRemote,
-                              originalName: p.name,
-                              customName: p.customName,
-                              platform: p.platform || 'github',
-                              customDomain: p.customDomain,
-                              isActiveProject: true,
-                              inHistory,
-                            })
-                          }
-                          onClick={() => setSelectedPath(rootPath)}
-                        >
-                          <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}>
-                            <div className={styles['tree-chevron']}>
-                              {rootLoading ? (
-                                <FontAwesomeIcon
-                                  icon={faSpinner}
-                                  spin
-                                  className={styles['chevron-icon']}
-                                  style={{
-                                    opacity: 1,
-                                    color: 'inherit',
-                                  }}
-                                />
-                              ) : (
-                                <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
-                              )}
-                            </div>
+                      <TreeDragDropContainer
+                        key={rootPath}
+                        path={rootPath}
+                        className={getDropTreeClassName(rootPath)}
+                        draggableEnabled={false}
+                        dropTargetEnabled
+                        canDrop={(entity) => canDropDraggingEntityToFolder(entity, rootPath, true)}
+                        onDragStart={() => undefined}
+                        onDragOver={(entity) => handleDragOverFolder(entity, rootPath, true)}
+                        onDragLeave={() => handleDragLeaveFolder(rootPath)}
+                        onDrop={(entity) => handleDropOnFolder(entity, rootPath, true)}
+                        onDragEnd={handleDragEnd}
+                      >
+                        <>
+                            <div
+                              id={elementId}
+                              data-tree-path={rootPath}
+                              className={`${styles['active-top-project']} ${
+                                selectedPath === rootPath ? styles['selected'] : ''
+                              } ${inHistory ? styles['in-history'] : styles['not-in-history']} ${getDropClassName(rootPath)}`}
+                              onContextMenu={(e) =>
+                                handleContextMenu(e, 'top', {
+                                  path: rootPath,
+                                  isRemote,
+                                  originalName: p.name,
+                                  customName: p.customName,
+                                  platform: p.platform || 'github',
+                                  customDomain: p.customDomain,
+                                  isActiveProject: true,
+                                  inHistory,
+                                })
+                              }
+                              onClick={() => setSelectedPath(rootPath)}
+                            >
+                              <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}>
+                                <div className={styles['tree-chevron']}>
+                                  {rootLoading ? (
+                                    <FontAwesomeIcon
+                                      icon={faSpinner}
+                                      spin
+                                      className={styles['chevron-icon']}
+                                      style={{
+                                        opacity: 1,
+                                        color: 'inherit',
+                                      }}
+                                    />
+                                  ) : (
+                                    <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+                                  )}
+                                </div>
 
-                            <div className={styles['info']}>
-                              <div className={styles['title']}>
-                                {isRemote ? (
-                                  <FontAwesomeIcon icon={projectIcon} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
-                                ) : (
-                                  <FileIcon fileName={title} isFolder isExpanded={isExpanded} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
-                                )}
+                                <div className={styles['info']}>
+                                  <div className={styles['title']}>
+                                    {isRemote ? (
+                                      <FontAwesomeIcon icon={projectIcon} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
+                                    ) : (
+                                      <FileIcon fileName={title} isFolder isExpanded={isExpanded} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
+                                    )}
 
-                                <Tooltip content={getRootProjectTooltipContent(rootPath, p)} placement="bottom" align="start" delay={2000}>
-                                  <span
-                                    className={styles['project-name']}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      pointerEvents: 'auto',
-                                    }}
-                                  >
-                                    {title}
-                                  </span>
-                                </Tooltip>
+                                    {renderDragAwareTooltip(
+                                      getRootProjectTooltipContent(rootPath, p),
+                                      <span
+                                        className={styles['project-name']}
+                                        style={{
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          pointerEvents: 'auto',
+                                        }}
+                                      >
+                                        {title}
+                                      </span>,
+                                    )}
 
-                                {branch && (
-                                  <span className={styles['branch-tag']} title={branch}>
-                                    <FontAwesomeIcon icon={faCodeBranch} className={styles['branch-icon']} />
-                                    <span className={styles['branch-text']}>{branch}</span>
-                                  </span>
-                                )}
+                                    {branch && (
+                                      <span className={styles['branch-tag']} title={branch}>
+                                        <FontAwesomeIcon icon={faCodeBranch} className={styles['branch-icon']} />
+                                        <span className={styles['branch-text']}>{branch}</span>
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  <div className={styles['path']}>{finalPath}</div>
+                                </div>
                               </div>
-
-                              <div className={styles['path']}>{finalPath}</div>
                             </div>
-                          </div>
-                        </div>
 
-                        {isExpanded && <div className={getTreeChildrenClassName(rootPath, styles['root-tree-children'])}>{renderTreeChildren(rootPath, title, true)}</div>}
+                            {isExpanded && <div className={getTreeChildrenClassName(rootPath, styles['root-tree-children'])}>{renderTreeChildren(rootPath, title, true)}</div>}
 
-                        <div className={styles['top-divider']}></div>
-                      </div>
+                            <div className={styles['top-divider']}></div>
+                        </>
+                      </TreeDragDropContainer>
                     );
                   })()}
 
@@ -3690,7 +4165,8 @@ export default function RecentProjectsApp() {
                                   <FileIcon fileName={title} isFolder isExpanded={isExpanded} className={`${styles['project-icon']} ${styles['icon-closed']}`} />
                                 )}
 
-                                <Tooltip content={getRootProjectTooltipContent(rootPath, p)} placement="bottom" align="start" delay={2000}>
+                                {renderDragAwareTooltip(
+                                  getRootProjectTooltipContent(rootPath, p),
                                   <span
                                     className={styles['project-name']}
                                     style={{
@@ -3700,8 +4176,8 @@ export default function RecentProjectsApp() {
                                     }}
                                   >
                                     {title}
-                                  </span>
-                                </Tooltip>
+                                  </span>,
+                                )}
 
                                 {branch && (
                                   <span className={styles['branch-tag']} title={branch}>
@@ -3729,6 +4205,23 @@ export default function RecentProjectsApp() {
                 </ul>
 
                 {searchQuery && filteredOtherProjects.length === 0 && !isCurrentVisible && <div className={styles['no-match-msg']}>没有找到匹配的项目...</div>}
+
+                {isCurrentVisible && activeProjectToRender && (
+                  <TreeDragDropContainer
+                    path={activeProjectToRender.fsPath}
+                    className={`${styles['root-drop-spacer']} ${getDropTreeClassName(activeProjectToRender.fsPath)}`}
+                    draggableEnabled={false}
+                    dropTargetEnabled
+                    canDrop={(entity) => canDropDraggingEntityToFolder(entity, activeProjectToRender.fsPath, true)}
+                    onDragStart={() => undefined}
+                    onDragOver={(entity) => handleDragOverFolder(entity, activeProjectToRender.fsPath, true)}
+                    onDragLeave={() => handleDragLeaveFolder(activeProjectToRender.fsPath)}
+                    onDrop={(entity) => handleDropOnFolder(entity, activeProjectToRender.fsPath, true)}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <div className={styles['root-drop-spacer-inner']} />
+                  </TreeDragDropContainer>
+                )}
               </>
             )}
           </Scrollbar>

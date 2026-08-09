@@ -318,13 +318,19 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const openInCurrentWindowButton: vscode.QuickInputButton = {
+    type ProjectOpenButton = vscode.QuickInputButton & {
+      action: 'openInCurrentWindow' | 'openInNewWindow';
+    };
+
+    const openInCurrentWindowButton: ProjectOpenButton = {
       iconPath: new vscode.ThemeIcon('open-in-product'),
       tooltip: '在当前窗口打开',
+      action: 'openInCurrentWindow',
     };
-    const openInNewWindowButton: vscode.QuickInputButton = {
+    const openInNewWindowButton: ProjectOpenButton = {
       iconPath: new vscode.ThemeIcon('open-in-window'),
       tooltip: '在新窗口打开',
+      action: 'openInNewWindow',
     };
     const quickPick = vscode.window.createQuickPick<RecentProjectQuickPickItem>();
 
@@ -332,19 +338,21 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     quickPick.placeholder = '回车在当前窗口打开，或使用项目右侧按钮';
     quickPick.matchOnDescription = true;
     quickPick.matchOnDetail = true;
-    quickPick.items = projects.map((project) => {
+    quickPick.items = projects.map((project, index) => {
       const projectUri = this.toUri(project.fsPath);
       const displayPath = projectUri?.scheme === 'file' ? projectUri.fsPath : project.fsPath;
       const isRemote = this.recentProjectsService.isRemoteProject(project);
+      const descriptionParts = [index === 0 ? '上一次打开' : '', project.branch ? `$(git-branch) ${project.branch}` : ''].filter(Boolean);
 
       return {
         label: `$(${isRemote ? 'repo' : 'folder'}) ${project.customName || project.name}`,
-        description: project.branch ? `$(git-branch) ${project.branch}` : undefined,
+        description: descriptionParts.join('  ') || undefined,
         detail: displayPath,
         project,
         buttons: [openInCurrentWindowButton, openInNewWindowButton],
       };
     });
+    quickPick.activeItems = quickPick.items.slice(0, 1);
 
     let isOpening = false;
 
@@ -367,7 +375,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     };
 
     quickPick.onDidTriggerItemButton((event) => {
-      void openQuickPickProject(event.item, event.button === openInNewWindowButton);
+      const action = (event.button as ProjectOpenButton).action;
+
+      void openQuickPickProject(event.item, action === 'openInNewWindow');
     });
 
     quickPick.onDidAccept(() => {
@@ -497,10 +507,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.setActivePath(editor.document.uri.toString());
   }
 
-  public revealCurrentActive(): void {
+  public revealCurrentActive(preferredPath = ''): void {
     const editor = vscode.window.activeTextEditor;
+    const explicitPath = String(preferredPath || '').trim();
 
-    if (editor && editor.document.uri.scheme === 'file') {
+    if (explicitPath) {
+      this.currentActivePath = explicitPath;
+    } else if (editor && editor.document.uri.scheme === 'file') {
       this.currentActivePath = editor.document.uri.toString();
     }
 
@@ -611,6 +624,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private async handleMessage(message: RecentProjectsWebviewMessage & Record<string, any>): Promise<void> {
+    if (message.type === 'moveFileEntities' || message.type === 'moveSelectedFileEntities') {
+      const targetFolderPath = message.targetFolderFsPath || message.targetFolderPath || message.targetPath;
+
+      if (targetFolderPath) {
+        await this.moveFileEntities(message.items || message.entities, targetFolderPath);
+      }
+
+      return;
+    }
+
     const targetPath = this.getMessagePath(message);
     const projectName = message.projectName || message.name || '未知项目';
 
@@ -646,7 +669,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         break;
 
       case 'revealCurrentActive':
-        this.revealCurrentActive();
+        this.revealCurrentActive(targetPath);
         break;
 
       case 'setFocusModeContext':
@@ -1141,7 +1164,6 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     await this.recentProjectsService.touchProject(fsPath);
 
     try {
-      await vscode.commands.executeCommand('workbench.view.explorer');
       await vscode.commands.executeCommand('vscode.openFolder', uri, forceNewWindow);
     } catch (error) {
       vscode.window.showErrorMessage(`无法打开该项目：${this.toErrorMessage(error)}`);
@@ -1676,9 +1698,25 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const targetUri = vscode.Uri.joinPath(parentUri, ...this.toPathParts(name));
 
     try {
+      try {
+        await vscode.workspace.fs.stat(targetUri);
+        vscode.window.showWarningMessage(`文件已存在：${name}`);
+        this.refreshTreeAfterFileChange();
+        return;
+      } catch {
+        // 目标不存在，可以继续创建。
+      }
+
       await this.ensureParentDirectory(targetUri);
       await vscode.workspace.fs.writeFile(targetUri, new Uint8Array());
       await this.openFile(targetUri.toString());
+
+      this.postMessage({
+        type: 'createFileEntityResult',
+        fsPath: targetUri.toString(),
+        parentPath: parentUri.toString(),
+        name,
+      });
 
       this.refreshTreeAfterFileChange();
     } catch (error) {
@@ -1698,7 +1736,25 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const targetUri = vscode.Uri.joinPath(parentUri, ...this.toPathParts(name));
 
     try {
+      try {
+        await vscode.workspace.fs.stat(targetUri);
+        vscode.window.showWarningMessage(`文件夹已存在：${name}`);
+        this.invalidateDirCache(parentUri.toString());
+        await this.handleReadDir(parentUri.toString(), undefined, false, true);
+        return;
+      } catch {
+        // 目标不存在，可以继续创建。
+      }
+
       await vscode.workspace.fs.createDirectory(targetUri);
+
+      this.invalidateDirCache(parentUri.toString());
+      this.postMessage({
+        type: 'createFolderEntityResult',
+        fsPath: targetUri.toString(),
+        parentPath: parentUri.toString(),
+        name,
+      });
 
       this.refreshTreeAfterFileChange();
     } catch (error) {
@@ -1893,6 +1949,109 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       vscode.window.showErrorMessage(`移动失败：${this.toErrorMessage(error)}`);
     }
+  }
+
+  private async moveFileEntities(items: unknown, targetFolderFsPath: string): Promise<void> {
+    const targetFolderUri = this.toUri(targetFolderFsPath);
+
+    if (!targetFolderUri || targetFolderUri.scheme !== 'file') {
+      vscode.window.showWarningMessage('当前只支持移动本地文件。');
+      return;
+    }
+
+    const seenPaths = new Set<string>();
+    const entries = (Array.isArray(items) ? items : [])
+      .map((item) => {
+        const sourcePath = String((item as any)?.path || '');
+        const sourceUri = this.toUri(sourcePath);
+        const normalizedPath = sourceUri?.scheme === 'file' ? this.normalizeComparePath(sourceUri.toString()) : '';
+
+        if (!sourceUri || sourceUri.scheme !== 'file' || !normalizedPath || seenPaths.has(normalizedPath)) {
+          return null;
+        }
+
+        seenPaths.add(normalizedPath);
+
+        return {
+          sourceUri,
+          normalizedPath,
+          isFolder: Boolean((item as any)?.isFolder),
+        };
+      })
+      .filter((item): item is { sourceUri: vscode.Uri; normalizedPath: string; isFolder: boolean } => !!item)
+      .filter((item, _index, allItems) => {
+        return !allItems.some((parentItem) => {
+          return parentItem.isFolder && parentItem.normalizedPath !== item.normalizedPath && this.isInsidePath(item.normalizedPath, parentItem.normalizedPath);
+        });
+      })
+      .filter((item) => path.dirname(item.sourceUri.fsPath) !== targetFolderUri.fsPath);
+
+    if (entries.length === 0) {
+      this.postMessage({
+        type: 'moveFileEntitiesResult',
+        targetFolderPath: targetFolderFsPath,
+        requestedCount: Array.isArray(items) ? items.length : 0,
+        movedCount: 0,
+        failedNames: [],
+      });
+      return;
+    }
+
+    let movedCount = 0;
+    const failedNames: string[] = [];
+
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `正在移动 ${entries.length} 个项目...`,
+        cancellable: false,
+      },
+      async () => {
+        for (const entry of entries) {
+          const sourceName = path.basename(entry.sourceUri.fsPath);
+          const targetUri = vscode.Uri.file(path.join(targetFolderUri.fsPath, sourceName));
+          let overwrite = false;
+
+          try {
+            try {
+              await vscode.workspace.fs.stat(targetUri);
+
+              const picked = await vscode.window.showWarningMessage(`目标位置已存在 ${sourceName}，是否覆盖？`, { modal: true }, '覆盖');
+
+              if (picked !== '覆盖') continue;
+
+              overwrite = true;
+            } catch {
+              overwrite = false;
+            }
+
+            await vscode.workspace.fs.rename(entry.sourceUri, targetUri, {
+              overwrite,
+            });
+            movedCount++;
+          } catch {
+            failedNames.push(sourceName);
+          }
+        }
+      },
+    );
+
+    if (movedCount > 0) {
+      vscode.window.showInformationMessage(`已移动 ${movedCount} 个项目`);
+      this.refreshTreeAfterFileChange();
+    }
+
+    if (failedNames.length > 0) {
+      vscode.window.showErrorMessage(`以下项目移动失败：${failedNames.join('、')}`);
+    }
+
+    this.postMessage({
+      type: 'moveFileEntitiesResult',
+      targetFolderPath: targetFolderFsPath,
+      requestedCount: entries.length,
+      movedCount,
+      failedNames,
+    });
   }
 
   private async openInExplorer(fsPath: string): Promise<void> {

@@ -922,6 +922,33 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'cherryPickCommit': {
+            const hash = String(msg.hash || '').trim();
+
+            if (!hash) break;
+
+            const shortHash = hash.substring(0, 7);
+            const confirm = await vscode.window.showWarningMessage(
+              `确定要将提交 ${shortHash} 摘取到当前分支吗？\n\n该操作等同于执行 git cherry-pick ${shortHash}。`,
+              { modal: true },
+              '确定摘取',
+            );
+
+            if (confirm !== '确定摘取') break;
+
+            await this.executeGitOperation(async () => {
+              try {
+                await this.gitService.cherryPickCommit(cwd, hash);
+                vscode.window.showInformationMessage(`已将提交 ${shortHash} 摘取到当前分支。`);
+                await this.refreshStatus(cwd, true);
+              } catch (e: any) {
+                await this.handleGitErrorWithConflictCheck(cwd, '摘取提交 (Cherry-pick)', e.message);
+              }
+            });
+
+            break;
+          }
+
           case 'stashDrop': {
             const confirm = await vscode.window.showWarningMessage(`确定要永久删除贮藏 stash@{${msg.index}} 吗？\n此操作不可撤销！`, { modal: true }, '删除贮藏');
 

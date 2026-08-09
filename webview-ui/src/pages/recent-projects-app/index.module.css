@@ -70,7 +70,24 @@ body {
 }
 
 .list-view {
+  display: flex;
+  flex-direction: column;
   min-height: 100%;
+}
+
+.focus-tree-wrapper {
+  min-height: 100%;
+}
+
+.root-drop-spacer {
+  flex: 1;
+  min-height: 24px;
+}
+
+.root-drop-spacer-inner {
+  width: 100%;
+  height: 100%;
+  min-height: 24px;
 }
 
 ul {
@@ -659,17 +676,56 @@ ul {
 }
 
 .dragging {
-  opacity: 0.45;
+  background-color: var(--vscode-list-activeSelectionBackground, #094771) !important;
+  color: var(--vscode-list-activeSelectionForeground, #ffffff) !important;
+  opacity: 0.72;
 }
 
 .drop-target {
-  background-color: var(--vscode-list-dropBackground, var(--vscode-list-hoverBackground)) !important;
-  outline: 1px solid var(--vscode-focusBorder);
+  background-color: var(--vscode-list-activeSelectionBackground, #094771) !important;
+  color: var(--vscode-list-activeSelectionForeground, #ffffff) !important;
+  outline: 1px solid var(--vscode-list-focusOutline, var(--vscode-focusBorder));
   outline-offset: -1px;
 }
 
-.drop-target-invalid {
-  background-color: color-mix(in srgb, var(--vscode-errorForeground, #f14c4c) 14%, transparent) !important;
-  outline: 1px dashed var(--vscode-errorForeground, #f14c4c);
+.drop-target-tree {
+  background-color: var(--vscode-list-activeSelectionBackground, #094771) !important;
+  color: var(--vscode-list-activeSelectionForeground, #ffffff) !important;
+  outline: 1px solid var(--vscode-list-focusOutline, var(--vscode-focusBorder));
   outline-offset: -1px;
+}
+
+.drop-target-tree .sub-item,
+.drop-target-tree .sub-item:hover,
+.drop-target-tree .tree-children,
+.drop-target-tree .empty-node,
+.drop-target-tree .top-divider {
+  background-color: transparent !important;
+  color: var(--vscode-list-activeSelectionForeground, #ffffff) !important;
+}
+
+.drop-target-tree .tree-children {
+  border-left-color: color-mix(in srgb, var(--vscode-list-activeSelectionForeground, #ffffff) 48%, transparent);
+}
+
+.drop-target-tree > .drop-target {
+  outline: none;
+}
+
+.drop-target .tree-chevron,
+.drop-target .sub-name,
+.drop-target .sub-icon,
+.drop-target .folder-icon,
+.active-top-project.drop-target .title,
+.active-top-project.drop-target .project-name,
+.active-top-project.drop-target .project-icon,
+.active-top-project.drop-target .path {
+  color: var(--vscode-list-activeSelectionForeground, #ffffff) !important;
+  opacity: 1 !important;
+}
+
+.drop-target-invalid {
+  background-color: transparent !important;
+  outline: none;
+  cursor: not-allowed;
 }

@@ -251,8 +251,30 @@ export class RecentProjectsController implements OnModuleInit {
 
   private registerGitStateWatcher(): void {
     const repositoryDisposables = new Map<any, vscode.Disposable>();
+    const repositoryChangeSignatures = new Map<any, string>();
     const disposables: vscode.Disposable[] = [];
     let gitStateRefreshTimer: NodeJS.Timeout | undefined;
+
+    const getRepositoryChangeSignature = (repository: any): string => {
+      const changedPaths = new Set<string>();
+      const groups = [repository?.state?.workingTreeChanges, repository?.state?.indexChanges, repository?.state?.mergeChanges, repository?.state?.untrackedChanges];
+
+      groups.forEach((changes) => {
+        if (!Array.isArray(changes)) return;
+
+        changes.forEach((change) => {
+          [change?.uri, change?.originalUri, change?.renameUri, change?.resourceUri].forEach((uri) => {
+            const uriValue = uri?.toString?.();
+
+            if (uriValue) {
+              changedPaths.add(uriValue);
+            }
+          });
+        });
+      });
+
+      return Array.from(changedPaths).sort().join('\n');
+    };
 
     const requestGitStateMetadataSync = (delay = 260) => {
       if (gitStateRefreshTimer) {
@@ -274,7 +296,18 @@ export class RecentProjectsController implements OnModuleInit {
     const watchRepository = (repository: any) => {
       if (!repository || repositoryDisposables.has(repository)) return;
 
+      repositoryChangeSignatures.set(repository, getRepositoryChangeSignature(repository));
+
       const disposable = repository.state.onDidChange(() => {
+        const previousSignature = repositoryChangeSignatures.get(repository) || '';
+        const nextSignature = getRepositoryChangeSignature(repository);
+
+        repositoryChangeSignatures.set(repository, nextSignature);
+
+        if (previousSignature !== nextSignature) {
+          this.requestStructuralRefresh(true);
+        }
+
         requestGitStateMetadataSync(260);
       });
 
@@ -310,6 +343,8 @@ export class RecentProjectsController implements OnModuleInit {
               repositoryDisposables.delete(repository);
             }
 
+            repositoryChangeSignatures.delete(repository);
+
             requestGitStateMetadataSync(120);
           }),
         );
@@ -331,6 +366,7 @@ export class RecentProjectsController implements OnModuleInit {
           disposable.dispose();
         });
         repositoryDisposables.clear();
+        repositoryChangeSignatures.clear();
 
         disposables.forEach((disposable) => {
           disposable.dispose();
