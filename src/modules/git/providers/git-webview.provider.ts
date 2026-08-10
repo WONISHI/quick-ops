@@ -231,11 +231,29 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     return value.replace(/\\/g, '/').replace(/^\/+/, '');
   }
 
+  /**
+   * @description 从 Diff 标签页使用的 URI 中解析仓库相对文件路径。
+   *
+   * 同时支持 Git 模块的 `quickops-git`、RecentProjects 旧代码对比使用的
+   * `quickops-git-virtual`，以及本地文件使用的 `file` URI。
+   *
+   * @param cwd 当前 Git 仓库根目录。
+   * @param uri Diff 标签页中的任意一侧 URI。
+   * @returns 属于当前仓库的相对文件路径；无法识别时返回 `null`。
+   */
   private getRelativePathFromUri(cwd: string, uri: vscode.Uri | undefined): string | null {
     if (!uri) return null;
 
     if (uri.scheme === 'quickops-git') {
       return this.normalizeGitRelativePath(uri.path);
+    }
+
+    if (uri.scheme === 'quickops-git-virtual') {
+      const meta = this.getRecentProjectsOldCodeUriMeta(uri);
+
+      if (meta && this.isSameRepositoryPath(meta.cwd, cwd)) {
+        return this.normalizeGitRelativePath(meta.file);
+      }
     }
 
     if (uri.scheme === 'file') {
@@ -303,6 +321,69 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * @description 解析 RecentProjects“与旧代码对比”虚拟 URI 中保存的文件信息。
+   * @param uri 待解析的虚拟文档 URI。
+   * @returns 仓库根目录和相对文件路径；不是目标 URI 或元数据不完整时返回 `null`。
+   */
+  private getRecentProjectsOldCodeUriMeta(uri: vscode.Uri): { cwd: string; file: string } | null {
+    if (uri.scheme !== 'quickops-git-virtual') {
+      return null;
+    }
+
+    const query = new URLSearchParams(uri.query);
+
+    if (query.get('diffKind') !== 'recent-projects-old-code') {
+      return null;
+    }
+
+    const cwd = query.get('cwd') || '';
+    const file = query.get('file') || '';
+
+    if (!cwd || !file) {
+      return null;
+    }
+
+    return {
+      cwd,
+      file: this.normalizeGitRelativePath(file),
+    };
+  }
+
+  /**
+   * @description 判断两个路径是否指向同一个 Git 仓库根目录。
+   * @param first 第一个仓库路径。
+   * @param second 第二个仓库路径。
+   */
+  private isSameRepositoryPath(first: string, second: string): boolean {
+    return this.normalizeWorkspaceStateKey(first) === this.normalizeWorkspaceStateKey(second);
+  }
+
+  /**
+   * @description 判断标签页是否为当前仓库的 RecentProjects“与旧代码对比”。
+   *
+   * 新打开的标签页通过虚拟 URI 中的 `cwd` 精确判断；对于升级前已经打开、
+   * 尚未携带元数据的标签页，则使用其本地文件 URI 作为兼容判断。
+   *
+   * @param cwd 当前 Git 仓库根目录。
+   * @param inputUris 标签页输入中收集到的全部 URI。
+   */
+  private isRecentProjectsOldCodeDiffTab(cwd: string, inputUris: vscode.Uri[]): boolean {
+    const virtualUris = inputUris.filter((uri) => uri.scheme === 'quickops-git-virtual');
+
+    if (virtualUris.length === 0) {
+      return false;
+    }
+
+    const metas = virtualUris.map((uri) => this.getRecentProjectsOldCodeUriMeta(uri)).filter((meta): meta is { cwd: string; file: string } => !!meta);
+
+    if (metas.length > 0) {
+      return metas.some((meta) => this.isSameRepositoryPath(meta.cwd, cwd));
+    }
+
+    return inputUris.some((uri) => uri.scheme === 'file' && !!this.getRelativePathFromUri(cwd, uri));
   }
 
   private isWorkingTreeDiffTab(cwd: string, inputUris: vscode.Uri[]): boolean {
@@ -386,6 +467,21 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
   private async closeStagedDiffTabs(cwd: string, files?: string[]): Promise<void> {
     await this.closeMatchingDiffTabs(cwd, (inputUris) => this.isStagedDiffTab(cwd, inputUris), files);
+  }
+
+  /**
+   * @description 关闭本次 Push 涉及文件对应的 RecentProjects“与旧代码对比”标签页。
+   *
+   * 空文件列表不会触发关闭，避免没有提交可推送时误关当前仓库的其他 Diff。
+   * 普通编辑标签页、Git 工作区 Diff、暂存区 Diff 以及未参与本次 Push 的文件均不受影响。
+   *
+   * @param cwd 当前 Git 仓库根目录。
+   * @param files 本次 Push 涉及的仓库相对文件路径。
+   */
+  private async closeRecentProjectsOldCodeDiffTabs(cwd: string, files: string[]): Promise<void> {
+    if (files.length === 0) return;
+
+    await this.closeMatchingDiffTabs(cwd, (inputUris) => this.isRecentProjectsOldCodeDiffTab(cwd, inputUris), files);
   }
 
   private getGitFileSet(files: GitFileItem[]): Set<string> {
@@ -2237,10 +2333,19 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   if (confirm !== '确认推送') return;
                 }
 
+                /**
+                 * Push 会更新远程引用，成功后 RecentProjects 中针对这些文件打开的
+                 * “旧代码 ↔ 当前代码”快照已经失去时效性，因此先记录本次推送文件，
+                 * 等 Push 真正成功后再按文件精确关闭对应 Diff 标签页。
+                 */
+                const pushedFiles = await this.gitService.getFilesIncludedInPush(cwd);
+
                 await this.gitService.push(cwd, {
                   createUpstream: !pushInfo.hasUpstream,
                   branch: pushInfo.currentBranch,
                 });
+
+                await this.closeRecentProjectsOldCodeDiffTabs(cwd, pushedFiles);
 
                 vscode.window.showInformationMessage('🚀 推送成功！');
 
