@@ -199,6 +199,7 @@ function createUnstagedItems(contextMenu: ContextMenuState): BaseContextMenuItem
           command: 'diff',
           file: file.file,
           status: file.status,
+          listType: 'unstaged',
         });
       },
     },
@@ -324,6 +325,7 @@ function createStagedItems(contextMenu: ContextMenuState): BaseContextMenuItem[]
           command: 'diff',
           file: file.file,
           status: file.status,
+          listType: 'staged',
         });
       },
     },
@@ -451,19 +453,42 @@ function createHistoryItems(contextMenu: ContextMenuState): BaseContextMenuItem[
   ];
 
   if (contextMenu.listType === 'history' && contextMenu.historyHash) {
-    items.push({
-      key: 'compare-history-with-local',
-      label: '与本地分支比较',
-      icon: createIcon('codicon-git-compare'),
-      onSelect: () => {
-        vscode.postMessage({
-          command: 'diffCommitFileWithLocalBranch',
-          file: file.file,
-          status: file.status,
-          hash: contextMenu.historyHash,
-        });
+    items.push(
+      {
+        type: 'separator',
+        key: 'history-file-separator',
       },
-    });
+      {
+        key: 'compare-history-with-local',
+        label: '与本地分支比较',
+        icon: createIcon('codicon-git-compare'),
+        onSelect: () => {
+          vscode.postMessage({
+            command: 'diffCommitFileWithLocalBranch',
+            file: file.file,
+            status: file.status,
+            hash: contextMenu.historyHash,
+          });
+        },
+      },
+      {
+        type: 'separator',
+        key: 'restore-history-file-separator',
+      },
+      {
+        key: 'restore-history-file-version',
+        label: '恢复此文件',
+        icon: createIcon('codicon-history'),
+        danger: true,
+        onSelect: () => {
+          vscode.postMessage({
+            command: 'restoreFileFromCommit',
+            file: file.file,
+            hash: contextMenu.historyHash,
+          });
+        },
+      },
+    );
   }
 
   return items;

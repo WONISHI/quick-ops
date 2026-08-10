@@ -108,6 +108,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
         command: 'diff',
         file: item.file,
         status: item.status,
+        listType,
       });
     }
   };
