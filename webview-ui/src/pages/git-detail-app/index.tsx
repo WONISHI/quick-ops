@@ -25,6 +25,15 @@ const CY = 14;
 
 const NULL_VERTEX_ID = -1;
 
+interface GitDetailContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  commit: GraphCommit;
+  file?: GitFileItem;
+  parentHash?: string;
+}
+
 interface Point {
   x: number;
   y: number;
@@ -643,12 +652,7 @@ export default function GitCommitDetailApp() {
   const [commitFilesLoadingMap, setCommitFilesLoadingMap] = useState<Record<string, boolean>>({});
   const [commitStatsMap, setCommitStatsMap] = useState<Record<string, { filesChanged: number; insertions: number; deletions: number }>>({});
 
-  const [commitContextMenu, setCommitContextMenu] = useState<{
-    visible: boolean;
-    x: number;
-    y: number;
-    commit: GraphCommit;
-  } | null>(null);
+  const [commitContextMenu, setCommitContextMenu] = useState<GitDetailContextMenuState | null>(null);
 
   const handleCommitContextMenu = (e: React.MouseEvent, commit: GraphCommit) => {
     e.preventDefault();
@@ -658,6 +662,27 @@ export default function GitCommitDetailApp() {
       x: e.clientX,
       y: e.clientY,
       commit,
+    });
+  };
+
+  /**
+   * @description 打开提交文件右键菜单。
+   * @param event 文件行右键事件。
+   * @param commit 文件所属提交记录。
+   * @param parentHash 提交的父节点 Hash。
+   * @param file 当前右键文件。
+   */
+  const handleCommitFileContextMenu = (event: React.MouseEvent, commit: GraphCommit, parentHash: string | undefined, file: GitFileItem) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    setCommitContextMenu({
+      visible: true,
+      x: event.clientX,
+      y: event.clientY,
+      commit,
+      file,
+      parentHash,
     });
   };
 
@@ -1113,7 +1138,9 @@ export default function GitCommitDetailApp() {
     setActivePopup((current) => (current === popup ? null : popup));
   };
 
-  const renderCommitFileTree = (hash: string, parentHash: string | undefined, nodes: CommitFileTreeNode[], depth = 0): React.ReactNode => {
+  const renderCommitFileTree = (commit: GraphCommit, parentHash: string | undefined, nodes: CommitFileTreeNode[], depth = 0): React.ReactNode => {
+    const hash = commit.hash;
+
     return nodes.map((node) => {
       if (node.isDirectory) {
         const isOpen = isCommitDirOpen(hash, node.fullPath);
@@ -1132,7 +1159,7 @@ export default function GitCommitDetailApp() {
               <span className={styles['commit-file-name']}>{node.name}</span>
             </div>
 
-            {isOpen && renderCommitFileTree(hash, parentHash, node.children, depth + 1)}
+            {isOpen && renderCommitFileTree(commit, parentHash, node.children, depth + 1)}
           </React.Fragment>
         );
       }
@@ -1147,6 +1174,7 @@ export default function GitCommitDetailApp() {
             paddingLeft: `${depth * 14 + 24}px`,
           }}
           title={file.file}
+          onContextMenu={(event) => handleCommitFileContextMenu(event, commit, parentHash, file)}
           onClick={(event) => {
             event.stopPropagation();
 
@@ -1555,7 +1583,7 @@ export default function GitCommitDetailApp() {
                               <div className={styles['commit-files-empty']}>暂无文件变更</div>
                             ) : (
                               <Scrollbar className={styles['commit-files-tree']} viewClassName={styles['commit-files-tree-view']} barSize={6}>
-                                {renderCommitFileTree(commit.hash, commitFilesMap[commit.hash].parentHash, buildCommitFileTree(commitFilesMap[commit.hash].files))}
+                                {renderCommitFileTree(commit, commitFilesMap[commit.hash].parentHash, buildCommitFileTree(commitFilesMap[commit.hash].files))}
                               </Scrollbar>
                             )}
                           </div>
