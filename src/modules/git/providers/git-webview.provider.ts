@@ -1081,17 +1081,17 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
             const shortHash = hash.substring(0, 7);
             const confirm = await vscode.window.showWarningMessage(
-              `确定要将提交 ${shortHash} 摘取到当前分支吗？\n\n该操作等同于执行 git cherry-pick ${shortHash}。`,
+              `确定要将提交 ${shortHash} 摘取到当前分支吗？\n\n确认后会沿用原提交信息，并直接在当前分支创建一条新的提交记录。`,
               { modal: true },
-              '确定摘取',
+              '确认摘取并提交',
             );
 
-            if (confirm !== '确定摘取') break;
+            if (confirm !== '确认摘取并提交') break;
 
             await this.executeGitOperation(async () => {
               try {
                 await this.gitService.cherryPickCommit(cwd, hash);
-                vscode.window.showInformationMessage(`已将提交 ${shortHash} 摘取到当前分支。`);
+                vscode.window.showInformationMessage(`已将提交 ${shortHash} 摘取到当前分支并完成提交。`);
                 await this.refreshStatus(cwd, true);
               } catch (e: any) {
                 await this.handleGitErrorWithConflictCheck(cwd, '摘取提交 (Cherry-pick)', e.message);
