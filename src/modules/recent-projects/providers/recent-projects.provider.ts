@@ -2553,7 +2553,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       this.gitVirtualContentProvider.setContent(oldKey, oldContent);
 
-      const oldUri = this.createGitVirtualUri('旧代码', fileName, oldKey);
+      const oldUri = this.createGitVirtualUri('旧代码', fileName, oldKey, location.gitRoot, location.relativePath);
 
       let workingUri = location.uri;
 
@@ -2561,7 +2561,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         const currentKey = `current_${timestamp}`;
 
         this.gitVirtualContentProvider.setContent(currentKey, '');
-        workingUri = this.createGitVirtualUri('当前代码', fileName, currentKey);
+        workingUri = this.createGitVirtualUri('当前代码', fileName, currentKey, location.gitRoot, location.relativePath);
       }
 
       await vscode.commands.executeCommand('vscode.diff', oldUri, workingUri, `${projectName}: ${fileName} · 旧代码 ↔ 当前代码`, {
@@ -4014,11 +4014,32 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     return extension === '.docx' || extension === '.doc';
   }
 
-  private createGitVirtualUri(label: string, fileName: string, key: string): vscode.Uri {
+  /**
+   * @description 创建 RecentProjects“与旧代码对比”使用的虚拟文档 URI。
+   *
+   * 除虚拟内容 `key` 外，同时写入 Git 仓库根目录和相对文件路径，使 Git Push
+   * 成功后能够准确找到并关闭该文件的 Diff 标签页。元数据直接保存在 URI 查询参数中，
+   * 不会改变 GitVirtualContentProvider 通过 `key` 获取文本内容的现有逻辑。
+   *
+   * @param label 虚拟文档显示目录，例如“旧代码”或“当前代码”。
+   * @param fileName 文件显示名称。
+   * @param key GitVirtualContentProvider 中对应的虚拟内容键。
+   * @param cwd 文件所属 Git 仓库根目录。
+   * @param file 文件相对于 Git 仓库根目录的路径。
+   */
+  private createGitVirtualUri(label: string, fileName: string, key: string, cwd?: string, file?: string): vscode.Uri {
+    const query = new URLSearchParams({ key });
+
+    if (cwd && file) {
+      query.set('cwd', cwd);
+      query.set('file', file.replace(/\\/g, '/'));
+      query.set('diffKind', 'recent-projects-old-code');
+    }
+
     return vscode.Uri.from({
       scheme: 'quickops-git-virtual',
       path: `/${label}/${fileName}`,
-      query: `key=${encodeURIComponent(key)}`,
+      query: query.toString(),
     });
   }
 

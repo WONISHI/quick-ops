@@ -1088,6 +1088,39 @@ export class GitService {
     };
   }
 
+  /**
+   * @description 获取本次 Push 将发布的提交中涉及的文件路径。
+   *
+   * 已建立 upstream 时，只统计 `upstream..HEAD` 中尚未推送的提交；
+   * 首次推送分支时，则统计 HEAD 中尚未出现在任意远程引用中的提交。
+   * 使用 `--no-renames` 可以同时保留重命名前后的文件路径，确保对应的
+   * RecentProjects“与旧代码对比”标签页能够被准确关闭。
+   *
+   * 该方法只用于 Push 成功后的界面清理。即使文件统计失败，也不应该阻止 Push。
+   *
+   * @param cwd Git 仓库根目录。
+   * @returns 本次 Push 涉及的仓库相对文件路径，路径分隔符统一为 `/`。
+   */
+  public async getFilesIncludedInPush(cwd: string): Promise<string[]> {
+    try {
+      const git = this.createGit(cwd);
+      const status = await git.status();
+      const revisionArgs = status.tracking ? [`${status.tracking}..HEAD`] : ['HEAD', '--not', '--remotes'];
+      const rawFiles = await git.raw(['log', '--format=', '--name-only', '--no-renames', ...revisionArgs]);
+
+      return Array.from(
+        new Set(
+          rawFiles
+            .split(/\r?\n/)
+            .map((file) => file.trim().replace(/\\/g, '/').replace(/^\/+/, ''))
+            .filter(Boolean),
+        ),
+      );
+    } catch {
+      return [];
+    }
+  }
+
   public async getCurrentBranchUnpushedInfo(cwd: string): Promise<BranchUnpushedInfo> {
     const git = this.createGit(cwd);
     const status = await git.status();
