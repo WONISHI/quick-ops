@@ -1,46 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { execFile } from 'child_process';
-
-export type GitFileStatus = 'u' | 'a' | 'm' | 'd' | 'r' | 'c';
-
-export interface DirectoryEntryItem {
-  path: string;
-  name: string;
-  isFolder: boolean;
-  status?: GitFileStatus;
-  diagnostics: {
-    errors: number;
-    warnings: number;
-  };
-}
-
-export interface SearchFileNameResult {
-  path: string;
-  name: string;
-  relativePath: string;
-  isFolder: boolean;
-  status?: GitFileStatus;
-  diagnostics: {
-    errors: number;
-    warnings: number;
-  };
-}
-
-export interface SearchTextMatch {
-  line: number;
-  text: string;
-}
-
-export interface SearchTextResult {
-  file: string;
-  fullPath: string;
-  matches: SearchTextMatch[];
-  diagnostics: {
-    errors: number;
-    warnings: number;
-  };
-}
+import type { GitFileStatus, DirectoryEntryItem, SearchFileNameResult, SearchTextMatch, SearchTextResult } from '@common/types/common.service.type';
 
 export class DirectoryService {
   private static instance: DirectoryService | undefined;

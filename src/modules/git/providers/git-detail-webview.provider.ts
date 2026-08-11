@@ -42,6 +42,84 @@ export class GitDetailWebviewProvider {
     return this.gitService.getCurrentWorkingDir() || undefined;
   }
 
+  /**
+   * @description 确认并摘取 Git 详情页右键选中的提交。
+   *
+   * 摘取成功后沿用原提交信息直接创建提交记录；如果 Git 检测到冲突，
+   * cherry-pick 会暂停且不会生成提交，等待用户解决冲突后继续。
+   *
+   * @param cwd Git 仓库根目录。
+   * @param value 需要摘取的提交 Hash。
+   */
+  private async handleCherryPickCommit(cwd: string, value: unknown): Promise<void> {
+    const hash = String(value || '').trim();
+
+    if (!hash) return;
+
+    const shortHash = hash.substring(0, 7);
+    const confirm = await vscode.window.showWarningMessage(
+      `确定要将提交 ${shortHash} 摘取到当前分支吗？\n\n确认后会沿用原提交信息，并直接在当前分支创建一条新的提交记录。`,
+      { modal: true },
+      '确认摘取并提交',
+    );
+
+    if (confirm !== '确认摘取并提交') return;
+
+    try {
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: `正在摘取提交 ${shortHash}...`,
+          cancellable: false,
+        },
+        async () => {
+          await this.gitService.cherryPickCommit(cwd, hash);
+        },
+      );
+
+      vscode.window.showInformationMessage(`已将提交 ${shortHash} 摘取到当前分支并完成提交。`);
+    } catch (error) {
+      vscode.window.showErrorMessage(`摘取提交失败：${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      await this.postGraphData(cwd, this._currentGraphFilter, false, false);
+    }
+  }
+
+  /**
+   * @description 将 Git 详情页右键文件恢复为指定提交中的版本。
+   *
+   * 该操作等同于执行 `git restore --source=<hash> -- <file>`，只修改工作区文件，
+   * 不会自动暂存或提交恢复结果。
+   *
+   * @param cwd Git 仓库根目录。
+   * @param hashValue 文件所属提交 Hash。
+   * @param fileValue 文件相对于仓库根目录的路径。
+   */
+  private async handleRestoreFileFromCommit(cwd: string, hashValue: unknown, fileValue: unknown): Promise<void> {
+    const hash = String(hashValue || '').trim();
+    const file = String(fileValue || '').trim();
+
+    if (!hash || !file) return;
+
+    const shortHash = hash.substring(0, 7);
+    const fileName = path.basename(file);
+    const confirm = await vscode.window.showWarningMessage(
+      `确定要从提交 ${shortHash} 恢复文件 ${fileName} 吗？\n\n当前工作区中该文件的未提交更改将被覆盖。`,
+      { modal: true },
+      '确定恢复',
+    );
+
+    if (confirm !== '确定恢复') return;
+
+    try {
+      await this.gitService.restoreFileFromCommit(cwd, hash, file);
+      vscode.window.showInformationMessage(`已从提交 ${shortHash} 恢复文件 ${fileName}。`);
+      await this.postGraphData(cwd, this._currentGraphFilter, false, false);
+    } catch (error) {
+      vscode.window.showErrorMessage(`恢复文件失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   private async getProjectFaviconUri(cwd: string): Promise<string> {
     if (!this._panel) return '';
 
@@ -132,6 +210,11 @@ export class GitDetailWebviewProvider {
               break;
             }
 
+            case 'cherryPickCommit': {
+              await this.handleCherryPickCommit(cwd, msg.hash);
+              break;
+            }
+
             case 'getGitDetailCommitFiles': {
               await this.postCommitFiles(cwd, msg.hash);
               break;
@@ -139,6 +222,11 @@ export class GitDetailWebviewProvider {
 
             case 'openGitDetailCommitFileDiff': {
               await this.openCommitFileDiff(cwd, msg.hash, msg.parentHash, msg.file, msg.status);
+              break;
+            }
+
+            case 'restoreFileFromCommit': {
+              await this.handleRestoreFileFromCommit(cwd, msg.hash, msg.file);
               break;
             }
 

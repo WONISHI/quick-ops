@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { IService } from '@core/interfaces/service.interface';
-import type { CmdInfo } from '@core/types/package-script';
+import type { CmdInfo } from '@common/types/common.service.type';
 
 export class TerminalExecutor implements IService {
   public readonly serviceId = 'TerminalExecutor';

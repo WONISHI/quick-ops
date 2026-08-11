@@ -1,23 +1,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { TOKENS } from '@core/container/token';
-
-export interface OpenWorkspaceTextDocumentAtLineOptions {
-  /**
-   * @description 打开文件时使用的编辑器列
-   */
-  viewColumn?: vscode.ViewColumn;
-
-  /**
-   * @description 是否以预览模式打开
-   */
-  preview?: boolean;
-
-  /**
-   * @description 跳转到目标行后的滚动展示方式
-   */
-  revealType?: vscode.TextEditorRevealType;
-}
+import type { OpenWorkspaceTextDocumentAtLineOptions } from '@common/types/extension-context.type';
 
 /**
  * VSCode ExtensionContext 全局上下文 Provider

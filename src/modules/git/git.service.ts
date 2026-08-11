@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import * as fs from 'fs';
 import { execFile } from 'child_process';
 import simpleGit, { SimpleGit, StatusResult } from 'simple-git';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
@@ -80,17 +79,22 @@ export class GitService {
    * @description 判断当前目录自身是否包含 Git 元数据
    *
    * simple-git 默认会向父级查找 .git。这里先检查 cwd/.git，
-   * 避免普通子目录被误判为一个独立 Git 项目。
+   * 避免普通子目录被误判为一个独立 Git 项目。使用 VS Code
+   * 内置文件系统 API，避免依赖 Node.js `fs` 模块的同步访问。
+   *
+   * @param cwd 需要检查的目录。
+   * @returns 当 cwd/.git 是文件或目录时返回 `true`。
    */
-  public hasLocalGitMetadata(cwd: string): boolean {
+  public async hasLocalGitMetadata(cwd: string): Promise<boolean> {
     if (!cwd) return false;
 
-    const gitMetadataPath = path.join(cwd, '.git');
+    const gitMetadataUri = vscode.Uri.file(path.join(cwd, '.git'));
 
     try {
-      const stat = fs.statSync(gitMetadataPath);
+      const stat = await vscode.workspace.fs.stat(gitMetadataUri);
+      const supportedTypes = vscode.FileType.File | vscode.FileType.Directory;
 
-      return stat.isDirectory() || stat.isFile();
+      return (stat.type & supportedTypes) !== 0;
     } catch {
       return false;
     }
@@ -131,7 +135,7 @@ export class GitService {
   }
 
   public async checkIsRepo(cwd: string): Promise<boolean> {
-    if (!this.hasLocalGitMetadata(cwd)) {
+    if (!(await this.hasLocalGitMetadata(cwd))) {
       return false;
     }
 
@@ -1199,8 +1203,18 @@ export class GitService {
     await git.revert(hash, ['--no-edit']);
   }
 
+  /**
+   * @description 将指定提交摘取到当前分支，并直接创建对应的提交记录。
+   *
+   * `--no-edit` 表示沿用原提交信息且不打开提交信息编辑器。摘取成功后，
+   * Git 会立即生成新的提交；如果出现冲突，Git 会暂停摘取且不会提交，
+   * 等待用户解决冲突后再执行 cherry-pick continue。
+   *
+   * @param cwd Git 仓库根目录。
+   * @param hash 需要摘取的提交 Hash。
+   */
   public async cherryPickCommit(cwd: string, hash: string): Promise<void> {
-    await this.createGit(cwd).raw(['cherry-pick', hash]);
+    await this.createGit(cwd).raw(['cherry-pick', '--no-edit', hash]);
   }
 
   public async restoreFileFromCommit(cwd: string, hash: string, file: string): Promise<void> {
