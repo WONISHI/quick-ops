@@ -204,3 +204,48 @@ export interface ILogrcConfig {
   project: { alias: Record<string, string>; marks: Record<string, any> };
   [key: string]: any;
 }
+
+export type GitFileStatus = 'u' | 'a' | 'm' | 'd' | 'r' | 'c';
+
+export interface DirectoryEntryItem {
+  path: string;
+  name: string;
+  isFolder: boolean;
+  status?: GitFileStatus;
+  diagnostics: {
+    errors: number;
+    warnings: number;
+  };
+}
+
+export interface SearchFileNameResult {
+  path: string;
+  name: string;
+  relativePath: string;
+  isFolder: boolean;
+  status?: GitFileStatus;
+  diagnostics: {
+    errors: number;
+    warnings: number;
+  };
+}
+
+export interface SearchTextMatch {
+  line: number;
+  text: string;
+}
+
+export interface SearchTextResult {
+  file: string;
+  fullPath: string;
+  matches: SearchTextMatch[];
+  diagnostics: {
+    errors: number;
+    warnings: number;
+  };
+}
+
+export interface CmdInfo {
+  cmdId: string;
+  shell: string;
+}
