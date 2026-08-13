@@ -1,11 +1,9 @@
-import type {
-  AuthConfig,
-  ApiRequestConfig,
-  GlobalVariable,
-  GroupedApiInterfaceItem,
-  GroupedApiProject,
-  KeyValueItem,
-} from './type';
+import type { AuthConfig, ApiRequestConfig, GlobalVariable, GroupedApiInterfaceItem, GroupedApiProject, KeyValueItem } from './type';
+
+/**
+ * @description 读取分享图标的 SVG 源码，用于生成独立 HTML 的浏览器标签页图标
+ */
+import gitShareIcon from '@/assets/icon/git-share.svg?raw';
 
 export interface BuildApiDocsHtmlOptions {
   /**
@@ -374,6 +372,7 @@ export function buildApiDocsHtml({ projects, globals, currentRequest, activeProj
     }),
   }));
   const generatedAt = new Date().toLocaleString();
+  const gitShareIconDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(gitShareIcon)}`;
   const totalCount = docsProjects.reduce((sum, project) => sum + project.interfaces.length, 0);
   const totalGroupCount = docsProjects.reduce((sum, project) => sum + getDocsGroups(project).length, 0);
   const docsData = {
@@ -441,21 +440,6 @@ export function buildApiDocsHtml({ projects, globals, currentRequest, activeProj
   };
 
   /**
-   * @description 渲染请求前置和后置脚本
-   */
-  const renderRequestScripts = (request: ApiRequestConfig) => {
-    return `
-      <div class="doc-block">
-        <div class="doc-block-head"><h4>前置脚本</h4><span>Pre-request</span></div>
-        ${request.preScript.trim() ? `<pre>${escapeHtml(request.preScript)}</pre>` : '<p class="muted">未配置</p>'}
-      </div>
-      <div class="doc-block">
-        <div class="doc-block-head"><h4>后置脚本</h4><span>Post-response</span></div>
-        ${request.postScript.trim() ? `<pre>${escapeHtml(request.postScript)}</pre>` : '<p class="muted">未配置</p>'}
-      </div>`;
-  };
-
-  /**
    * @description 渲染只读认证信息
    */
   const renderAuthReadonly = (auth: AuthConfig) => {
@@ -485,6 +469,8 @@ export function buildApiDocsHtml({ projects, globals, currentRequest, activeProj
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- 浏览器标签页图标：src/assets/icon/git-share.svg -->
+  <link rel="icon" type="image/svg+xml" href="${escapeHtml(gitShareIconDataUrl)}" />
   <title>Q-ops Api 接口文档</title>
   <style>
     * { box-sizing: border-box; }
@@ -524,9 +510,10 @@ export function buildApiDocsHtml({ projects, globals, currentRequest, activeProj
     .doc-field { min-height: 34px; display: flex; align-items: center; width: 100%; padding: 6px 10px; border: 1px solid #d0d7de; border-radius: 8px; background: #f6f8fa; color: #1f2328; font-size: 14px; line-height: 1.45; overflow: auto; }
     .doc-url { color: #0969da; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; }
     .doc-timeout { justify-content: flex-end; color: #57606a; }
-    .doc-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    .doc-block { min-width: 0; margin-bottom: 10px; }
-    .doc-block-full { grid-column: 1 / -1; }
+    .doc-detail-grid { display: block; }
+    .doc-block { min-width: 0; margin-bottom: 14px; }
+    .doc-block:last-child { margin-bottom: 0; }
+    .doc-block-full { width: 100%; }
     .doc-block-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
     .doc-block-head span { color: #8c959f; font-size: 12px; }
     .doc-kv-table { display: grid; gap: 6px; }
@@ -563,7 +550,6 @@ export function buildApiDocsHtml({ projects, globals, currentRequest, activeProj
       main { padding: 14px; }
       .layout { grid-template-columns: 1fr; }
       nav { position: static; }
-      .doc-detail-grid { grid-template-columns: 1fr; }
       .request-line { grid-template-columns: 1fr; }
       h3 { white-space: normal; }
     }
@@ -644,7 +630,6 @@ export function buildApiDocsHtml({ projects, globals, currentRequest, activeProj
                               ${renderDocKeyValueReadonly('请求 Cookies', req.cookies)}
                               <div class="doc-block"><div class="doc-block-head"><h4>认证 Auth</h4><span>${escapeHtml(req.auth.type)}</span></div>${renderAuthReadonly(req.auth)}</div>
                               <div class="doc-block doc-block-full">${renderDocBodyReadonly(req)}</div>
-                              ${renderRequestScripts(req)}
                             </div>
                             <div class="doc-response" data-doc-response></div>
                           </article>`;

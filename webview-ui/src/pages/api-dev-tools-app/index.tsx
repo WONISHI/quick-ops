@@ -181,6 +181,30 @@ export default function ApiDevToolsApp() {
   }, [activeProject, activeInterfaceId]);
 
   /**
+   * @description 确保当前正在查看的接口始终处于可见状态
+   *
+   * 初始化恢复、切换项目、切换接口或新建分组接口后，
+   * 如果当前接口属于某个分组，则自动展开该分组。
+   */
+  useEffect(() => {
+    const groupId = activeInterface?.groupId;
+
+    if (!groupId) return;
+
+    setExpandedGroupIds((current) => {
+      if (current.has(groupId)) {
+        return current;
+      }
+
+      const next = new Set(current);
+
+      next.add(groupId);
+
+      return next;
+    });
+  }, [activeInterface?.groupId]);
+
+  /**
    * @description 计算当前请求的项目绑定提示
    */
   const requestBindText = useMemo(() => {
@@ -1778,7 +1802,7 @@ export default function ApiDevToolsApp() {
       setResponseTab('body');
       setExpandedGroupIds((current) => {
         const next = new Set(current);
-        next.delete(manageDialog.groupId);
+        next.add(manageDialog.groupId);
         return next;
       });
 
