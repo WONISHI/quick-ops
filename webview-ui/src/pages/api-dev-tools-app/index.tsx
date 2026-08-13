@@ -1985,6 +1985,11 @@ export default function ApiDevToolsApp() {
 
   /**
    * @description 进入接口文档分享选择状态
+   *
+   * 默认分享规则：
+   * - 只勾选当前正在查看的接口，其他接口全部取消勾选。
+   * - 当前接口属于某个分组时，自动展开该分组，确保接口立即可见。
+   * - 当前没有打开任何接口时，不默认勾选接口，由用户手动选择。
    */
   const shareDocs = () => {
     const allInterfaceIds = getAllInterfaceIds();
@@ -1994,14 +1999,30 @@ export default function ApiDevToolsApp() {
       return;
     }
 
-    setShareSelectedInterfaceIds((current) => {
-      const validIdSet = new Set(allInterfaceIds);
-      const next = current.filter((id) => validIdSet.has(id));
+    const currentProject = projectsRef.current.find((project) => project.id === activeProjectIdRef.current);
+    const currentInterface = currentProject?.interfaces.find((api) => api.id === activeInterfaceIdRef.current);
+    const nextSelectedInterfaceIds = currentInterface ? [currentInterface.id] : [];
+    const currentGroupId = currentInterface?.groupId || '';
 
-      return next.length > 0 ? next : allInterfaceIds;
-    });
+    shareSelectedInterfaceIdsRef.current = nextSelectedInterfaceIds;
+    setShareSelectedInterfaceIds(nextSelectedInterfaceIds);
+
+    if (currentGroupId && currentProject?.groups?.some((group) => group.id === currentGroupId)) {
+      setExpandedGroupIds((current) => {
+        if (current.has(currentGroupId)) {
+          return current;
+        }
+
+        const next = new Set(current);
+
+        next.add(currentGroupId);
+
+        return next;
+      });
+    }
+
     setIsShareSelecting(true);
-    setLog('请选择需要分享的接口');
+    setLog(currentInterface ? `已默认选择当前接口：${currentInterface.name}` : '请选择需要分享的接口');
   };
 
   /**
