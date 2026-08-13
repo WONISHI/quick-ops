@@ -112,13 +112,9 @@
 }
 
 .search-target-title-focus {
-  cursor: default;
+  cursor: pointer;
   user-select: none;
   background: transparent !important;
-}
-
-.search-target-title-focus:not(.search-target-title-locked) {
-  cursor: pointer;
 }
 
 .search-target-title-focus:hover,

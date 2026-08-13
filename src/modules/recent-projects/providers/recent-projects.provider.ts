@@ -650,6 +650,16 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         this.requestVisibleMetadataSync();
         break;
 
+      case 'togglePrimarySidebar':
+        /**
+         * 切换 VS Code 主侧栏的显示状态。
+         *
+         * Webview 无法直接控制工作台布局，因此由扩展宿主执行
+         * VS Code 内置的“切换主侧栏可见性”命令。
+         */
+        await vscode.commands.executeCommand('workbench.action.toggleSidebarVisibility');
+        break;
+
       case 'addLocal':
       case 'addLocalProject':
         await this.addLocalProject();

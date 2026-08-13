@@ -447,6 +447,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   });
   const resultScrollbarRef = useRef<ScrollbarInstance>(null);
   const resultScrollTopRef = useRef(0);
+  const searchTitleClickTimerRef = useRef<number | null>(null);
 
   /**
    * 只有真正处于“专注模式 + 锁定模式”这一层时，返回按钮才显示锁。
@@ -511,13 +512,57 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     }
   };
 
+  /**
+   * 清理标题单击事件的延迟任务。
+   *
+   * 标题同时支持“单击切换主侧栏”和“双击锁定专注模式”，
+   * 因此需要延迟处理单击，避免双击时先执行两次单击操作。
+   */
+  const clearSearchTitleClickTimer = () => {
+    if (searchTitleClickTimerRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(searchTitleClickTimerRef.current);
+    searchTitleClickTimerRef.current = null;
+  };
+
+  /**
+   * 在专注模式下单击项目标题时，通知扩展切换 VS Code 主侧栏。
+   */
+  const handleSearchTitleClick = () => {
+    if (!focusMode) {
+      return;
+    }
+
+    clearSearchTitleClickTimer();
+
+    searchTitleClickTimerRef.current = window.setTimeout(() => {
+      searchTitleClickTimerRef.current = null;
+      vscode.postMessage({
+        type: 'togglePrimarySidebar',
+      });
+    }, 300);
+  };
+
   const handleSearchTitleDoubleClick = () => {
+    clearSearchTitleClickTimer();
+
     if (!focusMode || focusLocked) {
       return;
     }
 
     onLockFocusMode?.();
   };
+
+  useEffect(() => {
+    return () => {
+      if (searchTitleClickTimerRef.current !== null) {
+        window.clearTimeout(searchTitleClickTimerRef.current);
+        searchTitleClickTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const switchSearchType = (nextType?: FolderSearchType) => {
     const targetType = nextType || (folderSearchType === 'content' ? 'name' : 'content');
@@ -850,10 +895,11 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
               title={
                 focusMode
                   ? isLockedFocusView
-                    ? `${getSearchTargetTitle()} · 已锁定，下次打开该项目会自动进入专注模式`
-                    : `${getSearchTargetTitle()} · 双击进入锁定模式`
+                    ? `${getSearchTargetTitle()} · 点击切换主侧栏 · 已锁定，下次打开该项目会自动进入专注模式`
+                    : `${getSearchTargetTitle()} · 点击切换主侧栏 · 双击进入锁定模式`
                   : getSearchTargetTitle()
               }
+              onClick={handleSearchTitleClick}
               onDoubleClick={handleSearchTitleDoubleClick}
             >
               {(() => {
