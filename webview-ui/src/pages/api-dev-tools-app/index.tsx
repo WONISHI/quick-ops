@@ -851,7 +851,6 @@ export default function ApiDevToolsApp() {
         setFloatingEditorOpen(Boolean(message.open));
         return;
       }
-
     };
 
     window.addEventListener('message', handleMessage);

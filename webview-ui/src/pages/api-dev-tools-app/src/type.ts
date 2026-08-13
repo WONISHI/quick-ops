@@ -1,7 +1,7 @@
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS';
 export type RequestTab = 'params' | 'body' | 'headers' | 'cookies' | 'auth' | 'pre' | 'post';
 export type ResponseTab = 'body' | 'headers' | 'raw';
-export type BodyType = 'none' | 'json' | 'raw' | 'form-urlencoded';
+export type BodyType = 'none' | 'json' | 'raw' | 'form-urlencoded' | 'form-data';
 export type AuthType = 'none' | 'bearer' | 'basic';
 
 export interface KeyValueItem {
@@ -10,6 +10,10 @@ export interface KeyValueItem {
   key: string;
   value: string;
   description?: string;
+  valueType?: 'text' | 'file';
+  fileName?: string;
+  fileMimeType?: string;
+  fileData?: string;
 }
 
 export type GlobalVariable = KeyValueItem;

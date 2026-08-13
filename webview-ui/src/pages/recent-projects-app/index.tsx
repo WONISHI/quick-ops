@@ -1,3528 +1,2231 @@
-import React, { useEffect, useState, useRef, useMemo, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { vscode } from '@utils/vscode';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faMagnifyingGlass, faFolderPlus, faCodeBranch, faChevronRight, faChevronDown, faArrowRightToBracket, faSpinner } from '@fortawesome/free-solid-svg-icons';
-import { faGithub, faGitlab } from '@fortawesome/free-brands-svg-icons';
-import styles from '@pages/recent-projects-app/index.module.css';
-import FileIcon from '@components/FileIcon';
-import RecentProjectContextMenu from '@pages/recent-projects-app/components/recent-project-context-menu';
-import RecentProjectsSkeleton from '@pages/recent-projects-app/components/recent-projects-skeleton';
-import SearchViewWrapper from '@pages/recent-projects-app/components/search-view-wrapper';
-import TreeDragDropContainer, { type TreeDraggingEntity } from '@pages/recent-projects-app/components/tree-drag-drop-container';
-import Tooltip from '@components/Tooltip';
-import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
-import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '@/utils';
-import { FileGitStatusBadge, FolderGitStatusDot } from '@pages/recent-projects-app/components/git-status-mark';
-import { getGitStatusTitle } from '@pages/recent-projects-app/components/git-status-mark/src/uitls';
-import type { Project, DirChild, SearchMatch, SearchResult, ContextMenuPayload } from '@/pages/recent-projects-app/src/type';
-import type { DiagnosticSummary, MetadataPatchItem, PendingCreateEntity, PendingRenameEntity, DraggingEntity, SearchReturnState } from '@/pages/recent-projects-app/src/type';
+import styles from '@pages/api-dev-tools-app/index.module.css';
+import BaseButton from '@components/BaseButton';
+import BaseCodeEditor from '@components/BaseCodeEditor';
+import BaseDialog from '@components/BaseDialog';
+import BaseSearch from '@components/BaseSearch';
+import BaseTabs from '@components/BaseTabs';
+import Scrollbar from '@components/Scrollbar';
+import BottomPanels from '@/pages/api-dev-tools-app/components/bottom-panels';
+import InterfaceItem from '@/pages/api-dev-tools-app/components/interface-item';
+import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-editor';
+import ProjectCard from '@/pages/api-dev-tools-app/components/project-card';
+import ShareCard from '@/pages/api-dev-tools-app/components/share-card';
+import ApiDevToolsSkeleton from '@/pages/api-dev-tools-app/components/api-dev-tools-skeleton';
+import WelcomePage from '@/pages/api-dev-tools-app/components/welcome-page';
+import { buildApiDocsHtml } from '@/pages/api-dev-tools-app/src/api-docs-builder';
+import { formatSize, safeBase64, clampNumber, cloneRequest } from '@/pages/api-dev-tools-app/src/api-dev-tools.utils';
+import type {
+  HttpMethod,
+  RequestTab,
+  ResponseTab,
+  BodyType,
+  AuthType,
+  GlobalVariable,
+  ApiRequestConfig,
+  ApiInterfaceItem,
+  ApiProject,
+  HistoryItem,
+  ApiResponsePayload,
+  PersistedState,
+  LeaveConfirmAction,
+  LeaveConfirmDialog,
+  ApiDevToolsViewTitleAction,
+  ApiInterfaceGroup,
+  GroupedApiInterfaceItem,
+  GroupedApiProject,
+  ApiManageDialog,
+  ApiFormDataPayloadItem,
+} from '@/pages/api-dev-tools-app/src/type';
 
-export default function RecentProjectsApp() {
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [currentUri, setCurrentUri] = useState('');
-  const currentUriRef = useRef('');
-  const [currentWorkspace, setCurrentWorkspace] = useState<Project | null>(null);
-  const [isInitLoading, setIsInitLoading] = useState(true);
+import {
+  HTTP_METHODS,
+  REQUEST_TABS,
+  RESPONSE_TABS,
+  BOTTOM_PANEL_COLLAPSED_SIZE,
+  BOTTOM_PANEL_DEFAULT_SIZE,
+  BOTTOM_PANEL_MAX_SIZE,
+  RESPONSE_PANEL_RESERVED_SIZE,
+  RESPONSE_HEAD_SIZE,
+  RESPONSE_TABS_SIZE,
+  BOTTOM_RESIZER_SIZE,
+  WORKSPACE_PANE_DEFAULT_WIDTH,
+  WORKSPACE_PANE_MIN_WIDTH,
+  WORKSPACE_PANE_MAX_WIDTH,
+  WORKSPACE_RESIZER_SIZE,
+  RIGHT_PANE_DEFAULT_WIDTH,
+  RIGHT_PANE_MIN_WIDTH,
+  RIGHT_PANE_MAX_WIDTH,
+  RIGHT_RESIZER_SIZE,
+  REQUEST_DETAIL_TABS,
+} from '@/pages/api-dev-tools-app/src/constants';
+import {
+  createId,
+  createDefaultRequest,
+  createDefaultGlobals,
+  createProject,
+  createInterfaceFromRequest,
+  normalizePersistedState,
+  isDefaultRequestSnapshot,
+  isSameRequest,
+  getRequestParametersContent,
+  getCurlRequestContent,
+  getResponseEditorLanguage,
+  parseGetRequestUrl,
+  interpolateVariables,
+  getEnabledObject,
+  getFormDataPayload,
+  getDisplayResponseBody,
+} from '@/pages/api-dev-tools-app/src/api-dev-tools.utils';
+import type { DetailSource, RequestDetailPayload, ApiResponseMessagePayload } from '@/pages/api-dev-tools-app/src/type';
 
-  const [lastOpenedPath, setLastOpenedPath] = useState('');
+/**
+ * @description 渲染 API 调试工具主页面
+ */
+export default function ApiDevToolsApp() {
+  const [globals, setGlobals] = useState<GlobalVariable[]>(createDefaultGlobals);
+  const [request, setRequest] = useState<ApiRequestConfig>(createDefaultRequest);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [projects, setProjects] = useState<GroupedApiProject[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState('');
+  const [activeInterfaceId, setActiveInterfaceId] = useState('');
+  const [requestTab, setRequestTab] = useState<RequestTab>('params');
+  const [responseTab, setResponseTab] = useState<ResponseTab>('body');
+  const [detailSource, setDetailSource] = useState<DetailSource>('response');
+  const [isResponseSearchOpen, setIsResponseSearchOpen] = useState(false);
+  const [requestDetail, setRequestDetail] = useState<RequestDetailPayload | null>(null);
+  const [response, setResponse] = useState<ApiResponsePayload | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [isFloating] = useState(() => Boolean((window as any).__IS_FLOATING__));
+  const [floatingEditorOpen, setFloatingEditorOpen] = useState(false);
 
-  useEffect(() => {
-    currentUriRef.current = currentUri;
-  }, [currentUri]);
+  /**
+   * @description 是否正在加载 Extension Host 中持久化的初始状态
+   */
+  const [initializing, setInitializing] = useState(true);
 
-  const getInitialSearchQuery = () => {
-    const state = vscode.getState() as { searchQuery?: string } | undefined;
+  const [showGlobals, setShowGlobals] = useState(false);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [bottomPanelSize, setBottomPanelSize] = useState(BOTTOM_PANEL_DEFAULT_SIZE);
+  const [isResizingBottomPanel, setIsResizingBottomPanel] = useState(false);
+  const [workspacePaneWidth, setWorkspacePaneWidth] = useState(WORKSPACE_PANE_DEFAULT_WIDTH);
+  const [isResizingWorkspacePane, setIsResizingWorkspacePane] = useState(false);
+  const [rightPaneWidth, setRightPaneWidth] = useState(RIGHT_PANE_DEFAULT_WIDTH);
+  const [isResizingRightPane, setIsResizingRightPane] = useState(false);
+  const [sharedDocUrl, setSharedDocUrl] = useState('');
+  const [isShareSelecting, setIsShareSelecting] = useState(false);
+  const [shareSelectedInterfaceIds, setShareSelectedInterfaceIds] = useState<string[]>([]);
+  const [manageDialog, setManageDialog] = useState<ApiManageDialog>(null);
+  const [manageDialogValue, setManageDialogValue] = useState('');
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
+  const [leaveConfirmDialog, setLeaveConfirmDialog] = useState<LeaveConfirmDialog>(null);
 
-    if (!state) {
-      return '';
+  const pendingRequestIdRef = useRef('');
+  const globalsRef = useRef(globals);
+  const requestRef = useRef(request);
+  const historyRef = useRef(history);
+  const projectsRef = useRef(projects);
+  const activeProjectIdRef = useRef(activeProjectId);
+  const activeInterfaceIdRef = useRef(activeInterfaceId);
+  const shareSelectedInterfaceIdsRef = useRef(shareSelectedInterfaceIds);
+  const globalVariablesRef = useRef<Record<string, string>>({});
+  const rightPaneRef = useRef<HTMLElement | null>(null);
+  const bottomPanelSizeRef = useRef(BOTTOM_PANEL_DEFAULT_SIZE);
+  const workspacePaneWidthRef = useRef(WORKSPACE_PANE_DEFAULT_WIDTH);
+  const dragStartYRef = useRef(0);
+  const dragStartXRef = useRef(0);
+  const dragStartSizeRef = useRef(BOTTOM_PANEL_DEFAULT_SIZE);
+  const leaveConfirmResolverRef = useRef<((action: LeaveConfirmAction) => void) | null>(null);
+  const dragStartWidthRef = useRef(WORKSPACE_PANE_DEFAULT_WIDTH);
+  const isDraggingBottomPanelRef = useRef(false);
+  const isDraggingWorkspacePaneRef = useRef(false);
+  const bodyCursorRef = useRef('');
+  const bodyUserSelectRef = useRef('');
+  const bottomResizerRef = useRef<HTMLDivElement | null>(null);
+  const bottomResizerPointerIdRef = useRef<number | null>(null);
+  const workspaceResizerRef = useRef<HTMLDivElement | null>(null);
+  const workspaceResizerPointerIdRef = useRef<number | null>(null);
+  const rightPaneWidthRef = useRef(RIGHT_PANE_DEFAULT_WIDTH);
+  const isDraggingRightPaneRef = useRef(false);
+  const rightResizerRef = useRef<HTMLDivElement | null>(null);
+  const rightResizerPointerIdRef = useRef<number | null>(null);
+  const loadedStateRef = useRef(false);
+  const viewTitleActionRef = useRef<(action: ApiDevToolsViewTitleAction) => void>(() => undefined);
+
+  /**
+   * @description 计算已启用的全局变量映射
+   */
+  const globalVariables = useMemo(() => {
+    const result: Record<string, string> = {};
+
+    globals.forEach((item) => {
+      if (!item.enabled || !item.key.trim()) return;
+      result[item.key.trim()] = item.value;
+    });
+
+    return result;
+  }, [globals]);
+
+  /**
+   * @description 计算当前选中的项目
+   */
+  const activeProject = useMemo(() => projects.find((project) => project.id === activeProjectId) || null, [projects, activeProjectId]);
+
+  /**
+   * @description 计算当前选中的接口
+   */
+  const activeInterface = useMemo(() => {
+    if (!activeProject) return null;
+    return activeProject.interfaces.find((item) => item.id === activeInterfaceId) || null;
+  }, [activeProject, activeInterfaceId]);
+
+  /**
+   * @description 计算当前请求的项目绑定提示
+   */
+  const requestBindText = useMemo(() => {
+    if (activeProject && activeInterface) {
+      return `绑定项目：${activeProject.name}`;
     }
 
-    return state.searchQuery || '';
-  };
+    if (activeProject) {
+      return `将保存到：${activeProject.name}`;
+    }
 
-  const [searchQuery, setSearchQuery] = useState<string>(getInitialSearchQuery);
+    return '未绑定项目';
+  }, [activeProject, activeInterface]);
 
-  const [selectedPath, setSelectedPath] = useState<string>('');
-  const selectedPathRef = useRef('');
-  /** 当前编辑器真正打开的文件路径，不能被目录树上的普通选中覆盖。 */
-  const activeFilePathRef = useRef('');
-  const autoScrollTarget = useRef<string | null>(null);
-  const listScrollbarRef = useRef<ScrollbarInstance>(null);
-
-  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
-  const expandedPathsRef = useRef<Set<string>>(new Set());
-  const recursiveFolderExpandStatesRef = useRef<
-    Map<
-      string,
-      {
-        projectName: string;
-        pendingPaths: Set<string>;
-        processedPaths: Set<string>;
-      }
-    >
-  >(new Map());
+  /**
+   * @description 同步全局变量引用
+   */
   useEffect(() => {
-    expandedPathsRef.current = expandedPaths;
-  }, [expandedPaths]);
-  const collapseRevealGuardUntilRef = useRef(0);
-  const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
-  const [dirChildren, setDirChildren] = useState<Record<string, DirChild[]>>({});
-  const dirChildrenRef = useRef<Record<string, DirChild[]>>({});
-  const normalDirChildrenBeforeFocusRef = useRef<Record<string, DirChild[]>>({});
+    globalsRef.current = globals;
+  }, [globals]);
 
+  /**
+   * @description 同步当前请求引用
+   */
   useEffect(() => {
-    dirChildrenRef.current = dirChildren;
-  }, [dirChildren]);
+    requestRef.current = request;
+  }, [request]);
 
-  const projectsRef = useRef<Project[]>([]);
+  /**
+   * @description 同步请求历史引用
+   */
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
 
+  /**
+   * @description 同步项目列表引用
+   */
   useEffect(() => {
     projectsRef.current = projects;
   }, [projects]);
 
+  /**
+   * @description 同步当前项目标识引用
+   */
   useEffect(() => {
-    selectedPathRef.current = selectedPath;
-  }, [selectedPath]);
+    activeProjectIdRef.current = activeProjectId;
+  }, [activeProjectId]);
 
-  const currentWorkspaceRef = useRef<Project | null>(null);
-
+  /**
+   * @description 同步当前接口标识引用
+   */
   useEffect(() => {
-    currentWorkspaceRef.current = currentWorkspace;
-  }, [currentWorkspace]);
+    activeInterfaceIdRef.current = activeInterfaceId;
+  }, [activeInterfaceId]);
 
-  const [branchMap, setBranchMap] = useState<Record<string, string>>({});
-  const [contextMenu, setContextMenu] = useState<{
-    visible: boolean;
-    x: number;
-    y: number;
-    type: 'top' | 'sub';
-    payload: ContextMenuPayload;
-    selectedItems?: { path: string; name: string; isFolder: boolean }[];
-  }>({
-    visible: false,
-    x: 0,
-    y: 0,
-    type: 'top',
-    payload: { path: '' },
-  });
-
-  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
-  const selectedItemsRef = useRef<Set<string>>(new Set());
-  const lastClickedIndexRef = useRef<number>(-1);
-
+  /**
+   * @description 同步文档分享接口选择引用
+   */
   useEffect(() => {
-    selectedItemsRef.current = selectedItems;
-  }, [selectedItems]);
+    shareSelectedInterfaceIdsRef.current = shareSelectedInterfaceIds;
+  }, [shareSelectedInterfaceIds]);
 
-  const getFocusModeFlatItems = useCallback((): { path: string; name: string; isFolder: boolean }[] => {
-    const result: { path: string; name: string; isFolder: boolean }[] = [];
-    const allChildren = dirChildrenRef.current;
-    const expanded = expandedPathsRef.current || new Set<string>();
-    const visited = new Set<string>();
+  /**
+   * @description 同步全局变量映射引用
+   */
+  useEffect(() => {
+    globalVariablesRef.current = globalVariables;
+  }, [globalVariables]);
 
-    const collect = (parentPath: string) => {
-      const children = allChildren[parentPath];
-      if (!children) return;
-      children.forEach((child) => {
-        if (visited.has(child.path)) return;
-        visited.add(child.path);
-        result.push({ path: child.path, name: child.name, isFolder: child.isFolder });
-        if (child.isFolder && expanded.has(child.path)) {
-          collect(child.path);
-        }
-      });
-    };
+  /**
+   * @description 同步底部面板高度引用
+   */
+  useEffect(() => {
+    bottomPanelSizeRef.current = bottomPanelSize;
+  }, [bottomPanelSize]);
 
-    const treeRootPath = focusRootPathRef.current || currentWorkspaceRef.current?.fsPath || currentUriRef.current;
+  /**
+   * @description 同步底部面板高度引用
+   */
+  useEffect(() => {
+    workspacePaneWidthRef.current = workspacePaneWidth;
+  }, [workspacePaneWidth]);
 
-    if (treeRootPath) {
-      collect(treeRootPath);
+  /**
+   * @description 获取底部面板允许的最大高度
+   */
+  const getBottomPanelMaxSize = useCallback(() => {
+    const pane = rightPaneRef.current;
+
+    if (!pane) {
+      return BOTTOM_PANEL_MAX_SIZE;
     }
 
-    return result;
+    const paneHeight = pane.getBoundingClientRect().height;
+
+    if (!paneHeight || paneHeight < 300) {
+      return BOTTOM_PANEL_MAX_SIZE;
+    }
+
+    const available = paneHeight - RESPONSE_HEAD_SIZE - RESPONSE_TABS_SIZE - BOTTOM_RESIZER_SIZE - RESPONSE_PANEL_RESERVED_SIZE;
+
+    return Math.min(BOTTOM_PANEL_MAX_SIZE, Math.max(BOTTOM_PANEL_COLLAPSED_SIZE, available));
   }, []);
 
-  const clearSelection = useCallback(() => {
-    const next = new Set<string>();
+  /**
+   * @description 安全设置底部面板高度
+   */
+  const setSafeBottomPanelSize = useCallback(
+    (size: number) => {
+      const nextSize = clampNumber(size, BOTTOM_PANEL_COLLAPSED_SIZE, getBottomPanelMaxSize());
 
-    selectedItemsRef.current = next;
-    setSelectedItems(next);
-    lastClickedIndexRef.current = -1;
-  }, []);
-
-  const handleItemClick = useCallback(
-    (e: React.MouseEvent, childPath: string) => {
-      const isMulti = e.metaKey || e.ctrlKey;
-      const isRange = e.shiftKey && !isMulti;
-
-      if (isMulti) {
-        e.preventDefault();
-        const next = new Set(selectedItemsRef.current);
-        const currentSelectedPath = selectedPathRef.current;
-
-        if (next.size === 0 && currentSelectedPath) {
-          next.add(currentSelectedPath);
-        }
-
-        const isRemoving = next.has(childPath);
-
-        if (isRemoving) {
-          next.delete(childPath);
-        } else {
-          next.add(childPath);
-        }
-
-        let nextSelectedPath = currentSelectedPath;
-
-        if (!isRemoving) {
-          nextSelectedPath = childPath;
-        } else if (currentSelectedPath === childPath) {
-          nextSelectedPath = next.values().next().value || '';
-        }
-
-        selectedItemsRef.current = next;
-        setSelectedItems(next);
-        selectedPathRef.current = nextSelectedPath;
-        setSelectedPath(nextSelectedPath);
-        lastClickedIndexRef.current = getFocusModeFlatItems().findIndex((item) => item.path === childPath);
-        return true;
-      }
-
-      if (isRange) {
-        const flatItems = getFocusModeFlatItems();
-        const idx = flatItems.findIndex((item) => item.path === childPath);
-        const lastIdx = lastClickedIndexRef.current;
-
-        if (lastIdx >= 0 && idx >= 0 && lastIdx < flatItems.length) {
-          const start = Math.min(lastIdx, idx);
-          const end = Math.max(lastIdx, idx);
-          const range = new Set(flatItems.slice(start, end + 1).map((item) => item.path));
-
-          selectedItemsRef.current = range;
-          setSelectedItems(range);
-          selectedPathRef.current = childPath;
-          setSelectedPath(childPath);
-        }
-
-        return true;
-      }
-
-      clearSelection();
-      lastClickedIndexRef.current = getFocusModeFlatItems().findIndex((item) => item.path === childPath);
-      return false;
+      bottomPanelSizeRef.current = nextSize;
+      setBottomPanelSize(nextSize);
     },
-    [getFocusModeFlatItems, clearSelection],
+    [getBottomPanelMaxSize],
   );
 
-  const [isSearchMode, setIsSearchMode] = useState(false);
-  const isSearchModeRef = useRef(false);
-  const [searchTargetProject, setSearchTargetProject] = useState<ContextMenuPayload | null>(null);
-  const searchTargetProjectRef = useRef<ContextMenuPayload | null>(null);
-  const [folderSearchQuery, setFolderSearchQuery] = useState('');
-  const folderSearchQueryRef = useRef('');
-  const [folderSearchType, setFolderSearchType] = useState<'content' | 'name'>('content');
-  const folderSearchTypeRef = useRef<'content' | 'name'>('content');
-  const [fileNameSearchResults, setFileNameSearchResults] = useState<DirChild[]>([]);
-  const [folderSearchResults, setFolderSearchResults] = useState<SearchResult[]>([]);
-  const folderSearchResultsRef = useRef<SearchResult[]>([]);
-  const [folderSearchTotalMatches, setFolderSearchTotalMatches] = useState(0);
-  const [isSearchingFolder, setIsSearchingFolder] = useState(false);
-  const [folderSearchError, setFolderSearchError] = useState('');
-  const [currentActiveMatch, setCurrentActiveMatch] = useState(0);
-  const [searchRefreshVersion, setSearchRefreshVersion] = useState(0);
-  const silentSearchRefreshRef = useRef(false);
-  const pendingSilentResultsRef = useRef<{ results: SearchResult[]; fileNameResults: DirChild[] }>({ results: [], fileNameResults: [] });
-  const lastSubmittedSearchKeyRef = useRef('');
-  const pendingSearchResponseModeRef = useRef<'normal' | 'silent'>('normal');
-  const latestSearchRequestIdRef = useRef(0);
-  const activeSearchRequestIdRef = useRef(0);
-  const hasFocusSearchQueryRef = useRef(false);
-  const [isFocusMode, setIsFocusMode] = useState(false);
-  const [isFocusLocked, setIsFocusLocked] = useState(false);
-  const [focusRootPath, setFocusRootPath] = useState('');
-  const [focusRootName, setFocusRootName] = useState('');
-  const isFocusModeRef = useRef(false);
-  const isFocusLockedRef = useRef(false);
-  const focusRootPathRef = useRef('');
-  const focusRootNameRef = useRef('');
-
   /**
-   * 右键“查找文件内容”是临时搜索页。
-   *
-   * 从普通列表进入：返回普通列表；
-   * 从专注模式进入：返回专注模式；
-   * 从专注模式 + 锁定模式进入：返回专注模式 + 锁定模式。
+   * @description 停止调整底部面板高度
    */
-  const searchReturnStateRef = useRef<SearchReturnState | null>(null);
+  const stopBottomResize = useCallback(() => {
+    isDraggingBottomPanelRef.current = false;
+    setIsResizingBottomPanel(false);
 
-  const [pendingCreateEntity, setPendingCreateEntity] = useState<PendingCreateEntity | null>(null);
-  const [pendingCreateName, setPendingCreateName] = useState('');
-  const pendingCreateEntityRef = useRef<PendingCreateEntity | null>(null);
-  const pendingCreateNameRef = useRef('');
-  const pendingCreateBlurConfirmingRef = useRef(false);
-  const pendingCreateInputRef = useRef<HTMLInputElement>(null);
+    const element = bottomResizerRef.current;
+    const pointerId = bottomResizerPointerIdRef.current;
 
-  const [pendingRenameEntity, setPendingRenameEntity] = useState<PendingRenameEntity | null>(null);
-  const [pendingRenameName, setPendingRenameName] = useState('');
-  const pendingRenameEntityRef = useRef<PendingRenameEntity | null>(null);
-  const pendingRenameNameRef = useRef('');
-  const pendingRenameBlurConfirmingRef = useRef(false);
-  const pendingRenameInputRef = useRef<HTMLInputElement>(null);
-
-  const [draggingEntity, setDraggingEntity] = useState<DraggingEntity | null>(null);
-  const [dragOverPath, setDragOverPath] = useState('');
-  const [invalidDragOverPath, setInvalidDragOverPath] = useState('');
-  const dragExpandTimerRef = useRef<number | null>(null);
-  const dragExpandTargetPathRef = useRef('');
-
-  const clearDragExpandTimer = () => {
-    if (dragExpandTimerRef.current !== null) {
-      window.clearTimeout(dragExpandTimerRef.current);
-      dragExpandTimerRef.current = null;
+    if (element && pointerId !== null) {
+      try {
+        if (element.hasPointerCapture(pointerId)) {
+          element.releasePointerCapture(pointerId);
+        }
+      } catch {
+        // VS Code Webview 里 pointer capture 偶发不可用，直接忽略即可
+      }
     }
 
-    dragExpandTargetPathRef.current = '';
-  };
+    bottomResizerRef.current = null;
+    bottomResizerPointerIdRef.current = null;
 
-  useEffect(() => {
-    isSearchModeRef.current = isSearchMode;
-  }, [isSearchMode]);
-
-  useEffect(() => {
-    searchTargetProjectRef.current = searchTargetProject;
-  }, [searchTargetProject]);
-
-  useEffect(() => {
-    folderSearchQueryRef.current = folderSearchQuery;
-  }, [folderSearchQuery]);
-
-  useEffect(() => {
-    folderSearchTypeRef.current = folderSearchType;
-  }, [folderSearchType]);
-
-  useEffect(() => {
-    folderSearchResultsRef.current = folderSearchResults;
-  }, [folderSearchResults]);
-
-  useEffect(() => {
-    isFocusModeRef.current = isFocusMode;
-  }, [isFocusMode]);
-
-  useEffect(() => {
-    vscode.postMessage({
-      type: 'setFocusModeContext',
-      enabled: isFocusMode,
-    });
-  }, [isFocusMode]);
-
-  useEffect(() => {
-    isFocusLockedRef.current = isFocusLocked;
-  }, [isFocusLocked]);
-
-  useEffect(() => {
-    focusRootPathRef.current = focusRootPath;
-  }, [focusRootPath]);
-
-  useEffect(() => {
-    focusRootNameRef.current = focusRootName;
-  }, [focusRootName]);
-
-  useEffect(() => {
-    if (!pendingCreateEntity) return;
-
-    window.setTimeout(() => {
-      pendingCreateInputRef.current?.focus();
-      pendingCreateInputRef.current?.select();
-    }, 0);
-  }, [pendingCreateEntity]);
-
-  useEffect(() => {
-    pendingCreateEntityRef.current = pendingCreateEntity;
-  }, [pendingCreateEntity]);
-
-  useEffect(() => {
-    pendingCreateNameRef.current = pendingCreateName;
-  }, [pendingCreateName]);
-
-  useEffect(() => {
-    if (!pendingRenameEntity) return;
-
-    window.setTimeout(() => {
-      const input = pendingRenameInputRef.current;
-
-      if (!input) return;
-
-      const fileName = pendingRenameEntity.name || '';
-      const extensionIndex = pendingRenameEntity.isFolder ? -1 : fileName.lastIndexOf('.');
-      const selectionEnd = extensionIndex > 0 ? extensionIndex : fileName.length;
-
-      input.focus();
-      input.setSelectionRange(0, selectionEnd);
-    }, 0);
-  }, [pendingRenameEntity]);
-
-  useEffect(() => {
-    pendingRenameEntityRef.current = pendingRenameEntity;
-  }, [pendingRenameEntity]);
-
-  useEffect(() => {
-    pendingRenameNameRef.current = pendingRenameName;
-  }, [pendingRenameName]);
+    document.body.style.cursor = bodyCursorRef.current;
+    document.body.style.userSelect = bodyUserSelectRef.current;
+  }, []);
 
   /**
-   * 新增或重命名期间禁止文件树拖拽，并清理可能遗留的拖拽状态。
-   * 提交或取消输入后，pending 状态清空，拖拽会自动恢复。
+   * @description 处理底部面板拖拽开始事件
    */
-  useEffect(() => {
-    if (!pendingCreateEntity && !pendingRenameEntity) return;
+  const handleBottomResizerPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
 
-    clearDragExpandTimer();
-    setDraggingEntity(null);
-    setDragOverPath('');
-    setInvalidDragOverPath('');
-  }, [pendingCreateEntity, pendingRenameEntity]);
+    dragStartYRef.current = event.clientY;
+    dragStartSizeRef.current = bottomPanelSizeRef.current;
+    isDraggingBottomPanelRef.current = true;
 
-  const normalizeFallbackPath = (pathValue: string) => {
-    return decodeURIComponent(pathValue.split('?')[0])
-      .replace(/^file:\/\//, '')
-      .replace(/\\/g, '/')
-      .replace(/\/+$/, '');
-  };
+    bottomResizerRef.current = event.currentTarget;
+    bottomResizerPointerIdRef.current = event.pointerId;
 
-  const normalizePatchPath = (pathValue: string) => {
-    if (!pathValue) return '';
+    bodyCursorRef.current = document.body.style.cursor;
+    bodyUserSelectRef.current = document.body.style.userSelect;
+
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
 
     try {
-      if (pathValue.includes('://')) {
-        const url = new URL(pathValue);
-
-        if (url.protocol === 'file:') {
-          let decoded = decodeURIComponent(url.pathname || '');
-
-          if (/^\/[a-zA-Z]:\//.test(decoded)) {
-            decoded = decoded.slice(1);
-          }
-
-          return decoded.replace(/\\/g, '/').replace(/\/+$/, '');
-        }
-
-        return decodeURIComponent(url.pathname || pathValue)
-          .replace(/\\/g, '/')
-          .replace(/\/+$/, '');
-      }
+      event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
-      return normalizeFallbackPath(pathValue);
+      // VS Code Webview 里 pointer capture 偶发失败，下面 window/document 监听兜底
     }
 
-    return normalizeFallbackPath(pathValue);
-  };
+    setIsResizingBottomPanel(true);
+  }, []);
 
   /**
-   * @description 按文件路径合并内容搜索结果
-   *
-   * 文件变化会触发静默重新搜索。若前一次搜索尚未结束，多个批次可能在很短
-   * 时间内交错返回，因此这里以完整文件路径为唯一键，保证同一个文件只出现一次。
+   * @description 监听底部面板拖拽事件
    */
-  const mergeContentSearchResults = (previous: SearchResult[], incoming: SearchResult[]) => {
-    const resultMap = new Map<string, SearchResult>();
-
-    [...previous, ...incoming].forEach((item, index) => {
-      const key = normalizePatchPath(item.fullPath || item.file || '') || `__content_search_result_${index}`;
-
-      resultMap.set(key, item);
-    });
-
-    return Array.from(resultMap.values());
-  };
-
-  /**
-   * @description 按文件路径合并文件名搜索结果
-   */
-  const mergeFileNameSearchResults = (previous: DirChild[], incoming: DirChild[]) => {
-    const resultMap = new Map<string, DirChild>();
-
-    [...previous, ...incoming].forEach((item, index) => {
-      const key = normalizePatchPath(item.path || '') || `__file_name_search_result_${index}`;
-
-      resultMap.set(key, item);
-    });
-
-    return Array.from(resultMap.values());
-  };
-
-  const applyMetadataPatchToItem = <T extends Record<string, any>>(item: T, patchMap: Map<string, MetadataPatchItem>): T => {
-    const itemPath = item.path || item.fullPath || item.fsPath;
-    const patch = patchMap.get(normalizePatchPath(itemPath || ''));
-
-    if (!patch) return item;
-
-    return {
-      ...item,
-      status: patch.status,
-      diagnostics: patch.diagnostics || { errors: 0, warnings: 0 },
-    };
-  };
-
-  const getDiagnosticSummary = (item: any): DiagnosticSummary => {
-    const diagnostics = item?.diagnostics || {};
-
-    return {
-      errors: Math.max(0, Number(diagnostics.errors) || 0),
-      warnings: Math.max(0, Number(diagnostics.warnings) || 0),
-    };
-  };
-
-  const getDiagnosticsTitle = (item: any) => {
-    const diagnostics = getDiagnosticSummary(item);
-
-    if (!diagnostics.errors && !diagnostics.warnings) {
-      return '';
-    }
-
-    return `错误 ${diagnostics.errors}，警告 ${diagnostics.warnings}`;
-  };
-
-  const formatTooltipPath = (pathValue: string) => {
-    const normalizedPath = normalizePatchPath(pathValue || '');
-
-    if (!normalizedPath) return '';
-
-    const normalized = normalizedPath.replace(/\\/g, '/');
-    const userHomeMatch = normalized.match(/^\/Users\/[^/]+(\/.*)?$/);
-
-    if (userHomeMatch) {
-      return `~${userHomeMatch[1] || ''}`;
-    }
-
-    const windowsHomeMatch = normalized.match(/^[a-zA-Z]:\/Users\/[^/]+(\/.*)?$/);
-
-    if (windowsHomeMatch) {
-      return `~${windowsHomeMatch[1] || ''}`;
-    }
-
-    return normalized;
-  };
-
-  const getSimpleGitStatusText = (status?: string, isFolder: boolean = false) => {
-    const rawStatus = String(status || '').trim();
-
-    if (!rawStatus) return '';
-
-    if (isFolder) {
-      return '包含强调项';
-    }
-
-    const statusTextMap: Record<string, string> = {
-      U: '未跟踪的',
-      '?': '未跟踪的',
-      M: '已修改',
-      A: '已添加',
-      D: '已删除',
-      R: '已重命名',
-      C: '已复制',
-      I: '已忽略',
-      '!': '已忽略',
-      X: '存在冲突',
-      T: '类型已变更',
-    };
-
-    const cleanStatus = rawStatus
-      .replace(/\[|\]/g, '')
-      .replace(/^\s*[·•-]?\s*/, '')
-      .trim();
-
-    const statusTokens = cleanStatus
-      .split(/[\s,|/]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    const matchedToken = statusTokens.find((item) => {
-      const key = item[0]?.toUpperCase();
-
-      return !!key && Object.prototype.hasOwnProperty.call(statusTextMap, key);
-    });
-
-    if (matchedToken) {
-      return statusTextMap[matchedToken[0].toUpperCase()];
-    }
-
-    const compactStatus = cleanStatus.replace(/\s+/g, '');
-    const matchedKey = Object.keys(statusTextMap).find((key) => {
-      return key === '?' ? compactStatus.includes('?') : compactStatus.toUpperCase().includes(key);
-    });
-
-    if (matchedKey) {
-      return statusTextMap[matchedKey];
-    }
-
-    const fallbackText = getGitStatusTitle('', cleanStatus || rawStatus)
-      .replace(/\[|\]/g, '')
-      .replace(/^\s*[·•-]?\s*/, '')
-      .trim();
-
-    const fallbackKey = fallbackText[0]?.toUpperCase();
-
-    if (fallbackKey && Object.prototype.hasOwnProperty.call(statusTextMap, fallbackKey)) {
-      return statusTextMap[fallbackKey];
-    }
-
-    return fallbackText || cleanStatus || rawStatus;
-  };
-
-  const getProblemTooltipText = (item: any, isFolder: boolean = false) => {
-    const diagnostics = getDiagnosticSummary(item);
-    const total = diagnostics.errors + diagnostics.warnings;
-
-    if (!total) return '';
-
-    if (isFolder) {
-      if (diagnostics.errors > 0) return '包含错误';
-      return '包含警告';
-    }
-
-    return `此文件存在 ${total} 个问题`;
-  };
-
-  const getTreeTooltipContent = (pathValue: string, item: any, isFolder: boolean = false) => {
-    const displayPath = formatTooltipPath(pathValue || item?.path || item?.fsPath || '');
-    const meta = [getProblemTooltipText(item, isFolder), getSimpleGitStatusText(item?.status, isFolder)].filter(Boolean);
-
-    if (!displayPath && meta.length === 0) return null;
-
-    if (meta.length === 0) return displayPath;
-
-    return `${displayPath} · ${meta.join(' · ')}`;
-  };
-
-  const getRootProjectTooltipContent = (pathValue: string, item: any) => {
-    const displayPath = formatTooltipPath(pathValue || item?.fsPath || '');
-    const meta = [getProblemTooltipText(item, true)].filter(Boolean);
-
-    if (!displayPath && meta.length === 0) return null;
-
-    if (meta.length === 0) return displayPath;
-
-    return `${displayPath} · ${meta.join(' · ')}`;
-  };
-
-  const getSearchNameHighlightTokens = (query: string) => {
-    const value = String(query || '').trim();
-
-    if (!value) return [] as string[];
-
-    const tokenSet = new Set<string>();
-    const parts = value
-      .replace(/\\/g, '/')
-      .split(/[\s/]+/)
-      .map((item) => item.trim())
-      .filter(Boolean);
-
-    const rawTokens = parts.length > 0 ? parts : [value];
-
-    rawTokens.forEach((item) => {
-      tokenSet.add(item);
-
-      const withoutDot = item.replace(/^\.+/, '');
-
-      if (withoutDot) {
-        tokenSet.add(withoutDot);
-      }
-    });
-
-    const compactValue = value.replace(/[\s/_.-]+/g, '');
-
-    if (compactValue && compactValue !== value) {
-      tokenSet.add(compactValue);
-    }
-
-    return Array.from(tokenSet)
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .sort((a, b) => b.length - a.length);
-  };
-
-  const renderSearchNameHighlightText = (textValue: string, query: string = '') => {
-    const value = String(textValue || '');
-    const tokens = getSearchNameHighlightTokens(query);
-
-    if (!value || tokens.length === 0) {
-      return value;
-    }
-
-    const lowerValue = value.toLowerCase();
-    const ranges: Array<{ start: number; end: number }> = [];
-
-    tokens.forEach((token) => {
-      const lowerToken = token.toLowerCase();
-
-      if (!lowerToken) return;
-
-      let start = 0;
-
-      while (start < lowerValue.length) {
-        const index = lowerValue.indexOf(lowerToken, start);
-
-        if (index === -1) break;
-
-        ranges.push({
-          start: index,
-          end: index + lowerToken.length,
-        });
-        start = index + Math.max(1, lowerToken.length);
-      }
-    });
-
-    if (ranges.length === 0) {
-      return value;
-    }
-
-    const mergedRanges: Array<{ start: number; end: number }> = [];
-
-    ranges
-      .sort((a, b) => (a.start === b.start ? b.end - a.end : a.start - b.start))
-      .forEach((range) => {
-        const lastRange = mergedRanges[mergedRanges.length - 1];
-
-        if (!lastRange || range.start >= lastRange.end) {
-          mergedRanges.push(range);
-        } else if (range.end > lastRange.end) {
-          lastRange.end = range.end;
-        }
-      });
-
-    const nodes: React.ReactNode[] = [];
-    let cursor = 0;
-
-    mergedRanges.forEach((range, index) => {
-      if (range.start > cursor) {
-        nodes.push(value.slice(cursor, range.start));
-      }
-
-      nodes.push(
-        <mark
-          key={`${range.start}-${range.end}-${index}`}
-          style={{
-            padding: '0 1px',
-            borderRadius: 2,
-            color: 'inherit',
-            background: 'var(--vscode-editor-findMatchHighlightBackground, rgba(234, 179, 8, 0.35))',
-          }}
-        >
-          {value.slice(range.start, range.end)}
-        </mark>,
-      );
-      cursor = range.end;
-    });
-
-    if (cursor < value.length) {
-      nodes.push(value.slice(cursor));
-    }
-
-    return nodes;
-  };
-
-  const normalizeFileNameSearchValue = (value: string) => {
-    return String(value || '')
-      .trim()
-      .replace(/\\/g, '/')
-      .replace(/^\/+|\/+$/g, '')
-      .toLowerCase();
-  };
-
-  /**
-   * @description 获取名称搜索结果相对当前搜索根目录的路径
-   *
-   * 新版扩展端会直接返回 relativePath；这里保留路径推导作为兼容，
-   * 确保只复制当前前端文件时也可以修正旧版扩展端返回的宽泛结果。
-   */
-  const getFileNameSearchRelativePath = (item: DirChild, searchRootPath: string) => {
-    const responseRelativePath = normalizeFileNameSearchValue(String((item as DirChild & { relativePath?: string }).relativePath || ''));
-
-    if (responseRelativePath) {
-      return responseRelativePath;
-    }
-
-    const normalizedItemPath = normalizePatchPath(item.path || '');
-    const normalizedRootPath = normalizePatchPath(searchRootPath || '');
-
-    if (normalizedItemPath && normalizedRootPath) {
-      if (normalizedItemPath === normalizedRootPath) {
-        return normalizeFileNameSearchValue(item.name);
-      }
-
-      const rootPathWithSlash = normalizedRootPath.endsWith('/') ? normalizedRootPath : `${normalizedRootPath}/`;
-
-      if (normalizedItemPath.startsWith(rootPathWithSlash)) {
-        return normalizeFileNameSearchValue(normalizedItemPath.slice(rootPathWithSlash.length));
-      }
-    }
-
-    return normalizeFileNameSearchValue(item.name);
-  };
-
-  /**
-   * @description 判断文件、文件夹名称或路径片段是否真正符合名称搜索
-   *
-   * 单段关键词只匹配当前项名称，避免搜索 `src` 时把 `src` 目录下的
-   * app.module.ts 等所有后代误判为独立搜索结果。
-   *
-   * 包含 `/` 的关键词允许搜索路径片段，但命中范围必须延伸到当前项名称：
-   * - `src/modules` 可以命中 modules 文件夹；
-   * - `modules/app` 可以命中 src/modules/app.module.ts；
-   * - `src` 不会仅因为文件位于 src 目录内就命中 app.module.ts。
-   */
-  const isFileNameSearchResultMatched = (item: DirChild, query: string, searchRootPath: string) => {
-    const normalizedQuery = normalizeFileNameSearchValue(query);
-
-    if (!normalizedQuery) {
-      return false;
-    }
-
-    const normalizedName = normalizeFileNameSearchValue(item.name);
-
-    if (normalizedName.includes(normalizedQuery)) {
-      return true;
-    }
-
-    if (!normalizedQuery.includes('/')) {
-      return false;
-    }
-
-    const relativePath = getFileNameSearchRelativePath(item, searchRootPath);
-    const currentNameStartIndex = relativePath.lastIndexOf('/') + 1;
-    let matchIndex = relativePath.indexOf(normalizedQuery);
-
-    while (matchIndex !== -1) {
-      if (matchIndex + normalizedQuery.length > currentNameStartIndex) {
-        return true;
-      }
-
-      matchIndex = relativePath.indexOf(normalizedQuery, matchIndex + 1);
-    }
-
-    return false;
-  };
-
-  const renderDiagnosticsBadge = (item: any) => {
-    const diagnostics = getDiagnosticSummary(item);
-
-    if (!diagnostics.errors && !diagnostics.warnings) {
-      return null;
-    }
-
-    return (
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          marginLeft: 6,
-          flexShrink: 0,
-          fontSize: 11,
-          lineHeight: '14px',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-        title={getDiagnosticsTitle(item)}
-      >
-        {diagnostics.errors > 0 && (
-          <span
-            style={{
-              minWidth: 14,
-              height: 14,
-              padding: '0 4px',
-              boxSizing: 'border-box',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 999,
-              color: 'var(--vscode-editorError-foreground)',
-              background: 'color-mix(in srgb, var(--vscode-editorError-foreground) 18%, transparent)',
-            }}
-          >
-            {diagnostics.errors}
-          </span>
-        )}
-
-        {diagnostics.warnings > 0 && (
-          <span
-            style={{
-              minWidth: 14,
-              height: 14,
-              padding: '0 4px',
-              boxSizing: 'border-box',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              borderRadius: 999,
-              color: 'var(--vscode-editorWarning-foreground)',
-              background: 'color-mix(in srgb, var(--vscode-editorWarning-foreground) 18%, transparent)',
-            }}
-          >
-            {diagnostics.warnings}
-          </span>
-        )}
-      </span>
-    );
-  };
-
-  const getFallbackProjectName = (pathValue: string) => {
-    const clean = decodeURIComponent(pathValue.split('?')[0]).replace(/\\/g, '/');
-    const parts = clean.split('/').filter(Boolean);
-
-    return parts[parts.length - 1] || '未知项目';
-  };
-
-  const isPathInside = (childPath: string, parentPath: string) => {
-    if (!childPath || !parentPath) return false;
-
-    const child = childPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
-    const parent = parentPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
-    const parentWithSlash = parent.endsWith('/') ? parent : `${parent}/`;
-
-    return child === parent || child.startsWith(parentWithSlash);
-  };
-
-  // const isPathDescendant = (childPath: string, parentPath: string) => {
-  //   if (!childPath || !parentPath) return false;
-
-  //   const child = childPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
-  //   const parent = parentPath.split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
-  //   const parentWithSlash = parent.endsWith('/') ? parent : `${parent}/`;
-
-  //   return child.startsWith(parentWithSlash);
-  // };
-
-  const cacheNormalDirChildrenBeforeFocus = (rootPath: string) => {
-    const snapshot: Record<string, DirChild[]> = {};
-    Object.keys(dirChildrenRef.current).forEach((key) => {
-      if (isPathInside(key, rootPath)) {
-        snapshot[key] = dirChildrenRef.current[key];
-      }
-    });
-    normalDirChildrenBeforeFocusRef.current = snapshot;
-  };
-
-  const getProjectNameByPath = (pathValue: string) => {
-    if (isFocusModeRef.current && focusRootPathRef.current && isPathInside(pathValue, focusRootPathRef.current)) {
-      return focusRootNameRef.current || getFallbackProjectName(focusRootPathRef.current);
-    }
-
-    const currentWorkspaceValue = currentWorkspaceRef.current;
-
-    if (currentWorkspaceValue && isPathInside(pathValue, currentWorkspaceValue.fsPath)) {
-      return currentWorkspaceValue.customName || currentWorkspaceValue.name || getFallbackProjectName(currentWorkspaceValue.fsPath);
-    }
-
-    const project = projectsRef.current.find((item) => isPathInside(pathValue, item.fsPath));
-
-    return project?.customName || project?.name || getFallbackProjectName(pathValue);
-  };
-
-  const collapseAllFolders = (options?: { clearChildren?: boolean }) => {
-    /**
-     * 收起所有文件夹后，短时间内忽略自动 revealPath。
-     *
-     * 原因：
-     * - 退出专注模式 / 切换分支刷新时，会主动收起所有目录；
-     * - VS Code 当前激活编辑器或“在项目中定位”的自动同步，可能马上再发 revealPath；
-     * - revealPath 会把父级目录重新展开，导致外面的当前项目又被打开。
-     */
-    collapseRevealGuardUntilRef.current = Date.now() + 800;
-
-    const emptyExpandedPaths = new Set<string>();
-    const emptyLoadingPaths = new Set<string>();
-
-    expandedPathsRef.current = emptyExpandedPaths;
-    autoScrollTarget.current = null;
-
-    setExpandedPaths(emptyExpandedPaths);
-    setLoadingPaths(emptyLoadingPaths);
-
-    if (options?.clearChildren !== false) {
-      const emptyChildren: Record<string, DirChild[]> = {};
-
-      dirChildrenRef.current = emptyChildren;
-      normalDirChildrenBeforeFocusRef.current = {};
-      setDirChildren(emptyChildren);
-    }
-  };
-
-  const enterFocusMode = (
-    payload: ContextMenuPayload,
-    options?: {
-      targetPath?: string;
-      title?: string;
-      locked?: boolean;
-    },
-  ) => {
-    const currentWorkspaceValue = currentWorkspaceRef.current;
-    const targetPath = options?.targetPath || currentWorkspaceValue?.fsPath || payload.path;
-    const title = options?.title || currentWorkspaceValue?.customName || currentWorkspaceValue?.name || payload.customName || payload.originalName || payload.name || '当前项目';
-
-    if (!targetPath) {
-      return;
-    }
-
-    cacheNormalDirChildrenBeforeFocus(targetPath);
-
-    const focusRefreshPaths = Array.from(new Set([targetPath, ...Array.from(expandedPathsRef.current).filter((itemPath) => !!itemPath && isPathInside(itemPath, targetPath))]));
-
-    const nextSearchTargetProject: ContextMenuPayload = {
-      ...payload,
-      path: targetPath,
-      name: title,
-      projectName: title,
-      isActiveProject: true,
-    };
-
-    isSearchModeRef.current = true;
-    isFocusModeRef.current = true;
-    isFocusLockedRef.current = !!options?.locked;
-    focusRootPathRef.current = targetPath;
-    focusRootNameRef.current = title;
-    searchTargetProjectRef.current = nextSearchTargetProject;
-
-    setSearchTargetProject(nextSearchTargetProject);
-    setIsSearchMode(true);
-    setIsFocusMode(true);
-    setIsFocusLocked(!!options?.locked);
-    setFocusRootPath(targetPath);
-    setFocusRootName(title);
-    setFolderSearchQuery('');
-    setFolderSearchResults([]);
-    setFolderSearchTotalMatches(0);
-    setFileNameSearchResults([]);
-    setFolderSearchError('');
-    setCurrentActiveMatch(0);
-
-    setExpandedPaths((prev) => {
-      const next = new Set(prev);
-      next.add(targetPath);
-      return next;
-    });
-
-    setLoadingPaths((prev) => {
-      const next = new Set(prev);
-
-      focusRefreshPaths.forEach((itemPath) => {
-        next.add(itemPath);
-      });
-
-      return next;
-    });
-
-    focusRefreshPaths.forEach((itemPath) => {
-      vscode.postMessage({
-        type: 'readFocusDir',
-        fsPath: itemPath,
-        projectName: title,
-        focusOnly: true,
-        forceRefresh: true,
-      });
-    });
-  };
-
-  const lockCurrentFocusMode = () => {
-    if (!isFocusModeRef.current || isFocusLockedRef.current) {
-      return;
-    }
-
-    const targetPath = focusRootPathRef.current;
-    const title = focusRootNameRef.current || getProjectNameByPath(targetPath) || '当前项目';
-
-    if (!targetPath) {
-      return;
-    }
-
-    isFocusLockedRef.current = true;
-    setIsFocusLocked(true);
-
-    vscode.postMessage({
-      type: 'setFocusLock',
-      fsPath: targetPath,
-      name: title,
-    });
-  };
-
-  const exitLockedFocusMode = () => {
-    if (!isFocusLockedRef.current) {
-      exitSearchOrFocusMode();
-      return;
-    }
-
-    /**
-     * 锁定模式退出确认必须用 VS Code 原生二次确认弹窗。
-     * Webview 里的 window.confirm 在 VS Code 中表现不稳定，也不是 VS Code 风格。
-     */
-    vscode.postMessage({
-      type: 'confirmExitFocusLock',
-    });
-  };
-
-  const { lineStartIndexMap, totalMatches, flatMatchesList } = useMemo(() => {
-    const map = new Map<string, number>();
-    const list: {
-      fileIndex: number;
-      matchIndex: number;
-      lineGlobalIndex: number;
-      fullPath: string;
-      lineNum: number;
-    }[] = [];
-
-    let idx = 0;
-
-    if (!folderSearchQuery || folderSearchType === 'name') {
-      return {
-        lineStartIndexMap: map,
-        totalMatches: 0,
-        flatMatchesList: list,
-      };
-    }
-
-    const safeQuery = folderSearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`(${safeQuery})`, 'gi');
-
-    folderSearchResults.forEach((res, fileIndex) => {
-      const fileMatchCount = Number((res as any).matchCount || (res as any).totalMatches) || 0;
-      let fileLineCount = 0;
-      let fileOccurrenceCount = 0;
-
-      res.matches.forEach((m: SearchMatch, matchIndex: number) => {
-        const startIdx = idx;
-        map.set(`${fileIndex}-${matchIndex}`, startIdx);
-
-        const responseMatchCount = Number((m as any).count) || 0;
-        let occurrencesCount = 0;
-
-        if (responseMatchCount > 0) {
-          occurrencesCount = responseMatchCount;
-        } else {
-          const parts = m.text.split(regex);
-
-          parts.forEach((part: string) => {
-            if (part.toLowerCase() === folderSearchQuery.toLowerCase()) {
-              occurrencesCount++;
-            }
-          });
-        }
-
-        const count = Math.max(1, occurrencesCount);
-
-        fileLineCount++;
-        fileOccurrenceCount += count;
-
-        for (let k = 0; k < count; k++) {
-          list.push({
-            fileIndex,
-            matchIndex,
-            lineGlobalIndex: startIdx,
-            fullPath: res.fullPath,
-            lineNum: m.line,
-          });
-        }
-
-        idx += count;
-      });
-
-      /**
-       * 兜底：
-       * 如果后端返回了文件级总匹配数，但 matches[].count 没有被旧前端/旧数据带上，
-       * 这里把差额补到最后一行，避免顶部总数仍然停留在“命中行数”。
-       */
-      const missingCount = fileMatchCount > fileOccurrenceCount ? fileMatchCount - fileOccurrenceCount : 0;
-      const lastMatchIndex = Math.max(0, fileLineCount - 1);
-
-      for (let k = 0; k < missingCount; k++) {
-        list.push({
-          fileIndex,
-          matchIndex: lastMatchIndex,
-          lineGlobalIndex: idx,
-          fullPath: res.fullPath,
-          lineNum: res.matches[lastMatchIndex]?.line || 1,
-        });
-
-        idx++;
-      }
-    });
-
-    const responseTotalMatches = Number(folderSearchTotalMatches) || 0;
-    const safeTotalMatches = Math.max(idx, responseTotalMatches);
-
-    return {
-      lineStartIndexMap: map,
-      totalMatches: safeTotalMatches,
-      flatMatchesList: list,
-    };
-  }, [folderSearchResults, folderSearchQuery, folderSearchType, folderSearchTotalMatches]);
-
-  const requestSilentFolderSearchRefresh = () => {
-    if (!isSearchModeRef.current) return;
-    if (!searchTargetProjectRef.current) return;
-    if (!folderSearchQueryRef.current.trim()) return;
-
-    silentSearchRefreshRef.current = true;
-    setSearchRefreshVersion((prev) => prev + 1);
-  };
-
-  const isChangedPathRelatedToCurrentSearch = (changedPaths: string[]) => {
-    const searchTarget = searchTargetProjectRef.current;
-
-    if (!searchTarget?.path) {
-      return false;
-    }
-
-    const normalizedTarget = normalizePatchPath(searchTarget.path);
-
-    return changedPaths.some((itemPath) => {
-      const normalizedChangedPath = normalizePatchPath(itemPath);
-
-      if (!normalizedChangedPath) {
-        return false;
-      }
-
-      if (normalizedTarget && (normalizedChangedPath === normalizedTarget || normalizedChangedPath.startsWith(`${normalizedTarget}/`))) {
-        return true;
-      }
-
-      return folderSearchResultsRef.current.some((item) => {
-        const resultPath = normalizePatchPath(item.fullPath || item.file || '');
-
-        return !!resultPath && resultPath === normalizedChangedPath;
-      });
-    });
-  };
-
-  const replaceDirectoryChildren = (pathKey: string, children: DirChild[]) => {
-    const previousChildren = dirChildrenRef.current[pathKey] || [];
-    const currentChildPaths = new Set(children.map((child) => normalizePatchPath(child.path)));
-    const removedFolderPaths = previousChildren
-      .filter((child) => child.isFolder && !currentChildPaths.has(normalizePatchPath(child.path)))
-      .map((child) => child.path);
-    const next = {
-      ...dirChildrenRef.current,
-      [pathKey]: children,
-    };
-
-    if (removedFolderPaths.length > 0) {
-      Object.keys(next).forEach((cachedPath) => {
-        if (removedFolderPaths.some((removedPath) => isPathInside(cachedPath, removedPath))) {
-          delete next[cachedPath];
-        }
-      });
-
-      setExpandedPaths((prev) => {
-        const nextExpanded = new Set(prev);
-
-        Array.from(nextExpanded).forEach((expandedPath) => {
-          if (removedFolderPaths.some((removedPath) => isPathInside(expandedPath, removedPath))) {
-            nextExpanded.delete(expandedPath);
-          }
-        });
-
-        expandedPathsRef.current = nextExpanded;
-        return nextExpanded;
-      });
-
-      setLoadingPaths((prev) => {
-        const nextLoading = new Set(prev);
-
-        Array.from(nextLoading).forEach((loadingPath) => {
-          if (removedFolderPaths.some((removedPath) => isPathInside(loadingPath, removedPath))) {
-            nextLoading.delete(loadingPath);
-          }
-        });
-
-        return nextLoading;
-      });
-    }
-
-    dirChildrenRef.current = next;
-    setDirChildren(next);
-  };
-
   useEffect(() => {
-    const handleMessage = (e: MessageEvent) => {
-      const msg = e.data as Record<string, unknown>;
-
-      if (msg.type === 'updateProjects') {
-        const data = (msg.data as Project[]) || [];
-        const currentWorkspaceValue = (msg.currentWorkspace as Project) || null;
-        const focusLock =
-          (msg.focusLock as {
-            enabled?: boolean;
-            active?: boolean;
-            fsPath?: string;
-            name?: string;
-          }) || null;
-
-        projectsRef.current = data;
-        currentWorkspaceRef.current = currentWorkspaceValue;
-
-        setProjects(data);
-        setCurrentUri((msg.currentUriStr as string) || '');
-        setLastOpenedPath((msg.lastOpenedPath as string) || '');
-        setCurrentWorkspace(currentWorkspaceValue);
-        setIsInitLoading(false);
-
-        if (msg.activeFilePath) {
-          const activeFilePath = msg.activeFilePath as string;
-
-          activeFilePathRef.current = activeFilePath;
-          selectedPathRef.current = activeFilePath;
-          setSelectedPath(activeFilePath);
-        }
-
-        if (focusLock?.enabled && focusLock.active && currentWorkspaceValue?.fsPath) {
-          setIsFocusLocked(true);
-          isFocusLockedRef.current = true;
-
-          if (!isFocusModeRef.current && !searchReturnStateRef.current) {
-            enterFocusMode(
-              {
-                path: currentWorkspaceValue.fsPath,
-                name: focusLock.name || currentWorkspaceValue.name,
-                projectName: focusLock.name || currentWorkspaceValue.name,
-                originalName: currentWorkspaceValue.name,
-                customName: currentWorkspaceValue.customName,
-                isActiveProject: true,
-                isRemote: currentWorkspaceValue.fsPath.startsWith('vscode-vfs://') || currentWorkspaceValue.fsPath.startsWith('http'),
-              },
-              {
-                targetPath: currentWorkspaceValue.fsPath,
-                title: focusLock.name || currentWorkspaceValue.customName || currentWorkspaceValue.name || '当前项目',
-                locked: true,
-              },
-            );
-          }
-        } else if (!isFocusModeRef.current) {
-          setIsFocusLocked(false);
-          isFocusLockedRef.current = false;
-        }
-
-        setBranchMap((prev) => {
-          const newMap = { ...prev };
-          const validPaths = new Set(data.map((p) => p.fsPath));
-
-          if (msg.currentUriStr) {
-            validPaths.add(msg.currentUriStr as string);
-          }
-
-          Object.keys(newMap).forEach((key) => {
-            if (!validPaths.has(key)) {
-              delete newMap[key];
-            }
-          });
-
-          data.forEach((p: Project) => {
-            if (p.branch) {
-              newMap[p.fsPath] = p.branch;
-            }
-          });
-
-          return newMap;
-        });
-      } else if (msg.type === 'metadataPatch') {
-        const items = (msg.items as MetadataPatchItem[]) || [];
-        const patchMap = new Map<string, MetadataPatchItem>();
-
-        items.forEach((item) => {
-          const key = normalizePatchPath(item.path);
-
-          if (key) {
-            patchMap.set(key, item);
-          }
-        });
-
-        if (patchMap.size === 0) return;
-
-        setProjects((prev) => prev.map((project) => applyMetadataPatchToItem(project as any, patchMap) as Project));
-        setCurrentWorkspace((prev) => (prev ? (applyMetadataPatchToItem(prev as any, patchMap) as Project) : prev));
-        setFileNameSearchResults((prev) => prev.map((item) => applyMetadataPatchToItem(item as any, patchMap) as DirChild));
-        setFolderSearchResults((prev) => prev.map((item) => applyMetadataPatchToItem(item as any, patchMap) as SearchResult));
-        setDirChildren((prev) => {
-          const next: Record<string, DirChild[]> = {};
-
-          Object.keys(prev).forEach((key) => {
-            next[key] = prev[key].map((item) => applyMetadataPatchToItem(item as any, patchMap) as DirChild);
-          });
-
-          return next;
-        });
-      } else if (msg.type === 'focusLockExitConfirmed') {
-        isFocusLockedRef.current = false;
-        setIsFocusLocked(false);
-        exitSearchOrFocusMode();
-      } else if (msg.type === 'collapseAllDirs') {
-        if (isFocusModeRef.current && focusRootPathRef.current) {
-          const targetPath = focusRootPathRef.current;
-          const targetTitle = focusRootNameRef.current || getProjectNameByPath(targetPath) || '当前项目';
-          const nextExpandedPaths = new Set([targetPath]);
-          const nextLoadingPaths = new Set([targetPath]);
-
-          collapseRevealGuardUntilRef.current = Date.now() + 800;
-          expandedPathsRef.current = nextExpandedPaths;
-
-          setExpandedPaths(nextExpandedPaths);
-          setLoadingPaths(nextLoadingPaths);
-
-          if ((msg as any).clearChildren !== false) {
-            const nextDirChildren: Record<string, DirChild[]> = {};
-
-            dirChildrenRef.current = nextDirChildren;
-            normalDirChildrenBeforeFocusRef.current = {};
-            setDirChildren(nextDirChildren);
-          }
-
-          requestReadDir(targetPath, targetTitle, true);
-          return;
-        }
-
-        collapseAllFolders({
-          clearChildren: (msg as any).clearChildren !== false,
-        });
-      } else if (msg.type === 'activeEditorChanged') {
-        const activeFilePath = msg.fsPath as string;
-
-        activeFilePathRef.current = activeFilePath;
-        selectedPathRef.current = activeFilePath;
-        setSelectedPath(activeFilePath);
-      } else if (msg.type === 'beginCreateFileInFocusMode') {
-        beginCreateEntityFromFocusSelection('file');
-      } else if (msg.type === 'beginCreateFolderInFocusMode') {
-        beginCreateEntityFromFocusSelection('folder');
-      } else if (msg.type === 'pendingCreateBlurConfirmResult') {
-        handlePendingCreateBlurConfirmResult(msg.action as string);
-      } else if (msg.type === 'pendingRenameBlurConfirmResult') {
-        handlePendingRenameBlurConfirmResult(msg.action as string);
-      } else if (msg.type === 'searchContentChanged') {
-        const changedPaths = ((msg.paths as string[]) || []).filter(Boolean);
-
-        if (changedPaths.length > 0 && folderSearchTypeRef.current === 'content' && isChangedPathRelatedToCurrentSearch(changedPaths)) {
-          requestSilentFolderSearchRefresh();
-        }
-      } else if (msg.type === 'updateBranchTag') {
-        setBranchMap((prev) => ({
-          ...prev,
-          [msg.fsPath as string]: msg.branch as string,
-        }));
-      } else if (msg.type === 'readDirResult') {
-        const pathKey = msg.fsPath as string;
-        const children = (msg.children as DirChild[]) || [];
-        const focusOnly = !!msg.focusOnly;
-
-        setLoadingPaths((prev) => {
-          const n = new Set(prev);
-          n.delete(pathKey);
-          return n;
-        });
-
-        if (focusOnly) {
-          if (!isFocusModeRef.current || !focusRootPathRef.current || !isPathInside(pathKey, focusRootPathRef.current)) {
-            return;
-          }
-
-          replaceDirectoryChildren(pathKey, children);
-          continueRecursiveFolderExpand(pathKey, children);
-
-          return;
-        }
-
-        replaceDirectoryChildren(pathKey, children);
-        continueRecursiveFolderExpand(pathKey, children);
-      } else if (msg.type === 'deleteFileEntityResult') {
-        const deletedPath = msg.fsPath as string;
-        const parentPath = msg.parentPath as string;
-
-        setExpandedPaths((prev) => {
-          const next = new Set(prev);
-
-          Array.from(next).forEach((itemPath) => {
-            if (isPathInside(itemPath, deletedPath)) {
-              next.delete(itemPath);
-            }
-          });
-
-          return next;
-        });
-
-        setLoadingPaths((prev) => {
-          const next = new Set(prev);
-
-          Array.from(next).forEach((itemPath) => {
-            if (isPathInside(itemPath, deletedPath)) {
-              next.delete(itemPath);
-            }
-          });
-
-          return next;
-        });
-
-        setDirChildren((prev) => {
-          const next = { ...prev };
-
-          Object.keys(next).forEach((key) => {
-            if (isPathInside(key, deletedPath)) {
-              delete next[key];
-            }
-          });
-
-          if (next[parentPath]) {
-            next[parentPath] = next[parentPath].filter((item) => !isPathInside(item.path, deletedPath));
-          }
-
-          return next;
-        });
-
-        setSelectedPath((prev) => {
-          if (isPathInside(prev, deletedPath)) {
-            return parentPath;
-          }
-
-          return prev;
-        });
-      } else if (msg.type === 'createFileEntityResult' || msg.type === 'createFolderEntityResult') {
-        const createdPath = msg.fsPath as string;
-        const parentPath = msg.parentPath as string;
-        const createdFolder = msg.type === 'createFolderEntityResult';
-
-        setPendingCreateEntity(null);
-        setPendingCreateName('');
-        setSelectedPath(createdPath);
-        setExpandedPaths((prev) => {
-          const next = new Set(prev);
-
-          if (createdFolder) {
-            Array.from(next).forEach((itemPath) => {
-              if (isPathInside(itemPath, createdPath)) {
-                next.delete(itemPath);
-              }
-            });
-          }
-
-          next.add(parentPath);
-          expandedPathsRef.current = next;
-          return next;
-        });
-        setLoadingPaths((prev) => {
-          const next = new Set(prev);
-
-          if (createdFolder) {
-            Array.from(next).forEach((itemPath) => {
-              if (isPathInside(itemPath, createdPath)) {
-                next.delete(itemPath);
-              }
-            });
-          }
-
-          next.add(parentPath);
-          return next;
-        });
-        setDirChildren((prev) => {
-          if (!createdFolder) return prev;
-
-          const next = { ...prev };
-
-          Object.keys(next).forEach((pathKey) => {
-            if (isPathInside(pathKey, createdPath)) {
-              delete next[pathKey];
-            }
-          });
-
-          dirChildrenRef.current = next;
-          return next;
-        });
-
-        vscode.postMessage({
-          type: 'readDir',
-          fsPath: parentPath,
-          projectName: getProjectNameByPath(parentPath),
-          forceRefresh: true,
-        });
-      } else if (msg.type === 'renameFileEntityResult') {
-        const sourcePath = msg.sourcePath as string;
-        const targetPath = msg.targetPath as string;
-        const parentPath = msg.parentPath as string;
-        const targetName = msg.name as string;
-
-        setPendingRenameEntity(null);
-        setPendingRenameName('');
-        setSelectedPath(targetPath);
-
-        setExpandedPaths((prev) => {
-          const next = new Set<string>();
-
-          prev.forEach((itemPath) => {
-            if (isSameTreePath(itemPath, sourcePath)) {
-              next.add(targetPath);
-              return;
-            }
-
-            if (isPathInside(itemPath, sourcePath)) {
-              return;
-            }
-
-            next.add(itemPath);
-          });
-
-          next.add(parentPath);
-          return next;
-        });
-
-        setDirChildren((prev) => {
-          const next = { ...prev };
-
-          Object.keys(next).forEach((key) => {
-            if (isPathInside(key, sourcePath)) {
-              delete next[key];
-            }
-          });
-
-          if (next[parentPath]) {
-            next[parentPath] = next[parentPath].map((item) => {
-              if (item.path !== sourcePath) {
-                return item;
-              }
-
-              return {
-                ...item,
-                path: targetPath,
-                name: targetName || item.name,
-              };
-            });
-          }
-
-          return next;
-        });
-
-        setLoadingPaths((prev) => new Set(prev).add(parentPath));
-        vscode.postMessage({
-          type: 'readDir',
-          fsPath: parentPath,
-          projectName: getProjectNameByPath(parentPath),
-          forceRefresh: true,
-        });
-      } else if (msg.type === 'moveFileEntityResult') {
-        const sourcePath = msg.sourcePath as string;
-        const targetPath = msg.targetPath as string;
-        const oldParentPath = msg.oldParentPath as string;
-        const targetParentPath = msg.targetParentPath as string;
-
-        setDraggingEntity(null);
-        setDragOverPath('');
-        setInvalidDragOverPath('');
-        setSelectedPath(targetPath);
-
-        setExpandedPaths((prev) => {
-          const next = new Set(prev);
-
-          Array.from(next).forEach((itemPath) => {
-            if (isPathInside(itemPath, sourcePath)) {
-              next.delete(itemPath);
-            }
-          });
-
-          next.add(targetParentPath);
-          return next;
-        });
-
-        setDirChildren((prev) => {
-          const next = { ...prev };
-
-          Object.keys(next).forEach((key) => {
-            if (isPathInside(key, sourcePath)) {
-              delete next[key];
-            }
-          });
-
-          if (next[oldParentPath]) {
-            next[oldParentPath] = next[oldParentPath].filter((item) => item.path !== sourcePath);
-          }
-
-          return next;
-        });
-
-        [oldParentPath, targetParentPath].forEach((pathValue) => {
-          if (!pathValue) return;
-
-          setLoadingPaths((prev) => new Set(prev).add(pathValue));
-          vscode.postMessage({
-            type: 'readDir',
-            fsPath: pathValue,
-            projectName: getProjectNameByPath(pathValue),
-            forceRefresh: true,
-          });
-        });
-      } else if (msg.type === 'refreshExpandedDirs') {
-        requestSilentFolderSearchRefresh();
-
-        const candidatePaths = Array.from(
-          new Set([...(isFocusModeRef.current && focusRootPathRef.current ? [focusRootPathRef.current] : []), ...Array.from(expandedPathsRef.current)]),
-        );
-        const expandedList = candidatePaths.filter((itemPath) => {
-          if (!itemPath) return false;
-
-          const isFocusRoot = isFocusModeRef.current && focusRootPathRef.current && isSameTreePath(itemPath, focusRootPathRef.current);
-
-          if (isFocusRoot) {
-            return true;
-          }
-
-          const hasParentLoaded = Object.keys(dirChildrenRef.current).some((parentPath) => {
-            const children = dirChildrenRef.current[parentPath] || [];
-
-            return children.some((child) => child.path === itemPath);
-          });
-
-          const isRootProject = projectsRef.current.some((project) => project.fsPath === itemPath);
-          const isCurrentWorkspaceRoot = currentWorkspaceRef.current?.fsPath === itemPath;
-
-          return hasParentLoaded || isRootProject || isCurrentWorkspaceRoot;
-        });
-
-        if (expandedList.length === 0) {
-          return;
-        }
-
-        setLoadingPaths((prev) => {
-          const next = new Set(prev);
-          const forceRefresh = (msg as any).forceRefresh !== false;
-
-          expandedList.forEach((itemPath) => {
-            if (forceRefresh || !dirChildrenRef.current[itemPath]) {
-              next.add(itemPath);
-            }
-          });
-
-          return next;
-        });
-
-        expandedList.forEach((itemPath) => {
-          requestReadDir(itemPath, getProjectNameByPath(itemPath), true);
-        });
-      } else if (msg.type === 'searchFolderResult') {
-        if (typeof msg.requestId === 'number' && msg.requestId !== activeSearchRequestIdRef.current) {
-          return;
-        }
-
-        const responseMode = pendingSearchResponseModeRef.current;
-        const isDone = msg.done !== false;
-        const shouldReset = Boolean(msg.reset);
-        const shouldAppend = Boolean(msg.append);
-        const incomingResults = (msg.results as SearchResult[]) || [];
-
-        if (msg.error) {
-          setFolderSearchError(msg.error as string);
-          setFolderSearchResults([]);
-          setFolderSearchTotalMatches(0);
-          pendingSilentResultsRef.current.results = [];
-        } else if (responseMode === 'silent') {
-          setFolderSearchError('');
-          if (isDone) {
-            const accumulated = mergeContentSearchResults(pendingSilentResultsRef.current.results, incomingResults);
-            setFolderSearchResults(accumulated);
-            setFolderSearchTotalMatches(Number((msg as any).totalMatches) || 0);
-            pendingSilentResultsRef.current.results = [];
-            pendingSearchResponseModeRef.current = 'normal';
-            setIsSearchingFolder(false);
-          } else {
-            pendingSilentResultsRef.current.results = mergeContentSearchResults(pendingSilentResultsRef.current.results, incomingResults);
-          }
-        } else {
-          setFolderSearchError('');
-          setFolderSearchResults((prev) => {
-            if (shouldReset) return mergeContentSearchResults([], incomingResults);
-            if (shouldAppend) return mergeContentSearchResults(prev, incomingResults);
-
-            return mergeContentSearchResults([], incomingResults);
-          });
-          setFolderSearchTotalMatches(Number((msg as any).totalMatches) || 0);
-
-          if (shouldReset) {
-            setCurrentActiveMatch(0);
-          }
-        }
-
-        if (isDone && responseMode !== 'silent') {
-          pendingSearchResponseModeRef.current = 'normal';
-          setIsSearchingFolder(false);
-        }
-      } else if (msg.type === 'searchFileNameResult') {
-        if (typeof msg.requestId === 'number' && msg.requestId !== activeSearchRequestIdRef.current) {
-          return;
-        }
-
-        const responseMode = pendingSearchResponseModeRef.current;
-        const isDone = msg.done !== false;
-        const shouldReset = Boolean(msg.reset);
-        const shouldAppend = Boolean(msg.append);
-        const searchQuery = folderSearchQueryRef.current;
-        const searchRootPath = searchTargetProjectRef.current?.path || '';
-        const incomingResults = ((msg.results as DirChild[]) || []).filter((item) => {
-          return isFileNameSearchResultMatched(item, searchQuery, searchRootPath);
-        });
-
-        if (msg.error) {
-          setFolderSearchError(msg.error as string);
-          setFileNameSearchResults([]);
-          pendingSilentResultsRef.current.fileNameResults = [];
-        } else if (responseMode === 'silent') {
-          setFolderSearchTotalMatches(0);
-          setFolderSearchError('');
-          if (isDone) {
-            const accumulated = mergeFileNameSearchResults(pendingSilentResultsRef.current.fileNameResults, incomingResults);
-            setFileNameSearchResults(accumulated);
-            pendingSilentResultsRef.current.fileNameResults = [];
-            pendingSearchResponseModeRef.current = 'normal';
-            setIsSearchingFolder(false);
-          } else {
-            pendingSilentResultsRef.current.fileNameResults = mergeFileNameSearchResults(pendingSilentResultsRef.current.fileNameResults, incomingResults);
-          }
-        } else {
-          setFolderSearchTotalMatches(0);
-          setFolderSearchError('');
-          setFileNameSearchResults((prev) => {
-            if (shouldReset) return mergeFileNameSearchResults([], incomingResults);
-            if (shouldAppend) return mergeFileNameSearchResults(prev, incomingResults);
-
-            return mergeFileNameSearchResults([], incomingResults);
-          });
-        }
-
-        if (isDone && responseMode !== 'silent') {
-          pendingSearchResponseModeRef.current = 'normal';
-          setIsSearchingFolder(false);
-        }
-      } else if (msg.type === 'revealPath') {
-        /**
-         * 刚刚执行过“收起所有文件夹”时，不允许自动 revealPath 重新展开外层项目。
-         * 这样退出专注模式后，会保持截图 2 那种所有项目都收起的状态。
-         */
-        if (!isSearchModeRef.current && Date.now() < collapseRevealGuardUntilRef.current) {
-          return;
-        }
-
-        const { targetPath, parentPaths, projectName } = msg as any;
-
-        activeFilePathRef.current = targetPath;
-        selectedPathRef.current = targetPath;
-        setSelectedPath(targetPath);
-        autoScrollTarget.current = targetPath;
-
-        /**
-         * “在项目中定位”：
-         * - 普通搜索模式下，主项目树 DOM 不在当前视图，需要先退出搜索视图。
-         * - 专注模式下，目标文件就在专注树里，不能退出专注模式，只滚动当前专注树。
-         */
-        if (isSearchModeRef.current && !isFocusModeRef.current) {
-          isSearchModeRef.current = false;
-          exitSearchOrFocusMode();
-        }
-
-        setExpandedPaths((prev) => {
-          const next = new Set(prev);
-          parentPaths.forEach((p: string) => next.add(p));
-          return next;
-        });
-
-        parentPaths.forEach((p: string) => {
-          if (!dirChildrenRef.current[p]) {
-            setLoadingPaths((l) => new Set(l).add(p));
-            vscode.postMessage({
-              type: 'readDir',
-              fsPath: p,
-              projectName,
-            });
-          }
-        });
-
-        [0, 80, 180, 360, 700].forEach((delay) => {
-          window.setTimeout(() => {
-            scrollTreeNodeIntoView(targetPath);
-          }, delay);
-        });
+    if (!isResizingBottomPanel) return;
+
+    /**
+     * @description 处理PointerMove
+     */
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isDraggingBottomPanelRef.current) return;
+
+      event.preventDefault();
+
+      const deltaY = dragStartYRef.current - event.clientY;
+      const nextSize = dragStartSizeRef.current + deltaY;
+
+      setSafeBottomPanelSize(nextSize);
+    };
+
+    /**
+     * @description 处理PointerEnd
+     */
+    const handlePointerEnd = () => {
+      stopBottomResize();
+    };
+
+    /**
+     * @description 处理VisibilityChange
+     */
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopBottomResize();
       }
+    };
+
+    /**
+     * @description 处理MouseLeaveWebview
+     */
+    const handleMouseLeaveWebview = () => {
+      stopBottomResize();
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerEnd);
+    window.addEventListener('pointercancel', handlePointerEnd);
+    window.addEventListener('blur', handlePointerEnd);
+
+    document.addEventListener('pointerup', handlePointerEnd);
+    document.addEventListener('pointercancel', handlePointerEnd);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.documentElement.addEventListener('mouseleave', handleMouseLeaveWebview);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
+      window.removeEventListener('blur', handlePointerEnd);
+
+      document.removeEventListener('pointerup', handlePointerEnd);
+      document.removeEventListener('pointercancel', handlePointerEnd);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.documentElement.removeEventListener('mouseleave', handleMouseLeaveWebview);
+    };
+  }, [isResizingBottomPanel, setSafeBottomPanelSize, stopBottomResize]);
+
+  /**
+   * @description 安全设置项目面板宽度
+   */
+  const setSafeWorkspacePaneWidth = useCallback((width: number) => {
+    const nextWidth = clampNumber(width, WORKSPACE_PANE_MIN_WIDTH, WORKSPACE_PANE_MAX_WIDTH);
+
+    workspacePaneWidthRef.current = nextWidth;
+    setWorkspacePaneWidth(nextWidth);
+  }, []);
+
+  /**
+   * @description 停止调整项目面板宽度
+   */
+  const stopWorkspaceResize = useCallback(() => {
+    isDraggingWorkspacePaneRef.current = false;
+    setIsResizingWorkspacePane(false);
+
+    const element = workspaceResizerRef.current;
+    const pointerId = workspaceResizerPointerIdRef.current;
+
+    if (element && pointerId !== null) {
+      try {
+        if (element.hasPointerCapture(pointerId)) {
+          element.releasePointerCapture(pointerId);
+        }
+      } catch {
+        // VS Code Webview 里 pointer capture 偶发不可用，直接忽略即可
+      }
+    }
+
+    workspaceResizerRef.current = null;
+    workspaceResizerPointerIdRef.current = null;
+
+    document.body.style.cursor = bodyCursorRef.current;
+    document.body.style.userSelect = bodyUserSelectRef.current;
+  }, []);
+
+  const stopRightResize = useCallback(() => {
+    isDraggingRightPaneRef.current = false;
+
+    const element = rightResizerRef.current;
+    const pointerId = rightResizerPointerIdRef.current;
+
+    if (element && pointerId !== null) {
+      try {
+        element.releasePointerCapture(pointerId);
+      } catch {
+        // ignore
+      }
+    }
+
+    rightResizerRef.current = null;
+    rightResizerPointerIdRef.current = null;
+
+    document.body.style.cursor = bodyCursorRef.current;
+    document.body.style.userSelect = bodyUserSelectRef.current;
+
+    setIsResizingRightPane(false);
+  }, []);
+
+  /**
+   * @description 处理项目面板拖拽开始事件
+   */
+  const handleWorkspaceResizerPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    dragStartXRef.current = event.clientX;
+    dragStartWidthRef.current = workspacePaneWidthRef.current;
+    isDraggingWorkspacePaneRef.current = true;
+
+    workspaceResizerRef.current = event.currentTarget;
+    workspaceResizerPointerIdRef.current = event.pointerId;
+
+    bodyCursorRef.current = document.body.style.cursor;
+    bodyUserSelectRef.current = document.body.style.userSelect;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // VS Code Webview 里 pointer capture 偶发失败，下面 window/document 监听兜底
+    }
+
+    setIsResizingWorkspacePane(true);
+  }, []);
+
+  const handleRightResizerPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    dragStartXRef.current = event.clientX;
+    dragStartWidthRef.current = rightPaneWidthRef.current;
+    isDraggingRightPaneRef.current = true;
+
+    rightResizerRef.current = event.currentTarget;
+    rightResizerPointerIdRef.current = event.pointerId;
+
+    bodyCursorRef.current = document.body.style.cursor;
+    bodyUserSelectRef.current = document.body.style.userSelect;
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // VS Code Webview pointer capture may fail
+    }
+
+    setIsResizingRightPane(true);
+  }, []);
+
+  /**
+   * @description 监听项目面板拖拽事件
+   */
+  useEffect(() => {
+    if (!isResizingWorkspacePane) return;
+
+    /**
+     * @description 处理PointerMove
+     */
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isDraggingWorkspacePaneRef.current) return;
+
+      event.preventDefault();
+
+      const deltaX = event.clientX - dragStartXRef.current;
+      const nextWidth = dragStartWidthRef.current + deltaX;
+
+      setSafeWorkspacePaneWidth(nextWidth);
+    };
+
+    /**
+     * @description 处理PointerEnd
+     */
+    const handlePointerEnd = () => {
+      stopWorkspaceResize();
+    };
+
+    /**
+     * @description 处理VisibilityChange
+     */
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopWorkspaceResize();
+      }
+    };
+
+    /**
+     * @description 处理MouseLeaveWebview
+     */
+    const handleMouseLeaveWebview = () => {
+      stopWorkspaceResize();
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerEnd);
+    window.addEventListener('pointercancel', handlePointerEnd);
+    window.addEventListener('blur', handlePointerEnd);
+
+    document.addEventListener('pointerup', handlePointerEnd);
+    document.addEventListener('pointercancel', handlePointerEnd);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.documentElement.addEventListener('mouseleave', handleMouseLeaveWebview);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
+      window.removeEventListener('blur', handlePointerEnd);
+
+      document.removeEventListener('pointerup', handlePointerEnd);
+      document.removeEventListener('pointercancel', handlePointerEnd);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.documentElement.removeEventListener('mouseleave', handleMouseLeaveWebview);
+    };
+  }, [isResizingWorkspacePane, setSafeWorkspacePaneWidth, stopWorkspaceResize]);
+
+  /**
+   * @description 监听右侧面板拖拽事件
+   */
+  useEffect(() => {
+    if (!isResizingRightPane) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!isDraggingRightPaneRef.current) return;
+
+      event.preventDefault();
+
+      const deltaX = dragStartXRef.current - event.clientX;
+      const nextWidth = clampNumber(dragStartWidthRef.current + deltaX, RIGHT_PANE_MIN_WIDTH, RIGHT_PANE_MAX_WIDTH);
+
+      rightPaneWidthRef.current = nextWidth;
+      setRightPaneWidth(nextWidth);
+    };
+
+    const handlePointerEnd = () => {
+      stopRightResize();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopRightResize();
+      }
+    };
+
+    const handleMouseLeaveWebview = () => {
+      stopRightResize();
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: false });
+    window.addEventListener('pointerup', handlePointerEnd);
+    window.addEventListener('pointercancel', handlePointerEnd);
+    window.addEventListener('blur', handlePointerEnd);
+
+    document.addEventListener('pointerup', handlePointerEnd);
+    document.addEventListener('pointercancel', handlePointerEnd);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    document.documentElement.addEventListener('mouseleave', handleMouseLeaveWebview);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerEnd);
+      window.removeEventListener('pointercancel', handlePointerEnd);
+      window.removeEventListener('blur', handlePointerEnd);
+
+      document.removeEventListener('pointerup', handlePointerEnd);
+      document.removeEventListener('pointercancel', handlePointerEnd);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.documentElement.removeEventListener('mouseleave', handleMouseLeaveWebview);
+    };
+  }, [isResizingRightPane, stopRightResize]);
+
+  /**
+   * @description 同步当前项目标识引用
+   */
+  useEffect(() => {
+    const target = rightPaneRef.current;
+
+    if (!target) return;
+
+    const observer = new ResizeObserver(() => {
+      setSafeBottomPanelSize(bottomPanelSizeRef.current);
+    });
+
+    observer.observe(target);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [setSafeBottomPanelSize]);
+
+  /**
+   * @description 保存 API 调试工具状态
+   */
+  const saveState = useCallback((nextState?: Partial<PersistedState>) => {
+    if (!loadedStateRef.current) return;
+
+    const state: PersistedState = {
+      globals: globalsRef.current,
+      request: requestRef.current,
+      history: historyRef.current,
+      projects: projectsRef.current,
+      activeProjectId: activeProjectIdRef.current,
+      activeInterfaceId: activeInterfaceIdRef.current,
+      ...nextState,
+    };
+
+    vscode?.postMessage({
+      type: 'saveApiDevToolsState',
+      state,
+    });
+  }, []);
+
+  /**
+   * @description 追加运行日志
+   */
+  const setLog = useCallback((message: string) => {
+    setLogs((prev) => [`${new Date().toLocaleTimeString()} ${message}`, ...prev].slice(0, 20));
+  }, []);
+
+  /**
+   * @description 执行请求前置脚本
+   */
+  const runPreScript = useCallback(
+    (script: string, draft: ApiRequestConfig) => {
+      const code = String(script || '').trim();
+
+      if (!code) return draft;
+
+      try {
+        const mutableRequest = cloneRequest<ApiRequestConfig>(draft);
+        const mutableGlobals = { ...globalVariablesRef.current };
+        const fn = new Function('request', 'globals', 'console', code);
+
+        fn(mutableRequest, mutableGlobals, {
+          log: (...args: unknown[]) => setLog(args.map(String).join(' ')),
+        });
+
+        return mutableRequest;
+      } catch (error: any) {
+        setLog(`前置操作失败：${error?.message || String(error)}`);
+        return draft;
+      }
+    },
+    [setLog],
+  );
+
+  /**
+   * @description 执行响应后置脚本
+   */
+  const runPostScript = useCallback(
+    (script: string, payload: ApiResponsePayload) => {
+      const code = String(script || '').trim();
+
+      if (!code) return;
+
+      try {
+        const fn = new Function('response', 'globals', 'console', code);
+
+        fn(
+          payload,
+          { ...globalVariablesRef.current },
+          {
+            log: (...args: unknown[]) => setLog(args.map(String).join(' ')),
+          },
+        );
+      } catch (error: any) {
+        setLog(`后置操作失败：${error?.message || String(error)}`);
+      }
+    },
+    [setLog],
+  );
+
+  /**
+   * @description 注册 VS Code 消息监听并请求初始化状态
+   */
+  useEffect(() => {
+    vscode?.postMessage({ type: 'apiDevToolsReady' });
+
+    /**
+     * @description 处理 Extension 发送的消息
+     */
+    const handleMessage = (event: MessageEvent) => {
+      const message = event.data;
+
+      if (message?.type === 'apiDevToolsViewTitleAction') {
+        viewTitleActionRef.current(message.action as ApiDevToolsViewTitleAction);
+        return;
+      }
+
+      if (message?.type === 'apiDevToolsState') {
+        const state = normalizePersistedState(message.state);
+
+        loadedStateRef.current = true;
+
+        setGlobals(state.globals.length ? state.globals : createDefaultGlobals());
+        setRequest(state.request);
+        setHistory(state.history || []);
+        setProjects(state.projects || []);
+        setActiveProjectId(state.activeProjectId || state.projects[0]?.id || '');
+        setActiveInterfaceId(state.activeInterfaceId || '');
+        setInitializing(false);
+        return;
+      }
+
+      if (message?.type === 'apiResponse') {
+        const payload = message.payload as ApiResponseMessagePayload;
+
+        if (payload.requestId !== pendingRequestIdRef.current) return;
+
+        const currentRequest = requestRef.current;
+
+        setLoading(false);
+        setResponse(payload);
+        setResponseTab('body');
+
+        if (payload.request) {
+          setRequestDetail(payload.request);
+        }
+
+        const nextHistoryItem: HistoryItem = {
+          id: createId('history'),
+          name: currentRequest.name || currentRequest.url || '未命名请求',
+          method: currentRequest.method,
+          url: payload.url || currentRequest.url,
+          status: payload.status,
+          duration: payload.duration,
+          timestamp: Date.now(),
+          request: cloneRequest<ApiRequestConfig>(currentRequest),
+        };
+
+        setHistory((prev) => {
+          const next = [nextHistoryItem, ...prev].slice(0, 50);
+
+          historyRef.current = next;
+          saveState({ history: next });
+
+          return next;
+        });
+
+        runPostScript(currentRequest.postScript, payload);
+        return;
+      }
+
+      if (message?.type === 'apiDocsShared') {
+        const url = String(message.payload?.url || '');
+        setSharedDocUrl(url);
+        if (url) setLog(`接口文档已开启局域网分享：${url}`);
+        return;
+      }
+
+      if (message?.type === 'apiDocsShareStopped') {
+        setSharedDocUrl('');
+        setLog('已关闭接口文档分享');
+        return;
+      }
+
+      if (message?.type === 'apiDocsExported') {
+        setLog(`接口文档已导出：${message.payload?.path || ''}`);
+        return;
+      }
+
+      if (message?.type === 'floatingEditorStateChanged') {
+        setFloatingEditorOpen(Boolean(message.open));
+        return;
+      }
+
     };
 
     window.addEventListener('message', handleMessage);
-    vscode.postMessage({ type: 'refresh' });
-
-    const handleClickOutside = () => {
-      setContextMenu((prev) => ({
-        ...prev,
-        visible: false,
-      }));
-    };
-
-    window.addEventListener('click', handleClickOutside);
-    window.addEventListener('blur', handleClickOutside);
 
     return () => {
       window.removeEventListener('message', handleMessage);
-      window.removeEventListener('click', handleClickOutside);
-      window.removeEventListener('blur', handleClickOutside);
     };
-    // 这个监听只需要在 Webview 初始化时注册一次，内部读取最新值用 ref 保持同步。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [runPostScript, saveState, setLog]);
 
+  /**
+   * @description 延迟持久化 API 调试工具状态
+   */
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (selectedItemsRef.current.size === 0) return;
-      const target = e.target as HTMLElement;
-      // Don't clear if clicking on a tree item or context menu
-      if (target.closest('[data-tree-path]') || target.closest('[data-base-context-menu-root]')) return;
+    const timer = window.setTimeout(() => {
+      saveState();
+    }, 300);
 
-      const firstPath = Array.from(selectedItemsRef.current)[0];
-      const flatItems = getFocusModeFlatItems();
-      const firstItem = flatItems.find((item) => item.path === firstPath);
-      setSelectedItems(new Set());
-      lastClickedIndexRef.current = -1;
-      if (firstItem) {
-        setSelectedPath(firstItem.path);
-        if (firstItem.isFolder) {
-          setExpandedPaths((prev) => new Set(prev).add(firstItem.path));
-        } else {
-          vscode.postMessage({ type: 'openFile', filePath: firstItem.path });
-        }
-      }
-    };
+    return () => window.clearTimeout(timer);
+  }, [globals, request, history, projects, activeProjectId, activeInterfaceId, saveState]);
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [getFocusModeFlatItems]);
+  /**
+   * @description 局部更新当前请求配置
+   */
+  const patchRequest = (patch: Partial<ApiRequestConfig>) => {
+    setRequest((prev) => {
+      const next = { ...prev, ...patch };
 
-  const findTreeNodeElement = (targetPath: string): HTMLElement | null => {
-    const safeId = `tree-node-${encodeURIComponent(targetPath)}`;
-    const exactElement = document.getElementById(safeId);
+      requestRef.current = next;
 
-    if (exactElement) {
-      return exactElement;
-    }
-
-    const targetKey = normalizePatchPath(targetPath);
-
-    if (!targetKey) {
-      return null;
-    }
-
-    const nodes = Array.from(document.querySelectorAll<HTMLElement>('[data-tree-path]'));
-
-    return (
-      nodes.find((node) => {
-        return normalizePatchPath(node.dataset.treePath || '') === targetKey;
-      }) || null
-    );
-  };
-
-  const getNearestScrollableElement = (element: HTMLElement): HTMLElement | null => {
-    let current = element.parentElement;
-
-    while (current) {
-      const style = window.getComputedStyle(current);
-      const overflowY = style.overflowY;
-      const canScroll = /(auto|scroll|overlay)/.test(overflowY);
-
-      if (canScroll && current.scrollHeight > current.clientHeight) {
-        return current;
-      }
-
-      current = current.parentElement;
-    }
-
-    return null;
-  };
-
-  const scrollElementIntoVisibleArea = (element: HTMLElement) => {
-    const scrollableEl = getNearestScrollableElement(element);
-
-    if (scrollableEl) {
-      const containerRect = scrollableEl.getBoundingClientRect();
-      const elementRect = element.getBoundingClientRect();
-      const isFullyVisible = elementRect.top >= containerRect.top && elementRect.bottom <= containerRect.bottom;
-
-      if (isFullyVisible) {
-        autoScrollTarget.current = null;
-        return;
-      }
-    }
-
-    element.scrollIntoView({
-      behavior: 'auto',
-      block: 'center',
-      inline: 'nearest',
+      return next;
     });
-
-    window.requestAnimationFrame(() => {
-      const scrollableElement = getNearestScrollableElement(element);
-
-      if (!scrollableElement) {
-        return;
-      }
-
-      const containerRect = scrollableElement.getBoundingClientRect();
-      const elementRect = element.getBoundingClientRect();
-      const isVisible = elementRect.top >= containerRect.top && elementRect.bottom <= containerRect.bottom;
-
-      if (isVisible) {
-        return;
-      }
-
-      const nextScrollTop = Math.max(0, scrollableElement.scrollTop + elementRect.top - containerRect.top - (scrollableElement.clientHeight - elementRect.height) / 2);
-
-      scrollableElement.scrollTo({
-        top: nextScrollTop,
-        behavior: 'auto',
-      });
-    });
-  };
-
-  const scrollTreeNodeIntoView = (targetPath: string, retryCount: number = 0) => {
-    if (!targetPath) return;
-
-    if (isSearchModeRef.current && !isFocusModeRef.current) {
-      if (retryCount >= 30) return;
-
-      window.setTimeout(() => {
-        scrollTreeNodeIntoView(targetPath, retryCount + 1);
-      }, 80);
-      return;
-    }
-
-    const el = findTreeNodeElement(targetPath);
-
-    if (!el) {
-      if (retryCount >= 30) return;
-
-      window.setTimeout(() => {
-        scrollTreeNodeIntoView(targetPath, retryCount + 1);
-      }, 80);
-      return;
-    }
-
-    window.requestAnimationFrame(() => {
-      scrollElementIntoVisibleArea(el);
-      autoScrollTarget.current = null;
-    });
-  };
-
-  useEffect(() => {
-    if (isSearchMode && !isFocusMode) {
-      return;
-    }
-
-    if (!autoScrollTarget.current) return;
-
-    scrollTreeNodeIntoView(autoScrollTarget.current);
-    // 这里只响应树展开、搜索/专注视图切换和目录数据变化，scrollTreeNodeIntoView 本身依赖内部 ref。
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expandedPaths, isSearchMode, isFocusMode, dirChildren]);
-
-  useEffect(() => {
-    activeSearchRequestIdRef.current = 0;
-    pendingSilentResultsRef.current = {
-      results: [],
-      fileNameResults: [],
-    };
-
-    vscode.postMessage({
-      type: 'cancelSearch',
-    });
-
-    if (!isSearchMode || !searchTargetProject) {
-      hasFocusSearchQueryRef.current = false;
-      setIsSearchingFolder(false);
-      return;
-    }
-
-    if (!folderSearchQuery.trim()) {
-      setFolderSearchResults([]);
-      setFolderSearchTotalMatches(0);
-      setFileNameSearchResults([]);
-      setFolderSearchError('');
-      setIsSearchingFolder(false);
-      silentSearchRefreshRef.current = false;
-      pendingSearchResponseModeRef.current = 'normal';
-      lastSubmittedSearchKeyRef.current = '';
-      activeSearchRequestIdRef.current = 0;
-
-      if (!isFocusMode || !hasFocusSearchQueryRef.current) {
-        return;
-      }
-
-      const revealTimeoutId = window.setTimeout(() => {
-        if (!isFocusModeRef.current || folderSearchQueryRef.current.trim()) {
-          return;
-        }
-
-        const activeFilePath = activeFilePathRef.current;
-
-        if (!activeFilePath) {
-          return;
-        }
-
-        hasFocusSearchQueryRef.current = false;
-        selectedPathRef.current = activeFilePath;
-        autoScrollTarget.current = activeFilePath;
-        setSelectedPath(activeFilePath);
-
-        vscode.postMessage({
-          type: 'revealCurrentActive',
-          targetPath: activeFilePath,
-        });
-      }, 300);
-
-      return () => {
-        window.clearTimeout(revealTimeoutId);
-      };
-    }
-
-    hasFocusSearchQueryRef.current = isFocusMode;
-
-    const searchKey = [searchTargetProject.path, folderSearchType, folderSearchQuery.trim(), searchTargetProject.isRemote ? 'remote' : 'local'].join('\n');
-    const isSilentRefresh = silentSearchRefreshRef.current && lastSubmittedSearchKeyRef.current === searchKey;
-
-    silentSearchRefreshRef.current = false;
-
-    if (!isSilentRefresh) {
-      setFolderSearchResults([]);
-      setFolderSearchTotalMatches(0);
-      setFileNameSearchResults([]);
-      setFolderSearchError('');
-      setCurrentActiveMatch(0);
-      setIsSearchingFolder(true);
-    }
-
-    const timeoutId = setTimeout(
-      () => {
-        pendingSearchResponseModeRef.current = isSilentRefresh ? 'silent' : 'normal';
-        lastSubmittedSearchKeyRef.current = searchKey;
-
-        const requestId = latestSearchRequestIdRef.current + 1;
-        latestSearchRequestIdRef.current = requestId;
-        activeSearchRequestIdRef.current = requestId;
-
-        if (folderSearchType === 'content') {
-          vscode.postMessage({
-            type: 'searchInFolder',
-            requestId,
-            fsPath: searchTargetProject.path,
-            query: folderSearchQuery,
-            isRemote: searchTargetProject.isRemote,
-            focusOnly: false,
-          });
-        } else {
-          vscode.postMessage({
-            type: 'searchFileName',
-            requestId,
-            fsPath: searchTargetProject.path,
-            query: folderSearchQuery,
-            isRemote: searchTargetProject.isRemote,
-            focusOnly: false,
-          });
-        }
-      },
-      isSilentRefresh ? 80 : 250,
-    );
-
-    return () => {
-      clearTimeout(timeoutId);
-      activeSearchRequestIdRef.current = 0;
-      vscode.postMessage({
-        type: 'cancelSearch',
-      });
-    };
-  }, [folderSearchQuery, isSearchMode, searchTargetProject, folderSearchType, isFocusMode, searchRefreshVersion]);
-
-  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setSearchQuery(val);
-
-    const prevState = vscode.getState() as Record<string, unknown> | undefined;
-
-    vscode.setState({
-      ...(prevState || {}),
-      searchQuery: val,
-    });
-  };
-
-  const currentBaseUri = currentUri.split('?')[0];
-  const projectInHistory = projects.find((p) => p.fsPath.split('?')[0] === currentBaseUri);
-  const inHistory = !!projectInHistory;
-
-  const activeProjectToRender = useMemo(() => {
-    if (projectInHistory) {
-      return projectInHistory;
-    }
-
-    if (!currentWorkspace) {
-      return null;
-    }
-
-    return {
-      ...currentWorkspace,
-      timestamp: Date.now(),
-    } as Project;
-  }, [currentWorkspace, projectInHistory]);
-
-  const otherProjects = projects.filter((p) => p.fsPath.split('?')[0] !== currentBaseUri);
-
-  const matchSearch = (p: Project) => {
-    if (!searchQuery) return true;
-
-    const title = p.customName || p.name;
-    const displayPath = getDisplayPath(p);
-    const full = `${title} ${p.name} ${displayPath} ${p.fsPath}`.toLowerCase();
-
-    return full.includes(String(searchQuery).toLowerCase().trim());
-  };
-
-  const filteredOtherProjects = otherProjects.filter(matchSearch);
-  const isCurrentVisible = activeProjectToRender && matchSearch(activeProjectToRender);
-
-  const revealVisibleProjectPaths = useMemo(() => {
-    const paths: string[] = [];
-
-    if (isSearchMode && searchTargetProject && searchTargetProject.path) {
-      paths.push(searchTargetProject.path);
-    } else {
-      paths.push(...filteredOtherProjects.map((p) => p.fsPath));
-
-      if (isCurrentVisible && activeProjectToRender) {
-        paths.unshift(activeProjectToRender.fsPath);
-      }
-    }
-
-    return paths;
-  }, [isSearchMode, searchTargetProject, filteredOtherProjects, isCurrentVisible, activeProjectToRender]);
-
-  const revealVisibleProjectPathKey = revealVisibleProjectPaths.join('\n');
-
-  useEffect(() => {
-    vscode.postMessage({
-      type: 'updateRevealVisibility',
-      visibleProjectPaths: revealVisibleProjectPaths,
-    });
-  }, [revealVisibleProjectPathKey, revealVisibleProjectPaths]);
-
-  const watchedTreePathKey = useMemo(() => {
-    return Array.from(expandedPaths).sort().join('\n');
-  }, [expandedPaths]);
-
-  useEffect(() => {
-    vscode.postMessage({
-      type: 'updateWatchedTreePaths',
-      paths: Array.from(expandedPaths),
-      focusMode: isFocusMode,
-      focusRootPath,
-    });
-  }, [watchedTreePathKey, expandedPaths, isFocusMode, focusRootPath]);
-
-  const normalizeTreePath = (pathValue: string) => {
-    if (!pathValue) return '';
-
-    return decodeURIComponent(pathValue.split('?')[0]).replace(/\\/g, '/').replace(/\/+$/, '');
-  };
-
-  const getParentTreePath = (pathValue: string) => {
-    const normalizedPath = normalizeTreePath(pathValue);
-
-    if (!normalizedPath) return '';
-
-    const index = normalizedPath.lastIndexOf('/');
-
-    if (index <= 0) return '';
-
-    return normalizedPath.slice(0, index);
   };
 
   /**
-   * @description 当前名称搜索中真正匹配的文件夹
-   *
-   * 匹配文件夹作为独立搜索结果展示；用户展开它以后，内部恢复为普通目录树，
-   * 不再继续用搜索词过滤，因此可以正常查看这个文件夹中的全部内容。
+   * @description 把 GET 地址中的查询字符串同步到 Params
    */
-  const matchedFileNameSearchFolderPaths = useMemo(() => {
-    if (folderSearchType !== 'name' || !folderSearchQuery.trim()) {
-      return [] as string[];
-    }
+  const syncGetUrlParams = (urlValue: string) => {
+    if (requestRef.current.method !== 'GET') return false;
 
-    return fileNameSearchResults
-      .filter((item) => item.isFolder)
-      .map((item) => normalizeTreePath(item.path))
-      .filter(Boolean);
-  }, [fileNameSearchResults, folderSearchQuery, folderSearchType]);
+    const parsed = parseGetRequestUrl(urlValue);
 
-  const isSelectedDirectParentPath = (parentPath: string) => {
-    if (!selectedPath || !parentPath) return false;
+    if (!parsed) return false;
 
-    const normalizedParentPath = normalizeTreePath(parentPath);
-    const selectedParentPath = getParentTreePath(selectedPath);
-
-    return normalizedParentPath === selectedParentPath;
-  };
-
-  const getTreeChildrenClassName = (parentPath: string, extraClassName: string = '') => {
-    return [styles['tree-children'], isSelectedDirectParentPath(parentPath) ? styles['active-tree-guide'] : '', extraClassName].filter(Boolean).join(' ');
-  };
-
-  const requestReadDir = (pathValue: string, projectName: string, forceRefresh: boolean = false) => {
-    const focusOnly = isFocusModeRef.current && !!focusRootPathRef.current && isPathInside(pathValue, focusRootPathRef.current);
-
-    vscode.postMessage({
-      type: focusOnly ? 'readFocusDir' : 'readDir',
-      fsPath: pathValue,
-      projectName,
-      focusOnly,
-      forceRefresh,
-    });
-  };
-
-  const applyRecursiveExpandedPaths = (paths: Set<string>) => {
-    if (paths.size === 0) return;
-
-    const next = new Set(expandedPathsRef.current);
-    paths.forEach((pathValue) => next.add(pathValue));
-    expandedPathsRef.current = next;
-    setExpandedPaths(next);
-  };
-
-  const collectRecursiveFolderExpand = (
-    state: {
-      projectName: string;
-      pendingPaths: Set<string>;
-      processedPaths: Set<string>;
-    },
-    folderPath: string,
-    pathsToExpand: Set<string>,
-    loadedChildren?: DirChild[],
-  ) => {
-    if (state.processedPaths.has(folderPath)) return;
-
-    pathsToExpand.add(folderPath);
-
-    const children = loadedChildren || dirChildrenRef.current[folderPath];
-
-    if (!children) {
-      if (!state.pendingPaths.has(folderPath)) {
-        state.pendingPaths.add(folderPath);
-        setLoadingPaths((prev) => new Set(prev).add(folderPath));
-        requestReadDir(folderPath, state.projectName);
-      }
-
-      return;
-    }
-
-    state.pendingPaths.delete(folderPath);
-    state.processedPaths.add(folderPath);
-
-    children.forEach((child) => {
-      if (!child.isFolder) return;
-
-      collectRecursiveFolderExpand(state, child.path, pathsToExpand);
-    });
-  };
-
-  const startRecursiveFolderExpand = (folderPath: string, projectName: string) => {
-    const state = {
-      projectName,
-      pendingPaths: new Set<string>(),
-      processedPaths: new Set<string>(),
-    };
-    const pathsToExpand = new Set<string>();
-
-    recursiveFolderExpandStatesRef.current.set(folderPath, state);
-    collectRecursiveFolderExpand(state, folderPath, pathsToExpand);
-    applyRecursiveExpandedPaths(pathsToExpand);
-
-    if (state.pendingPaths.size === 0) {
-      recursiveFolderExpandStatesRef.current.delete(folderPath);
-    }
-  };
-
-  const continueRecursiveFolderExpand = (folderPath: string, children: DirChild[]) => {
-    recursiveFolderExpandStatesRef.current.forEach((state, rootPath) => {
-      if (!state.pendingPaths.has(folderPath)) return;
-
-      const pathsToExpand = new Set<string>();
-
-      collectRecursiveFolderExpand(state, folderPath, pathsToExpand, children);
-      applyRecursiveExpandedPaths(pathsToExpand);
-
-      if (state.pendingPaths.size === 0) {
-        recursiveFolderExpandStatesRef.current.delete(rootPath);
-      }
-    });
-  };
-
-  const cancelRecursiveFolderExpand = (folderPath: string) => {
-    recursiveFolderExpandStatesRef.current.forEach((_, rootPath) => {
-      if (isPathInside(rootPath, folderPath) || isPathInside(folderPath, rootPath)) {
-        recursiveFolderExpandStatesRef.current.delete(rootPath);
-      }
-    });
-  };
-
-  const isSameTreePath = (leftPath: string, rightPath: string) => {
-    return normalizePatchPath(leftPath) === normalizePatchPath(rightPath);
-  };
-
-  const getCurrentWorkspacePath = () => {
-    return currentWorkspaceRef.current?.fsPath || currentUri || '';
-  };
-
-  const isRemoteTreePath = (pathValue: string) => {
-    return pathValue.startsWith('vscode-vfs://') || /^https?:\/\//i.test(pathValue);
-  };
-
-  const isInsideCurrentWorkspacePath = (pathValue: string) => {
-    const workspacePath = getCurrentWorkspacePath();
-
-    if (!workspacePath || isRemoteTreePath(pathValue) || isRemoteTreePath(workspacePath)) {
-      return false;
-    }
-
-    return isPathInside(normalizePatchPath(pathValue), normalizePatchPath(workspacePath));
-  };
-
-  const getFallbackParentUriString = (pathValue: string) => {
-    const normalized = pathValue.replace(/\\/g, '/').replace(/\/[^/]*$/, '');
-    return normalized || pathValue;
-  };
-
-  const getParentUriString = (pathValue: string) => {
-    if (!pathValue) return '';
-
-    try {
-      if (pathValue.includes('://')) {
-        const url = new URL(pathValue);
-        const pathname = url.pathname.replace(/\/[^/]*$/, '') || '/';
-        url.pathname = pathname;
-        url.search = '';
-        url.hash = '';
-        return url.toString().replace(/\/$/, '');
-      }
-    } catch {
-      return getFallbackParentUriString(pathValue);
-    }
-
-    return getFallbackParentUriString(pathValue);
-  };
-
-  const getCreateParentPath = (payload: ContextMenuPayload) => {
-    if (payload.isFolder === false) {
-      return getParentUriString(payload.path);
-    }
-
-    return payload.path;
-  };
-
-  const canCreateInPayload = (payload: ContextMenuPayload) => {
-    const targetPath = getCreateParentPath(payload);
-
-    return !!payload.isActiveProject && isInsideCurrentWorkspacePath(targetPath);
-  };
-
-  const beginCreateEntity = (type: 'file' | 'folder', payload: ContextMenuPayload) => {
-    const parentPath = getCreateParentPath(payload);
-
-    if (!canCreateInPayload(payload)) {
-      return;
-    }
-
-    const projectName = payload.projectName || getProjectNameByPath(parentPath) || '当前项目';
-    const nextCreateEntity: PendingCreateEntity = {
-      parentPath,
-      type,
-      projectName,
-      isActiveProject: true,
+    const nextRequest = {
+      ...requestRef.current,
+      url: parsed.url,
+      params: parsed.params,
     };
 
-    pendingCreateEntityRef.current = nextCreateEntity;
-    pendingCreateNameRef.current = '';
-    setPendingCreateEntity(nextCreateEntity);
-    setPendingCreateName('');
-    setSelectedPath(parentPath);
-    setExpandedPaths((prev) => new Set(prev).add(parentPath));
-    setDirChildren((prev) => {
-      if (prev[parentPath]) return prev;
+    requestRef.current = nextRequest;
+    setRequest(nextRequest);
+    setRequestTab('params');
 
-      return {
-        ...prev,
-        [parentPath]: [],
-      };
-    });
+    return true;
   };
 
-  const getLoadedTreeItemByPath = (pathValue: string) => {
-    const normalizedPath = normalizePatchPath(pathValue);
+  /**
+   * @description 构建待发送的请求参数
+   */
+  const buildRequestPayload = () => {
+    const currentRequest = requestRef.current;
+    const finalRequest = runPreScript(currentRequest.preScript, currentRequest);
+    const variables = { ...globalVariables };
+    let url = interpolateVariables(finalRequest.url, variables).trim();
 
-    if (!normalizedPath) return null;
+    if (!/^https?:\/\//i.test(url)) {
+      url = url.replace(/^\/+/, '');
+      const baseUrl = interpolateVariables(variables.baseUrl || '', variables).replace(/\/+$/, '');
+      url = baseUrl ? `${baseUrl}/${url}` : url;
+    }
 
-    for (const children of Object.values(dirChildrenRef.current)) {
-      const matched = children.find((child) => normalizePatchPath(child.path) === normalizedPath);
+    const urlObject = new URL(url);
 
-      if (matched) {
-        return matched;
+    finalRequest.params.forEach((item) => {
+      if (!item.enabled || !item.key.trim()) return;
+
+      urlObject.searchParams.set(interpolateVariables(item.key, variables), interpolateVariables(item.value, variables));
+    });
+
+    const headers = getEnabledObject(finalRequest.headers, variables);
+    const cookies = getEnabledObject(finalRequest.cookies, variables);
+
+    if (Object.keys(cookies).length > 0) {
+      headers.Cookie = Object.entries(cookies)
+        .map(([key, value]) => `${key}=${value}`)
+        .join('; ');
+    }
+
+    if (finalRequest.auth.type === 'bearer') {
+      const token = interpolateVariables(finalRequest.auth.token, variables).trim();
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
       }
     }
 
-    return null;
-  };
+    if (finalRequest.auth.type === 'basic') {
+      const username = interpolateVariables(finalRequest.auth.username, variables);
+      const password = interpolateVariables(finalRequest.auth.password, variables);
 
-  const beginCreateEntityFromFocusSelection = (type: 'file' | 'folder') => {
-    const rootPath = focusRootPathRef.current || getCurrentWorkspacePath();
-
-    if (!rootPath) return;
-
-    const currentSelectedPath = selectedPathRef.current;
-    const selectedTreeItem = currentSelectedPath && isPathInside(currentSelectedPath, rootPath) ? getLoadedTreeItemByPath(currentSelectedPath) : null;
-    const hasExplicitTreeSelection = !!selectedTreeItem;
-    const selectedTargetPath = hasExplicitTreeSelection ? currentSelectedPath : rootPath;
-    const selectedIsFolder = isSameTreePath(selectedTargetPath, rootPath) || !!selectedTreeItem?.isFolder;
-    const parentPath = selectedIsFolder ? selectedTargetPath : getParentUriString(selectedTargetPath);
-    const projectName = focusRootNameRef.current || getProjectNameByPath(parentPath) || '当前项目';
-
-    beginCreateEntity(type, {
-      path: parentPath,
-      name: projectName,
-      isFolder: true,
-      projectName,
-      isActiveProject: true,
-      isRemote: isRemoteTreePath(parentPath),
-    });
-  };
-
-  const cancelPendingCreateEntity = () => {
-    pendingCreateBlurConfirmingRef.current = false;
-    pendingCreateEntityRef.current = null;
-    pendingCreateNameRef.current = '';
-    setPendingCreateEntity(null);
-    setPendingCreateName('');
-  };
-
-  const commitPendingCreateEntity = (entity: PendingCreateEntity | null = pendingCreateEntityRef.current, rawName: string = pendingCreateNameRef.current) => {
-    if (!entity) return;
-
-    const name = rawName.trim();
-
-    if (!name) {
-      cancelPendingCreateEntity();
-      return;
+      headers.Authorization = `Basic ${safeBase64(`${username}:${password}`)}`;
     }
 
-    vscode.postMessage({
-      type: entity.type === 'file' ? 'createFile' : 'createFolder',
-      fsPath: entity.parentPath,
-      name,
-    });
+    let body: string | undefined;
+    let formData: ApiFormDataPayloadItem[] | undefined;
 
-    pendingCreateBlurConfirmingRef.current = false;
-    pendingCreateEntityRef.current = null;
-    pendingCreateNameRef.current = '';
-    setPendingCreateEntity(null);
-    setPendingCreateName('');
-  };
+    if (!['GET', 'HEAD'].includes(finalRequest.method)) {
+      if (finalRequest.bodyType === 'json' || finalRequest.bodyType === 'raw') {
+        body = interpolateVariables(finalRequest.bodyRaw, variables);
 
-  const focusPendingCreateInput = () => {
-    window.setTimeout(() => {
-      pendingCreateInputRef.current?.focus();
-    }, 0);
-  };
+        if (finalRequest.bodyType === 'json' && !headers['Content-Type'] && !headers['content-type']) {
+          headers['Content-Type'] = 'application/json';
+        }
+      }
 
-  const requestPendingCreateBlurConfirm = () => {
-    const entity = pendingCreateEntityRef.current;
-    const name = pendingCreateNameRef.current.trim();
+      if (finalRequest.bodyType === 'form-urlencoded') {
+        const params = new URLSearchParams();
 
-    if (!entity) return;
+        finalRequest.bodyForm.forEach((item) => {
+          if (!item.enabled || !item.key.trim()) return;
 
-    if (!name) {
-      cancelPendingCreateEntity();
-      return;
+          params.set(interpolateVariables(item.key, variables), interpolateVariables(item.value, variables));
+        });
+
+        body = params.toString();
+        headers['Content-Type'] = 'application/x-www-form-urlencoded';
+      }
+
+      if (String(finalRequest.bodyType) === 'form-data') {
+        formData = getFormDataPayload(finalRequest.bodyForm, variables);
+
+        Object.keys(headers).forEach((key) => {
+          if (key.toLowerCase() === 'content-type') {
+            delete headers[key];
+          }
+        });
+      }
     }
-
-    if (pendingCreateBlurConfirmingRef.current) return;
-
-    pendingCreateBlurConfirmingRef.current = true;
-
-    vscode.postMessage({
-      type: 'confirmCreateEntityOnBlur',
-      entityType: entity.type,
-      name,
-    });
-  };
-
-  const handlePendingCreateBlurConfirmResult = (action: string) => {
-    if (!pendingCreateEntityRef.current) return;
-
-    pendingCreateBlurConfirmingRef.current = false;
-
-    if (action === 'confirm') {
-      commitPendingCreateEntity();
-      return;
-    }
-
-    if (action === 'continue') {
-      focusPendingCreateInput();
-      return;
-    }
-
-    cancelPendingCreateEntity();
-  };
-
-  const canRenameEntity = (payload: ContextMenuPayload) => {
-    const workspacePath = getCurrentWorkspacePath();
-
-    return (
-      !!payload.isActiveProject &&
-      !!workspacePath &&
-      !!payload.path &&
-      !payload.isRemote &&
-      !isRemoteTreePath(payload.path) &&
-      isInsideCurrentWorkspacePath(payload.path) &&
-      !isSameTreePath(payload.path, workspacePath)
-    );
-  };
-
-  const beginRenameEntity = (payload: ContextMenuPayload) => {
-    if (!canRenameEntity(payload)) {
-      return;
-    }
-
-    setPendingCreateEntity(null);
-    setPendingCreateName('');
-
-    const nextRenameEntity: PendingRenameEntity = {
-      path: payload.path,
-      name: payload.name || '',
-      isFolder: !!payload.isFolder,
-      projectName: payload.projectName || getProjectNameByPath(payload.path) || '当前项目',
-      isActiveProject: true,
-    };
-
-    pendingRenameEntityRef.current = nextRenameEntity;
-    pendingRenameNameRef.current = payload.name || '';
-    setPendingRenameEntity(nextRenameEntity);
-    setPendingRenameName(payload.name || '');
-    setSelectedPath(payload.path);
-  };
-
-  const cancelPendingRenameEntity = () => {
-    pendingRenameBlurConfirmingRef.current = false;
-    pendingRenameEntityRef.current = null;
-    pendingRenameNameRef.current = '';
-    setPendingRenameEntity(null);
-    setPendingRenameName('');
-  };
-
-  const commitPendingRenameEntity = (entity: PendingRenameEntity | null = pendingRenameEntityRef.current, rawName: string = pendingRenameNameRef.current) => {
-    if (!entity) return;
-
-    const name = rawName.trim();
-
-    if (!name || name === entity.name) {
-      cancelPendingRenameEntity();
-      return;
-    }
-
-    vscode.postMessage({
-      type: 'renameFileEntity',
-      fsPath: entity.path,
-      newName: name,
-      isFolder: entity.isFolder,
-    });
-
-    pendingRenameBlurConfirmingRef.current = false;
-    pendingRenameEntityRef.current = null;
-    pendingRenameNameRef.current = '';
-    setPendingRenameEntity(null);
-    setPendingRenameName('');
-  };
-
-  const focusPendingRenameInput = () => {
-    window.setTimeout(() => {
-      pendingRenameInputRef.current?.focus();
-    }, 0);
-  };
-
-  const requestPendingRenameBlurConfirm = () => {
-    const entity = pendingRenameEntityRef.current;
-    const name = pendingRenameNameRef.current.trim();
-
-    if (!entity) return;
-
-    if (!name || name === entity.name) {
-      cancelPendingRenameEntity();
-      return;
-    }
-
-    if (pendingRenameBlurConfirmingRef.current) return;
-
-    pendingRenameBlurConfirmingRef.current = true;
-
-    vscode.postMessage({
-      type: 'confirmRenameEntityOnBlur',
-      oldName: entity.name,
-      newName: name,
-      isFolder: entity.isFolder,
-    });
-  };
-
-  const handlePendingRenameBlurConfirmResult = (action: string) => {
-    if (!pendingRenameEntityRef.current) return;
-
-    pendingRenameBlurConfirmingRef.current = false;
-
-    if (action === 'confirm') {
-      commitPendingRenameEntity();
-      return;
-    }
-
-    if (action === 'continue') {
-      focusPendingRenameInput();
-      return;
-    }
-
-    cancelPendingRenameEntity();
-  };
-
-  const canDragEntity = (pathValue: string, isActiveProject: boolean) => {
-    if (pendingCreateEntity || pendingRenameEntity) {
-      return false;
-    }
-
-    const workspacePath = getCurrentWorkspacePath();
-
-    return !!isActiveProject && !!workspacePath && !isRemoteTreePath(pathValue) && isInsideCurrentWorkspacePath(pathValue) && !isSameTreePath(pathValue, workspacePath);
-  };
-
-  const resolveTreeDraggingEntity = (entity: DraggingEntity): TreeDraggingEntity => {
-    const selected = selectedItemsRef.current;
-
-    if (selected.size <= 1 || !selected.has(entity.path)) {
-      return {
-        ...entity,
-        entities: [entity],
-      };
-    }
-
-    const selectedEntities = getFocusModeFlatItems()
-      .filter((item) => selected.has(item.path))
-      .map((item) => ({
-        path: item.path,
-        name: item.name,
-        isFolder: item.isFolder,
-        projectName: entity.projectName,
-      }));
-
-    const topLevelEntities = selectedEntities.filter((item) => {
-      return !selectedEntities.some((parentItem) => {
-        return parentItem.isFolder && !isSameTreePath(parentItem.path, item.path) && isPathInside(item.path, parentItem.path);
-      });
-    });
 
     return {
-      ...entity,
-      entities: topLevelEntities.length > 0 ? topLevelEntities : [entity],
+      finalRequest,
+      payload: {
+        requestId: createId('api'),
+        method: finalRequest.method,
+        url: urlObject.toString(),
+        headers,
+        body,
+        formData,
+        timeout: finalRequest.timeout,
+      },
     };
   };
 
-  const canDropEntityToFolder = (entity: DraggingEntity | null, targetFolderPath: string, isActiveProject: boolean) => {
-    if (!entity || !targetFolderPath || !isActiveProject) return false;
-    if (!canDragEntity(entity.path, true)) return false;
-    if (!isInsideCurrentWorkspacePath(targetFolderPath)) return false;
-    if (isSameTreePath(entity.path, targetFolderPath)) return false;
+  /**
+   * @description 发送当前接口请求
+   */
+  const sendRequest = () => {
+    try {
+      const { payload } = buildRequestPayload();
 
-    const sourceParentPath = getParentUriString(entity.path);
+      pendingRequestIdRef.current = payload.requestId;
+      setRequestDetail({
+        method: payload.method,
+        url: payload.url,
+        headers: payload.headers,
+        body:
+          payload.body ||
+          payload.formData
+            ?.map((item) => {
+              return item.type === 'file' ? `${item.key}: [File] ${item.fileName || 'file'}` : `${item.key}: ${item.value || ''}`;
+            })
+            .join('\n'),
+        timeout: payload.timeout,
+      });
+      setDetailSource('response');
+      setIsResponseSearchOpen(false);
+      setResponseTab('body');
+      setLoading(true);
+      setResponse(null);
+      setLog(`发送请求：${payload.method} ${payload.url}`);
 
-    if (isSameTreePath(sourceParentPath, targetFolderPath)) {
-      return false;
+      vscode?.postMessage({
+        type: 'sendApiRequest',
+        payload,
+      });
+    } catch (error: any) {
+      setRequestDetail(null);
+      setDetailSource('response');
+      setIsResponseSearchOpen(false);
+      setResponseTab('body');
+      setLoading(false);
+      setResponse({
+        requestId: createId('error'),
+        ok: false,
+        url: requestRef.current.url,
+        status: 0,
+        statusText: 'Invalid Request',
+        duration: 0,
+        size: 0,
+        headers: {},
+        body: '',
+        error: error?.message || String(error),
+      });
+    }
+  };
+
+  /**
+   * @description 清空 API 调试工具全部数据
+   */
+  const clearAllData = () => {
+    const nextRequest = createDefaultRequest();
+    const nextGlobals = createDefaultGlobals();
+
+    setRequest(nextRequest);
+    setGlobals(nextGlobals);
+    setHistory([]);
+    setProjects([]);
+    setExpandedGroupIds(new Set());
+    setActiveProjectId('');
+    setActiveInterfaceId('');
+    setRequestDetail(null);
+    setDetailSource('response');
+    setIsResponseSearchOpen(false);
+    setResponse(null);
+    setResponseTab('body');
+    setLogs([]);
+    setSharedDocUrl('');
+    setSafeBottomPanelSize(BOTTOM_PANEL_DEFAULT_SIZE);
+
+    vscode?.postMessage({ type: 'clearApiDevToolsState' });
+  };
+
+  /**
+   * @description 打开清空全部数据确认框
+   */
+  const clearAll = () => {
+    setManageDialog({
+      kind: 'clear-all',
+      title: '清空全部数据',
+      message: '确定要清空所有项目、接口、历史记录、变量和当前响应吗？此操作不可撤销。',
+    });
+  };
+
+  /**
+   * @description 加载历史请求
+   */
+  const loadHistory = async (item: HistoryItem) => {
+    if (!(await confirmSaveBeforeLeave())) return;
+
+    const nextRequest = cloneRequest<ApiRequestConfig>(item.request);
+
+    requestRef.current = nextRequest;
+    activeInterfaceIdRef.current = '';
+
+    setRequest(nextRequest);
+    setActiveInterfaceId('');
+    setRequestTab('params');
+    setRequestDetail(null);
+    setDetailSource('response');
+    setIsResponseSearchOpen(false);
+    setResponse(null);
+    setResponseTab('body');
+  };
+
+  /**
+   * @description 关闭项目或接口管理弹窗
+   */
+  const closeManageDialog = () => {
+    setManageDialog(null);
+    setManageDialogValue('');
+  };
+
+  /**
+   * @description 根据标识获取项目
+   */
+  const getProjectById = (projectId: string) => {
+    return projectsRef.current.find((project) => project.id === projectId) || null;
+  };
+
+  /**
+   * @description 根据标识获取接口
+   */
+  const getInterfaceById = (projectId: string, interfaceId: string) => {
+    const project = getProjectById(projectId);
+    return project?.interfaces.find((item) => item.id === interfaceId) || null;
+  };
+
+  /**
+   * @description 判断当前请求是否存在未保存变更
+   */
+  const hasUnsavedRequest = () => {
+    const currentRequest = requestRef.current;
+    const currentProjectId = activeProjectIdRef.current;
+    const currentInterfaceId = activeInterfaceIdRef.current;
+
+    if (currentProjectId && currentInterfaceId) {
+      const currentInterface = getInterfaceById(currentProjectId, currentInterfaceId);
+
+      if (!currentInterface) {
+        return !isDefaultRequestSnapshot(currentRequest);
+      }
+
+      return !isSameRequest(currentRequest, currentInterface.request);
     }
 
-    if (entity.isFolder && isPathInside(normalizePatchPath(targetFolderPath), normalizePatchPath(entity.path))) {
-      return false;
+    return !isDefaultRequestSnapshot(currentRequest);
+  };
+
+  /**
+   * @description 重置指定项目的请求编辑器
+   */
+  const resetEditorForProject = (projectId: string) => {
+    const nextRequest = createDefaultRequest();
+
+    activeProjectIdRef.current = projectId;
+    activeInterfaceIdRef.current = '';
+    requestRef.current = nextRequest;
+
+    setActiveProjectId(projectId);
+    setActiveInterfaceId('');
+    setRequest(nextRequest);
+    setRequestTab('params');
+    setRequestDetail(null);
+    setDetailSource('response');
+    setIsResponseSearchOpen(false);
+    setResponse(null);
+    setResponseTab('body');
+  };
+
+  /**
+   * @description 将当前请求保存到项目
+   */
+  const saveCurrentRequestToProject = (options?: { silent?: boolean }) => {
+    const now = Date.now();
+    const snapshot = cloneRequest<ApiRequestConfig>(requestRef.current);
+    const requestName = snapshot.name || snapshot.url || '未命名接口';
+
+    snapshot.name = requestName;
+
+    let targetProjectId = activeProjectIdRef.current;
+    let targetInterfaceId = activeInterfaceIdRef.current;
+    let nextProjects = projectsRef.current.map((project) => ({
+      ...project,
+      interfaces: project.interfaces.map((api) => ({ ...api })),
+    }));
+
+    if (!targetProjectId || !nextProjects.some((project) => project.id === targetProjectId)) {
+      const project = createProject('默认项目');
+
+      targetProjectId = project.id;
+      nextProjects = [project, ...nextProjects];
+    }
+
+    let savedRequest = cloneRequest<ApiRequestConfig>(snapshot);
+    let savedInterfaceName = requestName;
+    let savedType: '新增' | '更新' = '新增';
+
+    nextProjects = nextProjects.map((project) => {
+      if (project.id !== targetProjectId) return project;
+
+      const hasInterface = !!targetInterfaceId && project.interfaces.some((api) => api.id === targetInterfaceId);
+
+      if (!hasInterface) {
+        const api = createInterfaceFromRequest(snapshot, requestName);
+
+        targetInterfaceId = api.id;
+        savedRequest = cloneRequest<ApiRequestConfig>(api.request);
+        savedInterfaceName = api.name;
+
+        return {
+          ...project,
+          updatedAt: now,
+          interfaces: [api, ...project.interfaces],
+        };
+      }
+
+      savedType = '更新';
+
+      return {
+        ...project,
+        updatedAt: now,
+        interfaces: project.interfaces.map((api) => {
+          if (api.id !== targetInterfaceId) return api;
+
+          savedInterfaceName = requestName;
+          savedRequest = cloneRequest<ApiRequestConfig>(snapshot);
+
+          return {
+            ...api,
+            name: requestName,
+            method: snapshot.method,
+            url: snapshot.url,
+            request: cloneRequest<ApiRequestConfig>(snapshot),
+            updatedAt: now,
+          };
+        }),
+      };
+    });
+
+    projectsRef.current = nextProjects;
+    activeProjectIdRef.current = targetProjectId;
+    activeInterfaceIdRef.current = targetInterfaceId;
+    requestRef.current = savedRequest;
+
+    setProjects(nextProjects);
+    setActiveProjectId(targetProjectId);
+    setActiveInterfaceId(targetInterfaceId);
+    setRequest(savedRequest);
+
+    saveState({
+      projects: nextProjects,
+      activeProjectId: targetProjectId,
+      activeInterfaceId: targetInterfaceId,
+      request: savedRequest,
+    });
+
+    if (!options?.silent) {
+      setLog(`已${savedType}接口：${savedInterfaceName}`);
     }
 
     return true;
   };
 
-  const getMovableDraggingEntities = (entity: TreeDraggingEntity, targetFolderPath: string, isActiveProject: boolean) => {
-    const resolvedEntity = resolveTreeDraggingEntity(entity);
+  /**
+   * @description 放弃当前请求未保存的修改，并恢复到修改前的快照
+   *
+   * 说明：
+   * - 当前绑定了接口时，恢复为该接口已保存的 request。
+   * - 当前没有绑定接口时，恢复为默认空请求。
+   * - 该方法只负责恢复当前编辑器内容，不负责切换目标项目或接口。
+   */
+  const discardCurrentRequestChanges = () => {
+    const currentProjectId = activeProjectIdRef.current;
+    const currentInterfaceId = activeInterfaceIdRef.current;
+    const currentInterface = currentProjectId && currentInterfaceId ? getInterfaceById(currentProjectId, currentInterfaceId) : null;
 
-    return resolvedEntity.entities.filter((item) => canDropEntityToFolder(item, targetFolderPath, isActiveProject));
-  };
+    const restoredRequest = currentInterface ? cloneRequest<ApiRequestConfig>(currentInterface.request) : createDefaultRequest();
 
-  const canDropDraggingEntityToFolder = (entity: TreeDraggingEntity, targetFolderPath: string, isActiveProject: boolean) => {
-    const targetInsideDraggingFolder = entity.entities.some((item) => {
-      return item.isFolder && isPathInside(normalizePatchPath(targetFolderPath), normalizePatchPath(item.path));
+    requestRef.current = restoredRequest;
+
+    setRequest(restoredRequest);
+    setRequestDetail(null);
+    setDetailSource('response');
+    setIsResponseSearchOpen(false);
+    setResponse(null);
+    setResponseTab('body');
+
+    saveState({
+      request: restoredRequest,
+      activeProjectId: currentProjectId,
+      activeInterfaceId: currentInterfaceId,
     });
 
-    if (targetInsideDraggingFolder) return false;
-
-    return getMovableDraggingEntities(entity, targetFolderPath, isActiveProject).length > 0;
+    setLog('已放弃未保存修改');
   };
 
-  const handleDragStart = (entity: TreeDraggingEntity) => {
-    clearDragExpandTimer();
-    setDraggingEntity(entity);
+  /**
+   * @description 关闭未保存确认弹窗
+   */
+  const closeLeaveConfirmDialog = (action: LeaveConfirmAction) => {
+    const resolver = leaveConfirmResolverRef.current;
 
-    if (entity.entities.length === 1 && !selectedItemsRef.current.has(entity.path)) {
-      clearSelection();
+    leaveConfirmResolverRef.current = null;
+    setLeaveConfirmDialog(null);
+
+    resolver?.(action);
+  };
+
+  /**
+   * @description 打开未保存确认弹窗，并等待用户选择
+   *
+   * 说明：
+   * - VS Code Webview 里 window.confirm 体验不稳定，部分场景不会弹出。
+   * - 所以这里使用 React 自定义弹窗，确保切换项目 / 接口时一定可见。
+   */
+  const showLeaveConfirmDialog = (): Promise<LeaveConfirmAction> => {
+    if (leaveConfirmResolverRef.current) {
+      leaveConfirmResolverRef.current('cancel');
+      leaveConfirmResolverRef.current = null;
     }
 
-    selectedPathRef.current = entity.path;
-    setSelectedPath(entity.path);
+    setLeaveConfirmDialog({
+      title: '当前接口有未保存修改',
+      message: '是否需要先保存当前修改？',
+    });
+
+    return new Promise((resolve) => {
+      leaveConfirmResolverRef.current = resolve;
+    });
   };
 
-  const handleDragEnd = () => {
-    clearDragExpandTimer();
-    setDraggingEntity(null);
-    setDragOverPath('');
-    setInvalidDragOverPath('');
+  /**
+   * @description 离开当前接口或项目前确认是否保存未保存修改
+   *
+   * 交互逻辑：
+   * - 没有修改：直接继续切换。
+   * - 保存并切换：保存当前修改，然后继续切换。
+   * - 不保存并切换：恢复到修改前内容，然后继续切换。
+   * - 取消切换：留在当前接口。
+   */
+  const confirmSaveBeforeLeave = async () => {
+    if (!hasUnsavedRequest()) return true;
+
+    const action = await showLeaveConfirmDialog();
+
+    if (action === 'save') {
+      return saveCurrentRequestToProject({ silent: true });
+    }
+
+    if (action === 'discard') {
+      discardCurrentRequestChanges();
+      return true;
+    }
+
+    return false;
   };
 
-  const handleDragOverFolder = (entity: TreeDraggingEntity, targetFolderPath: string, isActiveProject: boolean) => {
-    const canDrop = canDropDraggingEntityToFolder(entity, targetFolderPath, isActiveProject);
+  /**
+   * @description 切换当前项目
+   */
+  const switchProject = async (project: ApiProject) => {
+    const firstInterface = project.interfaces[0] || null;
+    const targetInterfaceId = firstInterface?.id || '';
+    const isSameProjectAndTargetInterface = activeProjectIdRef.current === project.id && activeInterfaceIdRef.current === targetInterfaceId;
 
-    if (canDrop) {
-      setDragOverPath(targetFolderPath);
-      setInvalidDragOverPath('');
+    if (isSameProjectAndTargetInterface) return;
 
-      if (!expandedPathsRef.current.has(targetFolderPath) && dragExpandTargetPathRef.current !== targetFolderPath) {
-        clearDragExpandTimer();
-        dragExpandTargetPathRef.current = targetFolderPath;
-        dragExpandTimerRef.current = window.setTimeout(() => {
-          const next = new Set(expandedPathsRef.current);
+    if (!(await confirmSaveBeforeLeave())) return;
 
-          next.add(targetFolderPath);
-          expandedPathsRef.current = next;
-          setExpandedPaths(next);
+    if (firstInterface) {
+      const nextRequest = cloneRequest<ApiRequestConfig>(firstInterface.request);
 
-          if (!dirChildrenRef.current[targetFolderPath]) {
-            setLoadingPaths((prev) => new Set(prev).add(targetFolderPath));
-            requestReadDir(targetFolderPath, getProjectNameByPath(targetFolderPath));
-          }
+      activeProjectIdRef.current = project.id;
+      activeInterfaceIdRef.current = firstInterface.id;
+      requestRef.current = nextRequest;
 
-          dragExpandTimerRef.current = null;
-          dragExpandTargetPathRef.current = '';
-        }, 600);
+      setActiveProjectId(project.id);
+      setActiveInterfaceId(firstInterface.id);
+      setRequest(nextRequest);
+      setRequestTab('params');
+      setRequestDetail(null);
+      setDetailSource('response');
+      setIsResponseSearchOpen(false);
+      setResponse(null);
+      setResponseTab('body');
+      setLog(`已打开接口：${firstInterface.name}`);
+      return;
+    }
+
+    resetEditorForProject(project.id);
+    setLog(`已切换项目：${project.name}`);
+  };
+
+  /**
+   * @description 打开新增项目弹窗
+   */
+  const addProject = () => {
+    const value = `项目 ${projectsRef.current.length + 1}`;
+
+    setManageDialog({
+      kind: 'project-create',
+      title: '添加项目',
+      label: '项目名称',
+      value,
+    });
+    setManageDialogValue(value);
+  };
+
+  /**
+   * @description 打开项目重命名弹窗
+   */
+  const renameProject = (project: ApiProject) => {
+    setManageDialog({
+      kind: 'project-rename',
+      title: '重命名项目',
+      label: '项目名称',
+      value: project.name,
+      projectId: project.id,
+    });
+    setManageDialogValue(project.name);
+  };
+
+  /**
+   * @description 打开删除项目确认框
+   */
+  const removeProject = (project: ApiProject) => {
+    setManageDialog({
+      kind: 'project-delete',
+      title: '删除项目',
+      message: `确定删除项目「${project.name}」吗？项目下接口也会一起删除。`,
+      projectId: project.id,
+      projectName: project.name,
+    });
+    setManageDialogValue('');
+  };
+
+  /**
+   * @description 打开新增接口分组弹窗
+   */
+  const addProjectGroup = (project: GroupedApiProject) => {
+    const value = `分组 ${(project.groups?.length || 0) + 1}`;
+
+    setManageDialog({
+      kind: 'group-create',
+      title: '添加接口分组',
+      label: '分组名称',
+      value,
+      projectId: project.id,
+    });
+    setManageDialogValue(value);
+  };
+
+  /**
+   * @description 打开接口分组重命名弹窗
+   */
+  const renameProjectGroup = (project: GroupedApiProject, group: ApiInterfaceGroup) => {
+    setManageDialog({
+      kind: 'group-rename',
+      title: '重命名接口分组',
+      label: '分组名称',
+      value: group.name,
+      projectId: project.id,
+      groupId: group.id,
+    });
+    setManageDialogValue(group.name);
+  };
+
+  /**
+   * @description 打开删除接口分组确认框
+   */
+  const removeProjectGroup = (project: GroupedApiProject, group: ApiInterfaceGroup) => {
+    setManageDialog({
+      kind: 'group-delete',
+      title: '删除接口分组',
+      message: `确定删除分组「${group.name}」吗？分组中的接口会移动到未分组。`,
+      projectId: project.id,
+      groupId: group.id,
+      groupName: group.name,
+    });
+    setManageDialogValue('');
+  };
+
+  /**
+   * @description 打开分组内新增接口弹窗
+   */
+  const addInterfaceToGroup = (project: GroupedApiProject, group: ApiInterfaceGroup) => {
+    const value = `接口 ${project.interfaces.length + 1}`;
+
+    setManageDialog({
+      kind: 'group-interface-create',
+      title: `添加接口到 ${group.name}`,
+      label: '接口名称',
+      value,
+      projectId: project.id,
+      groupId: group.id,
+    });
+    setManageDialogValue(value);
+  };
+
+  /**
+   * @description 展开或折叠接口分组
+   */
+  const toggleProjectGroup = (groupId: string) => {
+    setExpandedGroupIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(groupId)) {
+        next.delete(groupId);
+      } else {
+        next.add(groupId);
       }
-    } else {
-      clearDragExpandTimer();
-      setDragOverPath('');
-      setInvalidDragOverPath(targetFolderPath);
-    }
+
+      return next;
+    });
   };
 
-  const handleDragLeaveFolder = (targetFolderPath: string) => {
-    if (dragExpandTargetPathRef.current === targetFolderPath) {
-      clearDragExpandTimer();
-    }
+  /**
+   * @description 打开新增接口弹窗
+   */
+  const addInterface = () => {
+    const currentProject = projectsRef.current.find((project) => project.id === activeProjectIdRef.current);
+    const value = `接口 ${(currentProject?.interfaces.length || 0) + 1}`;
 
-    setDragOverPath((prev) => (prev === targetFolderPath ? '' : prev));
-    setInvalidDragOverPath((prev) => (prev === targetFolderPath ? '' : prev));
+    setManageDialog({
+      kind: 'interface-create',
+      title: '添加接口',
+      label: '接口名称',
+      value,
+    });
+    setManageDialogValue(value);
   };
 
-  const handleDropOnFolder = (entity: TreeDraggingEntity, targetFolderPath: string, isActiveProject: boolean) => {
-    if (pendingCreateEntity || pendingRenameEntity) {
-      handleDragEnd();
+  /**
+   * @description 保存当前接口
+   */
+  const saveInterface = () => {
+    saveCurrentRequestToProject();
+  };
+
+  /**
+   * @description 加载指定接口
+   */
+  const loadInterface = async (project: ApiProject, api: ApiInterfaceItem) => {
+    if (activeProjectIdRef.current === project.id && activeInterfaceIdRef.current === api.id) {
       return;
     }
 
-    clearDragExpandTimer();
-    setDragOverPath('');
-    setInvalidDragOverPath('');
+    if (!(await confirmSaveBeforeLeave())) return;
 
-    if (!canDropDraggingEntityToFolder(entity, targetFolderPath, isActiveProject)) {
+    const nextRequest = cloneRequest<ApiRequestConfig>(api.request);
+
+    activeProjectIdRef.current = project.id;
+    activeInterfaceIdRef.current = api.id;
+    requestRef.current = nextRequest;
+
+    setActiveProjectId(project.id);
+    setActiveInterfaceId(api.id);
+    setRequest(nextRequest);
+    setRequestTab('params');
+    setRequestDetail(null);
+    setDetailSource('response');
+    setIsResponseSearchOpen(false);
+    setResponse(null);
+    setResponseTab('body');
+    setLog(`已打开接口：${api.name}`);
+  };
+
+  /**
+   * @description 打开删除接口确认框
+   */
+  const removeInterface = (project: ApiProject, api: ApiInterfaceItem) => {
+    setManageDialog({
+      kind: 'interface-delete',
+      title: '删除接口',
+      message: `确定删除接口「${api.name}」吗？`,
+      projectId: project.id,
+      interfaceId: api.id,
+      interfaceName: api.name,
+    });
+    setManageDialogValue('');
+  };
+
+  /**
+   * @description 确认项目或接口管理操作
+   */
+  const confirmManageDialog = async () => {
+    if (!manageDialog) return;
+
+    const value = manageDialogValue.trim();
+
+    if (manageDialog.kind === 'clear-all') {
+      clearAllData();
+      closeManageDialog();
       return;
     }
 
-    const movableEntities = getMovableDraggingEntities(entity, targetFolderPath, isActiveProject);
+    if (manageDialog.kind === 'project-create') {
+      if (!value) return;
+      if (!(await confirmSaveBeforeLeave())) return;
 
-    const nextExpandedPaths = new Set(expandedPathsRef.current);
+      const project = createProject(value);
+      const nextProjects = [project, ...projectsRef.current];
 
-    nextExpandedPaths.add(targetFolderPath);
-    expandedPathsRef.current = nextExpandedPaths;
-    setExpandedPaths(nextExpandedPaths);
-
-    if (!dirChildrenRef.current[targetFolderPath]) {
-      setLoadingPaths((prev) => new Set(prev).add(targetFolderPath));
+      projectsRef.current = nextProjects;
+      setProjects(nextProjects);
+      resetEditorForProject(project.id);
+      saveState({
+        projects: nextProjects,
+        activeProjectId: project.id,
+        activeInterfaceId: '',
+        request: requestRef.current,
+      });
+      setLog(`已添加项目：${value}`);
+      closeManageDialog();
+      return;
     }
 
-    vscode.postMessage({
-      type: 'moveFileEntities',
-      targetFolderFsPath: targetFolderPath,
-      items: movableEntities.map((item) => ({
-        path: item.path,
-        isFolder: item.isFolder,
-      })),
+    if (manageDialog.kind === 'project-rename') {
+      if (!value || value === manageDialog.value) {
+        closeManageDialog();
+        return;
+      }
+
+      setProjects((prev) => prev.map((item) => (item.id === manageDialog.projectId ? { ...item, name: value, updatedAt: Date.now() } : item)));
+      setLog(`已重命名项目：${value}`);
+      closeManageDialog();
+      return;
+    }
+
+    if (manageDialog.kind === 'group-create') {
+      if (!value) return;
+
+      const now = Date.now();
+      const group: ApiInterfaceGroup = {
+        id: createId('api-group'),
+        name: value,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const nextProjects = projectsRef.current.map((project) =>
+        project.id === manageDialog.projectId
+          ? {
+              ...project,
+              groups: [...(project.groups || []), group],
+              updatedAt: now,
+            }
+          : project,
+      );
+
+      projectsRef.current = nextProjects;
+      setProjects(nextProjects);
+      saveState({
+        projects: nextProjects,
+      });
+      setLog(`已添加接口分组：${value}`);
+      closeManageDialog();
+      return;
+    }
+
+    if (manageDialog.kind === 'group-rename') {
+      if (!value || value === manageDialog.value) {
+        closeManageDialog();
+        return;
+      }
+
+      const now = Date.now();
+      const nextProjects = projectsRef.current.map((project) =>
+        project.id === manageDialog.projectId
+          ? {
+              ...project,
+              groups: (project.groups || []).map((group) =>
+                group.id === manageDialog.groupId
+                  ? {
+                      ...group,
+                      name: value,
+                      updatedAt: now,
+                    }
+                  : group,
+              ),
+              updatedAt: now,
+            }
+          : project,
+      );
+
+      projectsRef.current = nextProjects;
+      setProjects(nextProjects);
+      saveState({
+        projects: nextProjects,
+      });
+      setLog(`已重命名接口分组：${value}`);
+      closeManageDialog();
+      return;
+    }
+
+    if (manageDialog.kind === 'group-delete') {
+      const now = Date.now();
+      const nextProjects = projectsRef.current.map((project) =>
+        project.id === manageDialog.projectId
+          ? {
+              ...project,
+              groups: (project.groups || []).filter((group) => group.id !== manageDialog.groupId),
+              interfaces: project.interfaces.map((api) =>
+                api.groupId === manageDialog.groupId
+                  ? {
+                      ...api,
+                      groupId: '',
+                    }
+                  : api,
+              ),
+              updatedAt: now,
+            }
+          : project,
+      );
+
+      projectsRef.current = nextProjects;
+      setProjects(nextProjects);
+      setExpandedGroupIds((current) => {
+        const next = new Set(current);
+        next.delete(manageDialog.groupId);
+        return next;
+      });
+      saveState({
+        projects: nextProjects,
+      });
+      setLog(`已删除接口分组：${manageDialog.groupName}`);
+      closeManageDialog();
+      return;
+    }
+
+    if (manageDialog.kind === 'group-interface-create') {
+      if (!value) return;
+      if (!(await confirmSaveBeforeLeave())) return;
+
+      const now = Date.now();
+      const snapshot: ApiRequestConfig = {
+        ...createDefaultRequest(),
+        name: value,
+      };
+      const api = createInterfaceFromRequest(snapshot, value, manageDialog.groupId);
+      const nextRequest = cloneRequest<ApiRequestConfig>(api.request);
+      const nextProjects = projectsRef.current.map((project) =>
+        project.id === manageDialog.projectId
+          ? {
+              ...project,
+              interfaces: [api, ...project.interfaces],
+              updatedAt: now,
+            }
+          : project,
+      );
+
+      projectsRef.current = nextProjects;
+      activeProjectIdRef.current = manageDialog.projectId;
+      activeInterfaceIdRef.current = api.id;
+      requestRef.current = nextRequest;
+
+      setProjects(nextProjects);
+      setRequest(nextRequest);
+      setActiveProjectId(manageDialog.projectId);
+      setActiveInterfaceId(api.id);
+      setRequestTab('params');
+      setRequestDetail(null);
+      setDetailSource('response');
+      setIsResponseSearchOpen(false);
+      setResponse(null);
+      setResponseTab('body');
+      setExpandedGroupIds((current) => {
+        const next = new Set(current);
+        next.delete(manageDialog.groupId);
+        return next;
+      });
+
+      saveState({
+        projects: nextProjects,
+        activeProjectId: manageDialog.projectId,
+        activeInterfaceId: api.id,
+        request: nextRequest,
+      });
+
+      setLog(`已添加接口：${value}`);
+      closeManageDialog();
+      return;
+    }
+
+    if (manageDialog.kind === 'interface-create') {
+      if (!value) return;
+      if (!(await confirmSaveBeforeLeave())) return;
+
+      const now = Date.now();
+      const snapshot: ApiRequestConfig = {
+        ...createDefaultRequest(),
+        name: value,
+      };
+      let projectId = activeProjectIdRef.current;
+      let nextProjects = projectsRef.current.map((project) => ({
+        ...project,
+        interfaces: project.interfaces.map((api) => ({ ...api })),
+      }));
+
+      if (!projectId || !nextProjects.some((project) => project.id === projectId)) {
+        const project = createProject('默认项目');
+
+        projectId = project.id;
+        nextProjects = [project, ...nextProjects];
+      }
+
+      const api = createInterfaceFromRequest(snapshot, value);
+      const nextRequest = cloneRequest<ApiRequestConfig>(api.request);
+
+      nextProjects = nextProjects.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              interfaces: [api, ...project.interfaces],
+              updatedAt: now,
+            }
+          : project,
+      );
+
+      projectsRef.current = nextProjects;
+      activeProjectIdRef.current = projectId;
+      activeInterfaceIdRef.current = api.id;
+      requestRef.current = nextRequest;
+
+      setProjects(nextProjects);
+      setRequest(nextRequest);
+      setActiveProjectId(projectId);
+      setActiveInterfaceId(api.id);
+      setRequestTab('params');
+      setRequestDetail(null);
+      setDetailSource('response');
+      setIsResponseSearchOpen(false);
+      setResponse(null);
+      setResponseTab('body');
+
+      saveState({
+        projects: nextProjects,
+        activeProjectId: projectId,
+        activeInterfaceId: api.id,
+        request: nextRequest,
+      });
+
+      setLog(`已添加接口：${value}`);
+      closeManageDialog();
+      return;
+    }
+
+    if (manageDialog.kind === 'project-delete') {
+      const nextProjects = projectsRef.current.filter((item) => item.id !== manageDialog.projectId);
+      const nextProject = nextProjects[0];
+
+      projectsRef.current = nextProjects;
+      setProjects(nextProjects);
+
+      if (activeProjectIdRef.current === manageDialog.projectId) {
+        if (nextProject) {
+          resetEditorForProject(nextProject.id);
+        } else {
+          const nextRequest = createDefaultRequest();
+
+          activeProjectIdRef.current = '';
+          activeInterfaceIdRef.current = '';
+          requestRef.current = nextRequest;
+          setActiveProjectId('');
+          setActiveInterfaceId('');
+          setRequest(nextRequest);
+          setRequestDetail(null);
+          setDetailSource('response');
+          setIsResponseSearchOpen(false);
+          setResponse(null);
+          setResponseTab('body');
+        }
+      }
+
+      saveState({
+        projects: nextProjects,
+        activeProjectId: activeProjectIdRef.current,
+        activeInterfaceId: activeInterfaceIdRef.current,
+        request: requestRef.current,
+      });
+      setLog(`已删除项目：${manageDialog.projectName}`);
+      closeManageDialog();
+      return;
+    }
+
+    if (manageDialog.kind === 'interface-delete') {
+      const nextProjects = projectsRef.current.map((item) =>
+        item.id === manageDialog.projectId
+          ? {
+              ...item,
+              interfaces: item.interfaces.filter((current) => current.id !== manageDialog.interfaceId),
+              updatedAt: Date.now(),
+            }
+          : item,
+      );
+
+      projectsRef.current = nextProjects;
+      setProjects(nextProjects);
+
+      if (activeInterfaceIdRef.current === manageDialog.interfaceId) {
+        resetEditorForProject(activeProjectIdRef.current || manageDialog.projectId);
+      }
+
+      saveState({
+        projects: nextProjects,
+        activeProjectId: activeProjectIdRef.current,
+        activeInterfaceId: activeInterfaceIdRef.current,
+        request: requestRef.current,
+      });
+      setLog(`已删除接口：${manageDialog.interfaceName}`);
+      closeManageDialog();
+    }
+  };
+
+  /**
+   * @description 获取全部接口标识
+   */
+  const getAllInterfaceIds = () => projectsRef.current.flatMap((project) => project.interfaces.map((api) => api.id));
+
+  /**
+   * @description 获取选中用于分享的项目数据
+   */
+  const getShareProjects = (selectedIds = shareSelectedInterfaceIdsRef.current) => {
+    const selectedIdSet = new Set(selectedIds);
+    const activeProjectIdValue = activeProjectIdRef.current;
+    const activeInterfaceIdValue = activeInterfaceIdRef.current;
+
+    return projectsRef.current
+      .map((project) => {
+        const interfaces = project.interfaces
+          .filter((api) => selectedIdSet.has(api.id))
+          .map((api) => {
+            if (project.id !== activeProjectIdValue || api.id !== activeInterfaceIdValue) {
+              return {
+                ...api,
+                request: cloneRequest<ApiRequestConfig>(api.request),
+              };
+            }
+
+            const liveRequest = cloneRequest<ApiRequestConfig>(requestRef.current);
+            const liveName = liveRequest.name || api.name || '未命名接口';
+
+            return {
+              ...api,
+              name: liveName,
+              method: liveRequest.method,
+              url: liveRequest.url,
+              request: liveRequest,
+              updatedAt: Date.now(),
+            };
+          });
+
+        return {
+          ...project,
+          interfaces,
+        };
+      })
+      .filter((project) => project.interfaces.length > 0);
+  };
+
+  /**
+   * @description 创建接口文档 HTML
+   */
+  const createDocsHtml = (docsProjects = projectsRef.current): string => {
+    return buildApiDocsHtml({
+      projects: docsProjects,
+      globals: globalsRef.current,
+      currentRequest: requestRef.current,
+      activeProjectId: activeProjectIdRef.current,
+      activeInterfaceId: activeInterfaceIdRef.current,
     });
-
-    clearSelection();
-    selectedPathRef.current = targetFolderPath;
-    setSelectedPath(targetFolderPath);
   };
 
-  const getDropClassName = (targetFolderPath: string) => {
-    if (pendingCreateEntity || pendingRenameEntity) {
-      return '';
+  /**
+   * @description 进入接口文档分享选择状态
+   *
+   * 默认分享规则：
+   * - 只勾选当前正在查看的接口，其他接口全部取消勾选。
+   * - 当前接口属于某个分组时，自动展开该分组，确保接口立即可见。
+   * - 当前没有打开任何接口时，不默认勾选接口，由用户手动选择。
+   */
+  const shareDocs = () => {
+    const allInterfaceIds = getAllInterfaceIds();
+
+    if (allInterfaceIds.length === 0) {
+      setLog('没有可分享的接口');
+      return;
     }
 
-    if (dragOverPath === targetFolderPath) {
-      return styles['drop-target'];
+    const currentProject = projectsRef.current.find((project) => project.id === activeProjectIdRef.current);
+    const currentInterface = currentProject?.interfaces.find((api) => api.id === activeInterfaceIdRef.current);
+    const nextSelectedInterfaceIds = currentInterface ? [currentInterface.id] : [];
+    const currentGroupId = currentInterface?.groupId || '';
+
+    shareSelectedInterfaceIdsRef.current = nextSelectedInterfaceIds;
+    setShareSelectedInterfaceIds(nextSelectedInterfaceIds);
+
+    if (currentGroupId && currentProject?.groups?.some((group) => group.id === currentGroupId)) {
+      setExpandedGroupIds((current) => {
+        if (current.has(currentGroupId)) {
+          return current;
+        }
+
+        const next = new Set(current);
+
+        next.add(currentGroupId);
+
+        return next;
+      });
     }
 
-    if (invalidDragOverPath === targetFolderPath) {
-      return styles['drop-target-invalid'];
-    }
-
-    return '';
+    setIsShareSelecting(true);
+    setLog(currentInterface ? `已默认选择当前接口：${currentInterface.name}` : '请选择需要分享的接口');
   };
 
-  const getDropTreeClassName = (targetFolderPath: string) => {
-    if (pendingCreateEntity || pendingRenameEntity) {
-      return '';
+  /**
+   * @description 确认分享选中的接口文档
+   */
+  const confirmShareDocs = () => {
+    const shareProjects = getShareProjects();
+
+    if (shareProjects.length === 0) {
+      setLog('请至少选择一个需要分享的接口');
+      return;
     }
 
-    return dragOverPath === targetFolderPath ? styles['drop-target-tree'] : '';
+    vscode?.postMessage({
+      type: 'shareApiDocs',
+      payload: {
+        html: createDocsHtml(shareProjects),
+        fileName: 'q-ops-api-docs.html',
+      },
+    });
+    setIsShareSelecting(false);
   };
 
-  const renderDragAwareTooltip = (content: React.ReactNode, children: React.ReactElement) => {
-    if (draggingEntity) {
-      return children;
-    }
-
-    return (
-      <Tooltip content={content} placement="bottom" align="start" delay={2000}>
-        {children}
-      </Tooltip>
-    );
+  /**
+   * @description 取消接口文档分享选择
+   */
+  const cancelShareSelect = () => {
+    setIsShareSelecting(false);
   };
 
-  const renderRenameInput = (entityPath: string) => {
-    if (!pendingRenameEntity || !isSameTreePath(pendingRenameEntity.path, entityPath)) {
-      return null;
-    }
-
-    return (
-      <input
-        ref={pendingRenameInputRef}
-        className={`${styles['sub-name']} ${styles['rename-entity-input']}`}
-        value={pendingRenameName}
-        autoComplete="off"
-        spellCheck={false}
-        onChange={(e) => {
-          pendingRenameNameRef.current = e.target.value;
-          setPendingRenameName(e.target.value);
-        }}
-        onClick={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-        onDoubleClick={(e) => e.stopPropagation()}
-        onBlur={requestPendingRenameBlurConfirm}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            commitPendingRenameEntity();
-          } else if (e.key === 'Escape') {
-            e.preventDefault();
-            cancelPendingRenameEntity();
-          }
-        }}
-      />
-    );
+  /**
+   * @description 切换接口文档分享选择状态
+   */
+  const toggleShareInterface = (interfaceId: string) => {
+    setShareSelectedInterfaceIds((current) => (current.includes(interfaceId) ? current.filter((id) => id !== interfaceId) : [...current, interfaceId]));
   };
 
-  const renderPendingCreateRow = (parentPath: string, _projectName: string, isActiveProject: boolean) => {
-    if (!pendingCreateEntity || !isSameTreePath(pendingCreateEntity.parentPath, parentPath)) {
-      return null;
-    }
-
-    if (!pendingCreateEntity.isActiveProject || !isActiveProject) {
-      return null;
-    }
-
-    const isFolder = pendingCreateEntity.type === 'folder';
-
-    return (
-      <div className={styles['new-entity-wrapper']} key={`pending-${parentPath}`}>
-        <div className={`${styles['sub-item']} ${styles['new-entity-row']} ${styles['selected']}`}>
-          <div className={styles['chevron-placeholder']}></div>
-
-          {isFolder ? (
-            <FileIcon fileName={pendingCreateName || 'untitled'} isFolder className={`${styles['sub-icon']} ${styles['folder-icon']}`} />
-          ) : (
-            <FileIcon fileName={pendingCreateName || 'untitled'} className={styles['sub-icon']} />
-          )}
-
-          <input
-            ref={pendingCreateInputRef}
-            className={styles['new-entity-input']}
-            value={pendingCreateName}
-            placeholder={isFolder ? '新建文件夹' : '新建文件'}
-            autoComplete="off"
-            spellCheck={false}
-            onChange={(e) => {
-              pendingCreateNameRef.current = e.target.value;
-              setPendingCreateName(e.target.value);
-            }}
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onBlur={requestPendingCreateBlurConfirm}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                commitPendingCreateEntity();
-              } else if (e.key === 'Escape') {
-                e.preventDefault();
-                cancelPendingCreateEntity();
-              }
-            }}
-          />
-        </div>
-      </div>
-    );
+  /**
+   * @description 导出接口文档
+   */
+  const exportDocs = () => {
+    vscode?.postMessage({ type: 'exportApiDocsHtml', payload: { html: createDocsHtml(), fileName: 'q-ops-api-docs.html' } });
   };
 
-  const handleOpenProject = (pathValue: string) => {
-    vscode.postMessage({
-      type: 'openProject',
-      fsPath: pathValue,
+  /**
+   * @description 处理组件副作用
+   */
+  useEffect(() => {
+    if (!sharedDocUrl || !loadedStateRef.current) return;
+
+    const timer = window.setTimeout(() => {
+      const shareProjects = getShareProjects();
+
+      if (shareProjects.length === 0) return;
+
+      vscode?.postMessage({
+        type: 'updateApiDocsShare',
+        payload: { html: createDocsHtml(shareProjects), fileName: 'q-ops-api-docs.html' },
+      });
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [globals, request, projects, activeProjectId, activeInterfaceId, sharedDocUrl, shareSelectedInterfaceIds]);
+
+  /**
+   * @description 停止接口文档分享
+   */
+  const stopShareDocs = () => {
+    vscode?.postMessage({ type: 'stopApiDocsShare' });
+  };
+
+  /**
+   * @description 复制接口文档分享地址
+   */
+  const copySharedUrl = () => {
+    if (!sharedDocUrl) return;
+    navigator.clipboard?.writeText(sharedDocUrl);
+    setLog('已复制分享地址');
+  };
+
+  /**
+   * @description 打开接口文档分享地址
+   */
+  const openSharedUrl = () => {
+    if (!sharedDocUrl) return;
+
+    vscode?.postMessage({
+      type: 'openExternalUrl',
+      payload: {
+        url: sharedDocUrl,
+      },
     });
   };
 
-  const handleOpenCurrent = (pathValue: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const responseBody = getDisplayResponseBody(response);
+  const isRequestDetail = detailSource === 'request';
+  const hasCurrentDetail = isRequestDetail ? Boolean(requestDetail) : Boolean(response);
 
-    vscode.postMessage({
-      type: 'openProjectCurrent',
-      fsPath: pathValue,
-    });
-  };
+  /**
+   * @description 计算当前请求或响应页签的编辑器内容
+   */
+  const responseEditorValue = useMemo(() => {
+    if (detailSource === 'request') {
+      if (!requestDetail) return '';
 
-  const handleOpenFile = (pathValue: string, projectName: string, isActiveProject: boolean, e: React.MouseEvent) => {
-    e.stopPropagation();
+      if (responseTab === 'headers') {
+        return JSON.stringify(requestDetail.headers, null, 2);
+      }
 
-    activeFilePathRef.current = pathValue;
-    selectedPathRef.current = pathValue;
-    setSelectedPath(pathValue);
-    setContextMenu((prev) => ({
-      ...prev,
-      visible: false,
-    }));
+      if (responseTab === 'raw') {
+        return getCurlRequestContent(requestDetail);
+      }
 
-    if (pathValue.toLowerCase().endsWith('.md')) {
-      vscode.postMessage({
-        type: 'previewWithVditor',
-        fsPath: pathValue,
-        projectName,
-        isActiveProject,
-      });
-    } else if (isImageFile(pathValue)) {
-      vscode.postMessage({
-        type: 'openImageNative',
-        fsPath: pathValue,
-      });
-    } else if (isExcelFile(pathValue)) {
-      vscode.postMessage({
-        type: 'previewWithExcel',
-        fsPath: pathValue,
-        projectName,
-        isActiveProject,
-      });
-    } else if (isPdfFile(pathValue)) {
-      vscode.postMessage({
-        type: 'previewWithPdf',
-        fsPath: pathValue,
-        projectName,
-        isActiveProject,
-      });
-    } else {
-      vscode.postMessage({
-        type: isActiveProject ? 'openFileNormal' : 'openFile',
-        fsPath: pathValue,
-        projectName,
-      });
-    }
-  };
-
-  const handleToggleExpand = (pathValue: string, projectName: string, _: boolean, e: React.MouseEvent) => {
-    e.stopPropagation();
-
-    setSelectedPath(pathValue);
-
-    setContextMenu((prev) => ({
-      ...prev,
-      visible: false,
-    }));
-
-    const next = new Set(expandedPathsRef.current);
-    const isExpanding = !next.has(pathValue);
-
-    if (isExpanding) {
-      next.add(pathValue);
-    } else {
-      cancelRecursiveFolderExpand(pathValue);
-      next.delete(pathValue);
+      return getRequestParametersContent(requestDetail);
     }
 
-    expandedPathsRef.current = next;
-    setExpandedPaths(next);
+    if (!response) return '';
 
-    /**
-     * 已加载过的目录直接复用前端数据；文件系统变更时会由 refreshExpandedDirs
-     * 主动强制刷新，不需要每次展开都重新读取。
-     */
-    if (isExpanding && !dirChildrenRef.current[pathValue]) {
-      setLoadingPaths((loading) => new Set(loading).add(pathValue));
-      requestReadDir(pathValue, projectName);
+    if (response.error) {
+      return response.error;
     }
-  };
 
-  const handleContextMenu = (e: React.MouseEvent, type: 'top' | 'sub', payload: ContextMenuPayload) => {
-    e.preventDefault();
-    e.stopPropagation();
-
-    setSelectedPath(payload.path);
-
-    const selItems = selectedItemsRef.current;
-    const multiSelected = selItems.size > 1 && selItems.has(payload.path) ? getFocusModeFlatItems().filter((item) => selItems.has(item.path)) : undefined;
-
-    setContextMenu({
-      visible: true,
-      x: e.clientX,
-      y: e.clientY,
-      type,
-      payload,
-      selectedItems: multiSelected,
-    });
-  };
-
-  const parseSelectedPathsArg = (argValue?: string) => {
-    try {
-      const value = JSON.parse(argValue || '[]');
-
-      return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string' && !!item) : [];
-    } catch {
-      return [];
+    if (responseTab === 'headers') {
+      return JSON.stringify(response.headers, null, 2);
     }
-  };
 
-  const parseSelectedEntitiesArg = (argValue?: string) => {
-    try {
-      const value = JSON.parse(argValue || '[]');
-
-      return Array.isArray(value)
-        ? value
-            .map((item) => ({
-              path: String(item?.path || ''),
-              isFolder: !!item?.isFolder,
-            }))
-            .filter((item) => !!item.path)
-        : [];
-    } catch {
-      return [];
+    if (responseTab === 'raw') {
+      return response.body || '';
     }
-  };
 
-  const openFileInNewTab = (pathValue: string, projectName: string, isActiveProject: boolean) => {
-    if (isImageFile(pathValue)) {
-      vscode.postMessage({
-        type: 'openImageNative',
-        fsPath: pathValue,
-      });
-    } else if (isExcelFile(pathValue)) {
-      vscode.postMessage({
-        type: 'previewWithExcel',
-        fsPath: pathValue,
-        projectName: projectName || '未知项目',
-        isActiveProject,
-      });
-    } else if (isPdfFile(pathValue)) {
-      vscode.postMessage({
-        type: 'previewWithPdf',
-        fsPath: pathValue,
-        projectName: projectName || '未知项目',
-      });
-    } else {
-      vscode.postMessage({
-        type: isActiveProject ? 'openFileNormalInNewTab' : 'openFileInNewTab',
-        fsPath: pathValue,
-        projectName,
-      });
+    return responseBody;
+  }, [detailSource, requestDetail, response, responseBody, responseTab]);
+
+  /**
+   * @description 计算当前请求或响应页签的编辑器语言
+   */
+  const responseEditorLanguage = useMemo(() => {
+    if (detailSource === 'request') {
+      if (responseTab === 'headers') {
+        return 'json';
+      }
+
+      if (responseTab === 'body') {
+        return 'json';
+      }
+
+      return 'plaintext';
     }
+
+    return getResponseEditorLanguage(response, responseTab, responseEditorValue);
+  }, [detailSource, response, responseEditorValue, responseTab]);
+
+  /**
+   * @description 打开当前请求或响应内容搜索框
+   */
+  const openResponseSearch = () => {
+    if (!responseEditorValue) return;
+
+    setIsResponseSearchOpen(true);
   };
 
-  const executeMenuAction = (action: string, arg?: string) => {
-    setContextMenu((prev) => ({
-      ...prev,
-      visible: false,
-    }));
-
-    const { payload } = contextMenu;
-
+  /**
+   * @description 将 VS Code 原生 View 标题栏操作分发给页面现有业务函数
+   */
+  viewTitleActionRef.current = (action: ApiDevToolsViewTitleAction) => {
     switch (action) {
-      case 'addToHistory':
-        vscode.postMessage({
-          type: 'addToHistory',
-          fsPath: payload.path,
-          projectName: payload.originalName || payload.name,
-        });
+      case 'add-project':
+        addProject();
         break;
 
-      case 'addToGitList':
-        vscode.postMessage({
-          type: 'addToGitList',
-          fsPath: payload.path,
-        });
+      case 'add-interface':
+        addInterface();
         break;
 
-      case 'openInVsCode':
-        vscode.postMessage({
-          type: 'openInVsCode',
-          fsPath: payload.path,
-        });
+      case 'save-interface':
+        saveInterface();
         break;
 
-      case 'openInIntegratedTerminal':
-        vscode.postMessage({
-          type: 'openInIntegratedTerminal',
-          fsPath: payload.path,
-        });
+      case 'share-docs':
+        shareDocs();
         break;
 
-      case 'openWith':
-        vscode.postMessage({
-          type: 'openWith',
-          fsPath: payload.path,
-          projectName: payload.projectName || '未知项目',
-        });
+      case 'export-docs':
+        exportDocs();
         break;
 
-      case 'openProjectCurrent':
-        vscode.postMessage({
-          type: 'openProjectCurrent',
-          fsPath: payload.path,
-        });
+      case 'show-globals':
+        setShowGlobals(true);
         break;
 
-      case 'openInNewWindow':
-        vscode.postMessage({
-          type: 'openInNewWindow',
-          fsPath: payload.path,
-        });
+      case 'clear-all':
+        clearAll();
         break;
 
-      case 'edit':
-        vscode.postMessage({
-          type: 'editProjectName',
-          fsPath: payload.path,
-        });
-        break;
-
-      case 'changeAddress':
-        vscode.postMessage({
-          type: 'changeAddress',
-          fsPath: payload.path,
-        });
-        break;
-
-      case 'switchBranch':
-        vscode.postMessage({
-          type: 'switchBranch',
-          fsPath: payload.path,
-        });
-        break;
-
-      case 'copyText':
-        vscode.postMessage({
-          type: 'copyToClipboard',
-          text: arg,
-        });
-        break;
-
-      case 'copyFile':
-        vscode.postMessage({
-          type: 'copyFile',
-          fsPath: payload.path,
-        });
-        break;
-
-      case 'createFile':
-        beginCreateEntity('file', payload);
-        break;
-
-      case 'createFolder':
-        beginCreateEntity('folder', payload);
-        break;
-      case 'renameFileEntity':
-        beginRenameEntity(payload);
-        break;
-
-      case 'deleteFileEntity':
-        vscode.postMessage({
-          type: 'deleteFileEntity',
-          fsPath: payload.path,
-          isFolder: !!payload.isFolder,
-        });
-        break;
-
-      case 'openSelectedInTabs': {
-        const paths = parseSelectedPathsArg(arg);
-
-        paths.forEach((pathValue) => {
-          openFileInNewTab(pathValue, payload.projectName || getProjectNameByPath(pathValue), !!payload.isActiveProject);
-        });
-
-        clearSelection();
-        break;
-      }
-
-      case 'collapseSelectedFolders': {
-        const paths = parseSelectedPathsArg(arg);
-
-        setExpandedPaths((prev) => {
-          const next = new Set(prev);
-
-          paths.forEach((targetPath) => {
-            Array.from(next).forEach((itemPath) => {
-              if (isPathInside(itemPath, targetPath)) {
-                next.delete(itemPath);
-              }
-            });
-          });
-
-          return next;
-        });
-
-        setLoadingPaths((prev) => {
-          const next = new Set(prev);
-
-          paths.forEach((targetPath) => {
-            Array.from(next).forEach((itemPath) => {
-              if (isPathInside(itemPath, targetPath)) {
-                next.delete(itemPath);
-              }
-            });
-          });
-
-          return next;
-        });
-
-        clearSelection();
-        break;
-      }
-
-      case 'deleteSelectedItems': {
-        const items = parseSelectedEntitiesArg(arg);
-
-        if (items.length > 0) {
-          vscode.postMessage({
-            type: 'deleteSelectedFileEntities',
-            items,
-          });
-        }
-
-        clearSelection();
-        break;
-      }
-
-      case 'openLink':
-        vscode.postMessage({
-          type: 'openExternalLink',
-          fsPath: payload.path,
-          platform: payload.platform,
-          customDomain: payload.customDomain,
-        });
-        break;
-
-      case 'revealInExplorer':
-        vscode.postMessage({
-          type: 'revealInExplorer',
-          fsPath: arg || payload.path,
-        });
-        break;
-
-      case 'delete':
-        vscode.postMessage({
-          type: 'removeProject',
-          fsPath: payload.path,
-        });
-        break;
-
-      case 'openFileToSide':
-        if (isImageFile(payload.path)) {
-          vscode.postMessage({
-            type: 'openImageNativeToSide',
-            fsPath: payload.path,
-          });
-        } else if (isExcelFile(payload.path)) {
-          vscode.postMessage({
-            type: 'previewWithExcelToSide',
-            fsPath: payload.path,
-            projectName: payload.projectName || '未知项目',
-            isActiveProject: !!payload.isActiveProject,
-          });
-        } else if (isPdfFile(payload.path)) {
-          vscode.postMessage({
-            type: 'previewWithPdfToSide',
-            fsPath: payload.path,
-            projectName: payload.projectName || '未知项目',
-          });
-        } else {
-          vscode.postMessage({
-            type: payload.isActiveProject ? 'openFileNormalToSide' : 'openFileToSide',
-            fsPath: payload.path,
-            projectName: payload.projectName,
-          });
+      case 'send-request':
+        if (!loading) {
+          sendRequest();
         }
         break;
 
-      case 'openFileInNewTab':
-        if (isImageFile(payload.path)) {
-          vscode.postMessage({
-            type: 'openImageNative',
-            fsPath: payload.path,
-          });
-        } else if (isExcelFile(payload.path)) {
-          vscode.postMessage({
-            type: 'previewWithExcel',
-            fsPath: payload.path,
-            projectName: payload.projectName || '未知项目',
-            isActiveProject: !!payload.isActiveProject,
-          });
-        } else if (isPdfFile(payload.path)) {
-          vscode.postMessage({
-            type: 'previewWithPdf',
-            fsPath: payload.path,
-            projectName: payload.projectName || '未知项目',
-          });
-        } else {
-          vscode.postMessage({
-            type: payload.isActiveProject ? 'openFileNormalInNewTab' : 'openFileInNewTab',
-            fsPath: payload.path,
-            projectName: payload.projectName,
-          });
-        }
-        break;
-
-      case 'updateBranch':
-        vscode.postMessage({
-          type: 'updateSingleBranch',
-          fsPath: payload.path,
-        });
-        break;
-
-      case 'selectForCompare':
-        vscode.postMessage({
-          type: 'selectForCompare',
-          fsPath: payload.path,
-          projectName: payload.isActiveProject ? undefined : payload.projectName,
-        });
-        break;
-
-      case 'compareWithSelected':
-        vscode.postMessage({
-          type: 'compareWithSelected',
-          fsPath: payload.path,
-          projectName: payload.isActiveProject ? undefined : payload.projectName,
-        });
-        break;
-
-      case 'compareWithOldCode':
-        vscode.postMessage({
-          type: 'compareWithOldCode',
-          fsPath: payload.path,
-          projectName: payload.projectName || getProjectNameByPath(payload.path),
-          status: (payload as any).status,
-        });
-        break;
-
-      case 'discardFileChanges':
-        vscode.postMessage({
-          type: 'discardFileChanges',
-          fsPath: payload.path,
-          status: (payload as any).status,
-        });
-        break;
-
-      case 'collapseFolderChildren': {
-        const targetPath = payload.path;
-        cancelRecursiveFolderExpand(targetPath);
-
-        setExpandedPaths((prev) => {
-          const next = new Set(prev);
-
-          Array.from(next).forEach((itemPath) => {
-            if (isPathInside(itemPath, targetPath)) {
-              next.delete(itemPath);
-            }
-          });
-
-          expandedPathsRef.current = next;
-
-          return next;
-        });
-
-        setLoadingPaths((prev) => {
-          const next = new Set(prev);
-
-          Array.from(next).forEach((itemPath) => {
-            if (isPathInside(itemPath, targetPath)) {
-              next.delete(itemPath);
-            }
-          });
-
-          return next;
-        });
-
-        break;
-      }
-
-      case 'expandFolderChildren':
-        startRecursiveFolderExpand(payload.path, payload.projectName || getProjectNameByPath(payload.path));
-        break;
-
-      case 'searchInFolder':
-        /**
-         * 右键“查找文件内容”只是进入临时搜索页，不应该破坏上一层状态。
-         *
-         * 例如：
-         * - 普通列表 -> 搜索 -> 返回普通列表；
-         * - 专注模式 -> 搜索 -> 返回专注模式；
-         * - 专注模式 + 锁定模式 -> 搜索 -> 返回专注模式 + 锁定模式。
-         */
-        if (!searchReturnStateRef.current) {
-          searchReturnStateRef.current = {
-            isFocusMode: isFocusModeRef.current,
-            isFocusLocked: isFocusLockedRef.current,
-            focusRootPath: focusRootPathRef.current,
-            focusRootName: focusRootNameRef.current,
-            searchTargetProject: searchTargetProjectRef.current,
-          };
-        }
-
-        isSearchModeRef.current = true;
-        isFocusModeRef.current = false;
-        focusRootPathRef.current = '';
-        focusRootNameRef.current = '';
-        searchTargetProjectRef.current = payload;
-
-        setSearchTargetProject(payload);
-        setIsSearchMode(true);
-        setIsFocusMode(false);
-        setFocusRootPath('');
-        setFocusRootName('');
-        setFolderSearchQuery('');
-        setFolderSearchResults([]);
-        setFolderSearchTotalMatches(0);
-        setFileNameSearchResults([]);
-        setFolderSearchError('');
-        setCurrentActiveMatch(0);
-        break;
-
-      case 'focusMode':
-        enterFocusMode(payload, {
-          locked: false,
-        });
+      case 'stop-request':
+        vscode?.postMessage({ type: 'stopApiRequest' });
         break;
 
       default:
@@ -3530,737 +2233,675 @@ export default function RecentProjectsApp() {
     }
   };
 
-  const handleNextSearchMatch = () => {
-    if (totalMatches === 0) return;
+  const bottomPanelMaxSize = getBottomPanelMaxSize();
+  const interfaceCount = projects.reduce((sum, project) => sum + project.interfaces.length, 0);
 
-    setCurrentActiveMatch((prev) => (prev + 1) % totalMatches);
-  };
+  if (initializing) {
+    return <ApiDevToolsSkeleton workspacePaneWidth={workspacePaneWidth} workspaceResizerSize={WORKSPACE_RESIZER_SIZE} bottomPanelSize={bottomPanelSize} />;
+  }
 
-  const handlePrevSearchMatch = () => {
-    if (totalMatches === 0) return;
-
-    setCurrentActiveMatch((prev) => (prev - 1 + totalMatches) % totalMatches);
-  };
-
-  useEffect(() => {
-    if (totalMatches > 0 && isSearchMode && flatMatchesList[currentActiveMatch]) {
-      const matchInfo = flatMatchesList[currentActiveMatch];
-      const el = document.getElementById(`search-line-${matchInfo.fileIndex}-${matchInfo.matchIndex}`);
-
-      if (el) {
-        el.scrollIntoView({
-          behavior: 'auto',
-          block: 'center',
-        });
-      }
-    }
-  }, [currentActiveMatch, totalMatches, isSearchMode, flatMatchesList]);
-
-  const exitSearchOrFocusMode = () => {
-    const searchReturnState = searchReturnStateRef.current;
-    const shouldRevealActiveFile = isSearchModeRef.current && !isFocusModeRef.current;
-
-    const revealCurrentActiveTreeItem = () => {
-      if (!shouldRevealActiveFile) return;
-
-      const activeFilePath = activeFilePathRef.current;
-
-      if (!activeFilePath) return;
-
-      selectedPathRef.current = activeFilePath;
-      autoScrollTarget.current = activeFilePath;
-      setSelectedPath(activeFilePath);
-
-      window.setTimeout(() => {
-        vscode.postMessage({
-          type: 'revealCurrentActive',
-          targetPath: activeFilePath,
-        });
-      }, 0);
-    };
-
-    if (searchReturnState) {
-      searchReturnStateRef.current = null;
-
-      isSearchModeRef.current = searchReturnState.isFocusMode;
-      isFocusModeRef.current = searchReturnState.isFocusMode;
-      isFocusLockedRef.current = searchReturnState.isFocusLocked;
-      focusRootPathRef.current = searchReturnState.focusRootPath;
-      focusRootNameRef.current = searchReturnState.focusRootName;
-      searchTargetProjectRef.current = searchReturnState.searchTargetProject;
-
-      setIsSearchMode(searchReturnState.isFocusMode);
-      setIsFocusMode(searchReturnState.isFocusMode);
-      setIsFocusLocked(searchReturnState.isFocusLocked);
-      setFocusRootPath(searchReturnState.focusRootPath);
-      setFocusRootName(searchReturnState.focusRootName);
-      setSearchTargetProject(searchReturnState.searchTargetProject);
-      setFolderSearchQuery('');
-      setFolderSearchResults([]);
-      setFolderSearchTotalMatches(0);
-      setFileNameSearchResults([]);
-      setFolderSearchError('');
-      setIsSearchingFolder(false);
-      setCurrentActiveMatch(0);
-      revealCurrentActiveTreeItem();
-      return;
-    }
-
-    const exitingFocusMode = isFocusModeRef.current;
-    const exitingFocusRootPath = focusRootPathRef.current;
-    isSearchModeRef.current = false;
-    isFocusModeRef.current = false;
-    isFocusLockedRef.current = false;
-    searchTargetProjectRef.current = null;
-
-    setIsSearchMode(false);
-    setIsFocusMode(false);
-    setIsFocusLocked(false);
-    setSearchTargetProject(null);
-    setFocusRootPath('');
-    setFocusRootName('');
-    setFolderSearchQuery('');
-    setFolderSearchResults([]);
-    setFileNameSearchResults([]);
-    setFolderSearchError('');
-    setIsSearchingFolder(false);
-    setCurrentActiveMatch(0);
-
-    if (!exitingFocusMode || !exitingFocusRootPath) {
-      normalDirChildrenBeforeFocusRef.current = {};
-      revealCurrentActiveTreeItem();
-      return;
-    }
-
-    /**
-     * 退出专注模式后，资源管理器回到普通模式。
-     * 这里不再恢复 / 重新读取之前展开的文件夹，统一收起所有文件夹，
-     * 避免专注模式里的展开状态污染普通项目树。
-     */
-    collapseAllFolders({
-      clearChildren: true,
-    });
-
-    normalDirChildrenBeforeFocusRef.current = {};
-  };
-
-  const renderTreeChildren = (parentPath: string, projectName: string, isActiveProject: boolean = false, highlightQuery: string = '') => {
-    const children = dirChildren[parentPath];
-    const isLoading = loadingPaths.has(parentPath);
-
-    if (isLoading && !children) {
-      return (
-        <div className={styles['empty-node']}>
-          <FontAwesomeIcon
-            icon={faSpinner}
-            spin
-            style={{
-              marginRight: '6px',
-            }}
-          />
-          正在读取目录...
-        </div>
-      );
-    }
-
-    if (!children) {
-      if (isFocusModeRef.current && focusRootPathRef.current && isPathInside(parentPath, focusRootPathRef.current)) {
-        return (
-          <div className={styles['empty-node']}>
-            <FontAwesomeIcon
-              icon={faSpinner}
-              spin
-              style={{
-                marginRight: '6px',
-              }}
-            />
-            正在读取目录...
-          </div>
-        );
-      }
-
-      return null;
-    }
-
-    const pendingCreateRow = renderPendingCreateRow(parentPath, projectName, isActiveProject);
-
-    if (children.length === 0 && !pendingCreateRow) {
-      return <div className={styles['empty-node']}>（空文件夹/无读取权限）</div>;
-    }
-
-    const normalizedParentPath = normalizeTreePath(parentPath);
-    const isInsideMatchedSearchFolder =
-      !!highlightQuery &&
-      matchedFileNameSearchFolderPaths.some((matchedFolderPath) => {
-        return isPathInside(normalizedParentPath, matchedFolderPath);
-      });
-    const visibleChildren =
-      highlightQuery && !isInsideMatchedSearchFolder
-        ? children.filter((child) => {
-            return isFileNameSearchResultMatched(child, highlightQuery, searchTargetProject?.path || parentPath);
-          })
-        : children;
-
-    if (visibleChildren.length === 0 && !pendingCreateRow) {
-      return <div className={styles['empty-node']}>没有匹配的子项</div>;
-    }
-
+  if (!isFloating && floatingEditorOpen) {
     return (
-      <>
-        {pendingCreateRow}
-        {visibleChildren.map((child) => {
-          const childPath = child.path;
-          const isExpanded = expandedPaths.has(childPath);
-          const childLoading = loadingPaths.has(childPath) && !dirChildren[childPath];
-          const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
-          const elementId = `tree-node-${encodeURIComponent(childPath)}`;
-          const renameInput = renderRenameInput(childPath);
-          const dragEntity: DraggingEntity = {
-            path: childPath,
-            name: child.name,
-            isFolder: !!child.isFolder,
-            projectName,
-          };
-
-          if (child.isFolder) {
-            return (
-              <TreeDragDropContainer
-                key={childPath}
-                path={childPath}
-                className={getDropTreeClassName(childPath)}
-                entity={dragEntity}
-                draggableEnabled={canDragEntity(childPath, isActiveProject)}
-                dropTargetEnabled={isActiveProject}
-                resolveDraggingEntity={resolveTreeDraggingEntity}
-                canDrop={(entity) => canDropDraggingEntityToFolder(entity, childPath, isActiveProject)}
-                onDragStart={handleDragStart}
-                onDragOver={(entity) => handleDragOverFolder(entity, childPath, isActiveProject)}
-                onDragLeave={() => handleDragLeaveFolder(childPath)}
-                onDrop={(entity) => handleDropOnFolder(entity, childPath, isActiveProject)}
-                onDragEnd={handleDragEnd}
-              >
-                <>
-                    <div
-                      id={elementId}
-                      data-tree-path={childPath}
-                      data-tree-drag-handle="true"
-                      className={`${styles['sub-item']} ${styles['clickable-sub']} ${
-                        selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
-                      } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
-                      onClick={(e) => {
-                        if (isActiveProject && handleItemClick(e, childPath)) return;
-                        handleToggleExpand(childPath, projectName, isRemote, e);
-                      }}
-                      onContextMenu={(e) =>
-                        handleContextMenu(e, 'sub', {
-                          path: childPath,
-                          name: child.name,
-                          isFolder: true,
-                          isExpanded,
-                          projectName,
-                          isActiveProject,
-                        } as ContextMenuPayload)
-                      }
-                    >
-                      <div className={styles['tree-chevron']}>
-                        {childLoading ? (
-                          <FontAwesomeIcon
-                            icon={faSpinner}
-                            spin
-                            className={styles['chevron-icon']}
-                            style={{
-                              opacity: 1,
-                              color: 'var(--vscode-textLink-foreground)',
-                            }}
-                          />
-                        ) : (
-                          <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
-                        )}
-                      </div>
-
-                      <FileIcon fileName={child.name} isFolder isExpanded={isExpanded} className={`${styles['sub-icon']} ${styles['folder-icon']}`} />
-
-                      {renderDragAwareTooltip(
-                        getTreeTooltipContent(childPath, child, true),
-                        renameInput || (
-                          <span
-                            className={styles['sub-name']}
-                            style={{
-                              display: 'inline-block',
-                              alignItems: 'center',
-                              pointerEvents: 'auto',
-                            }}
-                          >
-                            {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
-                          </span>
-                        ),
-                      )}
-
-                      <FolderGitStatusDot status={child.status} />
-                    </div>
-
-                    {isExpanded && (
-                      <div className={getTreeChildrenClassName(childPath, styles['search-name-tree-children'])}>
-                        {renderTreeChildren(childPath, projectName, isActiveProject, highlightQuery)}
-                      </div>
-                    )}
-                </>
-              </TreeDragDropContainer>
-            );
-          }
-
-          return (
-            <TreeDragDropContainer
-              key={childPath}
-              path={childPath}
-              entity={dragEntity}
-              draggableEnabled={canDragEntity(childPath, isActiveProject)}
-              dropTargetEnabled={false}
-              resolveDraggingEntity={resolveTreeDraggingEntity}
-              canDrop={() => false}
-              onDragStart={handleDragStart}
-              onDragOver={() => undefined}
-              onDragLeave={() => undefined}
-              onDrop={() => undefined}
-              onDragEnd={handleDragEnd}
-            >
-              <div
-                id={elementId}
-                data-tree-path={childPath}
-                data-tree-drag-handle="true"
-                className={`${styles['sub-item']} ${
-                  selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
-                } ${styles['search-name-sub-item-clickable']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''}`}
-                onClick={(e) => {
-                  if (isActiveProject && handleItemClick(e, childPath)) return;
-                  handleOpenFile(childPath, projectName, isActiveProject, e);
-                }}
-                onContextMenu={(e) =>
-                  handleContextMenu(e, 'sub', {
-                    path: childPath,
-                    name: child.name,
-                    isFolder: false,
-                    projectName,
-                    isActiveProject,
-                    isRemote: childPath.startsWith('vscode-vfs://') || /^https?:\/\//i.test(childPath),
-                    status: child.status,
-                  } as any)
-                }
-              >
-                <div className={styles['chevron-placeholder']}></div>
-
-                <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
-
-                {renderDragAwareTooltip(
-                  getTreeTooltipContent(childPath, child, false),
-                  renameInput || (
-                    <span
-                      className={styles['sub-name']}
-                      style={{
-                        display: 'inline-block',
-                        alignItems: 'center',
-                        pointerEvents: 'auto',
-                      }}
-                    >
-                      {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
-                    </span>
-                  ),
-                )}
-
-                <FileGitStatusBadge status={child.status} />
-                {renderDiagnosticsBadge(child)}
-              </div>
-            </TreeDragDropContainer>
-          );
-        })}
-      </>
+      <div className={styles['api-devtools']}>
+        <WelcomePage />
+      </div>
     );
-  };
-
-  if (isInitLoading) {
-    return <RecentProjectsSkeleton />;
   }
 
   return (
-    <div className={styles['app-wrapper']}>
-      <RecentProjectContextMenu
-        visible={contextMenu.visible}
-        x={contextMenu.x}
-        y={contextMenu.y}
-        type={contextMenu.type}
-        payload={contextMenu.payload}
-        selectedItems={contextMenu.selectedItems}
-        onClose={() => {
-          setContextMenu((current) => ({
-            ...current,
-            visible: false,
-          }));
-        }}
-        onAction={executeMenuAction}
-      />
-
-      {isSearchMode && searchTargetProject ? (
-        <SearchViewWrapper
-          searchTargetProject={searchTargetProject}
-          focusMode={isFocusMode}
-          focusLocked={isFocusLocked}
-          onLockFocusMode={lockCurrentFocusMode}
-          onExitLockedFocusMode={exitLockedFocusMode}
-          focusTree={
-            isFocusMode && focusRootPath ? (
-              <TreeDragDropContainer
-                path={focusRootPath}
-                className={`${styles['focus-tree-wrapper']} ${getDropTreeClassName(focusRootPath)}`}
-                draggableEnabled={false}
-                dropTargetEnabled
-                canDrop={(entity) => canDropDraggingEntityToFolder(entity, focusRootPath, true)}
-                onDragStart={() => undefined}
-                onDragOver={(entity) => handleDragOverFolder(entity, focusRootPath, true)}
-                onDragLeave={() => handleDragLeaveFolder(focusRootPath)}
-                onDrop={(entity) => handleDropOnFolder(entity, focusRootPath, true)}
-                onDragEnd={handleDragEnd}
-              >
-                {renderTreeChildren(focusRootPath, focusRootName || '当前项目', true)}
-              </TreeDragDropContainer>
-            ) : null
-          }
-          onBack={exitSearchOrFocusMode}
-          folderSearchQuery={folderSearchQuery}
-          setFolderSearchQuery={setFolderSearchQuery}
-          folderSearchType={folderSearchType}
-          setFolderSearchType={setFolderSearchType}
-          folderSearchResults={folderSearchResults}
-          setFolderSearchResults={setFolderSearchResults}
-          fileNameSearchResults={fileNameSearchResults}
-          setFileNameSearchResults={setFileNameSearchResults}
-          folderSearchError={folderSearchError}
-          setFolderSearchError={setFolderSearchError}
-          isSearchingFolder={isSearchingFolder}
-          totalMatches={totalMatches}
-          currentActiveMatch={currentActiveMatch}
-          setCurrentActiveMatch={setCurrentActiveMatch}
-          lineStartIndexMap={lineStartIndexMap}
-          flatMatchesList={flatMatchesList}
-          expandedPaths={expandedPaths}
-          selectedPath={selectedPath}
-          setIsSearchMode={setIsSearchMode}
-          handlePrevSearchMatch={handlePrevSearchMatch}
-          handleNextSearchMatch={handleNextSearchMatch}
-          handleToggleExpand={handleToggleExpand}
-          handleOpenFile={handleOpenFile}
-          renderTreeChildren={renderTreeChildren}
-        />
-      ) : (
-        <>
-          {projects.length > 0 && (
-            <div className={styles['search-container']}>
-              <div className={styles['search-box']}>
-                <FontAwesomeIcon icon={faMagnifyingGlass} className={styles['search-magnify-icon']} />
-                <input type="text" value={searchQuery} onChange={handleSearch} placeholder="搜索标题、文件夹、地址..." autoComplete="off" spellCheck="false" />
-              </div>
-            </div>
+    <div className={styles['api-devtools']}>
+      {isFloating && (
+        <div className={styles['floating-toolbar']}>
+          <button className={styles['toolbar-btn']} title="添加项目" onClick={addProject}>
+            <i className="codicon codicon-folder-opened" />
+            <span>项目</span>
+          </button>
+          <button className={styles['toolbar-btn']} title="保存接口" onClick={saveInterface}>
+            <i className="codicon codicon-save" />
+            <span>保存</span>
+          </button>
+          <button className={styles['toolbar-btn']} title="分享文档" onClick={shareDocs}>
+            <i className="codicon codicon-globe" />
+            <span>分享</span>
+          </button>
+          <button className={styles['toolbar-btn']} title="导出文档" onClick={exportDocs}>
+            <i className="codicon codicon-export" />
+            <span>导出</span>
+          </button>
+          <button className={styles['toolbar-btn']} title="全局变量" onClick={() => setShowGlobals(true)}>
+            <i className="codicon codicon-symbol-variable" />
+            <span>变量</span>
+          </button>
+          <button className={styles['toolbar-btn']} title="清空全部" onClick={clearAll}>
+            <i className="codicon codicon-clear-all" />
+            <span>清空</span>
+          </button>
+          <div className={styles['toolbar-spacer']} />
+          {loading ? (
+            <button className={[styles['toolbar-btn'], styles['toolbar-btn-danger']].join(' ')} title="停止请求" onClick={() => vscode?.postMessage({ type: 'stopApiRequest' })}>
+              <i className="codicon codicon-debug-stop" />
+              <span>停止</span>
+            </button>
+          ) : (
+            <button className={[styles['toolbar-btn'], styles['toolbar-btn-primary']].join(' ')} title="发送请求" onClick={sendRequest}>
+              <i className="codicon codicon-send" />
+              <span>发送</span>
+            </button>
           )}
+        </div>
+      )}
+      <main
+        className={styles['main']}
+        style={
+          {
+            '--api-workspace-width': `${workspacePaneWidth}px`,
+            '--api-workspace-resizer-size': `${WORKSPACE_RESIZER_SIZE}px`,
+            '--api-right-pane-width': `${rightPaneWidth}px`,
+            '--api-right-resizer-size': `${RIGHT_RESIZER_SIZE}px`,
+          } as React.CSSProperties
+        }
+      >
+        <aside className={styles['workspace-pane']}>
+          <div className={styles['workspace-head']}>
+            <strong>项目接口</strong>
+            <span>
+              {projects.length}/{interfaceCount}
+            </span>
+          </div>
 
-          <Scrollbar ref={listScrollbarRef} className={styles['list-container']} viewClassName={styles['list-view']}>
-            {projects.length === 0 && !activeProjectToRender ? (
-              <div className={styles['empty-state']}>
-                <div className={styles['empty-text']}>暂无项目记录，请添加：</div>
+          {sharedDocUrl && <ShareCard url={sharedDocUrl} onOpen={openSharedUrl} onCopy={copySharedUrl} onClose={stopShareDocs} />}
 
-                <div className={styles['bottom-bar']}>
-                  <button
-                    className={styles['action-btn']}
-                    onClick={() =>
-                      vscode.postMessage({
-                        type: 'addLocal',
-                      })
-                    }
-                  >
-                    <FontAwesomeIcon icon={faFolderPlus} />
-                    添加本地项目
-                  </button>
-
-                  <button
-                    className={`${styles['action-btn']} ${styles['secondary']}`}
-                    onClick={() =>
-                      vscode.postMessage({
-                        type: 'addRemote',
-                      })
-                    }
-                  >
-                    <FontAwesomeIcon icon={faGithub} />
-                    添加远程仓库
-                  </button>
-                </div>
+          <Scrollbar className={styles['project-list']} viewClassName={styles['project-list-view']} direction="both">
+            {projects.length === 0 ? (
+              <div className={styles['empty-project']}>
+                <div>暂无项目</div>
+                <BaseButton type="default" size="medium" icon={<i className="codicon codicon-add" />} onClick={addProject}>
+                  添加项目
+                </BaseButton>
               </div>
             ) : (
-              <>
-                {isCurrentVisible &&
-                  activeProjectToRender &&
-                  (() => {
-                    const p = activeProjectToRender;
-                    const rootPath = p.fsPath;
-                    const isRemote = p.fsPath.startsWith('vscode-vfs') || p.fsPath.startsWith('http');
-                    const isGitlab = p.platform === 'gitlab' || p.fsPath.startsWith('vscode-vfs://gitlab');
-                    const title = p.customName || p.name;
-                    const displayPath = getDisplayPath(p);
-                    const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
-                    const branch = branchMap[p.fsPath] || p.branch;
-                    const isExpanded = expandedPaths.has(rootPath);
-                    const projectIcon = isGitlab ? faGitlab : faGithub;
-                    const rootLoading = loadingPaths.has(rootPath) && !dirChildren[rootPath];
-                    const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
+              projects.map((project) => {
+                const groups = project.groups || [];
+                const groupIdSet = new Set(groups.map((group) => group.id));
+                const ungroupedInterfaces = project.interfaces.filter((api) => !api.groupId || !groupIdSet.has(api.groupId));
 
-                    return (
-                      <TreeDragDropContainer
-                        key={rootPath}
-                        path={rootPath}
-                        className={getDropTreeClassName(rootPath)}
-                        draggableEnabled={false}
-                        dropTargetEnabled
-                        canDrop={(entity) => canDropDraggingEntityToFolder(entity, rootPath, true)}
-                        onDragStart={() => undefined}
-                        onDragOver={(entity) => handleDragOverFolder(entity, rootPath, true)}
-                        onDragLeave={() => handleDragLeaveFolder(rootPath)}
-                        onDrop={(entity) => handleDropOnFolder(entity, rootPath, true)}
-                        onDragEnd={handleDragEnd}
-                      >
-                        <>
-                            <div
-                              id={elementId}
-                              data-tree-path={rootPath}
-                              className={`${styles['active-top-project']} ${
-                                selectedPath === rootPath ? styles['selected'] : ''
-                              } ${inHistory ? styles['in-history'] : styles['not-in-history']} ${getDropClassName(rootPath)}`}
-                              onContextMenu={(e) =>
-                                handleContextMenu(e, 'top', {
-                                  path: rootPath,
-                                  isRemote,
-                                  originalName: p.name,
-                                  customName: p.customName,
-                                  platform: p.platform || 'github',
-                                  customDomain: p.customDomain,
-                                  isActiveProject: true,
-                                  inHistory,
-                                })
-                              }
-                              onClick={() => setSelectedPath(rootPath)}
-                            >
-                              <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}>
-                                <div className={styles['tree-chevron']}>
-                                  {rootLoading ? (
-                                    <FontAwesomeIcon
-                                      icon={faSpinner}
-                                      spin
-                                      className={styles['chevron-icon']}
-                                      style={{
-                                        opacity: 1,
-                                        color: 'inherit',
-                                      }}
-                                    />
-                                  ) : (
-                                    <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
-                                  )}
-                                </div>
+                const renderInterfaceItem = (api: GroupedApiInterfaceItem) => (
+                  <InterfaceItem
+                    key={api.id}
+                    api={api}
+                    active={activeProjectId === project.id && activeInterfaceId === api.id}
+                    shareMode={isShareSelecting}
+                    checked={shareSelectedInterfaceIds.includes(api.id)}
+                    onToggleShare={() => {
+                      toggleShareInterface(api.id);
+                    }}
+                    onSelect={() => {
+                      loadInterface(project, api);
+                    }}
+                    onRemove={() => {
+                      removeInterface(project, api);
+                    }}
+                  />
+                );
 
-                                <div className={styles['info']}>
-                                  <div className={styles['title']}>
-                                    {isRemote ? (
-                                      <FontAwesomeIcon icon={projectIcon} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
-                                    ) : (
-                                      <FileIcon fileName={title} isFolder isExpanded={isExpanded} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
-                                    )}
-
-                                    {renderDragAwareTooltip(
-                                      getRootProjectTooltipContent(rootPath, p),
-                                      <span
-                                        className={styles['project-name']}
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          pointerEvents: 'auto',
-                                        }}
-                                      >
-                                        {title}
-                                      </span>,
-                                    )}
-
-                                    {branch && (
-                                      <span className={styles['branch-tag']} title={branch}>
-                                        <FontAwesomeIcon icon={faCodeBranch} className={styles['branch-icon']} />
-                                        <span className={styles['branch-text']}>{branch}</span>
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <div className={styles['path']}>{finalPath}</div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {isExpanded && <div className={getTreeChildrenClassName(rootPath, styles['root-tree-children'])}>{renderTreeChildren(rootPath, title, true)}</div>}
-
-                            <div className={styles['top-divider']}></div>
-                        </>
-                      </TreeDragDropContainer>
-                    );
-                  })()}
-
-                <ul>
-                  {filteredOtherProjects.map((p) => {
-                    const rootPath = p.fsPath;
-                    const isJustOpened = p.fsPath === lastOpenedPath;
-                    const isRemote = p.fsPath.startsWith('vscode-vfs') || p.fsPath.startsWith('http');
-                    const isGitlab = p.platform === 'gitlab' || p.fsPath.startsWith('vscode-vfs://gitlab');
-                    const title = p.customName || p.name;
-                    const displayPath = getDisplayPath(p);
-                    const finalPath = p.customName ? `${p.name} • ${displayPath}` : displayPath;
-                    const isExpanded = expandedPaths.has(rootPath);
-                    const projectIcon = isGitlab ? faGitlab : faGithub;
-                    const itemLoading = loadingPaths.has(rootPath) && !dirChildren[rootPath];
-                    const branch = branchMap[p.fsPath] || p.branch;
-                    const elementId = `tree-node-${encodeURIComponent(rootPath)}`;
-
-                    return (
-                      <li key={rootPath}>
-                        <div
-                          id={elementId}
-                          data-tree-path={rootPath}
-                          className={`${styles['project-item']} ${isJustOpened ? styles['just-opened'] : ''} ${selectedPath === rootPath ? styles['selected'] : ''}`}
-                          onDoubleClick={() => handleOpenProject(p.fsPath)}
-                          onContextMenu={(e) =>
-                            handleContextMenu(e, 'top', {
-                              path: rootPath,
-                              isRemote,
-                              originalName: p.name,
-                              customName: p.customName,
-                              platform: p.platform || 'github',
-                              customDomain: p.customDomain,
-                              isActiveProject: false,
-                            })
-                          }
-                          onClick={() => setSelectedPath(rootPath)}
-                        >
-                          <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}>
-                            <div className={styles['tree-chevron']}>
-                              {itemLoading ? (
-                                <FontAwesomeIcon
-                                  icon={faSpinner}
-                                  spin
-                                  className={styles['chevron-icon']}
-                                  style={{
-                                    opacity: 1,
-                                    color: 'var(--vscode-textLink-foreground)',
-                                  }}
-                                />
-                              ) : (
-                                <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
-                              )}
-                            </div>
-
-                            <div className={styles['info']}>
-                              <div className={styles['title']}>
-                                {isRemote ? (
-                                  <FontAwesomeIcon icon={projectIcon} className={`${styles['project-icon']} ${styles['icon-closed']}`} />
-                                ) : (
-                                  <FileIcon fileName={title} isFolder isExpanded={isExpanded} className={`${styles['project-icon']} ${styles['icon-closed']}`} />
-                                )}
-
-                                {renderDragAwareTooltip(
-                                  getRootProjectTooltipContent(rootPath, p),
-                                  <span
-                                    className={styles['project-name']}
-                                    style={{
-                                      display: 'inline-flex',
-                                      alignItems: 'center',
-                                      pointerEvents: 'auto',
-                                    }}
-                                  >
-                                    {title}
-                                  </span>,
-                                )}
-
-                                {branch && (
-                                  <span className={styles['branch-tag']} title={branch}>
-                                    <FontAwesomeIcon icon={faCodeBranch} className={styles['branch-icon']} />
-                                    <span className={styles['branch-text']}>{branch}</span>
-                                  </span>
-                                )}
-                              </div>
-
-                              <div className={styles['path']}>{finalPath}</div>
-                            </div>
-                          </div>
-
-                          <div className={styles['item-actions']}>
-                            <button className={`${styles['action-btn-icon']} ${styles['open-btn']}`} onClick={(e) => handleOpenCurrent(p.fsPath, e)} title="在当前窗口打开">
-                              <FontAwesomeIcon icon={faArrowRightToBracket} />
-                            </button>
-                          </div>
-                        </div>
-
-                        {isExpanded && <div className={getTreeChildrenClassName(rootPath, styles['root-tree-children'])}>{renderTreeChildren(rootPath, title)}</div>}
-                      </li>
-                    );
-                  })}
-                </ul>
-
-                {searchQuery && filteredOtherProjects.length === 0 && !isCurrentVisible && <div className={styles['no-match-msg']}>没有找到匹配的项目...</div>}
-
-                {isCurrentVisible && activeProjectToRender && (
-                  <TreeDragDropContainer
-                    path={activeProjectToRender.fsPath}
-                    className={`${styles['root-drop-spacer']} ${getDropTreeClassName(activeProjectToRender.fsPath)}`}
-                    draggableEnabled={false}
-                    dropTargetEnabled
-                    canDrop={(entity) => canDropDraggingEntityToFolder(entity, activeProjectToRender.fsPath, true)}
-                    onDragStart={() => undefined}
-                    onDragOver={(entity) => handleDragOverFolder(entity, activeProjectToRender.fsPath, true)}
-                    onDragLeave={() => handleDragLeaveFolder(activeProjectToRender.fsPath)}
-                    onDrop={(entity) => handleDropOnFolder(entity, activeProjectToRender.fsPath, true)}
-                    onDragEnd={handleDragEnd}
+                return (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    active={activeProjectId === project.id}
+                    onSelect={() => {
+                      switchProject(project);
+                    }}
+                    onRename={() => {
+                      renameProject(project);
+                    }}
+                    onAddGroup={() => {
+                      addProjectGroup(project);
+                    }}
+                    onRemove={() => {
+                      removeProject(project);
+                    }}
                   >
-                    <div className={styles['root-drop-spacer-inner']} />
-                  </TreeDragDropContainer>
-                )}
-              </>
+                    {groups.map((group) => {
+                      const groupInterfaces = project.interfaces.filter((api) => api.groupId === group.id);
+                      const collapsed = !expandedGroupIds.has(group.id);
+
+                      return (
+                        <section className={styles['interface-group']} key={group.id}>
+                          <div className={styles['interface-group-head']}>
+                            <button
+                              type="button"
+                              className={styles['interface-group-toggle']}
+                              title={group.name}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                toggleProjectGroup(group.id);
+                              }}
+                            >
+                              <i className={`codicon codicon-chevron-${collapsed ? 'right' : 'down'}`} />
+                              <i className="codicon codicon-folder" />
+                              <span>{group.name}</span>
+                              <small>{groupInterfaces.length}</small>
+                            </button>
+
+                            <div className={styles['interface-group-actions']}>
+                              <BaseButton
+                                type="icon"
+                                size="small"
+                                title={`在 ${group.name} 中添加接口`}
+                                icon={<i className="codicon codicon-group-by-ref-type" />}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  addInterfaceToGroup(project, group);
+                                }}
+                              />
+
+                              <BaseButton
+                                type="icon"
+                                size="small"
+                                title={`重命名分组：${group.name}`}
+                                icon={<i className="codicon codicon-edit" />}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  renameProjectGroup(project, group);
+                                }}
+                              />
+
+                              <BaseButton
+                                type="icon"
+                                size="small"
+                                title={`删除分组：${group.name}`}
+                                icon={<i className="codicon codicon-trash" />}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  removeProjectGroup(project, group);
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          {!collapsed && (
+                            <div className={styles['interface-group-content']}>
+                              {groupInterfaces.length > 0 ? groupInterfaces.map(renderInterfaceItem) : <div className={styles['mini-empty']}>暂无接口</div>}
+                            </div>
+                          )}
+                        </section>
+                      );
+                    })}
+
+                    {groups.length > 0 && ungroupedInterfaces.length > 0 && <div className={styles['ungrouped-title']}>未分组</div>}
+
+                    {ungroupedInterfaces.map(renderInterfaceItem)}
+
+                    {project.interfaces.length === 0 && groups.length === 0 && <div className={styles['mini-empty']}>暂无接口</div>}
+                  </ProjectCard>
+                );
+              })
             )}
           </Scrollbar>
 
-          {(projects.length > 0 || activeProjectToRender) && (
-            <div className={styles['bottom-bar']}>
-              <button
-                className={styles['action-btn']}
-                onClick={() =>
-                  vscode.postMessage({
-                    type: 'addLocal',
-                  })
-                }
-                style={{
-                  marginBottom: 0,
-                }}
-              >
-                <FontAwesomeIcon icon={faFolderPlus} />
-                添加本地
-              </button>
+          {isShareSelecting && (
+            <div className={styles['share-select-actions']}>
+              <div className={styles['share-select-count']}>已选择 {shareSelectedInterfaceIds.length} 个接口</div>
+              <BaseButton type="default" size="medium" onClick={cancelShareSelect}>
+                取消
+              </BaseButton>
 
-              <button
-                className={`${styles['action-btn']} ${styles['secondary']}`}
-                onClick={() =>
-                  vscode.postMessage({
-                    type: 'addRemote',
-                  })
-                }
-                style={{
-                  marginBottom: 0,
-                }}
-              >
-                <FontAwesomeIcon icon={faGithub} />
-                添加远程
-              </button>
+              <BaseButton type="primary" size="medium" onClick={confirmShareDocs}>
+                确认分享
+              </BaseButton>
             </div>
           )}
-        </>
-      )}
+        </aside>
+
+        <div
+          className={[styles['workspace-resizer'], isResizingWorkspacePane ? styles['workspace-resizer-active'] : ''].filter(Boolean).join(' ')}
+          title="拖拽调整项目接口宽度"
+          onPointerDown={handleWorkspaceResizerPointerDown}
+        />
+
+        <section className={styles['left-pane']}>
+          <div className={styles['request-line']}>
+            <select
+              className={styles['method-select']}
+              value={request.method}
+              onChange={(event) => {
+                const method = event.target.value as HttpMethod;
+                const parsed = method === 'GET' ? parseGetRequestUrl(requestRef.current.url) : null;
+
+                patchRequest(
+                  parsed
+                    ? {
+                        method,
+                        url: parsed.url,
+                        params: parsed.params,
+                      }
+                    : {
+                        method,
+                      },
+                );
+
+                if (parsed) {
+                  setRequestTab('params');
+                }
+              }}
+            >
+              {HTTP_METHODS.map((method) => (
+                <option key={method} value={method}>
+                  {method}
+                </option>
+              ))}
+            </select>
+
+            <input
+              className={styles['url-input']}
+              value={request.url}
+              placeholder="请输入请求地址，例如 {{baseUrl}}/api/user"
+              onChange={(event) => patchRequest({ url: event.target.value })}
+              onPaste={(event) => {
+                if (requestRef.current.method !== 'GET') return;
+
+                const value = event.clipboardData.getData('text');
+
+                if (!parseGetRequestUrl(value)) return;
+
+                event.preventDefault();
+                syncGetUrlParams(value);
+              }}
+              onBlur={(event) => {
+                syncGetUrlParams(event.currentTarget.value);
+              }}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                  const parsed = syncGetUrlParams(event.currentTarget.value);
+
+                  if (parsed) {
+                    window.setTimeout(sendRequest, 0);
+                  } else {
+                    sendRequest();
+                  }
+                }
+              }}
+            />
+
+            <input
+              className={styles['timeout-input']}
+              value={request.timeout}
+              type="number"
+              min={1000}
+              title="超时时间 ms"
+              onChange={(event) => patchRequest({ timeout: Number(event.target.value) || 30000 })}
+            />
+          </div>
+
+          <div className={styles['request-name-line']}>
+            <input className={styles['request-name-input']} value={request.name} placeholder="接口名称" onChange={(event) => patchRequest({ name: event.target.value })} />
+            <span title={requestBindText}>{requestBindText}</span>
+          </div>
+
+          <BaseTabs
+            items={REQUEST_TABS}
+            value={requestTab}
+            ariaLabel="请求配置"
+            onChange={(nextTab) => {
+              setRequestTab(nextTab);
+            }}
+          />
+
+          <div className={styles['request-panel']}>
+            {requestTab === 'params' && <KeyValueEditor items={request.params} onChange={(params) => patchRequest({ params })} keyPlaceholder="参数名" valuePlaceholder="参数值" />}
+
+            {requestTab === 'headers' && (
+              <KeyValueEditor items={request.headers} onChange={(headers) => patchRequest({ headers })} keyPlaceholder="Header" valuePlaceholder="Value" />
+            )}
+
+            {requestTab === 'cookies' && (
+              <KeyValueEditor items={request.cookies} onChange={(cookies) => patchRequest({ cookies })} keyPlaceholder="Cookie" valuePlaceholder="Value" />
+            )}
+
+            {requestTab === 'auth' && (
+              <div className={styles['auth-panel']}>
+                <label>
+                  <span>认证类型</span>
+                  <select value={request.auth.type} onChange={(event) => patchRequest({ auth: { ...request.auth, type: event.target.value as AuthType } })}>
+                    <option value="none">None</option>
+                    <option value="bearer">Bearer Token</option>
+                    <option value="basic">Basic Auth</option>
+                  </select>
+                </label>
+
+                {request.auth.type === 'bearer' && (
+                  <label>
+                    <span>Token</span>
+                    <input value={request.auth.token} placeholder="{{token}}" onChange={(event) => patchRequest({ auth: { ...request.auth, token: event.target.value } })} />
+                  </label>
+                )}
+
+                {request.auth.type === 'basic' && (
+                  <>
+                    <label>
+                      <span>Username</span>
+                      <input value={request.auth.username} onChange={(event) => patchRequest({ auth: { ...request.auth, username: event.target.value } })} />
+                    </label>
+                    <label>
+                      <span>Password</span>
+                      <input type="password" value={request.auth.password} onChange={(event) => patchRequest({ auth: { ...request.auth, password: event.target.value } })} />
+                    </label>
+                  </>
+                )}
+              </div>
+            )}
+
+            {requestTab === 'body' && (
+              <div className={styles['body-panel']}>
+                <div className={styles['body-type-row']}>
+                  {(['none', 'json', 'raw', 'form-urlencoded', 'form-data'] as BodyType[]).map((type) => (
+                    <label key={type}>
+                      <input type="radio" checked={request.bodyType === type} onChange={() => patchRequest({ bodyType: type })} />
+                      <span>{type}</span>
+                    </label>
+                  ))}
+                </div>
+
+                {request.bodyType === 'none' && <div className={styles['empty-state']}>该请求不发送 Body</div>}
+
+                {(request.bodyType === 'json' || request.bodyType === 'raw') && (
+                  <div className={styles['request-body-code-editor']}>
+                    <BaseCodeEditor
+                      value={request.bodyRaw}
+                      language={request.bodyType === 'json' ? 'json' : 'plaintext'}
+                      editable
+                      onChange={(bodyRaw) => {
+                        patchRequest({
+                          bodyRaw,
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                {request.bodyType === 'form-urlencoded' && (
+                  <KeyValueEditor items={request.bodyForm} onChange={(bodyForm) => patchRequest({ bodyForm })} keyPlaceholder="字段名" valuePlaceholder="字段值" />
+                )}
+
+                {String(request.bodyType) === 'form-data' && (
+                  <KeyValueEditor items={request.bodyForm} onChange={(bodyForm) => patchRequest({ bodyForm })} keyPlaceholder="字段名" valuePlaceholder="字段值 / 文件" showType />
+                )}
+              </div>
+            )}
+
+            {requestTab === 'pre' && (
+              <textarea className={styles['code-editor']} spellCheck={false} value={request.preScript} onChange={(event) => patchRequest({ preScript: event.target.value })} />
+            )}
+
+            {requestTab === 'post' && (
+              <textarea className={styles['code-editor']} spellCheck={false} value={request.postScript} onChange={(event) => patchRequest({ postScript: event.target.value })} />
+            )}
+          </div>
+        </section>
+
+        <div
+          className={[styles['right-resizer'], isResizingRightPane ? styles['right-resizer-active'] : ''].filter(Boolean).join(' ')}
+          title="拖拽调整响应面板宽度"
+          onPointerDown={handleRightResizerPointerDown}
+        />
+
+        {/* 请求 / 响应详情 */}
+        <section ref={rightPaneRef} className={styles['right-pane']}>
+          <div className={styles['response-head']}>
+            <select
+              className={styles['response-source-select']}
+              value={detailSource}
+              aria-label="选择请求或响应详情"
+              onChange={(event) => {
+                setDetailSource(event.target.value as DetailSource);
+                setResponseTab('body');
+                setIsResponseSearchOpen(false);
+              }}
+            >
+              <option value="response">请求响应</option>
+              <option value="request">请求详情</option>
+            </select>
+
+            <div className={styles['response-head-actions']}>
+              <div className={styles['response-meta']}>
+                {detailSource === 'response' && response && (
+                  <>
+                    <span className={response.ok ? styles['status-ok'] : styles['status-error']}>{response.status || response.statusText}</span>
+                    <span>{response.duration} ms</span>
+                    <span>{formatSize(response.size)}</span>
+                  </>
+                )}
+
+                {detailSource === 'request' && requestDetail && (
+                  <>
+                    <span className={styles['request-method-meta']}>{requestDetail.method}</span>
+                    <span className={styles['request-url-meta']} title={requestDetail.url}>
+                      {requestDetail.url}
+                    </span>
+                    <span>超时 {requestDetail.timeout} ms</span>
+                  </>
+                )}
+              </div>
+
+              <BaseButton
+                type="icon"
+                size="medium"
+                title={detailSource === 'request' ? '搜索请求内容' : '搜索响应内容'}
+                disabled={!responseEditorValue}
+                icon={<i className="codicon codicon-search" />}
+                onClick={openResponseSearch}
+              />
+            </div>
+          </div>
+
+          <BaseTabs
+            items={detailSource === 'request' ? REQUEST_DETAIL_TABS : RESPONSE_TABS}
+            value={responseTab}
+            ariaLabel={detailSource === 'request' ? '请求内容' : '响应内容'}
+            onChange={(nextTab) => {
+              setResponseTab(nextTab);
+            }}
+          />
+
+          {/* 悬浮搜索 */}
+          <BaseSearch
+            open={isResponseSearchOpen}
+            text={responseEditorValue}
+            className={styles['response-panel']}
+            placeholder={detailSource === 'request' ? '搜索请求...' : '搜索响应...'}
+            searchPosition="bottom"
+            onClose={() => {
+              setIsResponseSearchOpen(false);
+            }}
+          >
+            {({ query, activeIndex }) => (
+              <>
+                {detailSource === 'response' && loading && <div className={styles['empty-state']}>正在请求...</div>}
+
+                {detailSource === 'response' && !loading && !response && (
+                  <div className={styles['empty-state']}>
+                    <div className={styles.rocket}>🚀</div>
+
+                    <div>点击“发送”按钮获取返回结果</div>
+                  </div>
+                )}
+
+                {detailSource === 'request' && !requestDetail && (
+                  <div className={styles['empty-state']}>
+                    <div className={styles.rocket}>🚀</div>
+
+                    <div>发送请求后可查看请求参数、Headers 和 cURL</div>
+                  </div>
+                )}
+
+                {hasCurrentDetail && !(detailSource === 'response' && loading) && (
+                  <BaseCodeEditor
+                    value={responseEditorValue}
+                    language={responseEditorLanguage}
+                    search={{
+                      open: isResponseSearchOpen,
+                      query,
+                      activeIndex,
+                    }}
+                  />
+                )}
+              </>
+            )}
+          </BaseSearch>
+
+          <div
+            className={[styles['bottom-resizer'], isResizingBottomPanel ? styles['bottom-resizer-active'] : ''].filter(Boolean).join(' ')}
+            title="拖拽调整历史记录/脚本日志高度"
+            onPointerDown={handleBottomResizerPointerDown}
+          />
+
+          <BottomPanels size={bottomPanelSize} maxSize={bottomPanelMaxSize} history={history} logs={logs} onLoadHistory={loadHistory} />
+        </section>
+      </main>
+
+      {/* 清空提醒 */}
+      <BaseDialog
+        open={Boolean(manageDialog)}
+        title={manageDialog?.title || ''}
+        width={420}
+        placement="center"
+        onClose={closeManageDialog}
+        actions={
+          manageDialog
+            ? [
+                {
+                  key: 'cancel',
+                  label: '取消',
+                  onClick: closeManageDialog,
+                },
+                {
+                  key: 'confirm',
+                  label: 'message' in manageDialog ? (manageDialog.kind === 'clear-all' ? '清空' : '删除') : '确定',
+                  type: 'message' in manageDialog ? 'danger' : 'primary',
+                  onClick: confirmManageDialog,
+                },
+              ]
+            : []
+        }
+      >
+        {manageDialog &&
+          ('message' in manageDialog ? (
+            <div className={styles['dialog-message']}>{manageDialog.message}</div>
+          ) : (
+            <label className={styles['dialog-field']}>
+              <span>{manageDialog.label}</span>
+
+              <input
+                autoFocus
+                className={styles['dialog-input']}
+                value={manageDialogValue}
+                onChange={(event) => {
+                  setManageDialogValue(event.target.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    void confirmManageDialog();
+                  }
+                }}
+              />
+            </label>
+          ))}
+      </BaseDialog>
+
+      {/* 离开提醒 */}
+      <BaseDialog
+        open={Boolean(leaveConfirmDialog)}
+        title={leaveConfirmDialog?.title || ''}
+        width={420}
+        placement="center"
+        onClose={() => {
+          closeLeaveConfirmDialog('cancel');
+        }}
+        footer={
+          <>
+            <BaseButton
+              type="default"
+              size="medium"
+              onClick={() => {
+                closeLeaveConfirmDialog('cancel');
+              }}
+            >
+              取消切换
+            </BaseButton>
+
+            <BaseButton
+              type="default"
+              size="medium"
+              onClick={() => {
+                closeLeaveConfirmDialog('discard');
+              }}
+            >
+              不保存并切换
+            </BaseButton>
+
+            <BaseButton
+              type="primary"
+              size="medium"
+              onClick={() => {
+                closeLeaveConfirmDialog('save');
+              }}
+            >
+              保存并切换
+            </BaseButton>
+          </>
+        }
+      >
+        {leaveConfirmDialog && (
+          <div className={styles['dialog-message']}>
+            {leaveConfirmDialog.message}
+
+            <br />
+
+            <span className={styles.hint}>保存后继续切换，或不保存并恢复到修改前内容。</span>
+          </div>
+        )}
+      </BaseDialog>
+
+      {/* 全局变量 */}
+      <BaseDialog
+        open={showGlobals}
+        title="全局变量"
+        width="min(680px, 92vw)"
+        placement="right"
+        onClose={() => {
+          setShowGlobals(false);
+        }}
+        actions={[
+          {
+            key: 'complete',
+            label: '完成',
+            type: 'primary',
+            onClick: () => {
+              setShowGlobals(false);
+            },
+          },
+        ]}
+      >
+        <p className={styles.hint}>
+          请求地址、Headers、Body 中可以使用 <code>{'{{baseUrl}}'}</code>、<code>{'{{token}}'}</code> 这类变量。
+        </p>
+
+        <KeyValueEditor
+          items={globals}
+          onChange={(items) => {
+            const nextGlobals = items.map((item) => ({
+              ...item,
+            }));
+
+            globalsRef.current = nextGlobals;
+
+            setGlobals(nextGlobals);
+          }}
+          keyPlaceholder="变量名"
+          valuePlaceholder="变量值"
+        />
+      </BaseDialog>
     </div>
   );
 }
