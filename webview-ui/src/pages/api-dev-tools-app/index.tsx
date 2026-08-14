@@ -181,6 +181,30 @@ export default function ApiDevToolsApp() {
   }, [activeProject, activeInterfaceId]);
 
   /**
+   * @description 确保当前正在查看的接口始终处于可见状态
+   *
+   * 初始化恢复、切换项目、切换接口或新建分组接口后，
+   * 如果当前接口属于某个分组，则自动展开该分组。
+   */
+  useEffect(() => {
+    const groupId = activeInterface?.groupId;
+
+    if (!groupId) return;
+
+    setExpandedGroupIds((current) => {
+      if (current.has(groupId)) {
+        return current;
+      }
+
+      const next = new Set(current);
+
+      next.add(groupId);
+
+      return next;
+    });
+  }, [activeInterface?.groupId]);
+
+  /**
    * @description 计算当前请求的项目绑定提示
    */
   const requestBindText = useMemo(() => {
@@ -851,7 +875,6 @@ export default function ApiDevToolsApp() {
         setFloatingEditorOpen(Boolean(message.open));
         return;
       }
-
     };
 
     window.addEventListener('message', handleMessage);
@@ -1779,7 +1802,7 @@ export default function ApiDevToolsApp() {
       setResponseTab('body');
       setExpandedGroupIds((current) => {
         const next = new Set(current);
-        next.delete(manageDialog.groupId);
+        next.add(manageDialog.groupId);
         return next;
       });
 
@@ -1986,6 +2009,11 @@ export default function ApiDevToolsApp() {
 
   /**
    * @description 进入接口文档分享选择状态
+   *
+   * 默认分享规则：
+   * - 只勾选当前正在查看的接口，其他接口全部取消勾选。
+   * - 当前接口属于某个分组时，自动展开该分组，确保接口立即可见。
+   * - 当前没有打开任何接口时，不默认勾选接口，由用户手动选择。
    */
   const shareDocs = () => {
     const allInterfaceIds = getAllInterfaceIds();
@@ -1995,14 +2023,30 @@ export default function ApiDevToolsApp() {
       return;
     }
 
-    setShareSelectedInterfaceIds((current) => {
-      const validIdSet = new Set(allInterfaceIds);
-      const next = current.filter((id) => validIdSet.has(id));
+    const currentProject = projectsRef.current.find((project) => project.id === activeProjectIdRef.current);
+    const currentInterface = currentProject?.interfaces.find((api) => api.id === activeInterfaceIdRef.current);
+    const nextSelectedInterfaceIds = currentInterface ? [currentInterface.id] : [];
+    const currentGroupId = currentInterface?.groupId || '';
 
-      return next.length > 0 ? next : allInterfaceIds;
-    });
+    shareSelectedInterfaceIdsRef.current = nextSelectedInterfaceIds;
+    setShareSelectedInterfaceIds(nextSelectedInterfaceIds);
+
+    if (currentGroupId && currentProject?.groups?.some((group) => group.id === currentGroupId)) {
+      setExpandedGroupIds((current) => {
+        if (current.has(currentGroupId)) {
+          return current;
+        }
+
+        const next = new Set(current);
+
+        next.add(currentGroupId);
+
+        return next;
+      });
+    }
+
     setIsShareSelecting(true);
-    setLog('请选择需要分享的接口');
+    setLog(currentInterface ? `已默认选择当前接口：${currentInterface.name}` : '请选择需要分享的接口');
   };
 
   /**

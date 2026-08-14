@@ -1195,9 +1195,7 @@ export default function RecentProjectsApp() {
   const replaceDirectoryChildren = (pathKey: string, children: DirChild[]) => {
     const previousChildren = dirChildrenRef.current[pathKey] || [];
     const currentChildPaths = new Set(children.map((child) => normalizePatchPath(child.path)));
-    const removedFolderPaths = previousChildren
-      .filter((child) => child.isFolder && !currentChildPaths.has(normalizePatchPath(child.path)))
-      .map((child) => child.path);
+    const removedFolderPaths = previousChildren.filter((child) => child.isFolder && !currentChildPaths.has(normalizePatchPath(child.path))).map((child) => child.path);
     const next = {
       ...dirChildrenRef.current,
       [pathKey]: children,
@@ -3740,70 +3738,70 @@ export default function RecentProjectsApp() {
                 onDragEnd={handleDragEnd}
               >
                 <>
-                    <div
-                      id={elementId}
-                      data-tree-path={childPath}
-                      data-tree-drag-handle="true"
-                      className={`${styles['sub-item']} ${styles['clickable-sub']} ${
-                        selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
-                      } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
-                      onClick={(e) => {
-                        if (isActiveProject && handleItemClick(e, childPath)) return;
-                        handleToggleExpand(childPath, projectName, isRemote, e);
-                      }}
-                      onContextMenu={(e) =>
-                        handleContextMenu(e, 'sub', {
-                          path: childPath,
-                          name: child.name,
-                          isFolder: true,
-                          isExpanded,
-                          projectName,
-                          isActiveProject,
-                        } as ContextMenuPayload)
-                      }
-                    >
-                      <div className={styles['tree-chevron']}>
-                        {childLoading ? (
-                          <FontAwesomeIcon
-                            icon={faSpinner}
-                            spin
-                            className={styles['chevron-icon']}
-                            style={{
-                              opacity: 1,
-                              color: 'var(--vscode-textLink-foreground)',
-                            }}
-                          />
-                        ) : (
-                          <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
-                        )}
-                      </div>
-
-                      <FileIcon fileName={child.name} isFolder isExpanded={isExpanded} className={`${styles['sub-icon']} ${styles['folder-icon']}`} />
-
-                      {renderDragAwareTooltip(
-                        getTreeTooltipContent(childPath, child, true),
-                        renameInput || (
-                          <span
-                            className={styles['sub-name']}
-                            style={{
-                              display: 'inline-block',
-                              alignItems: 'center',
-                              pointerEvents: 'auto',
-                            }}
-                          >
-                            {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
-                          </span>
-                        ),
+                  <div
+                    id={elementId}
+                    data-tree-path={childPath}
+                    data-tree-drag-handle="true"
+                    className={`${styles['sub-item']} ${styles['clickable-sub']} ${
+                      selectedPath === childPath || selectedItems.has(childPath) ? styles['selected'] : ''
+                    } ${styles['search-name-sub-item']} ${draggingEntity?.path === childPath ? styles['dragging'] : ''} ${getDropClassName(childPath)}`}
+                    onClick={(e) => {
+                      if (isActiveProject && handleItemClick(e, childPath)) return;
+                      handleToggleExpand(childPath, projectName, isRemote, e);
+                    }}
+                    onContextMenu={(e) =>
+                      handleContextMenu(e, 'sub', {
+                        path: childPath,
+                        name: child.name,
+                        isFolder: true,
+                        isExpanded,
+                        projectName,
+                        isActiveProject,
+                      } as ContextMenuPayload)
+                    }
+                  >
+                    <div className={styles['tree-chevron']}>
+                      {childLoading ? (
+                        <FontAwesomeIcon
+                          icon={faSpinner}
+                          spin
+                          className={styles['chevron-icon']}
+                          style={{
+                            opacity: 1,
+                            color: 'var(--vscode-textLink-foreground)',
+                          }}
+                        />
+                      ) : (
+                        <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
                       )}
-
-                      <FolderGitStatusDot status={child.status} />
                     </div>
 
-                    {isExpanded && (
-                      <div className={getTreeChildrenClassName(childPath, styles['search-name-tree-children'])}>
-                        {renderTreeChildren(childPath, projectName, isActiveProject, highlightQuery)}
-                      </div>
+                    <FileIcon fileName={child.name} isFolder isExpanded={isExpanded} className={`${styles['sub-icon']} ${styles['folder-icon']}`} />
+
+                    {renderDragAwareTooltip(
+                      getTreeTooltipContent(childPath, child, true),
+                      renameInput || (
+                        <span
+                          className={styles['sub-name']}
+                          style={{
+                            display: 'inline-block',
+                            alignItems: 'center',
+                            pointerEvents: 'auto',
+                          }}
+                        >
+                          {highlightQuery ? renderSearchNameHighlightText(child.name, highlightQuery) : child.name}
+                        </span>
+                      ),
                     )}
+
+                    <FolderGitStatusDot status={child.status} />
+                  </div>
+
+                  {isExpanded && (
+                    <div className={getTreeChildrenClassName(childPath, styles['search-name-tree-children'])}>
+                      {renderTreeChildren(childPath, projectName, isActiveProject, highlightQuery)}
+                    </div>
+                  )}
                 </>
               </TreeDragDropContainer>
             );
@@ -4025,81 +4023,81 @@ export default function RecentProjectsApp() {
                         onDragEnd={handleDragEnd}
                       >
                         <>
-                            <div
-                              id={elementId}
-                              data-tree-path={rootPath}
-                              className={`${styles['active-top-project']} ${
-                                selectedPath === rootPath ? styles['selected'] : ''
-                              } ${inHistory ? styles['in-history'] : styles['not-in-history']} ${getDropClassName(rootPath)}`}
-                              onContextMenu={(e) =>
-                                handleContextMenu(e, 'top', {
-                                  path: rootPath,
-                                  isRemote,
-                                  originalName: p.name,
-                                  customName: p.customName,
-                                  platform: p.platform || 'github',
-                                  customDomain: p.customDomain,
-                                  isActiveProject: true,
-                                  inHistory,
-                                })
-                              }
-                              onClick={() => setSelectedPath(rootPath)}
-                            >
-                              <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}>
-                                <div className={styles['tree-chevron']}>
-                                  {rootLoading ? (
-                                    <FontAwesomeIcon
-                                      icon={faSpinner}
-                                      spin
-                                      className={styles['chevron-icon']}
-                                      style={{
-                                        opacity: 1,
-                                        color: 'inherit',
-                                      }}
-                                    />
+                          <div
+                            id={elementId}
+                            data-tree-path={rootPath}
+                            className={`${styles['active-top-project']} ${
+                              selectedPath === rootPath ? styles['selected'] : ''
+                            } ${inHistory ? styles['in-history'] : styles['not-in-history']} ${getDropClassName(rootPath)}`}
+                            onContextMenu={(e) =>
+                              handleContextMenu(e, 'top', {
+                                path: rootPath,
+                                isRemote,
+                                originalName: p.name,
+                                customName: p.customName,
+                                platform: p.platform || 'github',
+                                customDomain: p.customDomain,
+                                isActiveProject: true,
+                                inHistory,
+                              })
+                            }
+                            onClick={() => setSelectedPath(rootPath)}
+                          >
+                            <div className={`${styles['item-left']} ${styles['clickable-expand']}`} onClick={(e) => handleToggleExpand(rootPath, title, isRemote, e)}>
+                              <div className={styles['tree-chevron']}>
+                                {rootLoading ? (
+                                  <FontAwesomeIcon
+                                    icon={faSpinner}
+                                    spin
+                                    className={styles['chevron-icon']}
+                                    style={{
+                                      opacity: 1,
+                                      color: 'inherit',
+                                    }}
+                                  />
+                                ) : (
+                                  <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+                                )}
+                              </div>
+
+                              <div className={styles['info']}>
+                                <div className={styles['title']}>
+                                  {isRemote ? (
+                                    <FontAwesomeIcon icon={projectIcon} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
                                   ) : (
-                                    <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+                                    <FileIcon fileName={title} isFolder isExpanded={isExpanded} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
+                                  )}
+
+                                  {renderDragAwareTooltip(
+                                    getRootProjectTooltipContent(rootPath, p),
+                                    <span
+                                      className={styles['project-name']}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        pointerEvents: 'auto',
+                                      }}
+                                    >
+                                      {title}
+                                    </span>,
+                                  )}
+
+                                  {branch && (
+                                    <span className={styles['branch-tag']} title={branch}>
+                                      <FontAwesomeIcon icon={faCodeBranch} className={styles['branch-icon']} />
+                                      <span className={styles['branch-text']}>{branch}</span>
+                                    </span>
                                   )}
                                 </div>
 
-                                <div className={styles['info']}>
-                                  <div className={styles['title']}>
-                                    {isRemote ? (
-                                      <FontAwesomeIcon icon={projectIcon} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
-                                    ) : (
-                                      <FileIcon fileName={title} isFolder isExpanded={isExpanded} className={`${styles['project-icon']} ${inHistory ? styles['icon-opened'] : ''}`} />
-                                    )}
-
-                                    {renderDragAwareTooltip(
-                                      getRootProjectTooltipContent(rootPath, p),
-                                      <span
-                                        className={styles['project-name']}
-                                        style={{
-                                          display: 'inline-flex',
-                                          alignItems: 'center',
-                                          pointerEvents: 'auto',
-                                        }}
-                                      >
-                                        {title}
-                                      </span>,
-                                    )}
-
-                                    {branch && (
-                                      <span className={styles['branch-tag']} title={branch}>
-                                        <FontAwesomeIcon icon={faCodeBranch} className={styles['branch-icon']} />
-                                        <span className={styles['branch-text']}>{branch}</span>
-                                      </span>
-                                    )}
-                                  </div>
-
-                                  <div className={styles['path']}>{finalPath}</div>
-                                </div>
+                                <div className={styles['path']}>{finalPath}</div>
                               </div>
                             </div>
+                          </div>
 
-                            {isExpanded && <div className={getTreeChildrenClassName(rootPath, styles['root-tree-children'])}>{renderTreeChildren(rootPath, title, true)}</div>}
+                          {isExpanded && <div className={getTreeChildrenClassName(rootPath, styles['root-tree-children'])}>{renderTreeChildren(rootPath, title, true)}</div>}
 
-                            <div className={styles['top-divider']}></div>
+                          <div className={styles['top-divider']}></div>
                         </>
                       </TreeDragDropContainer>
                     );
