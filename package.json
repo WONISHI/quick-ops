@@ -224,7 +224,7 @@
         {
           "id": "quickOps-view-container",
           "title": "Quick Ops",
-          "icon": "$(server)"
+          "icon": "resources/view-icon/icon-container.svg"
         }
       ],
       "panel": [
