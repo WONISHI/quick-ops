@@ -285,6 +285,10 @@ export class LivePreviewProvider {
         await this.createNewPreviewTab(message.device || '');
         break;
 
+      case 'closeAllPreviewTabs':
+        await this.closeAllPreviewTabs(this.mainPreviewTabId);
+        break;
+
       case 'browserNavigate':
         await this.runMainBrowserAction(() => this.embeddedBrowserService.navigate(message.url || 'about:blank'));
         break;
@@ -778,6 +782,10 @@ export class LivePreviewProvider {
         await this.createNewPreviewTab(message.device || '');
         break;
 
+      case 'closeAllPreviewTabs':
+        await this.closeAllPreviewTabs(tabId);
+        break;
+
       case 'browserNavigate':
         await run(() => browserService.navigate(message.url || 'about:blank'));
         break;
@@ -892,6 +900,41 @@ export class LivePreviewProvider {
   }
 
   /**
+   * @description 关闭其它 Live Preview 标签页，并将当前标签页恢复为欢迎页
+   */
+  private async closeAllPreviewTabs(currentTabId: string): Promise<void> {
+    const currentRecord = this.previewTabs.get(currentTabId);
+
+    if (!currentRecord) return;
+
+    const otherRecords = Array.from(this.previewTabs.values()).filter((item) => item.id !== currentTabId);
+
+    otherRecords.forEach((item) => {
+      item.panel.dispose();
+    });
+
+    await currentRecord.browserService.stop().catch((error) => {
+      console.warn('[LivePreviewProvider] stop current preview before reset failed:', error);
+    });
+
+    const context = this.extensionContextProvider.getContext();
+
+    await context.workspaceState.update('quickOps.lastPreviewUrl', '');
+
+    currentRecord.title = this.createPreviewTabTitle('', '');
+    currentRecord.url = '';
+    currentRecord.faviconUrl = '';
+    currentRecord.panel.title = '网页预览 (Preview)';
+    currentRecord.panel.iconPath = this.getDefaultPreviewIconUri();
+
+    await currentRecord.panel.webview.postMessage({
+      type: 'resetPreviewToWelcome',
+    });
+
+    this.broadcastPreviewTabs();
+  }
+
+  /**
    * @description 更新标签页标题或 URL
    */
   private updatePreviewTab(
@@ -939,6 +982,15 @@ export class LivePreviewProvider {
     } catch (error) {
       console.warn('[LivePreviewProvider] update preview favicon failed:', error);
     }
+  }
+
+  /**
+   * @description Live Preview 默认标签页图标
+   */
+  private getDefaultPreviewIconUri(): vscode.Uri {
+    const context = this.extensionContextProvider.getContext();
+
+    return vscode.Uri.joinPath(context.extensionUri, 'resources', 'favicon', 'live-preview.svg');
   }
 
   /**
@@ -1022,12 +1074,13 @@ export class LivePreviewProvider {
   private postPreviewTabsToPanel(panel: vscode.WebviewPanel, currentTabId: string): void {
     const records = Array.from(this.previewTabs.values());
     const hasActivePanel = records.some((item) => item.panel.active);
+    const defaultFaviconUrl = panel.webview.asWebviewUri(this.getDefaultPreviewIconUri()).toString();
 
     const tabs: PreviewTabInfo[] = records.map((item) => ({
       id: item.id,
       title: item.title,
       url: item.url,
-      faviconUrl: item.faviconUrl,
+      faviconUrl: item.faviconUrl || defaultFaviconUrl,
       active: hasActivePanel ? item.panel.active : item.id === currentTabId,
     }));
 

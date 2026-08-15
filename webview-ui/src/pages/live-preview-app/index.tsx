@@ -1582,6 +1582,9 @@ export default function LivePreviewApp() {
       } else if (message.type === 'previewTabsChanged') {
         setPreviewTabs(Array.isArray(message.tabs) ? message.tabs : []);
         setCurrentPreviewTabId(String(message.currentTabId || message.activeTabId || ''));
+      } else if (message.type === 'resetPreviewToWelcome') {
+        resetPreviewState();
+        setPreviewTabsMenuOpen(false);
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
         setFavoriteFolders(message.folders || []);
@@ -1896,13 +1899,14 @@ export default function LivePreviewApp() {
     }
   };
 
-  const resetPreviewState = () => {
+  function resetPreviewState() {
     clearPreviewLoadTimer();
 
     previewRequestIdRef.current += 1;
     pageLoadedRef.current = false;
     faviconResolvedRef.current = false;
 
+    setUrlInput('');
     setFrameUrl('');
     setPreviewType('web');
     setPreviewLoading(false);
@@ -1914,7 +1918,7 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'browserStopLoading' });
     vscode?.postMessage({ type: 'browserStop' });
     vscode?.postMessage({ type: 'saveUrl', url: '' });
-  };
+  }
 
   const handleRefresh = () => {
     const inputValue = urlInput.trim();
@@ -2082,6 +2086,17 @@ export default function LivePreviewApp() {
           vscode?.postMessage({
             type: 'openNewPreviewTab',
             device,
+          });
+        },
+      },
+      {
+        key: 'preview-tabs-close-all',
+        label: '关闭所有标签页',
+        icon: <FontAwesomeIcon icon={faXmark} />,
+        className: styles['preview-tabs-menu-new-item'],
+        onSelect: () => {
+          vscode?.postMessage({
+            type: 'closeAllPreviewTabs',
           });
         },
       },
