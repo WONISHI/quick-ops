@@ -2094,12 +2094,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (!targetFolderUri) return;
 
     const entries = Array.isArray(files) ? files : [];
-    const skippedNames = Array.isArray(preflightSkippedNames)
-      ? preflightSkippedNames.filter((item): item is string => typeof item === 'string' && !!item)
-      : [];
-    const failedNames = Array.isArray(preflightFailedNames)
-      ? preflightFailedNames.filter((item): item is string => typeof item === 'string' && !!item)
-      : [];
+    const skippedNames = Array.isArray(preflightSkippedNames) ? preflightSkippedNames.filter((item): item is string => typeof item === 'string' && !!item) : [];
+    const failedNames = Array.isArray(preflightFailedNames) ? preflightFailedNames.filter((item): item is string => typeof item === 'string' && !!item) : [];
     const importedNames: string[] = [];
     const seenNames = new Set<string>();
 
@@ -4137,10 +4133,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (workspaceFolder) {
       relativePath = vscode.workspace.asRelativePath(uri, false).replace(/\\/g, '/');
     } else if (projectRootUri) {
-      relativePath =
-        uri.scheme === 'file'
-          ? path.relative(projectRootUri.fsPath, uri.fsPath).replace(/\\/g, '/')
-          : path.posix.relative(projectRootUri.path, uri.path);
+      relativePath = uri.scheme === 'file' ? path.relative(projectRootUri.fsPath, uri.fsPath).replace(/\\/g, '/') : path.posix.relative(projectRootUri.path, uri.path);
     }
 
     await vscode.env.clipboard.writeText(relativePath || (projectRootUri ? '.' : path.basename(uri.path)));
@@ -4533,10 +4526,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private async writeFileWithoutOverwrite(targetUri: vscode.Uri, content: Uint8Array): Promise<void> {
-    const temporaryUri = vscode.Uri.joinPath(
-      vscode.Uri.file(path.dirname(targetUri.fsPath)),
-      `.quick-ops-import-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    );
+    const temporaryUri = vscode.Uri.joinPath(vscode.Uri.file(path.dirname(targetUri.fsPath)), `.quick-ops-import-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
     await vscode.workspace.fs.writeFile(temporaryUri, content);
 
@@ -4573,10 +4563,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         throw error;
       }
 
-      const temporaryUri = vscode.Uri.joinPath(
-        vscode.Uri.file(path.dirname(sourceUri.fsPath)),
-        `.quick-ops-rename-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      );
+      const temporaryUri = vscode.Uri.joinPath(vscode.Uri.file(path.dirname(sourceUri.fsPath)), `.quick-ops-rename-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
       await vscode.workspace.fs.rename(sourceUri, temporaryUri, {
         overwrite: false,

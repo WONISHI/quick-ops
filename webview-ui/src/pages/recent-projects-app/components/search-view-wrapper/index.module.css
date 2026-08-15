@@ -143,12 +143,12 @@
 
 .search-target-title {
   min-width: 0;
+  flex: 1;
   height: 18px;
   line-height: 18px;
   font-size: 12px;
   font-weight: 600;
   color: var(--vscode-sideBarTitle-foreground, var(--vscode-foreground));
-  flex-shrink: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -158,14 +158,32 @@
   letter-spacing: 0.1px;
 }
 
-.search-target-subtitle {
-  min-width: 0;
-  color: var(--vscode-descriptionForeground);
-  opacity: 0.82;
-  font-weight: 400;
-  font-size: 11px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.search-target-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.search-highlight-toggle-btn {
+  width: auto;
+  min-width: 18px;
+  padding: 0 5px;
+  gap: 3px;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.search-highlight-toggle-btn[aria-pressed='true'] {
+  opacity: 1;
+  color: var(--vscode-textLink-foreground);
+  background: var(--vscode-toolbar-hoverBackground);
+}
+
+.search-highlight-toggle-icon {
+  font-size: 12px;
+  line-height: 18px;
 }
 
 .search-nav-btns {
