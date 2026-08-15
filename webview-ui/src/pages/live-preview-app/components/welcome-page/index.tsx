@@ -55,7 +55,7 @@ export default function WelcomePage(props: WelcomePageProps) {
 
   return (
     <div className={styles['welcome-page']}>
-      <Scrollbar className={styles['welcome-scrollbar']} direction="vertical" inset>
+      <Scrollbar className={styles['welcome-scrollbar']} direction="vertical" height="100%" always>
         <div className={styles['welcome-content']}>
           <FontAwesomeIcon icon={faLayerGroup} className={styles['welcome-icon']} />
 

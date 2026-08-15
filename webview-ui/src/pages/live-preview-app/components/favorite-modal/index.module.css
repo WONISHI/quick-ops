@@ -190,7 +190,9 @@
 
 .fav-folder-list {
   flex: 1 1 auto;
+  height: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .fav-folder-list-view {
@@ -358,7 +360,9 @@
 
 .fav-list {
   flex: 1;
+  height: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .fav-list-view {

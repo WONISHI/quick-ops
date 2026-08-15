@@ -405,7 +405,8 @@ export default function FavoriteModal(props: FavoriteModalProps) {
               className={styles['fav-folder-list']}
               viewClassName={styles['fav-folder-list-view']}
               direction="vertical"
-              inset
+              height={0}
+              always
             >
               {showAllFolder && (
                 <button
@@ -525,7 +526,13 @@ export default function FavoriteModal(props: FavoriteModalProps) {
               </div>
             )}
 
-            <Scrollbar className={styles['fav-list']} viewClassName={styles['fav-list-view']} direction="vertical" inset>
+            <Scrollbar
+              className={styles['fav-list']}
+              viewClassName={styles['fav-list-view']}
+              direction="vertical"
+              height={0}
+              always
+            >
               {displayFavorites.length === 0 ? (
                 <div className={styles['fav-empty']}>
                   {favoriteSearchKeyword.trim() ? '未找到匹配的书签。' : '暂无收藏。点击右上角 + 号，或地址栏星号添加。'}
