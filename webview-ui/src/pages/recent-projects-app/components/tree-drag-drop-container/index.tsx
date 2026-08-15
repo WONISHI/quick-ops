@@ -24,7 +24,14 @@ export type TreeDragDropContainerProps = {
   onDragLeave: () => void;
   onDrop: (entity: TreeDraggingEntity) => void;
   onDragEnd: () => void;
+  onExternalDragOver?: () => void;
+  onExternalDragLeave?: () => void;
+  onExternalFileDrop?: (files: File[]) => void;
   children: React.ReactNode;
+};
+
+const containsExternalFiles = (event: DragEvent): boolean => {
+  return Array.from(event.dataTransfer?.types || []).includes('Files');
 };
 
 const parsePragmaticDraggingEntity = (value: unknown): DraggingEntity | null => {
@@ -184,6 +191,55 @@ export default function TreeDragDropContainer(props: TreeDragDropContainerProps)
           },
         }),
       );
+    }
+
+    if (dropElement && propsRef.current.dropTargetEnabled && propsRef.current.onExternalFileDrop) {
+      const handleExternalDragOver = (event: DragEvent) => {
+        if (!containsExternalFiles(event)) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = 'copy';
+        }
+
+        propsRef.current.onExternalDragOver?.();
+      };
+      const handleExternalDragLeave = (event: DragEvent) => {
+        if (!containsExternalFiles(event)) return;
+
+        const nextTarget = event.relatedTarget;
+
+        if (nextTarget instanceof Node && dropElement.contains(nextTarget)) return;
+
+        event.stopPropagation();
+        propsRef.current.onExternalDragLeave?.();
+      };
+      const handleExternalDrop = (event: DragEvent) => {
+        if (!containsExternalFiles(event)) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+
+        const files = Array.from(event.dataTransfer?.files || []);
+
+        propsRef.current.onExternalDragLeave?.();
+
+        if (files.length > 0) {
+          propsRef.current.onExternalFileDrop?.(files);
+        }
+      };
+
+      dropElement.addEventListener('dragover', handleExternalDragOver);
+      dropElement.addEventListener('dragleave', handleExternalDragLeave);
+      dropElement.addEventListener('drop', handleExternalDrop);
+
+      cleanups.push(() => {
+        dropElement.removeEventListener('dragover', handleExternalDragOver);
+        dropElement.removeEventListener('dragleave', handleExternalDragLeave);
+        dropElement.removeEventListener('drop', handleExternalDrop);
+      });
     }
 
     if (cleanups.length === 0) return;
