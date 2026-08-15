@@ -16,6 +16,7 @@ interface PreviewTabRecord {
   browserService: EmbeddedBrowserService;
   title: string;
   url: string;
+  faviconUrl: string;
   isMain: boolean;
 }
 
@@ -23,6 +24,7 @@ interface PreviewTabInfo {
   id: string;
   title: string;
   url: string;
+  faviconUrl: string;
   active: boolean;
 }
 
@@ -148,6 +150,7 @@ export class LivePreviewProvider {
       browserService: this.embeddedBrowserService,
       title: this.createPreviewTabTitle('', this.pendingInitialUrl),
       url: this.pendingInitialUrl,
+      faviconUrl: '',
       isMain: true,
     });
 
@@ -529,6 +532,7 @@ export class LivePreviewProvider {
       this.updatePreviewTab(tabId, {
         title: String(payload?.title || ''),
         url: String(payload?.url || ''),
+        faviconUrl: String(payload?.faviconUrl || ''),
       });
 
       this.updatePreviewPanelIcon(panel, payload?.faviconUrl);
@@ -591,6 +595,7 @@ export class LivePreviewProvider {
       this.updatePreviewTab(tabId, {
         title: snapshot.title || snapshot.url,
         url: snapshot.url,
+        faviconUrl: snapshot.faviconUrl,
       });
       this.updatePreviewPanelIcon(panel, snapshot.faviconUrl);
 
@@ -670,6 +675,7 @@ export class LivePreviewProvider {
       browserService,
       title: this.createPreviewTabTitle('', initialUrl),
       url: initialUrl,
+      faviconUrl: '',
       isMain: false,
     });
 
@@ -893,6 +899,7 @@ export class LivePreviewProvider {
     patch: {
       title?: string;
       url?: string;
+      faviconUrl?: string;
     },
   ): void {
     const record = this.previewTabs.get(tabId);
@@ -901,9 +908,11 @@ export class LivePreviewProvider {
 
     const nextUrl = typeof patch.url === 'string' ? patch.url : record.url;
     const nextTitle = typeof patch.title === 'string' && patch.title.trim() ? patch.title.trim() : record.title;
+    const nextFaviconUrl = typeof patch.faviconUrl === 'string' ? patch.faviconUrl.trim() : record.faviconUrl;
 
     record.url = nextUrl;
     record.title = this.createPreviewTabTitle(nextTitle, nextUrl);
+    record.faviconUrl = nextFaviconUrl;
     record.panel.title = this.createPreviewPanelTitle(record.title);
 
     this.broadcastPreviewTabs();
@@ -1018,6 +1027,7 @@ export class LivePreviewProvider {
       id: item.id,
       title: item.title,
       url: item.url,
+      faviconUrl: item.faviconUrl,
       active: hasActivePanel ? item.panel.active : item.id === currentTabId,
     }));
 

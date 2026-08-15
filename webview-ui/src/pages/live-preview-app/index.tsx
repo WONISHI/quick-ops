@@ -17,6 +17,7 @@ import {
   faEllipsis,
   faSpinner,
   faWindowRestore,
+  faPlus,
 } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 
@@ -55,6 +56,10 @@ import type {
   PreviewType,
   PreviewTabItem,
 } from '@pages/live-preview-app/src/type';
+
+type PreviewTabListItem = PreviewTabItem & {
+  faviconUrl?: string;
+};
 
 const isBrowserEngineKey = (value: unknown): value is BrowserEngineKey => {
   return value === 'baidu' || value === 'bing' || value === 'quark';
@@ -946,6 +951,7 @@ export default function LivePreviewApp() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [showProgress, setShowProgress] = useState(false);
   const progressTimerRef = useRef<number | null>(null);
+  const progressStartedRef = useRef(false);
 
   const [device, setDevice] = useState('device-responsive');
   const [isRotated, setIsRotated] = useState(false);
@@ -968,7 +974,7 @@ export default function LivePreviewApp() {
   const [browserSwitcherOpen, setBrowserSwitcherOpen] = useState(false);
   const [deviceMenuOpen, setDeviceMenuOpen] = useState(false);
   const [previewTabsMenuOpen, setPreviewTabsMenuOpen] = useState(false);
-  const [previewTabs, setPreviewTabs] = useState<PreviewTabItem[]>([]);
+  const [previewTabs, setPreviewTabs] = useState<PreviewTabListItem[]>([]);
   const [currentPreviewTabId, setCurrentPreviewTabId] = useState('');
 
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
@@ -1098,51 +1104,70 @@ export default function LivePreviewApp() {
 
   // 控制顶部虚拟进度条：页面加载完成后直接卸载 DOM，避免残留一条线
   useEffect(() => {
+    let startTimer: number | undefined;
+    let completeTimer: number | undefined;
     let hideTimer: number | undefined;
     let resetTimer: number | undefined;
 
-    if (previewLoading) {
-      setShowProgress(true);
-      setLoadingProgress(15);
-
+    const clearProgressInterval = () => {
       if (progressTimerRef.current) {
         window.clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
       }
+    };
 
-      progressTimerRef.current = window.setInterval(() => {
-        setLoadingProgress((prev) => {
-          if (prev >= 92) return 92;
+    if (previewLoading) {
+      progressStartedRef.current = true;
 
-          const increment = prev < 50 ? 10 : prev < 80 ? 4 : 1;
+      startTimer = window.setTimeout(() => {
+        setShowProgress(true);
+        setLoadingProgress(15);
+        clearProgressInterval();
 
-          return prev + increment;
-        });
-      }, 300);
+        progressTimerRef.current = window.setInterval(() => {
+          setLoadingProgress((prev) => {
+            if (prev >= 92) return 92;
+
+            const increment = prev < 50 ? 10 : prev < 80 ? 4 : 1;
+
+            return prev + increment;
+          });
+        }, 300);
+      }, 0);
 
       return () => {
-        if (progressTimerRef.current) {
-          window.clearInterval(progressTimerRef.current);
-          progressTimerRef.current = null;
+        if (startTimer) {
+          window.clearTimeout(startTimer);
         }
+
+        clearProgressInterval();
       };
     }
 
-    if (progressTimerRef.current) {
-      window.clearInterval(progressTimerRef.current);
-      progressTimerRef.current = null;
+    clearProgressInterval();
+
+    if (!progressStartedRef.current) {
+      return;
     }
 
-    setLoadingProgress(100);
+    completeTimer = window.setTimeout(() => {
+      setLoadingProgress(100);
 
-    hideTimer = window.setTimeout(() => {
-      setShowProgress(false);
+      hideTimer = window.setTimeout(() => {
+        setShowProgress(false);
 
-      resetTimer = window.setTimeout(() => {
-        setLoadingProgress(0);
-      }, 120);
-    }, 180);
+        resetTimer = window.setTimeout(() => {
+          setLoadingProgress(0);
+          progressStartedRef.current = false;
+        }, 120);
+      }, 180);
+    }, 0);
 
     return () => {
+      if (completeTimer) {
+        window.clearTimeout(completeTimer);
+      }
+
       if (hideTimer) {
         window.clearTimeout(hideTimer);
       }
@@ -1739,7 +1764,7 @@ export default function LivePreviewApp() {
     return 'web';
   };
 
-  const loadPreviewTarget = (url: string) => {
+  function loadPreviewTarget(url: string) {
     const pType = getPreviewTypeByUrl(url);
 
     setPreviewType(pType);
@@ -1790,9 +1815,9 @@ export default function LivePreviewApp() {
       pushHistory(url, url);
       pendingExplicitNavigationRef.current = false;
     }
-  };
+  }
 
-  const handleGo = (forceUrl?: string) => {
+  function handleGo(forceUrl?: string) {
     const rawUrl = forceUrl !== undefined ? forceUrl : urlInput;
     const finalUrl = parsePreviewInput(rawUrl);
 
@@ -1825,7 +1850,7 @@ export default function LivePreviewApp() {
 
     setUrlInput(finalUrl);
     loadPreviewTarget(finalUrl);
-  };
+  }
 
   const suggestions = useMemo(() => {
     const query = urlInput.trim().toLowerCase();
@@ -2048,6 +2073,22 @@ export default function LivePreviewApp() {
         type: 'separator',
         key: 'preview-tabs-header-separator',
       },
+      {
+        key: 'preview-tabs-new-tab',
+        label: '新建标签页',
+        icon: <FontAwesomeIcon icon={faPlus} />,
+        className: styles['preview-tabs-menu-new-item'],
+        onSelect: () => {
+          vscode?.postMessage({
+            type: 'openNewPreviewTab',
+            device,
+          });
+        },
+      },
+      {
+        type: 'separator',
+        key: 'preview-tabs-new-tab-separator',
+      },
     ];
 
     if (previewTabs.length === 0) {
@@ -2063,9 +2104,26 @@ export default function LivePreviewApp() {
 
     previewTabs.forEach((tab) => {
       const active = tab.active || tab.id === currentPreviewTabId;
+      const tabFaviconUrl = String(tab.faviconUrl || '').trim();
 
       items.push({
         key: tab.id,
+        icon: (
+          <span className={styles['preview-tab-menu-icon']}>
+            <FontAwesomeIcon icon={faWindowRestore} />
+
+            {tabFaviconUrl && (
+              <img
+                className={styles['preview-tab-menu-favicon']}
+                src={tabFaviconUrl}
+                alt=""
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none';
+                }}
+              />
+            )}
+          </span>
+        ),
         label: (
           <span className={styles['preview-tab-item-main']}>
             <span className={styles['preview-tab-title']}>{tab.title || '新建预览'}</span>
@@ -2088,7 +2146,7 @@ export default function LivePreviewApp() {
     });
 
     return items;
-  }, [currentPreviewTabId, previewTabs]);
+  }, [currentPreviewTabId, device, previewTabs]);
 
   const parsedUrlInput = useMemo(() => {
     const value = urlInput.trim();
@@ -2449,14 +2507,6 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'importFavorites' });
   };
 
-  const exportFavorites = () => {
-    vscode?.postMessage({
-      type: 'exportFavorites',
-      favorites: sortedFavorites,
-      folders: favoriteFolders,
-    });
-  };
-
   const sortedFavorites = useMemo(() => {
     const defaultList = favorites.filter((item) => item.isDefault);
     const userList = favorites.filter((item) => !item.isDefault);
@@ -2471,6 +2521,14 @@ export default function LivePreviewApp() {
 
     return [...defaultList, ...sortedUserList];
   }, [favorites, favSort]);
+
+  const exportFavorites = () => {
+    vscode?.postMessage({
+      type: 'exportFavorites',
+      favorites: sortedFavorites,
+      folders: favoriteFolders,
+    });
+  };
 
   const renderPreviewLoadingMask = () => {
     if (!previewLoading) return null;
