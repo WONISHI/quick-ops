@@ -945,7 +945,7 @@
     "build:ext": "webpack --mode production --devtool hidden-source-map",
     "build:ui": "cd webview-ui && npm run build",
     "build:all": "concurrently -c \"blue.bold,yellow.bold\" -n \"EXT,UI\" \"npm run build:ext\" \"npm run build:ui\"",
-    "build": "npm run build:all && vsce package --no-yarn --no-dependencies",
+    "build": "vsce package --no-yarn --no-dependencies --allow-package-secrets sendgrid",
     "preinstall": "cd webview-ui && pnpm install",
     "compile-tests": "tsc -p . --outDir dist",
     "watch-tests": "tsc -p . -w --outDir dist",
