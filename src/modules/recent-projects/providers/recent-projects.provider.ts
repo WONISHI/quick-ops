@@ -1725,9 +1725,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       await this.ensureParentDirectory(targetUri);
 
       if (await this.hasExactChildName(targetParentUri, targetName)) {
-        vscode.window.showWarningMessage(`文件已存在：${name}`);
-        this.refreshTreeAfterFileChange();
-        return;
+        const confirmed = await this.confirmAndRemoveNameConflict(targetUri, '新建文件');
+
+        if (!confirmed) return;
       }
 
       if (await this.pathExists(targetUri)) {
@@ -1768,10 +1768,9 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       await vscode.workspace.fs.createDirectory(targetParentUri);
 
       if (await this.hasExactChildName(targetParentUri, targetName)) {
-        vscode.window.showWarningMessage(`文件夹已存在：${name}`);
-        this.invalidateDirCache(parentUri.toString());
-        await this.handleReadDir(parentUri.toString(), undefined, false, true);
-        return;
+        const confirmed = await this.confirmAndRemoveNameConflict(targetUri, '新建文件夹');
+
+        if (!confirmed) return;
       }
 
       if (await this.pathExists(targetUri)) {
@@ -1901,12 +1900,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const nextName = path.basename(nextUri.fsPath);
     const ignoredName = path.dirname(oldUri.fsPath) === path.dirname(nextUri.fsPath) ? oldName : undefined;
 
-    if (await this.hasExactChildName(parentUri, nextName, ignoredName)) {
-      vscode.window.showWarningMessage(`目标已存在：${nextName}`);
-      return;
-    }
-
     try {
+      if (await this.hasExactChildName(parentUri, nextName, ignoredName)) {
+        const confirmed = await this.confirmAndRemoveNameConflict(nextUri, '重命名');
+
+        if (!confirmed) return;
+      }
+
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
@@ -1950,21 +1950,17 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     const targetUri = vscode.Uri.file(path.join(targetFolderUri.fsPath, path.basename(sourceUri.fsPath)));
 
     try {
-      let overwrite = false;
-
       if (await this.hasExactChildName(targetFolderUri, path.basename(targetUri.fsPath))) {
-        const picked = await vscode.window.showWarningMessage(`目标位置已存在 ${path.basename(targetUri.fsPath)}，是否覆盖？`, { modal: true }, '覆盖');
+        const confirmed = await this.confirmAndRemoveNameConflict(targetUri, '移动');
 
-        if (picked !== '覆盖') return;
-
-        overwrite = true;
+        if (!confirmed) return;
       } else if (await this.pathExists(targetUri)) {
         vscode.window.showWarningMessage(`无法移动：当前文件系统不支持仅大小写不同的同名${isFolder ? '文件夹' : '文件'}。`);
         return;
       }
 
       await vscode.workspace.fs.rename(sourceUri, targetUri, {
-        overwrite,
+        overwrite: false,
       });
 
       vscode.window.showInformationMessage(`${isFolder ? '文件夹' : '文件'}移动成功`);
@@ -2033,22 +2029,19 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         for (const entry of entries) {
           const sourceName = path.basename(entry.sourceUri.fsPath);
           const targetUri = vscode.Uri.file(path.join(targetFolderUri.fsPath, sourceName));
-          let overwrite = false;
 
           try {
             if (await this.hasExactChildName(targetFolderUri, sourceName)) {
-              const picked = await vscode.window.showWarningMessage(`目标位置已存在 ${sourceName}，是否覆盖？`, { modal: true }, '覆盖');
+              const confirmed = await this.confirmAndRemoveNameConflict(targetUri, '移动');
 
-              if (picked !== '覆盖') continue;
-
-              overwrite = true;
+              if (!confirmed) continue;
             } else if (await this.pathExists(targetUri)) {
               failedNames.push(sourceName);
               continue;
             }
 
             await vscode.workspace.fs.rename(entry.sourceUri, targetUri, {
-              overwrite,
+              overwrite: false,
             });
             movedCount++;
           } catch {
@@ -2104,44 +2097,52 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
           seenNames.add(rawName);
 
-          if (await this.hasExactChildName(targetFolderUri, rawName)) {
-            skippedNames.push(rawName);
-            continue;
-          }
-
           const targetUri = vscode.Uri.joinPath(targetFolderUri, rawName);
-
-          if (await this.pathExists(targetUri)) {
-            failedNames.push(`${rawName}（当前文件系统不支持仅大小写不同的文件名）`);
-            continue;
-          }
 
           try {
             const sourcePath = String((item as any)?.sourcePath || '');
+            let sourceUri: vscode.Uri | undefined;
+            let content: Uint8Array | undefined;
 
             if (sourcePath) {
-              const sourceUri = vscode.Uri.file(sourcePath);
+              sourceUri = vscode.Uri.file(sourcePath);
               const stat = await vscode.workspace.fs.stat(sourceUri);
 
               if ((stat.type & vscode.FileType.Directory) !== 0) {
                 failedNames.push(`${rawName}（暂不支持导入文件夹）`);
                 continue;
               }
-
-              await vscode.workspace.fs.copy(sourceUri, targetUri, {
-                overwrite: false,
-              });
             } else {
               const base64 = String((item as any)?.base64 ?? '');
-              const content = Buffer.from(base64, 'base64');
+
+              content = Buffer.from(base64, 'base64');
+
               const expectedSize = Number((item as any)?.size);
 
               if (Number.isFinite(expectedSize) && expectedSize >= 0 && content.byteLength !== expectedSize) {
                 failedNames.push(`${rawName}（文件内容不完整）`);
                 continue;
               }
+            }
 
-              await this.writeFileWithoutOverwrite(targetUri, content);
+            if (await this.hasExactChildName(targetFolderUri, rawName)) {
+              const confirmed = await this.confirmAndRemoveNameConflict(targetUri, '导入文件');
+
+              if (!confirmed) {
+                skippedNames.push(rawName);
+                continue;
+              }
+            } else if (await this.pathExists(targetUri)) {
+              failedNames.push(`${rawName}（当前文件系统不支持仅大小写不同的文件名）`);
+              continue;
+            }
+
+            if (sourceUri) {
+              await vscode.workspace.fs.copy(sourceUri, targetUri, {
+                overwrite: false,
+              });
+            } else {
+              await this.writeFileWithoutOverwrite(targetUri, content || new Uint8Array());
             }
 
             importedNames.push(rawName);
@@ -4027,16 +4028,17 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     const extension = path.extname(uri.fsPath || uri.path).toLowerCase();
     const isDoc = extension === '.docx' || extension === '.doc';
-    const isSvg = extension === '.svg' || extension === '.svga';
+    const isSvg = extension === '.svg';
+    const isSvga = extension === '.svga';
     const textOption: vscode.QuickPickItem = {
       label: '$(code) 文本编辑器',
       description: '以纯文本代码形式打开',
     };
     const previewOption: vscode.QuickPickItem = {
       label: '$(preview) 解析编辑器',
-      description: isDoc ? '预览 Word 文档' : '渲染并预览页面 / 图像',
+      description: isDoc ? '预览 Word 文档' : isSvg ? '使用 VS Code 内置图像预览' : '渲染并预览页面 / 图像',
     };
-    const selected = await vscode.window.showQuickPick(isDoc || isSvg ? [previewOption, textOption] : [textOption, previewOption], {
+    const selected = await vscode.window.showQuickPick(isDoc || isSvg || isSvga ? [previewOption, textOption] : [textOption, previewOption], {
       placeHolder: `选择 ${path.basename(uri.path)} 的打开方式...`,
     });
 
@@ -4051,6 +4053,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     if (isDoc) {
       await this.openDocPanel(fsPath, projectName, vscode.ViewColumn.Active);
+      return;
+    }
+
+    if (isSvg) {
+      await vscode.commands.executeCommand('vscode.openWith', uri, 'imagePreview.previewEditor', {
+        viewColumn: vscode.ViewColumn.Active,
+        preview: false,
+      });
       return;
     }
 
@@ -4323,6 +4333,41 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     } catch {
       return false;
     }
+  }
+
+  private async confirmAndRemoveNameConflict(targetUri: vscode.Uri, actionLabel: string): Promise<boolean> {
+    const targetName = path.basename(targetUri.fsPath);
+    let targetType = '项目';
+
+    try {
+      const stat = await vscode.workspace.fs.stat(targetUri);
+
+      targetType = (stat.type & vscode.FileType.Directory) !== 0 ? '文件夹' : '文件';
+    } catch {
+      // 目标可能在弹窗前被其他操作移除，仍按通用项目处理。
+    }
+
+    const picked = await vscode.window.showWarningMessage(
+      `目标位置已存在同名${targetType}“${targetName}”，确认覆盖后才能继续${actionLabel}。`,
+      {
+        modal: true,
+        detail: `确认后，现有${targetType}会移到废纸篓。`,
+      },
+      '确认覆盖',
+    );
+
+    if (picked !== '确认覆盖') return false;
+
+    try {
+      await vscode.workspace.fs.delete(targetUri, {
+        recursive: true,
+        useTrash: true,
+      });
+    } catch (error) {
+      if (await this.pathExists(targetUri)) throw error;
+    }
+
+    return true;
   }
 
   private async pathExists(uri: vscode.Uri): Promise<boolean> {
