@@ -15,14 +15,29 @@
 }
 
 .recent-projects-skeleton-search-box {
-  height: 28px;
+  height: 26px;
   padding: 4px 8px;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   border: 1px solid var(--vscode-input-border);
   border-radius: 2px;
   background: var(--vscode-input-background);
+  line-height: 1;
+}
+
+.recent-projects-skeleton-search-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 14px;
+  width: 14px;
+  height: 14px;
+}
+
+.recent-projects-skeleton-search-text {
+  flex: 0 1 62%;
+  min-width: 0;
   line-height: 1;
 }
 
@@ -37,7 +52,6 @@
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
   line-height: 1;
 }
 
@@ -49,9 +63,19 @@
 }
 
 .recent-projects-skeleton-item {
-  min-height: 50px;
+  min-height: 48px;
   padding: 6px 10px 6px 3px;
   border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.recent-projects-skeleton-project-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 22px;
+  margin-right: 8px;
 }
 
 .recent-projects-skeleton-chevron {
@@ -66,15 +90,57 @@
 .recent-projects-skeleton-info {
   flex: 1;
   min-width: 0;
-  display: grid;
-  gap: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
 }
 
 .recent-projects-skeleton-title {
+  height: 20px;
   min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.recent-projects-skeleton-active-title-line,
+.recent-projects-skeleton-title-line,
+.recent-projects-skeleton-active-path,
+.recent-projects-skeleton-path,
+.recent-projects-skeleton-branch,
+.recent-projects-skeleton-action,
+.recent-projects-skeleton-button {
+  min-width: 0;
+  line-height: 1;
+}
+
+.recent-projects-skeleton-active-title-line {
+  width: 46%;
+}
+
+.recent-projects-skeleton-title-line {
+  flex-shrink: 1;
+}
+
+.recent-projects-skeleton-active-path {
+  width: 76%;
+}
+
+.recent-projects-skeleton-path {
+  height: 10px;
+}
+
+.recent-projects-skeleton-branch {
+  flex: 0 0 54px;
+  width: 54px;
+}
+
+.recent-projects-skeleton-action {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  margin-left: 4px;
 }
 
 .recent-projects-skeleton-divider {
@@ -86,11 +152,25 @@
 .recent-projects-skeleton-bottom {
   flex-shrink: 0;
   padding: 10px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
   gap: 8px;
   border-top: 1px solid var(--vscode-panel-border);
   background: var(--vscode-sideBar-background);
+}
+
+.recent-projects-skeleton-button {
+  flex: 1;
+}
+
+.recent-projects-skeleton-search-text > :global([aria-live='polite']),
+.recent-projects-skeleton-active-title-line > :global([aria-live='polite']),
+.recent-projects-skeleton-title-line > :global([aria-live='polite']),
+.recent-projects-skeleton-active-path > :global([aria-live='polite']),
+.recent-projects-skeleton-path > :global([aria-live='polite']),
+.recent-projects-skeleton-branch > :global([aria-live='polite']),
+.recent-projects-skeleton-button > :global([aria-live='polite']) {
+  display: block;
+  width: 100%;
 }
 
 /**
@@ -129,15 +209,5 @@
 @keyframes recent-projects-skeleton-shimmer {
   100% {
     transform: translateX(100%);
-  }
-}
-
-@media (max-width: 260px) {
-  .recent-projects-skeleton-bottom {
-    grid-template-columns: 1fr;
-  }
-
-  .recent-projects-skeleton-item > span:last-child {
-    display: none;
   }
 }
