@@ -111,6 +111,8 @@ import appIcon from 'material-icon-theme/icons/folder-app.svg';
 import appOpenIcon from 'material-icon-theme/icons/folder-app-open.svg';
 import apiIcon from 'material-icon-theme/icons/folder-api.svg';
 import apiOpenIcon from 'material-icon-theme/icons/folder-api-open.svg';
+import folderTempIcon from 'material-icon-theme/icons/folder-temp.svg';
+import folderTempOpenIcon from 'material-icon-theme/icons/folder-temp-open.svg';
 
 import type { IconMatchRule } from './type';
 
@@ -195,6 +197,8 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   '.husky': huskyIcon,
   '.vscode': vscodeIcon,
   '.github': githubIcon,
+  '@vscode': vscodeIcon,
+  '.cache': folderTempIcon,
 };
 
 /**
@@ -283,6 +287,8 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   '.husky': huskyOpenIcon,
   '.vscode': vscodeOpenIcon,
   '.github': githubOpenIcon,
+  '.cache': folderTempOpenIcon,
+  '@vscode': vscodeOpenIcon,
 };
 
 /**
