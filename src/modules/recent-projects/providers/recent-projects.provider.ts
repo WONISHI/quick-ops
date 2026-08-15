@@ -1698,11 +1698,14 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private pickFolderStatus(statuses: GitFileStatus[]): GitFileStatus | undefined {
-    const priority: GitFileStatus[] = ['C', 'D', 'R', 'A', 'M', 'U'];
-
-    return priority.find((status) => {
-      return statuses.includes(status);
+    const priority: GitFileStatus[] = ['C', 'R', 'A', 'M', 'U'];
+    const status = priority.find((item) => {
+      return statuses.includes(item);
     });
+
+    if (status) return status;
+
+    return statuses.includes('D') ? 'M' : undefined;
   }
 
   private async createFile(parentPath: string, fileName: string): Promise<void> {
@@ -2170,7 +2173,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
     this.postMessage({
       type: 'importExternalFilesResult',
-      targetFolderPath: targetFolderUri.toString(),
+      targetFolderPath,
       importedCount: importedNames.length,
       importedNames,
       skippedNames,
@@ -3230,9 +3233,11 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
 
       if (!key) return;
 
+      const status = isFolder && previousStatus === 'D' ? 'M' : previousStatus || 'M';
+
       patchMap.set(key, {
         path: targetPath,
-        status: previousStatus || 'M',
+        status,
         diagnostics: this.getDiagnosticsByPath(targetPath, isFolder),
       });
     };

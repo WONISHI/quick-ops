@@ -21,6 +21,16 @@ type ExternalSystemFile = File & {
   path?: string;
 };
 
+const isAbsoluteLocalPath = (pathValue: string) => {
+  return pathValue.startsWith('/') || /^[a-zA-Z]:[\\/]/.test(pathValue) || pathValue.startsWith('\\\\');
+};
+
+const getExternalSourceFileName = (sourcePath: string) => {
+  const parts = sourcePath.replace(/\\/g, '/').split('/').filter(Boolean);
+
+  return parts[parts.length - 1] || '';
+};
+
 const readFileAsBase64 = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -2844,12 +2854,7 @@ export default function RecentProjectsApp() {
   };
 
   const handleExternalDragOverFolder = (targetFolderPath: string, isActiveProject: boolean) => {
-    const canDrop =
-      isActiveProject &&
-      !pendingCreateEntity &&
-      !pendingRenameEntity &&
-      !isRemoteTreePath(targetFolderPath) &&
-      isInsideCurrentWorkspacePath(targetFolderPath);
+    const canDrop = isActiveProject && !pendingCreateEntity && !pendingRenameEntity && !isRemoteTreePath(targetFolderPath);
 
     if (!canDrop) {
       setDragOverPath('');
@@ -2881,24 +2886,36 @@ export default function RecentProjectsApp() {
     }
   };
 
-  const handleExternalFileDrop = async (files: File[], targetFolderPath: string, isActiveProject: boolean) => {
+  const handleExternalFileDrop = async (files: File[], targetFolderPath: string, isActiveProject: boolean, sourcePaths: string[] = []) => {
     clearDragExpandTimer();
     setDragOverPath('');
     setInvalidDragOverPath('');
 
     if (
-      files.length === 0 ||
+      (files.length === 0 && sourcePaths.length === 0) ||
       !isActiveProject ||
       pendingCreateEntity ||
       pendingRenameEntity ||
-      isRemoteTreePath(targetFolderPath) ||
-      !isInsideCurrentWorkspacePath(targetFolderPath)
+      isRemoteTreePath(targetFolderPath)
     ) {
       return;
     }
 
     const acceptedNames = new Set<string>();
     const skippedNames: string[] = [];
+    const sourcePathMap = new Map<string, string[]>();
+
+    sourcePaths.forEach((sourcePath) => {
+      const name = getExternalSourceFileName(sourcePath);
+
+      if (!name) return;
+
+      const paths = sourcePathMap.get(name) || [];
+
+      paths.push(sourcePath);
+      sourcePathMap.set(name, paths);
+    });
+
     const acceptedFiles = files.filter((file) => {
       if (acceptedNames.has(file.name)) {
         skippedNames.push(file.name);
@@ -2911,7 +2928,9 @@ export default function RecentProjectsApp() {
     const serializedFiles = await Promise.all(
       acceptedFiles.map(async (file) => {
         try {
-          const sourcePath = String((file as ExternalSystemFile).path || '');
+          const fileSourcePath = String((file as ExternalSystemFile).path || '');
+          const matchedSourcePath = sourcePathMap.get(file.name)?.shift() || '';
+          const sourcePath = isAbsoluteLocalPath(fileSourcePath) ? fileSourcePath : matchedSourcePath;
 
           return {
             file: {
@@ -2930,7 +2949,23 @@ export default function RecentProjectsApp() {
         }
       }),
     );
-    const importedFiles = serializedFiles.flatMap((item) => (item.file ? [item.file] : []));
+    const remainingSourceFiles = Array.from(sourcePathMap.entries()).flatMap(([name, paths]) => {
+      return paths.flatMap((sourcePath) => {
+        if (acceptedNames.has(name)) {
+          return [];
+        }
+
+        acceptedNames.add(name);
+
+        return [
+          {
+            name,
+            sourcePath,
+          },
+        ];
+      });
+    });
+    const importedFiles = [...serializedFiles.flatMap((item) => (item.file ? [item.file] : [])), ...remainingSourceFiles];
     const failedNames = serializedFiles.map((item) => item.failedName).filter(Boolean);
 
     const nextExpandedPaths = new Set(expandedPathsRef.current);
@@ -3852,7 +3887,7 @@ export default function RecentProjectsApp() {
                 onDragEnd={handleDragEnd}
                 onExternalDragOver={() => handleExternalDragOverFolder(childPath, isActiveProject)}
                 onExternalDragLeave={() => handleDragLeaveFolder(childPath)}
-                onExternalFileDrop={(files) => void handleExternalFileDrop(files, childPath, isActiveProject)}
+                onExternalFileDrop={(files, sourcePaths) => void handleExternalFileDrop(files, childPath, isActiveProject, sourcePaths)}
               >
                 <>
                   <div
@@ -4036,7 +4071,7 @@ export default function RecentProjectsApp() {
                 onDragEnd={handleDragEnd}
                 onExternalDragOver={() => handleExternalDragOverFolder(focusRootPath, true)}
                 onExternalDragLeave={() => handleDragLeaveFolder(focusRootPath)}
-                onExternalFileDrop={(files) => void handleExternalFileDrop(files, focusRootPath, true)}
+                onExternalFileDrop={(files, sourcePaths) => void handleExternalFileDrop(files, focusRootPath, true, sourcePaths)}
               >
                 {renderTreeChildren(focusRootPath, focusRootName || '当前项目', true)}
               </TreeDragDropContainer>
@@ -4143,7 +4178,7 @@ export default function RecentProjectsApp() {
                         onDragEnd={handleDragEnd}
                         onExternalDragOver={() => handleExternalDragOverFolder(rootPath, true)}
                         onExternalDragLeave={() => handleDragLeaveFolder(rootPath)}
-                        onExternalFileDrop={(files) => void handleExternalFileDrop(files, rootPath, true)}
+                        onExternalFileDrop={(files, sourcePaths) => void handleExternalFileDrop(files, rootPath, true, sourcePaths)}
                       >
                         <>
                           <div
@@ -4341,7 +4376,7 @@ export default function RecentProjectsApp() {
                     onDragEnd={handleDragEnd}
                     onExternalDragOver={() => handleExternalDragOverFolder(activeProjectToRender.fsPath, true)}
                     onExternalDragLeave={() => handleDragLeaveFolder(activeProjectToRender.fsPath)}
-                    onExternalFileDrop={(files) => void handleExternalFileDrop(files, activeProjectToRender.fsPath, true)}
+                    onExternalFileDrop={(files, sourcePaths) => void handleExternalFileDrop(files, activeProjectToRender.fsPath, true, sourcePaths)}
                   >
                     <div className={styles['root-drop-spacer-inner']} />
                   </TreeDragDropContainer>

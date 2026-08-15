@@ -1,5 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { dropTargetForExternal } from '@atlaskit/pragmatic-drag-and-drop/external/adapter';
+import { containsFiles, getFiles } from '@atlaskit/pragmatic-drag-and-drop/external/file';
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
 import { setCustomNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview';
 import styles from './index.module.css';
@@ -26,12 +28,8 @@ export type TreeDragDropContainerProps = {
   onDragEnd: () => void;
   onExternalDragOver?: () => void;
   onExternalDragLeave?: () => void;
-  onExternalFileDrop?: (files: File[]) => void;
+  onExternalFileDrop?: (files: File[], sourcePaths: string[]) => void;
   children: React.ReactNode;
-};
-
-const containsExternalFiles = (event: DragEvent): boolean => {
-  return Array.from(event.dataTransfer?.types || []).includes('Files');
 };
 
 const parsePragmaticDraggingEntity = (value: unknown): DraggingEntity | null => {
@@ -194,52 +192,50 @@ export default function TreeDragDropContainer(props: TreeDragDropContainerProps)
     }
 
     if (dropElement && propsRef.current.dropTargetEnabled && propsRef.current.onExternalFileDrop) {
-      const handleExternalDragOver = (event: DragEvent) => {
-        if (!containsExternalFiles(event)) return;
+      const updateExternalDropTarget = ({ location }: any) => {
+        const innerMostTarget = location.current.dropTargets[0];
 
-        event.preventDefault();
-        event.stopPropagation();
-
-        if (event.dataTransfer) {
-          event.dataTransfer.dropEffect = 'copy';
+        if (innerMostTarget?.element !== dropElement) {
+          propsRef.current.onExternalDragLeave?.();
+          return;
         }
 
         propsRef.current.onExternalDragOver?.();
       };
-      const handleExternalDragLeave = (event: DragEvent) => {
-        if (!containsExternalFiles(event)) return;
 
-        const nextTarget = event.relatedTarget;
+      cleanups.push(
+        dropTargetForExternal({
+          element: dropElement,
+          getData: () => ({
+            type: 'quickops-external-file-drop-target',
+            path: propsRef.current.path,
+          }),
+          getDropEffect: () => 'copy',
+          canDrop: containsFiles,
+          getIsSticky: () => true,
+          onDragEnter: updateExternalDropTarget,
+          onDrag: updateExternalDropTarget,
+          onDragLeave() {
+            propsRef.current.onExternalDragLeave?.();
+          },
+          onDrop({ source, location }) {
+            const innerMostTarget = location.current.dropTargets[0];
 
-        if (nextTarget instanceof Node && dropElement.contains(nextTarget)) return;
+            if (innerMostTarget?.element !== dropElement) {
+              propsRef.current.onExternalDragLeave?.();
+              return;
+            }
 
-        event.stopPropagation();
-        propsRef.current.onExternalDragLeave?.();
-      };
-      const handleExternalDrop = (event: DragEvent) => {
-        if (!containsExternalFiles(event)) return;
+            const files = getFiles({ source });
 
-        event.preventDefault();
-        event.stopPropagation();
+            propsRef.current.onExternalDragLeave?.();
 
-        const files = Array.from(event.dataTransfer?.files || []);
-
-        propsRef.current.onExternalDragLeave?.();
-
-        if (files.length > 0) {
-          propsRef.current.onExternalFileDrop?.(files);
-        }
-      };
-
-      dropElement.addEventListener('dragover', handleExternalDragOver);
-      dropElement.addEventListener('dragleave', handleExternalDragLeave);
-      dropElement.addEventListener('drop', handleExternalDrop);
-
-      cleanups.push(() => {
-        dropElement.removeEventListener('dragover', handleExternalDragOver);
-        dropElement.removeEventListener('dragleave', handleExternalDragLeave);
-        dropElement.removeEventListener('drop', handleExternalDrop);
-      });
+            if (files.length > 0) {
+              propsRef.current.onExternalFileDrop?.(files, []);
+            }
+          },
+        }),
+      );
     }
 
     if (cleanups.length === 0) return;
