@@ -117,8 +117,8 @@ import webpackIcon from 'material-icon-theme/icons/folder-webpack.svg';
 import webpackOpenIcon from 'material-icon-theme/icons/folder-webpack-open.svg';
 import folderConstantIcon from 'material-icon-theme/icons/folder-constant.svg';
 import folderConstantOpenIcon from 'material-icon-theme/icons/folder-constant-open.svg';
-import folderControllerIcon from 'material-icon-theme/icons/folder-contract.svg';
-import folderControllerOpenIcon from 'material-icon-theme/icons/folder-contract-open.svg';
+import folderControllerIcon from 'material-icon-theme/icons/folder-controller.svg';
+import folderControllerOpenIcon from 'material-icon-theme/icons/folder-controller-open.svg';
 
 import type { IconMatchRule } from './type';
 
