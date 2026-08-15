@@ -115,6 +115,10 @@ import folderTempIcon from 'material-icon-theme/icons/folder-temp.svg';
 import folderTempOpenIcon from 'material-icon-theme/icons/folder-temp-open.svg';
 import webpackIcon from 'material-icon-theme/icons/folder-webpack.svg';
 import webpackOpenIcon from 'material-icon-theme/icons/folder-webpack-open.svg';
+import folderConstantIcon from 'material-icon-theme/icons/folder-constant.svg';
+import folderConstantOpenIcon from 'material-icon-theme/icons/folder-constant-open.svg';
+import folderControllerIcon from 'material-icon-theme/icons/folder-contract.svg';
+import folderControllerOpenIcon from 'material-icon-theme/icons/folder-contract-open.svg';
 
 import type { IconMatchRule } from './type';
 
@@ -202,6 +206,8 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   '@vscode': vscodeIcon,
   '.cache': folderTempIcon,
   webpack: webpackIcon,
+  constants: folderConstantIcon,
+  providers: folderControllerIcon,
 };
 
 /**
@@ -293,6 +299,8 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   '.cache': folderTempOpenIcon,
   '@vscode': vscodeOpenIcon,
   webpack: webpackOpenIcon,
+  constants: folderConstantOpenIcon,
+  providers: folderControllerOpenIcon,
 };
 
 /**
