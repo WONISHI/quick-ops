@@ -140,6 +140,7 @@ export default function RecentProjectsApp() {
     type: 'top',
     payload: { path: '' },
   });
+  const [copiedFilePath, setCopiedFilePath] = useState('');
 
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const selectedItemsRef = useRef<Set<string>>(new Set());
@@ -1382,6 +1383,8 @@ export default function RecentProjectsApp() {
         beginCreateEntityFromFocusSelection('file');
       } else if (msg.type === 'beginCreateFolderInFocusMode') {
         beginCreateEntityFromFocusSelection('folder');
+      } else if (msg.type === 'copyFileEntityResult') {
+        setCopiedFilePath(String(msg.fsPath || ''));
       } else if (msg.type === 'pendingCreateBlurConfirmResult') {
         handlePendingCreateBlurConfirmResult(msg.action as string);
       } else if (msg.type === 'pendingRenameBlurConfirmResult') {
@@ -1643,6 +1646,27 @@ export default function RecentProjectsApp() {
             projectName: getProjectNameByPath(pathValue),
             forceRefresh: true,
           });
+        });
+      } else if (msg.type === 'pasteFileEntityResult') {
+        const targetFolderPath = msg.targetFolderPath as string;
+        const pastedPath = msg.fsPath as string;
+
+        if (!targetFolderPath || !pastedPath) return;
+
+        setSelectedPath(pastedPath);
+        setExpandedPaths((prev) => {
+          const next = new Set(prev);
+
+          next.add(targetFolderPath);
+          expandedPathsRef.current = next;
+          return next;
+        });
+        setLoadingPaths((prev) => new Set(prev).add(targetFolderPath));
+        vscode.postMessage({
+          type: 'readDir',
+          fsPath: targetFolderPath,
+          projectName: getProjectNameByPath(targetFolderPath),
+          forceRefresh: true,
         });
       } else if (msg.type === 'importExternalFilesResult') {
         const targetFolderPath = msg.targetFolderPath as string;
@@ -3255,7 +3279,10 @@ export default function RecentProjectsApp() {
       x: e.clientX,
       y: e.clientY,
       type,
-      payload,
+      payload: {
+        ...payload,
+        canPasteFile: Boolean(copiedFilePath),
+      } as ContextMenuPayload,
       selectedItems: multiSelected,
     });
   };
@@ -3403,10 +3430,25 @@ export default function RecentProjectsApp() {
         });
         break;
 
+      case 'copyPath':
+        vscode.postMessage({
+          type: 'copyEntityPath',
+          fsPath: payload.path,
+          pathType: arg,
+        });
+        break;
+
       case 'copyFile':
         vscode.postMessage({
           type: 'copyFile',
           fsPath: payload.path,
+        });
+        break;
+
+      case 'pasteFile':
+        vscode.postMessage({
+          type: 'pasteFile',
+          targetFolderPath: payload.path,
         });
         break;
 

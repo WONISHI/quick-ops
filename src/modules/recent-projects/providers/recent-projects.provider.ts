@@ -69,6 +69,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   private readonly gitMetadataInFlight = new Map<string, Promise<GitMetadataContext>>();
   private readonly gitMetadataCacheTtl = 2000;
   private searchRunId = 0;
+  private copiedFileUri: vscode.Uri | undefined;
 
   private statusSyncTimer: NodeJS.Timeout | undefined;
   private pathStatusSyncTimer: NodeJS.Timeout | undefined;
@@ -211,6 +212,7 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     this.revealVisibleInWebview = true;
     this.watchedTreeFocusMode = false;
     this.watchedTreeFocusRootPath = '';
+    this.copiedFileUri = undefined;
 
     void vscode.commands.executeCommand('setContext', RECENT_PROJECTS_CONTEXT_KEYS.focusMode, false);
   }
@@ -648,6 +650,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
 
         this.requestVisibleMetadataSync();
+        this.postMessage({
+          type: 'copyFileEntityResult',
+          fsPath: this.copiedFileUri?.toString() || '',
+        });
         break;
 
       case 'togglePrimarySidebar':
@@ -979,9 +985,22 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         }
         break;
 
+      case 'copyEntityPath':
+        if (targetPath) {
+          await this.copyEntityPath(targetPath, message.pathType === 'relative' ? 'relative' : 'absolute');
+        }
+        break;
+
       case 'copyFile':
         if (targetPath) await this.copyFileEntity(targetPath);
         break;
+
+      case 'pasteFile': {
+        const targetFolderPath = message.targetFolderFsPath || message.targetFolderPath || targetPath;
+
+        if (targetFolderPath) await this.pasteFileEntity(targetFolderPath);
+        break;
+      }
 
       case 'openInExplorer':
       case 'revealInExplorer':
@@ -2075,8 +2094,12 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     if (!targetFolderUri) return;
 
     const entries = Array.isArray(files) ? files : [];
-    const skippedNames = Array.isArray(preflightSkippedNames) ? preflightSkippedNames.filter((item): item is string => typeof item === 'string' && !!item) : [];
-    const failedNames = Array.isArray(preflightFailedNames) ? preflightFailedNames.filter((item): item is string => typeof item === 'string' && !!item) : [];
+    const skippedNames = Array.isArray(preflightSkippedNames)
+      ? preflightSkippedNames.filter((item): item is string => typeof item === 'string' && !!item)
+      : [];
+    const failedNames = Array.isArray(preflightFailedNames)
+      ? preflightFailedNames.filter((item): item is string => typeof item === 'string' && !!item)
+      : [];
     const importedNames: string[] = [];
     const seenNames = new Set<string>();
 
@@ -4071,39 +4094,159 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     try {
       const uri = this.toUri(fsPath);
 
-      if (!uri) return;
-
-      const parsedPath = path.posix.parse(uri.path);
-      let counter = 1;
-      let fileName = `${parsedPath.name}_copy${parsedPath.ext}`;
-      let targetUri = vscode.Uri.joinPath(uri, '..', fileName);
-
-      while (true) {
-        try {
-          await vscode.workspace.fs.stat(targetUri);
-          counter++;
-          fileName = `${parsedPath.name}_copy${counter}${parsedPath.ext}`;
-          targetUri = vscode.Uri.joinPath(uri, '..', fileName);
-        } catch {
-          break;
-        }
+      if (!uri || uri.scheme !== 'file') {
+        vscode.window.showWarningMessage('当前只支持复制本地文件。');
+        return;
       }
+
+      const stat = await vscode.workspace.fs.stat(uri);
+
+      if ((stat.type & vscode.FileType.Directory) !== 0) {
+        vscode.window.showWarningMessage('当前只支持复制文件。');
+        return;
+      }
+
+      this.copiedFileUri = uri;
+
+      this.postMessage({
+        type: 'copyFileEntityResult',
+        fsPath: uri.toString(),
+        name: path.basename(uri.fsPath),
+      });
+
+      vscode.window.showInformationMessage(`已复制 ${path.basename(uri.fsPath)}，请在目标文件夹右键选择“粘贴”。`);
+    } catch (error) {
+      vscode.window.showErrorMessage(`复制文件失败：${this.toErrorMessage(error)}`);
+    }
+  }
+
+  private async copyEntityPath(fsPath: string, pathType: 'absolute' | 'relative'): Promise<void> {
+    const uri = this.toUri(fsPath);
+
+    if (!uri) return;
+
+    if (pathType === 'absolute') {
+      await vscode.env.clipboard.writeText(uri.scheme === 'file' ? uri.fsPath : uri.path);
+      return;
+    }
+
+    const projectRootUri = this.getProjectRootUriForPath(uri);
+    let relativePath = '';
+
+    if (projectRootUri) {
+      relativePath =
+        uri.scheme === 'file'
+          ? path.relative(projectRootUri.fsPath, uri.fsPath).replace(/\\/g, '/')
+          : path.posix.relative(projectRootUri.path, uri.path);
+    }
+
+    await vscode.env.clipboard.writeText(relativePath || (projectRootUri ? '.' : path.basename(uri.path)));
+  }
+
+  private getProjectRootUriForPath(targetUri: vscode.Uri): vscode.Uri | undefined {
+    const candidateUris = [
+      ...(vscode.workspace.workspaceFolders || []).map((folder) => folder.uri),
+      ...this.getRecentProjects()
+        .map((project) => this.toUri(project.fsPath))
+        .filter((uri): uri is vscode.Uri => !!uri),
+    ];
+    const seenUris = new Set<string>();
+
+    return candidateUris
+      .filter((candidateUri) => {
+        const key = candidateUri.toString();
+
+        if (seenUris.has(key)) return false;
+
+        seenUris.add(key);
+
+        return candidateUri.scheme === targetUri.scheme && candidateUri.authority === targetUri.authority && this.isInsidePath(targetUri.toString(), candidateUri.toString());
+      })
+      .sort((leftUri, rightUri) => this.normalizeComparePath(rightUri.toString()).length - this.normalizeComparePath(leftUri.toString()).length)[0];
+  }
+
+  private async pasteFileEntity(targetFolderPath: string): Promise<void> {
+    const sourceUri = this.copiedFileUri;
+
+    if (!sourceUri) {
+      vscode.window.showWarningMessage('请先复制一个文件。');
+      return;
+    }
+
+    const targetFolderUri = this.toWritableLocalFolderUri(targetFolderPath);
+
+    if (!targetFolderUri) return;
+
+    try {
+      const sourceStat = await vscode.workspace.fs.stat(sourceUri);
+      const targetFolderStat = await vscode.workspace.fs.stat(targetFolderUri);
+
+      if ((sourceStat.type & vscode.FileType.Directory) !== 0) {
+        vscode.window.showWarningMessage('当前只支持粘贴文件。');
+        return;
+      }
+
+      if ((targetFolderStat.type & vscode.FileType.Directory) === 0) {
+        vscode.window.showWarningMessage('只能粘贴到文件夹中。');
+        return;
+      }
+
+      const { targetUri, fileName } = await this.getAvailablePastedFileUri(sourceUri, targetFolderUri);
 
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: '正在复制文件...',
+          title: `正在粘贴 ${fileName}...`,
+          cancellable: false,
         },
         async () => {
-          await vscode.workspace.fs.copy(uri, targetUri);
+          await vscode.workspace.fs.copy(sourceUri, targetUri, {
+            overwrite: false,
+          });
         },
       );
 
-      vscode.window.showInformationMessage(`📄 文件已复制为: ${fileName}`);
+      this.postMessage({
+        type: 'pasteFileEntityResult',
+        fsPath: targetUri.toString(),
+        targetFolderPath: targetFolderUri.toString(),
+        name: fileName,
+      });
+
+      vscode.window.showInformationMessage(`文件已粘贴为：${fileName}`);
       this.refreshTreeAfterFileChange();
     } catch (error) {
-      vscode.window.showErrorMessage(`复制文件失败：${this.toErrorMessage(error)}`);
+      if (!(await this.pathExists(sourceUri))) {
+        this.copiedFileUri = undefined;
+        this.postMessage({
+          type: 'copyFileEntityResult',
+          fsPath: '',
+        });
+        vscode.window.showWarningMessage('复制的源文件已不存在，请重新复制。');
+        return;
+      }
+
+      vscode.window.showErrorMessage(`粘贴文件失败：${this.toErrorMessage(error)}`);
     }
+  }
+
+  private async getAvailablePastedFileUri(sourceUri: vscode.Uri, targetFolderUri: vscode.Uri): Promise<{ targetUri: vscode.Uri; fileName: string }> {
+    const sourceName = path.basename(sourceUri.fsPath);
+    const parsedName = path.parse(sourceName);
+    let counter = 0;
+    let fileName = sourceName;
+    let targetUri = vscode.Uri.joinPath(targetFolderUri, fileName);
+
+    while ((await this.hasExactChildName(targetFolderUri, fileName)) || (await this.pathExists(targetUri))) {
+      counter++;
+      fileName = counter === 1 ? `${parsedName.name} copy${parsedName.ext}` : `${parsedName.name} copy ${counter}${parsedName.ext}`;
+      targetUri = vscode.Uri.joinPath(targetFolderUri, fileName);
+    }
+
+    return {
+      targetUri,
+      fileName,
+    };
   }
 
   private async openFileAtLine(fsPath: string, line: number, projectName: string, isActiveProject: boolean): Promise<void> {
@@ -4387,7 +4530,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
   }
 
   private async writeFileWithoutOverwrite(targetUri: vscode.Uri, content: Uint8Array): Promise<void> {
-    const temporaryUri = vscode.Uri.joinPath(vscode.Uri.file(path.dirname(targetUri.fsPath)), `.quick-ops-import-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const temporaryUri = vscode.Uri.joinPath(
+      vscode.Uri.file(path.dirname(targetUri.fsPath)),
+      `.quick-ops-import-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
 
     await vscode.workspace.fs.writeFile(temporaryUri, content);
 
@@ -4424,7 +4570,10 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         throw error;
       }
 
-      const temporaryUri = vscode.Uri.joinPath(vscode.Uri.file(path.dirname(sourceUri.fsPath)), `.quick-ops-rename-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+      const temporaryUri = vscode.Uri.joinPath(
+        vscode.Uri.file(path.dirname(sourceUri.fsPath)),
+        `.quick-ops-rename-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      );
 
       await vscode.workspace.fs.rename(sourceUri, temporaryUri, {
         overwrite: false,

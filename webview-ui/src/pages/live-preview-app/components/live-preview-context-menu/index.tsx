@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faRotateRight, faPlus, faStar as faStarSolid, faClockRotateLeft, faBroom, faDatabase, faBoxArchive, faCookieBite, faTerminal } from '@fortawesome/free-solid-svg-icons';
 import BaseContextMenu from '@components/BaseContextMenu';
-import type { BaseContextMenuItem } from '@components/BaseContextMenu';
+import type { BaseContextMenuItem } from '@components/BaseContextMenu/src/type';
 
 interface ContextMenuProps {
   /** 点击触发目标，例如“更多操作”按钮。 */
