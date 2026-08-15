@@ -4130,10 +4130,13 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
       return;
     }
 
-    const projectRootUri = this.getProjectRootUriForPath(uri);
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+    const projectRootUri = workspaceFolder?.uri || this.getProjectRootUriForPath(uri);
     let relativePath = '';
 
-    if (projectRootUri) {
+    if (workspaceFolder) {
+      relativePath = vscode.workspace.asRelativePath(uri, false).replace(/\\/g, '/');
+    } else if (projectRootUri) {
       relativePath =
         uri.scheme === 'file'
           ? path.relative(projectRootUri.fsPath, uri.fsPath).replace(/\\/g, '/')
