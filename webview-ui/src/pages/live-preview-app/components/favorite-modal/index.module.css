@@ -191,7 +191,11 @@
 .fav-folder-list {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+}
+
+.fav-folder-list-view {
+  box-sizing: border-box;
+  padding-right: 2px;
 }
 
 .fav-folder-item.fav-folder-add {
@@ -355,7 +359,10 @@
 .fav-list {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+}
+
+.fav-list-view {
+  box-sizing: border-box;
   padding: 6px 0;
 }
 
@@ -502,4 +509,8 @@
   text-align: center;
   color: var(--desc-color);
   font-size: 13px;
+}
+
+.fav-context-menu {
+  z-index: 100010;
 }

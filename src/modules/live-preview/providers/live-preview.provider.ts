@@ -28,6 +28,8 @@ interface PreviewTabInfo {
   active: boolean;
 }
 
+const NAVIGATION_FAVORITES_GLOBAL_STATE_KEY = 'quickOps.livePreview.navigationFavoriteUrls';
+
 /**
  * @description Live Preview Webview Provider
  *
@@ -265,6 +267,10 @@ export class LivePreviewProvider {
         await this.syncFavoritesToPanel();
         break;
 
+      case 'saveNavigationFavorites':
+        await this.saveNavigationFavoriteUrls(message.navigationFavoriteUrls);
+        break;
+
       case 'exportFavorites': {
         const folders = message.folders || (await this.livePreviewService.getFavoriteFolders(context));
 
@@ -480,6 +486,7 @@ export class LivePreviewProvider {
       type: 'syncFavorites',
       favorites: result.favorites,
       folders: result.folders,
+      navigationFavoriteUrls: this.getNavigationFavoriteUrls(context),
     });
   }
 
@@ -512,7 +519,41 @@ export class LivePreviewProvider {
       type: 'syncFavorites',
       favorites,
       folders,
+      navigationFavoriteUrls: this.getNavigationFavoriteUrls(context),
     });
+  }
+
+  private normalizeNavigationFavoriteUrls(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+
+    return value.reduce<string[]>((result, item) => {
+      if (typeof item !== 'string') return result;
+
+      const url = item.trim();
+      const normalizedUrl = url.replace(/\/+$/, '');
+
+      if (!normalizedUrl || result.some((current) => current.replace(/\/+$/, '') === normalizedUrl)) {
+        return result;
+      }
+
+      result.push(url);
+      return result;
+    }, []);
+  }
+
+  private getNavigationFavoriteUrls(context: vscode.ExtensionContext): string[] {
+    return this.normalizeNavigationFavoriteUrls(context.globalState.get<unknown>(NAVIGATION_FAVORITES_GLOBAL_STATE_KEY));
+  }
+
+  private async saveNavigationFavoriteUrls(value: unknown): Promise<void> {
+    const context = this.extensionContextProvider.getContext();
+    const navigationFavoriteUrls = this.normalizeNavigationFavoriteUrls(value);
+
+    await context.globalState.update(NAVIGATION_FAVORITES_GLOBAL_STATE_KEY, navigationFavoriteUrls);
+
+    for (const record of this.previewTabs.values()) {
+      await this.postFavoritesToPanel(record.panel);
+    }
   }
 
   private bindMainBrowserEvents(): void {
@@ -763,6 +804,10 @@ export class LivePreviewProvider {
         }
         await this.livePreviewService.saveUserFavorites(context, message.favorites || []);
         await this.postFavoritesToPanel(panel);
+        break;
+
+      case 'saveNavigationFavorites':
+        await this.saveNavigationFavoriteUrls(message.navigationFavoriteUrls);
         break;
 
       case 'exportFavorites':

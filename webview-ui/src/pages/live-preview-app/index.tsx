@@ -979,6 +979,7 @@ export default function LivePreviewApp() {
 
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [favoriteFolders, setFavoriteFolders] = useState<FavoriteFolder[]>([]);
+  const [navigationFavoriteUrls, setNavigationFavoriteUrls] = useState<string[]>([]);
   const [selectedFavoriteFolderId, setSelectedFavoriteFolderId] = useState('all');
   const [historyStack, setHistoryStack] = useState<HistoryItem[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
@@ -1180,6 +1181,35 @@ export default function LivePreviewApp() {
 
   const normalizeFavoriteUrl = (url: string) => {
     return (url || '').trim().replace(/\/+$/, '');
+  };
+
+  const saveNavigationFavoriteUrls = (urls: string[]) => {
+    const uniqueUrls = urls.reduce<string[]>((result, url) => {
+      const normalizedUrl = normalizeFavoriteUrl(url);
+
+      if (!normalizedUrl || result.some((item) => normalizeFavoriteUrl(item) === normalizedUrl)) {
+        return result;
+      }
+
+      result.push(url);
+      return result;
+    }, []);
+
+    setNavigationFavoriteUrls(uniqueUrls);
+    vscode?.postMessage({
+      type: 'saveNavigationFavorites',
+      navigationFavoriteUrls: uniqueUrls,
+    });
+  };
+
+  const toggleFavoriteNavigation = (favorite: FavoriteItem) => {
+    const targetUrl = normalizeFavoriteUrl(favorite.url);
+    const isIncluded = navigationFavoriteUrls.some((url) => normalizeFavoriteUrl(url) === targetUrl);
+    const nextUrls = isIncluded
+      ? navigationFavoriteUrls.filter((url) => normalizeFavoriteUrl(url) !== targetUrl)
+      : [...navigationFavoriteUrls, favorite.url];
+
+    saveNavigationFavoriteUrls(nextUrls);
   };
 
   const createFavoriteFolderId = (name: string) => {
@@ -1588,6 +1618,10 @@ export default function LivePreviewApp() {
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
         setFavoriteFolders(message.folders || []);
+
+        if (Array.isArray(message.navigationFavoriteUrls)) {
+          setNavigationFavoriteUrls(message.navigationFavoriteUrls);
+        }
       } else if (message.type === 'favoriteMetaResolved') {
         const requestId = Number(message.requestId) || 0;
         const resolver = favoriteMetaResolversRef.current.get(requestId);
@@ -2375,6 +2409,16 @@ export default function LivePreviewApp() {
       favorites: newFavs.filter((item) => !item.isDefault),
     });
 
+    if (favForm.editingOriginalUrl) {
+      const editingUrl = normalizeFavoriteUrl(favForm.editingOriginalUrl);
+
+      if (navigationFavoriteUrls.some((url) => normalizeFavoriteUrl(url) === editingUrl)) {
+        saveNavigationFavoriteUrls(
+          navigationFavoriteUrls.map((url) => (normalizeFavoriteUrl(url) === editingUrl ? u : url)),
+        );
+      }
+    }
+
     setFavForm({
       visible: false,
       title: '',
@@ -2398,6 +2442,12 @@ export default function LivePreviewApp() {
       type: 'saveAllFavorites',
       favorites: newFavs.filter((item) => !item.isDefault),
     });
+
+    const deletedUrl = normalizeFavoriteUrl(favorite.url);
+
+    if (navigationFavoriteUrls.some((url) => normalizeFavoriteUrl(url) === deletedUrl)) {
+      saveNavigationFavoriteUrls(navigationFavoriteUrls.filter((url) => normalizeFavoriteUrl(url) !== deletedUrl));
+    }
   };
 
   const saveFavoriteData = (nextFavorites: FavoriteItem[], nextFolders?: FavoriteFolder[]) => {
@@ -2536,6 +2586,12 @@ export default function LivePreviewApp() {
 
     return [...defaultList, ...sortedUserList];
   }, [favorites, favSort]);
+
+  const navigationFavorites = sortedFavorites.filter((favorite) => {
+    const targetUrl = normalizeFavoriteUrl(favorite.url);
+
+    return navigationFavoriteUrls.some((url) => normalizeFavoriteUrl(url) === targetUrl);
+  });
 
   const exportFavorites = () => {
     vscode?.postMessage({
@@ -2884,7 +2940,11 @@ export default function LivePreviewApp() {
         )}
 
         {!frameUrl ? (
-          <WelcomePage onQuickOpen={handleGo} />
+          <WelcomePage
+            onQuickOpen={handleGo}
+            navigationFavorites={navigationFavorites}
+            favoriteFolders={favoriteFolders}
+          />
         ) : previewType === 'md' ? (
           <VditorApp key={frameUrl} />
         ) : previewType === 'pdf' ? (
@@ -2960,6 +3020,7 @@ export default function LivePreviewApp() {
         favSort={favSort}
         favForm={favForm}
         copiedUrl={copiedUrl}
+        navigationFavoriteUrls={navigationFavoriteUrls}
         setSelectedFolderId={setSelectedFavoriteFolderId}
         setFavSort={setFavSort}
         setFavForm={setFavForm}
@@ -2969,6 +3030,7 @@ export default function LivePreviewApp() {
           setActiveModal('none');
         }}
         onCopy={handleCopy}
+        onToggleNavigation={toggleFavoriteNavigation}
         onSaveFavorite={saveFavorite}
         onDeleteFavorite={deleteFavorite}
         onCreateFolder={createFavoriteFolder}
