@@ -167,18 +167,20 @@
 }
 
 .search-highlight-toggle-btn {
-  width: auto;
+  width: 18px;
   min-width: 18px;
-  padding: 0 5px;
-  gap: 3px;
-  font-size: 10px;
-  white-space: nowrap;
+  padding: 0;
 }
 
 .search-highlight-toggle-btn[aria-pressed='true'] {
   opacity: 1;
   color: var(--vscode-textLink-foreground);
-  background: var(--vscode-toolbar-hoverBackground);
+  background: transparent;
+}
+
+.search-target-actions .action-btn-icon:hover:not(:disabled),
+.search-target-actions .action-btn-icon:active:not(:disabled) {
+  background: transparent;
 }
 
 .search-highlight-toggle-icon {

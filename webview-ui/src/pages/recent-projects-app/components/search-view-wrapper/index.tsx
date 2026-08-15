@@ -948,7 +948,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                 title="在访达/资源管理器中显示"
                 aria-label="在访达/资源管理器中显示"
               >
-                <span className={`codicon codicon-folder-opened ${styles['search-nav-icon']}`}></span>
+                <span className={`codicon codicon-file-symlink-directory ${styles['search-nav-icon']}`}></span>
               </button>
 
               <button
@@ -961,7 +961,6 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                 aria-pressed={!isSearchHighlightVisible}
               >
                 <span className={`codicon ${isSearchHighlightVisible ? 'codicon-eye-closed' : 'codicon-eye'} ${styles['search-highlight-toggle-icon']}`}></span>
-                <span>{isSearchHighlightVisible ? '清理高亮' : '恢复高亮'}</span>
               </button>
             </div>
           </div>
