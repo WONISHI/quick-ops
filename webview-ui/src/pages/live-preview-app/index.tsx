@@ -1212,6 +1212,19 @@ export default function LivePreviewApp() {
     saveNavigationFavoriteUrls(nextUrls);
   };
 
+  const removeFavoriteFromNavigation = (favorite: { url: string }) => {
+    const targetUrl = normalizeFavoriteUrl(favorite.url);
+
+    saveNavigationFavoriteUrls(
+      navigationFavoriteUrls.filter((url) => normalizeFavoriteUrl(url) !== targetUrl),
+    );
+  };
+
+  const editNavigationFolder = (folderId: string) => {
+    setSelectedFavoriteFolderId(folderId || ROOT_FAVORITE_FOLDER_ID);
+    setActiveModal('fav');
+  };
+
   const createFavoriteFolderId = (name: string) => {
     const safeName = name
       .trim()
@@ -2404,6 +2417,8 @@ export default function LivePreviewApp() {
       });
     }
 
+    setFavorites(newFavs);
+
     vscode?.postMessage({
       type: 'saveAllFavorites',
       favorites: newFavs.filter((item) => !item.isDefault),
@@ -2437,6 +2452,8 @@ export default function LivePreviewApp() {
     }
 
     const newFavs = favorites.filter((f) => f.url !== favorite.url || f.isDefault);
+
+    setFavorites(newFavs);
 
     vscode?.postMessage({
       type: 'saveAllFavorites',
@@ -2944,6 +2961,8 @@ export default function LivePreviewApp() {
             onQuickOpen={handleGo}
             navigationFavorites={navigationFavorites}
             favoriteFolders={favoriteFolders}
+            onEditFolder={editNavigationFolder}
+            onRemoveNavigation={removeFavoriteFromNavigation}
           />
         ) : previewType === 'md' ? (
           <VditorApp key={frameUrl} />

@@ -264,7 +264,7 @@ export class LivePreviewProvider {
         }
 
         await this.livePreviewService.saveUserFavorites(context, message.favorites || []);
-        await this.syncFavoritesToPanel();
+        await this.broadcastFavorites();
         break;
 
       case 'saveNavigationFavorites':
@@ -280,11 +280,11 @@ export class LivePreviewProvider {
 
       case 'importFavorites':
         await this.livePreviewService.importFavoritesFromFile(context);
-        await this.syncFavoritesToPanel();
+        await this.broadcastFavorites();
         break;
 
       case 'toggleFavorite':
-        await this.toggleFavorite(message, this.panel);
+        await this.toggleFavorite(message);
         break;
 
       case 'openNewPreviewTab':
@@ -465,7 +465,7 @@ export class LivePreviewProvider {
     }
   }
 
-  private async toggleFavorite(message: any, panel?: vscode.WebviewPanel): Promise<void> {
+  private async toggleFavorite(message: any): Promise<void> {
     const context = this.extensionContextProvider.getContext();
     const result = await this.livePreviewService.toggleFavorite(context, {
       url: message.url,
@@ -482,12 +482,7 @@ export class LivePreviewProvider {
       vscode.window.showInformationMessage(result.message);
     }
 
-    panel?.webview.postMessage({
-      type: 'syncFavorites',
-      favorites: result.favorites,
-      folders: result.folders,
-      navigationFavoriteUrls: this.getNavigationFavoriteUrls(context),
-    });
+    await this.broadcastFavorites();
   }
 
   private async postFavoriteMetaResolved(panel: vscode.WebviewPanel, message: any): Promise<void> {
@@ -523,6 +518,12 @@ export class LivePreviewProvider {
     });
   }
 
+  private async broadcastFavorites(): Promise<void> {
+    for (const record of this.previewTabs.values()) {
+      await this.postFavoritesToPanel(record.panel);
+    }
+  }
+
   private normalizeNavigationFavoriteUrls(value: unknown): string[] {
     if (!Array.isArray(value)) return [];
 
@@ -551,9 +552,7 @@ export class LivePreviewProvider {
 
     await context.globalState.update(NAVIGATION_FAVORITES_GLOBAL_STATE_KEY, navigationFavoriteUrls);
 
-    for (const record of this.previewTabs.values()) {
-      await this.postFavoritesToPanel(record.panel);
-    }
+    await this.broadcastFavorites();
   }
 
   private bindMainBrowserEvents(): void {
@@ -803,7 +802,7 @@ export class LivePreviewProvider {
           await this.livePreviewService.saveFavoriteFolders(context, message.folders);
         }
         await this.livePreviewService.saveUserFavorites(context, message.favorites || []);
-        await this.postFavoritesToPanel(panel);
+        await this.broadcastFavorites();
         break;
 
       case 'saveNavigationFavorites':
@@ -816,11 +815,11 @@ export class LivePreviewProvider {
 
       case 'importFavorites':
         await this.livePreviewService.importFavoritesFromFile(context);
-        await this.postFavoritesToPanel(panel);
+        await this.broadcastFavorites();
         break;
 
       case 'toggleFavorite':
-        await this.toggleFavorite(message, panel);
+        await this.toggleFavorite(message);
         break;
 
       case 'openNewPreviewTab':

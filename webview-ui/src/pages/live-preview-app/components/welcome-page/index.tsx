@@ -1,5 +1,5 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFolder, faGlobe, faLayerGroup } from '@fortawesome/free-solid-svg-icons';
+import { faFolder, faGlobe, faLayerGroup, faPen, faXmark } from '@fortawesome/free-solid-svg-icons';
 import { faVuejs, faNodeJs, faReact } from '@fortawesome/free-brands-svg-icons';
 import Scrollbar from '@components/Scrollbar';
 import styles from './index.module.css';
@@ -21,10 +21,12 @@ interface WelcomePageProps {
   onQuickOpen: (url: string) => void;
   navigationFavorites: WelcomeFavoriteItem[];
   favoriteFolders: WelcomeFavoriteFolder[];
+  onEditFolder: (folderId: string) => void;
+  onRemoveNavigation: (favorite: WelcomeFavoriteItem) => void;
 }
 
 export default function WelcomePage(props: WelcomePageProps) {
-  const { onQuickOpen, navigationFavorites, favoriteFolders } = props;
+  const { onQuickOpen, navigationFavorites, favoriteFolders, onEditFolder, onRemoveNavigation } = props;
   const folderNameMap = new Map(favoriteFolders.map((folder) => [folder.id, folder.name]));
   const groupedFavorites = new Map<string, WelcomeFavoriteItem[]>();
 
@@ -90,19 +92,49 @@ export default function WelcomePage(props: WelcomePageProps) {
                 <div key={group.id} className={styles['navigation-folder']}>
                   <div className={styles['navigation-folder-title']}>
                     <FontAwesomeIcon icon={faFolder} />
-                    <span>{group.name}</span>
+                    <span className={styles['navigation-folder-name']}>{group.name}</span>
                     <span className={styles['navigation-folder-count']}>{group.favorites.length}</span>
+
+                    <button
+                      type="button"
+                      className={styles['navigation-folder-edit']}
+                      title={`编辑「${group.name}」`}
+                      aria-label={`编辑「${group.name}」`}
+                      onClick={() => onEditFolder(group.id)}
+                    >
+                      <FontAwesomeIcon icon={faPen} />
+                    </button>
                   </div>
 
                   <div className={styles['navigation-bookmark-list']}>
                     {group.favorites.map((favorite) => (
-                      <button
+                      <div
                         key={favorite.url}
-                        type="button"
                         className={styles['navigation-bookmark']}
                         title={favorite.url}
+                        role="link"
+                        tabIndex={0}
                         onClick={() => onQuickOpen(favorite.url)}
+                        onKeyDown={(event) => {
+                          if (event.key !== 'Enter' && event.key !== ' ') return;
+
+                          event.preventDefault();
+                          onQuickOpen(favorite.url);
+                        }}
                       >
+                        <button
+                          type="button"
+                          className={styles['navigation-bookmark-remove']}
+                          title="从导航页移除"
+                          aria-label={`从导航页移除「${favorite.title}」`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onRemoveNavigation(favorite);
+                          }}
+                        >
+                          <FontAwesomeIcon icon={faXmark} />
+                        </button>
+
                         <span className={styles['navigation-bookmark-logo']}>
                           <FontAwesomeIcon icon={faGlobe} className={styles['navigation-bookmark-placeholder']} />
                           {favorite.logo && (
@@ -120,7 +152,7 @@ export default function WelcomePage(props: WelcomePageProps) {
                           <span className={styles['navigation-bookmark-title']}>{favorite.title}</span>
                           <span className={styles['navigation-bookmark-url']}>{favorite.url}</span>
                         </span>
-                      </button>
+                      </div>
                     ))}
                   </div>
                 </div>

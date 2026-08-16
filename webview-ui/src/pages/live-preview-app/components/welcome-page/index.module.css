@@ -111,6 +111,13 @@
     font-weight: 600;
 }
 
+.navigation-folder-name {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
 .navigation-folder-title svg {
     color: var(--vscode-icon-foreground);
 }
@@ -121,6 +128,29 @@
     font-size: 11px;
 }
 
+.navigation-folder-edit {
+    width: 24px;
+    height: 24px;
+    margin-left: auto;
+    padding: 0;
+    flex: 0 0 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--vscode-icon-foreground);
+    cursor: pointer;
+    opacity: 0.72;
+}
+
+.navigation-folder-edit:hover {
+    background: transparent;
+    color: var(--fg);
+    opacity: 1;
+}
+
 .navigation-bookmark-list {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -128,9 +158,10 @@
 }
 
 .navigation-bookmark {
+    position: relative;
     min-width: 0;
     height: 54px;
-    padding: 7px 10px;
+    padding: 7px 34px 7px 10px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -143,9 +174,42 @@
     text-align: left;
 }
 
+.navigation-bookmark:focus-visible {
+    border-color: var(--focus-border);
+}
+
 .navigation-bookmark:hover {
     background: var(--vscode-button-secondaryHoverBackground);
     border-color: var(--focus-border);
+}
+
+.navigation-bookmark-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    outline: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--desc-color);
+    cursor: pointer;
+    opacity: 0.72;
+}
+
+.navigation-bookmark:hover .navigation-bookmark-remove,
+.navigation-bookmark:focus-within .navigation-bookmark-remove {
+    opacity: 1;
+}
+
+.navigation-bookmark-remove:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+    color: var(--fg);
 }
 
 .navigation-bookmark-logo {
