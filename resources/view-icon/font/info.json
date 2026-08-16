@@ -1,0 +1,16 @@
+{
+  "icon-container": {
+    "encodedCode": "\\ea01",
+    "prefix": "quickops-icons",
+    "className": "quickops-icons-icon-container",
+    "unicode": "&#59905;"
+  },
+  "__meta": {
+    "hash": "b130d6ce30d7062b52d2106eb98d994dc9544e7ee1bcd782a9b332d5e53c4b20",
+    "generatorVersion": 1,
+    "fontName": "quickops-icons",
+    "unicodeMap": {
+      "icon-container": "\\ea01"
+    }
+  }
+}

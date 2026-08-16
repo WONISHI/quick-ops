@@ -16,6 +16,7 @@ interface PreviewTabRecord {
   browserService: EmbeddedBrowserService;
   title: string;
   url: string;
+  faviconUrl: string;
   isMain: boolean;
 }
 
@@ -23,8 +24,11 @@ interface PreviewTabInfo {
   id: string;
   title: string;
   url: string;
+  faviconUrl: string;
   active: boolean;
 }
+
+const NAVIGATION_FAVORITES_GLOBAL_STATE_KEY = 'quickOps.livePreview.navigationFavoriteUrls';
 
 /**
  * @description Live Preview Webview Provider
@@ -148,6 +152,7 @@ export class LivePreviewProvider {
       browserService: this.embeddedBrowserService,
       title: this.createPreviewTabTitle('', this.pendingInitialUrl),
       url: this.pendingInitialUrl,
+      faviconUrl: '',
       isMain: true,
     });
 
@@ -259,7 +264,11 @@ export class LivePreviewProvider {
         }
 
         await this.livePreviewService.saveUserFavorites(context, message.favorites || []);
-        await this.syncFavoritesToPanel();
+        await this.broadcastFavorites();
+        break;
+
+      case 'saveNavigationFavorites':
+        await this.saveNavigationFavoriteUrls(message.navigationFavoriteUrls);
         break;
 
       case 'exportFavorites': {
@@ -271,15 +280,19 @@ export class LivePreviewProvider {
 
       case 'importFavorites':
         await this.livePreviewService.importFavoritesFromFile(context);
-        await this.syncFavoritesToPanel();
+        await this.broadcastFavorites();
         break;
 
       case 'toggleFavorite':
-        await this.toggleFavorite(message, this.panel);
+        await this.toggleFavorite(message);
         break;
 
       case 'openNewPreviewTab':
         await this.createNewPreviewTab(message.device || '');
+        break;
+
+      case 'closeAllPreviewTabs':
+        await this.closeAllPreviewTabs(this.mainPreviewTabId);
         break;
 
       case 'browserNavigate':
@@ -452,7 +465,7 @@ export class LivePreviewProvider {
     }
   }
 
-  private async toggleFavorite(message: any, panel?: vscode.WebviewPanel): Promise<void> {
+  private async toggleFavorite(message: any): Promise<void> {
     const context = this.extensionContextProvider.getContext();
     const result = await this.livePreviewService.toggleFavorite(context, {
       url: message.url,
@@ -469,11 +482,7 @@ export class LivePreviewProvider {
       vscode.window.showInformationMessage(result.message);
     }
 
-    panel?.webview.postMessage({
-      type: 'syncFavorites',
-      favorites: result.favorites,
-      folders: result.folders,
-    });
+    await this.broadcastFavorites();
   }
 
   private async postFavoriteMetaResolved(panel: vscode.WebviewPanel, message: any): Promise<void> {
@@ -505,7 +514,45 @@ export class LivePreviewProvider {
       type: 'syncFavorites',
       favorites,
       folders,
+      navigationFavoriteUrls: this.getNavigationFavoriteUrls(context),
     });
+  }
+
+  private async broadcastFavorites(): Promise<void> {
+    for (const record of this.previewTabs.values()) {
+      await this.postFavoritesToPanel(record.panel);
+    }
+  }
+
+  private normalizeNavigationFavoriteUrls(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+
+    return value.reduce<string[]>((result, item) => {
+      if (typeof item !== 'string') return result;
+
+      const url = item.trim();
+      const normalizedUrl = url.replace(/\/+$/, '');
+
+      if (!normalizedUrl || result.some((current) => current.replace(/\/+$/, '') === normalizedUrl)) {
+        return result;
+      }
+
+      result.push(url);
+      return result;
+    }, []);
+  }
+
+  private getNavigationFavoriteUrls(context: vscode.ExtensionContext): string[] {
+    return this.normalizeNavigationFavoriteUrls(context.globalState.get<unknown>(NAVIGATION_FAVORITES_GLOBAL_STATE_KEY));
+  }
+
+  private async saveNavigationFavoriteUrls(value: unknown): Promise<void> {
+    const context = this.extensionContextProvider.getContext();
+    const navigationFavoriteUrls = this.normalizeNavigationFavoriteUrls(value);
+
+    await context.globalState.update(NAVIGATION_FAVORITES_GLOBAL_STATE_KEY, navigationFavoriteUrls);
+
+    await this.broadcastFavorites();
   }
 
   private bindMainBrowserEvents(): void {
@@ -529,6 +576,7 @@ export class LivePreviewProvider {
       this.updatePreviewTab(tabId, {
         title: String(payload?.title || ''),
         url: String(payload?.url || ''),
+        faviconUrl: String(payload?.faviconUrl || ''),
       });
 
       this.updatePreviewPanelIcon(panel, payload?.faviconUrl);
@@ -591,6 +639,7 @@ export class LivePreviewProvider {
       this.updatePreviewTab(tabId, {
         title: snapshot.title || snapshot.url,
         url: snapshot.url,
+        faviconUrl: snapshot.faviconUrl,
       });
       this.updatePreviewPanelIcon(panel, snapshot.faviconUrl);
 
@@ -670,6 +719,7 @@ export class LivePreviewProvider {
       browserService,
       title: this.createPreviewTabTitle('', initialUrl),
       url: initialUrl,
+      faviconUrl: '',
       isMain: false,
     });
 
@@ -752,7 +802,11 @@ export class LivePreviewProvider {
           await this.livePreviewService.saveFavoriteFolders(context, message.folders);
         }
         await this.livePreviewService.saveUserFavorites(context, message.favorites || []);
-        await this.postFavoritesToPanel(panel);
+        await this.broadcastFavorites();
+        break;
+
+      case 'saveNavigationFavorites':
+        await this.saveNavigationFavoriteUrls(message.navigationFavoriteUrls);
         break;
 
       case 'exportFavorites':
@@ -761,15 +815,19 @@ export class LivePreviewProvider {
 
       case 'importFavorites':
         await this.livePreviewService.importFavoritesFromFile(context);
-        await this.postFavoritesToPanel(panel);
+        await this.broadcastFavorites();
         break;
 
       case 'toggleFavorite':
-        await this.toggleFavorite(message, panel);
+        await this.toggleFavorite(message);
         break;
 
       case 'openNewPreviewTab':
         await this.createNewPreviewTab(message.device || '');
+        break;
+
+      case 'closeAllPreviewTabs':
+        await this.closeAllPreviewTabs(tabId);
         break;
 
       case 'browserNavigate':
@@ -886,6 +944,41 @@ export class LivePreviewProvider {
   }
 
   /**
+   * @description 关闭其它 Live Preview 标签页，并将当前标签页恢复为欢迎页
+   */
+  private async closeAllPreviewTabs(currentTabId: string): Promise<void> {
+    const currentRecord = this.previewTabs.get(currentTabId);
+
+    if (!currentRecord) return;
+
+    const otherRecords = Array.from(this.previewTabs.values()).filter((item) => item.id !== currentTabId);
+
+    otherRecords.forEach((item) => {
+      item.panel.dispose();
+    });
+
+    await currentRecord.browserService.stop().catch((error) => {
+      console.warn('[LivePreviewProvider] stop current preview before reset failed:', error);
+    });
+
+    const context = this.extensionContextProvider.getContext();
+
+    await context.workspaceState.update('quickOps.lastPreviewUrl', '');
+
+    currentRecord.title = this.createPreviewTabTitle('', '');
+    currentRecord.url = '';
+    currentRecord.faviconUrl = '';
+    currentRecord.panel.title = '网页预览 (Preview)';
+    currentRecord.panel.iconPath = this.getDefaultPreviewIconUri();
+
+    await currentRecord.panel.webview.postMessage({
+      type: 'resetPreviewToWelcome',
+    });
+
+    this.broadcastPreviewTabs();
+  }
+
+  /**
    * @description 更新标签页标题或 URL
    */
   private updatePreviewTab(
@@ -893,6 +986,7 @@ export class LivePreviewProvider {
     patch: {
       title?: string;
       url?: string;
+      faviconUrl?: string;
     },
   ): void {
     const record = this.previewTabs.get(tabId);
@@ -901,9 +995,11 @@ export class LivePreviewProvider {
 
     const nextUrl = typeof patch.url === 'string' ? patch.url : record.url;
     const nextTitle = typeof patch.title === 'string' && patch.title.trim() ? patch.title.trim() : record.title;
+    const nextFaviconUrl = typeof patch.faviconUrl === 'string' ? patch.faviconUrl.trim() : record.faviconUrl;
 
     record.url = nextUrl;
     record.title = this.createPreviewTabTitle(nextTitle, nextUrl);
+    record.faviconUrl = nextFaviconUrl;
     record.panel.title = this.createPreviewPanelTitle(record.title);
 
     this.broadcastPreviewTabs();
@@ -930,6 +1026,15 @@ export class LivePreviewProvider {
     } catch (error) {
       console.warn('[LivePreviewProvider] update preview favicon failed:', error);
     }
+  }
+
+  /**
+   * @description Live Preview 默认标签页图标
+   */
+  private getDefaultPreviewIconUri(): vscode.Uri {
+    const context = this.extensionContextProvider.getContext();
+
+    return vscode.Uri.joinPath(context.extensionUri, 'resources', 'favicon', 'live-preview.svg');
   }
 
   /**
@@ -1013,11 +1118,13 @@ export class LivePreviewProvider {
   private postPreviewTabsToPanel(panel: vscode.WebviewPanel, currentTabId: string): void {
     const records = Array.from(this.previewTabs.values());
     const hasActivePanel = records.some((item) => item.panel.active);
+    const defaultFaviconUrl = panel.webview.asWebviewUri(this.getDefaultPreviewIconUri()).toString();
 
     const tabs: PreviewTabInfo[] = records.map((item) => ({
       id: item.id,
       title: item.title,
       url: item.url,
+      faviconUrl: item.faviconUrl || defaultFaviconUrl,
       active: hasActivePanel ? item.panel.active : item.id === currentTabId,
     }));
 

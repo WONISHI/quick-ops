@@ -1,7 +1,16 @@
-import React from 'react';
 import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
 import 'react-loading-skeleton/dist/skeleton.css';
 import styles from './index.module.css';
+
+const projectSkeletonItems = [
+  { titleWidth: '42%', pathWidth: '68%', showBranch: true },
+  { titleWidth: '56%', pathWidth: '82%', showBranch: false },
+  { titleWidth: '48%', pathWidth: '74%', showBranch: true },
+  { titleWidth: '64%', pathWidth: '88%', showBranch: false },
+  { titleWidth: '45%', pathWidth: '70%', showBranch: true },
+  { titleWidth: '58%', pathWidth: '80%', showBranch: false },
+  { titleWidth: '50%', pathWidth: '76%', showBranch: true },
+];
 
 /**
  * @description 最近项目初始化骨架屏
@@ -17,8 +26,13 @@ export default function RecentProjectsSkeleton() {
       <div className={styles['recent-projects-skeleton-root']}>
         <div className={styles['recent-projects-skeleton-search']}>
           <div className={styles['recent-projects-skeleton-search-box']}>
-            <Skeleton width={14} height={14} circle />
-            <Skeleton width="68%" height={11} />
+            <div className={styles['recent-projects-skeleton-search-icon']}>
+              <Skeleton width={14} height={14} circle />
+            </div>
+
+            <div className={styles['recent-projects-skeleton-search-text']}>
+              <Skeleton width="100%" height={11} />
+            </div>
           </div>
         </div>
 
@@ -28,46 +42,72 @@ export default function RecentProjectsSkeleton() {
               <Skeleton width={10} height={10} />
             </div>
 
-            <Skeleton width={18} height={18} />
+            <div className={styles['recent-projects-skeleton-project-icon']}>
+              <Skeleton width={18} height={18} />
+            </div>
 
             <div className={styles['recent-projects-skeleton-info']}>
               <div className={styles['recent-projects-skeleton-title']}>
-                <Skeleton width="46%" height={12} />
-                <Skeleton width={54} height={16} borderRadius={10} />
+                <div className={styles['recent-projects-skeleton-active-title-line']}>
+                  <Skeleton width="100%" height={11} />
+                </div>
+
+                <div className={styles['recent-projects-skeleton-branch']}>
+                  <Skeleton width="100%" height={16} borderRadius={10} />
+                </div>
               </div>
 
-              <Skeleton width="76%" height={9} />
+              <div className={styles['recent-projects-skeleton-active-path']}>
+                <Skeleton width="100%" height={8} />
+              </div>
             </div>
           </div>
 
           <div className={styles['recent-projects-skeleton-divider']} />
 
-          {Array.from({ length: 8 }).map((_, index) => (
+          {projectSkeletonItems.map((item, index) => (
             <div key={index} className={styles['recent-projects-skeleton-item']}>
               <div className={styles['recent-projects-skeleton-chevron']}>
                 <Skeleton width={10} height={10} />
               </div>
 
-              <Skeleton width={18} height={18} />
+              <div className={styles['recent-projects-skeleton-project-icon']}>
+                <Skeleton width={18} height={18} />
+              </div>
 
               <div className={styles['recent-projects-skeleton-info']}>
                 <div className={styles['recent-projects-skeleton-title']}>
-                  <Skeleton width={`${42 + (index % 3) * 9}%`} height={12} />
+                  <div className={styles['recent-projects-skeleton-title-line']} style={{ width: item.titleWidth }}>
+                    <Skeleton width="100%" height={11} />
+                  </div>
 
-                  {index % 2 === 0 && <Skeleton width={48} height={16} borderRadius={10} />}
+                  {item.showBranch && (
+                    <div className={styles['recent-projects-skeleton-branch']}>
+                      <Skeleton width="100%" height={16} borderRadius={10} />
+                    </div>
+                  )}
                 </div>
 
-                <Skeleton width={`${68 + (index % 4) * 6}%`} height={9} />
+                <div className={styles['recent-projects-skeleton-path']} style={{ width: item.pathWidth }}>
+                  <Skeleton width="100%" height={8} />
+                </div>
               </div>
 
-              <Skeleton width={22} height={22} />
+              <div className={styles['recent-projects-skeleton-action']}>
+                <Skeleton width={22} height={22} />
+              </div>
             </div>
           ))}
         </div>
 
         <div className={styles['recent-projects-skeleton-bottom']}>
-          <Skeleton width="100%" height={30} />
-          <Skeleton width="100%" height={30} />
+          <div className={styles['recent-projects-skeleton-button']}>
+            <Skeleton width="100%" height={28} />
+          </div>
+
+          <div className={styles['recent-projects-skeleton-button']}>
+            <Skeleton width="100%" height={28} />
+          </div>
         </div>
       </div>
     </SkeletonTheme>

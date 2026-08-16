@@ -17,6 +17,7 @@ import {
   faEllipsis,
   faSpinner,
   faWindowRestore,
+  faPlus,
 } from '@fortawesome/free-solid-svg-icons';
 import { faStar as faStarRegular } from '@fortawesome/free-regular-svg-icons';
 
@@ -55,6 +56,10 @@ import type {
   PreviewType,
   PreviewTabItem,
 } from '@pages/live-preview-app/src/type';
+
+type PreviewTabListItem = PreviewTabItem & {
+  faviconUrl?: string;
+};
 
 const isBrowserEngineKey = (value: unknown): value is BrowserEngineKey => {
   return value === 'baidu' || value === 'bing' || value === 'quark';
@@ -946,6 +951,7 @@ export default function LivePreviewApp() {
   const [loadingProgress, setLoadingProgress] = useState(0);
   const [showProgress, setShowProgress] = useState(false);
   const progressTimerRef = useRef<number | null>(null);
+  const progressStartedRef = useRef(false);
 
   const [device, setDevice] = useState('device-responsive');
   const [isRotated, setIsRotated] = useState(false);
@@ -968,11 +974,12 @@ export default function LivePreviewApp() {
   const [browserSwitcherOpen, setBrowserSwitcherOpen] = useState(false);
   const [deviceMenuOpen, setDeviceMenuOpen] = useState(false);
   const [previewTabsMenuOpen, setPreviewTabsMenuOpen] = useState(false);
-  const [previewTabs, setPreviewTabs] = useState<PreviewTabItem[]>([]);
+  const [previewTabs, setPreviewTabs] = useState<PreviewTabListItem[]>([]);
   const [currentPreviewTabId, setCurrentPreviewTabId] = useState('');
 
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [favoriteFolders, setFavoriteFolders] = useState<FavoriteFolder[]>([]);
+  const [navigationFavoriteUrls, setNavigationFavoriteUrls] = useState<string[]>([]);
   const [selectedFavoriteFolderId, setSelectedFavoriteFolderId] = useState('all');
   const [historyStack, setHistoryStack] = useState<HistoryItem[]>([]);
   const [historyIdx, setHistoryIdx] = useState(-1);
@@ -1098,51 +1105,70 @@ export default function LivePreviewApp() {
 
   // 控制顶部虚拟进度条：页面加载完成后直接卸载 DOM，避免残留一条线
   useEffect(() => {
+    let startTimer: number | undefined;
+    let completeTimer: number | undefined;
     let hideTimer: number | undefined;
     let resetTimer: number | undefined;
 
-    if (previewLoading) {
-      setShowProgress(true);
-      setLoadingProgress(15);
-
+    const clearProgressInterval = () => {
       if (progressTimerRef.current) {
         window.clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
       }
+    };
 
-      progressTimerRef.current = window.setInterval(() => {
-        setLoadingProgress((prev) => {
-          if (prev >= 92) return 92;
+    if (previewLoading) {
+      progressStartedRef.current = true;
 
-          const increment = prev < 50 ? 10 : prev < 80 ? 4 : 1;
+      startTimer = window.setTimeout(() => {
+        setShowProgress(true);
+        setLoadingProgress(15);
+        clearProgressInterval();
 
-          return prev + increment;
-        });
-      }, 300);
+        progressTimerRef.current = window.setInterval(() => {
+          setLoadingProgress((prev) => {
+            if (prev >= 92) return 92;
+
+            const increment = prev < 50 ? 10 : prev < 80 ? 4 : 1;
+
+            return prev + increment;
+          });
+        }, 300);
+      }, 0);
 
       return () => {
-        if (progressTimerRef.current) {
-          window.clearInterval(progressTimerRef.current);
-          progressTimerRef.current = null;
+        if (startTimer) {
+          window.clearTimeout(startTimer);
         }
+
+        clearProgressInterval();
       };
     }
 
-    if (progressTimerRef.current) {
-      window.clearInterval(progressTimerRef.current);
-      progressTimerRef.current = null;
+    clearProgressInterval();
+
+    if (!progressStartedRef.current) {
+      return;
     }
 
-    setLoadingProgress(100);
+    completeTimer = window.setTimeout(() => {
+      setLoadingProgress(100);
 
-    hideTimer = window.setTimeout(() => {
-      setShowProgress(false);
+      hideTimer = window.setTimeout(() => {
+        setShowProgress(false);
 
-      resetTimer = window.setTimeout(() => {
-        setLoadingProgress(0);
-      }, 120);
-    }, 180);
+        resetTimer = window.setTimeout(() => {
+          setLoadingProgress(0);
+          progressStartedRef.current = false;
+        }, 120);
+      }, 180);
+    }, 0);
 
     return () => {
+      if (completeTimer) {
+        window.clearTimeout(completeTimer);
+      }
+
       if (hideTimer) {
         window.clearTimeout(hideTimer);
       }
@@ -1155,6 +1181,44 @@ export default function LivePreviewApp() {
 
   const normalizeFavoriteUrl = (url: string) => {
     return (url || '').trim().replace(/\/+$/, '');
+  };
+
+  const saveNavigationFavoriteUrls = (urls: string[]) => {
+    const uniqueUrls = urls.reduce<string[]>((result, url) => {
+      const normalizedUrl = normalizeFavoriteUrl(url);
+
+      if (!normalizedUrl || result.some((item) => normalizeFavoriteUrl(item) === normalizedUrl)) {
+        return result;
+      }
+
+      result.push(url);
+      return result;
+    }, []);
+
+    setNavigationFavoriteUrls(uniqueUrls);
+    vscode?.postMessage({
+      type: 'saveNavigationFavorites',
+      navigationFavoriteUrls: uniqueUrls,
+    });
+  };
+
+  const toggleFavoriteNavigation = (favorite: FavoriteItem) => {
+    const targetUrl = normalizeFavoriteUrl(favorite.url);
+    const isIncluded = navigationFavoriteUrls.some((url) => normalizeFavoriteUrl(url) === targetUrl);
+    const nextUrls = isIncluded ? navigationFavoriteUrls.filter((url) => normalizeFavoriteUrl(url) !== targetUrl) : [...navigationFavoriteUrls, favorite.url];
+
+    saveNavigationFavoriteUrls(nextUrls);
+  };
+
+  const removeFavoriteFromNavigation = (favorite: { url: string }) => {
+    const targetUrl = normalizeFavoriteUrl(favorite.url);
+
+    saveNavigationFavoriteUrls(navigationFavoriteUrls.filter((url) => normalizeFavoriteUrl(url) !== targetUrl));
+  };
+
+  const editNavigationFolder = (folderId: string) => {
+    setSelectedFavoriteFolderId(folderId || ROOT_FAVORITE_FOLDER_ID);
+    setActiveModal('fav');
   };
 
   const createFavoriteFolderId = (name: string) => {
@@ -1557,9 +1621,16 @@ export default function LivePreviewApp() {
       } else if (message.type === 'previewTabsChanged') {
         setPreviewTabs(Array.isArray(message.tabs) ? message.tabs : []);
         setCurrentPreviewTabId(String(message.currentTabId || message.activeTabId || ''));
+      } else if (message.type === 'resetPreviewToWelcome') {
+        resetPreviewState();
+        setPreviewTabsMenuOpen(false);
       } else if (message.type === 'syncFavorites') {
         setFavorites(message.favorites || []);
         setFavoriteFolders(message.folders || []);
+
+        if (Array.isArray(message.navigationFavoriteUrls)) {
+          setNavigationFavoriteUrls(message.navigationFavoriteUrls);
+        }
       } else if (message.type === 'favoriteMetaResolved') {
         const requestId = Number(message.requestId) || 0;
         const resolver = favoriteMetaResolversRef.current.get(requestId);
@@ -1739,7 +1810,7 @@ export default function LivePreviewApp() {
     return 'web';
   };
 
-  const loadPreviewTarget = (url: string) => {
+  function loadPreviewTarget(url: string) {
     const pType = getPreviewTypeByUrl(url);
 
     setPreviewType(pType);
@@ -1790,9 +1861,9 @@ export default function LivePreviewApp() {
       pushHistory(url, url);
       pendingExplicitNavigationRef.current = false;
     }
-  };
+  }
 
-  const handleGo = (forceUrl?: string) => {
+  function handleGo(forceUrl?: string) {
     const rawUrl = forceUrl !== undefined ? forceUrl : urlInput;
     const finalUrl = parsePreviewInput(rawUrl);
 
@@ -1825,7 +1896,7 @@ export default function LivePreviewApp() {
 
     setUrlInput(finalUrl);
     loadPreviewTarget(finalUrl);
-  };
+  }
 
   const suggestions = useMemo(() => {
     const query = urlInput.trim().toLowerCase();
@@ -1871,13 +1942,14 @@ export default function LivePreviewApp() {
     }
   };
 
-  const resetPreviewState = () => {
+  function resetPreviewState() {
     clearPreviewLoadTimer();
 
     previewRequestIdRef.current += 1;
     pageLoadedRef.current = false;
     faviconResolvedRef.current = false;
 
+    setUrlInput('');
     setFrameUrl('');
     setPreviewType('web');
     setPreviewLoading(false);
@@ -1889,7 +1961,7 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'browserStopLoading' });
     vscode?.postMessage({ type: 'browserStop' });
     vscode?.postMessage({ type: 'saveUrl', url: '' });
-  };
+  }
 
   const handleRefresh = () => {
     const inputValue = urlInput.trim();
@@ -2048,6 +2120,33 @@ export default function LivePreviewApp() {
         type: 'separator',
         key: 'preview-tabs-header-separator',
       },
+      {
+        key: 'preview-tabs-new-tab',
+        label: '新建标签页',
+        icon: <FontAwesomeIcon icon={faPlus} />,
+        className: styles['preview-tabs-menu-new-item'],
+        onSelect: () => {
+          vscode?.postMessage({
+            type: 'openNewPreviewTab',
+            device,
+          });
+        },
+      },
+      {
+        key: 'preview-tabs-close-all',
+        label: '关闭所有标签页',
+        icon: <FontAwesomeIcon icon={faXmark} />,
+        className: styles['preview-tabs-menu-new-item'],
+        onSelect: () => {
+          vscode?.postMessage({
+            type: 'closeAllPreviewTabs',
+          });
+        },
+      },
+      {
+        type: 'separator',
+        key: 'preview-tabs-new-tab-separator',
+      },
     ];
 
     if (previewTabs.length === 0) {
@@ -2063,9 +2162,26 @@ export default function LivePreviewApp() {
 
     previewTabs.forEach((tab) => {
       const active = tab.active || tab.id === currentPreviewTabId;
+      const tabFaviconUrl = String(tab.faviconUrl || '').trim();
 
       items.push({
         key: tab.id,
+        icon: (
+          <span className={styles['preview-tab-menu-icon']}>
+            <FontAwesomeIcon icon={faWindowRestore} />
+
+            {tabFaviconUrl && (
+              <img
+                className={styles['preview-tab-menu-favicon']}
+                src={tabFaviconUrl}
+                alt=""
+                onError={(event) => {
+                  event.currentTarget.style.display = 'none';
+                }}
+              />
+            )}
+          </span>
+        ),
         label: (
           <span className={styles['preview-tab-item-main']}>
             <span className={styles['preview-tab-title']}>{tab.title || '新建预览'}</span>
@@ -2088,7 +2204,7 @@ export default function LivePreviewApp() {
     });
 
     return items;
-  }, [currentPreviewTabId, previewTabs]);
+  }, [currentPreviewTabId, device, previewTabs]);
 
   const parsedUrlInput = useMemo(() => {
     const value = urlInput.trim();
@@ -2297,10 +2413,20 @@ export default function LivePreviewApp() {
       });
     }
 
+    setFavorites(newFavs);
+
     vscode?.postMessage({
       type: 'saveAllFavorites',
       favorites: newFavs.filter((item) => !item.isDefault),
     });
+
+    if (favForm.editingOriginalUrl) {
+      const editingUrl = normalizeFavoriteUrl(favForm.editingOriginalUrl);
+
+      if (navigationFavoriteUrls.some((url) => normalizeFavoriteUrl(url) === editingUrl)) {
+        saveNavigationFavoriteUrls(navigationFavoriteUrls.map((url) => (normalizeFavoriteUrl(url) === editingUrl ? u : url)));
+      }
+    }
 
     setFavForm({
       visible: false,
@@ -2321,10 +2447,18 @@ export default function LivePreviewApp() {
 
     const newFavs = favorites.filter((f) => f.url !== favorite.url || f.isDefault);
 
+    setFavorites(newFavs);
+
     vscode?.postMessage({
       type: 'saveAllFavorites',
       favorites: newFavs.filter((item) => !item.isDefault),
     });
+
+    const deletedUrl = normalizeFavoriteUrl(favorite.url);
+
+    if (navigationFavoriteUrls.some((url) => normalizeFavoriteUrl(url) === deletedUrl)) {
+      saveNavigationFavoriteUrls(navigationFavoriteUrls.filter((url) => normalizeFavoriteUrl(url) !== deletedUrl));
+    }
   };
 
   const saveFavoriteData = (nextFavorites: FavoriteItem[], nextFolders?: FavoriteFolder[]) => {
@@ -2449,14 +2583,6 @@ export default function LivePreviewApp() {
     vscode?.postMessage({ type: 'importFavorites' });
   };
 
-  const exportFavorites = () => {
-    vscode?.postMessage({
-      type: 'exportFavorites',
-      favorites: sortedFavorites,
-      folders: favoriteFolders,
-    });
-  };
-
   const sortedFavorites = useMemo(() => {
     const defaultList = favorites.filter((item) => item.isDefault);
     const userList = favorites.filter((item) => !item.isDefault);
@@ -2471,6 +2597,20 @@ export default function LivePreviewApp() {
 
     return [...defaultList, ...sortedUserList];
   }, [favorites, favSort]);
+
+  const navigationFavorites = sortedFavorites.filter((favorite) => {
+    const targetUrl = normalizeFavoriteUrl(favorite.url);
+
+    return navigationFavoriteUrls.some((url) => normalizeFavoriteUrl(url) === targetUrl);
+  });
+
+  const exportFavorites = () => {
+    vscode?.postMessage({
+      type: 'exportFavorites',
+      favorites: sortedFavorites,
+      folders: favoriteFolders,
+    });
+  };
 
   const renderPreviewLoadingMask = () => {
     if (!previewLoading) return null;
@@ -2811,7 +2951,13 @@ export default function LivePreviewApp() {
         )}
 
         {!frameUrl ? (
-          <WelcomePage onQuickOpen={handleGo} />
+          <WelcomePage
+            onQuickOpen={handleGo}
+            navigationFavorites={navigationFavorites}
+            favoriteFolders={favoriteFolders}
+            onEditFolder={editNavigationFolder}
+            onRemoveNavigation={removeFavoriteFromNavigation}
+          />
         ) : previewType === 'md' ? (
           <VditorApp key={frameUrl} />
         ) : previewType === 'pdf' ? (
@@ -2887,6 +3033,7 @@ export default function LivePreviewApp() {
         favSort={favSort}
         favForm={favForm}
         copiedUrl={copiedUrl}
+        navigationFavoriteUrls={navigationFavoriteUrls}
         setSelectedFolderId={setSelectedFavoriteFolderId}
         setFavSort={setFavSort}
         setFavForm={setFavForm}
@@ -2896,6 +3043,7 @@ export default function LivePreviewApp() {
           setActiveModal('none');
         }}
         onCopy={handleCopy}
+        onToggleNavigation={toggleFavoriteNavigation}
         onSaveFavorite={saveFavorite}
         onDeleteFavorite={deleteFavorite}
         onCreateFolder={createFavoriteFolder}

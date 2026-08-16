@@ -81,6 +81,36 @@ import {
 import type { DetailSource, RequestDetailPayload, ApiResponseMessagePayload } from '@/pages/api-dev-tools-app/src/type';
 
 /**
+ * @description 获取当前时间戳
+ *
+ * 时间读取属于非纯操作，统一放在组件外部，避免 React Compiler
+ * 将组件内部声明的事件函数识别为渲染期间的非纯调用。
+ */
+function getCurrentTimestamp(): number {
+  return Date.now();
+}
+
+/**
+ * @description 获取运行日志使用的当前时间
+ */
+function getCurrentLogTime(): string {
+  return new Date().toLocaleTimeString();
+}
+
+/**
+ * @description 根据右侧面板高度计算底部面板允许的最大高度
+ */
+function calculateBottomPanelMaxSize(paneHeight: number): number {
+  if (!paneHeight || paneHeight < 300) {
+    return BOTTOM_PANEL_MAX_SIZE;
+  }
+
+  const available = paneHeight - RESPONSE_HEAD_SIZE - RESPONSE_TABS_SIZE - BOTTOM_RESIZER_SIZE - RESPONSE_PANEL_RESERVED_SIZE;
+
+  return Math.min(BOTTOM_PANEL_MAX_SIZE, Math.max(BOTTOM_PANEL_COLLAPSED_SIZE, available));
+}
+
+/**
  * @description 渲染 API 调试工具主页面
  */
 export default function ApiDevToolsApp() {
@@ -108,6 +138,7 @@ export default function ApiDevToolsApp() {
   const [showGlobals, setShowGlobals] = useState(false);
   const [logs, setLogs] = useState<string[]>([]);
   const [bottomPanelSize, setBottomPanelSize] = useState(BOTTOM_PANEL_DEFAULT_SIZE);
+  const [bottomPanelMaxSize, setBottomPanelMaxSize] = useState(BOTTOM_PANEL_MAX_SIZE);
   const [isResizingBottomPanel, setIsResizingBottomPanel] = useState(false);
   const [workspacePaneWidth, setWorkspacePaneWidth] = useState(WORKSPACE_PANE_DEFAULT_WIDTH);
   const [isResizingWorkspacePane, setIsResizingWorkspacePane] = useState(false);
@@ -181,28 +212,24 @@ export default function ApiDevToolsApp() {
   }, [activeProject, activeInterfaceId]);
 
   /**
-   * @description 确保当前正在查看的接口始终处于可见状态
+   * @description 计算界面实际展开的接口分组
    *
-   * 初始化恢复、切换项目、切换接口或新建分组接口后，
-   * 如果当前接口属于某个分组，则自动展开该分组。
+   * 当前接口所在分组直接作为派生展示状态，不再通过 Effect
+   * 同步写入 state，避免产生一次额外的级联渲染。
    */
-  useEffect(() => {
+  const visibleExpandedGroupIds = useMemo(() => {
     const groupId = activeInterface?.groupId;
 
-    if (!groupId) return;
+    if (!groupId || expandedGroupIds.has(groupId)) {
+      return expandedGroupIds;
+    }
 
-    setExpandedGroupIds((current) => {
-      if (current.has(groupId)) {
-        return current;
-      }
+    const next = new Set(expandedGroupIds);
 
-      const next = new Set(current);
+    next.add(groupId);
 
-      next.add(groupId);
-
-      return next;
-    });
-  }, [activeInterface?.groupId]);
+    return next;
+  }, [activeInterface?.groupId, expandedGroupIds]);
 
   /**
    * @description 计算当前请求的项目绑定提示
@@ -290,37 +317,16 @@ export default function ApiDevToolsApp() {
   }, [workspacePaneWidth]);
 
   /**
-   * @description 获取底部面板允许的最大高度
-   */
-  const getBottomPanelMaxSize = useCallback(() => {
-    const pane = rightPaneRef.current;
-
-    if (!pane) {
-      return BOTTOM_PANEL_MAX_SIZE;
-    }
-
-    const paneHeight = pane.getBoundingClientRect().height;
-
-    if (!paneHeight || paneHeight < 300) {
-      return BOTTOM_PANEL_MAX_SIZE;
-    }
-
-    const available = paneHeight - RESPONSE_HEAD_SIZE - RESPONSE_TABS_SIZE - BOTTOM_RESIZER_SIZE - RESPONSE_PANEL_RESERVED_SIZE;
-
-    return Math.min(BOTTOM_PANEL_MAX_SIZE, Math.max(BOTTOM_PANEL_COLLAPSED_SIZE, available));
-  }, []);
-
-  /**
    * @description 安全设置底部面板高度
    */
   const setSafeBottomPanelSize = useCallback(
     (size: number) => {
-      const nextSize = clampNumber(size, BOTTOM_PANEL_COLLAPSED_SIZE, getBottomPanelMaxSize());
+      const nextSize = clampNumber(size, BOTTOM_PANEL_COLLAPSED_SIZE, bottomPanelMaxSize);
 
       bottomPanelSizeRef.current = nextSize;
       setBottomPanelSize(nextSize);
     },
-    [getBottomPanelMaxSize],
+    [bottomPanelMaxSize],
   );
 
   /**
@@ -682,15 +688,26 @@ export default function ApiDevToolsApp() {
   }, [isResizingRightPane, stopRightResize]);
 
   /**
-   * @description 同步当前项目标识引用
+   * @description 监听右侧面板尺寸并同步底部面板最大高度
    */
   useEffect(() => {
+    if (initializing || (!isFloating && floatingEditorOpen)) return;
+
     const target = rightPaneRef.current;
 
     if (!target) return;
 
-    const observer = new ResizeObserver(() => {
-      setSafeBottomPanelSize(bottomPanelSizeRef.current);
+    const observer = new ResizeObserver((entries) => {
+      const paneHeight = entries[0]?.contentRect.height || target.getBoundingClientRect().height;
+      const nextMaxSize = calculateBottomPanelMaxSize(paneHeight);
+      const nextPanelSize = clampNumber(bottomPanelSizeRef.current, BOTTOM_PANEL_COLLAPSED_SIZE, nextMaxSize);
+
+      setBottomPanelMaxSize((current) => (current === nextMaxSize ? current : nextMaxSize));
+
+      if (nextPanelSize !== bottomPanelSizeRef.current) {
+        bottomPanelSizeRef.current = nextPanelSize;
+        setBottomPanelSize(nextPanelSize);
+      }
     });
 
     observer.observe(target);
@@ -698,7 +715,7 @@ export default function ApiDevToolsApp() {
     return () => {
       observer.disconnect();
     };
-  }, [setSafeBottomPanelSize]);
+  }, [floatingEditorOpen, initializing, isFloating]);
 
   /**
    * @description 保存 API 调试工具状态
@@ -726,7 +743,9 @@ export default function ApiDevToolsApp() {
    * @description 追加运行日志
    */
   const setLog = useCallback((message: string) => {
-    setLogs((prev) => [`${new Date().toLocaleTimeString()} ${message}`, ...prev].slice(0, 20));
+    const logTime = getCurrentLogTime();
+
+    setLogs((prev) => [`${logTime} ${message}`, ...prev].slice(0, 20));
   }, []);
 
   /**
@@ -836,7 +855,7 @@ export default function ApiDevToolsApp() {
           url: payload.url || currentRequest.url,
           status: payload.status,
           duration: payload.duration,
-          timestamp: Date.now(),
+          timestamp: getCurrentTimestamp(),
           request: cloneRequest<ApiRequestConfig>(currentRequest),
         };
 
@@ -1208,7 +1227,7 @@ export default function ApiDevToolsApp() {
    * @description 将当前请求保存到项目
    */
   const saveCurrentRequestToProject = (options?: { silent?: boolean }) => {
-    const now = Date.now();
+    const now = getCurrentTimestamp();
     const snapshot = cloneRequest<ApiRequestConfig>(requestRef.current);
     const requestName = snapshot.name || snapshot.url || '未命名接口';
 
@@ -1658,7 +1677,9 @@ export default function ApiDevToolsApp() {
         return;
       }
 
-      setProjects((prev) => prev.map((item) => (item.id === manageDialog.projectId ? { ...item, name: value, updatedAt: Date.now() } : item)));
+      const now = getCurrentTimestamp();
+
+      setProjects((prev) => prev.map((item) => (item.id === manageDialog.projectId ? { ...item, name: value, updatedAt: now } : item)));
       setLog(`已重命名项目：${value}`);
       closeManageDialog();
       return;
@@ -1667,7 +1688,7 @@ export default function ApiDevToolsApp() {
     if (manageDialog.kind === 'group-create') {
       if (!value) return;
 
-      const now = Date.now();
+      const now = getCurrentTimestamp();
       const group: ApiInterfaceGroup = {
         id: createId('api-group'),
         name: value,
@@ -1700,7 +1721,7 @@ export default function ApiDevToolsApp() {
         return;
       }
 
-      const now = Date.now();
+      const now = getCurrentTimestamp();
       const nextProjects = projectsRef.current.map((project) =>
         project.id === manageDialog.projectId
           ? {
@@ -1730,7 +1751,7 @@ export default function ApiDevToolsApp() {
     }
 
     if (manageDialog.kind === 'group-delete') {
-      const now = Date.now();
+      const now = getCurrentTimestamp();
       const nextProjects = projectsRef.current.map((project) =>
         project.id === manageDialog.projectId
           ? {
@@ -1768,7 +1789,7 @@ export default function ApiDevToolsApp() {
       if (!value) return;
       if (!(await confirmSaveBeforeLeave())) return;
 
-      const now = Date.now();
+      const now = getCurrentTimestamp();
       const snapshot: ApiRequestConfig = {
         ...createDefaultRequest(),
         name: value,
@@ -1822,7 +1843,7 @@ export default function ApiDevToolsApp() {
       if (!value) return;
       if (!(await confirmSaveBeforeLeave())) return;
 
-      const now = Date.now();
+      const now = getCurrentTimestamp();
       const snapshot: ApiRequestConfig = {
         ...createDefaultRequest(),
         name: value,
@@ -1920,12 +1941,13 @@ export default function ApiDevToolsApp() {
     }
 
     if (manageDialog.kind === 'interface-delete') {
+      const now = getCurrentTimestamp();
       const nextProjects = projectsRef.current.map((item) =>
         item.id === manageDialog.projectId
           ? {
               ...item,
               interfaces: item.interfaces.filter((current) => current.id !== manageDialog.interfaceId),
-              updatedAt: Date.now(),
+              updatedAt: now,
             }
           : item,
       );
@@ -1957,6 +1979,7 @@ export default function ApiDevToolsApp() {
    * @description 获取选中用于分享的项目数据
    */
   const getShareProjects = (selectedIds = shareSelectedInterfaceIdsRef.current) => {
+    const now = getCurrentTimestamp();
     const selectedIdSet = new Set(selectedIds);
     const activeProjectIdValue = activeProjectIdRef.current;
     const activeInterfaceIdValue = activeInterfaceIdRef.current;
@@ -1982,7 +2005,7 @@ export default function ApiDevToolsApp() {
               method: liveRequest.method,
               url: liveRequest.url,
               request: liveRequest,
-              updatedAt: Date.now(),
+              updatedAt: now,
             };
           });
 
@@ -2211,52 +2234,59 @@ export default function ApiDevToolsApp() {
   /**
    * @description 将 VS Code 原生 View 标题栏操作分发给页面现有业务函数
    */
-  viewTitleActionRef.current = (action: ApiDevToolsViewTitleAction) => {
-    switch (action) {
-      case 'add-project':
-        addProject();
-        break;
+  /**
+   * @description 在组件提交后更新标题栏操作处理器
+   *
+   * ref 不参与渲染，不能在组件渲染阶段直接修改 current。
+   * 不传依赖数组，使处理器在每次提交后都能捕获最新状态和业务函数。
+   */
+  useEffect(() => {
+    viewTitleActionRef.current = (action: ApiDevToolsViewTitleAction) => {
+      switch (action) {
+        case 'add-project':
+          addProject();
+          break;
 
-      case 'add-interface':
-        addInterface();
-        break;
+        case 'add-interface':
+          addInterface();
+          break;
 
-      case 'save-interface':
-        saveInterface();
-        break;
+        case 'save-interface':
+          saveInterface();
+          break;
 
-      case 'share-docs':
-        shareDocs();
-        break;
+        case 'share-docs':
+          shareDocs();
+          break;
 
-      case 'export-docs':
-        exportDocs();
-        break;
+        case 'export-docs':
+          exportDocs();
+          break;
 
-      case 'show-globals':
-        setShowGlobals(true);
-        break;
+        case 'show-globals':
+          setShowGlobals(true);
+          break;
 
-      case 'clear-all':
-        clearAll();
-        break;
+        case 'clear-all':
+          clearAll();
+          break;
 
-      case 'send-request':
-        if (!loading) {
-          sendRequest();
-        }
-        break;
+        case 'send-request':
+          if (!loading) {
+            sendRequest();
+          }
+          break;
 
-      case 'stop-request':
-        vscode?.postMessage({ type: 'stopApiRequest' });
-        break;
+        case 'stop-request':
+          vscode?.postMessage({ type: 'stopApiRequest' });
+          break;
 
-      default:
-        break;
-    }
-  };
+        default:
+          break;
+      }
+    };
+  });
 
-  const bottomPanelMaxSize = getBottomPanelMaxSize();
   const interfaceCount = projects.reduce((sum, project) => sum + project.interfaces.length, 0);
 
   if (initializing) {
@@ -2387,7 +2417,7 @@ export default function ApiDevToolsApp() {
                   >
                     {groups.map((group) => {
                       const groupInterfaces = project.interfaces.filter((api) => api.groupId === group.id);
-                      const collapsed = !expandedGroupIds.has(group.id);
+                      const collapsed = !visibleExpandedGroupIds.has(group.id);
 
                       return (
                         <section className={styles['interface-group']} key={group.id}>

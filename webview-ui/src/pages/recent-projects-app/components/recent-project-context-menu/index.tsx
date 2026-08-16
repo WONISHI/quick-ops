@@ -20,6 +20,7 @@ import {
   faFolderMinus,
   faFolderOpen,
   faTerminal,
+  faPaste,
 } from '@fortawesome/free-solid-svg-icons';
 import { faCopy, faSquareCheck, faClone, faFolderOpen as faFolderOpenReg, faWindowRestore, faFileCode } from '@fortawesome/free-regular-svg-icons';
 
@@ -77,6 +78,10 @@ function getStatusKey(status?: string): string {
   );
 }
 
+function canPasteFile(payload: ContextMenuPayload): boolean {
+  return Boolean((payload as ContextMenuPayload & { canPasteFile?: boolean }).canPasteFile);
+}
+
 function createTopMenuItems(payload: ContextMenuPayload, onAction: (action: string, arg?: string) => void): BaseContextMenuItem[] {
   const items: BaseContextMenuItem[] = [];
 
@@ -120,6 +125,20 @@ function createTopMenuItems(payload: ContextMenuPayload, onAction: (action: stri
         onAction('focusMode');
       },
     });
+  }
+
+  if (!payload.isRemote && canPasteFile(payload)) {
+    items.push(
+      createSeparator('top-paste-separator'),
+      {
+        key: 'paste-file-to-project',
+        label: '粘贴',
+        icon: createIcon(faPaste),
+        onSelect: () => {
+          onAction('pasteFile');
+        },
+      },
+    );
   }
 
   items.push(
@@ -428,6 +447,20 @@ function createSubMenuItems(payload: ContextMenuPayload, onAction: (action: stri
           },
         },
       );
+
+      if (canPasteFile(payload)) {
+        items.push(
+          createSeparator('sub-paste-separator'),
+          {
+            key: 'paste-file-to-folder',
+            label: '粘贴',
+            icon: createIcon(faPaste),
+            onSelect: () => {
+              onAction('pasteFile');
+            },
+          },
+        );
+      }
     }
 
     items.push(createSeparator('sub-folder-separator'));
@@ -446,9 +479,32 @@ function createSubMenuItems(payload: ContextMenuPayload, onAction: (action: stri
       key: 'copy-entity-path',
       label: '复制路径',
       icon: createIcon(faLink),
-      onSelect: () => {
-        onAction('copyText', payload.path);
-      },
+      children: [
+        {
+          key: 'copy-entity-absolute-path',
+          label: '复制绝对地址',
+          icon: createIcon(faCopy),
+          onSelect: () => {
+            onAction('copyPath', 'absolute');
+          },
+        },
+        {
+          key: 'copy-entity-relative-path',
+          label: '复制相对地址',
+          icon: createIcon(faCopy),
+          onSelect: () => {
+            onAction('copyPath', 'relative');
+          },
+        },
+        {
+          key: 'copy-entity-physical-path',
+          label: '复制物理地址',
+          icon: createIcon(faCopy),
+          onSelect: () => {
+            onAction('copyText', payload.path);
+          },
+        },
+      ],
     },
   );
 

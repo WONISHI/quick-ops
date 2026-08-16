@@ -459,6 +459,15 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   const searchFilterKey = useMemo(() => {
     return `${folderSearchType}\n${folderSearchQuery.trim()}\n${searchTargetProject.path || ''}`;
   }, [folderSearchQuery, folderSearchType, searchTargetProject.path]);
+  const [searchHighlightState, setSearchHighlightState] = useState<{
+    searchKey: string;
+    visible: boolean;
+  }>({
+    searchKey: '',
+    visible: true,
+  });
+  const isSearchHighlightVisible = searchHighlightState.searchKey !== searchFilterKey || searchHighlightState.visible;
+  const searchHighlightQuery = isSearchHighlightVisible ? folderSearchQuery : '';
 
   const excludedContentResultKeys = useMemo(() => {
     if (excludedContentResultState.searchKey !== searchFilterKey) {
@@ -629,8 +638,34 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     return title;
   };
 
+  const getSearchTargetPrimaryTitle = () => {
+    const projectName = searchTargetProject.projectName || '';
+    const currentName = searchTargetProject.name || '';
+    const title = searchTargetProject.customName || searchTargetProject.originalName || currentName || projectName || '';
+
+    return projectName && currentName && projectName !== currentName ? projectName : title;
+  };
+
   const getTargetProjectName = () => {
     return searchTargetProject.projectName || searchTargetProject.name || searchTargetProject.originalName || '';
+  };
+
+  const handleRevealSearchTarget = () => {
+    vscode.postMessage({
+      type: 'revealInExplorer',
+      fsPath: searchTargetProject.path,
+    });
+  };
+
+  const handleToggleSearchHighlight = () => {
+    setSearchHighlightState((current) => {
+      const currentVisible = current.searchKey === searchFilterKey ? current.visible : true;
+
+      return {
+        searchKey: searchFilterKey,
+        visible: !currentVisible,
+      };
+    });
   };
 
   const getFileStatusClassName = (status?: string) => {
@@ -902,21 +937,32 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
               onClick={handleSearchTitleClick}
               onDoubleClick={handleSearchTitleDoubleClick}
             >
-              {(() => {
-                const projectName = searchTargetProject.projectName || '';
-                const currentName = searchTargetProject.name || '';
-                const title = searchTargetProject.customName || searchTargetProject.originalName || currentName || projectName;
-                const shouldShowSubTitle = projectName && currentName && projectName !== currentName;
-
-                return (
-                  <>
-                    {shouldShowSubTitle ? projectName : title}
-                    {shouldShowSubTitle && <span className={styles['search-target-subtitle']}>/ {currentName}</span>}
-                    {focusMode && <span className={styles['search-target-subtitle']}>{focusLocked ? ' · 锁定模式 · 专注模式' : ' · 专注模式'}</span>}
-                  </>
-                );
-              })()}
+              {getSearchTargetPrimaryTitle()}
             </span>
+
+            <div className={styles['search-target-actions']}>
+              <button
+                type="button"
+                className={`${styles['action-btn-icon']} ${styles['search-nav-btn']}`}
+                onClick={handleRevealSearchTarget}
+                title="在访达/资源管理器中显示"
+                aria-label="在访达/资源管理器中显示"
+              >
+                <span className={`codicon codicon-file-symlink-directory ${styles['search-nav-icon']}`}></span>
+              </button>
+
+              <button
+                type="button"
+                className={`${styles['action-btn-icon']} ${styles['search-highlight-toggle-btn']}`}
+                onClick={handleToggleSearchHighlight}
+                disabled={!folderSearchQuery.trim()}
+                title={folderSearchQuery.trim() ? (isSearchHighlightVisible ? '清理高亮' : '恢复高亮') : '输入搜索内容后可清理高亮'}
+                aria-label={isSearchHighlightVisible ? '清理高亮' : '恢复高亮'}
+                aria-pressed={!isSearchHighlightVisible}
+              >
+                <span className={`codicon ${isSearchHighlightVisible ? 'codicon-eye-closed' : 'codicon-eye'} ${styles['search-highlight-toggle-icon']}`}></span>
+              </button>
+            </div>
           </div>
 
           {folderSearchType === 'content' && (
@@ -1147,7 +1193,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                                   <span className={styles['search-match-text']} title={m.text}>
                                     <HighlightText
                                       text={previewText}
-                                      query={folderSearchQuery}
+                                      query={searchHighlightQuery}
                                       globalStartIndex={globalStartIndex}
                                       currentActiveMatch={currentActiveMatch}
                                       isLineActive={!!isLineActive}
@@ -1195,18 +1241,18 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                               className={`${styles['sub-name']} ${styles['search-name-result-name']} ${statusClassName}`}
                               title={child.status ? `${child.name} [${child.status}]` : child.name}
                             >
-                              {renderSearchNameHighlightText(child.name, folderSearchQuery)}
+                              {renderSearchNameHighlightText(child.name, searchHighlightQuery)}
                             </span>
 
                             <span className={styles['search-name-result-path']} title={relativeFolderPath}>
-                              {renderSearchNameHighlightText(relativeFolderPath, folderSearchQuery)}
+                              {renderSearchNameHighlightText(relativeFolderPath, searchHighlightQuery)}
                             </span>
                           </div>
                         </Tooltip>
 
                         {isExpanded && (
                           <div className={`${styles['tree-children']} ${styles['search-name-tree-children']}`}>
-                            {renderTreeChildren(childPath, targetProjName, searchTargetProject.isActiveProject, folderSearchQuery)}
+                            {renderTreeChildren(childPath, targetProjName, searchTargetProject.isActiveProject, searchHighlightQuery)}
                           </div>
                         )}
                       </li>
@@ -1228,11 +1274,11 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                             className={`${styles['sub-name']} ${styles['search-name-result-name']} ${statusClassName}`}
                             title={child.status ? `${child.name} [${child.status}]` : child.name}
                           >
-                            {renderSearchNameHighlightText(child.name, folderSearchQuery)}
+                            {renderSearchNameHighlightText(child.name, searchHighlightQuery)}
                           </span>
 
                           <span className={styles['search-name-result-path']} title={relativeFolderPath}>
-                            {renderSearchNameHighlightText(relativeFolderPath, folderSearchQuery)}
+                            {renderSearchNameHighlightText(relativeFolderPath, searchHighlightQuery)}
                           </span>
                         </div>
                       </Tooltip>

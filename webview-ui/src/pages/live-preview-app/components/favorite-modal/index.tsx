@@ -14,10 +14,14 @@ import {
   faFileImport,
   faFileExport,
   faMagnifyingGlass,
+  faHouse,
 } from '@fortawesome/free-solid-svg-icons';
 import { faCopy as faCopyRegular } from '@fortawesome/free-regular-svg-icons';
 import BaseDialog from '@components/BaseDialog';
+import BaseContextMenu from '@components/BaseContextMenu';
 import BaseSearch from '@components/BaseSearch';
+import Scrollbar from '@components/Scrollbar';
+import type { BaseContextMenuItem } from '@components/BaseContextMenu/src/type';
 import styles from './index.module.css';
 
 interface FavoriteItem {
@@ -60,6 +64,8 @@ interface FavoriteModalProps {
   onClose: () => void;
   onOpenUrl: (url: string) => void;
   onCopy: (url: string) => void;
+  navigationFavoriteUrls: string[];
+  onToggleNavigation: (favorite: FavoriteItem) => void;
   onSaveFavorite: () => void;
   onDeleteFavorite: (favorite: FavoriteItem) => void;
   onCreateFolder: (name: string) => string | void;
@@ -88,6 +94,8 @@ export default function FavoriteModal(props: FavoriteModalProps) {
     onClose,
     onOpenUrl,
     onCopy,
+    navigationFavoriteUrls,
+    onToggleNavigation,
     onSaveFavorite,
     onDeleteFavorite,
     onCreateFolder,
@@ -105,6 +113,15 @@ export default function FavoriteModal(props: FavoriteModalProps) {
   const [favoriteSearchKeyword, setFavoriteSearchKeyword] = useState('');
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [folderName, setFolderName] = useState('');
+  const [favoriteContextMenu, setFavoriteContextMenu] = useState<{
+    favorite: FavoriteItem | null;
+    x: number;
+    y: number;
+  }>({
+    favorite: null,
+    x: 0,
+    y: 0,
+  });
   const folderInputRef = useRef<HTMLInputElement | null>(null);
   const isFolderComposingRef = useRef(false);
 
@@ -147,7 +164,15 @@ export default function FavoriteModal(props: FavoriteModalProps) {
 
   const showAllFolder = !folderSearchKeyword.trim() || '全部收藏'.includes(folderSearchKeyword.trim());
 
-  if (!visible) return null;
+  const normalizeFavoriteUrl = (url: string) => {
+    return (url || '').trim().replace(/\/+$/, '');
+  };
+
+  const isFavoriteInNavigation = (favorite: FavoriteItem) => {
+    const targetUrl = normalizeFavoriteUrl(favorite.url);
+
+    return navigationFavoriteUrls.some((url) => normalizeFavoriteUrl(url) === targetUrl);
+  };
 
   const closeFolderDialog = () => {
     setFolderDialogOpen(false);
@@ -164,6 +189,7 @@ export default function FavoriteModal(props: FavoriteModalProps) {
 
   const handleCloseModal = () => {
     closeFolderDialog();
+    setFavoriteContextMenu({ favorite: null, x: 0, y: 0 });
     setFolderSearchKeyword('');
     setFavoriteSearchOpen(false);
     setFavoriteSearchKeyword('');
@@ -207,6 +233,68 @@ export default function FavoriteModal(props: FavoriteModalProps) {
 
     onDeleteFolder(folder);
   };
+
+  const openFavoriteEditor = (favorite: FavoriteItem) => {
+    if (favorite.isDefault) return;
+
+    setFavForm({
+      visible: true,
+      title: favorite.title,
+      url: favorite.url,
+      description: favorite.description || '',
+      logo: favorite.logo || '',
+      editingOriginalUrl: favorite.url,
+      folderId: favorite.folderId || ROOT_FOLDER_ID,
+    });
+  };
+
+  const contextFavorite = favoriteContextMenu.favorite;
+  const favoriteContextMenuItems: BaseContextMenuItem[] = contextFavorite
+    ? contextFavorite.isDefault
+      ? [
+          {
+            key: 'toggle-navigation',
+            label: isFavoriteInNavigation(contextFavorite) ? '从导航页移除' : '添加到导航页',
+            icon: <FontAwesomeIcon icon={faHouse} />,
+            onSelect: () => onToggleNavigation(contextFavorite),
+          },
+          {
+            key: 'copy',
+            label: '复制',
+            icon: <FontAwesomeIcon icon={faCopyRegular} />,
+            onSelect: () => onCopy(contextFavorite.url),
+          },
+        ]
+      : [
+          {
+            key: 'edit',
+            label: '修改',
+            icon: <FontAwesomeIcon icon={faPen} />,
+            onSelect: () => openFavoriteEditor(contextFavorite),
+          },
+          {
+            key: 'copy',
+            label: '复制',
+            icon: <FontAwesomeIcon icon={faCopyRegular} />,
+            onSelect: () => onCopy(contextFavorite.url),
+          },
+          {
+            key: 'delete',
+            label: '删除',
+            icon: <FontAwesomeIcon icon={faTrash} />,
+            danger: true,
+            onSelect: () => onDeleteFavorite(contextFavorite),
+          },
+          {
+            key: 'toggle-navigation',
+            label: isFavoriteInNavigation(contextFavorite) ? '从导航页移除' : '添加到导航页',
+            icon: <FontAwesomeIcon icon={faHouse} />,
+            onSelect: () => onToggleNavigation(contextFavorite),
+          },
+        ]
+    : [];
+
+  if (!visible) return null;
 
   return (
     <div
@@ -313,7 +401,13 @@ export default function FavoriteModal(props: FavoriteModalProps) {
               )}
             </div>
 
-            <div className={styles['fav-folder-list']}>
+            <Scrollbar
+              className={styles['fav-folder-list']}
+              viewClassName={styles['fav-folder-list-view']}
+              direction="vertical"
+              height={0}
+              always
+            >
               {showAllFolder && (
                 <button
                   className={`${styles['fav-folder-item']} ${selectedFolderId === ALL_FOLDER_ID ? styles['fav-folder-active'] : ''}`}
@@ -354,7 +448,7 @@ export default function FavoriteModal(props: FavoriteModalProps) {
               })}
 
               {!showAllFolder && visibleFolders.length === 0 && <div className={styles['fav-folder-empty']}>未找到匹配的文件夹</div>}
-            </div>
+            </Scrollbar>
 
             <button type="button" className={`${styles['fav-folder-item']} ${styles['fav-folder-add']}`} onClick={openFolderDialog} title="新增文件夹">
               <span className={styles['fav-folder-title']}>
@@ -432,14 +526,33 @@ export default function FavoriteModal(props: FavoriteModalProps) {
               </div>
             )}
 
-            <div className={styles['fav-list']}>
+            <Scrollbar
+              className={styles['fav-list']}
+              viewClassName={styles['fav-list-view']}
+              direction="vertical"
+              height={0}
+              always
+            >
               {displayFavorites.length === 0 ? (
                 <div className={styles['fav-empty']}>
                   {favoriteSearchKeyword.trim() ? '未找到匹配的书签。' : '暂无收藏。点击右上角 + 号，或地址栏星号添加。'}
                 </div>
               ) : (
                 displayFavorites.map((f, i) => (
-                  <div key={`${f.isDefault ? 'default' : 'user'}-${f.url}-${i}`} className={styles['fav-item']} onClick={() => onOpenUrl(f.url)}>
+                  <div
+                    key={`${f.isDefault ? 'default' : 'user'}-${f.url}-${i}`}
+                    className={styles['fav-item']}
+                    onClick={() => onOpenUrl(f.url)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setFavoriteContextMenu({
+                        favorite: f,
+                        x: event.clientX,
+                        y: event.clientY,
+                      });
+                    }}
+                  >
                     <div className={styles['fav-logo-wrap']}>
                       {f.logo ? (
                         <img
@@ -508,15 +621,7 @@ export default function FavoriteModal(props: FavoriteModalProps) {
                             title="编辑"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setFavForm({
-                                visible: true,
-                                title: f.title,
-                                url: f.url,
-                                description: f.description || '',
-                                logo: f.logo || '',
-                                editingOriginalUrl: f.url,
-                                folderId: f.folderId || ROOT_FOLDER_ID,
-                              });
+                              openFavoriteEditor(f);
                             }}
                           />
 
@@ -535,10 +640,23 @@ export default function FavoriteModal(props: FavoriteModalProps) {
                   </div>
                 ))
               )}
-            </div>
+            </Scrollbar>
           </main>
         </div>
       </div>
+
+      {contextFavorite && (
+        <BaseContextMenu
+          open
+          position={{ x: favoriteContextMenu.x, y: favoriteContextMenu.y }}
+          items={favoriteContextMenuItems}
+          minWidth={168}
+          density="compact"
+          showArrow
+          menuClassName={styles['fav-context-menu']}
+          onClose={() => setFavoriteContextMenu({ favorite: null, x: 0, y: 0 })}
+        />
+      )}
 
       <BaseDialog
         open={folderDialogOpen}

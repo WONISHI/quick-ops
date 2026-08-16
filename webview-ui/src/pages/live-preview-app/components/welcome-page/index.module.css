@@ -5,14 +5,27 @@
     left: 0;
     width: 100%;
     height: 100%;
+    background-color: var(--bg);
+    z-index: 1;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.welcome-scrollbar {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.welcome-content {
+    width: 100%;
+    min-height: 100%;
+    padding: 40px 20px;
+    box-sizing: border-box;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background-color: var(--bg);
-    z-index: 1;
-    padding: 20px;
-    box-sizing: border-box;
 }
 
 .welcome-icon {
@@ -73,4 +86,187 @@
 .quick-link-btn:hover {
     background: var(--vscode-button-secondaryHoverBackground);
     border-color: var(--focus-border);
+}
+
+.navigation-favorites {
+    width: min(720px, 100%);
+    margin-top: 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+}
+
+.navigation-folder {
+    min-width: 0;
+}
+
+.navigation-folder-title {
+    height: 28px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 7px;
+    color: var(--fg);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.navigation-folder-name {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.navigation-folder-title svg {
+    color: var(--vscode-icon-foreground);
+}
+
+.navigation-folder-count {
+    color: var(--desc-color);
+    font-weight: 400;
+    font-size: 11px;
+}
+
+.navigation-folder-edit {
+    width: 24px;
+    height: 24px;
+    margin-left: auto;
+    padding: 0;
+    flex: 0 0 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    outline: none;
+    background: transparent;
+    color: var(--vscode-icon-foreground);
+    cursor: pointer;
+    opacity: 0.72;
+}
+
+.navigation-folder-edit:hover {
+    background: transparent;
+    color: var(--fg);
+    opacity: 1;
+}
+
+.navigation-bookmark-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.navigation-bookmark {
+    position: relative;
+    min-width: 0;
+    height: 54px;
+    padding: 7px 34px 7px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    outline: none;
+    background: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    cursor: pointer;
+    text-align: left;
+}
+
+.navigation-bookmark:focus-visible {
+    border-color: var(--focus-border);
+}
+
+.navigation-bookmark:hover {
+    background: var(--vscode-button-secondaryHoverBackground);
+    border-color: var(--focus-border);
+}
+
+.navigation-bookmark-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    outline: none;
+    border-radius: 3px;
+    background: transparent;
+    color: var(--desc-color);
+    cursor: pointer;
+    opacity: 0.72;
+}
+
+.navigation-bookmark:hover .navigation-bookmark-remove,
+.navigation-bookmark:focus-within .navigation-bookmark-remove {
+    opacity: 1;
+}
+
+.navigation-bookmark-remove:hover {
+    background: var(--vscode-toolbar-hoverBackground);
+    color: var(--fg);
+}
+
+.navigation-bookmark-logo {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--vscode-input-background);
+}
+
+.navigation-bookmark-logo img {
+    position: absolute;
+    inset: 5px;
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+}
+
+.navigation-bookmark-placeholder {
+    color: var(--desc-color);
+    font-size: 12px;
+}
+
+.navigation-bookmark-info {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.navigation-bookmark-title,
+.navigation-bookmark-url {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.navigation-bookmark-title {
+    color: var(--fg);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.navigation-bookmark-url {
+    color: var(--desc-color);
+    font-size: 10px;
+}
+
+@media (max-width: 620px) {
+    .navigation-bookmark-list {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }

@@ -43,6 +43,15 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "icons": {
+      "quick-ops": {
+        "description": "QuickOps API Dev Tools",
+        "default": {
+          "fontPath": "resources/view-icon/font/quickops-icons.woff",
+          "fontCharacter": "\\ea01"
+        }
+      }
+    },
     "configuration": {
       "title": "Quick Ops",
       "properties": {
@@ -224,7 +233,7 @@
         {
           "id": "quickOps-view-container",
           "title": "Quick Ops",
-          "icon": "resources/view-icon/icon-container.svg"
+          "icon": "$(quick-ops)"
         }
       ],
       "panel": [
@@ -923,6 +932,7 @@
     }
   },
   "scripts": {
+    "icon:font": "node scripts/product-icons.mjs",
     "vscode:prepublish": "npm run build:all",
     "compile": "npm run compile:ext",
     "compile:ext": "webpack --mode development",
@@ -935,7 +945,7 @@
     "build:ext": "webpack --mode production --devtool hidden-source-map",
     "build:ui": "cd webview-ui && npm run build",
     "build:all": "concurrently -c \"blue.bold,yellow.bold\" -n \"EXT,UI\" \"npm run build:ext\" \"npm run build:ui\"",
-    "build": "npm run build:all && vsce package --no-yarn --no-dependencies",
+    "build": "vsce package --no-yarn --no-dependencies --allow-package-secrets sendgrid",
     "preinstall": "cd webview-ui && pnpm install",
     "compile-tests": "tsc -p . --outDir dist",
     "watch-tests": "tsc -p . -w --outDir dist",
@@ -989,6 +999,7 @@
     "pug": "^3.0.3",
     "puppeteer-core": "^25.1.0",
     "simple-git": "^3.35.2",
+    "svgtofont": "^6.5.3",
     "terser-webpack-plugin": "^5.3.14",
     "ts-loader": "^9.5.2",
     "typescript": "^5.9.2",

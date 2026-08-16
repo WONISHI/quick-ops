@@ -1,5 +1,7 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { draggable, dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter';
+import { dropTargetForExternal } from '@atlaskit/pragmatic-drag-and-drop/external/adapter';
+import { containsFiles, getFiles } from '@atlaskit/pragmatic-drag-and-drop/external/file';
 import { combine } from '@atlaskit/pragmatic-drag-and-drop/combine';
 import { setCustomNativeDragPreview } from '@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview';
 import styles from './index.module.css';
@@ -24,6 +26,9 @@ export type TreeDragDropContainerProps = {
   onDragLeave: () => void;
   onDrop: (entity: TreeDraggingEntity) => void;
   onDragEnd: () => void;
+  onExternalDragOver?: () => void;
+  onExternalDragLeave?: () => void;
+  onExternalFileDrop?: (files: File[], sourcePaths: string[]) => void;
   children: React.ReactNode;
 };
 
@@ -181,6 +186,53 @@ export default function TreeDragDropContainer(props: TreeDragDropContainerProps)
             }
 
             propsRef.current.onDrop(entity);
+          },
+        }),
+      );
+    }
+
+    if (dropElement && propsRef.current.dropTargetEnabled && propsRef.current.onExternalFileDrop) {
+      const updateExternalDropTarget = ({ location }: any) => {
+        const innerMostTarget = location.current.dropTargets[0];
+
+        if (innerMostTarget?.element !== dropElement) {
+          propsRef.current.onExternalDragLeave?.();
+          return;
+        }
+
+        propsRef.current.onExternalDragOver?.();
+      };
+
+      cleanups.push(
+        dropTargetForExternal({
+          element: dropElement,
+          getData: () => ({
+            type: 'quickops-external-file-drop-target',
+            path: propsRef.current.path,
+          }),
+          getDropEffect: () => 'copy',
+          canDrop: containsFiles,
+          getIsSticky: () => true,
+          onDragEnter: updateExternalDropTarget,
+          onDrag: updateExternalDropTarget,
+          onDragLeave() {
+            propsRef.current.onExternalDragLeave?.();
+          },
+          onDrop({ source, location }) {
+            const innerMostTarget = location.current.dropTargets[0];
+
+            if (innerMostTarget?.element !== dropElement) {
+              propsRef.current.onExternalDragLeave?.();
+              return;
+            }
+
+            const files = getFiles({ source });
+
+            propsRef.current.onExternalDragLeave?.();
+
+            if (files.length > 0) {
+              propsRef.current.onExternalFileDrop?.(files, []);
+            }
           },
         }),
       );
