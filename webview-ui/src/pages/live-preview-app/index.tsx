@@ -1205,9 +1205,7 @@ export default function LivePreviewApp() {
   const toggleFavoriteNavigation = (favorite: FavoriteItem) => {
     const targetUrl = normalizeFavoriteUrl(favorite.url);
     const isIncluded = navigationFavoriteUrls.some((url) => normalizeFavoriteUrl(url) === targetUrl);
-    const nextUrls = isIncluded
-      ? navigationFavoriteUrls.filter((url) => normalizeFavoriteUrl(url) !== targetUrl)
-      : [...navigationFavoriteUrls, favorite.url];
+    const nextUrls = isIncluded ? navigationFavoriteUrls.filter((url) => normalizeFavoriteUrl(url) !== targetUrl) : [...navigationFavoriteUrls, favorite.url];
 
     saveNavigationFavoriteUrls(nextUrls);
   };
@@ -1215,9 +1213,7 @@ export default function LivePreviewApp() {
   const removeFavoriteFromNavigation = (favorite: { url: string }) => {
     const targetUrl = normalizeFavoriteUrl(favorite.url);
 
-    saveNavigationFavoriteUrls(
-      navigationFavoriteUrls.filter((url) => normalizeFavoriteUrl(url) !== targetUrl),
-    );
+    saveNavigationFavoriteUrls(navigationFavoriteUrls.filter((url) => normalizeFavoriteUrl(url) !== targetUrl));
   };
 
   const editNavigationFolder = (folderId: string) => {
@@ -2428,9 +2424,7 @@ export default function LivePreviewApp() {
       const editingUrl = normalizeFavoriteUrl(favForm.editingOriginalUrl);
 
       if (navigationFavoriteUrls.some((url) => normalizeFavoriteUrl(url) === editingUrl)) {
-        saveNavigationFavoriteUrls(
-          navigationFavoriteUrls.map((url) => (normalizeFavoriteUrl(url) === editingUrl ? u : url)),
-        );
+        saveNavigationFavoriteUrls(navigationFavoriteUrls.map((url) => (normalizeFavoriteUrl(url) === editingUrl ? u : url)));
       }
     }
 
