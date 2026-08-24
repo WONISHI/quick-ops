@@ -101,6 +101,7 @@ import typescriptDefIcon from 'material-icon-theme/icons/typescript-def.svg';
 import testTsIcon from 'material-icon-theme/icons/test-ts.svg';
 import webassemblyIcon from 'material-icon-theme/icons/webassembly.svg';
 import faviconIcon from 'material-icon-theme/icons/favicon.svg';
+import routingIcon from 'material-icon-theme/icons/routing.svg';
 
 import type { IconMatchRule } from './type';
 
@@ -193,6 +194,7 @@ const EXACT_NAMES: Record<string, string> = {
   'pre-commit': consoleIcon,
   'favicon.ico': faviconIcon,
   'playwright.config.ts': playwrightIcon,
+  'routes.ts': routingIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {
