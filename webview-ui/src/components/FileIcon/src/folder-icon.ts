@@ -119,6 +119,8 @@ import folderConstantIcon from 'material-icon-theme/icons/folder-constant.svg';
 import folderConstantOpenIcon from 'material-icon-theme/icons/folder-constant-open.svg';
 import folderControllerIcon from 'material-icon-theme/icons/folder-controller.svg';
 import folderControllerOpenIcon from 'material-icon-theme/icons/folder-controller-open.svg';
+import errorIcon from 'material-icon-theme/icons/folder-error.svg';
+import errorOpenIcon from 'material-icon-theme/icons/folder-error-open.svg';
 
 import type { IconMatchRule } from './type';
 
@@ -183,6 +185,8 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   font: fontIcon,
   figures: imagesIcon,
   eslint: eslintIcon,
+  error: errorIcon,
+  errors: errorIcon,
   directives: directivesIcon,
   dialog: messageIcon,
   docs: docsIcon,
@@ -198,6 +202,7 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   assets: resourceIcon,
   '.bin': distIcon,
   bin: distIcon,
+  build: distIcon,
   app: appIcon,
   api: apiIcon,
   husky: huskyIcon,
@@ -290,7 +295,10 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   assets: resourceOpenIcon,
   debug: debugOpenIcon,
   bin: distOpenIcon,
+  build: distOpenIcon,
   events: eventsOpenIcon,
+  error: errorOpenIcon,
+  errors: errorOpenIcon,
   '.bin': distIcon,
   app: appOpenIcon,
   api: apiOpenIcon,
