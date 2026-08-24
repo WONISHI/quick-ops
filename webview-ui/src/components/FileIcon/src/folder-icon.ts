@@ -121,6 +121,10 @@ import folderControllerIcon from 'material-icon-theme/icons/folder-controller.sv
 import folderControllerOpenIcon from 'material-icon-theme/icons/folder-controller-open.svg';
 import errorIcon from 'material-icon-theme/icons/folder-error.svg';
 import errorOpenIcon from 'material-icon-theme/icons/folder-error-open.svg';
+import secureIcon from 'material-icon-theme/icons/folder-secure.svg';
+import secureOpenIcon from 'material-icon-theme/icons/folder-secure-open.svg';
+import routerIcon from 'material-icon-theme/icons/folder-routes.svg';
+import routerOpenIcon from 'material-icon-theme/icons/folder-routes-open.svg';
 
 import type { IconMatchRule } from './type';
 
@@ -141,6 +145,7 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   shared: shareIcon,
   resource: resourceIcon,
   resources: resourceIcon,
+  router: routerIcon,
   redux: reduxIcon,
   vendors: libIcon,
   views: viewIcon,
@@ -156,6 +161,8 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   svg: svgIcon,
   scss: sassIcon,
   sass: sassIcon,
+  style: cssIcon,
+  styles: cssIcon,
   public: publicIcon,
   plugin: pluginIcon,
   plugins: pluginIcon,
@@ -205,6 +212,7 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   build: distIcon,
   app: appIcon,
   api: apiIcon,
+  auth: secureIcon,
   husky: huskyIcon,
   '.husky': huskyIcon,
   '.vscode': vscodeIcon,
@@ -234,7 +242,10 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   resource: resourceOpenIcon,
   resources: resourceOpenIcon,
   redux: reduxOpenIcon,
+  router: routerOpenIcon,
   src: srcOpenIcon,
+  style: cssOpenIcon,
+  styles: cssOpenIcon,
   shared: shareOpenIcon,
   snippet: snippetOpenIcon,
   snippets: snippetOpenIcon,
@@ -302,6 +313,7 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   '.bin': distIcon,
   app: appOpenIcon,
   api: apiOpenIcon,
+  auth: secureOpenIcon,
   husky: huskyOpenIcon,
   '.husky': huskyOpenIcon,
   '.vscode': vscodeOpenIcon,
