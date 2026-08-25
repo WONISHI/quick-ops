@@ -125,6 +125,10 @@ import secureIcon from 'material-icon-theme/icons/folder-secure.svg';
 import secureOpenIcon from 'material-icon-theme/icons/folder-secure-open.svg';
 import routerIcon from 'material-icon-theme/icons/folder-routes.svg';
 import routerOpenIcon from 'material-icon-theme/icons/folder-routes-open.svg';
+import folderHomeIcon from 'material-icon-theme/icons/folde-open.svg';
+import folderHomeOpenIcon from 'material-icon-theme/icons/folder-home-open.svg';
+import folderFeatureIcon from 'material-icon-theme/icons/folder-features.svg';
+import folderFeatureOpenIcon from 'material-icon-theme/icons/folder-features-open.svg';
 
 import type { IconMatchRule } from './type';
 
@@ -175,6 +179,8 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   modules: pluginIcon,
   markdown: markdownIcon,
   mobile: mobieIcon,
+  home: folderHomeIcon,
+  main: folderHomeIcon,
   obsidian: obsidianIcon,
   '.obsidian': obsidianIcon,
   upload: uploadIcon,
@@ -191,6 +197,8 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   git: gitIcon,
   font: fontIcon,
   figures: imagesIcon,
+  feature: folderFeatureIcon,
+  features: folderFeatureIcon,
   eslint: eslintIcon,
   error: errorIcon,
   errors: errorIcon,
@@ -275,6 +283,8 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   module: pluginOpenIcon,
   modules: pluginOpenIcon,
   markdown: markdownOpenIcon,
+  home: folderHomeOpenIcon,
+  main: folderHomeOpenIcon,
   obsidian: obsidianOpenIcon,
   '.obsidian': obsidianOpenIcon,
   upload: uploadOpenIcon,
@@ -292,6 +302,8 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   git: gitOpenIcon,
   font: fontOpenIcon,
   figures: i18nOpenIcon,
+  feature: folderFeatureOpenIcon,
+  features: folderFeatureOpenIcon,
   dialog: messageOpenIcon,
   directives: directivesOpenIcon,
   eslint: eslintOpenIcon,
