@@ -129,6 +129,10 @@ import folderHomeIcon from 'material-icon-theme/icons/folde-open.svg';
 import folderHomeOpenIcon from 'material-icon-theme/icons/folder-home-open.svg';
 import folderFeatureIcon from 'material-icon-theme/icons/folder-features.svg';
 import folderFeatureOpenIcon from 'material-icon-theme/icons/folder-features-open.svg';
+import folderUiIcon from 'material-icon-theme/icons/folder-ui.svg';
+import folderUiOpenIcon from 'material-icon-theme/icons/folder-ui-open.svg';
+import folderContextIcon from 'material-icon-theme/icons/folder-context.svg';
+import folderContextOpenIcon from 'material-icon-theme/icons/folder-context.svg';
 
 import type { IconMatchRule } from './type';
 
@@ -173,6 +177,7 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   pages: viewIcon,
   packages: packagesIcon,
   node_modules: nodeIcon,
+  node: nodeIcon,
   mock: mockIcon,
   pdf: pdfIcon,
   module: pluginIcon,
@@ -184,6 +189,7 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   obsidian: obsidianIcon,
   '.obsidian': obsidianIcon,
   upload: uploadIcon,
+  ui: folderUiIcon,
   less: lessIcon,
   layout: layoutIcon,
   lib: libIcon,
@@ -212,6 +218,8 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   constant: constantIcon,
   config: configIcon,
   components: componentsIcon,
+  context: folderContextIcon,
+  contexts: folderContextIcon,
   debug: debugIcon,
   events: eventsIcon,
   assets: resourceIcon,
@@ -262,6 +270,7 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   video: videoOpenIcon,
   vendors: libOpenIcon,
   utils: utilsOpenIcon,
+  ui: folderUiOpenIcon,
   test: testOpenIcon,
   theme: themeOpenIcon,
   type: typeOpenIcon,
@@ -278,6 +287,7 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   plugins: pluginOpenIcon,
   packages: packagesOpenIcon,
   node_modules: nodeOpenIcon,
+  node: nodeOpenIcon,
   mock: mockOpenIcon,
   mobile: mobieOpenIcon,
   module: pluginOpenIcon,
@@ -315,6 +325,8 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   constant: constantOpenIcon,
   config: configOpenIcon,
   components: componentsOpenIcon,
+  context: folderContextOpenIcon,
+  contexts: folderContextOpenIcon,
   assets: resourceOpenIcon,
   debug: debugOpenIcon,
   bin: distOpenIcon,
