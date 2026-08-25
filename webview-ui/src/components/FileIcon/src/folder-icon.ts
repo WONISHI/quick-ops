@@ -125,7 +125,7 @@ import secureIcon from 'material-icon-theme/icons/folder-secure.svg';
 import secureOpenIcon from 'material-icon-theme/icons/folder-secure-open.svg';
 import routerIcon from 'material-icon-theme/icons/folder-routes.svg';
 import routerOpenIcon from 'material-icon-theme/icons/folder-routes-open.svg';
-import folderHomeIcon from 'material-icon-theme/icons/folde-home.svg';
+import folderHomeIcon from 'material-icon-theme/icons/folder-home.svg';
 import folderHomeOpenIcon from 'material-icon-theme/icons/folder-home-open.svg';
 import folderFeatureIcon from 'material-icon-theme/icons/folder-features.svg';
 import folderFeatureOpenIcon from 'material-icon-theme/icons/folder-features-open.svg';
