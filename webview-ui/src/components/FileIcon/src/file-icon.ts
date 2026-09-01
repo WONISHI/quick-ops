@@ -101,6 +101,7 @@ import typescriptDefIcon from 'material-icon-theme/icons/typescript-def.svg';
 import testTsIcon from 'material-icon-theme/icons/test-ts.svg';
 import webassemblyIcon from 'material-icon-theme/icons/webassembly.svg';
 import faviconIcon from 'material-icon-theme/icons/favicon.svg';
+import routingIcon from 'material-icon-theme/icons/routing.svg';
 
 import type { IconMatchRule } from './type';
 
@@ -135,6 +136,7 @@ const EXACT_NAMES: Record<string, string> = {
   '.git-blame-ignore-revs': gitIcon,
   '.prettierrc': prettierIcon,
   '.prettierrc.js': prettierIcon,
+  '.prettierrc.json':prettierIcon,
   '.prettierignore': prettierIcon,
   '.nvmrc': nodeJsIcon,
   '.umirc.ts': umiIcon,
@@ -142,6 +144,7 @@ const EXACT_NAMES: Record<string, string> = {
   'tsconfig.json': tsconfigIcon,
   'tsconfig.app.json': tsconfigIcon,
   'tsconfig.node.json': tsconfigIcon,
+  'tsconfig.web.json':tsconfigIcon,
   'jsconfig.json': jsconfigIcon,
   '.quickopsrc': jsonIcon,
   '.telemetryrc': jsonIcon,
@@ -189,10 +192,12 @@ const EXACT_NAMES: Record<string, string> = {
   'vite.config.js': viteConfigIcon,
   'webpack.config.js': webpackIcon,
   'tailwind.config.ts': tailwindcssIcon,
+  'tailwind.config.js': tailwindcssIcon,
   'commit-msg': consoleIcon,
   'pre-commit': consoleIcon,
   'favicon.ico': faviconIcon,
   'playwright.config.ts': playwrightIcon,
+  'routes.ts': routingIcon,
 };
 
 const EXTENSIONS: Record<string, string> = {
