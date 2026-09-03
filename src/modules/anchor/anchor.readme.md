@@ -400,7 +400,7 @@ quickOps.anchor.showMenu
   -> anchorService.executeShowAnchorMenuCommand()
 
 quickOps.anchor.listByGroup
-  -> anchorService.showAnchorList(groupName, true, undefined, anchorId)
+  -> anchorService.executeShowAnchorList(groupName, true, undefined, anchorId)
 
 quickOps.anchor.navigate
   -> anchorService.navigateAnchor(currentId, direction)
@@ -576,7 +576,7 @@ flowchart TD
   G --> H[addGroup]
   H --> I{该分组是否已有锚点}
   I -->|没有| J[addAnchor]
-  I -->|已有| K[showAnchorList<br/>选择插入位置]
+  I -->|已有| K[executeShowAnchorList<br/>选择插入位置]
   J --> L[save]
   K --> M[insertAnchor]
   M --> L
@@ -611,7 +611,7 @@ executeShowAnchorMenuCommand()
 showGroupList(true)
   -> 展示分组 QuickPick
   -> 用户选择分组
-  -> showAnchorList(groupName, true)
+  -> executeShowAnchorList(groupName, true)
   -> 用户选择锚点
   -> openFileAtLine(filePath, line)
 ```

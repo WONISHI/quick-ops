@@ -150,7 +150,7 @@ export class AnchorController implements OnModuleInit {
        * @description 查看指定分组下的锚点列表
        */
       vscode.commands.registerCommand('quickOps.anchor.listByGroup', async (groupName: string, anchorId: string) => {
-        await this.anchorService.showAnchorList(groupName, true, undefined, anchorId);
+        await this.anchorService.executeShowAnchorList(groupName, true, undefined, anchorId);
       }),
 
       /**

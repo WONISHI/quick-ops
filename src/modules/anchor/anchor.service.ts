@@ -197,7 +197,7 @@ export class AnchorService {
           return;
         }
 
-        await this.showAnchorList(groupName, false, ctx.lineIndex);
+        await this.executeShowAnchorList(groupName, false, ctx.lineIndex);
       });
 
       quickPick.show();
@@ -215,7 +215,7 @@ export class AnchorService {
    * @param pinnedLineIndex 待插入的编辑器行索引
    * @param defaultAnchorId 默认选中的锚点 ID
    */
-  public async showAnchorList(groupName: string, isPreviewMode: boolean, pinnedLineIndex?: number, defaultAnchorId?: string): Promise<void> {
+  public async executeShowAnchorList(groupName: string, isPreviewMode: boolean, pinnedLineIndex?: number, defaultAnchorId?: string): Promise<void> {
     const quickPick = vscode.window.createQuickPick<AnchorQuickPickItem>();
 
     const insertLineDisplay = pinnedLineIndex !== undefined ? pinnedLineIndex + 1 : '?';
@@ -1069,7 +1069,7 @@ export class AnchorService {
 
       if (selected) {
         quickPick.hide();
-        void this.showAnchorList(selected.label, isPreviewMode);
+        void this.executeShowAnchorList(selected.label, isPreviewMode);
       }
     });
 
@@ -1234,11 +1234,11 @@ export class AnchorService {
 
     if (defaultAnchorId || isPreviewMode) {
       const resolvedDefaultAnchorId = defaultAnchorId || targetAnchor.id;
-      await this.showAnchorList(childGroupName, true, undefined, resolvedDefaultAnchorId);
+      await this.executeShowAnchorList(childGroupName, true, undefined, resolvedDefaultAnchorId);
       return;
     }
 
-    await this.showAnchorList(childGroupName, false, ctx.uiLineNumber);
+    await this.executeShowAnchorList(childGroupName, false, ctx.uiLineNumber);
   }
 
   /**
