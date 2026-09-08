@@ -1,4 +1,4 @@
-import type { AuthConfig, ApiRequestConfig, GlobalVariable, GroupedApiInterfaceItem, GroupedApiProject, KeyValueItem } from './type';
+import type { AuthConfig, ApiRequestConfig, GlobalVariable, GroupedApiInterfaceItem, GroupedApiProject, KeyValueItem } from '@pages/api-dev-tools-app/src/type';
 
 /**
  * @description 读取分享图标的 SVG 源码，用于生成独立 HTML 的浏览器标签页图标

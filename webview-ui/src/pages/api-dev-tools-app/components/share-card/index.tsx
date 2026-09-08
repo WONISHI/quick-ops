@@ -1,4 +1,4 @@
-import styles from './index.module.css';
+import styles from '@pages/api-dev-tools-app/components/share-card/index.module.css';
 
 export interface ShareCardProps {
   /**

@@ -1,5 +1,4 @@
-import React from 'react';
-import styles from './index.module.css';
+import styles from '@pages/api-dev-tools-app/components/welcome-page/index.module.css';
 
 export default function WelcomePage() {
   return (

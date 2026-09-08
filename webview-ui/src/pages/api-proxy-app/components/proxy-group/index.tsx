@@ -2,7 +2,7 @@ import BaseButton from '@components/BaseButton';
 import BaseContextMenu from '@components/BaseContextMenu';
 import type { ProxyGroupProps } from '@pages/api-proxy-app/components/proxy-group/src/type';
 
-import styles from './index.module.css';
+import styles from '@pages/api-proxy-app/components/proxy-group/index.module.css';
 
 export default function ProxyGroup({ name, count, enabledCount = 0, collapsed = false, children, contextMenuProps, onToggle }: ProxyGroupProps) {
   const title = name || '未命名分组';
