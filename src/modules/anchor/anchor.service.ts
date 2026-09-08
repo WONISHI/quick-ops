@@ -317,7 +317,7 @@ export class AnchorService {
           break;
 
         case ANCHOR_TOOLTIPS.DELETE:
-          this.removeAnchor(anchorId);
+          this.executeRemoveAnchor(anchorId);
           refreshList();
 
           if (quickPick.items.length === 0 && isPreviewMode) {
@@ -358,7 +358,7 @@ export class AnchorService {
    * @param currentId 当前锚点 ID
    * @param direction 跳转方向
    */
-  public async navigateAnchor(currentId: string, direction: AnchorDirection): Promise<void> {
+  public async executeNavigateAnchor(currentId: string, direction: AnchorDirection): Promise<void> {
     const target = this.getNeighborAnchor(currentId, direction);
 
     if (target) {
@@ -595,7 +595,7 @@ export class AnchorService {
    *
    * @param id 锚点 ID
    */
-  public removeAnchor(id: string): void {
+  public executeRemoveAnchor(id: string): void {
     const container = this.findContainerArray(id, this.anchors);
 
     if (!container) return;
@@ -976,7 +976,7 @@ export class AnchorService {
     if (!message.anchorId) return;
 
     if (message.action === 'delete') {
-      this.removeAnchor(message.anchorId);
+      this.executeRemoveAnchor(message.anchorId);
       vscode.window.showInformationMessage('锚点已删除');
       return;
     }
@@ -1098,7 +1098,7 @@ export class AnchorService {
     const anchorsToDelete = this.getAnchors().filter((anchor) => anchor.group === groupName);
 
     anchorsToDelete.forEach((anchor) => {
-      this.removeAnchor(anchor.id);
+      this.executeRemoveAnchor(anchor.id);
     });
 
     if (!isDefault && isFunction(this.removeGroup)) {

@@ -157,14 +157,14 @@ export class AnchorController implements OnModuleInit {
        * @description 跳转到上一个或下一个锚点
        */
       vscode.commands.registerCommand('quickOps.anchor.navigate', async (currentId: string, direction: AnchorDirection) => {
-        await this.anchorService.navigateAnchor(currentId, direction);
+        await this.anchorService.executeNavigateAnchor(currentId, direction);
       }),
 
       /**
        * @description 删除锚点
        */
       vscode.commands.registerCommand('quickOps.anchor.delete', async (id: string) => {
-        this.anchorService.removeAnchor(id);
+        this.anchorService.executeRemoveAnchor(id);
       }),
     );
   }
