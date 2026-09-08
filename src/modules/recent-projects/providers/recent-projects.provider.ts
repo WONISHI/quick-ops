@@ -1967,6 +1967,15 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
     }
 
     const targetUri = vscode.Uri.file(path.join(targetFolderUri.fsPath, path.basename(sourceUri.fsPath)));
+    const targetFolderName = path.basename(targetFolderUri.fsPath) || targetFolderUri.fsPath;
+    const sourceName = path.basename(sourceUri.fsPath);
+    const moveConfirmed = await vscode.window.showWarningMessage(
+      `确定要将${isFolder ? '文件夹' : '文件'}「${sourceName}」移动到「${targetFolderName}」吗？`,
+      { modal: true },
+      '确认移动',
+    );
+
+    if (moveConfirmed !== '确认移动') return;
 
     try {
       if (await this.hasExactChildName(targetFolderUri, path.basename(targetUri.fsPath))) {
@@ -2031,6 +2040,25 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
         requestedCount: Array.isArray(items) ? items.length : 0,
         movedCount: 0,
         failedNames: [],
+      });
+      return;
+    }
+
+    const targetFolderName = path.basename(targetFolderUri.fsPath) || targetFolderUri.fsPath;
+    const moveDescription =
+      entries.length === 1
+        ? `确定要将${entries[0].isFolder ? '文件夹' : '文件'}「${path.basename(entries[0].sourceUri.fsPath)}」移动到「${targetFolderName}」吗？`
+        : `确定要将选中的 ${entries.length} 个项目移动到「${targetFolderName}」吗？`;
+    const moveConfirmed = await vscode.window.showWarningMessage(moveDescription, { modal: true }, '确认移动');
+
+    if (moveConfirmed !== '确认移动') {
+      this.postMessage({
+        type: 'moveFileEntitiesResult',
+        targetFolderPath: targetFolderFsPath,
+        requestedCount: entries.length,
+        movedCount: 0,
+        failedNames: [],
+        cancelled: true,
       });
       return;
     }
