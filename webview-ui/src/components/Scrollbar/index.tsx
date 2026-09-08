@@ -1,5 +1,5 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import styles from './index.module.css';
+import styles from '@components/Scrollbar/index.module.css';
 
 export interface ScrollbarInstance {
   wrapRef: HTMLDivElement | null;

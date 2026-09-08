@@ -1,4 +1,4 @@
-import styles from './index.module.css';
+import styles from '@pages/api-dev-tools-app/components/bottom-panels/index.module.css';
 import type { BottomPanelsProps } from '@pages/api-dev-tools-app/components/bottom-panels/src/type';
 
 /**

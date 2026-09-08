@@ -4,7 +4,7 @@ import BaseButton from '@components/BaseButton';
 
 import type { ApiProject } from '@/pages/api-dev-tools-app/src/type';
 
-import styles from './index.module.css';
+import styles from '@pages/api-dev-tools-app/components/project-card/index.module.css';
 
 export interface ProjectCardProps {
   /**

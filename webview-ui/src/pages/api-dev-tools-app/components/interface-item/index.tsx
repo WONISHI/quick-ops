@@ -2,7 +2,7 @@ import BaseButton from '@components/BaseButton';
 
 import type { InterfaceItemProps } from '@pages/api-dev-tools-app/components/interface-item/src/type';
 
-import styles from './index.module.css';
+import styles from '@pages/api-dev-tools-app/components/interface-item/index.module.css';
 
 /**
  * @description 项目接口列表项

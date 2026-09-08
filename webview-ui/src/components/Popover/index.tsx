@@ -1,4 +1,4 @@
-import styles from './index.module.css';
+import styles from '@components/Popover/index.module.css';
 import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import useOverlayPosition from '@/hooks/use-overlay-position';

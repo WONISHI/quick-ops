@@ -1,6 +1,6 @@
 import BaseButton from '@components/BaseButton';
 
-import styles from './index.module.css';
+import styles from '@pages/api-dev-tools-app/components/key-value-editor/index.module.css';
 
 import type { KeyValueItemValueType, KeyValueEditorItem, KeyValueEditorProps } from '@pages/api-dev-tools-app/components/key-value-editor/src/type';
 
