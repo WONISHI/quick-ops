@@ -1027,10 +1027,16 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
       return Boolean(node && node.getBoundingClientRect().top < wrapRect.top + 1);
     });
     const changedNodes = nodes.filter((node) => {
-      if (node.dataset.treeFolder === 'true') return false;
       if (node.dataset.treeActiveProject !== 'true') return false;
+      if (!isChangedTreeStatus(node.dataset.treeStatus)) return false;
 
-      return isChangedTreeStatus(node.dataset.treeStatus);
+      if (node.dataset.treeFolder !== 'true') {
+        return true;
+      }
+
+      const treePath = node.dataset.treePath || '';
+
+      return Boolean(treePath && !expandedPaths.has(treePath));
     });
     const nextChangedNode =
       changedNodes
@@ -1095,23 +1101,56 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
     return (
       <div className={`${styles['tree-sticky-layer']} ${styles[`tree-sticky-${placement}`]}`}>
-        {items.map((item) => (
-          <button
-            key={`${placement}-${item.path}`}
-            type="button"
-            className={styles['tree-sticky-row']}
-            style={{
-              paddingLeft: `${4 + item.depth * 14}px`,
-            }}
-            title={item.path}
-            onClick={() => scrollToStickyTreeItem(item.path, placement)}
-          >
-            <div className={styles['chevron-placeholder']}></div>
-            <FileIcon fileName={item.name} isFolder={item.isFolder} status={item.status} className={styles['sub-icon']} />
-            <span className={styles['tree-sticky-name']}>{item.name}</span>
-            {item.isFolder ? <FolderGitStatusDot status={item.status} /> : <FileGitStatusBadge status={item.status} />}
-          </button>
-        ))}
+        {items.map((item) => {
+          const isExpanded = item.isFolder && expandedPaths.has(item.path);
+          const isRemote = item.path.startsWith('vscode-vfs') || item.path.startsWith('http');
+
+          return (
+            <div
+              key={`${placement}-${item.path}`}
+              role="button"
+              tabIndex={0}
+              className={styles['tree-sticky-row']}
+              style={{
+                paddingLeft: `${4 + item.depth * 14}px`,
+              }}
+              title={item.path}
+              onClick={() => scrollToStickyTreeItem(item.path, placement)}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' && event.key !== ' ') return;
+
+                event.preventDefault();
+                scrollToStickyTreeItem(item.path, placement);
+              }}
+            >
+              {item.isFolder ? (
+                <button
+                  type="button"
+                  className={styles['tree-sticky-chevron']}
+                  title={isExpanded ? '收起' : '展开'}
+                  aria-label={isExpanded ? `收起 ${item.name}` : `展开 ${item.name}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    handleToggleExpand(item.path, getTargetProjectName(), isRemote, event);
+                  }}
+                >
+                  <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+                </button>
+              ) : (
+                <div className={styles['chevron-placeholder']}></div>
+              )}
+              <FileIcon
+                fileName={item.name}
+                isFolder={item.isFolder}
+                isExpanded={item.isFolder ? isExpanded : undefined}
+                status={item.status}
+                className={styles['sub-icon']}
+              />
+              <span className={styles['tree-sticky-name']}>{item.name}</span>
+              {item.isFolder ? <FolderGitStatusDot status={item.status} /> : <FileGitStatusBadge status={item.status} />}
+            </div>
+          );
+        })}
       </div>
     );
   };
