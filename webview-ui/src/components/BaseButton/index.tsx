@@ -1,10 +1,10 @@
 import type { MouseEvent } from 'react';
 
-import styles from './index.module.css';
+import styles from '@components/BaseButton/index.module.css';
 
-import type { BaseButtonProps } from './type';
+import type { BaseButtonProps } from '@components/BaseButton/type';
 
-export type { BaseButtonIconPosition, BaseButtonProps, BaseButtonSize, BaseButtonType } from './type';
+export type { BaseButtonIconPosition, BaseButtonProps, BaseButtonSize, BaseButtonType } from '@components/BaseButton/type';
 
 /**
  * @description 通用按钮组件

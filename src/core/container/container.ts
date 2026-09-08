@@ -1,4 +1,4 @@
-import type { FactoryProvider, InjectableConstructor, InjectionToken, Provider, ClassProvider, ValueProvider } from './container.type';
+import type { FactoryProvider, InjectableConstructor, InjectionToken, Provider, ClassProvider, ValueProvider } from '@core/container/container.type';
 
 function isClassProvider(provider: Provider): provider is ClassProvider {
   return typeof provider === 'object' && provider !== null && 'useClass' in provider;

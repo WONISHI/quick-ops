@@ -1,7 +1,7 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
 import type { ETIRuntime, ETIRuntimeProvide } from '@core/eti/eti.type';
-import { WORKSPACE_EVENTS } from './type';
+import { WORKSPACE_EVENTS } from '@workflow/workspace-events/type';
 import type {
   AnyWorkspaceEventHandler,
   LocalHandlerItem,
@@ -10,7 +10,7 @@ import type {
   WorkspaceEventHandler,
   WorkspaceEventMap,
   WorkspaceEventName,
-} from './type';
+} from '@workflow/workspace-events/type';
 
 /**
  * @description Workspace Events 工作流 Runtime

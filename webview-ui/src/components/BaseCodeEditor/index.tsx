@@ -6,9 +6,9 @@ import { EditorView } from '@codemirror/view';
 
 import useVSCodeTheme from '@/hooks/use-response-code-mirror-theme';
 
-import styles from './index.module.css';
+import styles from '@components/BaseCodeEditor/index.module.css';
 
-import type { BaseCodeEditorProps, BaseCodeEditorSearchOptions, BaseCodeEditorSearchRange } from './type';
+import type { BaseCodeEditorProps, BaseCodeEditorSearchOptions, BaseCodeEditorSearchRange } from '@components/BaseCodeEditor/type';
 
 export type {
   BaseCodeEditorLanguage,
@@ -19,7 +19,7 @@ export type {
   ResponseCodeMirrorEditorProps,
   ResponseEditorLanguage,
   ResponseSearchRange,
-} from './type';
+} from '@components/BaseCodeEditor/type';
 
 const baseCodeEditorSearch = search({
   top: true,

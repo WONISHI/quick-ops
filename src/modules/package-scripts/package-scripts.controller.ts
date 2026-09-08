@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { ExtensionContextProvider } from '@common/providers/extension-context.provider';
-import { PackageScriptsService } from './package-scripts.service';
+import { PackageScriptsService } from '@modules/package-scripts/package-scripts.service';
 import type { OnModuleInit } from '@core/lifecycle/lifecycle.interface';
 
 export class PackageScriptsController implements OnModuleInit {
