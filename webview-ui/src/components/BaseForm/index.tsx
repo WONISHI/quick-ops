@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from 'react';
-import styles from './index.module.css';
+import styles from '@components/BaseForm/index.module.css';
 
 type BaseFormLayout = 'horizontal' | 'vertical';
 type BaseFormValidateStatus = 'success' | 'warning' | 'error' | 'validating';

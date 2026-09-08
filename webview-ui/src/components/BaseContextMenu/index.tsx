@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
-import styles from './index.module.css';
+import styles from '@components/BaseContextMenu/index.module.css';
 import { useDismissOnOutsideInteraction } from '@/hooks/use-dismiss-on-outside-interaction';
 import type {
   BaseContextMenuItem,

@@ -1,5 +1,5 @@
 import React, { forwardRef, useState } from 'react';
-import styles from './index.module.css';
+import styles from '@components/BaseInput/index.module.css';
 
 type BaseInputSize = 'small' | 'middle' | 'large';
 type BaseInputStatus = 'success' | 'warning' | 'error';

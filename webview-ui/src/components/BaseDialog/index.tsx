@@ -1,7 +1,7 @@
 import { useEffect, useId, type MouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
-import styles from './index.module.css';
+import styles from '@components/BaseDialog/index.module.css';
 
 export type BaseDialogPlacement = 'center' | 'right';
 

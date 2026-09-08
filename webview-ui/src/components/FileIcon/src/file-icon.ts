@@ -103,7 +103,7 @@ import webassemblyIcon from 'material-icon-theme/icons/webassembly.svg';
 import faviconIcon from 'material-icon-theme/icons/favicon.svg';
 import routingIcon from 'material-icon-theme/icons/routing.svg';
 
-import type { IconMatchRule } from './type';
+import type { IconMatchRule } from '@components/FileIcon/src/type';
 
 const EXACT_NAMES: Record<string, string> = {
   'package.json': nodeJsIcon,

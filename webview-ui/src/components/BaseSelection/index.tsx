@@ -1,5 +1,5 @@
 import React, { forwardRef, useState } from 'react';
-import styles from './index.module.css';
+import styles from '@components/BaseSelection/index.module.css';
 
 type BaseSelectSize = 'small' | 'middle' | 'large';
 type BaseSelectStatus = 'success' | 'warning' | 'error';

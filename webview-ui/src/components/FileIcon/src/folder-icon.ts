@@ -134,7 +134,7 @@ import folderUiOpenIcon from 'material-icon-theme/icons/folder-ui-open.svg';
 import folderContextIcon from 'material-icon-theme/icons/folder-context.svg';
 import folderContextOpenIcon from 'material-icon-theme/icons/folder-context.svg';
 
-import type { IconMatchRule } from './type';
+import type { IconMatchRule } from '@components/FileIcon/src/type';
 
 /**
  * @description 文件夹收起状态精确匹配

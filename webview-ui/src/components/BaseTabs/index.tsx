@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 
-import styles from './index.module.css';
+import styles from '@components/BaseTabs/index.module.css';
 
 export interface BaseTabItem<Value extends string = string> {
   /**

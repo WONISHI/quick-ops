@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 
-import styles from './index.module.css';
+import styles from '@components/BaseSearch/index.module.css';
 
 export type BaseSearchDirection = 'prev' | 'next';
 
