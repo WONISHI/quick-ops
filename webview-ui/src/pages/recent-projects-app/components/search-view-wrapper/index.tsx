@@ -1032,16 +1032,10 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
       return isChangedTreeStatus(node.dataset.treeStatus);
     });
-    const hasVisibleChangedNode = changedNodes.some((node) => {
-      const rect = node.getBoundingClientRect();
-
-      return rect.bottom > wrapRect.top + 1 && rect.top < wrapRect.bottom - 1;
-    });
-    const nextChangedNode = hasVisibleChangedNode
-      ? null
-      : changedNodes
-          .filter((node) => node.getBoundingClientRect().top >= wrapRect.bottom - 1)
-          .sort((left, right) => left.getBoundingClientRect().top - right.getBoundingClientRect().top)[0] || null;
+    const nextChangedNode =
+      changedNodes
+        .filter((node) => node.getBoundingClientRect().top >= wrapRect.bottom - 1)
+        .sort((left, right) => left.getBoundingClientRect().top - right.getBoundingClientRect().top)[0] || null;
     const nextBottomStickyItems = buildStickyTreeChain(nextChangedNode, nodeMap);
 
     if (!isSameStickyTreeItems(topStickyTreeItemsRef.current, nextTopStickyItems)) {
@@ -1073,12 +1067,24 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
     if (!wrap || !element) return;
 
+    const nodeMap = new Map<string, HTMLElement>();
+
+    nodes.forEach((node) => {
+      const treePath = node.dataset.treePath || '';
+
+      if (treePath) {
+        nodeMap.set(treePath, node);
+      }
+    });
+
     const wrapRect = wrap.getBoundingClientRect();
     const elementRect = element.getBoundingClientRect();
+    const ancestorCount = buildStickyTreeChain(element, nodeMap).filter((item) => item.path !== targetPath).length;
+    const topStickyOffset = ancestorCount * 22 + 1;
     const nextScrollTop =
       placement === 'bottom'
         ? Math.max(0, wrap.scrollTop + elementRect.top - wrapRect.top - (wrap.clientHeight - elementRect.height) / 2)
-        : Math.max(0, wrap.scrollTop + elementRect.top - wrapRect.top - 1);
+        : Math.max(0, wrap.scrollTop + elementRect.top - wrapRect.top - topStickyOffset);
 
     resultScrollbarRef.current?.setScrollTop(nextScrollTop);
     scheduleStickyTreeNavigationUpdate();
