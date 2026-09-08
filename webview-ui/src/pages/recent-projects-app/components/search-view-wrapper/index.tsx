@@ -10,6 +10,35 @@ import { vscode } from '@/utils/vscode';
 import { EXTENSION_TAG_PRIORITY, EXTENSION_TAG_COLOR_MAP, EXTENSION_TAG_FALLBACK_COLORS } from '@pages/recent-projects-app/components/search-view-wrapper/src/constants';
 import type { DirChild, SearchMatch, SearchResult } from '@/pages/recent-projects-app/src/type';
 import type { FolderSearchType, SearchViewWrapperProps, ExtensionTagOption } from '@pages/recent-projects-app/components/search-view-wrapper/src/type';
+import { FileGitStatusBadge, FolderGitStatusDot } from '@pages/recent-projects-app/components/git-status-mark';
+
+type StickyTreeItem = {
+  path: string;
+  name: string;
+  isFolder: boolean;
+  status?: string;
+  depth: number;
+};
+
+function isChangedTreeStatus(status?: string) {
+  const key = String(status || '')
+    .replace(/\[|\]/g, '')
+    .trim()
+    .charAt(0)
+    .toUpperCase();
+
+  return ['M', 'U', 'A', 'D', 'R', 'C', '?'].includes(key);
+}
+
+function isSameStickyTreeItems(left: StickyTreeItem[], right: StickyTreeItem[]) {
+  if (left.length !== right.length) return false;
+
+  return left.every((item, index) => {
+    const target = right[index];
+
+    return item.path === target.path && item.name === target.name && item.isFolder === target.isFolder && item.status === target.status && item.depth === target.depth;
+  });
+}
 
 function getFileExtensionTag(fileName: string) {
   const purePath = String(fileName || '')
@@ -447,6 +476,11 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   });
   const resultScrollbarRef = useRef<ScrollbarInstance>(null);
   const resultScrollTopRef = useRef(0);
+  const [topStickyTreeItems, setTopStickyTreeItems] = useState<StickyTreeItem[]>([]);
+  const [bottomStickyTreeItems, setBottomStickyTreeItems] = useState<StickyTreeItem[]>([]);
+  const topStickyTreeItemsRef = useRef<StickyTreeItem[]>([]);
+  const bottomStickyTreeItemsRef = useRef<StickyTreeItem[]>([]);
+  const stickyTreeFrameRef = useRef<number | null>(null);
   const searchTitleClickTimerRef = useRef<number | null>(null);
 
   /**
@@ -912,6 +946,208 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     };
   }, [collapsedContentResultKeys, fileNameSearchResults, filteredContentResults, focusTree, folderSearchResults]);
 
+  const createStickyTreeItem = (node: HTMLElement, depth: number): StickyTreeItem => {
+    return {
+      path: node.dataset.treePath || '',
+      name: node.dataset.treeName || node.dataset.treePath || '',
+      isFolder: node.dataset.treeFolder === 'true',
+      status: node.dataset.treeStatus || undefined,
+      depth,
+    };
+  };
+
+  const buildStickyTreeChain = (startNode: HTMLElement | null, nodeMap: Map<string, HTMLElement>): StickyTreeItem[] => {
+    if (!startNode) return [];
+
+    const chain: HTMLElement[] = [];
+    const visited = new Set<string>();
+    let current: HTMLElement | undefined = startNode;
+
+    while (current) {
+      const currentPath: string = current.dataset.treePath || '';
+
+      if (!currentPath || visited.has(currentPath)) break;
+
+      visited.add(currentPath);
+      chain.unshift(current);
+
+      const parentPath: string = current.dataset.treeParentPath || '';
+
+      current = parentPath ? nodeMap.get(parentPath) : undefined;
+    }
+
+    return chain.map((node, index) => createStickyTreeItem(node, index));
+  };
+
+  const updateStickyTreeNavigation = () => {
+    if (!focusMode || folderSearchQuery.trim()) {
+      if (topStickyTreeItemsRef.current.length > 0) {
+        topStickyTreeItemsRef.current = [];
+        setTopStickyTreeItems([]);
+      }
+
+      if (bottomStickyTreeItemsRef.current.length > 0) {
+        bottomStickyTreeItemsRef.current = [];
+        setBottomStickyTreeItems([]);
+      }
+
+      return;
+    }
+
+    const wrap = resultScrollbarRef.current?.wrapRef;
+
+    if (!wrap) return;
+
+    const nodes = Array.from(wrap.querySelectorAll<HTMLElement>('[data-tree-path]')).filter((node) => Boolean(node.dataset.treePath));
+    const nodeMap = new Map<string, HTMLElement>();
+
+    nodes.forEach((node) => {
+      const treePath = node.dataset.treePath || '';
+
+      if (treePath) nodeMap.set(treePath, node);
+    });
+
+    const wrapRect = wrap.getBoundingClientRect();
+    const firstVisibleNode = nodes.find((node) => node.getBoundingClientRect().bottom > wrapRect.top + 1);
+    let topAnchorNode: HTMLElement | null = null;
+
+    if (firstVisibleNode) {
+      const firstVisibleRect = firstVisibleNode.getBoundingClientRect();
+
+      if (firstVisibleNode.dataset.treeFolder === 'true' && firstVisibleRect.top < wrapRect.top + 1) {
+        topAnchorNode = firstVisibleNode;
+      } else {
+        topAnchorNode = nodeMap.get(firstVisibleNode.dataset.treeParentPath || '') || null;
+      }
+    }
+
+    const nextTopStickyItems = buildStickyTreeChain(topAnchorNode, nodeMap).filter((item) => {
+      const node = nodeMap.get(item.path);
+
+      return Boolean(node && node.getBoundingClientRect().top < wrapRect.top + 1);
+    });
+    const changedNodes = nodes.filter((node) => {
+      if (node.dataset.treeFolder === 'true') return false;
+      if (node.dataset.treeActiveProject !== 'true') return false;
+
+      return isChangedTreeStatus(node.dataset.treeStatus);
+    });
+    const hasVisibleChangedNode = changedNodes.some((node) => {
+      const rect = node.getBoundingClientRect();
+
+      return rect.bottom > wrapRect.top + 1 && rect.top < wrapRect.bottom - 1;
+    });
+    const nextChangedNode = hasVisibleChangedNode
+      ? null
+      : changedNodes
+          .filter((node) => node.getBoundingClientRect().top >= wrapRect.bottom - 1)
+          .sort((left, right) => left.getBoundingClientRect().top - right.getBoundingClientRect().top)[0] || null;
+    const nextBottomStickyItems = buildStickyTreeChain(nextChangedNode, nodeMap);
+
+    if (!isSameStickyTreeItems(topStickyTreeItemsRef.current, nextTopStickyItems)) {
+      topStickyTreeItemsRef.current = nextTopStickyItems;
+      setTopStickyTreeItems(nextTopStickyItems);
+    }
+
+    if (!isSameStickyTreeItems(bottomStickyTreeItemsRef.current, nextBottomStickyItems)) {
+      bottomStickyTreeItemsRef.current = nextBottomStickyItems;
+      setBottomStickyTreeItems(nextBottomStickyItems);
+    }
+  };
+
+  const scheduleStickyTreeNavigationUpdate = () => {
+    if (stickyTreeFrameRef.current !== null) {
+      window.cancelAnimationFrame(stickyTreeFrameRef.current);
+    }
+
+    stickyTreeFrameRef.current = window.requestAnimationFrame(() => {
+      stickyTreeFrameRef.current = null;
+      updateStickyTreeNavigation();
+    });
+  };
+
+  const scrollToStickyTreeItem = (targetPath: string, placement: 'top' | 'bottom') => {
+    const wrap = resultScrollbarRef.current?.wrapRef;
+    const nodes = wrap ? Array.from(wrap.querySelectorAll<HTMLElement>('[data-tree-path]')) : [];
+    const element = nodes.find((node) => node.dataset.treePath === targetPath);
+
+    if (!wrap || !element) return;
+
+    const wrapRect = wrap.getBoundingClientRect();
+    const elementRect = element.getBoundingClientRect();
+    const nextScrollTop =
+      placement === 'bottom'
+        ? Math.max(0, wrap.scrollTop + elementRect.top - wrapRect.top - (wrap.clientHeight - elementRect.height) / 2)
+        : Math.max(0, wrap.scrollTop + elementRect.top - wrapRect.top - 1);
+
+    resultScrollbarRef.current?.setScrollTop(nextScrollTop);
+    scheduleStickyTreeNavigationUpdate();
+  };
+
+  const renderStickyTreeNavigation = (items: StickyTreeItem[], placement: 'top' | 'bottom') => {
+    if (items.length === 0) return null;
+
+    return (
+      <div className={`${styles['tree-sticky-layer']} ${styles[`tree-sticky-${placement}`]}`}>
+        {items.map((item) => (
+          <button
+            key={`${placement}-${item.path}`}
+            type="button"
+            className={styles['tree-sticky-row']}
+            style={{
+              paddingLeft: `${4 + item.depth * 14}px`,
+            }}
+            title={item.path}
+            onClick={() => scrollToStickyTreeItem(item.path, placement)}
+          >
+            <div className={styles['chevron-placeholder']}></div>
+            <FileIcon fileName={item.name} isFolder={item.isFolder} status={item.status} className={styles['sub-icon']} />
+            <span className={styles['tree-sticky-name']}>{item.name}</span>
+            {item.isFolder ? <FolderGitStatusDot status={item.status} /> : <FileGitStatusBadge status={item.status} />}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      updateStickyTreeNavigation();
+    });
+    const wrap = resultScrollbarRef.current?.wrapRef;
+
+    if (!wrap || !focusMode || folderSearchQuery.trim()) {
+      return () => {
+        window.cancelAnimationFrame(frameId);
+      };
+    }
+
+    const handleStickyScroll = () => {
+      scheduleStickyTreeNavigationUpdate();
+    };
+    const resizeObserver = new ResizeObserver(() => {
+      scheduleStickyTreeNavigationUpdate();
+    });
+    const mutationObserver = new MutationObserver(() => {
+      scheduleStickyTreeNavigationUpdate();
+    });
+
+    wrap.addEventListener('scroll', handleStickyScroll, { passive: true });
+    resizeObserver.observe(wrap);
+    mutationObserver.observe(wrap, {
+      childList: true,
+      subtree: true,
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      wrap.removeEventListener('scroll', handleStickyScroll);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusMode, folderSearchQuery, focusTree, expandedPaths]);
+
   return (
     <div className={styles['search-view-wrapper']}>
       <div className={styles['search-header']}>
@@ -1065,14 +1301,16 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
         )}
       </div>
 
-      <Scrollbar
-        ref={resultScrollbarRef}
-        className={styles['search-results-container']}
-        viewClassName={styles['search-results-view']}
-        onScroll={({ scrollTop }) => {
-          resultScrollTopRef.current = scrollTop;
-        }}
-      >
+      <div className={styles['search-results-shell']}>
+        <Scrollbar
+          ref={resultScrollbarRef}
+          className={styles['search-results-container']}
+          viewClassName={styles['search-results-view']}
+          onScroll={({ scrollTop }) => {
+            resultScrollTopRef.current = scrollTop;
+            scheduleStickyTreeNavigationUpdate();
+          }}
+        >
         {focusMode && !folderSearchQuery.trim() ? (
           focusTree || <div className={styles['search-empty-msg']}>当前项目没有文件或文件夹</div>
         ) : (
@@ -1289,7 +1527,10 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
             )}
           </>
         )}
-      </Scrollbar>
+        </Scrollbar>
+        {focusMode && !folderSearchQuery.trim() && renderStickyTreeNavigation(topStickyTreeItems, 'top')}
+        {focusMode && !folderSearchQuery.trim() && renderStickyTreeNavigation(bottomStickyTreeItems, 'bottom')}
+      </div>
     </div>
   );
 }
