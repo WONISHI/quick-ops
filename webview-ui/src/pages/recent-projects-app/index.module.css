@@ -90,7 +90,7 @@ body {
 
 .tree-sticky-top {
   top: 0;
-  box-shadow: var(--vscode-sideBarStickyScroll-shadow) 0 6px 6px -6px inset;
+  box-shadow: var(--vscode-sideBarStickyScroll-shadow) 0 5px 0px -4px;
 }
 
 .tree-sticky-bottom {
