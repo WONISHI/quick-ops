@@ -90,7 +90,7 @@ body {
 
 .tree-sticky-top {
   top: 0;
-  box-shadow: var(--vscode-sideBarStickyScroll-shadow) 0 5px 0px -4px;
+  box-shadow: 0 1px 0 var(--vscode-panel-border);
 }
 
 .tree-sticky-bottom {
@@ -122,6 +122,7 @@ body {
 .tree-sticky-row:hover {
   background: var(--vscode-list-hoverBackground, var(--vscode-list-inactiveSelectionBackground));
 }
+
 
 .tree-sticky-chevron {
   width: 16px;
