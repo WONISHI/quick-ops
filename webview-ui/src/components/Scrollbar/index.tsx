@@ -106,6 +106,11 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
   const viewRef = useRef<HTMLDivElement>(null);
   const hideTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const frameRef = useRef<number | null>(null);
+  const wheelFrameRef = useRef<number | null>(null);
+  const wheelTargetRef = useRef({
+    top: 0,
+    left: 0,
+  });
   const draggingRef = useRef<{
     axis: 'vertical' | 'horizontal';
     startClient: number;
@@ -216,30 +221,139 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     });
   }, [onScroll, scheduleUpdate, showScrollbarTemporarily]);
 
+  const cancelWheelAnimation = useCallback(() => {
+    if (wheelFrameRef.current !== null) {
+      window.cancelAnimationFrame(wheelFrameRef.current);
+      wheelFrameRef.current = null;
+    }
+
+    const wrap = wrapRef.current;
+
+    if (wrap) {
+      wheelTargetRef.current.top = wrap.scrollTop;
+      wheelTargetRef.current.left = wrap.scrollLeft;
+    }
+  }, []);
+
+  const startWheelAnimation = useCallback(() => {
+    if (wheelFrameRef.current !== null) return;
+
+    const animate = () => {
+      const wrap = wrapRef.current;
+
+      if (!wrap) {
+        wheelFrameRef.current = null;
+        return;
+      }
+
+      const targetTop = wheelTargetRef.current.top;
+      const targetLeft = wheelTargetRef.current.left;
+      const topDistance = targetTop - wrap.scrollTop;
+      const leftDistance = targetLeft - wrap.scrollLeft;
+      const topFinished = Math.abs(topDistance) <= 0.5;
+      const leftFinished = Math.abs(leftDistance) <= 0.5;
+
+      if (topFinished) {
+        wrap.scrollTop = targetTop;
+      } else {
+        wrap.scrollTop += topDistance * 0.24;
+      }
+
+      if (leftFinished) {
+        wrap.scrollLeft = targetLeft;
+      } else {
+        wrap.scrollLeft += leftDistance * 0.24;
+      }
+
+      if (topFinished && leftFinished) {
+        wheelFrameRef.current = null;
+        return;
+      }
+
+      wheelFrameRef.current = window.requestAnimationFrame(animate);
+    };
+
+    wheelFrameRef.current = window.requestAnimationFrame(animate);
+  }, []);
+
   const handleWheel = useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
       const wrap = wrapRef.current;
 
-      if (!wrap || native || direction !== 'horizontal' || !wheelX) return;
+      if (!wrap || native || event.ctrlKey) return;
 
-      const maxScrollLeft = wrap.scrollWidth - wrap.clientWidth;
+      const maxScrollTop = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+      const maxScrollLeft = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
+      const lineSize = 16;
+      const wheelSpeed = 0.42;
+      const maxWheelDelta = 120;
 
-      if (maxScrollLeft <= 0) return;
+      const normalizeDelta = (delta: number, pageSize: number) => {
+        let value = delta;
 
-      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+        if (event.deltaMode === 1) {
+          value *= lineSize;
+        } else if (event.deltaMode === 2) {
+          value *= pageSize;
+        }
 
-      if (!delta) return;
+        return Math.max(-maxWheelDelta, Math.min(maxWheelDelta, value)) * wheelSpeed;
+      };
 
-      const prevScrollLeft = wrap.scrollLeft;
-      const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, prevScrollLeft + delta));
+      let axis: 'vertical' | 'horizontal' | null = null;
+      let delta = 0;
 
-      if (nextScrollLeft === prevScrollLeft) return;
+      if (direction === 'horizontal') {
+        if (!wheelX || maxScrollLeft <= 0) return;
+
+        axis = 'horizontal';
+        delta = normalizeDelta(
+          Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY,
+          wrap.clientWidth,
+        );
+      } else if (direction === 'vertical') {
+        if (maxScrollTop <= 0 || !event.deltaY) return;
+
+        axis = 'vertical';
+        delta = normalizeDelta(event.deltaY, wrap.clientHeight);
+      } else if (Math.abs(event.deltaX) > Math.abs(event.deltaY) && maxScrollLeft > 0) {
+        axis = 'horizontal';
+        delta = normalizeDelta(event.deltaX, wrap.clientWidth);
+      } else if (maxScrollTop > 0 && event.deltaY) {
+        axis = 'vertical';
+        delta = normalizeDelta(event.deltaY, wrap.clientHeight);
+      }
+
+      if (!axis || !delta) return;
+
+      if (wheelFrameRef.current === null) {
+        wheelTargetRef.current.top = wrap.scrollTop;
+        wheelTargetRef.current.left = wrap.scrollLeft;
+      }
+
+      if (axis === 'vertical') {
+        const nextTop = Math.max(0, Math.min(maxScrollTop, wheelTargetRef.current.top + delta));
+
+        if (nextTop === wheelTargetRef.current.top && Math.abs(wheelTargetRef.current.top - wrap.scrollTop) <= 0.5) {
+          return;
+        }
+
+        wheelTargetRef.current.top = nextTop;
+      } else {
+        const nextLeft = Math.max(0, Math.min(maxScrollLeft, wheelTargetRef.current.left + delta));
+
+        if (nextLeft === wheelTargetRef.current.left && Math.abs(wheelTargetRef.current.left - wrap.scrollLeft) <= 0.5) {
+          return;
+        }
+
+        wheelTargetRef.current.left = nextLeft;
+      }
 
       event.preventDefault();
-      wrap.scrollLeft = nextScrollLeft;
-      handleScroll();
+      showScrollbarTemporarily();
+      startWheelAnimation();
     },
-    [direction, handleScroll, native, wheelX],
+    [direction, native, showScrollbarTemporarily, startWheelAnimation, wheelX],
   );
 
   const scrollTo = useCallback(
@@ -247,6 +361,8 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
       const wrap = wrapRef.current;
 
       if (!wrap) return;
+
+      cancelWheelAnimation();
 
       if (typeof options === 'number') {
         wrap.scrollTo(options, y || 0);
@@ -263,21 +379,23 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
   const setScrollTop = useCallback(
     (value: number) => {
       if (wrapRef.current) {
+        cancelWheelAnimation();
         wrapRef.current.scrollTop = value;
         scheduleUpdate();
       }
     },
-    [scheduleUpdate],
+    [cancelWheelAnimation, scheduleUpdate],
   );
 
   const setScrollLeft = useCallback(
     (value: number) => {
       if (wrapRef.current) {
+        cancelWheelAnimation();
         wrapRef.current.scrollLeft = value;
         scheduleUpdate();
       }
     },
-    [scheduleUpdate],
+    [cancelWheelAnimation, scheduleUpdate],
   );
 
   useImperativeHandle(
@@ -318,6 +436,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
 
       event.preventDefault();
       event.stopPropagation();
+      cancelWheelAnimation();
 
       const trackSize = axis === 'vertical' ? wrap.clientHeight - barOffsetSize : wrap.clientWidth - barOffsetSize;
 
@@ -334,7 +453,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
       setDragging(true);
       setScrolling(true);
     },
-    [barOffsetSize, clearHideTimer, thumbState.horizontalSize, thumbState.verticalSize],
+    [barOffsetSize, cancelWheelAnimation, clearHideTimer, thumbState.horizontalSize, thumbState.verticalSize],
   );
 
   const handleTrackMouseDown = useCallback(
@@ -345,6 +464,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
 
       event.preventDefault();
       event.stopPropagation();
+      cancelWheelAnimation();
 
       const rect = event.currentTarget.getBoundingClientRect();
 
@@ -362,7 +482,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
 
       handleScroll();
     },
-    [barOffsetSize, handleScroll, thumbState.horizontalSize, thumbState.verticalSize],
+    [barOffsetSize, cancelWheelAnimation, handleScroll, thumbState.horizontalSize, thumbState.verticalSize],
   );
 
   useEffect(() => {
@@ -429,13 +549,14 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
   useEffect(() => {
     return () => {
       clearHideTimer();
+      cancelWheelAnimation();
 
       if (frameRef.current !== null) {
         window.cancelAnimationFrame(frameRef.current);
         frameRef.current = null;
       }
     };
-  }, [clearHideTimer]);
+  }, [cancelWheelAnimation, clearHideTimer]);
 
   const barVisibleClassName = always || hovering || scrolling || dragging ? styles['is-visible'] : '';
 

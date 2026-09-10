@@ -10,7 +10,7 @@ import RecentProjectsSkeleton from '@pages/recent-projects-app/components/recent
 import SearchViewWrapper from '@pages/recent-projects-app/components/search-view-wrapper';
 import TreeDragDropContainer, { type TreeDraggingEntity } from '@pages/recent-projects-app/components/tree-drag-drop-container';
 import Tooltip from '@components/Tooltip';
-import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
+import * as ScrollArea from '@radix-ui/react-scroll-area';
 import { isImageFile, isExcelFile, isPdfFile, getDisplayPath } from '@/utils';
 import { FileGitStatusBadge, FolderGitStatusDot } from '@pages/recent-projects-app/components/git-status-mark';
 import { getGitStatusTitle } from '@pages/recent-projects-app/components/git-status-mark/src/uitls';
@@ -111,7 +111,7 @@ export default function RecentProjectsApp() {
   /** 当前编辑器真正打开的文件路径，不能被目录树上的普通选中覆盖。 */
   const activeFilePathRef = useRef('');
   const autoScrollTarget = useRef<string | null>(null);
-  const listScrollbarRef = useRef<ScrollbarInstance>(null);
+  const listScrollbarRef = useRef<HTMLDivElement>(null);
   const [topStickyTreeItems, setTopStickyTreeItems] = useState<StickyTreeItem[]>([]);
   const [bottomStickyTreeItems, setBottomStickyTreeItems] = useState<StickyTreeItem[]>([]);
   const topStickyTreeItemsRef = useRef<StickyTreeItem[]>([]);
@@ -2113,7 +2113,7 @@ export default function RecentProjectsApp() {
   };
 
   const updateStickyTreeNavigation = () => {
-    const wrap = listScrollbarRef.current?.wrapRef;
+    const wrap = listScrollbarRef.current;
 
     if (!wrap) {
       if (topStickyTreeItemsRef.current.length > 0) {
@@ -2210,7 +2210,7 @@ export default function RecentProjectsApp() {
   };
 
   const scrollToStickyTreeItem = (targetPath: string, placement: 'top' | 'bottom') => {
-    const wrap = listScrollbarRef.current?.wrapRef;
+    const wrap = listScrollbarRef.current;
     const element = findTreeNodeElement(targetPath);
 
     if (!wrap || !element) return;
@@ -2235,7 +2235,7 @@ export default function RecentProjectsApp() {
         ? Math.max(0, wrap.scrollTop + elementRect.top - wrapRect.top - (wrap.clientHeight - elementRect.height) / 2)
         : Math.max(0, wrap.scrollTop + elementRect.top - wrapRect.top - topStickyOffset);
 
-    listScrollbarRef.current?.setScrollTop(nextScrollTop);
+    wrap.scrollTop = nextScrollTop;
     scheduleStickyTreeNavigationUpdate();
   };
 
@@ -2243,7 +2243,7 @@ export default function RecentProjectsApp() {
     const frameId = window.requestAnimationFrame(() => {
       updateStickyTreeNavigation();
     });
-    const wrap = listScrollbarRef.current?.wrapRef;
+    const wrap = listScrollbarRef.current;
 
     if (!wrap) {
       return () => {
@@ -4471,12 +4471,13 @@ export default function RecentProjectsApp() {
           )}
 
           <div className={styles['list-scroll-shell']}>
-            <Scrollbar
-              ref={listScrollbarRef}
-              className={styles['list-container']}
-              viewClassName={styles['list-view']}
-              onScroll={scheduleStickyTreeNavigationUpdate}
-            >
+            <ScrollArea.Root className={styles['list-container']} type="hover" scrollHideDelay={700}>
+              <ScrollArea.Viewport
+                ref={listScrollbarRef}
+                className={styles['list-viewport']}
+                onScroll={scheduleStickyTreeNavigationUpdate}
+              >
+                <div className={styles['list-view']}>
             {projects.length === 0 && !activeProjectToRender ? (
               <div className={styles['empty-state']}>
                 <div className={styles['empty-text']}>暂无项目记录，请添加：</div>
@@ -4753,7 +4754,16 @@ export default function RecentProjectsApp() {
                 )}
               </>
             )}
-            </Scrollbar>
+                </div>
+              </ScrollArea.Viewport>
+              <ScrollArea.Scrollbar className={styles['list-scrollbar']} orientation="vertical">
+                <ScrollArea.Thumb className={styles['list-scrollbar-thumb']} />
+              </ScrollArea.Scrollbar>
+              <ScrollArea.Scrollbar className={styles['list-scrollbar']} orientation="horizontal">
+                <ScrollArea.Thumb className={styles['list-scrollbar-thumb']} />
+              </ScrollArea.Scrollbar>
+              <ScrollArea.Corner className={styles['list-scrollbar-corner']} />
+            </ScrollArea.Root>
             {isFocusMode && renderStickyTreeNavigation(topStickyTreeItems, 'top')}
             {isFocusMode && renderStickyTreeNavigation(bottomStickyTreeItems, 'bottom')}
           </div>
