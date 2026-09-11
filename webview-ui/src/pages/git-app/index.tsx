@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import * as ScrollArea from '@radix-ui/react-scroll-area';
+import Scrollbar from '@components/Scrollbar';
 import styles from '@pages/git-app/index.module.css';
 import Tooltip from '@components/Tooltip';
 import GitGraph from '@/pages/git-app/components/git-graph';
@@ -1168,10 +1168,8 @@ export default function GitApp() {
         </button>
       </div>
 
-      <ScrollArea.Root className={`${styles['changes-scroll-area']} ${styles['changes-scroll-area-expanded']}`} type="hover" scrollHideDelay={700}>
-        <ScrollArea.Viewport className={styles['changes-scroll-viewport']}>
-          <div className={styles['changes-scroll-inner']}>
-            <div className={getChangesSectionClassName(isChangesOpen)}>
+      <Scrollbar className={`${styles['changes-scroll-area']} ${styles['changes-scroll-area-expanded']}`}>
+        <div className={getChangesSectionClassName(isChangesOpen)}>
           <div className={`${styles['changes-header']} ${styles['header-between']}`} onClick={() => setIsChangesOpen(!isChangesOpen)}>
             <div className={styles['header-title-row']}>
               <i className={`codicon ${isChangesOpen ? 'codicon-chevron-down' : 'codicon-chevron-right'} ${styles['section-chevron']}`} />
@@ -1221,9 +1219,7 @@ export default function GitApp() {
           </div>
 
           {isChangesOpen && (
-            <ScrollArea.Root className={styles['changes-content-scroll-area']} type="hover" scrollHideDelay={700}>
-              <ScrollArea.Viewport className={styles['changes-content-viewport']}>
-                <div className={styles['changes-content']}>
+            <Scrollbar viewClassName={styles['changes-content']}>
               {stagedFiles.length > 0 && (
                 <div className={`${styles['changes-section']} ${styles['nested-section']}`}>
                   <div className={`${styles['changes-header']} ${styles['subsection-header']}`}>
@@ -1422,13 +1418,8 @@ export default function GitApp() {
                 </div>
               )}
 
-                  <LoadingMask visible={changesRefreshing} />
-                </div>
-              </ScrollArea.Viewport>
-              <ScrollArea.Scrollbar className={styles['git-scrollbar']} orientation="vertical">
-                <ScrollArea.Thumb className={styles['git-scrollbar-thumb']} />
-              </ScrollArea.Scrollbar>
-            </ScrollArea.Root>
+              <LoadingMask visible={changesRefreshing} />
+            </Scrollbar>
           )}
         </div>
 
@@ -1714,13 +1705,8 @@ export default function GitApp() {
               )}
             </div>
           )}
-            </div>
-          </div>
-        </ScrollArea.Viewport>
-        <ScrollArea.Scrollbar className={styles['git-scrollbar']} orientation="vertical">
-          <ScrollArea.Thumb className={styles['git-scrollbar-thumb']} />
-        </ScrollArea.Scrollbar>
-      </ScrollArea.Root>
+        </div>
+      </Scrollbar>
 
       <div
         ref={graphSectionRef}

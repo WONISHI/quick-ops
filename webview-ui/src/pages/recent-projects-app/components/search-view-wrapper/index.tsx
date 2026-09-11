@@ -3,7 +3,7 @@ import FileIcon from '@/components/FileIcon';
 import HighlightText from '@pages/recent-projects-app/components/highlight-text';
 import Tooltip from '@/components/Tooltip';
 import styles from '@pages/recent-projects-app/components/search-view-wrapper/index.module.css';
-import * as ScrollArea from '@radix-ui/react-scroll-area';
+import Scrollbar, { type ScrollbarInstance } from '@/components/Scrollbar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown, faChevronRight, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { vscode } from '@/utils/vscode';
@@ -474,7 +474,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     searchKey: '',
     keys: new Set(),
   });
-  const resultScrollbarRef = useRef<HTMLDivElement>(null);
+  const resultScrollbarRef = useRef<ScrollbarInstance>(null);
   const resultScrollTopRef = useRef(0);
   const [topStickyTreeItems, setTopStickyTreeItems] = useState<StickyTreeItem[]>([]);
   const [bottomStickyTreeItems, setBottomStickyTreeItems] = useState<StickyTreeItem[]>([]);
@@ -919,12 +919,12 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     resultScrollTopRef.current = 0;
 
     const frameId = window.requestAnimationFrame(() => {
-      const viewport = resultScrollbarRef.current;
+      const scrollbar = resultScrollbarRef.current;
 
-      if (!viewport) return;
+      if (!scrollbar) return;
 
-      viewport.scrollTop = 0;
-      scheduleStickyTreeNavigationUpdate();
+      scrollbar.setScrollTop(0);
+      scrollbar.update();
     });
 
     return () => {
@@ -933,9 +933,18 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   }, [searchFilterKey]);
 
   /**
-   * Radix ScrollArea 会自动根据内容变化重新计算滚动条尺寸，
-   * 这里不再主动调用 update，避免与浏览器原生滚动产生竞争。
+   * 分片结果追加、筛选或折叠状态变化时，只重新计算滚动条尺寸，
+   * 保留浏览器当前的 scrollTop，不再把用户拉回旧位置。
    */
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      resultScrollbarRef.current?.update();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [collapsedContentResultKeys, fileNameSearchResults, filteredContentResults, focusTree, folderSearchResults]);
 
   const createStickyTreeItem = (node: HTMLElement, depth: number): StickyTreeItem => {
     return {
@@ -985,7 +994,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
       return;
     }
 
-    const wrap = resultScrollbarRef.current;
+    const wrap = resultScrollbarRef.current?.wrapRef;
 
     if (!wrap) return;
 
@@ -1058,7 +1067,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   };
 
   const scrollToStickyTreeItem = (targetPath: string, placement: 'top' | 'bottom') => {
-    const wrap = resultScrollbarRef.current;
+    const wrap = resultScrollbarRef.current?.wrapRef;
     const nodes = wrap ? Array.from(wrap.querySelectorAll<HTMLElement>('[data-tree-path]')) : [];
     const element = nodes.find((node) => node.dataset.treePath === targetPath);
 
@@ -1083,8 +1092,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
         ? Math.max(0, wrap.scrollTop + elementRect.top - wrapRect.top - (wrap.clientHeight - elementRect.height) / 2)
         : Math.max(0, wrap.scrollTop + elementRect.top - wrapRect.top - topStickyOffset);
 
-    wrap.scrollTop = nextScrollTop;
-    resultScrollTopRef.current = nextScrollTop;
+    resultScrollbarRef.current?.setScrollTop(nextScrollTop);
     scheduleStickyTreeNavigationUpdate();
   };
 
@@ -1151,7 +1159,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     const frameId = window.requestAnimationFrame(() => {
       updateStickyTreeNavigation();
     });
-    const wrap = resultScrollbarRef.current;
+    const wrap = resultScrollbarRef.current?.wrapRef;
 
     if (!wrap || !focusMode || folderSearchQuery.trim()) {
       return () => {
@@ -1312,50 +1320,42 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
         </div>
 
         {shouldShowExtensionTags && (
-          <ScrollArea.Root className={styles['search-extension-tags']} type="hover" scrollHideDelay={700}>
-            <ScrollArea.Viewport className={styles['search-extension-tags-viewport']}>
-              <div className={styles['search-extension-tags-view']}>
-                {extensionTagOptions.map((item) => {
-                  const checked = activeExtensionTags.has(item.ext);
+          <Scrollbar className={styles['search-extension-tags']} viewClassName={styles['search-extension-tags-view']} direction="horizontal" barSize={4}>
+            {extensionTagOptions.map((item) => {
+              const checked = activeExtensionTags.has(item.ext);
 
-                  return (
-                    <button
-                      key={item.ext}
-                      type="button"
-                      className={`${styles['search-extension-tag']} ${checked ? styles['active'] : ''}`}
-                      style={
-                        {
-                          '--search-extension-tag-color': getExtensionTagColor(item.ext),
-                        } as React.CSSProperties
-                      }
-                      onClick={() => handleToggleExtensionTag(item.ext)}
-                      title={checked ? `点击隐藏 ${item.ext} 文件结果` : `点击显示 ${item.ext} 文件结果`}
-                    >
-                      <span className={styles['search-extension-tag-name']}>{item.ext}</span>
-                      <span className={styles['search-extension-tag-count']}>{item.count}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </ScrollArea.Viewport>
-            <ScrollArea.Scrollbar className={styles['search-extension-tags-scrollbar']} orientation="horizontal">
-              <ScrollArea.Thumb className={styles['search-scrollbar-thumb']} />
-            </ScrollArea.Scrollbar>
-          </ScrollArea.Root>
+              return (
+                <button
+                  key={item.ext}
+                  type="button"
+                  className={`${styles['search-extension-tag']} ${checked ? styles['active'] : ''}`}
+                  style={
+                    {
+                      '--search-extension-tag-color': getExtensionTagColor(item.ext),
+                    } as React.CSSProperties
+                  }
+                  onClick={() => handleToggleExtensionTag(item.ext)}
+                  title={checked ? `点击隐藏 ${item.ext} 文件结果` : `点击显示 ${item.ext} 文件结果`}
+                >
+                  <span className={styles['search-extension-tag-name']}>{item.ext}</span>
+                  <span className={styles['search-extension-tag-count']}>{item.count}</span>
+                </button>
+              );
+            })}
+          </Scrollbar>
         )}
       </div>
 
-      <div className={styles['search-results-shell']} data-search-results-shell>
-        <ScrollArea.Root className={styles['search-results-container']} type="hover" scrollHideDelay={700}>
-          <ScrollArea.Viewport
-            ref={resultScrollbarRef}
-            className={styles['search-results-viewport']}
-            onScroll={(event) => {
-              resultScrollTopRef.current = event.currentTarget.scrollTop;
-              scheduleStickyTreeNavigationUpdate();
-            }}
-          >
-            <div className={styles['search-results-view']}>
+      <div className={styles['search-results-shell']}>
+        <Scrollbar
+          ref={resultScrollbarRef}
+          className={styles['search-results-container']}
+          viewClassName={styles['search-results-view']}
+          onScroll={({ scrollTop }) => {
+            resultScrollTopRef.current = scrollTop;
+            scheduleStickyTreeNavigationUpdate();
+          }}
+        >
         {focusMode && !folderSearchQuery.trim() ? (
           focusTree || <div className={styles['search-empty-msg']}>当前项目没有文件或文件夹</div>
         ) : (
@@ -1572,12 +1572,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
             )}
           </>
         )}
-            </div>
-          </ScrollArea.Viewport>
-          <ScrollArea.Scrollbar className={styles['search-results-scrollbar']} orientation="vertical">
-            <ScrollArea.Thumb className={styles['search-scrollbar-thumb']} />
-          </ScrollArea.Scrollbar>
-        </ScrollArea.Root>
+        </Scrollbar>
         {focusMode && !folderSearchQuery.trim() && renderStickyTreeNavigation(topStickyTreeItems, 'top')}
         {focusMode && !folderSearchQuery.trim() && renderStickyTreeNavigation(bottomStickyTreeItems, 'bottom')}
       </div>

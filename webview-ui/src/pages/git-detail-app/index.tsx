@@ -72,13 +72,21 @@ class Branch {
 
 class Vertex {
   public id: number;
+
   public x = 0;
+
   private children: Vertex[] = [];
+
   private parents: Vertex[] = [];
+
   private nextParent = 0;
+
   private onBranch: Branch | null = null;
+
   private nextX = 0;
+
   private connections: UnavailablePoint[] = [];
+
   private isCommitted = true;
 
   constructor(id: number) {
