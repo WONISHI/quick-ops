@@ -2180,12 +2180,8 @@ export class RecentProjectsProvider implements vscode.WebviewViewProvider {
                 continue;
               }
             } else if (await this.pathExists(targetUri)) {
-              const confirmed = await this.confirmAndRemoveNameConflict(targetUri, '导入文件');
-
-              if (!confirmed) {
-                skippedNames.push(rawName);
-                continue;
-              }
+              failedNames.push(`${rawName}（当前文件系统不支持仅大小写不同的文件名）`);
+              continue;
             }
 
             if (sourceUri) {
