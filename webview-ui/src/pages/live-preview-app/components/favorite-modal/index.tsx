@@ -20,7 +20,7 @@ import { faCopy as faCopyRegular } from '@fortawesome/free-regular-svg-icons';
 import BaseDialog from '@components/BaseDialog';
 import BaseContextMenu from '@components/BaseContextMenu';
 import BaseSearch from '@components/BaseSearch';
-import Scrollbar from '@components/Scrollbar';
+import * as ScrollArea from '@radix-ui/react-scroll-area';
 import type { BaseContextMenuItem } from '@components/BaseContextMenu/src/type';
 import styles from './index.module.css';
 
@@ -401,13 +401,9 @@ export default function FavoriteModal(props: FavoriteModalProps) {
               )}
             </div>
 
-            <Scrollbar
-              className={styles['fav-folder-list']}
-              viewClassName={styles['fav-folder-list-view']}
-              direction="vertical"
-              height={0}
-              always
-            >
+            <ScrollArea.Root className={styles['fav-folder-list']} type="always">
+              <ScrollArea.Viewport className={styles['fav-folder-list-viewport']}>
+                <div className={styles['fav-folder-list-view']}>
               {showAllFolder && (
                 <button
                   className={`${styles['fav-folder-item']} ${selectedFolderId === ALL_FOLDER_ID ? styles['fav-folder-active'] : ''}`}
@@ -448,7 +444,12 @@ export default function FavoriteModal(props: FavoriteModalProps) {
               })}
 
               {!showAllFolder && visibleFolders.length === 0 && <div className={styles['fav-folder-empty']}>未找到匹配的文件夹</div>}
-            </Scrollbar>
+                </div>
+              </ScrollArea.Viewport>
+              <ScrollArea.Scrollbar className={styles['fav-scrollbar']} orientation="vertical">
+                <ScrollArea.Thumb className={styles['fav-scrollbar-thumb']} />
+              </ScrollArea.Scrollbar>
+            </ScrollArea.Root>
 
             <button type="button" className={`${styles['fav-folder-item']} ${styles['fav-folder-add']}`} onClick={openFolderDialog} title="新增文件夹">
               <span className={styles['fav-folder-title']}>
@@ -526,13 +527,9 @@ export default function FavoriteModal(props: FavoriteModalProps) {
               </div>
             )}
 
-            <Scrollbar
-              className={styles['fav-list']}
-              viewClassName={styles['fav-list-view']}
-              direction="vertical"
-              height={0}
-              always
-            >
+            <ScrollArea.Root className={styles['fav-list']} type="always">
+              <ScrollArea.Viewport className={styles['fav-list-viewport']}>
+                <div className={styles['fav-list-view']}>
               {displayFavorites.length === 0 ? (
                 <div className={styles['fav-empty']}>
                   {favoriteSearchKeyword.trim() ? '未找到匹配的书签。' : '暂无收藏。点击右上角 + 号，或地址栏星号添加。'}
@@ -640,7 +637,12 @@ export default function FavoriteModal(props: FavoriteModalProps) {
                   </div>
                 ))
               )}
-            </Scrollbar>
+                </div>
+              </ScrollArea.Viewport>
+              <ScrollArea.Scrollbar className={styles['fav-scrollbar']} orientation="vertical">
+                <ScrollArea.Thumb className={styles['fav-scrollbar-thumb']} />
+              </ScrollArea.Scrollbar>
+            </ScrollArea.Root>
           </main>
         </div>
       </div>
