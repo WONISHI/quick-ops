@@ -220,75 +220,24 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     (event: React.WheelEvent<HTMLDivElement>) => {
       const wrap = wrapRef.current;
 
-      if (!wrap || event.ctrlKey) return;
+      if (!wrap || native || direction !== 'horizontal' || !wheelX) return;
 
-      const maxScrollTop = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
-      const maxScrollLeft = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
-      const edgeOffset = 0.5;
+      const maxScrollLeft = wrap.scrollWidth - wrap.clientWidth;
 
-      const isVerticalAtEdge =
-        (event.deltaY < 0 && wrap.scrollTop <= edgeOffset) ||
-        (event.deltaY > 0 && wrap.scrollTop >= maxScrollTop - edgeOffset);
+      if (maxScrollLeft <= 0) return;
 
-      const isHorizontalAtEdge =
-        (event.deltaX < 0 && wrap.scrollLeft <= edgeOffset) ||
-        (event.deltaX > 0 && wrap.scrollLeft >= maxScrollLeft - edgeOffset);
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
 
-      /**
-       * 横向模式继续保留“普通滚轮转横向滚动”的原有能力。
-       *
-       * 不再额外做 RAF / smooth 动画，避免和系统触控板惯性叠加。
-       * 到达左右边界后直接拦截继续向外的 wheel，避免出现回弹。
-       */
-      if (!native && direction === 'horizontal' && wheelX) {
-        if (maxScrollLeft <= 0) return;
+      if (!delta) return;
 
-        const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      const prevScrollLeft = wrap.scrollLeft;
+      const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, prevScrollLeft + delta));
 
-        if (!delta) return;
+      if (nextScrollLeft === prevScrollLeft) return;
 
-        const prevScrollLeft = wrap.scrollLeft;
-        const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, prevScrollLeft + delta));
-
-        event.preventDefault();
-
-        if (nextScrollLeft === prevScrollLeft) {
-          return;
-        }
-
-        wrap.scrollLeft = nextScrollLeft;
-        handleScroll();
-        return;
-      }
-
-      /**
-       * 纵向 / 双向模式继续使用浏览器原生滚动，
-       * 这里只在滚动已经到边界且仍继续向外滚动时拦截，
-       * 阻止 Chromium / WebView 的 overscroll 回弹。
-       */
-      if (direction === 'vertical') {
-        if (maxScrollTop > 0 && event.deltaY && isVerticalAtEdge) {
-          event.preventDefault();
-        }
-
-        return;
-      }
-
-      if (direction === 'both') {
-        const isHorizontalWheel = Math.abs(event.deltaX) > Math.abs(event.deltaY);
-
-        if (isHorizontalWheel) {
-          if (maxScrollLeft > 0 && event.deltaX && isHorizontalAtEdge) {
-            event.preventDefault();
-          }
-
-          return;
-        }
-
-        if (maxScrollTop > 0 && event.deltaY && isVerticalAtEdge) {
-          event.preventDefault();
-        }
-      }
+      event.preventDefault();
+      wrap.scrollLeft = nextScrollLeft;
+      handleScroll();
     },
     [direction, handleScroll, native, wheelX],
   );

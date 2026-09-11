@@ -13,7 +13,6 @@
   height: 100%;
   overflow: auto;
   overscroll-behavior: none;
-  scroll-behavior: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
