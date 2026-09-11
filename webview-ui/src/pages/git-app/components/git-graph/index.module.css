@@ -23,9 +23,49 @@
 }
 
 .graph-scroll-view {
-    flex: 1;
-    overflow-y: auto;
     position: relative;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.graph-scroll-viewport {
+    width: 100%;
+    height: 100%;
+    overscroll-behavior: contain;
+}
+
+.graph-scrollbar {
+    z-index: 20;
+    display: flex;
+    width: 8px;
+    padding: 0;
+    user-select: none;
+    touch-action: none;
+    background: transparent;
+}
+
+.graph-scrollbar-thumb {
+    position: relative;
+    flex: 1;
+    background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4));
+}
+
+.graph-scrollbar-thumb:hover {
+    background: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
+}
+
+.graph-scrollbar-thumb:active {
+    background: var(--vscode-scrollbarSlider-activeBackground, rgba(191, 191, 191, 0.4));
+}
+
+.graph-scrollbar-thumb::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    min-width: 8px;
+    min-height: 20px;
 }
 
 /**

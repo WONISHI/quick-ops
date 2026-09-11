@@ -3,7 +3,7 @@ import styles from '@pages/git-app/components/git-graph/index.module.css';
 import CommitHoverWidget from '@/pages/git-app/components/commit-hover-widget';
 import GraphSearchWidget from '@/pages/git-app/components/graph-search-widget';
 import Tooltip from '@components/Tooltip';
-import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
+import * as ScrollArea from '@radix-ui/react-scroll-area';
 import { vscode } from '@utils/vscode';
 import type { GraphCommit, GitGraphProps } from '@pages/git-app/components/git-graph/src/type';
 
@@ -324,7 +324,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
   const [resizeTrigger, setResizeTrigger] = useState(0);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const graphScrollbarRef = useRef<ScrollbarInstance>(null);
+  const graphScrollbarRef = useRef<HTMLDivElement>(null);
   const graphContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -580,7 +580,7 @@ const GitGraph: React.FC<GitGraphProps> = ({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const container = graphScrollbarRef.current?.wrapRef;
+    const container = graphScrollbarRef.current;
 
     if (!canvas || !container || graphCommits.length === 0) return;
 
@@ -716,11 +716,9 @@ const GitGraph: React.FC<GitGraphProps> = ({
     }, 250);
   };
 
-  const handleGraphScroll = ({ scrollTop }: { scrollTop: number; scrollLeft: number }) => {
-    const target = graphScrollbarRef.current?.wrapRef;
-
-    if (!target) return;
-
+  const handleGraphScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    const scrollTop = target.scrollTop;
     const hasVerticalScroll = target.scrollHeight > target.clientHeight;
     const isScrollMoved = scrollTop !== graphScrollTopRef.current;
 
@@ -823,8 +821,9 @@ const GitGraph: React.FC<GitGraphProps> = ({
           overflow: 'hidden',
         }}
       >
-        <Scrollbar ref={graphScrollbarRef} className={styles['graph-scroll-view']} direction="vertical" style={{ overflow: 'hidden' }} onScroll={handleGraphScroll}>
-          <div className={styles['graph-scroll-inner']} style={{ '--graph-canvas-height': `${renderedHeight}px` } as React.CSSProperties}>
+        <ScrollArea.Root className={styles['graph-scroll-view']} type="hover" scrollHideDelay={700}>
+          <ScrollArea.Viewport ref={graphScrollbarRef} className={styles['graph-scroll-viewport']} onScroll={handleGraphScroll}>
+            <div className={styles['graph-scroll-inner']} style={{ '--graph-canvas-height': `${renderedHeight}px` } as React.CSSProperties}>
             <canvas ref={canvasRef} className={styles['graph-canvas']} />
 
             <ul className={styles['commit-timeline']}>
@@ -932,9 +931,14 @@ const GitGraph: React.FC<GitGraphProps> = ({
                   </li>
                 );
               })}
-            </ul>
-          </div>
-        </Scrollbar>
+              </ul>
+            </div>
+          </ScrollArea.Viewport>
+
+          <ScrollArea.Scrollbar className={styles['graph-scrollbar']} orientation="vertical">
+            <ScrollArea.Thumb className={styles['graph-scrollbar-thumb']} />
+          </ScrollArea.Scrollbar>
+        </ScrollArea.Root>
       </div>
     </>
   );
