@@ -12,7 +12,7 @@ import GitDetailContextMenu from '@/pages/git-detail-app/components/git-detail-c
 import { vscode } from '@utils/vscode';
 import styles from '@pages/git-detail-app/index.module.css';
 import FileIcon from '@components/FileIcon';
-import Scrollbar, { type ScrollbarInstance } from '@components/Scrollbar';
+import * as ScrollArea from '@radix-ui/react-scroll-area';
 import type { GitFileItem, CommitFilesState, CommitFileTreeNode, GraphCommit } from '@pages/git-detail-app/src/type';
 
 const COLORS = ['#007acc', '#f14c4c', '#89d185', '#cca700', '#c586c0', '#4fc1ff'];
@@ -681,9 +681,9 @@ export default function GitCommitDetailApp() {
   const [expandedCommitDirs, setExpandedCommitDirs] = useState<Record<string, boolean>>({});
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const listScrollbarRef = useRef<ScrollbarInstance | null>(null);
+  const listScrollbarRef = useRef<HTMLDivElement | null>(null);
 
-  const getCommitListScrollWrap = () => listScrollbarRef.current?.wrapRef || null;
+  const getCommitListScrollWrap = () => listScrollbarRef.current;
 
   const descFilterRef = useRef<HTMLElement | null>(null);
   const dateFilterRef = useRef<HTMLElement | null>(null);
@@ -1466,10 +1466,12 @@ export default function GitCommitDetailApp() {
         ) : filteredCommits.length === 0 ? (
           <div className={styles['empty-view']}>{graphCommits.length === 0 ? '暂无提交记录' : '没有匹配的筛选结果'}</div>
         ) : (
-          <Scrollbar ref={listScrollbarRef} className={styles['commit-list-scroll']} viewClassName={styles['commit-list-view']} onScroll={handleScroll}>
-            <canvas ref={canvasRef} className={styles['graph-canvas']} />
+          <ScrollArea.Root className={styles['commit-list-scroll']} type="hover" scrollHideDelay={700}>
+            <ScrollArea.Viewport ref={listScrollbarRef} className={styles['commit-list-viewport']} onScroll={handleScroll}>
+              <div className={styles['commit-list-view']}>
+                <canvas ref={canvasRef} className={styles['graph-canvas']} />
 
-            <ul className={styles['commit-list']} style={{ height: `${renderedHeight}px` }}>
+                <ul className={styles['commit-list']} style={{ height: `${renderedHeight}px` }}>
               {visibleCommits.map((commit, index) => {
                 const vertex = graphData.vertices[index];
                 const paddingWidth = (vertex.getNextPoint().x + 1) * LANE_WIDTH + 96;
@@ -1574,9 +1576,16 @@ export default function GitCommitDetailApp() {
                             ) : !commitFilesMap[commit.hash] || commitFilesMap[commit.hash].files.length === 0 ? (
                               <div className={styles['commit-files-empty']}>暂无文件变更</div>
                             ) : (
-                              <Scrollbar className={styles['commit-files-tree']} viewClassName={styles['commit-files-tree-view']} barSize={6}>
-                                {renderCommitFileTree(commit, commitFilesMap[commit.hash].parentHash, buildCommitFileTree(commitFilesMap[commit.hash].files))}
-                              </Scrollbar>
+                              <ScrollArea.Root className={styles['commit-files-tree']} type="hover" scrollHideDelay={700}>
+                                <ScrollArea.Viewport className={styles['commit-files-tree-viewport']}>
+                                  <div className={styles['commit-files-tree-view']}>
+                                    {renderCommitFileTree(commit, commitFilesMap[commit.hash].parentHash, buildCommitFileTree(commitFilesMap[commit.hash].files))}
+                                  </div>
+                                </ScrollArea.Viewport>
+                                <ScrollArea.Scrollbar className={`${styles['git-detail-scrollbar']} ${styles['commit-files-scrollbar']}`} orientation="vertical">
+                                  <ScrollArea.Thumb className={styles['git-detail-scrollbar-thumb']} />
+                                </ScrollArea.Scrollbar>
+                              </ScrollArea.Root>
                             )}
                           </div>
                         </div>
@@ -1587,8 +1596,17 @@ export default function GitCommitDetailApp() {
                   </li>
                 );
               })}
-            </ul>
-          </Scrollbar>
+                </ul>
+              </div>
+            </ScrollArea.Viewport>
+            <ScrollArea.Scrollbar className={styles['git-detail-scrollbar']} orientation="vertical">
+              <ScrollArea.Thumb className={styles['git-detail-scrollbar-thumb']} />
+            </ScrollArea.Scrollbar>
+            <ScrollArea.Scrollbar className={styles['git-detail-scrollbar']} orientation="horizontal">
+              <ScrollArea.Thumb className={styles['git-detail-scrollbar-thumb']} />
+            </ScrollArea.Scrollbar>
+            <ScrollArea.Corner className={styles['git-detail-scrollbar-corner']} />
+          </ScrollArea.Root>
         )}
       </div>
 
