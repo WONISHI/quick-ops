@@ -458,6 +458,7 @@
   background: var(--vscode-list-hoverBackground, var(--vscode-list-inactiveSelectionBackground));
 }
 
+
 .tree-sticky-chevron {
   width: 16px;
   height: 22px;
