@@ -216,31 +216,85 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     });
   }, [onScroll, scheduleUpdate, showScrollbarTemporarily]);
 
-  const handleWheel = useCallback(
-    (event: React.WheelEvent<HTMLDivElement>) => {
-      const wrap = wrapRef.current;
+  useEffect(() => {
+    const wrap = wrapRef.current;
 
-      if (!wrap || native || direction !== 'horizontal' || !wheelX) return;
+    if (!wrap || native) return undefined;
 
-      const maxScrollLeft = wrap.scrollWidth - wrap.clientWidth;
+    const handleWheel = (event: WheelEvent) => {
+      if (event.ctrlKey) return;
 
-      if (maxScrollLeft <= 0) return;
+      const maxScrollTop = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+      const maxScrollLeft = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
 
-      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      const normalizeDelta = (delta: number, clientSize: number) => {
+        if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+          return delta * 16;
+        }
 
-      if (!delta) return;
+        if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+          return delta * clientSize;
+        }
 
-      const prevScrollLeft = wrap.scrollLeft;
-      const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, prevScrollLeft + delta));
+        return delta;
+      };
 
-      if (nextScrollLeft === prevScrollLeft) return;
+      const deltaX = normalizeDelta(event.deltaX, wrap.clientWidth);
+      const deltaY = normalizeDelta(event.deltaY, wrap.clientHeight);
+      let nextScrollTop = wrap.scrollTop;
+      let nextScrollLeft = wrap.scrollLeft;
+
+      if (direction === 'vertical') {
+        if (maxScrollTop <= 0 || !deltaY) return;
+
+        nextScrollTop = Math.max(0, Math.min(maxScrollTop, wrap.scrollTop + deltaY));
+      } else if (direction === 'horizontal') {
+        if (maxScrollLeft <= 0) return;
+
+        const delta = wheelX ? (Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY) : deltaX;
+
+        if (!delta) return;
+
+        nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, wrap.scrollLeft + delta));
+      } else {
+        if (maxScrollTop > 0 && deltaY) {
+          nextScrollTop = Math.max(0, Math.min(maxScrollTop, wrap.scrollTop + deltaY));
+        }
+
+        if (maxScrollLeft > 0 && deltaX) {
+          nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, wrap.scrollLeft + deltaX));
+        }
+      }
+
+      const scrollTopChanged = nextScrollTop !== wrap.scrollTop;
+      const scrollLeftChanged = nextScrollLeft !== wrap.scrollLeft;
+
+      if (!scrollTopChanged && !scrollLeftChanged) {
+        return;
+      }
 
       event.preventDefault();
-      wrap.scrollLeft = nextScrollLeft;
-      handleScroll();
-    },
-    [direction, handleScroll, native, wheelX],
-  );
+
+      if (scrollTopChanged) {
+        wrap.scrollTop = nextScrollTop;
+      }
+
+      if (scrollLeftChanged) {
+        wrap.scrollLeft = nextScrollLeft;
+      }
+
+      scheduleUpdate();
+      showScrollbarTemporarily();
+    };
+
+    wrap.addEventListener('wheel', handleWheel, {
+      passive: false,
+    });
+
+    return () => {
+      wrap.removeEventListener('wheel', handleWheel);
+    };
+  }, [direction, native, scheduleUpdate, showScrollbarTemporarily, wheelX]);
 
   const scrollTo = useCallback(
     (options: ScrollToOptions | number, y?: number) => {
@@ -462,7 +516,6 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
         ref={wrapRef}
         className={[styles['scrollbar-wrap'], native ? styles['scrollbar-wrap-native'] : '', wrapClassName || ''].filter(Boolean).join(' ')}
         onScroll={handleScroll}
-        onWheel={handleWheel}
       >
         <div ref={viewRef} className={[styles['scrollbar-view'], viewClassName || ''].filter(Boolean).join(' ')} style={viewStyle}>
           {children}
