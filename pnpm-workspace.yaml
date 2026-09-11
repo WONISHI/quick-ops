@@ -1,4 +1,0 @@
-allowBuilds:
-  '@vscode/vsce-sign': set this to true or false
-  keytar: set this to true or false
-  ttf2woff2: set this to true or false

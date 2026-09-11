@@ -106,11 +106,6 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
   const viewRef = useRef<HTMLDivElement>(null);
   const hideTimerRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
   const frameRef = useRef<number | null>(null);
-  const wheelFrameRef = useRef<number | null>(null);
-  const wheelTargetRef = useRef({
-    top: 0,
-    left: 0,
-  });
   const draggingRef = useRef<{
     axis: 'vertical' | 'horizontal';
     startClient: number;
@@ -221,61 +216,6 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     });
   }, [onScroll, scheduleUpdate, showScrollbarTemporarily]);
 
-  const cancelWheelAnimation = useCallback(() => {
-    if (wheelFrameRef.current !== null) {
-      window.cancelAnimationFrame(wheelFrameRef.current);
-      wheelFrameRef.current = null;
-    }
-
-    const wrap = wrapRef.current;
-
-    if (wrap) {
-      wheelTargetRef.current.top = wrap.scrollTop;
-      wheelTargetRef.current.left = wrap.scrollLeft;
-    }
-  }, []);
-
-  const startWheelAnimation = useCallback(() => {
-    if (wheelFrameRef.current !== null) return;
-
-    const animate = () => {
-      const wrap = wrapRef.current;
-
-      if (!wrap) {
-        wheelFrameRef.current = null;
-        return;
-      }
-
-      const targetTop = wheelTargetRef.current.top;
-      const targetLeft = wheelTargetRef.current.left;
-      const topDistance = targetTop - wrap.scrollTop;
-      const leftDistance = targetLeft - wrap.scrollLeft;
-      const topFinished = Math.abs(topDistance) <= 0.5;
-      const leftFinished = Math.abs(leftDistance) <= 0.5;
-
-      if (topFinished) {
-        wrap.scrollTop = targetTop;
-      } else {
-        wrap.scrollTop += topDistance * 0.24;
-      }
-
-      if (leftFinished) {
-        wrap.scrollLeft = targetLeft;
-      } else {
-        wrap.scrollLeft += leftDistance * 0.24;
-      }
-
-      if (topFinished && leftFinished) {
-        wheelFrameRef.current = null;
-        return;
-      }
-
-      wheelFrameRef.current = window.requestAnimationFrame(animate);
-    };
-
-    wheelFrameRef.current = window.requestAnimationFrame(animate);
-  }, []);
-
   const handleWheel = useCallback(
     (event: React.WheelEvent<HTMLDivElement>) => {
       const wrap = wrapRef.current;
@@ -350,7 +290,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
         }
       }
     },
-    [direction, native, showScrollbarTemporarily, startWheelAnimation, wheelX],
+    [direction, handleScroll, native, wheelX],
   );
 
   const scrollTo = useCallback(
@@ -358,8 +298,6 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
       const wrap = wrapRef.current;
 
       if (!wrap) return;
-
-      cancelWheelAnimation();
 
       if (typeof options === 'number') {
         wrap.scrollTo(options, y || 0);
@@ -376,23 +314,21 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
   const setScrollTop = useCallback(
     (value: number) => {
       if (wrapRef.current) {
-        cancelWheelAnimation();
         wrapRef.current.scrollTop = value;
         scheduleUpdate();
       }
     },
-    [cancelWheelAnimation, scheduleUpdate],
+    [scheduleUpdate],
   );
 
   const setScrollLeft = useCallback(
     (value: number) => {
       if (wrapRef.current) {
-        cancelWheelAnimation();
         wrapRef.current.scrollLeft = value;
         scheduleUpdate();
       }
     },
-    [cancelWheelAnimation, scheduleUpdate],
+    [scheduleUpdate],
   );
 
   useImperativeHandle(
@@ -433,7 +369,6 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
 
       event.preventDefault();
       event.stopPropagation();
-      cancelWheelAnimation();
 
       const trackSize = axis === 'vertical' ? wrap.clientHeight - barOffsetSize : wrap.clientWidth - barOffsetSize;
 
@@ -450,7 +385,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
       setDragging(true);
       setScrolling(true);
     },
-    [barOffsetSize, cancelWheelAnimation, clearHideTimer, thumbState.horizontalSize, thumbState.verticalSize],
+    [barOffsetSize, clearHideTimer, thumbState.horizontalSize, thumbState.verticalSize],
   );
 
   const handleTrackMouseDown = useCallback(
@@ -461,7 +396,6 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
 
       event.preventDefault();
       event.stopPropagation();
-      cancelWheelAnimation();
 
       const rect = event.currentTarget.getBoundingClientRect();
 
@@ -479,7 +413,7 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
 
       handleScroll();
     },
-    [barOffsetSize, cancelWheelAnimation, handleScroll, thumbState.horizontalSize, thumbState.verticalSize],
+    [barOffsetSize, handleScroll, thumbState.horizontalSize, thumbState.verticalSize],
   );
 
   useEffect(() => {
@@ -546,14 +480,13 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
   useEffect(() => {
     return () => {
       clearHideTimer();
-      cancelWheelAnimation();
 
       if (frameRef.current !== null) {
         window.cancelAnimationFrame(frameRef.current);
         frameRef.current = null;
       }
     };
-  }, [cancelWheelAnimation, clearHideTimer]);
+  }, [clearHideTimer]);
 
   const barVisibleClassName = always || hovering || scrolling || dragging ? styles['is-visible'] : '';
 

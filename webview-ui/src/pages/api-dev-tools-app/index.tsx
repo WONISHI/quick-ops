@@ -6,7 +6,7 @@ import BaseCodeEditor from '@components/BaseCodeEditor';
 import BaseDialog from '@components/BaseDialog';
 import BaseSearch from '@components/BaseSearch';
 import BaseTabs from '@components/BaseTabs';
-import * as ScrollArea from '@radix-ui/react-scroll-area';
+import Scrollbar from '@components/Scrollbar';
 import BottomPanels from '@/pages/api-dev-tools-app/components/bottom-panels';
 import InterfaceItem from '@/pages/api-dev-tools-app/components/interface-item';
 import KeyValueEditor from '@/pages/api-dev-tools-app/components/key-value-editor';
@@ -2364,9 +2364,7 @@ export default function ApiDevToolsApp() {
 
           {sharedDocUrl && <ShareCard url={sharedDocUrl} onOpen={openSharedUrl} onCopy={copySharedUrl} onClose={stopShareDocs} />}
 
-          <ScrollArea.Root className={styles['project-list']} type="hover" scrollHideDelay={700}>
-            <ScrollArea.Viewport className={styles['project-list-viewport']}>
-              <div className={styles['project-list-view']}>
+          <Scrollbar className={styles['project-list']} viewClassName={styles['project-list-view']} direction="both">
             {projects.length === 0 ? (
               <div className={styles['empty-project']}>
                 <div>暂无项目</div>
@@ -2493,16 +2491,7 @@ export default function ApiDevToolsApp() {
                 );
               })
             )}
-              </div>
-            </ScrollArea.Viewport>
-            <ScrollArea.Scrollbar className={styles['project-list-scrollbar']} orientation="vertical">
-              <ScrollArea.Thumb className={styles['project-list-scrollbar-thumb']} />
-            </ScrollArea.Scrollbar>
-            <ScrollArea.Scrollbar className={styles['project-list-scrollbar']} orientation="horizontal">
-              <ScrollArea.Thumb className={styles['project-list-scrollbar-thumb']} />
-            </ScrollArea.Scrollbar>
-            <ScrollArea.Corner className={styles['project-list-scrollbar-corner']} />
-          </ScrollArea.Root>
+          </Scrollbar>
 
           {isShareSelecting && (
             <div className={styles['share-select-actions']}>

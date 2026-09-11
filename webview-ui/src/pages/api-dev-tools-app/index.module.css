@@ -690,65 +690,12 @@
 .project-list {
   flex: 1 1 auto;
   min-height: 0;
-  position: relative;
-  overflow: hidden;
-}
-
-.project-list-viewport {
-  width: 100%;
-  height: 100%;
-  overscroll-behavior: contain;
+  overflow: auto;
+  padding: 4px;
 }
 
 .project-list-view {
-  min-width: 100%;
-  min-height: 100%;
-  padding: 4px;
-  box-sizing: border-box;
-}
-
-.project-list-scrollbar {
-  display: flex;
-  user-select: none;
-  touch-action: none;
-  padding: 0;
-  background: transparent;
-  z-index: 20;
-}
-
-.project-list-scrollbar[data-orientation='vertical'] {
-  width: 8px;
-}
-
-.project-list-scrollbar[data-orientation='horizontal'] {
-  height: 8px;
-  flex-direction: column;
-}
-
-.project-list-scrollbar-thumb {
-  position: relative;
-  flex: 1;
-  background: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4));
-}
-
-.project-list-scrollbar-thumb:hover {
-  background: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
-}
-
-.project-list-scrollbar-thumb:active {
-  background: var(--vscode-scrollbarSlider-activeBackground, rgba(191, 191, 191, 0.4));
-}
-
-.project-list-scrollbar-thumb::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  min-width: 8px;
-  min-height: 20px;
-}
-
-.project-list-scrollbar-corner {
-  background: transparent;
+  min-width: 0;
 }
 
 .empty-project {
@@ -1120,9 +1067,11 @@
     border-bottom: 1px solid var(--vscode-panel-border);
   }
 
-  .project-list-view {
+  .project-list {
     display: flex;
     gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
   }
 
   .project-card {
