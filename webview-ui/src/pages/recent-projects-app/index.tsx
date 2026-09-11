@@ -3967,31 +3967,40 @@ export default function RecentProjectsApp() {
     }
   };
 
+  const scrollSearchMatchIntoView = (matchIndex: number) => {
+    const matchInfo = flatMatchesList[matchIndex];
+
+    if (!matchInfo) return;
+
+    window.requestAnimationFrame(() => {
+      const element = document.getElementById(`search-line-${matchInfo.fileIndex}-${matchInfo.matchIndex}`);
+
+      if (!element) return;
+
+      element.scrollIntoView({
+        behavior: 'auto',
+        block: 'center',
+      });
+    });
+  };
+
   const handleNextSearchMatch = () => {
     if (totalMatches === 0) return;
 
-    setCurrentActiveMatch((prev) => (prev + 1) % totalMatches);
+    const nextIndex = (currentActiveMatch + 1) % totalMatches;
+
+    setCurrentActiveMatch(nextIndex);
+    scrollSearchMatchIntoView(nextIndex);
   };
 
   const handlePrevSearchMatch = () => {
     if (totalMatches === 0) return;
 
-    setCurrentActiveMatch((prev) => (prev - 1 + totalMatches) % totalMatches);
+    const prevIndex = (currentActiveMatch - 1 + totalMatches) % totalMatches;
+
+    setCurrentActiveMatch(prevIndex);
+    scrollSearchMatchIntoView(prevIndex);
   };
-
-  useEffect(() => {
-    if (totalMatches > 0 && isSearchMode && flatMatchesList[currentActiveMatch]) {
-      const matchInfo = flatMatchesList[currentActiveMatch];
-      const el = document.getElementById(`search-line-${matchInfo.fileIndex}-${matchInfo.matchIndex}`);
-
-      if (el) {
-        el.scrollIntoView({
-          behavior: 'auto',
-          block: 'center',
-        });
-      }
-    }
-  }, [currentActiveMatch, totalMatches, isSearchMode, flatMatchesList]);
 
   function exitSearchOrFocusMode() {
     const searchReturnState = searchReturnStateRef.current;

@@ -816,6 +816,19 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
   const handleExcludeContentResult = (result: SearchResult, originalIndex: number) => {
     const resultKey = getSearchResultKey(result, originalIndex);
+    const activeMatch = flatMatchesList[currentActiveMatch];
+
+    if (activeMatch?.fileIndex === originalIndex) {
+      const currentFilteredIndex = filteredFlatMatchesList.findIndex((item) => item.actualIndex === currentActiveMatch);
+      const nextMatch =
+        filteredFlatMatchesList.slice(Math.max(0, currentFilteredIndex + 1)).find((item) => item.fileIndex !== originalIndex) ||
+        filteredFlatMatchesList
+          .slice(0, Math.max(0, currentFilteredIndex))
+          .reverse()
+          .find((item) => item.fileIndex !== originalIndex);
+
+      setCurrentActiveMatch(nextMatch?.actualIndex ?? 0);
+    }
 
     setExcludedContentResultState((prev) => {
       const next = new Set(prev.searchKey === searchFilterKey ? prev.keys : []);
@@ -847,6 +860,23 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     });
   };
 
+  const scrollSearchLineIntoView = (actualIndex: number) => {
+    const matchInfo = flatMatchesList[actualIndex];
+
+    if (!matchInfo) return;
+
+    window.requestAnimationFrame(() => {
+      const element = document.getElementById(`search-line-${matchInfo.fileIndex}-${matchInfo.matchIndex}`);
+
+      if (!element) return;
+
+      element.scrollIntoView({
+        behavior: 'auto',
+        block: 'center',
+      });
+    });
+  };
+
   const handlePrevEffectiveSearchMatch = () => {
     if (folderSearchType !== 'content') {
       handlePrevSearchMatch();
@@ -857,7 +887,10 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
     const currentIndex = filteredCurrentActiveIndex >= 0 ? filteredCurrentActiveIndex : 0;
     const prevIndex = (currentIndex - 1 + filteredFlatMatchesList.length) % filteredFlatMatchesList.length;
-    setCurrentActiveMatch(filteredFlatMatchesList[prevIndex].actualIndex);
+    const actualIndex = filteredFlatMatchesList[prevIndex].actualIndex;
+
+    setCurrentActiveMatch(actualIndex);
+    scrollSearchLineIntoView(actualIndex);
   };
 
   const handleNextEffectiveSearchMatch = () => {
@@ -870,7 +903,10 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
     const currentIndex = filteredCurrentActiveIndex >= 0 ? filteredCurrentActiveIndex : -1;
     const nextIndex = (currentIndex + 1) % filteredFlatMatchesList.length;
-    setCurrentActiveMatch(filteredFlatMatchesList[nextIndex].actualIndex);
+    const actualIndex = filteredFlatMatchesList[nextIndex].actualIndex;
+
+    setCurrentActiveMatch(actualIndex);
+    scrollSearchLineIntoView(actualIndex);
   };
 
   useEffect(() => {
