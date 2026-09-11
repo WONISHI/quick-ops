@@ -280,78 +280,75 @@ const Scrollbar = forwardRef<ScrollbarInstance, ScrollbarProps>((props, ref) => 
     (event: React.WheelEvent<HTMLDivElement>) => {
       const wrap = wrapRef.current;
 
-      if (!wrap || native || event.ctrlKey) return;
+      if (!wrap || event.ctrlKey) return;
 
       const maxScrollTop = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
       const maxScrollLeft = Math.max(0, wrap.scrollWidth - wrap.clientWidth);
-      const lineSize = 16;
-      const wheelSpeed = 0.42;
-      const maxWheelDelta = 120;
+      const edgeOffset = 0.5;
 
-      const normalizeDelta = (delta: number, pageSize: number) => {
-        let value = delta;
+      const isVerticalAtEdge =
+        (event.deltaY < 0 && wrap.scrollTop <= edgeOffset) ||
+        (event.deltaY > 0 && wrap.scrollTop >= maxScrollTop - edgeOffset);
 
-        if (event.deltaMode === 1) {
-          value *= lineSize;
-        } else if (event.deltaMode === 2) {
-          value *= pageSize;
-        }
+      const isHorizontalAtEdge =
+        (event.deltaX < 0 && wrap.scrollLeft <= edgeOffset) ||
+        (event.deltaX > 0 && wrap.scrollLeft >= maxScrollLeft - edgeOffset);
 
-        return Math.max(-maxWheelDelta, Math.min(maxWheelDelta, value)) * wheelSpeed;
-      };
+      /**
+       * 横向模式继续保留“普通滚轮转横向滚动”的原有能力。
+       *
+       * 不再额外做 RAF / smooth 动画，避免和系统触控板惯性叠加。
+       * 到达左右边界后直接拦截继续向外的 wheel，避免出现回弹。
+       */
+      if (!native && direction === 'horizontal' && wheelX) {
+        if (maxScrollLeft <= 0) return;
 
-      let axis: 'vertical' | 'horizontal' | null = null;
-      let delta = 0;
+        const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
 
-      if (direction === 'horizontal') {
-        if (!wheelX || maxScrollLeft <= 0) return;
+        if (!delta) return;
 
-        axis = 'horizontal';
-        delta = normalizeDelta(
-          Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY,
-          wrap.clientWidth,
-        );
-      } else if (direction === 'vertical') {
-        if (maxScrollTop <= 0 || !event.deltaY) return;
+        const prevScrollLeft = wrap.scrollLeft;
+        const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, prevScrollLeft + delta));
 
-        axis = 'vertical';
-        delta = normalizeDelta(event.deltaY, wrap.clientHeight);
-      } else if (Math.abs(event.deltaX) > Math.abs(event.deltaY) && maxScrollLeft > 0) {
-        axis = 'horizontal';
-        delta = normalizeDelta(event.deltaX, wrap.clientWidth);
-      } else if (maxScrollTop > 0 && event.deltaY) {
-        axis = 'vertical';
-        delta = normalizeDelta(event.deltaY, wrap.clientHeight);
-      }
+        event.preventDefault();
 
-      if (!axis || !delta) return;
-
-      if (wheelFrameRef.current === null) {
-        wheelTargetRef.current.top = wrap.scrollTop;
-        wheelTargetRef.current.left = wrap.scrollLeft;
-      }
-
-      if (axis === 'vertical') {
-        const nextTop = Math.max(0, Math.min(maxScrollTop, wheelTargetRef.current.top + delta));
-
-        if (nextTop === wheelTargetRef.current.top && Math.abs(wheelTargetRef.current.top - wrap.scrollTop) <= 0.5) {
+        if (nextScrollLeft === prevScrollLeft) {
           return;
         }
 
-        wheelTargetRef.current.top = nextTop;
-      } else {
-        const nextLeft = Math.max(0, Math.min(maxScrollLeft, wheelTargetRef.current.left + delta));
+        wrap.scrollLeft = nextScrollLeft;
+        handleScroll();
+        return;
+      }
 
-        if (nextLeft === wheelTargetRef.current.left && Math.abs(wheelTargetRef.current.left - wrap.scrollLeft) <= 0.5) {
+      /**
+       * 纵向 / 双向模式继续使用浏览器原生滚动，
+       * 这里只在滚动已经到边界且仍继续向外滚动时拦截，
+       * 阻止 Chromium / WebView 的 overscroll 回弹。
+       */
+      if (direction === 'vertical') {
+        if (maxScrollTop > 0 && event.deltaY && isVerticalAtEdge) {
+          event.preventDefault();
+        }
+
+        return;
+      }
+
+      if (direction === 'both') {
+        const isHorizontalWheel = Math.abs(event.deltaX) > Math.abs(event.deltaY);
+
+        if (isHorizontalWheel) {
+          if (maxScrollLeft > 0 && event.deltaX && isHorizontalAtEdge) {
+            event.preventDefault();
+          }
+
           return;
         }
 
-        wheelTargetRef.current.left = nextLeft;
+        if (maxScrollTop > 0 && event.deltaY && isVerticalAtEdge) {
+          event.preventDefault();
+        }
       }
-
-      event.preventDefault();
-      showScrollbarTemporarily();
-      startWheelAnimation();
     },
     [direction, native, showScrollbarTemporarily, startWheelAnimation, wheelX],
   );
