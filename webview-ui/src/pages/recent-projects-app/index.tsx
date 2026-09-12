@@ -2141,19 +2141,23 @@ export default function RecentProjectsApp() {
     });
 
     const wrapRect = wrap.getBoundingClientRect();
-    const topStickyLayer = wrap.parentElement?.querySelector<HTMLElement>('[data-tree-sticky-placement="top"]') || null;
-    const topStickyBoundaryY = topStickyLayer?.getBoundingClientRect().bottom ?? wrapRect.top;
-    const intersectingNode =
-      nodes.find((node) => {
-        const nodeRect = node.getBoundingClientRect();
+    const firstVisibleNode = nodes.find((node) => node.getBoundingClientRect().bottom > wrapRect.top + 1);
+    let topAnchorNode: HTMLElement | null = null;
 
-        return nodeRect.top <= topStickyBoundaryY && nodeRect.bottom > topStickyBoundaryY;
-      }) || null;
-    const topAnchorNode = intersectingNode ? nodeMap.get(intersectingNode.dataset.treeParentPath || '') || null : null;
+    if (firstVisibleNode) {
+      const firstVisibleRect = firstVisibleNode.getBoundingClientRect();
+
+      if (firstVisibleNode.dataset.treeFolder === 'true' && firstVisibleRect.top < wrapRect.top + 1) {
+        topAnchorNode = firstVisibleNode;
+      } else {
+        topAnchorNode = nodeMap.get(firstVisibleNode.dataset.treeParentPath || '') || null;
+      }
+    }
+
     const nextTopStickyItems = buildStickyTreeChain(topAnchorNode, nodeMap).filter((item) => {
       const node = nodeMap.get(item.path);
 
-      return Boolean(node && node.getBoundingClientRect().top < topStickyBoundaryY);
+      return Boolean(node && node.getBoundingClientRect().top < wrapRect.top + 1);
     });
 
     const changedNodes = nodes.filter((node) => {
@@ -2168,28 +2172,15 @@ export default function RecentProjectsApp() {
 
       return Boolean(treePath && !expandedPaths.has(treePath));
     });
-    const nextBottomStickyItems: StickyTreeItem[] = [];
-    const bottomStickyPathSet = new Set<string>();
-
-    changedNodes
-      .filter((node) => node.getBoundingClientRect().top >= wrapRect.bottom - 1)
-      .sort((left, right) => left.getBoundingClientRect().top - right.getBoundingClientRect().top)
-      .forEach((node) => {
-        buildStickyTreeChain(node, nodeMap).forEach((item) => {
-          if (bottomStickyPathSet.has(item.path)) return;
-
-          bottomStickyPathSet.add(item.path);
-          nextBottomStickyItems.push(item);
-        });
-      });
+    const nextChangedNode =
+      changedNodes
+        .filter((node) => node.getBoundingClientRect().top >= wrapRect.bottom - 1)
+        .sort((left, right) => left.getBoundingClientRect().top - right.getBoundingClientRect().top)[0] || null;
+    const nextBottomStickyItems = buildStickyTreeChain(nextChangedNode, nodeMap);
 
     if (!isSameStickyTreeItems(topStickyTreeItemsRef.current, nextTopStickyItems)) {
       topStickyTreeItemsRef.current = nextTopStickyItems;
       setTopStickyTreeItems(nextTopStickyItems);
-
-      window.requestAnimationFrame(() => {
-        scheduleStickyTreeNavigationUpdate();
-      });
     }
 
     if (!isSameStickyTreeItems(bottomStickyTreeItemsRef.current, nextBottomStickyItems)) {
@@ -3588,13 +3579,13 @@ export default function RecentProjectsApp() {
     }
   };
 
-  const executeMenuAction = (action: string, arg?: string) => {
+  const executeMenuAction = (action: string, arg?: string, payloadOverride?: ContextMenuPayload) => {
     setContextMenu((prev) => ({
       ...prev,
       visible: false,
     }));
 
-    const { payload } = contextMenu;
+    const payload = payloadOverride || contextMenu.payload;
 
     switch (action) {
       case 'addToHistory':
@@ -3976,40 +3967,31 @@ export default function RecentProjectsApp() {
     }
   };
 
-  const scrollSearchMatchIntoView = (matchIndex: number) => {
-    const matchInfo = flatMatchesList[matchIndex];
-
-    if (!matchInfo) return;
-
-    window.requestAnimationFrame(() => {
-      const element = document.getElementById(`search-line-${matchInfo.fileIndex}-${matchInfo.matchIndex}`);
-
-      if (!element) return;
-
-      element.scrollIntoView({
-        behavior: 'auto',
-        block: 'center',
-      });
-    });
-  };
-
   const handleNextSearchMatch = () => {
     if (totalMatches === 0) return;
 
-    const nextIndex = (currentActiveMatch + 1) % totalMatches;
-
-    setCurrentActiveMatch(nextIndex);
-    scrollSearchMatchIntoView(nextIndex);
+    setCurrentActiveMatch((prev) => (prev + 1) % totalMatches);
   };
 
   const handlePrevSearchMatch = () => {
     if (totalMatches === 0) return;
 
-    const prevIndex = (currentActiveMatch - 1 + totalMatches) % totalMatches;
-
-    setCurrentActiveMatch(prevIndex);
-    scrollSearchMatchIntoView(prevIndex);
+    setCurrentActiveMatch((prev) => (prev - 1 + totalMatches) % totalMatches);
   };
+
+  useEffect(() => {
+    if (totalMatches > 0 && isSearchMode && flatMatchesList[currentActiveMatch]) {
+      const matchInfo = flatMatchesList[currentActiveMatch];
+      const el = document.getElementById(`search-line-${matchInfo.fileIndex}-${matchInfo.matchIndex}`);
+
+      if (el) {
+        el.scrollIntoView({
+          behavior: 'auto',
+          block: 'center',
+        });
+      }
+    }
+  }, [currentActiveMatch, totalMatches, isSearchMode, flatMatchesList]);
 
   function exitSearchOrFocusMode() {
     const searchReturnState = searchReturnStateRef.current;
@@ -4338,7 +4320,7 @@ export default function RecentProjectsApp() {
     if (items.length === 0) return null;
 
     return (
-      <div data-tree-sticky-placement={placement} className={`${styles['tree-sticky-layer']} ${styles[`tree-sticky-${placement}`]}`}>
+      <div className={`${styles['tree-sticky-layer']} ${styles[`tree-sticky-${placement}`]}`}>
         {items.map((item) => {
           const isExpanded = item.isFolder && expandedPaths.has(item.path);
 
@@ -4467,6 +4449,8 @@ export default function RecentProjectsApp() {
           handleToggleExpand={handleToggleExpand}
           handleOpenFile={handleOpenFile}
           renderTreeChildren={renderTreeChildren}
+          executeContextMenuAction={executeMenuAction}
+          canPasteFile={Boolean(copiedFilePath)}
         />
       ) : (
         <>

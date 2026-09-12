@@ -2,13 +2,14 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import FileIcon from '@/components/FileIcon';
 import HighlightText from '@pages/recent-projects-app/components/highlight-text';
 import Tooltip from '@/components/Tooltip';
+import RecentProjectContextMenu from '@pages/recent-projects-app/components/recent-project-context-menu';
 import styles from '@pages/recent-projects-app/components/search-view-wrapper/index.module.css';
 import Scrollbar, { type ScrollbarInstance } from '@/components/Scrollbar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faChevronDown, faChevronRight, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import { vscode } from '@/utils/vscode';
 import { EXTENSION_TAG_PRIORITY, EXTENSION_TAG_COLOR_MAP, EXTENSION_TAG_FALLBACK_COLORS } from '@pages/recent-projects-app/components/search-view-wrapper/src/constants';
-import type { DirChild, SearchMatch, SearchResult } from '@/pages/recent-projects-app/src/type';
+import type { ContextMenuPayload, DirChild, SearchMatch, SearchResult } from '@/pages/recent-projects-app/src/type';
 import type { FolderSearchType, SearchViewWrapperProps, ExtensionTagOption } from '@pages/recent-projects-app/components/search-view-wrapper/src/type';
 import { FileGitStatusBadge, FolderGitStatusDot } from '@pages/recent-projects-app/components/git-status-mark';
 
@@ -18,6 +19,12 @@ type StickyTreeItem = {
   isFolder: boolean;
   status?: string;
   depth: number;
+  isActiveProject: boolean;
+};
+
+type SearchViewWrapperComponentProps = SearchViewWrapperProps & {
+  executeContextMenuAction: (action: string, arg?: string, payload?: ContextMenuPayload) => void;
+  canPasteFile?: boolean;
 };
 
 function isChangedTreeStatus(status?: string) {
@@ -36,7 +43,14 @@ function isSameStickyTreeItems(left: StickyTreeItem[], right: StickyTreeItem[]) 
   return left.every((item, index) => {
     const target = right[index];
 
-    return item.path === target.path && item.name === target.name && item.isFolder === target.isFolder && item.status === target.status && item.depth === target.depth;
+    return (
+      item.path === target.path &&
+      item.name === target.name &&
+      item.isFolder === target.isFolder &&
+      item.status === target.status &&
+      item.depth === target.depth &&
+      item.isActiveProject === target.isActiveProject
+    );
   });
 }
 
@@ -405,7 +419,7 @@ function getContentSearchPreviewText(text: string, query: string) {
   return `... ${value.slice(start).trimStart()}`;
 }
 
-export default function SearchViewWrapper(props: SearchViewWrapperProps) {
+export default function SearchViewWrapper(props: SearchViewWrapperComponentProps) {
   const {
     searchTargetProject,
     focusMode,
@@ -449,6 +463,8 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     handleToggleExpand,
     handleOpenFile,
     renderTreeChildren,
+    executeContextMenuAction,
+    canPasteFile = false,
   } = props;
 
   const [activeExtensionTagState, setActiveExtensionTagState] = useState<{
@@ -481,6 +497,20 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
   const topStickyTreeItemsRef = useRef<StickyTreeItem[]>([]);
   const bottomStickyTreeItemsRef = useRef<StickyTreeItem[]>([]);
   const stickyTreeFrameRef = useRef<number | null>(null);
+  const [stickyCollapsedPathKeys, setStickyCollapsedPathKeys] = useState<Set<string>>(new Set());
+  const [stickyContextMenu, setStickyContextMenu] = useState<{
+    visible: boolean;
+    x: number;
+    y: number;
+    payload: ContextMenuPayload;
+  }>({
+    visible: false,
+    x: 0,
+    y: 0,
+    payload: {
+      path: '',
+    },
+  });
   const searchTitleClickTimerRef = useRef<number | null>(null);
 
   /**
@@ -989,6 +1019,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
       isFolder: node.dataset.treeFolder === 'true',
       status: node.dataset.treeStatus || undefined,
       depth,
+      isActiveProject: node.dataset.treeActiveProject === 'true',
     };
   };
 
@@ -1142,14 +1173,97 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
     scheduleStickyTreeNavigationUpdate();
   };
 
+  const isStickyDescendantPath = (childPath: string, parentPath: string) => {
+    const normalizePath = (value: string) => {
+      return String(value || '')
+        .replace(/\\/g, '/')
+        .replace(/\/+$/, '');
+    };
+    const child = normalizePath(childPath);
+    const parent = normalizePath(parentPath);
+
+    if (!child || !parent || child === parent) {
+      return false;
+    }
+
+    return child.startsWith(`${parent}/`);
+  };
+
+  const handleStickyContextMenu = (event: React.MouseEvent<HTMLDivElement>, item: StickyTreeItem, placement: 'top' | 'bottom', isExpanded: boolean) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const isRemote = item.path.startsWith('vscode-vfs://') || /^https?:\/\//i.test(item.path);
+    const payload = {
+      path: item.path,
+      name: item.name,
+      isFolder: item.isFolder,
+      isExpanded: item.isFolder ? isExpanded : undefined,
+      projectName: getTargetProjectName(),
+      isActiveProject: item.isActiveProject,
+      isRemote,
+      status: item.status,
+      canPasteFile,
+      stickyPlacement: placement,
+    } as ContextMenuPayload & {
+      stickyPlacement: 'top' | 'bottom';
+    };
+
+    setStickyContextMenu({
+      visible: true,
+      x: event.clientX,
+      y: event.clientY,
+      payload,
+    });
+  };
+
+  const handleStickyContextMenuAction = (action: string, arg?: string) => {
+    const payload = stickyContextMenu.payload;
+    const placement = (payload as ContextMenuPayload & { stickyPlacement?: 'top' | 'bottom' }).stickyPlacement;
+
+    setStickyContextMenu((current) => ({
+      ...current,
+      visible: false,
+    }));
+
+    if (payload.isFolder && placement && (action === 'collapseFolderChildren' || action === 'expandFolderChildren')) {
+      const stickyPathKey = `${placement}:${payload.path}`;
+
+      setStickyCollapsedPathKeys((current) => {
+        const next = new Set(current);
+
+        if (action === 'collapseFolderChildren') {
+          next.add(stickyPathKey);
+        } else {
+          next.delete(stickyPathKey);
+        }
+
+        return next;
+      });
+
+      return;
+    }
+
+    executeContextMenuAction(action, arg, payload);
+  };
+
   const renderStickyTreeNavigation = (items: StickyTreeItem[], placement: 'top' | 'bottom') => {
     if (items.length === 0) return null;
 
+    const visibleItems = items.filter((item) => {
+      return !items.some((parentItem) => {
+        if (!parentItem.isFolder) return false;
+        if (!stickyCollapsedPathKeys.has(`${placement}:${parentItem.path}`)) return false;
+
+        return isStickyDescendantPath(item.path, parentItem.path);
+      });
+    });
+
     return (
       <div data-tree-sticky-placement={placement} className={`${styles['tree-sticky-layer']} ${styles[`tree-sticky-${placement}`]}`}>
-        {items.map((item) => {
-          const isExpanded = item.isFolder && expandedPaths.has(item.path);
-          const isRemote = item.path.startsWith('vscode-vfs') || item.path.startsWith('http');
+        {visibleItems.map((item) => {
+          const stickyPathKey = `${placement}:${item.path}`;
+          const isExpanded = item.isFolder && !stickyCollapsedPathKeys.has(stickyPathKey);
 
           return (
             <div
@@ -1161,7 +1275,10 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                 paddingLeft: `${4 + item.depth * 14}px`,
               }}
               title={item.path}
-              onClick={() => scrollToStickyTreeItem(item.path, placement)}
+              onClick={() => {
+                scrollToStickyTreeItem(item.path, placement);
+              }}
+              onContextMenu={(event) => handleStickyContextMenu(event, item, placement, isExpanded)}
               onKeyDown={(event) => {
                 if (event.key !== 'Enter' && event.key !== ' ') return;
 
@@ -1176,8 +1293,20 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                   title={isExpanded ? '收起' : '展开'}
                   aria-label={isExpanded ? `收起 ${item.name}` : `展开 ${item.name}`}
                   onClick={(event) => {
+                    event.preventDefault();
                     event.stopPropagation();
-                    handleToggleExpand(item.path, getTargetProjectName(), isRemote, event);
+
+                    setStickyCollapsedPathKeys((current) => {
+                      const next = new Set(current);
+
+                      if (next.has(stickyPathKey)) {
+                        next.delete(stickyPathKey);
+                      } else {
+                        next.add(stickyPathKey);
+                      }
+
+                      return next;
+                    });
                   }}
                 >
                   <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
@@ -1185,13 +1314,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
               ) : (
                 <div className={styles['chevron-placeholder']}></div>
               )}
-              <FileIcon
-                fileName={item.name}
-                isFolder={item.isFolder}
-                isExpanded={item.isFolder ? isExpanded : undefined}
-                status={item.status}
-                className={styles['sub-icon']}
-              />
+              <FileIcon fileName={item.name} isFolder={item.isFolder} isExpanded={item.isFolder ? isExpanded : undefined} status={item.status} className={styles['sub-icon']} />
               <span className={styles['tree-sticky-name']}>{item.name}</span>
               {item.isFolder ? <FolderGitStatusDot status={item.status} /> : <FileGitStatusBadge status={item.status} />}
             </div>
@@ -1241,6 +1364,21 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
 
   return (
     <div className={styles['search-view-wrapper']}>
+      <RecentProjectContextMenu
+        visible={stickyContextMenu.visible}
+        x={stickyContextMenu.x}
+        y={stickyContextMenu.y}
+        type="sub"
+        payload={stickyContextMenu.payload}
+        onClose={() => {
+          setStickyContextMenu((current) => ({
+            ...current,
+            visible: false,
+          }));
+        }}
+        onAction={handleStickyContextMenuAction}
+      />
+
       <div className={styles['search-header']}>
         <div className={styles['search-header-top']}>
           <div className={styles['search-header-title-box']}>
@@ -1402,169 +1540,202 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
             scheduleStickyTreeNavigationUpdate();
           }}
         >
-        {focusMode && !folderSearchQuery.trim() ? (
-          focusTree || <div className={styles['search-empty-msg']}>当前项目没有文件或文件夹</div>
-        ) : (
-          <>
-            {isSearchingFolder && (
-              <div className={`${styles['search-status-msg']} ${partialSearchResultCount > 0 ? styles['search-status-msg-inline'] : ''}`}>
-                <FontAwesomeIcon icon={faSpinner} spin /> {partialSearchResultCount > 0 ? `已找到 ${partialSearchResultCount} 项，继续检索中...` : '正在高速检索中...'}
-              </div>
-            )}
+          {focusMode && !folderSearchQuery.trim() ? (
+            focusTree || <div className={styles['search-empty-msg']}>当前项目没有文件或文件夹</div>
+          ) : (
+            <>
+              {isSearchingFolder && (
+                <div className={`${styles['search-status-msg']} ${partialSearchResultCount > 0 ? styles['search-status-msg-inline'] : ''}`}>
+                  <FontAwesomeIcon icon={faSpinner} spin /> {partialSearchResultCount > 0 ? `已找到 ${partialSearchResultCount} 项，继续检索中...` : '正在高速检索中...'}
+                </div>
+              )}
 
-            {folderSearchError ? (
-              <div className={styles['search-error-msg']}>{folderSearchError}</div>
-            ) : folderSearchType === 'content' ? (
-              folderSearchResults.length === 0 && folderSearchQuery ? (
-                isSearchingFolder ? null : (
-                  <div className={styles['search-empty-msg']}>没有找到符合条件的代码内容</div>
-                )
-              ) : filteredContentResults.length === 0 && folderSearchResults.length > 0 ? (
-                <div className={styles['search-empty-msg']}>没有找到符合当前文件格式筛选的结果</div>
-              ) : (
-                <ul>
-                  {filteredContentResults.map(({ result: res, originalIndex }) => {
-                    const fileDisplayInfo = getSearchResultFileDisplayInfo(res.file || res.fullPath || '');
-                    const fileMatchCount = getSearchResultMatchCount(res);
-                    const fileTitle = fileDisplayInfo.folderPath ? `${fileDisplayInfo.fileName} ${fileDisplayInfo.folderPath}` : fileDisplayInfo.fileName;
-                    const resultKey = getSearchResultKey(res, originalIndex);
-                    const isCollapsed = collapsedContentResultKeys.has(resultKey);
+              {folderSearchError ? (
+                <div className={styles['search-error-msg']}>{folderSearchError}</div>
+              ) : folderSearchType === 'content' ? (
+                folderSearchResults.length === 0 && folderSearchQuery ? (
+                  isSearchingFolder ? null : (
+                    <div className={styles['search-empty-msg']}>没有找到符合条件的代码内容</div>
+                  )
+                ) : filteredContentResults.length === 0 && folderSearchResults.length > 0 ? (
+                  <div className={styles['search-empty-msg']}>没有找到符合当前文件格式筛选的结果</div>
+                ) : (
+                  <ul>
+                    {filteredContentResults.map(({ result: res, originalIndex }) => {
+                      const fileDisplayInfo = getSearchResultFileDisplayInfo(res.file || res.fullPath || '');
+                      const fileMatchCount = getSearchResultMatchCount(res);
+                      const fileTitle = fileDisplayInfo.folderPath ? `${fileDisplayInfo.fileName} ${fileDisplayInfo.folderPath}` : fileDisplayInfo.fileName;
+                      const resultKey = getSearchResultKey(res, originalIndex);
+                      const isCollapsed = collapsedContentResultKeys.has(resultKey);
 
-                    return (
-                      <li key={resultKey} className={styles['search-file-list-item']}>
-                        <div className={styles['search-file-title-row']}>
-                          <div className={styles['search-file-title']} title={res.file}>
+                      return (
+                        <li key={resultKey} className={styles['search-file-list-item']}>
+                          <div className={styles['search-file-title-row']}>
+                            <div className={styles['search-file-title']} title={res.file}>
+                              <button
+                                type="button"
+                                className={styles['search-file-toggle-btn']}
+                                title={isCollapsed ? '展开当前文件的匹配结果' : '折叠当前文件的匹配结果'}
+                                aria-expanded={!isCollapsed}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  handleToggleContentResult(res, originalIndex);
+                                }}
+                              >
+                                <FontAwesomeIcon icon={isCollapsed ? faChevronRight : faChevronDown} />
+                              </button>
+
+                              <FileIcon fileName={fileDisplayInfo.fileName} status={res.status} className={styles['search-file-icon']} />
+
+                              <span className={`${styles['search-file-name']} ${getFileStatusClassName(res.status)}`} title={fileTitle}>
+                                {fileDisplayInfo.fileName}
+                              </span>
+
+                              {fileDisplayInfo.folderPath && (
+                                <span className={styles['search-file-folder']} title={fileDisplayInfo.folderPath}>
+                                  {fileDisplayInfo.folderPath}
+                                </span>
+                              )}
+                            </div>
+
+                            <span className={styles['search-file-match-count']} title={`当前文件中有 ${fileMatchCount} 处关键词`}>
+                              {fileMatchCount}
+                            </span>
+
                             <button
                               type="button"
-                              className={styles['search-file-toggle-btn']}
-                              title={isCollapsed ? '展开当前文件的匹配结果' : '折叠当前文件的匹配结果'}
-                              aria-expanded={!isCollapsed}
+                              className={styles['search-file-remove-btn']}
+                              title={`清除当前文件，减少 ${fileMatchCount} 处关键词`}
                               onClick={(event) => {
                                 event.preventDefault();
                                 event.stopPropagation();
-                                handleToggleContentResult(res, originalIndex);
+                                handleExcludeContentResult(res, originalIndex);
                               }}
                             >
-                              <FontAwesomeIcon icon={isCollapsed ? faChevronRight : faChevronDown} />
+                              <span className="codicon codicon-close"></span>
                             </button>
-
-                            <FileIcon fileName={fileDisplayInfo.fileName} status={res.status} className={styles['search-file-icon']} />
-
-                            <span className={`${styles['search-file-name']} ${getFileStatusClassName(res.status)}`} title={fileTitle}>
-                              {fileDisplayInfo.fileName}
-                            </span>
-
-                            {fileDisplayInfo.folderPath && (
-                              <span className={styles['search-file-folder']} title={fileDisplayInfo.folderPath}>
-                                {fileDisplayInfo.folderPath}
-                              </span>
-                            )}
                           </div>
 
-                          <span className={styles['search-file-match-count']} title={`当前文件中有 ${fileMatchCount} 处关键词`}>
-                            {fileMatchCount}
-                          </span>
+                          {!isCollapsed && (
+                            <ul className={styles['search-matches-list']}>
+                              {res.matches.map((m: SearchMatch, j: number) => {
+                                const globalStartIndex = lineStartIndexMap.get(`${originalIndex}-${j}`) || 0;
+                                const matchInfo = flatMatchesList[currentActiveMatch];
+                                const isLineActive = matchInfo && matchInfo.fileIndex === originalIndex && matchInfo.matchIndex === j;
+                                const previewText = getContentSearchPreviewText(m.text, folderSearchQuery);
 
-                          <button
-                            type="button"
-                            className={styles['search-file-remove-btn']}
-                            title={`清除当前文件，减少 ${fileMatchCount} 处关键词`}
-                            onClick={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                              handleExcludeContentResult(res, originalIndex);
-                            }}
-                          >
-                            <span className="codicon codicon-close"></span>
-                          </button>
-                        </div>
+                                return (
+                                  <li
+                                    key={j}
+                                    id={`search-line-${originalIndex}-${j}`}
+                                    onClick={() => {
+                                      setCurrentActiveMatch(globalStartIndex);
 
-                        {!isCollapsed && (
-                          <ul className={styles['search-matches-list']}>
-                            {res.matches.map((m: SearchMatch, j: number) => {
-                              const globalStartIndex = lineStartIndexMap.get(`${originalIndex}-${j}`) || 0;
-                              const matchInfo = flatMatchesList[currentActiveMatch];
-                              const isLineActive = matchInfo && matchInfo.fileIndex === originalIndex && matchInfo.matchIndex === j;
-                              const previewText = getContentSearchPreviewText(m.text, folderSearchQuery);
+                                      const targetProjectName = getTargetProjectName();
+                                      const targetPath = res.fullPath;
 
-                              return (
-                                <li
-                                  key={j}
-                                  id={`search-line-${originalIndex}-${j}`}
-                                  onClick={() => {
-                                    setCurrentActiveMatch(globalStartIndex);
+                                      if (targetPath.toLowerCase().endsWith('.md')) {
+                                        vscode.postMessage({
+                                          type: 'previewWithVditor',
+                                          fsPath: targetPath,
+                                          projectName: targetProjectName,
+                                          isActiveProject: searchTargetProject.isActiveProject,
+                                          line: m.line,
+                                        });
+                                      } else {
+                                        vscode.postMessage({
+                                          type: 'openFileAtLine',
+                                          fsPath: targetPath,
+                                          line: m.line,
+                                          isActiveProject: searchTargetProject.isActiveProject,
+                                          projectName: targetProjectName,
+                                        });
+                                      }
+                                    }}
+                                    className={`${styles['search-match-item']} ${isLineActive ? styles['active'] : ''}`}
+                                  >
+                                    <span className={styles['search-match-line-num']}>{m.line}</span>
 
-                                    const targetProjectName = getTargetProjectName();
-                                    const targetPath = res.fullPath;
+                                    <span className={styles['search-match-text']} title={m.text}>
+                                      <HighlightText
+                                        text={previewText}
+                                        query={searchHighlightQuery}
+                                        globalStartIndex={globalStartIndex}
+                                        currentActiveMatch={currentActiveMatch}
+                                        isLineActive={!!isLineActive}
+                                      />
+                                    </span>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )
+              ) : fileNameSearchResults.length === 0 && folderSearchQuery ? (
+                isSearchingFolder ? null : (
+                  <div className={styles['search-empty-msg']}>没有找到匹配的文件或文件夹</div>
+                )
+              ) : (
+                <ul>
+                  {fileNameSearchResults.map((child) => {
+                    const childPath = child.path;
+                    const isExpanded = expandedPaths.has(childPath);
+                    const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
+                    const targetProjName = getTargetProjectName();
+                    const statusClassName = getFileStatusClassName(child.status);
+                    const relativeFolderPath = getSearchNameResultFolderPath(child, searchTargetProject.path || '');
 
-                                    if (targetPath.toLowerCase().endsWith('.md')) {
-                                      vscode.postMessage({
-                                        type: 'previewWithVditor',
-                                        fsPath: targetPath,
-                                        projectName: targetProjectName,
-                                        isActiveProject: searchTargetProject.isActiveProject,
-                                        line: m.line,
-                                      });
-                                    } else {
-                                      vscode.postMessage({
-                                        type: 'openFileAtLine',
-                                        fsPath: targetPath,
-                                        line: m.line,
-                                        isActiveProject: searchTargetProject.isActiveProject,
-                                        projectName: targetProjectName,
-                                      });
-                                    }
-                                  }}
-                                  className={`${styles['search-match-item']} ${isLineActive ? styles['active'] : ''}`}
-                                >
-                                  <span className={styles['search-match-line-num']}>{m.line}</span>
+                    if (child.isFolder) {
+                      return (
+                        <li key={childPath} className={styles['search-name-list-item']}>
+                          <Tooltip content={formatSearchNameTooltipPath(childPath)} placement="bottom" textAlign="left" delay={2000}>
+                            <div
+                              className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item']}`}
+                              onClick={(e) => handleToggleExpand(childPath, targetProjName, isRemote, e)}
+                            >
+                              <div className={styles['tree-chevron']}>
+                                <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
+                              </div>
 
-                                  <span className={styles['search-match-text']} title={m.text}>
-                                    <HighlightText
-                                      text={previewText}
-                                      query={searchHighlightQuery}
-                                      globalStartIndex={globalStartIndex}
-                                      currentActiveMatch={currentActiveMatch}
-                                      isLineActive={!!isLineActive}
-                                    />
-                                  </span>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )
-            ) : fileNameSearchResults.length === 0 && folderSearchQuery ? (
-              isSearchingFolder ? null : (
-                <div className={styles['search-empty-msg']}>没有找到匹配的文件或文件夹</div>
-              )
-            ) : (
-              <ul>
-                {fileNameSearchResults.map((child) => {
-                  const childPath = child.path;
-                  const isExpanded = expandedPaths.has(childPath);
-                  const isRemote = childPath.startsWith('vscode-vfs') || childPath.startsWith('http');
-                  const targetProjName = getTargetProjectName();
-                  const statusClassName = getFileStatusClassName(child.status);
-                  const relativeFolderPath = getSearchNameResultFolderPath(child, searchTargetProject.path || '');
+                              <FileIcon fileName={child.name} isFolder isExpanded={isExpanded} status={child.status} className={styles['sub-icon']} />
 
-                  if (child.isFolder) {
+                              <span
+                                className={`${styles['sub-name']} ${styles['search-name-result-name']} ${statusClassName}`}
+                                title={child.status ? `${child.name} [${child.status}]` : child.name}
+                              >
+                                {renderSearchNameHighlightText(child.name, searchHighlightQuery)}
+                              </span>
+
+                              <span className={styles['search-name-result-path']} title={relativeFolderPath}>
+                                {renderSearchNameHighlightText(relativeFolderPath, searchHighlightQuery)}
+                              </span>
+                            </div>
+                          </Tooltip>
+
+                          {isExpanded && (
+                            <div className={`${styles['tree-children']} ${styles['search-name-tree-children']}`}>
+                              {renderTreeChildren(childPath, targetProjName, searchTargetProject.isActiveProject, searchHighlightQuery)}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    }
+
                     return (
                       <li key={childPath} className={styles['search-name-list-item']}>
                         <Tooltip content={formatSearchNameTooltipPath(childPath)} placement="bottom" textAlign="left" delay={2000}>
                           <div
-                            className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item']}`}
-                            onClick={(e) => handleToggleExpand(childPath, targetProjName, isRemote, e)}
+                            className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item-clickable']}`}
+                            onClick={(e) => handleOpenFile(childPath, targetProjName, !!searchTargetProject.isActiveProject, e)}
                           >
-                            <div className={styles['tree-chevron']}>
-                              <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
-                            </div>
+                            <div className={styles['chevron-placeholder']}></div>
 
-                            <FileIcon fileName={child.name} isFolder isExpanded={isExpanded} status={child.status} className={styles['sub-icon']} />
+                            <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
 
                             <span
                               className={`${styles['sub-name']} ${styles['search-name-result-name']} ${statusClassName}`}
@@ -1578,46 +1749,13 @@ export default function SearchViewWrapper(props: SearchViewWrapperProps) {
                             </span>
                           </div>
                         </Tooltip>
-
-                        {isExpanded && (
-                          <div className={`${styles['tree-children']} ${styles['search-name-tree-children']}`}>
-                            {renderTreeChildren(childPath, targetProjName, searchTargetProject.isActiveProject, searchHighlightQuery)}
-                          </div>
-                        )}
                       </li>
                     );
-                  }
-
-                  return (
-                    <li key={childPath} className={styles['search-name-list-item']}>
-                      <Tooltip content={formatSearchNameTooltipPath(childPath)} placement="bottom" textAlign="left" delay={2000}>
-                        <div
-                          className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item-clickable']}`}
-                          onClick={(e) => handleOpenFile(childPath, targetProjName, !!searchTargetProject.isActiveProject, e)}
-                        >
-                          <div className={styles['chevron-placeholder']}></div>
-
-                          <FileIcon fileName={child.name} status={child.status} className={styles['sub-icon']} />
-
-                          <span
-                            className={`${styles['sub-name']} ${styles['search-name-result-name']} ${statusClassName}`}
-                            title={child.status ? `${child.name} [${child.status}]` : child.name}
-                          >
-                            {renderSearchNameHighlightText(child.name, searchHighlightQuery)}
-                          </span>
-
-                          <span className={styles['search-name-result-path']} title={relativeFolderPath}>
-                            {renderSearchNameHighlightText(relativeFolderPath, searchHighlightQuery)}
-                          </span>
-                        </div>
-                      </Tooltip>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </>
-        )}
+                  })}
+                </ul>
+              )}
+            </>
+          )}
         </Scrollbar>
         {focusMode && !folderSearchQuery.trim() && renderStickyTreeNavigation(topStickyTreeItems, 'top')}
         {focusMode && !folderSearchQuery.trim() && renderStickyTreeNavigation(bottomStickyTreeItems, 'bottom')}

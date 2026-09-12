@@ -171,16 +171,16 @@ export default defineConfig({
       external: isCdnExternal,
     },
 
-    terserOptions: {
-      compress: {
-        passes: 2,
-        drop_console: true,
-        drop_debugger: true,
-      },
-      mangle: true,
-      format: {
-        comments: false,
-      },
-    },
+    // terserOptions: {
+    //   compress: {
+    //     passes: 2,
+    //     drop_console: true,
+    //     drop_debugger: true,
+    //   },
+    //   mangle: true,
+    //   format: {
+    //     comments: false,
+    //   },
+    // },
   },
 });
