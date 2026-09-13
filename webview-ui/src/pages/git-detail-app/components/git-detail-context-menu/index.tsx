@@ -28,6 +28,7 @@ const GitDetailContextMenu: React.FC<GitDetailContextMenuProps> = ({ contextMenu
   const { commit, file, parentHash } = contextMenu;
 
   if (file) {
+    const fileName = file.file.split(/[\\/]/).pop() || file.file;
     const fileItems: BaseContextMenuItem[] = [
       {
         key: 'open-commit-file-change',
@@ -40,6 +41,106 @@ const GitDetailContextMenu: React.FC<GitDetailContextMenuProps> = ({ contextMenu
             parentHash,
             file: file.file,
             status: file.status,
+          });
+        },
+      },
+      {
+        key: 'open-commit-file',
+        label: '打开文件',
+        icon: <i className="codicon codicon-go-to-file" />,
+        onSelect: () => {
+          vscode.postMessage({
+            command: 'openGitDetailCommitFile',
+            file: file.file,
+          });
+        },
+      },
+      {
+        key: 'open-commit-file-to-side',
+        label: '向右拆分',
+        icon: <i className="codicon codicon-split-horizontal" />,
+        onSelect: () => {
+          vscode.postMessage({
+            command: 'openGitDetailCommitFileToSide',
+            file: file.file,
+          });
+        },
+      },
+      {
+        key: 'open-commit-file-in-new-tab',
+        label: '在新标签页打开',
+        icon: <i className="codicon codicon-go-to-file" />,
+        onSelect: () => {
+          vscode.postMessage({
+            command: 'openGitDetailCommitFileInNewTab',
+            file: file.file,
+          });
+        },
+      },
+      {
+        key: 'copy-commit-file-name',
+        label: '复制文件名称',
+        icon: <i className="codicon codicon-copy" />,
+        onSelect: () => {
+          vscode.postMessage({
+            command: 'copy',
+            text: fileName,
+          });
+        },
+      },
+      {
+        key: 'copy-commit-file-path',
+        label: '复制路径',
+        icon: <i className="codicon codicon-link" />,
+        children: [
+          {
+            key: 'copy-commit-file-absolute-path',
+            label: '复制绝对地址',
+            icon: <i className="codicon codicon-copy" />,
+            onSelect: () => {
+              vscode.postMessage({
+                command: 'copyGitDetailCommitFilePath',
+                file: file.file,
+                pathType: 'absolute',
+              });
+            },
+          },
+          {
+            key: 'copy-commit-file-relative-path',
+            label: '复制相对地址',
+            icon: <i className="codicon codicon-copy" />,
+            onSelect: () => {
+              vscode.postMessage({
+                command: 'copyGitDetailCommitFilePath',
+                file: file.file,
+                pathType: 'relative',
+              });
+            },
+          },
+          {
+            key: 'copy-commit-file-physical-path',
+            label: '复制物理地址',
+            icon: <i className="codicon codicon-copy" />,
+            onSelect: () => {
+              vscode.postMessage({
+                command: 'copyGitDetailCommitFilePath',
+                file: file.file,
+                pathType: 'physical',
+              });
+            },
+          },
+        ],
+      },
+      {
+        key: 'compare-commit-file-with-local',
+        label: '与本地分支比较',
+        icon: <i className="codicon codicon-git-compare" />,
+        onSelect: () => {
+          vscode.postMessage({
+            command: 'diffGitDetailCommitFileWithLocalBranch',
+            hash: commit.hash,
+            parentHash,
+            file: file.file,
           });
         },
       },

@@ -225,6 +225,68 @@ export class GitDetailWebviewProvider {
               break;
             }
 
+            case 'openGitDetailCommitFile': {
+              const file = String(msg.file || '').trim();
+
+              if (!file) break;
+
+              const fileUri = vscode.Uri.file(path.isAbsolute(file) ? file : path.join(cwd, file));
+              await vscode.commands.executeCommand('vscode.open', fileUri);
+              break;
+            }
+
+            case 'openGitDetailCommitFileToSide': {
+              const file = String(msg.file || '').trim();
+
+              if (!file) break;
+
+              await this.gitService.openFile({
+                filePath: file,
+                workingDir: cwd,
+                preview: false,
+                viewColumn: vscode.ViewColumn.Beside,
+              });
+              break;
+            }
+
+            case 'openGitDetailCommitFileInNewTab': {
+              const file = String(msg.file || '').trim();
+
+              if (!file) break;
+
+              await this.gitService.openFile({
+                filePath: file,
+                workingDir: cwd,
+                preview: false,
+                viewColumn: vscode.ViewColumn.Active,
+              });
+              break;
+            }
+
+            case 'copyGitDetailCommitFilePath': {
+              const file = String(msg.file || '').trim();
+
+              if (!file) break;
+
+              const fileUri = vscode.Uri.file(path.isAbsolute(file) ? file : path.join(cwd, file));
+              const pathType = String(msg.pathType || 'absolute');
+              const relativePath = path.relative(cwd, fileUri.fsPath).replace(/\\/g, '/');
+              const text =
+                pathType === 'relative'
+                  ? relativePath || '.'
+                  : pathType === 'physical'
+                    ? fileUri.toString()
+                    : fileUri.fsPath;
+
+              await vscode.env.clipboard.writeText(text);
+              break;
+            }
+
+            case 'diffGitDetailCommitFileWithLocalBranch': {
+              await this.openCommitFileWithLocalBranch(cwd, msg.hash, msg.parentHash, msg.file);
+              break;
+            }
+
             case 'restoreFileFromCommit': {
               await this.handleRestoreFileFromCommit(cwd, msg.hash, msg.file);
               break;
@@ -1118,6 +1180,30 @@ export class GitDetailWebviewProvider {
     const leftUri = this.createGitContentUri(cwd, leftRef, file);
     const rightUri = this.createGitContentUri(cwd, rightRef, file);
     const title = `${path.basename(file)} (${hash.substring(0, 7)})`;
+
+    await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+  }
+
+  private async openCommitFileWithLocalBranch(cwd: string, hash: string, parentHash: string | undefined, file: string) {
+    if (!hash || !file) return;
+
+    const fileUri = vscode.Uri.file(path.join(cwd, file));
+    const compareRef = hash === '__WORKING_TREE__' ? parentHash || 'HEAD' : hash;
+    const leftUri = this.createGitContentUri(cwd, compareRef, file);
+    const defaultWorkspace = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    const isCurrentWorkspace = Boolean(defaultWorkspace) && cwd === defaultWorkspace;
+    let rightUri = isCurrentWorkspace ? fileUri : this.createGitContentUri(cwd, 'working', file);
+
+    if (isCurrentWorkspace) {
+      try {
+        await vscode.workspace.fs.stat(fileUri);
+      } catch {
+        rightUri = this.createGitContentUri(cwd, 'empty', file);
+      }
+    }
+
+    const compareLabel = hash === '__WORKING_TREE__' ? '工作区' : hash.substring(0, 7);
+    const title = `${path.basename(file)} (${compareLabel} ↔ 当前分支)`;
 
     await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
   }
