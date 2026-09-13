@@ -1725,6 +1725,8 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
               quickPick.matchOnDetail = true;
               quickPick.ignoreFocusOut = true;
 
+              const currentFilter = this.normalizeGraphFilterName(String(msg.current || this._currentGraphFilter || ''));
+
               const createItems = async (options: { fetchRemote?: boolean } = {}) => {
                 const localResult = await this.gitService.getLocalBranches(cwd);
                 const remoteBranches = await this.gitService.getRemoteBranches(cwd, {
@@ -1732,7 +1734,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                 });
 
                 const currentBranch = localResult.current;
-                const currentFilter = this.normalizeGraphFilterName(String(msg.current || this._currentGraphFilter || ''));
                 const localBranchSet = new Set(localResult.branches);
                 const metaMap = await getBranchPickerMetaMap();
 
@@ -1751,7 +1752,15 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   return createBranchQuickPickItem(branchName, 'remote', itemOptions);
                 });
 
+                const allBranchItem: GraphFilterQuickPickItem = {
+                  iconPath: new vscode.ThemeIcon('list-tree'),
+                  label: '全部分支',
+                  description: '显示所有分支记录',
+                  branchName: '全部分支',
+                };
+
                 const items: GraphFilterQuickPickItem[] = [
+                  allBranchItem,
                   {
                     label: '分支',
                     kind: vscode.QuickPickItemKind.Separator,
@@ -1764,34 +1773,47 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
                   ...remoteItems,
                 ];
 
+                const activeItem =
+                  currentFilter === this.gitService.ALL_BRANCH_FILTER || currentFilter === '全部分支'
+                    ? allBranchItem
+                    : currentFilter === this.gitService.CURRENT_BRANCH_FILTER || currentFilter === '当前分支'
+                      ? localItems.find((item) => item.branchName === currentBranch)
+                      : items.find((item) => {
+                          if (item.kind === vscode.QuickPickItemKind.Separator || !item.branchName) {
+                            return false;
+                          }
+
+                          return this.normalizeGraphFilterName(String(item.branchName)) === currentFilter;
+                        });
+
                 return {
                   items,
                   localItems,
                   remoteItems,
                   currentBranch,
+                  activeItem,
                 };
               };
 
               const updateQuickPickItems = async (options: { fetchRemote?: boolean } = {}) => {
                 await this.withViewProgress(async () => {
-                  const prevActiveBranchName = quickPick.activeItems.find((item) => item.branchName)?.branchName;
                   const result = await createItems(options);
 
                   quickPick.items = result.items;
 
-                  if (prevActiveBranchName) {
-                    const newActive = result.items.find((item) => item.branchName === prevActiveBranchName);
-
-                    if (newActive) {
-                      quickPick.activeItems = [newActive];
-                      return;
-                    }
+                  /**
+                   * 优先将当前已经筛选的分支设置为 activeItems。
+                   *
+                   * 例如：
+                   * - 当前筛选为“全部分支” -> activeItems = “全部分支”
+                   * - 当前筛选为“当前分支” -> activeItems = 当前本地分支
+                   * - 当前筛选为具体本地/远程分支 -> activeItems = 对应分支
+                   */
+                  if (result.activeItem) {
+                    quickPick.activeItems = [result.activeItem];
+                    return;
                   }
 
-                  /**
-                   * 点击“筛选分支（当前分支）”打开下拉框时，
-                   * 默认 activeItems 选中“分支”分组里的本地当前分支。
-                   */
                   const currentLocalItem = result.localItems.find((item) => item.branchName === result.currentBranch);
 
                   if (currentLocalItem) {
@@ -1801,9 +1823,7 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
 
                   const firstBranchItem = result.localItems[0] || result.remoteItems[0];
 
-                  if (firstBranchItem) {
-                    quickPick.activeItems = [firstBranchItem];
-                  }
+                  quickPick.activeItems = firstBranchItem ? [firstBranchItem] : [];
                 });
               };
 
@@ -2376,48 +2396,6 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
           case 'open': {
             const fileUri = vscode.Uri.file(path.join(cwd, msg.file));
             vscode.commands.executeCommand('vscode.open', fileUri);
-            break;
-          }
-
-          case 'openFileToSide': {
-            await this.gitService.openFile({
-              filePath: msg.file,
-              workingDir: cwd,
-              preview: false,
-              viewColumn: vscode.ViewColumn.Beside,
-            });
-            break;
-          }
-
-          case 'openFileInNewTab': {
-            await this.gitService.openFile({
-              filePath: msg.file,
-              workingDir: cwd,
-              preview: false,
-              viewColumn: vscode.ViewColumn.Active,
-            });
-            break;
-          }
-
-          case 'copyGitFilePath': {
-            const filePath = String(msg.file || '').trim();
-
-            if (!filePath) {
-              break;
-            }
-
-            const absoluteUri = vscode.Uri.file(path.isAbsolute(filePath) ? filePath : path.join(cwd, filePath));
-            const relativePath = path.relative(cwd, absoluteUri.fsPath).replace(/\\/g, '/');
-            const pathType = String(msg.pathType || 'absolute');
-
-            const text =
-              pathType === 'relative'
-                ? relativePath || '.'
-                : pathType === 'physical'
-                  ? absoluteUri.toString()
-                  : absoluteUri.fsPath;
-
-            await vscode.env.clipboard.writeText(text);
             break;
           }
 
