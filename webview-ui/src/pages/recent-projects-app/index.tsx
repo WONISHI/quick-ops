@@ -4451,6 +4451,8 @@ export default function RecentProjectsApp() {
           renderTreeChildren={renderTreeChildren}
           executeContextMenuAction={executeMenuAction}
           canPasteFile={Boolean(copiedFilePath)}
+          dirChildren={dirChildren}
+          requestStickyReadDir={requestReadDir}
         />
       ) : (
         <>

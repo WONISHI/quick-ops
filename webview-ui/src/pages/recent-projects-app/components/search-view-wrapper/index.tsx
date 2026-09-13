@@ -25,6 +25,8 @@ type StickyTreeItem = {
 type SearchViewWrapperComponentProps = SearchViewWrapperProps & {
   executeContextMenuAction: (action: string, arg?: string, payload?: ContextMenuPayload) => void;
   canPasteFile?: boolean;
+  dirChildren: Record<string, DirChild[]>;
+  requestStickyReadDir: (pathValue: string, projectName: string, forceRefresh?: boolean) => void;
 };
 
 function isChangedTreeStatus(status?: string) {
@@ -465,6 +467,8 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
     renderTreeChildren,
     executeContextMenuAction,
     canPasteFile = false,
+    dirChildren,
+    requestStickyReadDir,
   } = props;
 
   const [activeExtensionTagState, setActiveExtensionTagState] = useState<{
@@ -498,6 +502,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
   const bottomStickyTreeItemsRef = useRef<StickyTreeItem[]>([]);
   const stickyTreeFrameRef = useRef<number | null>(null);
   const [stickyCollapsedPathKeys, setStickyCollapsedPathKeys] = useState<Set<string>>(new Set());
+  const [stickyExpandedPathKeys, setStickyExpandedPathKeys] = useState<Set<string>>(new Set());
   const [stickyContextMenu, setStickyContextMenu] = useState<{
     visible: boolean;
     x: number;
@@ -1173,6 +1178,47 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
     scheduleStickyTreeNavigationUpdate();
   };
 
+  const buildStickyRenderItems = (items: StickyTreeItem[], placement: 'top' | 'bottom') => {
+    const result: StickyTreeItem[] = [];
+    const visited = new Set<string>();
+
+    const appendItem = (item: StickyTreeItem) => {
+      if (!item.path || visited.has(item.path)) {
+        return;
+      }
+
+      visited.add(item.path);
+      result.push(item);
+
+      if (!item.isFolder) {
+        return;
+      }
+
+      const stickyPathKey = `${placement}:${item.path}`;
+
+      if (!stickyExpandedPathKeys.has(stickyPathKey) || stickyCollapsedPathKeys.has(stickyPathKey)) {
+        return;
+      }
+
+      const children = dirChildren[item.path] || [];
+
+      children.forEach((child) => {
+        appendItem({
+          path: child.path,
+          name: child.name,
+          isFolder: child.isFolder,
+          status: child.status,
+          depth: item.depth + 1,
+          isActiveProject: item.isActiveProject,
+        });
+      });
+    };
+
+    items.forEach(appendItem);
+
+    return result;
+  };
+
   const isStickyDescendantPath = (childPath: string, parentPath: string) => {
     const normalizePath = (value: string) => {
       return String(value || '')
@@ -1189,35 +1235,43 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
     return child.startsWith(`${parent}/`);
   };
 
-  const handleStickyContextMenu = (event: React.MouseEvent<HTMLDivElement>, item: StickyTreeItem, placement: 'top' | 'bottom', isExpanded: boolean) => {
+  const openSearchResultContextMenu = (event: React.MouseEvent<HTMLElement>, payload: ContextMenuPayload) => {
     event.preventDefault();
     event.stopPropagation();
-
-    const isRemote = item.path.startsWith('vscode-vfs://') || /^https?:\/\//i.test(item.path);
-    const payload = {
-      path: item.path,
-      name: item.name,
-      isFolder: item.isFolder,
-      isExpanded: item.isFolder ? isExpanded : undefined,
-      projectName: getTargetProjectName(),
-      isActiveProject: item.isActiveProject,
-      isRemote,
-      status: item.status,
-      canPasteFile,
-      stickyPlacement: placement,
-    } as ContextMenuPayload & {
-      stickyPlacement: 'top' | 'bottom';
-    };
 
     setStickyContextMenu({
       visible: true,
       x: event.clientX,
       y: event.clientY,
-      payload,
+      payload: {
+        ...payload,
+        canPasteFile,
+      } as ContextMenuPayload,
     });
   };
 
-  const handleStickyContextMenuAction = (action: string, arg?: string) => {
+  const handleStickyContextMenu = (event: React.MouseEvent<HTMLDivElement>, item: StickyTreeItem, placement: 'top' | 'bottom', isExpanded: boolean) => {
+    const isRemote = item.path.startsWith('vscode-vfs://') || /^https?:\/\//i.test(item.path);
+
+    openSearchResultContextMenu(
+      event,
+      {
+        path: item.path,
+        name: item.name,
+        isFolder: item.isFolder,
+        isExpanded: item.isFolder ? isExpanded : undefined,
+        projectName: getTargetProjectName(),
+        isActiveProject: item.isActiveProject,
+        isRemote,
+        status: item.status,
+        stickyPlacement: placement,
+      } as ContextMenuPayload & {
+        stickyPlacement: 'top' | 'bottom';
+      },
+    );
+  };
+
+  const handleSearchResultContextMenuAction = (action: string, arg?: string) => {
     const payload = stickyContextMenu.payload;
     const placement = (payload as ContextMenuPayload & { stickyPlacement?: 'top' | 'bottom' }).stickyPlacement;
 
@@ -1228,18 +1282,41 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
 
     if (payload.isFolder && placement && (action === 'collapseFolderChildren' || action === 'expandFolderChildren')) {
       const stickyPathKey = `${placement}:${payload.path}`;
+      const sourceItems = placement === 'top' ? topStickyTreeItems : bottomStickyTreeItems;
+      const hasSourceStickyDescendant = sourceItems.some(
+        (item) => item.path !== payload.path && isStickyDescendantPath(item.path, payload.path),
+      );
 
-      setStickyCollapsedPathKeys((current) => {
-        const next = new Set(current);
-
-        if (action === 'collapseFolderChildren') {
+      if (action === 'collapseFolderChildren') {
+        setStickyCollapsedPathKeys((current) => {
+          const next = new Set(current);
           next.add(stickyPathKey);
-        } else {
+          return next;
+        });
+        setStickyExpandedPathKeys((current) => {
+          const next = new Set(current);
           next.delete(stickyPathKey);
-        }
+          return next;
+        });
+      } else {
+        setStickyCollapsedPathKeys((current) => {
+          const next = new Set(current);
+          next.delete(stickyPathKey);
+          return next;
+        });
 
-        return next;
-      });
+        if (!hasSourceStickyDescendant) {
+          setStickyExpandedPathKeys((current) => {
+            const next = new Set(current);
+            next.add(stickyPathKey);
+            return next;
+          });
+
+          if (dirChildren[payload.path] === undefined) {
+            requestStickyReadDir(payload.path, payload.projectName || getTargetProjectName());
+          }
+        }
+      }
 
       return;
     }
@@ -1250,8 +1327,9 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
   const renderStickyTreeNavigation = (items: StickyTreeItem[], placement: 'top' | 'bottom') => {
     if (items.length === 0) return null;
 
-    const visibleItems = items.filter((item) => {
-      return !items.some((parentItem) => {
+    const renderItems = buildStickyRenderItems(items, placement);
+    const visibleItems = renderItems.filter((item) => {
+      return !renderItems.some((parentItem) => {
         if (!parentItem.isFolder) return false;
         if (!stickyCollapsedPathKeys.has(`${placement}:${parentItem.path}`)) return false;
 
@@ -1263,7 +1341,11 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
       <div data-tree-sticky-placement={placement} className={`${styles['tree-sticky-layer']} ${styles[`tree-sticky-${placement}`]}`}>
         {visibleItems.map((item) => {
           const stickyPathKey = `${placement}:${item.path}`;
-          const isExpanded = item.isFolder && !stickyCollapsedPathKeys.has(stickyPathKey);
+          const hasSourceStickyDescendant =
+            item.isFolder &&
+            items.some((targetItem) => targetItem.path !== item.path && isStickyDescendantPath(targetItem.path, item.path));
+          const isExplicitlyExpanded = item.isFolder && stickyExpandedPathKeys.has(stickyPathKey);
+          const isExpanded = item.isFolder && !stickyCollapsedPathKeys.has(stickyPathKey) && (hasSourceStickyDescendant || isExplicitlyExpanded);
 
           return (
             <div
@@ -1296,17 +1378,38 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
                     event.preventDefault();
                     event.stopPropagation();
 
+                    if (isExpanded) {
+                      setStickyCollapsedPathKeys((current) => {
+                        const next = new Set(current);
+                        next.add(stickyPathKey);
+                        return next;
+                      });
+                      setStickyExpandedPathKeys((current) => {
+                        const next = new Set(current);
+                        next.delete(stickyPathKey);
+                        return next;
+                      });
+
+                      return;
+                    }
+
                     setStickyCollapsedPathKeys((current) => {
                       const next = new Set(current);
-
-                      if (next.has(stickyPathKey)) {
-                        next.delete(stickyPathKey);
-                      } else {
-                        next.add(stickyPathKey);
-                      }
-
+                      next.delete(stickyPathKey);
                       return next;
                     });
+
+                    if (!hasSourceStickyDescendant) {
+                      setStickyExpandedPathKeys((current) => {
+                        const next = new Set(current);
+                        next.add(stickyPathKey);
+                        return next;
+                      });
+
+                      if (dirChildren[item.path] === undefined) {
+                        requestStickyReadDir(item.path, getTargetProjectName());
+                      }
+                    }
                   }}
                 >
                   <FontAwesomeIcon icon={isExpanded ? faChevronDown : faChevronRight} className={styles['chevron-icon']} />
@@ -1376,7 +1479,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
             visible: false,
           }));
         }}
-        onAction={handleStickyContextMenuAction}
+        onAction={handleSearchResultContextMenuAction}
       />
 
       <div className={styles['search-header']}>
@@ -1530,7 +1633,7 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
         )}
       </div>
 
-      <div className={styles['search-results-shell']}>
+      <div className={styles['search-results-shell']} data-search-results-shell="true">
         <Scrollbar
           ref={resultScrollbarRef}
           className={styles['search-results-container']}
@@ -1570,7 +1673,23 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
 
                       return (
                         <li key={resultKey} className={styles['search-file-list-item']}>
-                          <div className={styles['search-file-title-row']}>
+                          <div
+                            className={styles['search-file-title-row']}
+                            onContextMenu={(event) => {
+                              const targetPath = res.fullPath;
+                              const isRemote = targetPath.startsWith('vscode-vfs://') || /^https?:\/\//i.test(targetPath);
+
+                              openSearchResultContextMenu(event, {
+                                path: targetPath,
+                                name: fileDisplayInfo.fileName,
+                                isFolder: false,
+                                projectName: getTargetProjectName(),
+                                isActiveProject: !!searchTargetProject.isActiveProject,
+                                isRemote,
+                                status: res.status,
+                              } as ContextMenuPayload);
+                            }}
+                          >
                             <div className={styles['search-file-title']} title={res.file}>
                               <button
                                 type="button"
@@ -1692,7 +1811,20 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
 
                     if (child.isFolder) {
                       return (
-                        <li key={childPath} className={styles['search-name-list-item']}>
+                        <li
+                          key={childPath}
+                          className={styles['search-name-list-item']}
+                          onContextMenu={(event) => {
+                            openSearchResultContextMenu(event, {
+                              path: childPath,
+                              name: child.name,
+                              isFolder: true,
+                              isExpanded,
+                              projectName: targetProjName,
+                              isActiveProject: !!searchTargetProject.isActiveProject,
+                            } as ContextMenuPayload);
+                          }}
+                        >
                           <Tooltip content={formatSearchNameTooltipPath(childPath)} placement="bottom" textAlign="left" delay={2000}>
                             <div
                               className={`${styles['sub-item']} ${styles['clickable-sub']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item']}`}
@@ -1727,7 +1859,21 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
                     }
 
                     return (
-                      <li key={childPath} className={styles['search-name-list-item']}>
+                      <li
+                        key={childPath}
+                        className={styles['search-name-list-item']}
+                        onContextMenu={(event) => {
+                          openSearchResultContextMenu(event, {
+                            path: childPath,
+                            name: child.name,
+                            isFolder: false,
+                            projectName: targetProjName,
+                            isActiveProject: !!searchTargetProject.isActiveProject,
+                            isRemote,
+                            status: child.status,
+                          } as ContextMenuPayload);
+                        }}
+                      >
                         <Tooltip content={formatSearchNameTooltipPath(childPath)} placement="bottom" textAlign="left" delay={2000}>
                           <div
                             className={`${styles['sub-item']} ${selectedPath === childPath ? styles['selected'] : ''} ${styles['search-name-sub-item-clickable']}`}
