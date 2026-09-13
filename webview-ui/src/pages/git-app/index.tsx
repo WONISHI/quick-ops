@@ -927,7 +927,7 @@ export default function GitApp() {
 
   return (
     <div className={styles['git-sidebar']}>
-      <GitContextMenu contextMenu={contextMenu} onClose={() => setContextMenu(null)} />
+      <GitContextMenu contextMenu={contextMenu} remoteUrl={remoteUrl} onClose={() => setContextMenu(null)} />
 
       <div className={styles['git-toolbar']}>
         <div className={styles['toolbar-title-container']}>

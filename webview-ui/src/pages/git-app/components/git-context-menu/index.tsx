@@ -1,5 +1,6 @@
 import BaseContextMenu from '@components/BaseContextMenu';
 import { vscode } from '@utils/vscode';
+import { parseRemoteInfo } from '@utils/index';
 import type { BaseContextMenuItem } from '@components/BaseContextMenu/src/type';
 import type { GitContextMenuProps, ContextMenuState } from '@pages/git-app/components/git-context-menu/src/type';
 
@@ -14,6 +15,52 @@ function copyFileName(filePath: string): void {
     command: 'copy',
     text: fileName,
   });
+}
+
+function createCopyPathItem(filePath: string): BaseContextMenuItem {
+  return {
+    key: 'copy-entity-path',
+    label: '复制路径',
+    icon: createIcon('codicon-link'),
+    children: [
+      {
+        key: 'copy-entity-absolute-path',
+        label: '复制绝对地址',
+        icon: createIcon('codicon-copy'),
+        onSelect: () => {
+          vscode.postMessage({
+            command: 'copyGitFilePath',
+            file: filePath,
+            pathType: 'absolute',
+          });
+        },
+      },
+      {
+        key: 'copy-entity-relative-path',
+        label: '复制相对地址',
+        icon: createIcon('codicon-copy'),
+        onSelect: () => {
+          vscode.postMessage({
+            command: 'copyGitFilePath',
+            file: filePath,
+            pathType: 'relative',
+          });
+        },
+      },
+      {
+        key: 'copy-entity-physical-path',
+        label: '复制物理地址',
+        icon: createIcon('codicon-copy'),
+        onSelect: () => {
+          vscode.postMessage({
+            command: 'copyGitFilePath',
+            file: filePath,
+            pathType: 'physical',
+          });
+        },
+      },
+    ],
+  };
 }
 
 function createMultiUnstagedItems(contextMenu: ContextMenuState): BaseContextMenuItem[] {
@@ -110,12 +157,17 @@ function createMultiStagedItems(contextMenu: ContextMenuState): BaseContextMenuI
   ];
 }
 
-function createCommitItems(contextMenu: ContextMenuState): BaseContextMenuItem[] {
+function createCommitItems(contextMenu: ContextMenuState, remoteUrl?: string): BaseContextMenuItem[] {
   const commit = contextMenu.commit;
 
   if (!commit) {
     return [];
   }
+
+  const remoteAwareCommit = commit as typeof commit & {
+    isRemote?: boolean;
+  };
+  const remoteInfo = remoteAwareCommit.isRemote === true && remoteUrl ? parseRemoteInfo(remoteUrl, commit.hash) : null;
 
   const items: BaseContextMenuItem[] = [
     {
@@ -179,6 +231,26 @@ function createCommitItems(contextMenu: ContextMenuState): BaseContextMenuItem[]
     },
   );
 
+  if (remoteInfo) {
+    items.push(
+      {
+        type: 'separator',
+        key: 'open-commit-remote-separator',
+      },
+      {
+        key: 'open-commit-remote',
+        label: `在 ${remoteInfo.platform} 上打开`,
+        icon: createIcon('codicon-link-external'),
+        onSelect: () => {
+          vscode.postMessage({
+            command: 'openExternal',
+            url: remoteInfo.url,
+          });
+        },
+      },
+    );
+  }
+
   return items;
 }
 
@@ -222,6 +294,7 @@ function createUnstagedItems(contextMenu: ContextMenuState): BaseContextMenuItem
         copyFileName(file.file);
       },
     },
+    createCopyPathItem(file.file),
     {
       type: 'separator',
       key: 'working-file-separator-1',
@@ -348,6 +421,7 @@ function createStagedItems(contextMenu: ContextMenuState): BaseContextMenuItem[]
         copyFileName(file.file);
       },
     },
+    createCopyPathItem(file.file),
     {
       type: 'separator',
       key: 'staged-file-separator-1',
@@ -420,6 +494,7 @@ function createStashFileItems(contextMenu: ContextMenuState): BaseContextMenuIte
         copyFileName(file.file);
       },
     },
+    createCopyPathItem(file.file),
   ];
 }
 
@@ -443,6 +518,28 @@ function createHistoryItems(contextMenu: ContextMenuState): BaseContextMenuItem[
       },
     },
     {
+      key: 'open-history-file-to-side',
+      label: '向右拆分',
+      icon: createIcon('codicon-split-horizontal'),
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'openFileToSide',
+          file: file.file,
+        });
+      },
+    },
+    {
+      key: 'open-history-file-in-new-tab',
+      label: '在新标签页打开',
+      icon: createIcon('codicon-go-to-file'),
+      onSelect: () => {
+        vscode.postMessage({
+          command: 'openFileInNewTab',
+          file: file.file,
+        });
+      },
+    },
+    {
       key: 'copy-history-file-name',
       label: '复制文件名称',
       icon: createIcon('codicon-copy'),
@@ -450,6 +547,7 @@ function createHistoryItems(contextMenu: ContextMenuState): BaseContextMenuItem[
         copyFileName(file.file);
       },
     },
+    createCopyPathItem(file.file),
   ];
 
   if (contextMenu.listType === 'history' && contextMenu.historyHash) {
@@ -494,9 +592,9 @@ function createHistoryItems(contextMenu: ContextMenuState): BaseContextMenuItem[
   return items;
 }
 
-function createContextMenuItems(contextMenu: ContextMenuState): BaseContextMenuItem[] {
+function createContextMenuItems(contextMenu: ContextMenuState, remoteUrl?: string): BaseContextMenuItem[] {
   if (contextMenu.type === 'commit') {
-    return createCommitItems(contextMenu);
+    return createCommitItems(contextMenu, remoteUrl);
   }
 
   if (contextMenu.type !== 'file') {
@@ -542,12 +640,16 @@ function createContextMenuItems(contextMenu: ContextMenuState): BaseContextMenuI
  * Escape 关闭、键盘操作及样式统一交给
  * BaseContextMenu 处理。
  */
-export const GitContextMenu: React.FC<GitContextMenuProps> = ({ contextMenu, onClose }) => {
+type GitContextMenuComponentProps = GitContextMenuProps & {
+  remoteUrl?: string;
+};
+
+export const GitContextMenu: React.FC<GitContextMenuComponentProps> = ({ contextMenu, onClose, remoteUrl }) => {
   if (!contextMenu || !contextMenu.visible) {
     return null;
   }
 
-  const items = createContextMenuItems(contextMenu);
+  const items = createContextMenuItems(contextMenu, remoteUrl);
 
   if (items.length === 0) {
     return null;

@@ -2379,6 +2379,48 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'openFileToSide': {
+            await this.gitService.openFile({
+              filePath: msg.file,
+              workingDir: cwd,
+              preview: false,
+              viewColumn: vscode.ViewColumn.Beside,
+            });
+            break;
+          }
+
+          case 'openFileInNewTab': {
+            await this.gitService.openFile({
+              filePath: msg.file,
+              workingDir: cwd,
+              preview: false,
+              viewColumn: vscode.ViewColumn.Active,
+            });
+            break;
+          }
+
+          case 'copyGitFilePath': {
+            const filePath = String(msg.file || '').trim();
+
+            if (!filePath) {
+              break;
+            }
+
+            const absoluteUri = vscode.Uri.file(path.isAbsolute(filePath) ? filePath : path.join(cwd, filePath));
+            const relativePath = path.relative(cwd, absoluteUri.fsPath).replace(/\\/g, '/');
+            const pathType = String(msg.pathType || 'absolute');
+
+            const text =
+              pathType === 'relative'
+                ? relativePath || '.'
+                : pathType === 'physical'
+                  ? absoluteUri.toString()
+                  : absoluteUri.fsPath;
+
+            await vscode.env.clipboard.writeText(text);
+            break;
+          }
+
           case 'stageAll': {
             await this.executeGitOperation(async () => {
               await this.gitService.stageAll(cwd);
