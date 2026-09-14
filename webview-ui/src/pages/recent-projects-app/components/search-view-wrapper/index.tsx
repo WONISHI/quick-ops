@@ -1080,16 +1080,23 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
     });
 
     const wrapRect = wrap.getBoundingClientRect();
-    const stickyShell = wrap.closest<HTMLElement>('[data-search-results-shell]');
-    const topStickyLayer = stickyShell?.querySelector<HTMLElement>('[data-tree-sticky-placement="top"]') || null;
-    const topStickyBoundaryY = topStickyLayer?.getBoundingClientRect().bottom ?? wrapRect.top;
-    const intersectingNode =
+
+    /**
+     * 顶部粘性的计算边界必须固定在滚动容器顶部。
+     *
+     * 不能使用顶部 sticky layer 自身的 bottom 作为边界，
+     * 否则 sticky 行数变化会反过来改变下一次计算边界：
+     * 2 行 -> 边界下移 -> 算出 3 行 -> 边界再次下移/回退 -> 2 行，
+     * 从而造成顶部粘性持续闪动。
+     */
+    const topStickyBoundaryY = wrapRect.top + 1;
+    const firstVisibleNode =
       nodes.find((node) => {
         const nodeRect = node.getBoundingClientRect();
 
-        return nodeRect.top <= topStickyBoundaryY && nodeRect.bottom > topStickyBoundaryY;
+        return nodeRect.bottom > topStickyBoundaryY;
       }) || null;
-    const topAnchorNode = intersectingNode ? nodeMap.get(intersectingNode.dataset.treeParentPath || '') || null : null;
+    const topAnchorNode = firstVisibleNode ? nodeMap.get(firstVisibleNode.dataset.treeParentPath || '') || null : null;
     const nextTopStickyItems = buildStickyTreeChain(topAnchorNode, nodeMap).filter((item) => {
       const node = nodeMap.get(item.path);
 
@@ -1125,10 +1132,6 @@ export default function SearchViewWrapper(props: SearchViewWrapperComponentProps
     if (!isSameStickyTreeItems(topStickyTreeItemsRef.current, nextTopStickyItems)) {
       topStickyTreeItemsRef.current = nextTopStickyItems;
       setTopStickyTreeItems(nextTopStickyItems);
-
-      window.requestAnimationFrame(() => {
-        scheduleStickyTreeNavigationUpdate();
-      });
     }
 
     if (!isSameStickyTreeItems(bottomStickyTreeItemsRef.current, nextBottomStickyItems)) {
