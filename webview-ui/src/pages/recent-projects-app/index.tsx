@@ -3979,20 +3979,6 @@ export default function RecentProjectsApp() {
     setCurrentActiveMatch((prev) => (prev - 1 + totalMatches) % totalMatches);
   };
 
-  useEffect(() => {
-    if (totalMatches > 0 && isSearchMode && flatMatchesList[currentActiveMatch]) {
-      const matchInfo = flatMatchesList[currentActiveMatch];
-      const el = document.getElementById(`search-line-${matchInfo.fileIndex}-${matchInfo.matchIndex}`);
-
-      if (el) {
-        el.scrollIntoView({
-          behavior: 'auto',
-          block: 'center',
-        });
-      }
-    }
-  }, [currentActiveMatch, totalMatches, isSearchMode, flatMatchesList]);
-
   function exitSearchOrFocusMode() {
     const searchReturnState = searchReturnStateRef.current;
     const shouldRevealActiveFile = isSearchModeRef.current && !isFocusModeRef.current;
