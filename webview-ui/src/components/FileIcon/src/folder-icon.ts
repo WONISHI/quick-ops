@@ -133,6 +133,12 @@ import folderUiIcon from 'material-icon-theme/icons/folder-ui.svg';
 import folderUiOpenIcon from 'material-icon-theme/icons/folder-ui-open.svg';
 import folderContextIcon from 'material-icon-theme/icons/folder-context.svg';
 import folderContextOpenIcon from 'material-icon-theme/icons/folder-context.svg';
+import databaseIcon from 'material-icon-theme/icons/folder-database.svg';
+import databaseOpenIcon from 'material-icon-theme/icons/folder-database-open.svg';
+import baseIcon from 'material-icon-theme/icons/folder-base.svg';
+import baseOpenIcon from 'material-icon-theme/icons/folder-base.svg';
+import InterfaceIcon from 'material-icon-theme/icons/folder-interface.svg';
+import InterfaceOpenIcon from 'material-icon-theme/icons/folder-interface.svg';
 
 import type { IconMatchRule } from '@components/FileIcon/src/type';
 
@@ -194,6 +200,8 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   less: lessIcon,
   layout: layoutIcon,
   lib: libIcon,
+  interface: InterfaceIcon,
+  interfaces: InterfaceIcon,
   img: imagesIcon,
   images: imagesIcon,
   icons: imagesIcon,
@@ -221,12 +229,14 @@ const FOLDER_EXACT_NAMES: Record<string, string> = {
   components: componentsIcon,
   context: folderContextIcon,
   contexts: folderContextIcon,
+  database: databaseIcon,
   debug: debugIcon,
   events: eventsIcon,
   assets: resourceIcon,
   '.bin': distIcon,
   bin: distIcon,
   build: distIcon,
+  base: baseIcon,
   app: appIcon,
   api: apiIcon,
   auth: secureIcon,
@@ -304,6 +314,8 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   less: lessOpenIcon,
   lib: libOpenIcon,
   layout: layoutOpenIcon,
+  interface: InterfaceOpenIcon,
+  interfaces: InterfaceOpenIcon,
   img: imagesOpenIcon,
   images: imagesOpenIcon,
   icons: imagesOpenIcon,
@@ -330,9 +342,11 @@ const FOLDER_OPEN_EXACT_NAMES: Record<string, string> = {
   context: folderContextOpenIcon,
   contexts: folderContextOpenIcon,
   assets: resourceOpenIcon,
+  database: databaseOpenIcon,
   debug: debugOpenIcon,
   bin: distOpenIcon,
   build: distOpenIcon,
+  base: baseOpenIcon,
   events: eventsOpenIcon,
   error: errorOpenIcon,
   errors: errorOpenIcon,
