@@ -2713,6 +2713,26 @@ export class GitWebviewProvider implements vscode.WebviewViewProvider {
             break;
           }
 
+          case 'copyGitFilePath': {
+            const file = String(msg.file || '').trim();
+
+            if (!file) break;
+
+            const fileUri = vscode.Uri.file(path.isAbsolute(file) ? file : path.join(cwd, file));
+            const relativePath = path.relative(cwd, fileUri.fsPath).replace(/\\/g, '/');
+            const pathType = String(msg.pathType || 'absolute');
+
+            const text =
+              pathType === 'relative'
+                ? relativePath || '.'
+                : pathType === 'physical'
+                  ? fileUri.toString()
+                  : fileUri.fsPath;
+
+            await vscode.env.clipboard.writeText(text);
+            break;
+          }
+
           case 'ignore': {
             await this.executeGitOperation(async () => {
               await this.gitService.addToGitignore(cwd, msg.file);
