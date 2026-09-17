@@ -1,0 +1,6 @@
+packages:
+  - "webview-ui"
+  - "packages/*"
+allowBuilds:
+  esbuild: true
+  ttf2woff2: true
