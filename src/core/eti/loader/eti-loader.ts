@@ -59,9 +59,7 @@ export class ETILoader {
    */
   public async load(_rootPath?: string): Promise<void> {
     this.runtimes = await this.loadRuntimes();
-
     this.globals = this.collectRuntimeGlobals(this.runtimes);
-
     this.plugins = await this.loadPlugins();
   }
 
@@ -75,7 +73,6 @@ export class ETILoader {
    */
   private async loadPlugins(): Promise<ETIPlugin[]> {
     const context = require.context('../../../plugins', true, /(?:index|.*\.plugin)\.(ts|js)$/);
-
     return this.loadModulesByContext<ETIPlugin>(context, 'plugins');
   }
 
@@ -95,7 +92,6 @@ export class ETILoader {
    */
   private async loadRuntimes(): Promise<ETIRuntime[]> {
     const context = require.context('../../../workflow', true, /(?:index|.*\.(runtime|workflow))\.(ts|js)$/);
-
     return this.loadModulesByContext<ETIRuntime>(context, 'runtimes');
   }
 
@@ -275,7 +271,6 @@ export class ETILoader {
         console.warn(`[ETILoader] plugin use "${globalKey}" not found in runtime globals.`);
         continue;
       }
-
       params[alias] = this.globals[globalKey];
     }
 

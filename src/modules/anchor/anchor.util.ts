@@ -2,16 +2,16 @@ import * as vscode from 'vscode';
 
 export class ColorUtils {
   private static colors = [
-    '#e57373', // Red
-    '#ba68c8', // Purple
-    '#7986cb', // Indigo
-    '#4fc3f7', // Light Blue
-    '#4db6ac', // Teal
-    '#81c784', // Green
-    '#fff176', // Yellow
-    '#ffb74d', // Orange
-    '#a1887f', // Brown
-    '#90a4ae', // Blue Grey
+    '#e57373',
+    '#ba68c8',
+    '#7986cb',
+    '#4fc3f7',
+    '#4db6ac',
+    '#81c784',
+    '#fff176',
+    '#ffb74d',
+    '#a1887f',
+    '#90a4ae',
   ];
 
   /**
